@@ -1,0 +1,22 @@
+{
+ "source": "tac_retranche.jpg",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#09e105",
+ "morceaux_effaces": 0,
+ "part_sujet": 0.291,
+ "fichiers": [
+  "tac_retranche_detoure.png",
+  "tac_retranche_256.png",
+  "tac_retranche_128.png",
+  "tac_retranche_64.png",
+  "tac_retranche_32.png"
+ ],
+ "taille_finale": [
+  919,
+  919
+ ]
+}

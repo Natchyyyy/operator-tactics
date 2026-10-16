@@ -1,0 +1,22 @@
+{
+ "source": "tac_soins.jpg",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#0af605",
+ "morceaux_effaces": 1,
+ "part_sujet": 0.347,
+ "fichiers": [
+  "tac_soins_detoure.png",
+  "tac_soins_256.png",
+  "tac_soins_128.png",
+  "tac_soins_64.png",
+  "tac_soins_32.png"
+ ],
+ "taille_finale": [
+  772,
+  772
+ ]
+}

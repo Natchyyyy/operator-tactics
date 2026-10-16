@@ -1,0 +1,22 @@
+{
+ "source": "tac_barrage.jpg",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#0af218",
+ "morceaux_effaces": 3,
+ "part_sujet": 0.156,
+ "fichiers": [
+  "tac_barrage_detoure.png",
+  "tac_barrage_256.png",
+  "tac_barrage_128.png",
+  "tac_barrage_64.png",
+  "tac_barrage_32.png"
+ ],
+ "taille_finale": [
+  947,
+  947
+ ]
+}

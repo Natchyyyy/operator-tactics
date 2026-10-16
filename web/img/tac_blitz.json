@@ -1,0 +1,22 @@
+{
+ "source": "tac_blitz.jpg",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#08f50b",
+ "morceaux_effaces": 1,
+ "part_sujet": 0.216,
+ "fichiers": [
+  "tac_blitz_detoure.png",
+  "tac_blitz_256.png",
+  "tac_blitz_128.png",
+  "tac_blitz_64.png",
+  "tac_blitz_32.png"
+ ],
+ "taille_finale": [
+  876,
+  876
+ ]
+}

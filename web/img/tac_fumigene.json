@@ -1,0 +1,22 @@
+{
+ "source": "tac_fumigene.jpg",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#0bf905",
+ "morceaux_effaces": 4,
+ "part_sujet": 0.131,
+ "fichiers": [
+  "tac_fumigene_detoure.png",
+  "tac_fumigene_256.png",
+  "tac_fumigene_128.png",
+  "tac_fumigene_64.png",
+  "tac_fumigene_32.png"
+ ],
+ "taille_finale": [
+  777,
+  777
+ ]
+}

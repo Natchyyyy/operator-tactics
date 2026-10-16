@@ -1,0 +1,22 @@
+{
+ "source": "tac_drill.jpg",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#08f604",
+ "morceaux_effaces": 1,
+ "part_sujet": 0.291,
+ "fichiers": [
+  "tac_drill_detoure.png",
+  "tac_drill_256.png",
+  "tac_drill_128.png",
+  "tac_drill_64.png",
+  "tac_drill_32.png"
+ ],
+ "taille_finale": [
+  918,
+  918
+ ]
+}

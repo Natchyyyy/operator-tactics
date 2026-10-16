@@ -1,0 +1,22 @@
+{
+ "source": "tac_discipline.jpg",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#08f707",
+ "morceaux_effaces": 1,
+ "part_sujet": 0.186,
+ "fichiers": [
+  "tac_discipline_detoure.png",
+  "tac_discipline_256.png",
+  "tac_discipline_128.png",
+  "tac_discipline_64.png",
+  "tac_discipline_32.png"
+ ],
+ "taille_finale": [
+  768,
+  768
+ ]
+}

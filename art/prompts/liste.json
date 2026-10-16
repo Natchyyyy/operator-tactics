@@ -1,0 +1,227 @@
+{
+ "tac_fumigene": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a military smoke grenade canister emitting a soft plume of grey smoke, game ability icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "tac_reco": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a small quadcopter reconnaissance drone with a camera, hovering, game ability icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "tac_soins": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: an olive drab military first aid pouch with a white cross patch, game ability icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "tac_barrage": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a light infantry mortar tube on bipod with one shell beside it, game ability icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "tac_drill": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a steel tactical shield with a chevron stripe, game ability icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "tac_blitz": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a running soldier silhouette with motion streaks and a lightning bolt, game ability icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "tac_retranche": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a low sandbag emplacement with a rifle resting on top, game ability icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "tac_discipline": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a rifle scope reticle over a single brass cartridge, game ability icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "role_assault": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a compact 5.56 carbine seen from the side, game role icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "role_pointman": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a compact submachine gun seen from the side, game role icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "role_marksman": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a long scoped marksman rifle seen from the side, game role icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "role_support": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a light machine gun with box magazine seen from the side, game role icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "role_breacher": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a tactical pump shotgun seen from the side, game role icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "ach_first": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a bronze military medal with a star on a short striped ribbon, game achievement icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "ach_streak": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a silver military medal with three chevrons on a striped ribbon, game achievement icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "ach_marksman": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a gold military medal shaped like a crosshair on a striped ribbon, game achievement icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "ach_tactician": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a military medal shaped like a compass rose on a striped ribbon, game achievement icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "ach_league": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a small golden trophy cup with laurel wreath, game achievement icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "ach_collector": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a fanned stack of three tactical trading cards, game achievement icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "ach_veteran": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a weathered steel dog tag pair on a ball chain, game achievement icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "ui_pack_standard": {
+  "type": "objet",
+  "prompt": "Single game item, centered, fully visible with empty margin around it, three-quarter view. Subject: a closed olive green military ammunition crate with stencilled chevron, slightly worn, game shop item. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure magenta background (#FF00FF), with no shadow on the background, no gradient, no floor, and no magenta anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "magenta"
+ },
+ "ui_pack_elite": {
+  "type": "objet",
+  "prompt": "Single game item, centered, fully visible with empty margin around it, three-quarter view. Subject: a closed dark steel military case with brass corners and a gold chevron, premium, game shop item. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "ui_credits": {
+  "type": "icone",
+  "prompt": "Single game icon, the object centered and fully visible with generous empty margin around it, readable at small size, strong silhouette. Subject: a single brass challenge coin with an eagle relief, game currency icon. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "op_vautour": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional French tactical operator, 30s, short dark hair, stern, black helmet with visor up, olive plate carrier, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "op_lynx": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional French naval commando, late 20s, lean face, black watch cap, wetsuit collar under light vest, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "op_granit": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional German police marksman, 40s, close-cropped grey hair, calm eyes, green helmet, scope glasses on helmet, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure magenta background (#FF00FF), with no shadow on the background, no gradient, no floor, and no magenta anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "magenta"
+ },
+ "op_bastion": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional German special forces heavy gunner, 30s, broad jaw, beard, heavy helmet with ear protection, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "op_belier": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional British special forces breacher, 30s, shaved head, square face, helmet with mounted light, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "op_cobra": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional American naval special operator, 30s, tanned, light beard, ball cap backwards, radio headset, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "op_furet": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional Canadian special forces pointman, 20s, freckles, red-brown hair, low-profile helmet, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "op_harfang": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional Norwegian special forces marksman, 30s, blond, pale eyes, white-grey knit cap, winter camouflage collar, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "op_bouclier": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional Polish special forces gunner, 40s, heavy brow, moustache, dark helmet, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "op_marteau": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional Israeli special forces breacher, 30s, dark curly hair, intense look, helmet with goggles, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "op_sirocco": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional Italian carabinieri special operator, 30s, olive skin, dark hair, black beret, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "op_ardoise": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional Australian special forces marksman, 30s, sun-weathered, light stubble, boonie hat, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "op_enclume": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional Dutch special forces gunner, 40s, strong neck, buzz cut, helmet with camouflage cover, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "op_ombre": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional Spanish police special operator, 20s, sharp cheekbones, dark eyes, black balaclava rolled up as a cap, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "k_molosse": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional private military contractor squad leader, 40s, scar on cheek, grey beard, charcoal plate carrier with dark red trim, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "k_vipere": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional private military contractor scout, 20s, thin face, hood up, charcoal gear with dark red trim, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "k_rapace": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional private military contractor sniper, 30s, long hair tied back, cold stare, charcoal cap with dark red trim, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "k_hyene": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional private military contractor machine gunner, 30s, wide face, bandana, charcoal gear with dark red trim, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "k_chacal": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional private military contractor breacher, 30s, broken nose, dark goggles on helmet, charcoal gear with dark red trim, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "k_fauve": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional private military contractor assaulter, 20s, intense grin, short mohawk, charcoal gear with dark red trim, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "k_taipan": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional private military contractor marksman, 40s, gaunt, round glasses, charcoal cap with dark red trim, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ },
+ "k_bison": {
+  "type": "portrait",
+  "prompt": "Head-and-shoulders bust portrait, three-quarter view, centered, the shoulders reaching the bottom edge of the image. Subject: bust portrait of a fictional private military contractor heavy gunner, 40s, massive, bald, thick beard, charcoal gear with dark red trim, looking slightly off camera, no insignia. Realistic military tactical game art, sharp details, cinematic lighting. Muted olive, sand, charcoal and steel grey palette with a single orange accent, hard side light, subtle rim light, consistent 3/4 angle, believable gear, no national flags. The subject is isolated on a perfectly flat, uniform bright pure green background (#00FF00), with no shadow on the background, no gradient, no floor, and no green anywhere on the subject. No text, no letters, no numbers, no watermark, no signature, no logo, no brand, no real insignia or emblem, no frame, no border. Square 1:1 image.",
+  "fond": "vert"
+ }
+}

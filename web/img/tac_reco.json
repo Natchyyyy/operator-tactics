@@ -1,0 +1,22 @@
+{
+ "source": "tac_reco.jpg",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#0af504",
+ "morceaux_effaces": 1,
+ "part_sujet": 0.161,
+ "fichiers": [
+  "tac_reco_detoure.png",
+  "tac_reco_256.png",
+  "tac_reco_128.png",
+  "tac_reco_64.png",
+  "tac_reco_32.png"
+ ],
+ "taille_finale": [
+  1000,
+  1000
+ ]
+}
