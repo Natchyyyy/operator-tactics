@@ -5,9 +5,9 @@
   1024,
   1024
  ],
- "fond": "#00ff00",
- "morceaux_effaces": 0,
- "part_sujet": 1.0,
+ "fond": "#0ab419",
+ "morceaux_effaces": 1,
+ "part_sujet": 0.131,
  "fichiers": [
   "role_assault_detoure.png",
   "role_assault_256.png",
@@ -16,7 +16,7 @@
   "role_assault_32.png"
  ],
  "taille_finale": [
-  1146,
-  1146
+  1005,
+  1005
  ]
 }
