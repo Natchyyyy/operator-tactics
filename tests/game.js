@@ -46,7 +46,7 @@ check('changer de protection', Game.setArmor(p, 'op_lynx', 'heavy') && p.operato
   Game.applyFormation(p, 'auto');
 }
 // escouade
-check('on ne peut pas dépasser 5 ni ajouter un verrouillé', !Game.toggleSquad(p, 'op_cobra') && Game.toggleSquad(p, 'op_belier') && p.squad.length === 4 && !Game.squadReady(p));
+check('on ne peut pas dépasser 5 ni ajouter un verrouillé ; à 4 l\'escouade peut partir', !Game.toggleSquad(p, 'op_cobra') && Game.toggleSquad(p, 'op_belier') && p.squad.length === 4 && Game.squadReady(p));
 check('recrutement refusé sans crédits', !Game.recruit(p, 'op_harfang') && !p.operators.op_harfang.unlocked);
 p.credits = 1000;
 check('recrutement : débit du prix, déblocage', Game.recruit(p, 'op_cobra') && p.operators.op_cobra.unlocked && p.credits === 1000 - DATA.PRICES.operator[2]);
@@ -63,6 +63,27 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   const xpOk = p.squad.every(id => { const u = b.result.teams[0].units.find(x => x.id === '0:' + id); const exp = Math.round((m.xp + Math.round(u.stats.damageDealt * 0.25) + u.stats.kills * 25 + (r.won ? 20 : 0)) * (u.alive ? 1 : 0.7)); return p.operators[id].xp - xpBefore[id] === exp; });
   check('l\'expérience de chacun découle de ses actions réelles (dégâts, neutralisations, survie)', xpOk);
   check('la carrière est mise à jour', p.career.battles === 1 && (p.career.wins + p.career.losses + p.career.draws) === 1 && p.missions[m.id].attempts === 1);
+}
+// convalescence et soins
+{
+  const q = Game.newProfile(); const m = DATA.MISSIONS[0];
+  const b = new Battle({ seed: 7, teams: Game.buildTeams(q, m) }); b.run();
+  const downs = b.result.teams[0].units.filter(u => !u.alive).map(u => u.id.split(':')[1]);
+  const r = Game.applyRewards(q, m, b.result);
+  check('les opérateurs neutralisés passent en convalescence et quittent l\'escouade', downs.every(id => q.operators[id].recovery === 1 && !q.squad.includes(id)) && r.recovering.length === downs.length, { downs, squad: q.squad });
+  if (downs.length) {
+    check('un convalescent ne peut pas être réengagé', !Game.toggleSquad(q, downs[0]));
+    const c0 = q.credits; q.credits = 500;
+    check('les soins le rendent disponible contre des crédits', Game.treat(q, downs[0]) && q.credits === 500 - Game.TREATMENT_PRICE && Game.isAvailable(q, downs[0]) && Game.toggleSquad(q, downs[0]));
+    q.credits = c0;
+  }
+  check('une escouade de 3 opérateurs peut partir, pas de 2', (() => { const z = Game.newProfile(); z.squad = z.squad.slice(0, 3); const ok3 = Game.squadReady(z); z.squad = z.squad.slice(0, 2); return ok3 && !Game.squadReady(z); })());
+  const z = Game.newProfile(); z.squad = z.squad.slice(0, 3); const b3 = new Battle({ seed: 3, teams: Game.buildTeams(z, m) }); b3.run();
+  check('une bataille à 3 contre 5 se joue jusqu\'au bout', b3.over && b3.teams[0].units.length === 3 && !!b3.result);
+  // après une nouvelle mission, la convalescence est terminée
+  const q2 = Game.newProfile(); q2.operators.op_lynx.recovery = 1; q2.squad = q2.squad.filter(id => id !== 'op_lynx');
+  const b2 = new Battle({ seed: 8, teams: Game.buildTeams(q2, m) }); b2.run(); Game.applyRewards(q2, m, b2.result);
+  check('la convalescence dure une mission', q2.operators.op_lynx.recovery === 0 && Game.isAvailable(q2, 'op_lynx'));
 }
 // sauvegarde
 check('sauvegarde puis rechargement identiques', Game.save(p, storage) && JSON.stringify(Game.load(storage)) === JSON.stringify(p));

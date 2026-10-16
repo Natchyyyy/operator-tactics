@@ -59,10 +59,18 @@
   function toggleSquad(profile, id) {
     const i = profile.squad.indexOf(id);
     if (i >= 0) { if (profile.squad.length <= 1) return false; profile.squad.splice(i, 1); return true; }
-    if (!profile.operators[id].unlocked || profile.squad.length >= 5) return false;
+    if (!isAvailable(profile, id) || profile.squad.length >= 5) return false;
     profile.squad.push(id); return true;
   }
-  const squadReady = (profile) => profile.squad.length === 5;
+  // Une escouade part avec 3 à 5 opérateurs disponibles (ni verrouillés, ni en convalescence).
+  const isAvailable = (profile, id) => { const st = profile.operators[id]; return !!st && st.unlocked && !(st.recovery > 0); };
+  const squadReady = (profile) => profile.squad.length >= 3 && profile.squad.length <= 5 && profile.squad.every(id => isAvailable(profile, id));
+  // Soins : un opérateur en convalescence redevient disponible contre des crédits.
+  const TREATMENT_PRICE = 80;
+  function treat(profile, id) {
+    const st = profile.operators[id]; if (!st || !(st.recovery > 0) || profile.credits < TREATMENT_PRICE) return false;
+    profile.credits -= TREATMENT_PRICE; st.recovery = 0; return true;
+  }
   function recruit(profile, id) {
     const base = OPERATORS.find(o => o.id === id); const st = profile.operators[id];
     if (!base || st.unlocked) return false;
@@ -106,6 +114,11 @@
       const before = levelFor(st.xp); st.xp += r.xp[id]; st.battles++; st.kills += u.stats.kills;
       const after = levelFor(st.xp); if (after > before) r.levelUps.push({ id, callsign: u.callsign, level: after });
     }
+    // convalescence : ceux qui étaient déjà indisponibles récupèrent d'une mission ; les neutralisés de celle-ci sont indisponibles pour la prochaine
+    for (const id in profile.operators) if (profile.operators[id].recovery > 0) profile.operators[id].recovery--;
+    r.recovering = [];
+    for (const u of result.teams[0].units) if (!u.alive) { const id = u.id.split(':')[1]; profile.operators[id].recovery = 1; r.recovering.push(u.callsign); }
+    profile.squad = profile.squad.filter(id => isAvailable(profile, id));
     profile.career.battles++; if (r.won) profile.career.wins++; else if (r.draw) profile.career.draws++; else profile.career.losses++;
     profile.career.kills += result.teams[0].units.reduce((s, u) => s + u.stats.kills, 0);
     profile.career.losses_units += result.teams[0].units.filter(u => !u.alive).length;
@@ -132,6 +145,6 @@
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, recruit, applyFormation, computeRewards, applyRewards, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, applyFormation, computeRewards, applyRewards, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));

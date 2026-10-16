@@ -1504,10 +1504,18 @@ window.Son = Son;
   function toggleSquad(profile, id) {
     const i = profile.squad.indexOf(id);
     if (i >= 0) { if (profile.squad.length <= 1) return false; profile.squad.splice(i, 1); return true; }
-    if (!profile.operators[id].unlocked || profile.squad.length >= 5) return false;
+    if (!isAvailable(profile, id) || profile.squad.length >= 5) return false;
     profile.squad.push(id); return true;
   }
-  const squadReady = (profile) => profile.squad.length === 5;
+  // Une escouade part avec 3 à 5 opérateurs disponibles (ni verrouillés, ni en convalescence).
+  const isAvailable = (profile, id) => { const st = profile.operators[id]; return !!st && st.unlocked && !(st.recovery > 0); };
+  const squadReady = (profile) => profile.squad.length >= 3 && profile.squad.length <= 5 && profile.squad.every(id => isAvailable(profile, id));
+  // Soins : un opérateur en convalescence redevient disponible contre des crédits.
+  const TREATMENT_PRICE = 80;
+  function treat(profile, id) {
+    const st = profile.operators[id]; if (!st || !(st.recovery > 0) || profile.credits < TREATMENT_PRICE) return false;
+    profile.credits -= TREATMENT_PRICE; st.recovery = 0; return true;
+  }
   function recruit(profile, id) {
     const base = OPERATORS.find(o => o.id === id); const st = profile.operators[id];
     if (!base || st.unlocked) return false;
@@ -1551,6 +1559,11 @@ window.Son = Son;
       const before = levelFor(st.xp); st.xp += r.xp[id]; st.battles++; st.kills += u.stats.kills;
       const after = levelFor(st.xp); if (after > before) r.levelUps.push({ id, callsign: u.callsign, level: after });
     }
+    // convalescence : ceux qui étaient déjà indisponibles récupèrent d'une mission ; les neutralisés de celle-ci sont indisponibles pour la prochaine
+    for (const id in profile.operators) if (profile.operators[id].recovery > 0) profile.operators[id].recovery--;
+    r.recovering = [];
+    for (const u of result.teams[0].units) if (!u.alive) { const id = u.id.split(':')[1]; profile.operators[id].recovery = 1; r.recovering.push(u.callsign); }
+    profile.squad = profile.squad.filter(id => isAvailable(profile, id));
     profile.career.battles++; if (r.won) profile.career.wins++; else if (r.draw) profile.career.draws++; else profile.career.losses++;
     profile.career.kills += result.teams[0].units.reduce((s, u) => s + u.stats.kills, 0);
     profile.career.losses_units += result.teams[0].units.filter(u => !u.alive).length;
@@ -1577,7 +1590,7 @@ window.Son = Son;
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, recruit, applyFormation, computeRewards, applyRewards, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, applyFormation, computeRewards, applyRewards, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));
 
@@ -1616,11 +1629,12 @@ window.Son = Son;
       const st = profile.operators[o.id]; const lvl = Game.levelFor(st.xp); const next = Game.xpToNext(st.xp);
       const inSquad = profile.squad.includes(o.id);
       const pct = next === null ? 100 : Math.round(100 * (st.xp - DATA.XP_TABLE[lvl]) / (DATA.XP_TABLE[lvl + 1] - DATA.XP_TABLE[lvl]));
-      return `<div class="opcard ${st.unlocked ? '' : 'locked'} ${inSquad ? 'insquad' : ''} ${selected === o.id ? 'sel' : ''}" data-id="${o.id}">
-        <div class="crow"><span class="role">${roleIcon[o.role]}</span><span class="cs">${esc(o.callsign)}</span><span class="rar r${o.rarity}">${RARITY_FR[o.rarity]}</span><span class="st">${st.unlocked ? 'Niv. ' + lvl : PRICES.operator[o.rarity] + ' cr.'}</span></div>
+      const recovering = st.unlocked && st.recovery > 0;
+      return `<div class="opcard ${st.unlocked ? '' : 'locked'} ${inSquad ? 'insquad' : ''} ${recovering ? 'recov' : ''} ${selected === o.id ? 'sel' : ''}" data-id="${o.id}">
+        <div class="crow"><span class="role">${roleIcon[o.role]}</span><span class="cs">${esc(o.callsign)}</span><span class="rar r${o.rarity}">${RARITY_FR[o.rarity]}</span><span class="st">${recovering ? 'Convalescent' : st.unlocked ? 'Niv. ' + lvl : PRICES.operator[o.rarity] + ' cr.'}</span></div>
         <div class="cunit">${esc(o.unit)} — ${ROLES[o.role].name} · <span class="trait">${TRAITS[o.trait].name}</span></div>
         ${st.unlocked ? `<div class="xp" title="${st.xp} XP"><i style="width:${pct}%"></i></div>` : ''}
-        <div class="crow small">${st.unlocked ? `<button class="mini ${inSquad ? 'on' : ''}" data-act="squad">${inSquad ? 'Dans l’escouade' : 'Ajouter'}</button>` : `<button class="mini" data-act="recruit" ${profile.credits >= PRICES.operator[o.rarity] ? '' : 'disabled'}>Recruter</button>`}<span>${st.unlocked ? `${st.battles} bat. · ${st.kills} neutr.` : 'Verrouillé'}</span></div>
+        <div class="crow small">${recovering ? `<button class="mini" data-act="treat" ${profile.credits >= Game.TREATMENT_PRICE ? '' : 'disabled'}>Soigner (${Game.TREATMENT_PRICE} cr.)</button>` : st.unlocked ? `<button class="mini ${inSquad ? 'on' : ''}" data-act="squad">${inSquad ? 'Dans l’escouade' : 'Ajouter'}</button>` : `<button class="mini" data-act="recruit" ${profile.credits >= PRICES.operator[o.rarity] ? '' : 'disabled'}>Recruter</button>`}<span>${recovering ? 'Indisponible une mission' : st.unlocked ? `${st.battles} bat. · ${st.kills} neutr.` : 'Verrouillé'}</span></div>
       </div>`;
     }).join('');
     el.querySelectorAll('.opcard').forEach(card => {
@@ -1628,6 +1642,7 @@ window.Son = Son;
         const id = card.dataset.id, act = e.target.dataset && e.target.dataset.act;
         if (act === 'squad') { if (!Game.toggleSquad(profile, id)) flash(profile.squad.length >= 5 ? 'L’escouade est déjà au complet (5).' : 'Impossible.'); }
         else if (act === 'recruit') { if (Game.recruit(profile, id)) flash(`${OPERATORS.find(o => o.id === id).callsign} rejoint l’unité.`); else flash('Crédits insuffisants.'); }
+        else if (act === 'treat') { if (Game.treat(profile, id)) flash(`${OPERATORS.find(o => o.id === id).callsign} est de nouveau disponible.`); else flash('Crédits insuffisants.'); }
         selected = id; saveNow(); render();
       });
     });
@@ -1671,7 +1686,7 @@ window.Son = Son;
     el.querySelectorAll('.slot[data-id]').forEach(s => s.addEventListener('click', () => { selected = s.dataset.id; render(); }));
     $('#selOrder').value = profile.order;
     $('#launch').disabled = !Game.squadReady(profile);
-    $('#launchHint').textContent = Game.squadReady(profile) ? `${ORDERS[profile.order].desc}` : 'Complétez l’escouade (5 opérateurs) pour lancer la mission.';
+    $('#launchHint').textContent = Game.squadReady(profile) ? `${profile.squad.length < 5 ? `Escouade réduite (${profile.squad.length}). ` : ''}${ORDERS[profile.order].desc}` : 'Il faut au moins 3 opérateurs disponibles pour lancer la mission.';
   }
 
   function renderMissions() {
@@ -1701,7 +1716,7 @@ window.Son = Son;
     if (!lastRewards) { el.classList.add('hidden'); return; }
     const r = lastRewards;
     el.classList.remove('hidden');
-    el.innerHTML = `<b class="${r.won ? 'good' : r.draw ? '' : 'bad'}">${r.won ? 'Mission réussie' : r.draw ? 'Mission indécise' : 'Mission échouée'}</b> — ${r.mission}. Crédits : +${r.credits}. Expérience : ${Object.entries(r.xp).map(([id, v]) => `${OPERATORS.find(o => o.id === id).callsign} +${v}`).join(', ')}.${r.levelUps.length ? ' Promotions : ' + r.levelUps.map(l => `${l.callsign} → niveau ${l.level}`).join(', ') + '.' : ''}`;
+    el.innerHTML = `<b class="${r.won ? 'good' : r.draw ? '' : 'bad'}">${r.won ? 'Mission réussie' : r.draw ? 'Mission indécise' : 'Mission échouée'}</b> — ${r.mission}. Crédits : +${r.credits}. Expérience : ${Object.entries(r.xp).map(([id, v]) => `${OPERATORS.find(o => o.id === id).callsign} +${v}`).join(', ')}.${r.levelUps.length ? ' Promotions : ' + r.levelUps.map(l => `${l.callsign} → niveau ${l.level}`).join(', ') + '.' : ''}${r.recovering && r.recovering.length ? ` <span class="bad">Évacués, indisponibles pour la prochaine mission : ${r.recovering.join(', ')}.</span>` : ''}`;
   }
 
   let flashTimer = null;
