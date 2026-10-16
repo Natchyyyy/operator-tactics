@@ -124,7 +124,8 @@ function duel(opts) {
     const byUnit = {};
     for (const e of b.log) if (e.kind === 'reload' || e.kind === 'reloaded') (byUnit[e.unit] = byUnit[e.unit] || []).push(e);
     for (const id in byUnit) { const ev = byUnit[id]; const u = b.units.find(x => x.id === id);
-      for (let i = 0; i + 1 < ev.length; i++) if (ev[i].kind === 'reload' && ev[i + 1].kind === 'reloaded' && ev[i + 1].t - ev[i].t < u.weapon.reload - 0.15) { ok = false; info = `${u.callsign} a rechargé en ${(ev[i + 1].t - ev[i].t).toFixed(1)} s (arme : ${u.weapon.reload} s)`; } }
+      const expected = u.weapon.reload * (u.def.trait === 'fasthands' ? 0.65 : 1); // compétence « Mains sûres » : −35 %
+      for (let i = 0; i + 1 < ev.length; i++) if (ev[i].kind === 'reload' && ev[i + 1].kind === 'reloaded' && ev[i + 1].t - ev[i].t < expected - 0.15) { ok = false; info = `${u.callsign} a rechargé en ${(ev[i + 1].t - ev[i].t).toFixed(1)} s (attendu : ${expected.toFixed(2)} s)`; } }
   }
   check('un chargeur vide impose un rechargement de la durée prévue', ok, info);
 }
@@ -232,6 +233,29 @@ function duel(opts) {
   let walkedA = 0; c.teams[0].units.forEach((u, i) => { walkedA += u.stats.distance - d0[i]; });
   check('… alors qu\'en restant en « Assaut » elle marche davantage sur la même période', walkedA > walked, { walked, walkedA });
   check('un ordre inconnu ou identique est refusé', !b.setOrder(0, 'hold') && !b.setOrder(0, 'xyz'));
+}
+
+{
+  // compétences : chaque trait a un effet mesurable dans le moteur
+  const mk = (id, opts) => { const t = Battle.defaultTeams(); t[0].operators = [id]; t[1].operators = ['op_cobra']; if (opts) t[0].overrides = [opts]; const b = new Battle({ seed: 1, teams: t }); return [b, b.teams[0].units[0], b.teams[1].units[0]]; };
+  const withTrait = (id, trait) => mk(id, { trait });
+  let [b, u, e] = withTrait('op_vautour', 'fasthands'); b.startReload(u); const r1 = u.reloading; [b, u, e] = withTrait('op_vautour', null); b.startReload(u);
+  check('Mains sûres : rechargement 35 % plus court', Math.abs(r1 / u.reloading - 0.65) < 0.01, [r1, u.reloading]);
+  [b, u] = withTrait('op_furet', 'runner'); const v1 = u.speed(); [b, u] = withTrait('op_furet', null);
+  check('Sprinteur : 15 % plus rapide', Math.abs(v1 / u.speed() - 1.15) < 0.01);
+  [b, u] = withTrait('op_bouclier', 'colossus'); const vC = u.speed(), hpC = u.maxHp; [b, u] = withTrait('op_bouclier', null);
+  check('Colosse : +10 PV et plaques lourdes moins pénalisantes', hpC === u.maxHp + 10 && vC > u.speed() * 1.1, [hpC, u.maxHp, vC, u.speed()]);
+  [b, u, e] = withTrait('op_granit', 'patience'); u.aimFull = true; u.burst = 0; u.x = 2; u.z = 2; e.x = 32; e.z = 2; e.moving = false; const pP = b.hitChance(u, e, 30).p; u.burst = 1; const pP2 = b.hitChance(u, e, 30).p;
+  check('Patience : +25 % sur le premier tir posé seulement', Math.abs(pP / pP2 - 1.25) < 0.02, [pP, pP2]);
+  [b, u, e] = withTrait('op_harfang', 'opportunity'); u.x = 2; u.z = 2; e.x = 32; e.z = 2; e.moving = true; const pO = b.hitChance(u, e, 30).p; e.moving = false; const pS = b.hitChance(u, e, 30).p;
+  check('Tir d\'opportunité : pénalité cible mobile réduite de moitié (×0,9 au lieu de ×0,8)', Math.abs(pO / pS - 0.9) < 0.01, [pO, pS]);
+  [b, u, e] = withTrait('op_lynx', 'eagle'); e.x = u.x + 20; e.z = u.z; e.stance = 'stand';
+  // le fantôme en face : chance de repérage réduite (mesurée par la fréquence de repérage sur 2000 tentatives)
+  const spotRate = (trU, trE) => { const [bb, uu, ee] = mk('op_lynx', { trait: trU }); ee.def = Object.assign({}, ee.def, { trait: trE }); uu.x = 10; uu.z = 2; ee.x = 50; ee.z = 2; uu.facing = 0; let n = 0; for (let i = 0; i < 2000; i++) { uu.visible = new Set(); bb.perceive(uu); if (uu.visible.size) n++; } return n / 2000; };
+  const base = spotRate(null, null), eagle = spotRate('eagle', null), ghost = spotRate(null, 'ghost');
+  check('Œil de lynx repère plus souvent, Fantôme est repéré moins souvent (à 40 m)', eagle > base * 1.15 && ghost < base * 0.75, { base, eagle, ghost });
+  [b, u, e] = withTrait('op_bastion', 'steady'); u.suppression = 0.6; u.alive = true; b.act(u); const sS = u.suppression; [b, u, e] = withTrait('op_bastion', null); u.suppression = 0.6; b.act(u);
+  check('Sang-froid : la suppression retombe 50 % plus vite', Math.abs((0.6 - sS) / (0.6 - u.suppression) - 1.5) < 0.05, [sS, u.suppression]);
 }
 
 console.log(`\n${pass}/${pass + fail} vérifications réussies${fail ? '  — ÉCHECS : ' + fail : ''}`);

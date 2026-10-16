@@ -32,14 +32,17 @@ check('changer de protection', Game.setArmor(p, 'op_lynx', 'heavy') && p.operato
 }
 // voies / formation
 {
+  // avant tout contact, les objectifs de progression de chaque opérateur suivent la voie choisie
   Game.applyFormation(p, 'nord');
   const b = new Battle({ seed: 2, teams: Game.buildTeams(p, DATA.MISSIONS[0]) });
-  let north = 0; while (b.t < 14) { b.step(); } for (const u of b.teams[0].units) if (u.z < 16) north++;
-  check('formation « nord » : l\'escouade progresse par le couloir nord', north >= 4, b.teams[0].units.map(u => u.z.toFixed(0)));
+  while (b.t < 1.5) b.step();
+  const north = b.teams[0].units.filter(u => u.goal && u.goal.z < 12).length;
+  check('formation « nord » : les objectifs de marche visent le couloir nord', north >= 4, b.teams[0].units.map(u => u.goal && u.goal.z.toFixed(0)));
   Game.applyFormation(p, 'sud');
   const b2 = new Battle({ seed: 2, teams: Game.buildTeams(p, DATA.MISSIONS[0]) });
-  let south = 0; while (b2.t < 14) { b2.step(); } for (const u of b2.teams[0].units) if (u.z > 24) south++;
-  check('formation « sud » : par le couloir sud', south >= 4, b2.teams[0].units.map(u => u.z.toFixed(0)));
+  while (b2.t < 1.5) b2.step();
+  const south = b2.teams[0].units.filter(u => u.goal && u.goal.z > 28).length;
+  check('formation « sud » : les objectifs de marche visent le couloir sud', south >= 4, b2.teams[0].units.map(u => u.goal && u.goal.z.toFixed(0)));
   Game.applyFormation(p, 'auto');
 }
 // escouade

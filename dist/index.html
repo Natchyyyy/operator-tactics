@@ -85,6 +85,7 @@
   .equip { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; } .equip label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; } .equip select { text-transform: none; letter-spacing: 0; }
   .wspec { font-size: 11px; color: var(--muted); align-self: end; padding-bottom: 6px; }
   .muted { color: var(--muted); }
+  .trait { color: var(--accent); } .traitbox { background: #2a2416; border: 1px solid #4a3f22; border-radius: 8px; padding: 6px 10px; font-size: 12px; margin: 6px 0 2px; color: #e6d9b4; } .traitbox b { color: var(--accent); }
   .squad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; } .slot { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px; font-size: 11px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; min-width: 0; } .slot b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .slot.sel { border-color: var(--accent); } .slot.empty { justify-content: center; align-items: center; color: var(--muted); border-style: dashed; }
   .prep { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .prep label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; } .prep select { text-transform: none; letter-spacing: 0; }
   .mission { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; cursor: pointer; } .mission:hover { border-color: var(--muted); } .mission.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
@@ -161,6 +162,7 @@
         <li><b>Graine</b> : le même nombre rejoue exactement la même bataille. Vide = aléatoire.</li>
         <li><b>Caméra</b> : glisser pour tourner, molette pour zoomer, clic droit ou Maj+glisser pour déplacer. Cliquer sur une carte d'opérateur pour le suivre. Espace : pause.</li>
         <li><b>Rôles</b> : AS assaut (carabine), PT pointe (pistolet-mitrailleur), TE tireur d'élite, AP appui (mitrailleuse), BR brèche (fusil à pompe). Barre orange sous la vie : suppression.</li>
+        <li><b>Compétences</b> : chaque opérateur a un trait aux effets réels dans la simulation (vitesse, visée, rechargement, repérage, suppression…), décrit sur sa fiche.</li>
         <li><b>Quartier général</b> : choisissez 5 opérateurs, leur arme, leur protection et leur voie d'approche, un ordre et une mission. La victoire rapporte des crédits (recrutement) et de l'expérience (+2 à chaque statistique par niveau, jusqu'au niveau 10). La progression est sauvegardée dans ce navigateur.</li>
       </ul>
       <div class="actions"><button onclick="document.getElementById('help').classList.add('hidden')" class="on">Fermer</button></div>
@@ -250,6 +252,25 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     breacher: { id: 'breacher', name: 'Brèche',      weapon: 'shotgun', weapons: ['shotgun', 'smg', 'smgsil', 'carbine'] },
   };
 
+  // ---- COMPÉTENCES -----------------------------------------------------------------------
+  // Une compétence par opérateur. Chaque effet est implémenté dans engine.js (recherche « trait »).
+  const TRAITS = {
+    fasthands:   { id: 'fasthands',   name: 'Mains sûres',       desc: 'Recharge 35 % plus vite et met en joue 20 % plus vite.' },
+    eagle:       { id: 'eagle',       name: 'Œil de lynx',       desc: 'Voit 20 % plus loin et repère les ennemis plus vite.' },
+    patience:    { id: 'patience',    name: 'Patience',          desc: 'Le premier tir sur une cible visée posément a 25 % de chances en plus de toucher.' },
+    steady:      { id: 'steady',      name: 'Sang-froid',        desc: 'Récupère de la suppression 50 % plus vite et se laisse moins clouer au sol.' },
+    breach:      { id: 'breach',      name: 'Enfonceur',         desc: 'Fusil à pompe et pistolet-mitrailleur font 15 % de dégâts en plus sous 10 m.' },
+    leader:      { id: 'leader',      name: 'Meneur',            desc: 'Les alliés à moins de 12 m récupèrent plus vite de la suppression et tiennent mieux sous le feu.' },
+    runner:      { id: 'runner',      name: 'Sprinteur',         desc: 'Se déplace 15 % plus vite.' },
+    opportunity: { id: 'opportunity', name: 'Tir d\'opportunité', desc: 'Touche plus facilement les cibles en mouvement (pénalité réduite de moitié).' },
+    colossus:    { id: 'colossus',    name: 'Colosse',           desc: '+10 points de vie ; les protections lourdes le ralentissent deux fois moins.' },
+    hardened:    { id: 'hardened',    name: 'Endurci',           desc: 'Les blessures réduisent deux fois moins sa précision et sa vitesse.' },
+    radio:       { id: 'radio',       name: 'Radio',             desc: 'Transmet immédiatement ce qu\'il voit et garde les positions connues 50 % plus longtemps.' },
+    ambusher:    { id: 'ambusher',    name: 'Affût',             desc: 'Immobile depuis 3 s, il tire comme depuis une position préparée, quel que soit l\'ordre.' },
+    gunner:      { id: 'gunner',      name: 'Tir soutenu',       desc: 'Rafales longues sans perte de précision, suppression 30 % plus forte.' },
+    ghost:       { id: 'ghost',       name: 'Fantôme',           desc: 'Plus difficile à repérer (−40 %) ; ses tirs s\'entendent moins loin.' },
+  };
+
   // ---- OPÉRATEURS --------------------------------------------------------------------
   // Statistiques (0..100) toutes exploitées par le moteur :
   //  marksmanship : précision (multiplie la précision de l'arme)
@@ -261,22 +282,22 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // Inspirations : unités réelles (nom de l'unité), personnages fictifs.
   // rarity : 1 commun, 2 rare, 3 élite — sert au prix de recrutement et à la présentation
   const OPERATORS = [
-    { id: 'op_vautour', callsign: 'Vautour', unit: 'GIGN (France)',           role: 'assault',  armor: 'medium', rarity: 1, marksmanship: 74, reflexes: 70, mobility: 68, perception: 66, composure: 78, endurance: 72 },
-    { id: 'op_lynx',    callsign: 'Lynx',    unit: 'Commando Hubert (France)', role: 'pointman', armor: 'light',  rarity: 1, marksmanship: 66, reflexes: 84, mobility: 86, perception: 74, composure: 64, endurance: 62 },
-    { id: 'op_granit',  callsign: 'Granit',  unit: 'GSG 9 (Allemagne)',       role: 'marksman', armor: 'light',  rarity: 2, marksmanship: 90, reflexes: 60, mobility: 58, perception: 88, composure: 82, endurance: 60 },
-    { id: 'op_bastion', callsign: 'Bastion', unit: 'KSK (Allemagne)',         role: 'support',  armor: 'heavy',  rarity: 1, marksmanship: 58, reflexes: 56, mobility: 54, perception: 60, composure: 86, endurance: 90 },
-    { id: 'op_belier',  callsign: 'Bélier',  unit: 'SAS (Royaume-Uni)',       role: 'breacher', armor: 'heavy',  rarity: 1, marksmanship: 62, reflexes: 72, mobility: 70, perception: 58, composure: 76, endurance: 84 },
+    { id: 'op_vautour', callsign: 'Vautour', unit: 'GIGN (France)',           role: 'assault',  armor: 'medium', trait: 'fasthands', rarity: 1, marksmanship: 74, reflexes: 70, mobility: 68, perception: 66, composure: 78, endurance: 72 },
+    { id: 'op_lynx',    callsign: 'Lynx',    unit: 'Commando Hubert (France)', role: 'pointman', armor: 'light',  trait: 'eagle', rarity: 1, marksmanship: 66, reflexes: 84, mobility: 86, perception: 74, composure: 64, endurance: 62 },
+    { id: 'op_granit',  callsign: 'Granit',  unit: 'GSG 9 (Allemagne)',       role: 'marksman', armor: 'light',  trait: 'patience', rarity: 2, marksmanship: 90, reflexes: 60, mobility: 58, perception: 88, composure: 82, endurance: 60 },
+    { id: 'op_bastion', callsign: 'Bastion', unit: 'KSK (Allemagne)',         role: 'support',  armor: 'heavy',  trait: 'steady', rarity: 1, marksmanship: 58, reflexes: 56, mobility: 54, perception: 60, composure: 86, endurance: 90 },
+    { id: 'op_belier',  callsign: 'Bélier',  unit: 'SAS (Royaume-Uni)',       role: 'breacher', armor: 'heavy',  trait: 'breach', rarity: 1, marksmanship: 62, reflexes: 72, mobility: 70, perception: 58, composure: 76, endurance: 84 },
 
-    { id: 'op_cobra',   callsign: 'Cobra',   unit: 'Navy SEALs (États-Unis)', role: 'assault',  armor: 'medium', rarity: 2, marksmanship: 76, reflexes: 72, mobility: 70, perception: 64, composure: 74, endurance: 74 },
-    { id: 'op_furet',   callsign: 'Furet',   unit: 'JTF2 (Canada)',           role: 'pointman', armor: 'light',  rarity: 2, marksmanship: 64, reflexes: 86, mobility: 88, perception: 76, composure: 60, endurance: 60 },
-    { id: 'op_harfang', callsign: 'Harfang', unit: 'FSK (Norvège)',           role: 'marksman', armor: 'light',  rarity: 3, marksmanship: 92, reflexes: 58, mobility: 56, perception: 90, composure: 84, endurance: 58 },
-    { id: 'op_bouclier',callsign: 'Bouclier',unit: 'GROM (Pologne)',          role: 'support',  armor: 'heavy',  rarity: 2, marksmanship: 56, reflexes: 58, mobility: 52, perception: 62, composure: 88, endurance: 92 },
-    { id: 'op_marteau', callsign: 'Marteau', unit: 'Sayeret Matkal (Israël)', role: 'breacher', armor: 'heavy',  rarity: 3, marksmanship: 60, reflexes: 74, mobility: 72, perception: 56, composure: 78, endurance: 86 },
+    { id: 'op_cobra',   callsign: 'Cobra',   unit: 'Navy SEALs (États-Unis)', role: 'assault',  armor: 'medium', trait: 'leader', rarity: 2, marksmanship: 76, reflexes: 72, mobility: 70, perception: 64, composure: 74, endurance: 74 },
+    { id: 'op_furet',   callsign: 'Furet',   unit: 'JTF2 (Canada)',           role: 'pointman', armor: 'light',  trait: 'runner', rarity: 2, marksmanship: 64, reflexes: 86, mobility: 88, perception: 76, composure: 60, endurance: 60 },
+    { id: 'op_harfang', callsign: 'Harfang', unit: 'FSK (Norvège)',           role: 'marksman', armor: 'light',  trait: 'opportunity', rarity: 3, marksmanship: 92, reflexes: 58, mobility: 56, perception: 90, composure: 84, endurance: 58 },
+    { id: 'op_bouclier',callsign: 'Bouclier',unit: 'GROM (Pologne)',          role: 'support',  armor: 'heavy',  trait: 'colossus', rarity: 2, marksmanship: 56, reflexes: 58, mobility: 52, perception: 62, composure: 88, endurance: 92 },
+    { id: 'op_marteau', callsign: 'Marteau', unit: 'Sayeret Matkal (Israël)', role: 'breacher', armor: 'heavy',  trait: 'hardened', rarity: 3, marksmanship: 60, reflexes: 74, mobility: 72, perception: 56, composure: 78, endurance: 86 },
 
-    { id: 'op_sirocco', callsign: 'Sirocco', unit: 'GIS (Italie)',             role: 'assault',  armor: 'light',  rarity: 2, marksmanship: 70, reflexes: 78, mobility: 80, perception: 70, composure: 68, endurance: 66 },
-    { id: 'op_ardoise', callsign: 'Ardoise', unit: 'SASR (Australie)',         role: 'marksman', armor: 'medium', rarity: 2, marksmanship: 86, reflexes: 64, mobility: 62, perception: 84, composure: 80, endurance: 68 },
-    { id: 'op_enclume', callsign: 'Enclume', unit: 'KCT (Pays-Bas)',           role: 'support',  armor: 'medium', rarity: 1, marksmanship: 62, reflexes: 60, mobility: 62, perception: 62, composure: 82, endurance: 84 },
-    { id: 'op_ombre',   callsign: 'Ombre',   unit: 'UEI (Espagne)',            role: 'pointman', armor: 'light',  rarity: 3, marksmanship: 72, reflexes: 90, mobility: 84, perception: 82, composure: 70, endurance: 60 },
+    { id: 'op_sirocco', callsign: 'Sirocco', unit: 'GIS (Italie)',             role: 'assault',  armor: 'light',  trait: 'radio', rarity: 2, marksmanship: 70, reflexes: 78, mobility: 80, perception: 70, composure: 68, endurance: 66 },
+    { id: 'op_ardoise', callsign: 'Ardoise', unit: 'SASR (Australie)',         role: 'marksman', armor: 'medium', trait: 'ambusher', rarity: 2, marksmanship: 86, reflexes: 64, mobility: 62, perception: 84, composure: 80, endurance: 68 },
+    { id: 'op_enclume', callsign: 'Enclume', unit: 'KCT (Pays-Bas)',           role: 'support',  armor: 'medium', trait: 'gunner', rarity: 1, marksmanship: 62, reflexes: 60, mobility: 62, perception: 62, composure: 82, endurance: 84 },
+    { id: 'op_ombre',   callsign: 'Ombre',   unit: 'UEI (Espagne)',            role: 'pointman', armor: 'light',  trait: 'ghost', rarity: 3, marksmanship: 72, reflexes: 90, mobility: 84, perception: 82, composure: 70, endurance: 60 },
   ];
 
   // ---- ORDRES TACTIQUES --------------------------------------------------------------
@@ -310,7 +331,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
   const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, MISSIONS, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));
 
 </script>
@@ -593,12 +614,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return Math.abs(d); };
   const fmtT = (t) => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`; };
 
+  // Compétence de l'opérateur (voir data.js TRAITS) : has(u, 'eagle')
+  const has = (u, trait) => u.def.trait === trait;
+
   // ---------------------------------------------------------------------------------------
   function Unit(battle, def, team, idx) {
     this.battle = battle; this.def = def; this.team = team; this.idx = idx;
     this.id = `${team}:${def.id}`; this.callsign = def.callsign;
     this.role = ROLES[def.role]; this.weapon = WEAPONS[def.weaponId || this.role.weapon]; this.armor = ARMORS[def.armor];
-    this.maxHp = 80 + def.endurance / 5; this.hp = this.maxHp;
+    this.maxHp = 80 + def.endurance / 5 + (def.trait === 'colossus' ? 10 : 0); this.hp = this.maxHp;
     this.x = 0; this.z = 0; this.facing = 0; this.stance = 'stand';
     this.ammo = this.weapon.mag; this.mags = this.weapon.kit;
     this.reloading = 0;           // temps de rechargement restant (s)
@@ -624,11 +648,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   Unit.prototype.chestY = function () { return CHEST[this.stance]; };
   Unit.prototype.isActive = function () { return this.alive; };
   Unit.prototype.speed = function () {
-    let v = (1.5 + (this.def.mobility / 100) * 1.4) * this.armor.mobility;
+    const armorMob = has(this, 'colossus') ? (1 + this.armor.mobility) / 2 : this.armor.mobility; // Colosse : pénalité des plaques divisée par deux
+    let v = (1.5 + (this.def.mobility / 100) * 1.4) * armorMob;
+    if (has(this, 'runner')) v *= 1.15;                                                               // Sprinteur
     if (this.stance === 'crouch') v *= 0.55;
     if (this.state === 'closing' || this.state === 'retreat') v *= 1.2;        // sprint
     else if (this.state === 'bounding' || this.state === 'advancing') { if (Object.keys(this.knowledge).length) v *= 0.8; } // pas tactique au contact
-    if (this.status === 'wounded') v *= 0.8; else if (this.status === 'critical') v *= 0.5;
+    const hard = has(this, 'hardened') ? 0.5 : 1;                                                    // Endurci : pénalités de blessure réduites de moitié
+    if (this.status === 'wounded') v *= 1 - 0.2 * hard; else if (this.status === 'critical') v *= 1 - 0.5 * hard;
     return v;
   };
   Unit.prototype.totalAmmo = function () { return this.ammo + this.mags * this.weapon.mag; };
@@ -726,7 +753,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return this.map.hasLOS(u.x, u.eyeY(), u.z, e.x, e.chestY(), e.z);
   };
   Battle.prototype.perceive = function (u) {
-    const visRange = 30 + (u.def.perception / 100) * 45; // 30..75 m
+    const visRange = (30 + (u.def.perception / 100) * 45) * (has(u, 'eagle') ? 1.2 : 1); // 30..75 m (Œil de lynx : +20 %)
     const fov = Math.PI * 0.62;                          // ~112° de champ visuel
     const newVisible = new Set();
     for (const e of this.enemiesOf(u)) {
@@ -744,6 +771,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             if (e.moving) p *= 1.6;
             if (this.t - e.lastShotAt < 1.5) p *= e.weapon.silenced ? 1.6 : 3;   // éclair de bouche, bruit
             if (e.stance === 'crouch') p *= 0.6;
+            if (has(u, 'eagle')) p *= 1.3;                      // Œil de lynx
+            if (has(e, 'ghost')) p *= 0.6;                      // Fantôme
             p = clamp(p, 0.02, 1);
           }
           if (p >= 1 || this.rng.chance(p)) {
@@ -760,7 +789,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
       }
       // 2) l'ouïe : un tir ennemi récent et proche donne une position approximative (bien moins loin si l'arme est silencieuse)
-      if (!newVisible.has(e.id) && this.t - e.lastShotAt < 0.25 && d < (e.weapon.silenced ? 18 : 70)) {
+      if (!newVisible.has(e.id) && this.t - e.lastShotAt < 0.25 && d < (e.weapon.silenced ? 18 : 70) * (has(e, 'ghost') ? 0.7 : 1)) {
         const k = u.knowledge[e.id];
         if (!k || this.t - k.t > 1.5) {
           const err = 2 + d * 0.05;
@@ -770,7 +799,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     u.visible = newVisible;
     // oubli
-    for (const id in u.knowledge) if (this.t - u.knowledge[id].t > KNOWLEDGE_TTL) delete u.knowledge[id];
+    const ttl = KNOWLEDGE_TTL * (has(u, 'radio') ? 1.5 : 1);                                       // Radio : positions gardées plus longtemps
+    for (const id in u.knowledge) if (this.t - u.knowledge[id].t > ttl) delete u.knowledge[id];
   };
   // Radio : chaque opérateur transmet ce qu'il sait ; les alliés gardent l'information la plus récente.
   Battle.prototype.comms = function () {
@@ -781,7 +811,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         for (const a of alive) {
           if (a === u) continue;
           const ak = a.knowledge[id];
-          if (!ak || k.t > ak.t + 0.5) a.knowledge[id] = { x: k.x, z: k.z, t: k.t, seen: false, source: 'radio' };
+          if (!ak || k.t > ak.t + (has(u, 'radio') ? 0 : 0.5)) a.knowledge[id] = { x: k.x, z: k.z, t: k.t, seen: false, source: 'radio' };
         }
       }
     }
@@ -854,15 +884,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // Mise en joue d'une nouvelle cible : temps d'acquisition selon l'arme et les réflexes ; plus rapide si on la visait il y a peu.
   Battle.prototype.aimAt = function (u, target) {
     u.target = target; u.burst = 0;
-    let t = u.weapon.aim * (1.3 - (u.def.reflexes / 100) * 0.6);
+    let t = u.weapon.aim * (1.3 - (u.def.reflexes / 100) * 0.6) * (has(u, 'fasthands') ? 0.8 : 1);  // Mains sûres
     const last = u.aimHistory[target.id];
-    if (last !== undefined && this.t - last < 5) t *= 0.35;
+    const quick = last !== undefined && this.t - last < 5;
+    if (quick) t *= 0.35;
+    u.aimFull = !quick;                                           // visée posée (pleine durée) : utile à « Patience »
     u.aimTimer = t; u.aimTarget = target.id; u.aimHistory[target.id] = this.t;
   };
   Battle.prototype.stop = function (u) { u.path = null; u.goal = null; u.goalKind = null; };
   Battle.prototype.startReload = function (u) {
     if (u.reloading > 0 || u.mags <= 0) return false;
-    u.reloading = u.weapon.reload * (u.status === 'critical' ? 1.4 : 1);
+    u.reloading = u.weapon.reload * (u.status === 'critical' ? 1.4 : 1) * (has(u, 'fasthands') ? 0.65 : 1); // Mains sûres
     u.stats.reloads++;
     this.logEvent('reload', `${u.callsign} recharge (${u.mags - 1} chargeur${u.mags - 1 > 1 ? 's' : ''} restant${u.mags - 1 > 1 ? 's' : ''}).`, { unit: u.id, team: u.team });
     return true;
@@ -949,7 +981,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       // la menace dont on se couvre : celui qui me tire dessus (même hors de vue), sinon ma cible
       const threat = (beingShot && u.lastShotBy && u.lastShotBy.alive) ? u.lastShotBy : target;
       const cover = this.map.coverFrom(u.x, u.z, threat.x, threat.z, true);
-      const pinned = u.suppression > 0.8 - u.def.composure / 400 + (this.isBraced(u) ? 0.15 : 0); // composure 80 → 0,6 ; calé : +0,15
+      const pinned = u.suppression > 0.8 - u.def.composure / 400 + (this.isBraced(u) ? 0.15 : 0) + (has(u, 'steady') ? 0.15 : 0) + (this.nearLeader(u) ? 0.1 : 0); // composure 80 → 0,6 ; calé / Sang-froid / Meneur
       const effective = this.hitChance(u, target, d, true).p >= this.fireThreshold(u);
       const wantCover = !cover && (beingShot || u.hp < u.maxHp * 0.7 || u.suppression > 0.35 || order !== 'assault' || u.reloading > 0);
 
@@ -1089,7 +1121,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // ---- Action (chaque pas) ---------------------------------------------------------------
   Battle.prototype.act = function (u) {
     // suppression : décroît avec le sang-froid
-    if (u.suppression > 0) { u.suppression = Math.max(0, u.suppression - DT * 0.18 * (0.5 + u.def.composure / 100) * (this.isBraced(u) ? 1.4 : 1)); if (u.suppression > 0.3) u.stats.timeSuppressed += DT; }
+    if (u.suppression > 0) {
+      let rec = 0.18 * (0.5 + u.def.composure / 100) * (this.isBraced(u) ? 1.4 : 1);
+      if (has(u, 'steady')) rec *= 1.5;                           // Sang-froid
+      if (this.nearLeader(u)) rec *= 1.2;                          // Meneur à proximité
+      u.suppression = Math.max(0, u.suppression - DT * rec); if (u.suppression > 0.3) u.stats.timeSuppressed += DT;
+    }
     // rechargement
     if (u.reloading > 0) {
       u.reloading -= DT;
@@ -1188,7 +1225,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // ---- Tir -----------------------------------------------------------------------------
   // « Calé » : ordre Tenir, immobile à son poste depuis au moins 3 s (bonus de précision et silhouette réduite).
   Battle.prototype.isBraced = function (u) {
-    return this.teams[u.team].order === 'hold' && !u.moving && u.alive && this.t - (u.stillSince === undefined ? this.t : u.stillSince) >= 3 && u.post && Math.hypot(u.post.x - u.x, u.post.z - u.z) < 1.6;
+    if (!u.alive || u.moving) return false;
+    const still = this.t - (u.stillSince === undefined ? this.t : u.stillSince) >= 3;
+    if (has(u, 'ambusher') && still) return true;                 // Affût : position préparée quel que soit l'ordre
+    return this.teams[u.team].order === 'hold' && still && u.post && Math.hypot(u.post.x - u.x, u.post.z - u.z) < 1.6;
+  };
+  // Un allié « Meneur » en état à moins de 12 m ?
+  Battle.prototype.nearLeader = function (u) {
+    for (const a of this.alliesOf(u)) if (a.alive && has(a, 'leader') && Math.hypot(a.x - u.x, a.z - u.z) < 12) return true;
+    return false;
   };
   // Seuil de chance de toucher en dessous duquel on ne gaspille pas ses munitions (l'appui tire plus volontiers : suppression).
   Battle.prototype.fireThreshold = function (u) { return u.role.id === 'support' ? 0.045 : 0.08; };
@@ -1203,14 +1248,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (u.moving && !asIfStill) p *= 0.55;
     if (u.stance === 'crouch') p *= 1.1;
     p *= 1 - 0.6 * u.suppression * (1 - u.def.composure / 150);
-    if (u.status === 'wounded') p *= 0.85; else if (u.status === 'critical') p *= 0.65;
+    const hard = has(u, 'hardened') ? 0.5 : 1;                                       // Endurci
+    if (u.status === 'wounded') p *= 1 - 0.15 * hard; else if (u.status === 'critical') p *= 1 - 0.35 * hard;
     if (this.isBraced(u)) p *= 1.1;           // position préparée : arme calée, repères pris
-    if (e.moving) p *= 0.8;
+    if (has(u, 'patience') && u.burst === 0 && u.aimFull) p *= 1.25;               // Patience : premier tir posé
+    if (e.moving) p *= has(u, 'opportunity') ? 0.9 : 0.8;                             // Tir d'opportunité
     if (e.stance === 'crouch') p *= 0.85;
     if (this.isBraced(e)) p *= 0.9;           // un défenseur installé expose moins de silhouette
     const cv = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
     if (cv) p *= cv.level === 'partial' ? 0.55 : 0.3; // 'full' : seul un bout dépasse (ne devrait pas arriver si LOS poitrine)
-    if (w.rpm > 100) p *= 1 - 0.06 * Math.min(u.burst, 5);
+    if (w.rpm > 100 && !has(u, 'gunner')) p *= 1 - 0.06 * Math.min(u.burst, 5);     // Tir soutenu : pas de perte en rafale
     return { p: clamp(p, 0.03, 0.95), cover: cv };
   };
   Battle.prototype.fireAt = function (u, e) {
@@ -1241,7 +1288,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     } else {
       // la balle passe près : suppression (moindre si la cible est à couvert ou si le tir est lointain)
       const far = d > u.weapon.range ? 0.5 : 1;
-      e.suppression = clamp(e.suppression + u.weapon.suppress * 0.55 * (cover ? 0.7 : 1) * far, 0, 1);
+      e.suppression = clamp(e.suppression + u.weapon.suppress * 0.55 * (cover ? 0.7 : 1) * far * (has(u, 'gunner') ? 1.3 : 1), 0, 1);
       const spread = 0.4 + d * 0.03;
       to = { x: e.x + this.rng.gauss() * spread, y: e.chestY() + this.rng.gauss() * 0.5, z: e.z + this.rng.gauss() * spread };
     }
@@ -1257,6 +1304,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     else if (roll < 0.60) { loc = 'torse'; mult = 1.0; prot = e.armor.torso; }
     else { loc = 'membre'; mult = 0.55; prot = 0; }
     let dmg = w.damage * fall * mult * (1 - prot) * this.rng.range(0.85, 1.15);
+    if (has(u, 'breach') && d < 10 && (w.cls === 'brèche' || w.cls === 'pm')) dmg *= 1.15;   // Enfonceur
     dmg = Math.round(dmg * 10) / 10;
     const before = e.hp;
     e.hp = Math.max(0, e.hp - dmg);
@@ -1479,7 +1527,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 // Toute la logique vient de sim/game.js ; ce fichier affiche le profil et relaie les actions.
 (function () {
   const OT = window.OT; const { Game, DATA } = OT;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES, TRAITS } = DATA;
   const $ = (s) => document.querySelector(s);
   const STAT_FR = { marksmanship: 'Tir', reflexes: 'Réflexes', mobility: 'Mobilité', perception: 'Perception', composure: 'Sang-froid', endurance: 'Endurance' };
   const LANE_FR = { '-1': 'Nord', '0': 'Centre', '1': 'Sud', 'null': 'Auto' };
@@ -1510,7 +1558,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       const pct = next === null ? 100 : Math.round(100 * (st.xp - DATA.XP_TABLE[lvl]) / (DATA.XP_TABLE[lvl + 1] - DATA.XP_TABLE[lvl]));
       return `<div class="opcard ${st.unlocked ? '' : 'locked'} ${inSquad ? 'insquad' : ''} ${selected === o.id ? 'sel' : ''}" data-id="${o.id}">
         <div class="crow"><span class="role">${roleIcon[o.role]}</span><span class="cs">${esc(o.callsign)}</span><span class="rar r${o.rarity}">${RARITY_FR[o.rarity]}</span><span class="st">${st.unlocked ? 'Niv. ' + lvl : PRICES.operator[o.rarity] + ' cr.'}</span></div>
-        <div class="cunit">${esc(o.unit)} — ${ROLES[o.role].name}</div>
+        <div class="cunit">${esc(o.unit)} — ${ROLES[o.role].name} · <span class="trait">${TRAITS[o.trait].name}</span></div>
         ${st.unlocked ? `<div class="xp" title="${st.xp} XP"><i style="width:${pct}%"></i></div>` : ''}
         <div class="crow small">${st.unlocked ? `<button class="mini ${inSquad ? 'on' : ''}" data-act="squad">${inSquad ? 'Dans l’escouade' : 'Ajouter'}</button>` : `<button class="mini" data-act="recruit" ${profile.credits >= PRICES.operator[o.rarity] ? '' : 'disabled'}>Recruter</button>`}<span>${st.unlocked ? `${st.battles} bat. · ${st.kills} neutr.` : 'Verrouillé'}</span></div>
       </div>`;
@@ -1532,6 +1580,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     const w = WEAPONS[st.weaponId], a = ARMORS[st.armorId];
     $('#hqDetail').innerHTML = `
       <div class="dhead"><span class="role big">${roleIcon[o.role]}</span><div><div class="dname">${esc(o.callsign)} <small>${role.name} · ${RARITY_FR[o.rarity]}</small></div><div class="cunit">Inspiré du ${esc(o.unit)}</div></div><div class="lvl">Niveau ${def.level}<small>${Game.xpToNext(st.xp) === null ? 'maximum' : Game.xpToNext(st.xp) + ' XP avant le suivant'}</small></div></div>
+      <div class="traitbox"><b>${TRAITS[o.trait].name}</b> — ${esc(TRAITS[o.trait].desc)}</div>
       <div class="stats">${stats}</div>
       ${st.unlocked ? `
       <div class="equip">

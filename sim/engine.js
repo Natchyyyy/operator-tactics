@@ -16,12 +16,15 @@
   const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return Math.abs(d); };
   const fmtT = (t) => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`; };
 
+  // Compétence de l'opérateur (voir data.js TRAITS) : has(u, 'eagle')
+  const has = (u, trait) => u.def.trait === trait;
+
   // ---------------------------------------------------------------------------------------
   function Unit(battle, def, team, idx) {
     this.battle = battle; this.def = def; this.team = team; this.idx = idx;
     this.id = `${team}:${def.id}`; this.callsign = def.callsign;
     this.role = ROLES[def.role]; this.weapon = WEAPONS[def.weaponId || this.role.weapon]; this.armor = ARMORS[def.armor];
-    this.maxHp = 80 + def.endurance / 5; this.hp = this.maxHp;
+    this.maxHp = 80 + def.endurance / 5 + (def.trait === 'colossus' ? 10 : 0); this.hp = this.maxHp;
     this.x = 0; this.z = 0; this.facing = 0; this.stance = 'stand';
     this.ammo = this.weapon.mag; this.mags = this.weapon.kit;
     this.reloading = 0;           // temps de rechargement restant (s)
@@ -47,11 +50,14 @@
   Unit.prototype.chestY = function () { return CHEST[this.stance]; };
   Unit.prototype.isActive = function () { return this.alive; };
   Unit.prototype.speed = function () {
-    let v = (1.5 + (this.def.mobility / 100) * 1.4) * this.armor.mobility;
+    const armorMob = has(this, 'colossus') ? (1 + this.armor.mobility) / 2 : this.armor.mobility; // Colosse : pénalité des plaques divisée par deux
+    let v = (1.5 + (this.def.mobility / 100) * 1.4) * armorMob;
+    if (has(this, 'runner')) v *= 1.15;                                                               // Sprinteur
     if (this.stance === 'crouch') v *= 0.55;
     if (this.state === 'closing' || this.state === 'retreat') v *= 1.2;        // sprint
     else if (this.state === 'bounding' || this.state === 'advancing') { if (Object.keys(this.knowledge).length) v *= 0.8; } // pas tactique au contact
-    if (this.status === 'wounded') v *= 0.8; else if (this.status === 'critical') v *= 0.5;
+    const hard = has(this, 'hardened') ? 0.5 : 1;                                                    // Endurci : pénalités de blessure réduites de moitié
+    if (this.status === 'wounded') v *= 1 - 0.2 * hard; else if (this.status === 'critical') v *= 1 - 0.5 * hard;
     return v;
   };
   Unit.prototype.totalAmmo = function () { return this.ammo + this.mags * this.weapon.mag; };
@@ -149,7 +155,7 @@
     return this.map.hasLOS(u.x, u.eyeY(), u.z, e.x, e.chestY(), e.z);
   };
   Battle.prototype.perceive = function (u) {
-    const visRange = 30 + (u.def.perception / 100) * 45; // 30..75 m
+    const visRange = (30 + (u.def.perception / 100) * 45) * (has(u, 'eagle') ? 1.2 : 1); // 30..75 m (Œil de lynx : +20 %)
     const fov = Math.PI * 0.62;                          // ~112° de champ visuel
     const newVisible = new Set();
     for (const e of this.enemiesOf(u)) {
@@ -167,6 +173,8 @@
             if (e.moving) p *= 1.6;
             if (this.t - e.lastShotAt < 1.5) p *= e.weapon.silenced ? 1.6 : 3;   // éclair de bouche, bruit
             if (e.stance === 'crouch') p *= 0.6;
+            if (has(u, 'eagle')) p *= 1.3;                      // Œil de lynx
+            if (has(e, 'ghost')) p *= 0.6;                      // Fantôme
             p = clamp(p, 0.02, 1);
           }
           if (p >= 1 || this.rng.chance(p)) {
@@ -183,7 +191,7 @@
         }
       }
       // 2) l'ouïe : un tir ennemi récent et proche donne une position approximative (bien moins loin si l'arme est silencieuse)
-      if (!newVisible.has(e.id) && this.t - e.lastShotAt < 0.25 && d < (e.weapon.silenced ? 18 : 70)) {
+      if (!newVisible.has(e.id) && this.t - e.lastShotAt < 0.25 && d < (e.weapon.silenced ? 18 : 70) * (has(e, 'ghost') ? 0.7 : 1)) {
         const k = u.knowledge[e.id];
         if (!k || this.t - k.t > 1.5) {
           const err = 2 + d * 0.05;
@@ -193,7 +201,8 @@
     }
     u.visible = newVisible;
     // oubli
-    for (const id in u.knowledge) if (this.t - u.knowledge[id].t > KNOWLEDGE_TTL) delete u.knowledge[id];
+    const ttl = KNOWLEDGE_TTL * (has(u, 'radio') ? 1.5 : 1);                                       // Radio : positions gardées plus longtemps
+    for (const id in u.knowledge) if (this.t - u.knowledge[id].t > ttl) delete u.knowledge[id];
   };
   // Radio : chaque opérateur transmet ce qu'il sait ; les alliés gardent l'information la plus récente.
   Battle.prototype.comms = function () {
@@ -204,7 +213,7 @@
         for (const a of alive) {
           if (a === u) continue;
           const ak = a.knowledge[id];
-          if (!ak || k.t > ak.t + 0.5) a.knowledge[id] = { x: k.x, z: k.z, t: k.t, seen: false, source: 'radio' };
+          if (!ak || k.t > ak.t + (has(u, 'radio') ? 0 : 0.5)) a.knowledge[id] = { x: k.x, z: k.z, t: k.t, seen: false, source: 'radio' };
         }
       }
     }
@@ -277,15 +286,17 @@
   // Mise en joue d'une nouvelle cible : temps d'acquisition selon l'arme et les réflexes ; plus rapide si on la visait il y a peu.
   Battle.prototype.aimAt = function (u, target) {
     u.target = target; u.burst = 0;
-    let t = u.weapon.aim * (1.3 - (u.def.reflexes / 100) * 0.6);
+    let t = u.weapon.aim * (1.3 - (u.def.reflexes / 100) * 0.6) * (has(u, 'fasthands') ? 0.8 : 1);  // Mains sûres
     const last = u.aimHistory[target.id];
-    if (last !== undefined && this.t - last < 5) t *= 0.35;
+    const quick = last !== undefined && this.t - last < 5;
+    if (quick) t *= 0.35;
+    u.aimFull = !quick;                                           // visée posée (pleine durée) : utile à « Patience »
     u.aimTimer = t; u.aimTarget = target.id; u.aimHistory[target.id] = this.t;
   };
   Battle.prototype.stop = function (u) { u.path = null; u.goal = null; u.goalKind = null; };
   Battle.prototype.startReload = function (u) {
     if (u.reloading > 0 || u.mags <= 0) return false;
-    u.reloading = u.weapon.reload * (u.status === 'critical' ? 1.4 : 1);
+    u.reloading = u.weapon.reload * (u.status === 'critical' ? 1.4 : 1) * (has(u, 'fasthands') ? 0.65 : 1); // Mains sûres
     u.stats.reloads++;
     this.logEvent('reload', `${u.callsign} recharge (${u.mags - 1} chargeur${u.mags - 1 > 1 ? 's' : ''} restant${u.mags - 1 > 1 ? 's' : ''}).`, { unit: u.id, team: u.team });
     return true;
@@ -372,7 +383,7 @@
       // la menace dont on se couvre : celui qui me tire dessus (même hors de vue), sinon ma cible
       const threat = (beingShot && u.lastShotBy && u.lastShotBy.alive) ? u.lastShotBy : target;
       const cover = this.map.coverFrom(u.x, u.z, threat.x, threat.z, true);
-      const pinned = u.suppression > 0.8 - u.def.composure / 400 + (this.isBraced(u) ? 0.15 : 0); // composure 80 → 0,6 ; calé : +0,15
+      const pinned = u.suppression > 0.8 - u.def.composure / 400 + (this.isBraced(u) ? 0.15 : 0) + (has(u, 'steady') ? 0.15 : 0) + (this.nearLeader(u) ? 0.1 : 0); // composure 80 → 0,6 ; calé / Sang-froid / Meneur
       const effective = this.hitChance(u, target, d, true).p >= this.fireThreshold(u);
       const wantCover = !cover && (beingShot || u.hp < u.maxHp * 0.7 || u.suppression > 0.35 || order !== 'assault' || u.reloading > 0);
 
@@ -512,7 +523,12 @@
   // ---- Action (chaque pas) ---------------------------------------------------------------
   Battle.prototype.act = function (u) {
     // suppression : décroît avec le sang-froid
-    if (u.suppression > 0) { u.suppression = Math.max(0, u.suppression - DT * 0.18 * (0.5 + u.def.composure / 100) * (this.isBraced(u) ? 1.4 : 1)); if (u.suppression > 0.3) u.stats.timeSuppressed += DT; }
+    if (u.suppression > 0) {
+      let rec = 0.18 * (0.5 + u.def.composure / 100) * (this.isBraced(u) ? 1.4 : 1);
+      if (has(u, 'steady')) rec *= 1.5;                           // Sang-froid
+      if (this.nearLeader(u)) rec *= 1.2;                          // Meneur à proximité
+      u.suppression = Math.max(0, u.suppression - DT * rec); if (u.suppression > 0.3) u.stats.timeSuppressed += DT;
+    }
     // rechargement
     if (u.reloading > 0) {
       u.reloading -= DT;
@@ -611,7 +627,15 @@
   // ---- Tir -----------------------------------------------------------------------------
   // « Calé » : ordre Tenir, immobile à son poste depuis au moins 3 s (bonus de précision et silhouette réduite).
   Battle.prototype.isBraced = function (u) {
-    return this.teams[u.team].order === 'hold' && !u.moving && u.alive && this.t - (u.stillSince === undefined ? this.t : u.stillSince) >= 3 && u.post && Math.hypot(u.post.x - u.x, u.post.z - u.z) < 1.6;
+    if (!u.alive || u.moving) return false;
+    const still = this.t - (u.stillSince === undefined ? this.t : u.stillSince) >= 3;
+    if (has(u, 'ambusher') && still) return true;                 // Affût : position préparée quel que soit l'ordre
+    return this.teams[u.team].order === 'hold' && still && u.post && Math.hypot(u.post.x - u.x, u.post.z - u.z) < 1.6;
+  };
+  // Un allié « Meneur » en état à moins de 12 m ?
+  Battle.prototype.nearLeader = function (u) {
+    for (const a of this.alliesOf(u)) if (a.alive && has(a, 'leader') && Math.hypot(a.x - u.x, a.z - u.z) < 12) return true;
+    return false;
   };
   // Seuil de chance de toucher en dessous duquel on ne gaspille pas ses munitions (l'appui tire plus volontiers : suppression).
   Battle.prototype.fireThreshold = function (u) { return u.role.id === 'support' ? 0.045 : 0.08; };
@@ -626,14 +650,16 @@
     if (u.moving && !asIfStill) p *= 0.55;
     if (u.stance === 'crouch') p *= 1.1;
     p *= 1 - 0.6 * u.suppression * (1 - u.def.composure / 150);
-    if (u.status === 'wounded') p *= 0.85; else if (u.status === 'critical') p *= 0.65;
+    const hard = has(u, 'hardened') ? 0.5 : 1;                                       // Endurci
+    if (u.status === 'wounded') p *= 1 - 0.15 * hard; else if (u.status === 'critical') p *= 1 - 0.35 * hard;
     if (this.isBraced(u)) p *= 1.1;           // position préparée : arme calée, repères pris
-    if (e.moving) p *= 0.8;
+    if (has(u, 'patience') && u.burst === 0 && u.aimFull) p *= 1.25;               // Patience : premier tir posé
+    if (e.moving) p *= has(u, 'opportunity') ? 0.9 : 0.8;                             // Tir d'opportunité
     if (e.stance === 'crouch') p *= 0.85;
     if (this.isBraced(e)) p *= 0.9;           // un défenseur installé expose moins de silhouette
     const cv = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
     if (cv) p *= cv.level === 'partial' ? 0.55 : 0.3; // 'full' : seul un bout dépasse (ne devrait pas arriver si LOS poitrine)
-    if (w.rpm > 100) p *= 1 - 0.06 * Math.min(u.burst, 5);
+    if (w.rpm > 100 && !has(u, 'gunner')) p *= 1 - 0.06 * Math.min(u.burst, 5);     // Tir soutenu : pas de perte en rafale
     return { p: clamp(p, 0.03, 0.95), cover: cv };
   };
   Battle.prototype.fireAt = function (u, e) {
@@ -664,7 +690,7 @@
     } else {
       // la balle passe près : suppression (moindre si la cible est à couvert ou si le tir est lointain)
       const far = d > u.weapon.range ? 0.5 : 1;
-      e.suppression = clamp(e.suppression + u.weapon.suppress * 0.55 * (cover ? 0.7 : 1) * far, 0, 1);
+      e.suppression = clamp(e.suppression + u.weapon.suppress * 0.55 * (cover ? 0.7 : 1) * far * (has(u, 'gunner') ? 1.3 : 1), 0, 1);
       const spread = 0.4 + d * 0.03;
       to = { x: e.x + this.rng.gauss() * spread, y: e.chestY() + this.rng.gauss() * 0.5, z: e.z + this.rng.gauss() * spread };
     }
@@ -680,6 +706,7 @@
     else if (roll < 0.60) { loc = 'torse'; mult = 1.0; prot = e.armor.torso; }
     else { loc = 'membre'; mult = 0.55; prot = 0; }
     let dmg = w.damage * fall * mult * (1 - prot) * this.rng.range(0.85, 1.15);
+    if (has(u, 'breach') && d < 10 && (w.cls === 'brèche' || w.cls === 'pm')) dmg *= 1.15;   // Enfonceur
     dmg = Math.round(dmg * 10) / 10;
     const before = e.hp;
     e.hp = Math.max(0, e.hp - dmg);

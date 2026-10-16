@@ -85,6 +85,7 @@
   .equip { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; } .equip label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; } .equip select { text-transform: none; letter-spacing: 0; }
   .wspec { font-size: 11px; color: var(--muted); align-self: end; padding-bottom: 6px; }
   .muted { color: var(--muted); }
+  .trait { color: var(--accent); } .traitbox { background: #2a2416; border: 1px solid #4a3f22; border-radius: 8px; padding: 6px 10px; font-size: 12px; margin: 6px 0 2px; color: #e6d9b4; } .traitbox b { color: var(--accent); }
   .squad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; } .slot { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px; font-size: 11px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; min-width: 0; } .slot b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .slot.sel { border-color: var(--accent); } .slot.empty { justify-content: center; align-items: center; color: var(--muted); border-style: dashed; }
   .prep { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .prep label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; } .prep select { text-transform: none; letter-spacing: 0; }
   .mission { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; cursor: pointer; } .mission:hover { border-color: var(--muted); } .mission.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
@@ -161,6 +162,7 @@
         <li><b>Graine</b> : le même nombre rejoue exactement la même bataille. Vide = aléatoire.</li>
         <li><b>Caméra</b> : glisser pour tourner, molette pour zoomer, clic droit ou Maj+glisser pour déplacer. Cliquer sur une carte d'opérateur pour le suivre. Espace : pause.</li>
         <li><b>Rôles</b> : AS assaut (carabine), PT pointe (pistolet-mitrailleur), TE tireur d'élite, AP appui (mitrailleuse), BR brèche (fusil à pompe). Barre orange sous la vie : suppression.</li>
+        <li><b>Compétences</b> : chaque opérateur a un trait aux effets réels dans la simulation (vitesse, visée, rechargement, repérage, suppression…), décrit sur sa fiche.</li>
         <li><b>Quartier général</b> : choisissez 5 opérateurs, leur arme, leur protection et leur voie d'approche, un ordre et une mission. La victoire rapporte des crédits (recrutement) et de l'expérience (+2 à chaque statistique par niveau, jusqu'au niveau 10). La progression est sauvegardée dans ce navigateur.</li>
       </ul>
       <div class="actions"><button onclick="document.getElementById('help').classList.add('hidden')" class="on">Fermer</button></div>
