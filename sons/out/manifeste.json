@@ -1,0 +1,76 @@
+{
+ "tir_fusil": [
+  "tir_fusil_0.ogg",
+  "tir_fusil_1.ogg",
+  "tir_fusil_2.ogg",
+  "tir_fusil_3.ogg"
+ ],
+ "tir_pm": [
+  "tir_pm_0.ogg",
+  "tir_pm_1.ogg",
+  "tir_pm_2.ogg",
+  "tir_pm_3.ogg"
+ ],
+ "tir_precision": [
+  "tir_precision_0.ogg",
+  "tir_precision_1.ogg",
+  "tir_precision_2.ogg"
+ ],
+ "tir_mitrailleuse": [
+  "tir_mitrailleuse_0.ogg",
+  "tir_mitrailleuse_1.ogg",
+  "tir_mitrailleuse_2.ogg",
+  "tir_mitrailleuse_3.ogg"
+ ],
+ "tir_pompe": [
+  "tir_pompe_0.ogg",
+  "tir_pompe_1.ogg",
+  "tir_pompe_2.ogg"
+ ],
+ "tir_silencieux": [
+  "tir_silencieux_0.ogg",
+  "tir_silencieux_1.ogg",
+  "tir_silencieux_2.ogg",
+  "tir_silencieux_3.ogg"
+ ],
+ "impact_beton": [
+  "impact_beton_0.ogg",
+  "impact_beton_1.ogg",
+  "impact_beton_2.ogg",
+  "impact_beton_3.ogg",
+  "impact_beton_4.ogg"
+ ],
+ "impact_corps": [
+  "impact_corps_0.ogg",
+  "impact_corps_1.ogg",
+  "impact_corps_2.ogg",
+  "impact_corps_3.ogg"
+ ],
+ "pas": [
+  "pas_0.ogg",
+  "pas_1.ogg",
+  "pas_2.ogg",
+  "pas_3.ogg",
+  "pas_4.ogg",
+  "pas_5.ogg"
+ ],
+ "recharge": [
+  "recharge_0.ogg",
+  "recharge_1.ogg",
+  "recharge_2.ogg"
+ ],
+ "clic": [
+  "clic_0.ogg",
+  "clic_1.ogg",
+  "clic_2.ogg"
+ ],
+ "contact": [
+  "contact_0.ogg"
+ ],
+ "victoire": [
+  "victoire_0.ogg"
+ ],
+ "defaite": [
+  "defaite_0.ogg"
+ ]
+}

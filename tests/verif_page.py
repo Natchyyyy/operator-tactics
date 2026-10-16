@@ -25,7 +25,7 @@ async def main():
         saved = await pg.evaluate("() => { try { return !!localStorage.getItem('operator-tactics-save-v1'); } catch (e) { return 'indispo'; } }")
         check("la progression est sauvegardée dans le navigateur", saved is True, saved)
         # lancer la première mission
-        await pg.click(".mission[data-id='patrouille']"); await pg.click("#launch"); await pg.wait_for_timeout(300)
+        await pg.click(".mission[data-id='patrouille']"); await pg.click("#launch"); await pg.wait_for_timeout(600)
         check("la mission ouvre l'écran de bataille", await pg.is_visible("#app") and not await pg.is_visible("#hq"))
         check("Lynx porte bien le fusil à pompe dans la bataille", await pg.evaluate("() => window.API.battle().units.find(u => u.callsign === 'Lynx').weapon.id") == "shotgun")
         check("l'ennemi de la mission est celui annoncé (ordre Prudent, 5 opérateurs)", await pg.evaluate("() => window.API.battle().teams[1].order === 'careful' && window.API.battle().teams[1].units.length === 5"))
@@ -34,7 +34,7 @@ async def main():
         check("l'ordre d'Alpha changé en cours de bataille est appliqué et journalisé", await pg.evaluate("() => window.API.battle().teams[0].order === 'hold' && window.API.battle().log.some(e => e.kind === 'order')"))
         await pg.wait_for_function("() => window.API.battle().over", timeout=400000); await pg.wait_for_timeout(500)
         res_m = await pg.evaluate("() => window.API.battle().result")
-        await pg.click("#resHq"); await pg.wait_for_timeout(300)
+        await pg.click("#resHq"); await pg.wait_for_timeout(600)
         prof = await pg.evaluate("() => window.HQ.profile()")
         exp_credits = 300 + round(180 * (1 if res_m["winner"] == 0 else 0.5 if res_m["winner"] == -1 else 0.3))
         check("retour au QG : crédits créditées selon l'issue réelle", prof["credits"] == exp_credits, (prof["credits"], exp_credits, res_m["winner"]))
@@ -44,7 +44,7 @@ async def main():
         await pg.reload(); await pg.wait_for_function("window.PRET", timeout=60000)
         check("après rechargement, la progression est conservée", (await pg.inner_text("#credits")) == str(exp_credits))
         # ---- Bataille libre (graine fixée) ----
-        await pg.click("#freeBattle"); await pg.wait_for_timeout(200)
+        await pg.click("#freeBattle"); await pg.wait_for_timeout(600)
         await pg.fill("#seed", "3"); await pg.click("#newBattle"); await pg.wait_for_timeout(200)
         await pg.click("#play"); await pg.wait_for_timeout(100)  # « Nouvelle bataille » lance tout de suite ; on met en pause pour tester ▶ ci-dessous
         check("la page a un titre", (await pg.title()) == "Operator Tactics", await pg.title())
@@ -79,6 +79,8 @@ async def main():
         # changer l'ordre d'Alpha en Tenir et relancer : l'ordre est bien transmis à la simulation
         await pg.select_option("#order0", "hold"); await pg.click("#newBattle"); await pg.wait_for_timeout(200)
         order = await pg.evaluate("() => window.API.battle().teams[0].order"); check("le sélecteur d'ordre modifie la simulation", order == "hold", order)
+        son = await pg.evaluate("async () => { if (typeof Son === 'undefined') return 'pas de lecteur'; Son.init(); await Son.charger(); return [Son.jouer('tir_fusil'), Son.jouer('pas'), Son.jouer('recharge'), Son.jouer('victoire')].every(Boolean); }")
+        check("les 14 bruitages se décodent et se jouent", son is True, son)
         check("aucune erreur JavaScript", not errs, errs[:5])
         print(f"\n{ok}/{tot} vérifications réussies"); await br.close()
         sys.exit(0 if ok == tot else 1)

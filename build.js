@@ -4,6 +4,7 @@ const root = __dirname;
 let html = fs.readFileSync(path.join(root, 'web/index.html'), 'utf8');
 const inline = (src) => () => `<script>\n${fs.readFileSync(path.join(root, src), 'utf8')}\n</script>`; // fonction : évite les motifs $& de String.replace
 html = html.replace('<script src="three.min.js"></script>', inline('web/three.min.js'))
+  .replace('<script src="lecteur.js"></script>', inline('web/lecteur.js'))
   .replace('<script src="../sim/rng.js"></script>', inline('sim/rng.js'))
   .replace('<script src="../sim/data.js"></script>', inline('sim/data.js'))
   .replace('<script src="../sim/map.js"></script>', inline('sim/map.js'))

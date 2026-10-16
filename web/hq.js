@@ -137,9 +137,14 @@
     profile = Game.reset(storage || { removeItem: () => {} }); lastRewards = null; selected = profile.squad[0]; $('#resetSave').dataset.confirm = '0'; $('#resetSave').textContent = 'Réinitialiser'; render(); flash('Nouvelle carrière.');
   });
 
+  // transition en fondu entre les deux écrans
+  function switchTo(showHq) {
+    const f = $('#fade'); f.classList.add('on');
+    setTimeout(() => { $('#hq').classList.toggle('hidden', !showHq); $('#app').classList.toggle('hidden', showHq); if (showHq) render(); requestAnimationFrame(() => f.classList.remove('on')); }, 220);
+  }
   window.HQ = {
-    show() { $('#hq').classList.remove('hidden'); $('#app').classList.add('hidden'); render(); },
-    hide() { $('#hq').classList.add('hidden'); $('#app').classList.remove('hidden'); },
+    show() { switchTo(true); },
+    hide() { switchTo(false); },
     // appelé par app.js à la fin d'une bataille de mission : applique les récompenses au profil et sauvegarde
     finishMission(mission, result) {
       const r = Game.applyRewards(profile, mission, result);

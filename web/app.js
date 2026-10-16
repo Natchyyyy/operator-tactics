@@ -319,7 +319,12 @@
     const shoulder = u.alive ? lerp(0.55, 1.35, a.aim) : 0.15, elbow = u.alive ? lerp(-1.1, -0.9, a.aim) : -0.3;
     m.shoulderR.rotation.x = -shoulder + a.recoil * 0.2; m.elbowR.rotation.x = elbow; m.shoulderR.rotation.z = 0.15;
     m.shoulderL.rotation.x = -shoulder - 0.25 + a.recoil * 0.2; m.elbowL.rotation.x = elbow - 0.3; m.shoulderL.rotation.z = -0.45;
-    m.weapon.position.set(0.1, lerp(0.2, 0.42, a.aim), lerp(0.28, 0.36, a.aim) - a.recoil * 0.05); m.weapon.rotation.x = lerp(0.45, -0.02, a.aim);
+    // rechargement : arme basculée vers le bas, main gauche qui travaille sous l'arme
+    a.reload = lerp(a.reload || 0, u.alive && u.reloading > 0 ? 1 : 0, Math.min(1, dt * 10));
+    const rl = a.reload;
+    m.weapon.position.set(0.1, lerp(0.2, 0.42, a.aim) - rl * 0.12, lerp(0.28, 0.36, a.aim) - a.recoil * 0.05 - rl * 0.06);
+    m.weapon.rotation.x = lerp(0.45, -0.02, a.aim) + rl * 0.7; m.weapon.rotation.z = rl * 0.35;
+    if (rl > 0.05) { m.shoulderL.rotation.x += rl * (0.5 + 0.25 * Math.sin(simTime * 16)); m.elbowL.rotation.x -= rl * 0.6; m.headG.rotation.x += rl * 0.35; }
     // chute
     if (a.fall > 0) { const f = a.fall < 0.5 ? 2 * a.fall * a.fall : 1 - Math.pow(-2 * a.fall + 2, 2) / 2; m.pose.rotation.x = -Math.PI / 2 * f * 0.95; m.pose.rotation.z = a.fallDir * 0.4 * f; m.pose.position.y = 0.22 * f; m.ring.material.opacity = 0.8 - 0.6 * f; }
   }
@@ -369,14 +374,42 @@
   }
 
   // ---------------------------------------------------------------------------------------------
+  // Sons : lecteur de la boîte à outils (window.Son), spatialisés par rapport à la caméra, densité limitée aux vitesses élevées
+  // ---------------------------------------------------------------------------------------------
+  const SHOT_SOUND = { carbine: 'tir_fusil', battle: 'tir_fusil', smg: 'tir_pm', smgsil: 'tir_silencieux', dmr: 'tir_precision', lmg: 'tir_mitrailleuse', shotgun: 'tir_pompe' };
+  let muted = false; try { muted = localStorage.getItem('ot-mute') === '1'; } catch (e) { /* stockage indisponible */ }
+  const recent = {};
+  function spatial(x, y, z) {
+    // volume selon la distance à la caméra, panoramique selon la position à l'écran
+    const p = new THREE.Vector3(x, y, z);
+    const d = p.distanceTo(camera.position);
+    const vol = Math.max(0.06, Math.min(1, 26 / (d + 8)));
+    const proj = p.project(camera);
+    return { vol, pan: Math.max(-0.8, Math.min(0.8, proj.x * 0.8)) };
+  }
+  function play(name, pos, o) {
+    if (muted || !window.Son) return;
+    const now = performance.now();
+    const minGap = { pas: 60, tir_fusil: 35, tir_pm: 25, tir_mitrailleuse: 30, impact_beton: 50, impact_corps: 50 }[name] || 0;
+    if (minGap && recent[name] && now - recent[name] < minGap / Math.min(2, speed)) return;
+    recent[name] = now;
+    const opt = Object.assign({ varie: 0.04 }, o || {});
+    if (pos) { const sp = spatial(pos.x, pos.y || 1, pos.z); opt.vol = (opt.vol == null ? 1 : opt.vol) * sp.vol; opt.pan = sp.pan; }
+    Son.jouer(name, opt);
+  }
+  function setMuted(m) { muted = m; try { localStorage.setItem('ot-mute', m ? '1' : '0'); } catch (e) { /* rien */ } $('#mute').textContent = m ? '🔇' : '🔊'; $('#mute').classList.toggle('on', !m); }
+  $('#mute').addEventListener('click', () => setMuted(!muted));
+  document.addEventListener('click', (e) => { if (e.target.closest('button') && !e.target.closest('#mute')) play('clic', null, { vol: 0.8, varie: 0.05 }); }, true);
+
+  // ---------------------------------------------------------------------------------------------
   // Boucle : simulation à vitesse réglable, interpolation des positions entre deux pas
   // ---------------------------------------------------------------------------------------------
-  let battle = null, simTime = 0, speed = 1, paused = true, acc = 0, lastFrame = 0, logIndex = 0, ended = false, frameDt = 0, lastAnimTime = 0;
+  let battle = null, simTime = 0, speed = 1, paused = true, acc = 0, lastFrame = 0, logIndex = 0, ended = false, frameDt = 0, lastAnimTime = 0, contactPlayed = false;
   const unitById = {};
 
   function newBattle(opts) {
     clearOperators(); for (const f of fx) scene.remove(f.obj); fx.length = 0;
-    battle = new Battle(opts); simTime = 0; acc = 0; logIndex = 0; ended = false; fxLast = 0; lastAnimTime = 0;
+    battle = new Battle(opts); simTime = 0; acc = 0; logIndex = 0; ended = false; fxLast = 0; lastAnimTime = 0; contactPlayed = false; pendingSounds.length = 0;
     for (const k in unitById) delete unitById[k];
     buildMap(battle.map);
     for (const u of battle.units) { makeOperator(u); unitById[u.id] = u; }
@@ -395,12 +428,27 @@
     battle.step(); simTime = battle.t;
     for (const u of battle.units) { meshes[u.id].cur = { x: u.x, z: u.z, facing: u.facing }; }
     for (const ev of battle.drainEvents()) {
-      if (ev.type === 'shot') addShot(ev, unitById[ev.shooter].team);
+      if (ev.type === 'shot') {
+        addShot(ev, unitById[ev.shooter].team);
+        const w = unitById[ev.shooter].weapon.id;
+        play(SHOT_SOUND[w] || 'tir_fusil', ev.from, { vol: ev.suppressive ? 0.8 : 1 });
+        const d = Math.hypot(ev.to.x - ev.from.x, ev.to.z - ev.from.z);
+        pendingSounds.push({ at: simTime + d / 110, name: ev.hit ? 'impact_corps' : 'impact_beton', pos: ev.to, vol: ev.hit ? 1 : (ev.to.y < 0.15 ? 0.5 : 0.9) });
+      }
       if (ev.type === 'down') { const m = meshes[ev.unit]; if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; } }
     }
+    // sons différés (impacts à l'arrivée de la balle), pas, rechargements, contact
+    for (let i = pendingSounds.length - 1; i >= 0; i--) if (simTime >= pendingSounds[i].at) { const ps = pendingSounds[i]; play(ps.name, ps.pos, { vol: ps.vol }); pendingSounds.splice(i, 1); }
+    if (speed <= 2) for (const u of battle.units) {
+      if (!u.alive || !u.moving) continue;
+      const m = meshes[u.id]; const ph = Math.floor(m.anim.phase / Math.PI);
+      if (m.lastStepPhase !== undefined && ph !== m.lastStepPhase) play('pas', { x: u.x, y: 0.2, z: u.z }, { vol: 0.9, varie: 0.06 });
+      m.lastStepPhase = ph;
+    }
     pumpLog();
-    if (battle.over && !ended) { ended = true; paused = true; updatePlayButton(); showResult(); }
+    if (battle.over && !ended) { ended = true; paused = true; updatePlayButton(); showResult(); play(battle.result.winner === 0 ? 'victoire' : 'defaite', null, { vol: 1, varie: 0 }); }
   }
+  const pendingSounds = [];
 
   function syncMeshes(alpha) {
     for (const u of battle.units) {
@@ -465,6 +513,8 @@
     const j = $('#journal');
     while (logIndex < battle.log.length) {
       const e = battle.log[logIndex++];
+      if (e.kind === 'reload' && e.unit && unitById[e.unit]) { const u = unitById[e.unit]; play('recharge', { x: u.x, y: 1, z: u.z }, { vol: 0.9 }); }
+      if (e.kind === 'spot' && !contactPlayed) { contactPlayed = true; play('contact', null, { vol: 1, varie: 0 }); }
       if (e.silent) continue;
       const div = document.createElement('div');
       div.className = 'entry k-' + e.kind + (e.team !== undefined ? ' team' + e.team : '');
@@ -561,6 +611,7 @@
   // Démarrage
   // ---------------------------------------------------------------------------------------------
   $('#seed').value = params.get('seed') || '';
+  setMuted(muted);
   setMode('free');
   newBattle(optsFromForm());
   if (!MANUAL && params.get('mode') !== 'free') window.HQ.show(); else window.HQ.hide();
