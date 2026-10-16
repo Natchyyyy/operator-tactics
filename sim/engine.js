@@ -76,6 +76,9 @@
   function Battle(opts) {
     opts = opts || {};
     this.seed = opts.seed === undefined ? 1 : opts.seed;
+    this.opts = opts;                 // pour revoir la bataille (même graine, mêmes équipes)
+    this.inputs = [];                 // commandes du joueur (tactiques, ordres) avec leur pas : la bataille est rejouable à l'identique
+    this.replayQueue = opts.replayInputs ? opts.replayInputs.slice() : null;
     this.rng = new RNG(this.seed);
     this.map = new GameMap(MAPS[opts.mapId || 'entrepot']);
     this.timeLimit = opts.timeLimit || 240;
@@ -146,8 +149,18 @@
   Battle.prototype.alliesOf = function (u) { return this.teams[u.team].units.filter(a => a !== u); };
 
   // ---- Boucle principale -----------------------------------------------------------------
+  // Commande du joueur : appliquée et enregistrée (pas, type, équipe, paramètre) pour pouvoir revoir la bataille.
+  Battle.prototype.command = function (type, team, arg) {
+    if (this.replayQueue) return { ok: false, reason: 'bataille revue : commandes désactivées' };
+    const r = type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : { ok: false };
+    if (r && r.ok) this.inputs.push({ tick: this.tick, type, team, arg });
+    return r;
+  };
   Battle.prototype.step = function () {
     if (this.over) return;
+    if (this.replayQueue) while (this.replayQueue.length && this.replayQueue[0].tick === this.tick) {   // revoir : mêmes commandes au même pas
+      const c = this.replayQueue.shift(); if (c.type === 'tactic') this.useTactic(c.team, c.arg); else if (c.type === 'order') this.setOrder(c.team, c.arg); this.inputs.push(c);
+    }
     this.t = Math.round((this.t + DT) * 1000) / 1000; this.tick++;
     this.updateTactics();
     for (const u of this.units) if (u.alive) this.perceive(u);

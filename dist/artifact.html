@@ -40,6 +40,7 @@
   .banner { position: absolute; left: 0; top: 18%; z-index: 8; display: flex; flex-direction: column; padding: 16px 60px 16px 40px; color: #fff; clip-path: polygon(0 0, 100% 0, calc(100% - 40px) 100%, 0 100%); transform: translateX(-105%); transition: transform .45s cubic-bezier(.2,.8,.2,1); cursor: pointer; max-width: 70%; }
   html.manual *, html.manual *::before { transition: none !important; animation: none !important; }
   .banner.show { transform: translateX(0); }
+  .revtag { display: none; font-size: 10px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; background: #c0392b; color: #fff; padding: 1px 8px; border-radius: 3px; } #app.reviewing .revtag { display: inline-block; animation: zblink 1s infinite alternate; } #app.reviewing .tcard { pointer-events: none; opacity: .7; }
   #whiteout { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 7; } #whiteout.on { animation: whiteout 1.1s ease-out forwards; } @keyframes whiteout { 0% { opacity: .85; } 100% { opacity: 0; } } .banner.hidden { display: none; }
   .banner.team0 { background: linear-gradient(90deg, #1d5aa6, #2b74d0); } .banner.team1 { background: linear-gradient(90deg, #a1261f, #cf3b31); } .banner.draw { background: linear-gradient(90deg, #444, #666); }
   #bannerText { font-size: 46px; font-weight: 900; letter-spacing: .06em; line-height: 1; text-shadow: 0 2px 6px #0008; } #bannerSub { font-size: 14px; opacity: .9; margin-top: 6px; }
@@ -316,7 +317,7 @@
 <div id="app" class="screen hidden">
   <div class="topbar">
     <div class="tb team0"><span class="ins" id="ins0">✶</span><div class="tbmain"><div class="tbname" id="tname0">Alpha</div><div class="cbar"><i id="cbar0"></i></div><div class="tbar"><i id="tbar0"></i></div></div><span class="tpct" id="tpct0">100%</span></div>
-    <div class="tbcenter"><span class="clock" id="clock">0:00.0</span><span id="zoneState" class="zstate"></span></div>
+    <div class="tbcenter"><span class="clock" id="clock">0:00.0</span><span class="revtag">Revoir</span><span id="zoneState" class="zstate"></span></div>
     <div class="tb team1 rev"><span class="ins" id="ins1">⚑</span><div class="tbmain"><div class="tbname" id="tname1">Bravo</div><div class="cbar rev"><i id="cbar1"></i></div><div class="tbar rev"><i id="tbar1"></i></div></div><span class="tpct" id="tpct1">100%</span></div>
   </div>
   <div class="controls">
@@ -347,7 +348,7 @@
       <div class="resHead"><div class="resTeam team0"><span id="resIns0" class="ins big"></span><div><div id="resName0" class="rn"></div><div id="resPct0" class="rp"></div></div></div><div><h2 id="resTitle"></h2><p id="resReason"></p></div><div class="resTeam team1 rev"><span id="resIns1" class="ins big"></span><div><div id="resName1" class="rn"></div><div id="resPct1" class="rp"></div></div></div></div>
       <div id="resSpecials"></div>
       <details class="resdet"><summary>Détail par opérateur</summary><div id="resTables"></div></details>
-      <div class="actions"><button id="resClose">Revoir la scène</button><button id="resReplay">Rejouer cette graine</button><button id="resNew">Nouvelle bataille</button><button id="resHq" class="on">Retour au QG</button></div>
+      <div class="actions"><button id="resReview" title="Rejoue la bataille à l'identique, depuis le début (mêmes décisions, mêmes tirs)">Revoir la bataille</button><button id="resClose">Fermer</button><button id="resReplay">Rejouer cette graine</button><button id="resNew">Nouvelle bataille</button><button id="resHq" class="on">Retour au QG</button></div>
     </div></div>
     <div id="help" class="overlay hidden"><div class="dialog">
       <h2>Comment ça marche</h2>
@@ -1384,6 +1385,9 @@ window.Son = Son;
   function Battle(opts) {
     opts = opts || {};
     this.seed = opts.seed === undefined ? 1 : opts.seed;
+    this.opts = opts;                 // pour revoir la bataille (même graine, mêmes équipes)
+    this.inputs = [];                 // commandes du joueur (tactiques, ordres) avec leur pas : la bataille est rejouable à l'identique
+    this.replayQueue = opts.replayInputs ? opts.replayInputs.slice() : null;
     this.rng = new RNG(this.seed);
     this.map = new GameMap(MAPS[opts.mapId || 'entrepot']);
     this.timeLimit = opts.timeLimit || 240;
@@ -1454,8 +1458,18 @@ window.Son = Son;
   Battle.prototype.alliesOf = function (u) { return this.teams[u.team].units.filter(a => a !== u); };
 
   // ---- Boucle principale -----------------------------------------------------------------
+  // Commande du joueur : appliquée et enregistrée (pas, type, équipe, paramètre) pour pouvoir revoir la bataille.
+  Battle.prototype.command = function (type, team, arg) {
+    if (this.replayQueue) return { ok: false, reason: 'bataille revue : commandes désactivées' };
+    const r = type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : { ok: false };
+    if (r && r.ok) this.inputs.push({ tick: this.tick, type, team, arg });
+    return r;
+  };
   Battle.prototype.step = function () {
     if (this.over) return;
+    if (this.replayQueue) while (this.replayQueue.length && this.replayQueue[0].tick === this.tick) {   // revoir : mêmes commandes au même pas
+      const c = this.replayQueue.shift(); if (c.type === 'tactic') this.useTactic(c.team, c.arg); else if (c.type === 'order') this.setOrder(c.team, c.arg); this.inputs.push(c);
+    }
     this.t = Math.round((this.t + DT) * 1000) / 1000; this.tick++;
     this.updateTactics();
     for (const u of this.units) if (u.alive) this.perceive(u);
@@ -3904,6 +3918,7 @@ window.Son = Son;
 
   function newBattle(opts) {
     clearOperators(); for (const f of fx) scene.remove(f.obj); fx.length = 0;
+    if (!opts.replayInputs) { reviewing = false; $('#app').classList.remove('reviewing'); }
     battle = new Battle(opts); simTime = 0; acc = 0; logIndex = 0; ended = false; fxLast = 0; lastAnimTime = 0; contactPlayed = false; pendingSounds.length = 0;
     for (const k in unitById) delete unitById[k];
     buildMap(battle.map);
@@ -4033,7 +4048,7 @@ window.Son = Son;
       el.innerHTML = team.tacticIds.map(id => { const t = DATA.TACTICS[id]; return `<div class="tcard ${t.active ? '' : 'passive'} ${ti === 1 ? 'enemy' : ''}" data-tactic="${id}" title="${escapeHtml(t.desc)}"><div class="ticon">${tacIcon(id)}</div><div class="tname">${escapeHtml(t.name)}</div><div class="tuse"></div><div class="cd"></div></div>`; }).join('');
       if (ti === 0) el.querySelectorAll('.tcard').forEach(c => c.addEventListener('click', () => {
         const id = c.dataset.tactic; if (!DATA.TACTICS[id].active) return;
-        const r = battle.useTactic(0, id);
+        const r = battle.command('tactic', 0, id);
         if (!r.ok) flashBattle(`${DATA.TACTICS[id].name} : ${r.reason}.`); else { pumpLog(); for (const ev of battle.drainEvents()) { if (ev.type === 'smoke') addSmoke(ev); if (ev.type === 'heal') addHeal(ev); if (ev.type === 'reco') addReco(ev); if (ev.type === 'barrage_called') addBarrageMarker(ev); } }
         updateTacticCards();
       }));
@@ -4129,8 +4144,15 @@ window.Son = Son;
   }
   $('#play').addEventListener('click', () => { if (battle.over) return; paused = !paused; updatePlayButton(); ambience(true); });
   // ordres en cours de bataille : appliqués immédiatement à la simulation (Alpha toujours ; Bravo en bataille libre)
-  $('#order0').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0) { battle.setOrder(0, e.target.value); pumpLog(); buildRosters(); } });
-  $('#order1').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0 && mode === 'free') { battle.setOrder(1, e.target.value); pumpLog(); buildRosters(); } });
+  $('#order0').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0 && !reviewing) { battle.command('order', 0, e.target.value); pumpLog(); buildRosters(); } });
+  $('#order1').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0 && mode === 'free' && !reviewing) { battle.command('order', 1, e.target.value); pumpLog(); buildRosters(); } });
+  // Revoir la bataille : même graine, mêmes équipes, mêmes commandes au même instant → exactement la même bataille (caméra libre)
+  let reviewing = false;
+  function review() {
+    const o = Object.assign({}, battle.opts, { replayInputs: battle.inputs.slice() });
+    reviewing = true; newBattle(o); $('#app').classList.add('reviewing'); paused = false; updatePlayButton();
+  }
+  $('#resReview').addEventListener('click', review);
   document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => { speed = parseFloat(b.dataset.speed); document.querySelectorAll('[data-speed]').forEach(k => k.classList.toggle('on', k === b)); }));
   $('#newBattle').addEventListener('click', () => { newBattle(optsFromForm()); paused = false; updatePlayButton(); });
   $('#replay').addEventListener('click', () => { const o = optsFromForm(); o.seed = battle.seed; newBattle(o); paused = false; updatePlayButton(); });
@@ -4193,7 +4215,8 @@ window.Son = Son;
     focus: (cs, yaw, pitch, dist) => { const u = battle.units.find(x => x.callsign === cs); setCamMode('free'); cam.follow = null; cam.init = false; cam.target.set(u.x, 0.9, u.z); cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; for (let i = 0; i < 30; i++) applyCamera(); render(); return [u.x, u.z, u.facing, u.stance, u.state]; },
     pause: (p) => { paused = p !== false; updatePlayButton(); },
     settle: () => { for (let i = 0; i < 80; i++) applyCamera(); render(); },
-    useTactic: (id) => battle.useTactic(0, id),
+    useTactic: (id) => battle.command('tactic', 0, id),
+    review: () => { review(); return battle.replayQueue.length; },
   };
   if (MANUAL) render(); else requestAnimationFrame((t) => { lastFrame = t; frame(t); });
   window.PRET = true;

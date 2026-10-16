@@ -123,6 +123,11 @@ async def main():
         check("les barres d'état des équipes correspondent au résultat", b0.strip() == str(res["teams"][0]["hpPct"]) + "%" and b1.strip() == str(res["teams"][1]["hpPct"]) + "%", (b0, b1, res["teams"][0]["hpPct"], res["teams"][1]["hpPct"]))
         # le journal contient la fin
         j = await pg.inner_text("#journal"); check("le journal contient le début et la fin de l'engagement", "Début de l'engagement" in j and "Fin de l'engagement" in j)
+        # revoir la bataille : rejouée à l'identique
+        before = await pg.evaluate("() => { const b = window.API.battle(); return [b.result.winner, Math.round(b.t * 10), b.log.length]; }")
+        await pg.click("#resReview"); await pg.wait_for_timeout(200)
+        rv = await pg.evaluate("() => { API.pause(true); const r = API.runToEnd(); const b = API.battle(); return [r.winner, Math.round(b.t * 10), b.log.length, document.querySelector('#app').classList.contains('reviewing')]; }")
+        check("« Revoir la bataille » rejoue exactement la même bataille", rv[:3] == before and rv[3], (before, rv))
         hits_log = await pg.evaluate("() => window.API.battle().log.filter(e => (e.kind === 'hit' || e.kind === 'down') && ['tête', 'torse', 'membre'].includes(e.loc)).length")
         hits_stats = sum(u["stats"]["hits"] for t in res["teams"] for u in t["units"])
         check("journal = statistiques (touchés par balle ; éclats journalisés à part)", hits_log == hits_stats, (hits_log, hits_stats))

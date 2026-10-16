@@ -518,6 +518,7 @@
 
   function newBattle(opts) {
     clearOperators(); for (const f of fx) scene.remove(f.obj); fx.length = 0;
+    if (!opts.replayInputs) { reviewing = false; $('#app').classList.remove('reviewing'); }
     battle = new Battle(opts); simTime = 0; acc = 0; logIndex = 0; ended = false; fxLast = 0; lastAnimTime = 0; contactPlayed = false; pendingSounds.length = 0;
     for (const k in unitById) delete unitById[k];
     buildMap(battle.map);
@@ -647,7 +648,7 @@
       el.innerHTML = team.tacticIds.map(id => { const t = DATA.TACTICS[id]; return `<div class="tcard ${t.active ? '' : 'passive'} ${ti === 1 ? 'enemy' : ''}" data-tactic="${id}" title="${escapeHtml(t.desc)}"><div class="ticon">${tacIcon(id)}</div><div class="tname">${escapeHtml(t.name)}</div><div class="tuse"></div><div class="cd"></div></div>`; }).join('');
       if (ti === 0) el.querySelectorAll('.tcard').forEach(c => c.addEventListener('click', () => {
         const id = c.dataset.tactic; if (!DATA.TACTICS[id].active) return;
-        const r = battle.useTactic(0, id);
+        const r = battle.command('tactic', 0, id);
         if (!r.ok) flashBattle(`${DATA.TACTICS[id].name} : ${r.reason}.`); else { pumpLog(); for (const ev of battle.drainEvents()) { if (ev.type === 'smoke') addSmoke(ev); if (ev.type === 'heal') addHeal(ev); if (ev.type === 'reco') addReco(ev); if (ev.type === 'barrage_called') addBarrageMarker(ev); } }
         updateTacticCards();
       }));
@@ -743,8 +744,15 @@
   }
   $('#play').addEventListener('click', () => { if (battle.over) return; paused = !paused; updatePlayButton(); ambience(true); });
   // ordres en cours de bataille : appliqués immédiatement à la simulation (Alpha toujours ; Bravo en bataille libre)
-  $('#order0').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0) { battle.setOrder(0, e.target.value); pumpLog(); buildRosters(); } });
-  $('#order1').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0 && mode === 'free') { battle.setOrder(1, e.target.value); pumpLog(); buildRosters(); } });
+  $('#order0').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0 && !reviewing) { battle.command('order', 0, e.target.value); pumpLog(); buildRosters(); } });
+  $('#order1').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0 && mode === 'free' && !reviewing) { battle.command('order', 1, e.target.value); pumpLog(); buildRosters(); } });
+  // Revoir la bataille : même graine, mêmes équipes, mêmes commandes au même instant → exactement la même bataille (caméra libre)
+  let reviewing = false;
+  function review() {
+    const o = Object.assign({}, battle.opts, { replayInputs: battle.inputs.slice() });
+    reviewing = true; newBattle(o); $('#app').classList.add('reviewing'); paused = false; updatePlayButton();
+  }
+  $('#resReview').addEventListener('click', review);
   document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => { speed = parseFloat(b.dataset.speed); document.querySelectorAll('[data-speed]').forEach(k => k.classList.toggle('on', k === b)); }));
   $('#newBattle').addEventListener('click', () => { newBattle(optsFromForm()); paused = false; updatePlayButton(); });
   $('#replay').addEventListener('click', () => { const o = optsFromForm(); o.seed = battle.seed; newBattle(o); paused = false; updatePlayButton(); });
@@ -807,7 +815,8 @@
     focus: (cs, yaw, pitch, dist) => { const u = battle.units.find(x => x.callsign === cs); setCamMode('free'); cam.follow = null; cam.init = false; cam.target.set(u.x, 0.9, u.z); cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; for (let i = 0; i < 30; i++) applyCamera(); render(); return [u.x, u.z, u.facing, u.stance, u.state]; },
     pause: (p) => { paused = p !== false; updatePlayButton(); },
     settle: () => { for (let i = 0; i < 80; i++) applyCamera(); render(); },
-    useTactic: (id) => battle.useTactic(0, id),
+    useTactic: (id) => battle.command('tactic', 0, id),
+    review: () => { review(); return battle.replayQueue.length; },
   };
   if (MANUAL) render(); else requestAnimationFrame((t) => { lastFrame = t; frame(t); });
   window.PRET = true;

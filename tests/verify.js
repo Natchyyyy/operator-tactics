@@ -400,5 +400,20 @@ function duel(opts) {
   check('en bataille : des grenades sont lancées, jamais vers un allié proche, jamais en tirant', thrown > 0 && badAlly === 0 && shotWhileThrow === 0, { thrown, badAlly, shotWhileThrow });
 }
 
+{
+  // ---- revoir une bataille : mêmes options + mêmes commandes au même pas → bataille identique ----
+  const mk = (extra) => new Battle(Object.assign({ seed: 11, mapId: 'place', teams: [{ name: 'A', order: 'careful', operators: ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'], tactics: ['fumigene', 'reco', 'soins'] }, { name: 'B', order: 'assault', operators: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal', 'k_fauve'], tactics: ['barrage', 'fumigene'], autoTactics: true }] }, extra || {}));
+  const a = mk(); let used = 0;
+  while (!a.over && a.t < 250) {
+    if (a.tick === 60) a.command('order', 0, 'assault');
+    if (a.tick % 50 === 25) for (const id of ['reco', 'fumigene', 'soins']) if (a.command('tactic', 0, id).ok) used++;
+    a.step();
+  }
+  const b = mk({ replayInputs: a.inputs }); b.run(300);
+  const sig = (x) => JSON.stringify([x.result.winner, x.t, x.log.length, x.units.map(u => [Math.round(u.hp * 10), u.stats.shots, u.stats.kills, Math.round(u.x * 100)])]);
+  check('revoir : la bataille rejouée est identique (vainqueur, durée, journal, chaque opérateur), commandes du joueur comprises', a.inputs.length >= 2 && used >= 1 && sig(a) === sig(b), { inputs: a.inputs.length, used, a: sig(a).slice(0, 120), b: sig(b).slice(0, 120) });
+  check('revoir : les commandes sont refusées pendant la revue', !b.command('tactic', 0, 'reco').ok || b.over);
+}
+
 console.log(`\n${pass}/${pass + fail} vérifications réussies${fail ? '  — ÉCHECS : ' + fail : ''}`);
 process.exit(fail ? 1 : 0);
