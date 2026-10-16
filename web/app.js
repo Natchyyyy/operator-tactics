@@ -498,8 +498,9 @@
   function setMode(m, mis) {
     mode = m; mission = mis || null; rewardsApplied = false;
     const free = m === 'free';
-    for (const id of ['order0', 'order1', 'seed', 'mapSel', 'newBattle', 'replay', 'resReplay', 'resNew']) $('#' + id).hidden = !free;
-    document.querySelectorAll('header .group').forEach(g => { if (g.querySelector('#order0, #order1, #seed, #mapSel')) g.hidden = !free; });
+    // en mission, l'ordre d'Alpha reste modifiable en direct ; celui de Bravo et les réglages de graine/carte sont réservés à la bataille libre
+    for (const id of ['order1', 'seed', 'mapSel', 'newBattle', 'replay', 'resReplay', 'resNew']) $('#' + id).hidden = !free;
+    document.querySelectorAll('header .group').forEach(g => { if (g.querySelector('#order1, #seed, #mapSel')) g.hidden = !free; });
     $('#missionLabel').hidden = free; if (!free) $('#missionLabel').textContent = `Mission : ${mis.name}`;
     $('#toHq').textContent = free ? 'QG' : 'Abandonner';
     $('#resHq').textContent = free ? 'Quartier général' : 'Retour au QG';
@@ -513,6 +514,9 @@
     return { seed, teams, mapId: $('#mapSel').value };
   }
   $('#play').addEventListener('click', () => { if (battle.over) return; paused = !paused; updatePlayButton(); });
+  // ordres en cours de bataille : appliqués immédiatement à la simulation (Alpha toujours ; Bravo en bataille libre)
+  $('#order0').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0) { battle.setOrder(0, e.target.value); pumpLog(); buildRosters(); } });
+  $('#order1').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0 && mode === 'free') { battle.setOrder(1, e.target.value); pumpLog(); buildRosters(); } });
   document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => { speed = parseFloat(b.dataset.speed); document.querySelectorAll('[data-speed]').forEach(k => k.classList.toggle('on', k === b)); }));
   $('#newBattle').addEventListener('click', () => { newBattle(optsFromForm()); paused = false; updatePlayButton(); });
   $('#replay').addEventListener('click', () => { const o = optsFromForm(); o.seed = battle.seed; newBattle(o); paused = false; updatePlayButton(); });
@@ -528,7 +532,7 @@
   $('#resHq').addEventListener('click', goHq);
   $('#freeBattle').addEventListener('click', () => { setMode('free'); window.HQ.hide(); newBattle(optsFromForm()); });
   $('#hqHelp').addEventListener('click', () => { $('#help').classList.toggle('hidden'); });
-  window.HQ.onLaunch = (opts, mis) => { setMode('mission', mis); window.HQ.hide(); newBattle(opts); paused = false; updatePlayButton(); };
+  window.HQ.onLaunch = (opts, mis) => { setMode('mission', mis); window.HQ.hide(); $('#order0').value = opts.teams[0].order; newBattle(opts); paused = false; updatePlayButton(); };
   $('#toggleHelp').addEventListener('click', () => $('#help').classList.toggle('hidden'));
   window.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.target.matches('input,select')) { e.preventDefault(); $('#play').click(); } });
 

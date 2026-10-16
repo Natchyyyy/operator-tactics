@@ -129,7 +129,7 @@
   <header>
     <h1>OPERATOR TACTICS <small id="mapLabel"></small></h1>
     <div class="group"><label>Alpha</label>
-      <select id="order0"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
+      <select id="order0" title="Ordre d'Alpha — modifiable pendant la bataille"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
     <div class="group"><label>Bravo</label>
       <select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
     <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option></select></div>
@@ -157,7 +157,7 @@
       <h2>Comment ça marche</h2>
       <ul>
         <li><b>Deux escouades de cinq opérateurs</b> s'affrontent de façon autonome : chacun voit, entend, décide et tire pour son propre compte. Rien n'est scripté : les murs bloquent réellement la vue et les tirs, les couverts bas cachent un soldat accroupi, les armes et les protections ont les effets affichés.</li>
-        <li><b>Ordres</b> : <i>Assaut</i> (aller au contact), <i>Tenir</i> (se poster près du départ et tirer à vue), <i>Prudent</i> (avancer de couvert en couvert, se replier si blessé). Changez-les puis « Rejouer » pour comparer sur la même graine.</li>
+        <li><b>Ordres</b> : <i>Assaut</i> (aller au contact), <i>Tenir</i> (se poster, tirer à vue), <i>Prudent</i> (de couvert en couvert, repli si blessé). L'ordre d'Alpha se change <b>pendant la bataille</b> : « Tenir » donné en cours de route fait tenir l'escouade là où elle se trouve.</li>
         <li><b>Graine</b> : le même nombre rejoue exactement la même bataille. Vide = aléatoire.</li>
         <li><b>Caméra</b> : glisser pour tourner, molette pour zoomer, clic droit ou Maj+glisser pour déplacer. Cliquer sur une carte d'opérateur pour le suivre. Espace : pause.</li>
         <li><b>Rôles</b> : AS assaut (carabine), PT pointe (pistolet-mitrailleur), TE tireur d'élite, AP appui (mitrailleuse), BR brèche (fusil à pompe). Barre orange sous la vie : suppression.</li>
@@ -869,8 +869,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   };
 
   // Ordre « Tenir » : un poste choisi une fois pour toutes (couvert près du point de départ, face à la menace), et on y reste.
+  // Changer l'ordre d'une équipe en cours de bataille : les postes sont recalculés autour de la position actuelle de l'escouade.
+  Battle.prototype.setOrder = function (teamIndex, order) {
+    const team = this.teams[teamIndex];
+    if (!ORDERS[order] || team.order === order) return false;
+    team.order = order; team.orderAt = this.t;
+    const alive = team.units.filter(u => u.alive);
+    team.anchor = alive.length ? { x: alive.reduce((s, u) => s + u.x, 0) / alive.length, z: alive.reduce((s, u) => s + u.z, 0) / alive.length } : team.spawn;
+    for (const u of team.units) { u.post = null; u.commitUntil = 0; u.pauseUntil = 0; if (u.goalKind === 'advance' || u.goalKind === 'bound') this.stop(u); }
+    this.logEvent('order', `${team.name} reçoit l'ordre : ${ORDERS[order].name}.`, { team: teamIndex, order });
+    return true;
+  };
   Battle.prototype.holdPost = function (u, threatPos) {
-    const home = this.teams[u.team].spawn;
+    const team = this.teams[u.team];
+    const home = team.anchor || team.spawn; // ordre donné en cours de bataille : on tient autour de la position actuelle
     if (!u.post) {
       // poste : un couvert près du départ, face à la menace, avec le plus de vues sur les axes d'approche
       const dirx = Math.sign(this.map.spawns[1 - u.team].x - home.x) || 1;
@@ -884,7 +896,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         const sc = this.map.openness(cp.x, cp.z, dirx, 6) * 2 - dh * 0.15 + this.rng.next() * 0.05;
         if (sc > bs) { bs = sc; best = cp; }
       }
-      u.post = best ? { x: best.x, z: best.z } : { x: u.home.x, z: u.home.z };
+      u.post = best ? { x: best.x, z: best.z } : (team.anchor ? { x: u.x, z: u.z } : { x: u.home.x, z: u.home.z });
     }
     if (Math.hypot(u.post.x - u.x, u.post.z - u.z) > 1.2) { if (this.setGoal(u, u.post.x, u.post.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; } }
     this.stop(u); u.state = 'hold'; u.stance = 'stand'; u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x);
@@ -2120,8 +2132,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function setMode(m, mis) {
     mode = m; mission = mis || null; rewardsApplied = false;
     const free = m === 'free';
-    for (const id of ['order0', 'order1', 'seed', 'mapSel', 'newBattle', 'replay', 'resReplay', 'resNew']) $('#' + id).hidden = !free;
-    document.querySelectorAll('header .group').forEach(g => { if (g.querySelector('#order0, #order1, #seed, #mapSel')) g.hidden = !free; });
+    // en mission, l'ordre d'Alpha reste modifiable en direct ; celui de Bravo et les réglages de graine/carte sont réservés à la bataille libre
+    for (const id of ['order1', 'seed', 'mapSel', 'newBattle', 'replay', 'resReplay', 'resNew']) $('#' + id).hidden = !free;
+    document.querySelectorAll('header .group').forEach(g => { if (g.querySelector('#order1, #seed, #mapSel')) g.hidden = !free; });
     $('#missionLabel').hidden = free; if (!free) $('#missionLabel').textContent = `Mission : ${mis.name}`;
     $('#toHq').textContent = free ? 'QG' : 'Abandonner';
     $('#resHq').textContent = free ? 'Quartier général' : 'Retour au QG';
@@ -2135,6 +2148,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return { seed, teams, mapId: $('#mapSel').value };
   }
   $('#play').addEventListener('click', () => { if (battle.over) return; paused = !paused; updatePlayButton(); });
+  // ordres en cours de bataille : appliqués immédiatement à la simulation (Alpha toujours ; Bravo en bataille libre)
+  $('#order0').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0) { battle.setOrder(0, e.target.value); pumpLog(); buildRosters(); } });
+  $('#order1').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0 && mode === 'free') { battle.setOrder(1, e.target.value); pumpLog(); buildRosters(); } });
   document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => { speed = parseFloat(b.dataset.speed); document.querySelectorAll('[data-speed]').forEach(k => k.classList.toggle('on', k === b)); }));
   $('#newBattle').addEventListener('click', () => { newBattle(optsFromForm()); paused = false; updatePlayButton(); });
   $('#replay').addEventListener('click', () => { const o = optsFromForm(); o.seed = battle.seed; newBattle(o); paused = false; updatePlayButton(); });
@@ -2150,7 +2166,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   $('#resHq').addEventListener('click', goHq);
   $('#freeBattle').addEventListener('click', () => { setMode('free'); window.HQ.hide(); newBattle(optsFromForm()); });
   $('#hqHelp').addEventListener('click', () => { $('#help').classList.toggle('hidden'); });
-  window.HQ.onLaunch = (opts, mis) => { setMode('mission', mis); window.HQ.hide(); newBattle(opts); paused = false; updatePlayButton(); };
+  window.HQ.onLaunch = (opts, mis) => { setMode('mission', mis); window.HQ.hide(); $('#order0').value = opts.teams[0].order; newBattle(opts); paused = false; updatePlayButton(); };
   $('#toggleHelp').addEventListener('click', () => $('#help').classList.toggle('hidden'));
   window.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.target.matches('input,select')) { e.preventDefault(); $('#play').click(); } });
 

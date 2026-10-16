@@ -292,8 +292,20 @@
   };
 
   // Ordre « Tenir » : un poste choisi une fois pour toutes (couvert près du point de départ, face à la menace), et on y reste.
+  // Changer l'ordre d'une équipe en cours de bataille : les postes sont recalculés autour de la position actuelle de l'escouade.
+  Battle.prototype.setOrder = function (teamIndex, order) {
+    const team = this.teams[teamIndex];
+    if (!ORDERS[order] || team.order === order) return false;
+    team.order = order; team.orderAt = this.t;
+    const alive = team.units.filter(u => u.alive);
+    team.anchor = alive.length ? { x: alive.reduce((s, u) => s + u.x, 0) / alive.length, z: alive.reduce((s, u) => s + u.z, 0) / alive.length } : team.spawn;
+    for (const u of team.units) { u.post = null; u.commitUntil = 0; u.pauseUntil = 0; if (u.goalKind === 'advance' || u.goalKind === 'bound') this.stop(u); }
+    this.logEvent('order', `${team.name} reçoit l'ordre : ${ORDERS[order].name}.`, { team: teamIndex, order });
+    return true;
+  };
   Battle.prototype.holdPost = function (u, threatPos) {
-    const home = this.teams[u.team].spawn;
+    const team = this.teams[u.team];
+    const home = team.anchor || team.spawn; // ordre donné en cours de bataille : on tient autour de la position actuelle
     if (!u.post) {
       // poste : un couvert près du départ, face à la menace, avec le plus de vues sur les axes d'approche
       const dirx = Math.sign(this.map.spawns[1 - u.team].x - home.x) || 1;
@@ -307,7 +319,7 @@
         const sc = this.map.openness(cp.x, cp.z, dirx, 6) * 2 - dh * 0.15 + this.rng.next() * 0.05;
         if (sc > bs) { bs = sc; best = cp; }
       }
-      u.post = best ? { x: best.x, z: best.z } : { x: u.home.x, z: u.home.z };
+      u.post = best ? { x: best.x, z: best.z } : (team.anchor ? { x: u.x, z: u.z } : { x: u.home.x, z: u.home.z });
     }
     if (Math.hypot(u.post.x - u.x, u.post.z - u.z) > 1.2) { if (this.setGoal(u, u.post.x, u.post.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; } }
     this.stop(u); u.state = 'hold'; u.stance = 'stand'; u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x);

@@ -219,5 +219,20 @@ function duel(opts) {
   check('la deuxième carte (Place du marché) se joue de bout en bout', (() => { const c = new Battle({ seed: 2, mapId: 'place' }); c.run(); return c.over && !!c.result; })());
 }
 
+{
+  // ordre donné pendant la bataille : l'équipe change réellement de comportement à partir de cet instant
+  const t = Battle.defaultTeams(); const b = new Battle({ seed: 4, teams: t });
+  while (b.t < 6) b.step();
+  const before = b.teams[0].units.map(u => ({ x: u.x, z: u.z, d: u.stats.distance }));
+  check('setOrder change l\'ordre et le journalise', b.setOrder(0, 'hold') && b.teams[0].order === 'hold' && b.log.some(e => e.kind === 'order'));
+  while (b.t < 26 && !b.over) b.step();
+  let far = 0, walked = 0; b.teams[0].units.forEach((u, i) => { far = Math.max(far, Math.hypot(u.x - before[i].x, u.z - before[i].z)); walked += u.stats.distance - before[i].d; });
+  check('après « Tenir » en cours de route, l\'escouade reste près de là où elle était (< 22 m en 20 s)', far < 22, far);
+  const c = new Battle({ seed: 4, teams: Battle.defaultTeams() }); while (c.t < 6) c.step(); const d0 = c.teams[0].units.map(u => u.stats.distance); while (c.t < 26 && !c.over) c.step();
+  let walkedA = 0; c.teams[0].units.forEach((u, i) => { walkedA += u.stats.distance - d0[i]; });
+  check('… alors qu\'en restant en « Assaut » elle marche davantage sur la même période', walkedA > walked, { walked, walkedA });
+  check('un ordre inconnu ou identique est refusé', !b.setOrder(0, 'hold') && !b.setOrder(0, 'xyz'));
+}
+
 console.log(`\n${pass}/${pass + fail} vérifications réussies${fail ? '  — ÉCHECS : ' + fail : ''}`);
 process.exit(fail ? 1 : 0);
