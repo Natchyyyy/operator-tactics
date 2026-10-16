@@ -114,6 +114,11 @@
   /* ---- QG : onglets, accueil, cartes ---- */
   #hq { display: grid; grid-template-rows: 60px 1fr; height: 100%; }
   .hqteam { display: flex; align-items: center; gap: 10px; min-width: 0; } .hqname { font-weight: 800; letter-spacing: .1em; text-transform: uppercase; font-size: 14px; } .hqrank { font-size: 11px; color: var(--muted); } .xpbar { width: 160px; height: 4px; background: #0b0e11; border-radius: 2px; overflow: hidden; margin-top: 3px; } .xpbar i { display: block; height: 100%; background: var(--accent); }
+  .achs { display: flex; gap: 3px; margin-left: 10px; } .ach { width: 24px; height: 24px; border-radius: 5px; background: #0b0e11; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; color: #3a4350; } .ach.got { color: var(--accent); border-color: var(--accent); }
+  .promo { background: var(--accent); color: #111; border-radius: 50%; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; } .opcard.expired { opacity: .7; border-color: #4a3a2a; }
+  .promobox { background: #2a2416; border: 1px solid var(--accent); border-radius: 8px; padding: 8px 10px; font-size: 12px; margin: 6px 0; } .promochoices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; } .promochoice { text-align: left; display: flex; flex-direction: column; gap: 3px; padding: 8px; } .promochoice b { color: var(--accent); } .promochoice span { font-size: 11px; color: var(--muted); font-weight: 400; }
+  .contract { font-size: 12px; color: var(--muted); margin: 4px 0 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .contract.bad { color: var(--bad); }
+  .hist { margin-top: 8px; font-size: 12px; } .hist summary { cursor: pointer; color: var(--muted); } .histt { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; } .histt th { text-align: left; color: var(--muted); font-weight: 600; padding: 3px 6px; border-bottom: 1px solid var(--line); } .histt td { padding: 3px 6px; border-bottom: 1px solid #1d242b; } .histt tr.dead td { color: var(--muted); }
   .tabs { display: flex; gap: 4px; margin-left: 10px; } .tabs button { border-radius: 6px 6px 0 0; }
   .hqpanel { min-height: 0; overflow: auto; } .hqgrid.two { grid-template-columns: 360px 1fr; }
   .home { padding: 16px; display: flex; flex-direction: column; gap: 14px; max-width: 1100px; margin: 0 auto; }
@@ -161,6 +166,7 @@
     <h1>OPERATOR TACTICS</h1>
     <div class="hqteam"><span class="ins team0" id="hqIns">✶</span><div><div class="hqname" id="hqTeamName">Alpha</div><div class="hqrank"><span id="hqRank">Recrue</span> · <span id="hqXp"></span><div class="xpbar"><i id="hqXpBar"></i></div></div></div></div>
     <span class="cred"><span id="credits">0</span> crédits</span>
+    <div class="achs" id="hqAch" title="Succès"></div>
     <nav class="tabs"><button data-tab="accueil" class="on">Accueil</button><button data-tab="equipe">Équipe</button><button data-tab="cartes">Cartes</button><button data-tab="missions">Missions</button><button data-tab="ligue">Ligue</button></nav>
     <div class="spacer"></div>
     <button id="freeBattle" title="Bataille d'entraînement sans récompense, avec graine et ordres libres">Bataille libre</button>

@@ -2,7 +2,7 @@
 // Toute la logique vient de sim/game.js ; ce fichier affiche le profil et relaie les actions.
 (function () {
   const OT = window.OT; const { Game, DATA, League } = OT;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES, TRAITS, CHALLENGES, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES, TRAITS, CHALLENGES, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, CONTRACT } = DATA;
   const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯' };
   const $ = (s) => document.querySelector(s);
   const STAT_FR = { marksmanship: 'Tir', reflexes: 'Réflexes', mobility: 'Mobilité', perception: 'Perception', composure: 'Sang-froid', endurance: 'Endurance' };
@@ -30,7 +30,12 @@
     $('#career').textContent = `${c.battles} bataille${c.battles > 1 ? 's' : ''} · ${c.kills} neutralisation${c.kills > 1 ? 's' : ''} · ${c.losses_units} opérateur${c.losses_units > 1 ? 's' : ''} évacué${c.losses_units > 1 ? 's' : ''}`;
     renderHome(); renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderDeploy(); renderArmory(); renderPacks(); renderTactics(); renderPerks(); renderChallenges(); renderLeague(); renderRewards();
   }
+  function renderAchievements() {
+    const el = $('#hqAch'); if (!el) return;
+    el.innerHTML = ACHIEVEMENTS.map(a => `<span class="ach ${profile.achievements && profile.achievements[a.id] ? 'got' : ''}" title="${esc(a.name)} — ${esc(a.desc)}">${a.glyph}</span>`).join('');
+  }
   function renderHome() {
+    renderAchievements();
     const ins = INSIGNIAS.find(i => i.id === profile.insignia) || INSIGNIAS[0];
     $('#hqIns').textContent = ins.glyph; $('#hqTeamName').textContent = profile.teamName;
     const r = Game.rankFor(profile.xp || 0), next = Game.xpToNextRank(profile.xp || 0);
@@ -65,7 +70,7 @@
   $('#lgPlay').addEventListener('click', () => {
     const sn = profile.league;
     if (sn.finished) {
-      const prize = League.seasonPrize(sn); profile.credits += prize.credits; profile.leagueSeasons = (profile.leagueSeasons || 0) + 1; profile.league = League.newSeason(Math.floor(Math.random() * 1e9)); saveNow(); render();
+      const prize = League.seasonPrize(sn); profile.credits += prize.credits; profile.leagueSeasons = (profile.leagueSeasons || 0) + 1; if (prize.qualified && prize.rank <= 3) profile.podium = true; const ach = Game.checkAchievements(profile, null); if (ach.length) flash('Succès : ' + ach.map(a => a.name).join(', ')); profile.league = League.newSeason(Math.floor(Math.random() * 1e9)); saveNow(); render();
       flash(`Saison terminée : ${prize.lines.join(' · ')}${prize.credits ? '' : ' Aucun prix.'}`); return;
     }
     if (!Game.squadReady(profile)) return;
@@ -106,12 +111,12 @@
       const st = profile.operators[o.id]; const lvl = Game.levelFor(st.xp); const next = Game.xpToNext(st.xp);
       const inSquad = profile.squad.includes(o.id);
       const pct = next === null ? 100 : Math.round(100 * (st.xp - DATA.XP_TABLE[lvl]) / (DATA.XP_TABLE[lvl + 1] - DATA.XP_TABLE[lvl]));
-      const recovering = st.unlocked && st.recovery > 0;
-      return `<div class="opcard ${st.unlocked ? '' : 'locked'} ${inSquad ? 'insquad' : ''} ${recovering ? 'recov' : ''} ${selected === o.id ? 'sel' : ''}" data-id="${o.id}">
-        <div class="crow"><span class="role">${roleIcon[o.role]}</span><span class="cs">${esc(o.callsign)}</span><span class="rar r${o.rarity}">${RARITY_FR[o.rarity]}</span><span class="st">${recovering ? 'Convalescent' : st.unlocked ? 'Niv. ' + lvl : PRICES.operator[o.rarity] + ' cr.'}</span></div>
+      const recovering = st.unlocked && st.recovery > 0; const expired = Game.contractExpired(profile, o.id); const promo = st.unlocked && st.pendingPromotions && st.pendingPromotions.length;
+      return `<div class="opcard ${st.unlocked ? '' : 'locked'} ${inSquad ? 'insquad' : ''} ${recovering ? 'recov' : ''} ${expired ? 'expired' : ''} ${selected === o.id ? 'sel' : ''}" data-id="${o.id}">
+        <div class="crow"><span class="role">${roleIcon[o.role]}</span><span class="cs">${esc(o.callsign)}</span><span class="rar r${o.rarity}">${RARITY_FR[o.rarity]}</span>${promo ? '<span class="promo" title="Promotion à choisir">!</span>' : ''}<span class="st">${expired ? 'Contrat expiré' : recovering ? 'Convalescent' : st.unlocked ? 'Niv. ' + lvl : PRICES.operator[o.rarity] + ' cr.'}</span></div>
         <div class="cunit">${esc(o.unit)} — ${ROLES[o.role].name} · <span class="trait">${TRAITS[o.trait].name}</span></div>
         ${st.unlocked ? `<div class="xp" title="${st.xp} XP"><i style="width:${pct}%"></i></div>` : ''}
-        <div class="crow small">${recovering ? `<button class="mini" data-act="treat" ${profile.credits >= Game.treatmentPrice(profile) ? '' : 'disabled'}>Soigner (${Game.treatmentPrice(profile) ? Game.treatmentPrice(profile) + ' cr.' : 'gratuit'})</button>` : st.unlocked ? `<button class="mini ${inSquad ? 'on' : ''}" data-act="squad">${inSquad ? 'Dans l’escouade' : 'Ajouter'}</button>` : `<button class="mini" data-act="recruit" ${profile.credits >= PRICES.operator[o.rarity] ? '' : 'disabled'}>Recruter</button>`}<span>${recovering ? 'Indisponible une mission' : st.unlocked ? `${st.battles} bat. · ${st.kills} neutr.` : 'Verrouillé'}</span></div>
+        <div class="crow small">${expired ? `<button class="mini" data-act="renew" ${profile.credits >= Game.renewPrice(profile, o.id) ? '' : 'disabled'}>Renouveler (${Game.renewPrice(profile, o.id)} cr.)</button>` : recovering ? `<button class="mini" data-act="treat" ${profile.credits >= Game.treatmentPrice(profile) ? '' : 'disabled'}>Soigner (${Game.treatmentPrice(profile) ? Game.treatmentPrice(profile) + ' cr.' : 'gratuit'})</button>` : st.unlocked ? `<button class="mini ${inSquad ? 'on' : ''}" data-act="squad">${inSquad ? 'Dans l’escouade' : 'Ajouter'}</button>` : `<button class="mini" data-act="recruit" ${profile.credits >= PRICES.operator[o.rarity] ? '' : 'disabled'}>Recruter</button>`}<span>${expired ? 'Inactif' : recovering ? 'Indisponible une mission' : st.unlocked ? `${st.tours} mission${st.tours > 1 ? 's' : ''} · ${st.kills} neutr.` : 'Verrouillé'}</span></div>
       </div>`;
     }).join('');
     el.querySelectorAll('.opcard').forEach(card => {
@@ -120,6 +125,8 @@
         if (act === 'squad') { if (!Game.toggleSquad(profile, id)) flash(profile.squad.length >= 5 ? 'L’escouade est déjà au complet (5).' : 'Impossible.'); }
         else if (act === 'recruit') { if (Game.recruit(profile, id)) flash(`${OPERATORS.find(o => o.id === id).callsign} rejoint l’unité.`); else flash('Crédits insuffisants.'); }
         else if (act === 'treat') { if (Game.treat(profile, id)) flash(`${OPERATORS.find(o => o.id === id).callsign} est de nouveau disponible.`); else flash('Crédits insuffisants.'); }
+        else if (act === 'renew') { if (Game.renewContract(profile, id)) flash(`Contrat de ${OPERATORS.find(o => o.id === id).callsign} renouvelé.`); else flash('Crédits insuffisants.'); }
+        else if (act === 'promo') { if (Game.choosePromotion(profile, id, e.target.dataset.trait)) flash(`${OPERATORS.find(o => o.id === id).callsign} acquiert « ${TRAITS[e.target.dataset.trait].name} ».`); }
         selected = id; saveNow(); render();
       });
     });
@@ -132,7 +139,9 @@
     const w = WEAPONS[st.weaponId], a = ARMORS[st.armorId];
     $('#hqDetail').innerHTML = `
       <div class="dhead"><span class="role big">${roleIcon[o.role]}</span><div><div class="dname">${esc(o.callsign)} <small>${role.name} · ${RARITY_FR[o.rarity]}</small></div><div class="cunit">Inspiré du ${esc(o.unit)}</div></div><div class="lvl">Niveau ${def.level}<small>${Game.xpToNext(st.xp) === null ? 'maximum' : Game.xpToNext(st.xp) + ' XP avant le suivant'}</small></div></div>
-      <div class="traitbox"><b>${TRAITS[o.trait].name}</b> — ${esc(TRAITS[o.trait].desc)}</div>
+      <div class="traitbox"><b>${TRAITS[o.trait].name}</b> — ${esc(TRAITS[o.trait].desc)}${(st.traits || []).map(t => `<br><b>${TRAITS[t].name}</b> <small class="muted">(promotion)</small> — ${esc(TRAITS[t].desc)}`).join('')}</div>
+      ${(st.pendingPromotions || []).map(p => `<div class="promobox"><b>Promotion — niveau ${p.level}</b> : choisissez un second trait.<div class="promochoices">${p.choices.map(t => `<button class="promochoice" data-act="promo" data-trait="${t}" data-id="${o.id}"><b>${TRAITS[t].name}</b><span>${esc(TRAITS[t].desc)}</span></button>`).join('')}</div></div>`).join('')}
+      ${st.unlocked ? `<div class="contract ${Game.contractExpired(profile, o.id) ? 'bad' : ''}">Contrat : ${st.tours > 0 ? `${st.tours} mission${st.tours > 1 ? 's' : ''} restante${st.tours > 1 ? 's' : ''}` : 'expiré'} · renouvellement ${Game.renewPrice(profile, o.id)} cr. (+${CONTRACT.tours[o.rarity]} missions)${st.dupes ? ` · ${st.dupes} doublon${st.dupes > 1 ? 's' : ''} fusionné${st.dupes > 1 ? 's' : ''}` : ''} <button class="mini" data-renew="${o.id}" ${profile.credits >= Game.renewPrice(profile, o.id) ? '' : 'disabled'}>Renouveler</button></div>` : ''}
       <div class="stats">${stats}</div>
       ${st.unlocked ? `
       <div class="equip">
@@ -142,7 +151,10 @@
         <div class="wspec">Absorbe ${Math.round(a.torso * 100)} % au torse, ${Math.round(a.head * 100)} % à la tête · vitesse × ${a.mobility}</div>
         <label>Voie d’approche <select id="selLane">${[null, -1, 0, 1].map(l => `<option value="${l}" ${String(st.lane) === String(l) ? 'selected' : ''}>${LANE_FR[String(l)]}</option>`).join('')}</select></label>
         <div class="wspec">Nord et Sud contournent le bâtiment central ; Centre laisse l’opérateur choisir le chemin le plus court.</div>
-      </div>` : `<p class="muted">Recrutez cet opérateur (${PRICES.operator[o.rarity]} crédits) pour l’équiper et l’engager.</p>`}`;
+      </div>
+      <details class="hist"><summary>Historique — ${st.battles} bataille${st.battles > 1 ? 's' : ''}, ${st.kills} neutralisation${st.kills > 1 ? 's' : ''}</summary>${(st.history || []).length ? `<table class="histt"><tr><th>Mission</th><th>Issue</th><th>Neutr.</th><th>Au but</th><th>Dégâts</th><th>XP</th></tr>${st.history.slice().reverse().map(h => `<tr class="${h.alive ? '' : 'dead'}"><td>${esc(h.m)}</td><td>${h.won ? 'Victoire' : h.draw ? 'Égalité' : 'Défaite'}${h.alive ? '' : ' · évacué'}</td><td>${h.kills}</td><td>${h.hits}/${h.shots}</td><td>${h.dmg}</td><td>+${h.xp}</td></tr>`).join('')}</table>` : '<div class="muted" style="font-size:12px;padding:6px 0">Aucune bataille encore.</div>'}</details>` : `<p class="muted">Recrutez cet opérateur (${PRICES.operator[o.rarity]} crédits) pour l’équiper et l’engager.</p>`}`;
+    $('#hqDetail').querySelectorAll('.promochoice').forEach(b => b.addEventListener('click', () => { if (Game.choosePromotion(profile, b.dataset.id, b.dataset.trait)) { flash(`${o.callsign} acquiert « ${TRAITS[b.dataset.trait].name} ».`); saveNow(); render(); } }));
+    const rb = $('#hqDetail').querySelector('[data-renew]'); if (rb) rb.addEventListener('click', () => { if (Game.renewContract(profile, o.id)) { flash('Contrat renouvelé.'); saveNow(); render(); } else flash('Crédits insuffisants.'); });
     if (st.unlocked) {
       $('#selWeapon').addEventListener('change', (e) => { Game.setWeapon(profile, o.id, e.target.value); saveNow(); render(); });
       $('#selArmor').addEventListener('change', (e) => { Game.setArmor(profile, o.id, e.target.value); saveNow(); render(); });
@@ -257,6 +269,9 @@
     if (r.levelUps && r.levelUps.length) extra.push('Promotions : ' + r.levelUps.map(l => `${l.callsign} → niveau ${l.level}`).join(', '));
     if (r.recovering && r.recovering.length) extra.push('Évacués (indisponibles une mission) : ' + r.recovering.join(', '));
     if (r.leagueRank) extra.push(`Ligue : vous êtes ${r.leagueRank}${r.leagueRank === 1 ? 'er' : 'e'} au classement.`);
+    if (r.promotions && r.promotions.length) extra.push('Promotion à choisir (fiche de l’opérateur) : ' + r.promotions.map(p => `${p.callsign} (niveau ${p.level})`).join(', '));
+    if (r.expired && r.expired.length) extra.push('Contrat expiré, à renouveler : ' + r.expired.join(', '));
+    if (r.achievements && r.achievements.length) extra.push('Succès : ' + r.achievements.map(a => `${a.glyph} ${a.name}`).join(', '));
     $('#rwExtra').innerHTML = extra.map(esc).join('<br>');
     $('#rewards').classList.remove('hidden');
     // pièces qui tombent

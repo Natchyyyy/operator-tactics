@@ -17,14 +17,15 @@
   const fmtT = (t) => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`; };
 
   // Compétence de l'opérateur (voir data.js TRAITS) : has(u, 'eagle')
-  const has = (u, trait) => u.def.trait === trait;
+  // def.trait (principal) + def.traits (acquis par promotion)
+  const has = (u, trait) => u.def.trait === trait || (Array.isArray(u.def.traits) && u.def.traits.includes(trait));
 
   // ---------------------------------------------------------------------------------------
   function Unit(battle, def, team, idx) {
     this.battle = battle; this.def = def; this.team = team; this.idx = idx;
     this.id = `${team}:${def.id}`; this.callsign = def.callsign;
     this.role = ROLES[def.role]; this.weapon = WEAPONS[def.weaponId || this.role.weapon]; this.armor = ARMORS[def.armor];
-    this.maxHp = 80 + def.endurance / 5 + (def.trait === 'colossus' ? 10 : 0); this.hp = this.maxHp;
+    this.maxHp = 80 + def.endurance / 5 + (def.trait === 'colossus' || (Array.isArray(def.traits) && def.traits.includes('colossus')) ? 10 : 0); this.hp = this.maxHp;
     this.x = 0; this.z = 0; this.facing = 0; this.stance = 'stand';
     this.ammo = this.weapon.mag; this.mags = this.weapon.kit;
     this.reloading = 0;           // temps de rechargement restant (s)

@@ -132,6 +132,36 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   check('personnalisation : nom d\'équipe, insigne possédé seulement', Game.setCustomization(q, 'teamName', '  Les Faucons  ') && q.teamName === 'Les Faucons' && !Game.setCustomization(Game.newProfile(), 'insignia', 'ancre') && Game.setCustomization(q, 'insignia', 'bouclier'));
   Game.reset(storage);
 }
+// contrats, doublons, promotions, succès, historique
+{
+  const q = Game.newProfile(); const m = DATA.MISSIONS[0];
+  check('les opérateurs de départ ont un contrat de 24 missions, une recrue 12–16 selon la rareté', q.operators.op_vautour.tours === 24 && (q.credits = 1000, Game.recruit(q, 'op_harfang')) && q.operators.op_harfang.tours === DATA.CONTRACT.tours[3]);
+  q.operators.op_lynx.tours = 1;
+  const b = new Battle({ seed: 3, teams: Game.buildTeams(q, m) }); b.run(); const r = Game.applyRewards(q, m, b.result);
+  check('une mission consomme un tour de contrat ; à zéro l\'opérateur est signalé et indisponible', q.operators.op_lynx.tours === 0 && r.expired.includes('Lynx') && !Game.isAvailable(q, 'op_lynx') && Game.contractExpired(q, 'op_lynx'));
+  const c0 = q.credits; check('le renouvellement coûte selon la rareté et redonne des missions', Game.renewContract(q, 'op_lynx') && q.credits === c0 - DATA.CONTRACT.renewPrice[1] && q.operators.op_lynx.tours === DATA.CONTRACT.tours[1] && Game.isAvailable(q, 'op_lynx') === (q.operators.op_lynx.recovery === 0 || q.operators.op_lynx.recovery === undefined));
+  check('l\'historique de l\'opérateur garde ses batailles (mission, issue, neutralisations, dégâts)', q.operators.op_vautour.history.length === 1 && q.operators.op_vautour.history[0].m === m.name && typeof q.operators.op_vautour.history[0].dmg === 'number');
+  // doublon : tous débloqués → la carte « opérateur » devient une fusion
+  const d = Game.newProfile(); for (const id in d.operators) d.operators[id].unlocked = true; d.credits = 1000;
+  const seq = [0.0, 0.5, 0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.5]; let i = 0; const cards = Game.openPack(d, 'standard', () => seq[(i++) % seq.length]);
+  const dupe = cards.find(c => c.type === 'dupe');
+  check('une carte opérateur en doublon fusionne : perk +2 (ou crédits) et contrat +4', !!dupe && d.operators[dupe.id].dupes >= 1 && (!dupe.stat || (d.perks[dupe.id] && d.perks[dupe.id][dupe.stat] >= 2)) && d.operators[dupe.id].tours === DATA.CONTRACT.tours[DATA.OPERATORS.find(o => o.id === dupe.id).rarity] + 4 * d.operators[dupe.id].dupes, cards.map(c => c.type + ':' + c.id));
+  // promotion : passage au niveau 5 → deux traits proposés, choix appliqué dans la bataille
+  const pr = Game.newProfile(); pr.operators.op_vautour.xp = 890; // juste sous le niveau 5 (900)
+  const b2 = new Battle({ seed: 4, teams: Game.buildTeams(pr, m) }); b2.run(); const r2 = Game.applyRewards(pr, m, b2.result);
+  const pend = pr.operators.op_vautour.pendingPromotions;
+  check('au niveau 5, une promotion propose deux traits que l\'opérateur n\'a pas', Game.levelFor(pr.operators.op_vautour.xp) >= 5 && pend.length === 1 && pend[0].choices.length === 2 && !pend[0].choices.includes('fasthands') && r2.promotions.some(x => x.id === 'op_vautour'), pend);
+  const chosen = pend[0].choices[0];
+  pr.operators.op_vautour.recovery = 0; pr.squad = ['op_vautour', 'op_lynx', 'op_granit']; for (const id of pr.squad) pr.operators[id].recovery = 0;
+  check('le trait choisi devient actif dans la simulation', Game.choosePromotion(pr, 'op_vautour', chosen) && pr.operators.op_vautour.traits.includes(chosen) && (() => { const b3 = new Battle({ seed: 1, teams: Game.buildTeams(pr, m) }); const u = b3.teams[0].units.find(x => x.callsign === 'Vautour'); return u.def.traits.includes(chosen) && u.def.trait === 'fasthands'; })());
+  check('un trait non proposé est refusé', !Game.choosePromotion(pr, 'op_vautour', 'ghost'));
+  // succès
+  const a = Game.newProfile(); a.career.wins = 1; const got = Game.checkAchievements(a, null);
+  check('succès « Première victoire » accordé une seule fois', got.some(x => x.id === 'premiere') && Game.checkAchievements(a, null).length === 0 && a.achievements.premiere === true);
+  const a2 = Game.newProfile(); const fakeRes = { winner: 0, teams: [{ units: Array.from({ length: 5 }, () => ({ alive: true, hp: 95, maxHp: 100 })) }] };
+  check('succès « Sans une égratignure » : victoire avec 5 opérateurs > 90 %', Game.checkAchievements(a2, fakeRes).some(x => x.id === 'intact'));
+  Game.reset(storage);
+}
 // sauvegarde
 check('sauvegarde puis rechargement identiques', Game.save(p, storage) && JSON.stringify(Game.load(storage)) === JSON.stringify(p));
 check('sans sauvegarde : null (le jeu repart d\'un profil neuf)', Game.load({ getItem: () => null }) === null);

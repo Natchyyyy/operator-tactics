@@ -176,6 +176,26 @@
     elite:    { id: 'elite',    name: 'Paquet élite',    price: 420, cards: 5, weights: { operator: 26, tactic: 22, perk: 30, xp: 10, credits: 6, cosmetic: 6 } },
   };
 
+  // ---- SUCCÈS ----------------------------------------------------------------------------
+  // Vérifiés sur le profil après chaque bataille (game.js : ACHIEVEMENT_CHECKS). Icône affichée à côté du nom d'équipe.
+  const ACHIEVEMENTS = [
+    { id: 'premiere',   name: 'Première victoire',  glyph: '★', desc: 'Remporter une bataille.' },
+    { id: 'dix',        name: 'Dix victoires',      glyph: '✪', desc: 'Remporter dix batailles.' },
+    { id: 'chasseur',   name: 'Chasseur',           glyph: '◎', desc: 'Cinquante neutralisations en carrière.' },
+    { id: 'collection', name: 'Collectionneur',     glyph: '▣', desc: 'Débloquer dix opérateurs.' },
+    { id: 'veteran',    name: 'Vétéran',            glyph: '✦', desc: 'Amener un opérateur au niveau 5.' },
+    { id: 'podium',     name: 'Sur le podium',      glyph: '♛', desc: 'Finir une saison de ligue dans les trois premiers.' },
+    { id: 'tacticien',  name: 'Tacticien',          glyph: '◆', desc: 'Jouer vingt tactiques actives.' },
+    { id: 'intact',     name: 'Sans une égratignure', glyph: '❖', desc: 'Gagner avec cinq opérateurs à plus de 90 % de vie.' },
+  ];
+  // ---- PROMOTIONS : second trait au choix (niveau 5), troisième (niveau 10) ----------------
+  // Deux propositions par palier, tirées parmi les traits que l'opérateur n'a pas.
+  const PROMOTION_LEVELS = [5, 10];
+  // ---- CONTRATS ----------------------------------------------------------------------------
+  // Chaque opérateur recrutable a un contrat en missions (« tours »). À zéro, il faut le renouveler (crédits selon la rareté)
+  // ou il devient inactif (reste dans la collection, ne peut pas être engagé). Les opérateurs de départ ont un contrat long.
+  const CONTRACT = { tours: { 1: 16, 2: 14, 3: 12 }, renewPrice: { 1: 120, 2: 200, 3: 320 }, startingTours: 24 };
+
   // ---- ÉCONOMIE ----------------------------------------------------------------------
   const PRICES = {
     operator: { 1: 250, 2: 450, 3: 700 },           // recrutement selon la rareté
@@ -186,5 +206,5 @@
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
   const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));

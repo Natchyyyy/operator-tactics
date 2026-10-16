@@ -109,6 +109,11 @@
   /* ---- QG : onglets, accueil, cartes ---- */
   #hq { display: grid; grid-template-rows: 60px 1fr; height: 100%; }
   .hqteam { display: flex; align-items: center; gap: 10px; min-width: 0; } .hqname { font-weight: 800; letter-spacing: .1em; text-transform: uppercase; font-size: 14px; } .hqrank { font-size: 11px; color: var(--muted); } .xpbar { width: 160px; height: 4px; background: #0b0e11; border-radius: 2px; overflow: hidden; margin-top: 3px; } .xpbar i { display: block; height: 100%; background: var(--accent); }
+  .achs { display: flex; gap: 3px; margin-left: 10px; } .ach { width: 24px; height: 24px; border-radius: 5px; background: #0b0e11; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; color: #3a4350; } .ach.got { color: var(--accent); border-color: var(--accent); }
+  .promo { background: var(--accent); color: #111; border-radius: 50%; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; } .opcard.expired { opacity: .7; border-color: #4a3a2a; }
+  .promobox { background: #2a2416; border: 1px solid var(--accent); border-radius: 8px; padding: 8px 10px; font-size: 12px; margin: 6px 0; } .promochoices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; } .promochoice { text-align: left; display: flex; flex-direction: column; gap: 3px; padding: 8px; } .promochoice b { color: var(--accent); } .promochoice span { font-size: 11px; color: var(--muted); font-weight: 400; }
+  .contract { font-size: 12px; color: var(--muted); margin: 4px 0 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .contract.bad { color: var(--bad); }
+  .hist { margin-top: 8px; font-size: 12px; } .hist summary { cursor: pointer; color: var(--muted); } .histt { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; } .histt th { text-align: left; color: var(--muted); font-weight: 600; padding: 3px 6px; border-bottom: 1px solid var(--line); } .histt td { padding: 3px 6px; border-bottom: 1px solid #1d242b; } .histt tr.dead td { color: var(--muted); }
   .tabs { display: flex; gap: 4px; margin-left: 10px; } .tabs button { border-radius: 6px 6px 0 0; }
   .hqpanel { min-height: 0; overflow: auto; } .hqgrid.two { grid-template-columns: 360px 1fr; }
   .home { padding: 16px; display: flex; flex-direction: column; gap: 14px; max-width: 1100px; margin: 0 auto; }
@@ -154,6 +159,7 @@
     <h1>OPERATOR TACTICS</h1>
     <div class="hqteam"><span class="ins team0" id="hqIns">✶</span><div><div class="hqname" id="hqTeamName">Alpha</div><div class="hqrank"><span id="hqRank">Recrue</span> · <span id="hqXp"></span><div class="xpbar"><i id="hqXpBar"></i></div></div></div></div>
     <span class="cred"><span id="credits">0</span> crédits</span>
+    <div class="achs" id="hqAch" title="Succès"></div>
     <nav class="tabs"><button data-tab="accueil" class="on">Accueil</button><button data-tab="equipe">Équipe</button><button data-tab="cartes">Cartes</button><button data-tab="missions">Missions</button><button data-tab="ligue">Ligue</button></nav>
     <div class="spacer"></div>
     <button id="freeBattle" title="Bataille d'entraînement sans récompense, avec graine et ordres libres">Bataille libre</button>
@@ -557,6 +563,26 @@ window.Son = Son;
     elite:    { id: 'elite',    name: 'Paquet élite',    price: 420, cards: 5, weights: { operator: 26, tactic: 22, perk: 30, xp: 10, credits: 6, cosmetic: 6 } },
   };
 
+  // ---- SUCCÈS ----------------------------------------------------------------------------
+  // Vérifiés sur le profil après chaque bataille (game.js : ACHIEVEMENT_CHECKS). Icône affichée à côté du nom d'équipe.
+  const ACHIEVEMENTS = [
+    { id: 'premiere',   name: 'Première victoire',  glyph: '★', desc: 'Remporter une bataille.' },
+    { id: 'dix',        name: 'Dix victoires',      glyph: '✪', desc: 'Remporter dix batailles.' },
+    { id: 'chasseur',   name: 'Chasseur',           glyph: '◎', desc: 'Cinquante neutralisations en carrière.' },
+    { id: 'collection', name: 'Collectionneur',     glyph: '▣', desc: 'Débloquer dix opérateurs.' },
+    { id: 'veteran',    name: 'Vétéran',            glyph: '✦', desc: 'Amener un opérateur au niveau 5.' },
+    { id: 'podium',     name: 'Sur le podium',      glyph: '♛', desc: 'Finir une saison de ligue dans les trois premiers.' },
+    { id: 'tacticien',  name: 'Tacticien',          glyph: '◆', desc: 'Jouer vingt tactiques actives.' },
+    { id: 'intact',     name: 'Sans une égratignure', glyph: '❖', desc: 'Gagner avec cinq opérateurs à plus de 90 % de vie.' },
+  ];
+  // ---- PROMOTIONS : second trait au choix (niveau 5), troisième (niveau 10) ----------------
+  // Deux propositions par palier, tirées parmi les traits que l'opérateur n'a pas.
+  const PROMOTION_LEVELS = [5, 10];
+  // ---- CONTRATS ----------------------------------------------------------------------------
+  // Chaque opérateur recrutable a un contrat en missions (« tours »). À zéro, il faut le renouveler (crédits selon la rareté)
+  // ou il devient inactif (reste dans la collection, ne peut pas être engagé). Les opérateurs de départ ont un contrat long.
+  const CONTRACT = { tours: { 1: 16, 2: 14, 3: 12 }, renewPrice: { 1: 120, 2: 200, 3: 320 }, startingTours: 24 };
+
   // ---- ÉCONOMIE ----------------------------------------------------------------------
   const PRICES = {
     operator: { 1: 250, 2: 450, 3: 700 },           // recrutement selon la rareté
@@ -567,7 +593,7 @@ window.Son = Son;
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
   const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));
 
 </script>
@@ -879,14 +905,15 @@ window.Son = Son;
   const fmtT = (t) => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`; };
 
   // Compétence de l'opérateur (voir data.js TRAITS) : has(u, 'eagle')
-  const has = (u, trait) => u.def.trait === trait;
+  // def.trait (principal) + def.traits (acquis par promotion)
+  const has = (u, trait) => u.def.trait === trait || (Array.isArray(u.def.traits) && u.def.traits.includes(trait));
 
   // ---------------------------------------------------------------------------------------
   function Unit(battle, def, team, idx) {
     this.battle = battle; this.def = def; this.team = team; this.idx = idx;
     this.id = `${team}:${def.id}`; this.callsign = def.callsign;
     this.role = ROLES[def.role]; this.weapon = WEAPONS[def.weaponId || this.role.weapon]; this.armor = ARMORS[def.armor];
-    this.maxHp = 80 + def.endurance / 5 + (def.trait === 'colossus' ? 10 : 0); this.hp = this.maxHp;
+    this.maxHp = 80 + def.endurance / 5 + (def.trait === 'colossus' || (Array.isArray(def.traits) && def.traits.includes('colossus')) ? 10 : 0); this.hp = this.maxHp;
     this.x = 0; this.z = 0; this.facing = 0; this.stance = 'stand';
     this.ammo = this.weapon.mag; this.mags = this.weapon.kit;
     this.reloading = 0;           // temps de rechargement restant (s)
@@ -1783,7 +1810,7 @@ window.Son = Son;
 // Logique pure (testable en ligne de commande) ; l'interface (web/app.js) ne fait que l'afficher.
 (function (root, deps) {
   const { DATA } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL } = DATA;
   const STATS = ['marksmanship', 'reflexes', 'mobility', 'perception', 'composure', 'endurance'];
   const SAVE_KEY = 'operator-tactics-save-v1';
   const STARTING = ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
@@ -1791,7 +1818,8 @@ window.Son = Son;
   // ---- Profil ---------------------------------------------------------------------------
   function newProfile() {
     const operators = {};
-    for (const o of OPERATORS) if (!o.faction) operators[o.id] = { unlocked: STARTING.includes(o.id), xp: 0, weaponId: ROLES[o.role].weapon, armorId: o.armor, battles: 0, kills: 0, lane: null };
+    for (const o of OPERATORS) if (!o.faction) operators[o.id] = { unlocked: STARTING.includes(o.id), xp: 0, weaponId: ROLES[o.role].weapon, armorId: o.armor, battles: 0, kills: 0, lane: null,
+      tours: STARTING.includes(o.id) ? CONTRACT.startingTours : CONTRACT.tours[o.rarity], traits: [], pendingPromotions: [], history: [], dupes: 0, headgear: 'casque' };
     return {
       version: 1, credits: 300, operators, squad: STARTING.slice(), order: 'assault',
       inventory: { weapons: { carbine: true, smg: true, dmr: true, lmg: true, shotgun: true }, armors: { light: true, medium: true, heavy: true } }, // battle, smgsil : à acheter
@@ -1799,7 +1827,7 @@ window.Son = Son;
       // méta à la manière des jeux de cartes : nom et insigne d'équipe, uniforme, rang du joueur, tactiques, perks par opérateur
       teamName: 'Alpha', insignia: 'etoile', uniform: 'olive', unlocked: { insignias: ['etoile', 'bouclier'], uniforms: ['olive'] },
       xp: 0, tactics: { owned: { fumigene: true, drill: true }, equipped: ['fumigene', 'drill'] }, perks: {}, packsOpened: 0,
-      league: null, leagueSeasons: 0,
+      league: null, leagueSeasons: 0, achievements: {}, tacticsUsed: 0,
     };
   }
   const levelFor = (xp) => { let l = 0; while (l < MAX_LEVEL && xp >= XP_TABLE[l + 1]) l++; return l; };
@@ -1809,7 +1837,7 @@ window.Son = Son;
   function effectiveDef(profile, id) {
     const base = OPERATORS.find(o => o.id === id); const st = profile.operators[id];
     const level = levelFor(st.xp);
-    const def = Object.assign({}, base, { level, weaponId: st.weaponId, armor: st.armorId, lane: st.lane });
+    const def = Object.assign({}, base, { level, weaponId: st.weaponId, armor: st.armorId, lane: st.lane, traits: st.traits || [], headgear: st.headgear });
     const perks = (profile.perks && profile.perks[id]) || {};
     for (const k of STATS) def[k] = Math.min(100, base[k] + level * LEVEL_STAT_BONUS + (perks[k] || 0));
     return def;
@@ -1870,8 +1898,13 @@ window.Son = Son;
     const recruitable = OPERATORS.filter(o => !o.faction);
     if (type === 'operator') {
       const locked = recruitable.filter(o => !profile.operators[o.id].unlocked);
-      if (locked.length) { const o = pick(locked); profile.operators[o.id].unlocked = true; return { type: 'operator', id: o.id, title: o.callsign, text: `Nouvelle recrue : ${ROLES[o.role].name} (${o.unit})`, rarity: o.rarity }; }
-      type = 'xp';
+      if (locked.length) { const o = pick(locked); profile.operators[o.id].unlocked = true; profile.operators[o.id].tours = CONTRACT.tours[o.rarity]; return { type: 'operator', id: o.id, title: o.callsign, text: `Nouvelle recrue : ${ROLES[o.role].name} (${o.unit})`, rarity: o.rarity }; }
+      // doublon : fusion → le même opérateur gagne un perk permanent (+2) et un prolongement de contrat ; à défaut, des crédits
+      const o = pick(recruitable); const st = profile.operators[o.id]; st.dupes = (st.dupes || 0) + 1;
+      const open = STATS.filter(k => ((profile.perks[o.id] || {})[k] || 0) < 10);
+      st.tours = (st.tours > 0 ? st.tours : 0) + 4;
+      if (open.length) { const k = pick(open); profile.perks[o.id] = profile.perks[o.id] || {}; profile.perks[o.id][k] = (profile.perks[o.id][k] || 0) + 2; return { type: 'dupe', id: o.id, stat: k, title: `${o.callsign} (doublon)`, text: `Fusion : ${STAT_FR[k]} +2 permanent et contrat prolongé de 4 missions.`, rarity: o.rarity }; }
+      profile.credits += 120; return { type: 'dupe', id: o.id, title: `${o.callsign} (doublon)`, text: 'Fusion : +120 crédits et contrat prolongé de 4 missions.', rarity: o.rarity };
     }
     if (type === 'tactic') {
       const locked = Object.values(TACTICS).filter(t => !profile.tactics.owned[t.id]);
@@ -1927,7 +1960,14 @@ window.Son = Son;
     profile.squad.push(id); return true;
   }
   // Une escouade part avec 3 à 5 opérateurs disponibles (ni verrouillés, ni en convalescence).
-  const isAvailable = (profile, id) => { const st = profile.operators[id]; return !!st && st.unlocked && !(st.recovery > 0); };
+  const isAvailable = (profile, id) => { const st = profile.operators[id]; return !!st && st.unlocked && !(st.recovery > 0) && (st.tours === undefined || st.tours > 0); };
+  const contractExpired = (profile, id) => { const st = profile.operators[id]; return !!st && st.unlocked && st.tours !== undefined && st.tours <= 0; };
+  const renewPrice = (profile, id) => CONTRACT.renewPrice[OPERATORS.find(o => o.id === id).rarity];
+  function renewContract(profile, id) {
+    const st = profile.operators[id]; if (!st || !st.unlocked) return false;
+    const price = renewPrice(profile, id); if (profile.credits < price) return false;
+    profile.credits -= price; st.tours = (st.tours > 0 ? st.tours : 0) + CONTRACT.tours[OPERATORS.find(o => o.id === id).rarity]; return true;
+  }
   const squadReady = (profile) => profile.squad.length >= 3 && profile.squad.length <= 5 && profile.squad.every(id => isAvailable(profile, id));
   // Soins : un opérateur en convalescence redevient disponible contre des crédits.
   const TREATMENT_PRICE = 80;
@@ -1943,7 +1983,7 @@ window.Son = Son;
     if (!base || st.unlocked) return false;
     const price = PRICES.operator[base.rarity];
     if (profile.credits < price) return false;
-    profile.credits -= price; st.unlocked = true; return true;
+    profile.credits -= price; st.unlocked = true; st.tours = CONTRACT.tours[base.rarity]; return true;
   }
   function buyWeapon(profile, weaponId) {
     if (!WEAPONS[weaponId] || profile.inventory.weapons[weaponId]) return false;
@@ -2004,12 +2044,17 @@ window.Son = Son;
     const rankBefore = rankFor(profile.xp || 0);
     r.playerXp = mission.xp + (result.teams[0].kills || 0) * 5 + (r.won ? 30 : r.draw ? 10 : 0);
     profile.xp = (profile.xp || 0) + r.playerXp; r.rankUp = rankFor(profile.xp) > rankBefore ? RANKS[rankFor(profile.xp)].name : null;
-    r.levelUps = [];
+    r.levelUps = []; r.promotions = []; r.expired = [];
     for (const u of result.teams[0].units) {
       const id = u.id.split(':')[1]; const st = profile.operators[id];
       const before = levelFor(st.xp); st.xp += r.xp[id]; st.battles++; st.kills += u.stats.kills;
       const after = levelFor(st.xp); if (after > before) r.levelUps.push({ id, callsign: u.callsign, level: after });
+      for (const lv of PROMOTION_LEVELS) if (before < lv && after >= lv) { const o = offerPromotion(profile, id, lv); if (o) r.promotions.push({ id, callsign: u.callsign, level: lv }); }
+      // contrat : une mission consommée ; historique par opérateur (20 dernières)
+      if (st.tours !== undefined) { st.tours--; if (st.tours <= 0) r.expired.push(u.callsign); }
+      st.history = st.history || []; st.history.push({ m: mission.name, won: r.won, draw: r.draw, kills: u.stats.kills, dmg: Math.round(u.stats.damageDealt), hits: u.stats.hits, shots: u.stats.shots, alive: u.alive, xp: r.xp[id] }); if (st.history.length > 20) st.history.shift();
     }
+    profile.tacticsUsed = (profile.tacticsUsed || 0) + (result.teams[0].tactics || []).reduce((s, t) => s + (t.used || 0), 0);
     // convalescence : ceux qui étaient déjà indisponibles récupèrent d'une mission ; les neutralisés de celle-ci sont indisponibles pour la prochaine
     for (const id in profile.operators) if (profile.operators[id].recovery > 0) profile.operators[id].recovery--;
     r.recovering = [];
@@ -2019,7 +2064,40 @@ window.Son = Son;
     profile.career.kills += result.teams[0].units.reduce((s, u) => s + u.stats.kills, 0);
     profile.career.losses_units += result.teams[0].units.filter(u => !u.alive).length;
     if (mission.id !== 'ligue') { profile.missions[mission.id] = profile.missions[mission.id] || { attempts: 0, wins: 0 }; profile.missions[mission.id].attempts++; if (r.won) profile.missions[mission.id].wins++; }
+    r.achievements = checkAchievements(profile, result);
     return r;
+  }
+
+  // ---- Promotions : second et troisième trait au choix ---------------------------------------
+  function offerPromotion(profile, id, level, rng) {
+    const st = profile.operators[id]; const base = OPERATORS.find(o => o.id === id);
+    if (st.pendingPromotions.some(p => p.level === level) || (st.traits || []).length >= PROMOTION_LEVELS.indexOf(level) + 1) return null;
+    const owned = new Set([base.trait, ...(st.traits || [])]);
+    const pool = Object.keys(TRAITS).filter(t => !owned.has(t));
+    rng = rng || Math.random;
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    const offer = { level, choices: pool.slice(0, 2) }; st.pendingPromotions.push(offer); return offer;
+  }
+  function choosePromotion(profile, id, trait) {
+    const st = profile.operators[id]; const i = st.pendingPromotions.findIndex(p => p.choices.includes(trait));
+    if (i < 0) return false;
+    st.traits = st.traits || []; st.traits.push(trait); st.pendingPromotions.splice(i, 1); return true;
+  }
+  // ---- Succès -----------------------------------------------------------------------------
+  const ACHIEVEMENT_CHECKS = {
+    premiere:   (p) => p.career.wins >= 1,
+    dix:        (p) => p.career.wins >= 10,
+    chasseur:   (p) => p.career.kills >= 50,
+    collection: (p) => Object.values(p.operators).filter(o => o.unlocked).length >= 10,
+    veteran:    (p) => Object.values(p.operators).some(o => levelFor(o.xp) >= 5),
+    podium:     (p) => !!p.podium,
+    tacticien:  (p) => (p.tacticsUsed || 0) >= 20,
+    intact:     (p, r) => !!r && r.winner === 0 && r.teams[0].units.length === 5 && r.teams[0].units.every(u => u.alive && u.hp / u.maxHp > 0.9),
+  };
+  function checkAchievements(profile, result) {
+    const got = []; profile.achievements = profile.achievements || {};
+    for (const a of ACHIEVEMENTS) { if (profile.achievements[a.id]) continue; if (ACHIEVEMENT_CHECKS[a.id](profile, result)) { profile.achievements[a.id] = true; got.push(a); } }
+    return got;
   }
 
   // ---- Sauvegarde locale (navigateur) ----------------------------------------------------
@@ -2032,7 +2110,8 @@ window.Son = Son;
       const p = JSON.parse(raw); if (!p || p.version !== 1 || !p.operators || !p.squad) return null;
       // tolérance : opérateurs ajoutés depuis la sauvegarde
       const fresh = newProfile();
-      for (const id in fresh.operators) if (!p.operators[id]) p.operators[id] = fresh.operators[id];
+      for (const id in fresh.operators) { if (!p.operators[id]) p.operators[id] = fresh.operators[id]; else for (const k of ['tours', 'traits', 'pendingPromotions', 'history', 'dupes', 'headgear']) if (p.operators[id][k] === undefined) p.operators[id][k] = fresh.operators[id][k]; }
+      if (p.achievements === undefined) p.achievements = {}; if (p.tacticsUsed === undefined) p.tacticsUsed = 0;
       for (const k of ['teamName', 'insignia', 'uniform', 'unlocked', 'xp', 'tactics', 'perks', 'packsOpened', 'league', 'leagueSeasons']) if (p[k] === undefined) p[k] = fresh[k];
       p.inventory = p.inventory || fresh.inventory; p.inventory.weapons = Object.assign({}, fresh.inventory.weapons, p.inventory.weapons); p.inventory.armors = Object.assign({}, fresh.inventory.armors, p.inventory.armors);
       p.squad = p.squad.filter(id => p.operators[id] && p.operators[id].unlocked);
@@ -2041,7 +2120,7 @@ window.Son = Son;
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));
 
@@ -2156,7 +2235,7 @@ window.Son = Son;
 // Toute la logique vient de sim/game.js ; ce fichier affiche le profil et relaie les actions.
 (function () {
   const OT = window.OT; const { Game, DATA, League } = OT;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES, TRAITS, CHALLENGES, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES, TRAITS, CHALLENGES, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, CONTRACT } = DATA;
   const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯' };
   const $ = (s) => document.querySelector(s);
   const STAT_FR = { marksmanship: 'Tir', reflexes: 'Réflexes', mobility: 'Mobilité', perception: 'Perception', composure: 'Sang-froid', endurance: 'Endurance' };
@@ -2184,7 +2263,12 @@ window.Son = Son;
     $('#career').textContent = `${c.battles} bataille${c.battles > 1 ? 's' : ''} · ${c.kills} neutralisation${c.kills > 1 ? 's' : ''} · ${c.losses_units} opérateur${c.losses_units > 1 ? 's' : ''} évacué${c.losses_units > 1 ? 's' : ''}`;
     renderHome(); renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderDeploy(); renderArmory(); renderPacks(); renderTactics(); renderPerks(); renderChallenges(); renderLeague(); renderRewards();
   }
+  function renderAchievements() {
+    const el = $('#hqAch'); if (!el) return;
+    el.innerHTML = ACHIEVEMENTS.map(a => `<span class="ach ${profile.achievements && profile.achievements[a.id] ? 'got' : ''}" title="${esc(a.name)} — ${esc(a.desc)}">${a.glyph}</span>`).join('');
+  }
   function renderHome() {
+    renderAchievements();
     const ins = INSIGNIAS.find(i => i.id === profile.insignia) || INSIGNIAS[0];
     $('#hqIns').textContent = ins.glyph; $('#hqTeamName').textContent = profile.teamName;
     const r = Game.rankFor(profile.xp || 0), next = Game.xpToNextRank(profile.xp || 0);
@@ -2219,7 +2303,7 @@ window.Son = Son;
   $('#lgPlay').addEventListener('click', () => {
     const sn = profile.league;
     if (sn.finished) {
-      const prize = League.seasonPrize(sn); profile.credits += prize.credits; profile.leagueSeasons = (profile.leagueSeasons || 0) + 1; profile.league = League.newSeason(Math.floor(Math.random() * 1e9)); saveNow(); render();
+      const prize = League.seasonPrize(sn); profile.credits += prize.credits; profile.leagueSeasons = (profile.leagueSeasons || 0) + 1; if (prize.qualified && prize.rank <= 3) profile.podium = true; const ach = Game.checkAchievements(profile, null); if (ach.length) flash('Succès : ' + ach.map(a => a.name).join(', ')); profile.league = League.newSeason(Math.floor(Math.random() * 1e9)); saveNow(); render();
       flash(`Saison terminée : ${prize.lines.join(' · ')}${prize.credits ? '' : ' Aucun prix.'}`); return;
     }
     if (!Game.squadReady(profile)) return;
@@ -2260,12 +2344,12 @@ window.Son = Son;
       const st = profile.operators[o.id]; const lvl = Game.levelFor(st.xp); const next = Game.xpToNext(st.xp);
       const inSquad = profile.squad.includes(o.id);
       const pct = next === null ? 100 : Math.round(100 * (st.xp - DATA.XP_TABLE[lvl]) / (DATA.XP_TABLE[lvl + 1] - DATA.XP_TABLE[lvl]));
-      const recovering = st.unlocked && st.recovery > 0;
-      return `<div class="opcard ${st.unlocked ? '' : 'locked'} ${inSquad ? 'insquad' : ''} ${recovering ? 'recov' : ''} ${selected === o.id ? 'sel' : ''}" data-id="${o.id}">
-        <div class="crow"><span class="role">${roleIcon[o.role]}</span><span class="cs">${esc(o.callsign)}</span><span class="rar r${o.rarity}">${RARITY_FR[o.rarity]}</span><span class="st">${recovering ? 'Convalescent' : st.unlocked ? 'Niv. ' + lvl : PRICES.operator[o.rarity] + ' cr.'}</span></div>
+      const recovering = st.unlocked && st.recovery > 0; const expired = Game.contractExpired(profile, o.id); const promo = st.unlocked && st.pendingPromotions && st.pendingPromotions.length;
+      return `<div class="opcard ${st.unlocked ? '' : 'locked'} ${inSquad ? 'insquad' : ''} ${recovering ? 'recov' : ''} ${expired ? 'expired' : ''} ${selected === o.id ? 'sel' : ''}" data-id="${o.id}">
+        <div class="crow"><span class="role">${roleIcon[o.role]}</span><span class="cs">${esc(o.callsign)}</span><span class="rar r${o.rarity}">${RARITY_FR[o.rarity]}</span>${promo ? '<span class="promo" title="Promotion à choisir">!</span>' : ''}<span class="st">${expired ? 'Contrat expiré' : recovering ? 'Convalescent' : st.unlocked ? 'Niv. ' + lvl : PRICES.operator[o.rarity] + ' cr.'}</span></div>
         <div class="cunit">${esc(o.unit)} — ${ROLES[o.role].name} · <span class="trait">${TRAITS[o.trait].name}</span></div>
         ${st.unlocked ? `<div class="xp" title="${st.xp} XP"><i style="width:${pct}%"></i></div>` : ''}
-        <div class="crow small">${recovering ? `<button class="mini" data-act="treat" ${profile.credits >= Game.treatmentPrice(profile) ? '' : 'disabled'}>Soigner (${Game.treatmentPrice(profile) ? Game.treatmentPrice(profile) + ' cr.' : 'gratuit'})</button>` : st.unlocked ? `<button class="mini ${inSquad ? 'on' : ''}" data-act="squad">${inSquad ? 'Dans l’escouade' : 'Ajouter'}</button>` : `<button class="mini" data-act="recruit" ${profile.credits >= PRICES.operator[o.rarity] ? '' : 'disabled'}>Recruter</button>`}<span>${recovering ? 'Indisponible une mission' : st.unlocked ? `${st.battles} bat. · ${st.kills} neutr.` : 'Verrouillé'}</span></div>
+        <div class="crow small">${expired ? `<button class="mini" data-act="renew" ${profile.credits >= Game.renewPrice(profile, o.id) ? '' : 'disabled'}>Renouveler (${Game.renewPrice(profile, o.id)} cr.)</button>` : recovering ? `<button class="mini" data-act="treat" ${profile.credits >= Game.treatmentPrice(profile) ? '' : 'disabled'}>Soigner (${Game.treatmentPrice(profile) ? Game.treatmentPrice(profile) + ' cr.' : 'gratuit'})</button>` : st.unlocked ? `<button class="mini ${inSquad ? 'on' : ''}" data-act="squad">${inSquad ? 'Dans l’escouade' : 'Ajouter'}</button>` : `<button class="mini" data-act="recruit" ${profile.credits >= PRICES.operator[o.rarity] ? '' : 'disabled'}>Recruter</button>`}<span>${expired ? 'Inactif' : recovering ? 'Indisponible une mission' : st.unlocked ? `${st.tours} mission${st.tours > 1 ? 's' : ''} · ${st.kills} neutr.` : 'Verrouillé'}</span></div>
       </div>`;
     }).join('');
     el.querySelectorAll('.opcard').forEach(card => {
@@ -2274,6 +2358,8 @@ window.Son = Son;
         if (act === 'squad') { if (!Game.toggleSquad(profile, id)) flash(profile.squad.length >= 5 ? 'L’escouade est déjà au complet (5).' : 'Impossible.'); }
         else if (act === 'recruit') { if (Game.recruit(profile, id)) flash(`${OPERATORS.find(o => o.id === id).callsign} rejoint l’unité.`); else flash('Crédits insuffisants.'); }
         else if (act === 'treat') { if (Game.treat(profile, id)) flash(`${OPERATORS.find(o => o.id === id).callsign} est de nouveau disponible.`); else flash('Crédits insuffisants.'); }
+        else if (act === 'renew') { if (Game.renewContract(profile, id)) flash(`Contrat de ${OPERATORS.find(o => o.id === id).callsign} renouvelé.`); else flash('Crédits insuffisants.'); }
+        else if (act === 'promo') { if (Game.choosePromotion(profile, id, e.target.dataset.trait)) flash(`${OPERATORS.find(o => o.id === id).callsign} acquiert « ${TRAITS[e.target.dataset.trait].name} ».`); }
         selected = id; saveNow(); render();
       });
     });
@@ -2286,7 +2372,9 @@ window.Son = Son;
     const w = WEAPONS[st.weaponId], a = ARMORS[st.armorId];
     $('#hqDetail').innerHTML = `
       <div class="dhead"><span class="role big">${roleIcon[o.role]}</span><div><div class="dname">${esc(o.callsign)} <small>${role.name} · ${RARITY_FR[o.rarity]}</small></div><div class="cunit">Inspiré du ${esc(o.unit)}</div></div><div class="lvl">Niveau ${def.level}<small>${Game.xpToNext(st.xp) === null ? 'maximum' : Game.xpToNext(st.xp) + ' XP avant le suivant'}</small></div></div>
-      <div class="traitbox"><b>${TRAITS[o.trait].name}</b> — ${esc(TRAITS[o.trait].desc)}</div>
+      <div class="traitbox"><b>${TRAITS[o.trait].name}</b> — ${esc(TRAITS[o.trait].desc)}${(st.traits || []).map(t => `<br><b>${TRAITS[t].name}</b> <small class="muted">(promotion)</small> — ${esc(TRAITS[t].desc)}`).join('')}</div>
+      ${(st.pendingPromotions || []).map(p => `<div class="promobox"><b>Promotion — niveau ${p.level}</b> : choisissez un second trait.<div class="promochoices">${p.choices.map(t => `<button class="promochoice" data-act="promo" data-trait="${t}" data-id="${o.id}"><b>${TRAITS[t].name}</b><span>${esc(TRAITS[t].desc)}</span></button>`).join('')}</div></div>`).join('')}
+      ${st.unlocked ? `<div class="contract ${Game.contractExpired(profile, o.id) ? 'bad' : ''}">Contrat : ${st.tours > 0 ? `${st.tours} mission${st.tours > 1 ? 's' : ''} restante${st.tours > 1 ? 's' : ''}` : 'expiré'} · renouvellement ${Game.renewPrice(profile, o.id)} cr. (+${CONTRACT.tours[o.rarity]} missions)${st.dupes ? ` · ${st.dupes} doublon${st.dupes > 1 ? 's' : ''} fusionné${st.dupes > 1 ? 's' : ''}` : ''} <button class="mini" data-renew="${o.id}" ${profile.credits >= Game.renewPrice(profile, o.id) ? '' : 'disabled'}>Renouveler</button></div>` : ''}
       <div class="stats">${stats}</div>
       ${st.unlocked ? `
       <div class="equip">
@@ -2296,7 +2384,10 @@ window.Son = Son;
         <div class="wspec">Absorbe ${Math.round(a.torso * 100)} % au torse, ${Math.round(a.head * 100)} % à la tête · vitesse × ${a.mobility}</div>
         <label>Voie d’approche <select id="selLane">${[null, -1, 0, 1].map(l => `<option value="${l}" ${String(st.lane) === String(l) ? 'selected' : ''}>${LANE_FR[String(l)]}</option>`).join('')}</select></label>
         <div class="wspec">Nord et Sud contournent le bâtiment central ; Centre laisse l’opérateur choisir le chemin le plus court.</div>
-      </div>` : `<p class="muted">Recrutez cet opérateur (${PRICES.operator[o.rarity]} crédits) pour l’équiper et l’engager.</p>`}`;
+      </div>
+      <details class="hist"><summary>Historique — ${st.battles} bataille${st.battles > 1 ? 's' : ''}, ${st.kills} neutralisation${st.kills > 1 ? 's' : ''}</summary>${(st.history || []).length ? `<table class="histt"><tr><th>Mission</th><th>Issue</th><th>Neutr.</th><th>Au but</th><th>Dégâts</th><th>XP</th></tr>${st.history.slice().reverse().map(h => `<tr class="${h.alive ? '' : 'dead'}"><td>${esc(h.m)}</td><td>${h.won ? 'Victoire' : h.draw ? 'Égalité' : 'Défaite'}${h.alive ? '' : ' · évacué'}</td><td>${h.kills}</td><td>${h.hits}/${h.shots}</td><td>${h.dmg}</td><td>+${h.xp}</td></tr>`).join('')}</table>` : '<div class="muted" style="font-size:12px;padding:6px 0">Aucune bataille encore.</div>'}</details>` : `<p class="muted">Recrutez cet opérateur (${PRICES.operator[o.rarity]} crédits) pour l’équiper et l’engager.</p>`}`;
+    $('#hqDetail').querySelectorAll('.promochoice').forEach(b => b.addEventListener('click', () => { if (Game.choosePromotion(profile, b.dataset.id, b.dataset.trait)) { flash(`${o.callsign} acquiert « ${TRAITS[b.dataset.trait].name} ».`); saveNow(); render(); } }));
+    const rb = $('#hqDetail').querySelector('[data-renew]'); if (rb) rb.addEventListener('click', () => { if (Game.renewContract(profile, o.id)) { flash('Contrat renouvelé.'); saveNow(); render(); } else flash('Crédits insuffisants.'); });
     if (st.unlocked) {
       $('#selWeapon').addEventListener('change', (e) => { Game.setWeapon(profile, o.id, e.target.value); saveNow(); render(); });
       $('#selArmor').addEventListener('change', (e) => { Game.setArmor(profile, o.id, e.target.value); saveNow(); render(); });
@@ -2411,6 +2502,9 @@ window.Son = Son;
     if (r.levelUps && r.levelUps.length) extra.push('Promotions : ' + r.levelUps.map(l => `${l.callsign} → niveau ${l.level}`).join(', '));
     if (r.recovering && r.recovering.length) extra.push('Évacués (indisponibles une mission) : ' + r.recovering.join(', '));
     if (r.leagueRank) extra.push(`Ligue : vous êtes ${r.leagueRank}${r.leagueRank === 1 ? 'er' : 'e'} au classement.`);
+    if (r.promotions && r.promotions.length) extra.push('Promotion à choisir (fiche de l’opérateur) : ' + r.promotions.map(p => `${p.callsign} (niveau ${p.level})`).join(', '));
+    if (r.expired && r.expired.length) extra.push('Contrat expiré, à renouveler : ' + r.expired.join(', '));
+    if (r.achievements && r.achievements.length) extra.push('Succès : ' + r.achievements.map(a => `${a.glyph} ${a.name}`).join(', '));
     $('#rwExtra').innerHTML = extra.map(esc).join('<br>');
     $('#rewards').classList.remove('hidden');
     // pièces qui tombent
