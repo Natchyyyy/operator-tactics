@@ -203,6 +203,41 @@ check('sauvegarde corrompue : null, sans planter', Game.load({ getItem: () => '{
   check('succès « Dix victoires » : le béret rouge est débloqué', g2.some(a => a.id === 'dix') && q.headgear.beret_rouge === true);
   check('un succès n\'est accordé qu\'une fois', Game.checkAchievements(q, null).length === 0);
 }
+{
+  // ---- modes de jeu ----
+  const q = Game.newProfile(); const C = DATA.CAMPAIGNS;
+  check('campagne régulière ouverte, vétéran et élite verrouillées au départ', Game.campaignUnlocked(q, 'reguliere') && !Game.campaignUnlocked(q, 'veteran') && !Game.campaignUnlocked(q, 'elite'));
+  check('campagne : seule la première mission est ouverte au départ', Game.missionUnlocked(q, 'reguliere', C[0].missions[0]) && !Game.missionUnlocked(q, 'reguliere', C[0].missions[1]));
+  const m0 = Game.campaignMission('reguliere', C[0].missions[0]);
+  const b = new Battle({ seed: 3, teams: Game.buildTeams(q, m0) }); b.run(); Game.applyRewards(q, m0, b.result);
+  check('campagne : la mission suivante s\'ouvre dès que la précédente a été jouée (gagnée ou non)', Game.missionUnlocked(q, 'reguliere', C[0].missions[1]) && Game.campaignProgress(q, 'reguliere').played === 1);
+  const v = Game.campaignMission('veteran', 'patrouille'), base = DATA.MISSIONS.find(m => m.id === 'patrouille');
+  check('campagne vétéran : adversaire +4 niveaux, une tactique de plus, prime ×1,5, identifiant distinct', v.level === base.level + 4 && v.enemyTactics.length === base.enemyTactics.length + 1 && v.reward === Math.round(base.reward * 1.5) && v.id === 'veteran:patrouille');
+  q.xp = DATA.RANKS[3].xp; check('campagne vétéran ouverte au rang 3', Game.campaignUnlocked(q, 'veteran'));
+  // primes de campagne : versées une seule fois, quand toutes les missions sont jouées / gagnées
+  const z = Game.newProfile(); const st = z.campaigns.reguliere = { played: {}, won: {}, participationPaid: false, completionPaid: false };
+  for (const id of C[0].missions.slice(0, -1)) { st.played[id] = true; st.won[id] = true; }
+  const last = Game.campaignMission('reguliere', C[0].missions[C[0].missions.length - 1]); const c0 = z.credits; const r = {};
+  Game.applyModes(z, last, { winner: 0, teams: [{ capture: 0, units: [{ alive: true }] }] }, r);
+  check('campagne finie et gagnée : primes de participation et de campagne versées (une fois)', z.credits === c0 + C[0].participation + C[0].completion && r.modeLines.length === 2 && last.final === true);
+  const c1 = z.credits; Game.applyModes(z, last, { winner: 0, teams: [{ capture: 0, units: [{ alive: true }] }] }, {}); check('primes de campagne non versées deux fois', z.credits === c1);
+  // bataille rapide
+  const qb = Game.quickBattle(q, () => 0.3);
+  const rateOf = (m) => m.enemy.reduce((s, id) => s + Game.defRating(Game.enemyDef(id, m.level)), 0) / m.enemy.length;
+  check('bataille rapide : 4 ou 5 opérateurs Karst, carte et objectif valides, adversaire un peu sous votre puissance', qb.enemy.length >= 4 && qb.enemy.every(id => id.startsWith('k_')) && !!OT.MAPS[qb.mapId] && ['eliminate', 'capture', 'hold'].includes(qb.objective) && (qb.level === 0 || rateOf(qb) <= Game.teamRating(q) - 2), { level: qb.level, r: rateOf(qb), t: Game.teamRating(q) });
+  const vet = Game.newProfile(); for (const id of vet.squad) vet.operators[id].xp = DATA.XP_TABLE[8]; const qv = Game.quickBattle(vet, () => 0.3);
+  check('bataille rapide : une escouade aguerrie affronte un adversaire de plus haut niveau', qv.level > qb.level, { qv: qv.level, qb: qb.level });
+  const bq = new Battle(Game.battleOptions(q, qb, 5)); bq.run(); check('une bataille rapide se joue jusqu\'au bout', bq.over);
+  const w = Game.newProfile(); w.quick.wins = 4; const rq = {}; const won = { winner: 0, teams: [{ capture: 0, units: [{ alive: false }] }] };
+  Game.applyModes(w, qb, won, rq);
+  check('bataille rapide : 5e victoire → paquet standard offert', w.quick.wins === 5 && w.freePacks.standard === 1 && rq.modeLines.some(l => /offert/.test(l)));
+  const cr = w.credits; const cards = Game.openPack(w, 'standard', () => 0.5);
+  check('un paquet offert s\'ouvre sans payer', cards && cards.length === 3 && w.freePacks.standard === 0 && w.credits >= cr);
+  // opérations spéciales
+  const o = Game.newProfile(); o.ops.wins = 24; const c2 = o.credits; const ro = {};
+  Game.applyModes(o, DATA.MISSIONS[0], { winner: 0, teams: [{ capture: 100, units: [{ alive: true }] }] }, ro);
+  check('opération Tempête : 25e victoire → +800 crédits et un paquet élite offert, captures et victoires propres comptées', o.ops.done.tempete && o.credits === c2 + 800 && o.freePacks.elite === 1 && o.ops.captureWins === 1 && o.ops.cleanWins === 1);
+}
 check('stockage indisponible : la sauvegarde échoue proprement', Game.save(p, { setItem: () => { throw new Error('quota'); } }) === false);
 check('réinitialisation : profil neuf et stockage vidé', Game.reset(storage).credits === 300 && storage.getItem(Game.SAVE_KEY) === null);
 console.log(`\n${pass}/${pass + fail} vérifications réussies`); process.exit(fail ? 1 : 0);

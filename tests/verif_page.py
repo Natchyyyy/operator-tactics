@@ -79,6 +79,18 @@ async def main():
         await pg.click("#vsGo"); await pg.wait_for_timeout(600); await pg.evaluate("() => { API.pause(true); API.runToEnd(); }"); await pg.click("#resHq"); await pg.wait_for_timeout(1200); await pg.click("#rwContinue"); await pg.wait_for_timeout(200)
         lg = await pg.evaluate("() => { const s = window.HQ.profile().league; return [s.round, s.history.length, s.standings.player.played, Object.values(s.standings).reduce((a, x) => a + x.played, 0)]; }")
         check("après le match : journée jouée, résultat enregistré, les autres équipes ont joué entre elles", lg[0] == 1 and lg[1] == 1 and lg[2] == 1 and lg[3] >= 9, lg)
+        # ---- Jouer : campagnes verrouillées, bataille rapide ----
+        await pg.click("[data-tab='missions']"); await pg.wait_for_timeout(150)
+        st = await pg.evaluate("() => [document.querySelectorAll('#hqMissions .mission').length, document.querySelectorAll('#hqMissions .mission.locked').length, document.querySelectorAll('.campbtn.locked').length, !!document.querySelector('.mission.final, .final')]")
+        check("onglet Jouer : 12 missions de campagne, les suivantes verrouillées, campagnes vétéran/élite verrouillées, finale signalée", st[0] == 12 and 0 < st[1] < 12 and st[2] == 2 and st[3], st)
+        await pg.click(".quickcard"); await pg.wait_for_timeout(100); await pg.click("#launch"); await pg.wait_for_timeout(300)
+        qv = await pg.evaluate("() => [!document.querySelector('#vs').classList.contains('hidden'), document.querySelector('#vsObj').textContent]")
+        check("la bataille rapide passe par l'écran VS avec un objectif tiré au sort", qv[0] and len(qv[1]) > 3, qv)
+        await pg.click("#vsGo"); await pg.wait_for_timeout(600); await pg.evaluate("() => { API.pause(true); API.runToEnd(); }")
+        await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=10000)
+        await pg.click("#resHq"); await pg.wait_for_timeout(1200); await pg.click("#rwContinue"); await pg.wait_for_timeout(200)
+        qp = await pg.evaluate("() => window.HQ.profile().quick.played")
+        check("après une bataille rapide, le compteur de batailles rapides avance", qp == 1, qp)
         # ---- Bataille libre (graine fixée) ----
         await pg.click("#freeBattle"); await pg.wait_for_timeout(600)
         await pg.fill("#seed", "3"); await pg.click("#newBattle"); await pg.wait_for_timeout(200)

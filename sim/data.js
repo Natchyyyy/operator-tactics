@@ -146,6 +146,31 @@
     { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 5, order: 'assault', enemyTactics: ['blitz', 'reco', 'soins'], reward: 480, xp: 90, difficulty: 4 },
   ];
 
+  // ---- MODES DE JEU (comme le menu « Jouer » du jeu d'origine) -------------------------------
+  // Campagnes : suites de missions débloquées l'une après l'autre (la suivante s'ouvre dès que la précédente a été JOUÉE) ;
+  // prime de participation quand toutes ont été jouées, prime de campagne quand toutes ont été gagnées.
+  // Vétéran et Élite rejouent les missions avec un adversaire plus aguerri (niveau +), plus de tactiques, de meilleures primes.
+  const CAMPAIGNS = [
+    { id: 'reguliere', name: 'Campagne régulière', desc: 'Douze missions contre le Groupe Karst, des docks à la raffinerie.',
+      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'assaut', 'tenir', 'nuit', 'pompage', 'vannes', 'elite'],
+      levelBonus: 0, rewardMul: 1, participation: 200, completion: 500, unlock: null },
+    { id: 'veteran', name: 'Campagne vétéran', desc: 'Les mêmes théâtres, un adversaire plus aguerri (+4 niveaux, une tactique de plus).',
+      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'assaut', 'tenir', 'nuit', 'pompage', 'vannes', 'elite'],
+      levelBonus: 4, extraTactic: true, rewardMul: 1.5, participation: 350, completion: 900, unlock: { rank: 3 } },
+    { id: 'elite', name: 'Campagne élite', desc: 'Pour les escouades d\'exception : adversaire +8 niveaux, deux tactiques de plus.',
+      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'assaut', 'tenir', 'nuit', 'pompage', 'vannes', 'elite'],
+      levelBonus: 8, extraTactic: 2, rewardMul: 2, participation: 600, completion: 1500, unlock: { rating: 60 } },
+  ];
+  // Bataille rapide : un adversaire à votre mesure (niveau tiré de la puissance d'équipe), carte et objectif au hasard ;
+  // un paquet standard offert toutes les QUICK.prizeEvery victoires.
+  const QUICK = { prizeEvery: 5, prizePack: 'standard', reward: 150, xp: 35 };
+  // Opérations spéciales : objectifs au long cours, progression sur toutes les batailles.
+  const SPECIAL_OPS = [
+    { id: 'tempete', name: 'Opération Tempête', desc: 'Remporter 25 batailles (tous modes).', goal: 25, stat: 'wins', reward: { credits: 800, pack: 'elite' } },
+    { id: 'balises', name: 'Opération Balises', desc: 'Remporter 10 batailles de capture de zone.', goal: 10, stat: 'captureWins', reward: { credits: 500, pack: 'standard' } },
+    { id: 'fantome', name: 'Opération Fantôme', desc: 'Remporter 8 batailles sans aucun opérateur neutralisé.', goal: 8, stat: 'cleanWins', reward: { credits: 600, pack: 'elite' } },
+  ];
+
   // ---- TACTIQUES (cartes jouées en bataille ou passives) ---------------------------------
   // Chaque effet est implémenté dans engine.js (useTactic / applyPassiveTactics). active : déclenchée par le joueur
   // (uses : nombre d'emplois par bataille, cooldown en s) ; sinon passive, appliquée au début.
@@ -224,5 +249,5 @@
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
   const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL, SYNERGIES, WOUND };
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL, SYNERGIES, WOUND, CAMPAIGNS, QUICK, SPECIAL_OPS };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));

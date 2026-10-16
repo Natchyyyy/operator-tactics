@@ -2,7 +2,7 @@
 // Logique pure (testable en ligne de commande) ; l'interface (web/app.js) ne fait que l'afficher.
 (function (root, deps) {
   const { DATA } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL , SYNERGIES, WOUND } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL , SYNERGIES, WOUND , CAMPAIGNS, QUICK, SPECIAL_OPS } = DATA;
   const STATS = ['marksmanship', 'reflexes', 'mobility', 'perception', 'composure', 'endurance'];
   const SAVE_KEY = 'operator-tactics-save-v1';
   const STARTING = ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
@@ -21,6 +21,7 @@
       xp: 0, tactics: { owned: { fumigene: true, drill: true }, equipped: ['fumigene', 'drill'] }, perks: {}, packsOpened: 0,
       league: null, leagueSeasons: 0, achievements: {}, tacticsUsed: 0,
       headgear: { casque: true, casque_lunettes: true },   // couvre-chefs possédés (communs à tous les opérateurs)
+      campaigns: {}, quick: { wins: 0, played: 0 }, freePacks: {}, ops: { wins: 0, captureWins: 0, cleanWins: 0, done: {} },
     };
   }
   const levelFor = (xp) => { let l = 0; while (l < MAX_LEVEL && xp >= XP_TABLE[l + 1]) l++; return l; };
@@ -55,14 +56,16 @@
   const xpToNextRank = (xp) => { const r = rankFor(xp); return r >= RANKS.length - 1 ? null : RANKS[r + 1].xp - xp; };
   // Puissance : moyenne des statistiques effectives + arme + protection, ramenée à une échelle lisible (≈ 25–70).
   // Purement informative : le combat n'en tient aucun compte.
-  function operatorRating(profile, id) {
-    const d = effectiveDef(profile, id); const st = profile.operators[id];
+  // Note d'un opérateur (≈ 45 pour une recrue, ≈ 70 au niveau maximum) : compétences (chaque niveau +2,4), arme, protection.
+  // Même calcul pour les adversaires (defRating) : la comparaison de l'écran VS est honnête.
+  function defRating(d) {
     const stats = STATS.reduce((s, k) => s + d[k], 0) / STATS.length;
-    const w = WEAPONS[st.weaponId], a = ARMORS[st.armorId];
+    const w = WEAPONS[d.weaponId || ROLES[d.role].weapon], a = ARMORS[d.armor];
     const wv = (w.damage * w.rpm / 60) * Math.min(1, w.range / 40) / 8 + w.accuracy * 10;
-    const av = a.torso * 20;
-    return stats * 0.4 + wv + av;
+    return Math.max(1, (stats - 50) * 1.2 + wv + a.torso * 20);
   }
+  function operatorRating(profile, id) { return defRating(effectiveDef(profile, id)); }
+  const RATING_PER_LEVEL = LEVEL_STAT_BONUS * 1.2;
   const teamRating = (profile) => profile.squad.length ? Math.round(profile.squad.reduce((s, id) => s + operatorRating(profile, id), 0) / profile.squad.length) : 0;
   // ---- Tactiques équipées (3 emplacements) -----------------------------------------------
   function equipTactic(profile, id) {
@@ -76,8 +79,11 @@
   // rng : fonction () → [0,1) (injectable pour les tests). Renvoie la liste des cartes obtenues, déjà appliquées au profil.
   function openPack(profile, packId, rng) {
     const pack = PACKS[packId]; if (!pack) return null;
-    if (profile.credits < pack.price) return null;
-    profile.credits -= pack.price; profile.packsOpened = (profile.packsOpened || 0) + 1;
+    profile.freePacks = profile.freePacks || {};
+    const free = (profile.freePacks[packId] || 0) > 0;             // paquet offert (bataille rapide, opérations spéciales) : rien à payer
+    if (!free && profile.credits < pack.price) return null;
+    if (free) profile.freePacks[packId]--; else profile.credits -= pack.price;
+    profile.packsOpened = (profile.packsOpened || 0) + 1;
     rng = rng || Math.random;
     const pick = (arr) => arr[Math.floor(rng() * arr.length)];
     const types = Object.keys(pack.weights), total = types.reduce((s, k) => s + pack.weights[k], 0);
@@ -158,6 +164,81 @@
       if (targets.length) out.push({ id: sy.id, name: sy.name, effect: sy.effect, desc: sy.desc, sources: defs.filter(s => match(s, sy.source)).map(s => s.callsign), targets: targets.map(d => d.callsign) });
     }
     return out;
+  }
+  // ---- Modes de jeu : campagnes, bataille rapide, opérations spéciales ------------------------------------------
+  const campaignState = (profile, cid) => { profile.campaigns = profile.campaigns || {}; return profile.campaigns[cid] = profile.campaigns[cid] || { played: {}, won: {}, participationPaid: false, completionPaid: false }; };
+  function campaignUnlocked(profile, cid) {
+    const c = CAMPAIGNS.find(x => x.id === cid); if (!c) return false; const u = c.unlock; if (!u) return true;
+    if (u.rank !== undefined && rankFor(profile.xp || 0) < u.rank) return false;
+    if (u.rating !== undefined && teamRating(profile) < u.rating) return false;
+    return true;
+  }
+  // La mission d'une campagne (adversaire ajusté) ; la campagne régulière garde l'identifiant d'origine.
+  function campaignMission(cid, mid) {
+    const c = CAMPAIGNS.find(x => x.id === cid), base = MISSIONS.find(m => m.id === mid); if (!c || !base) return null;
+    if (c.id === 'reguliere') return Object.assign({}, base, { campaign: cid, final: c.missions[c.missions.length - 1] === mid });
+    const extra = Object.keys(TACTICS).filter(t => !(base.enemyTactics || []).includes(t)).slice(0, c.extraTactic === true ? 1 : (c.extraTactic || 0));
+    return Object.assign({}, base, { id: `${cid}:${mid}`, name: `${base.name} (${c.id === 'veteran' ? 'vétéran' : 'élite'})`, campaign: cid, final: c.missions[c.missions.length - 1] === mid,
+      level: base.level + c.levelBonus, enemyTactics: (base.enemyTactics || []).concat(extra), reward: Math.round(base.reward * c.rewardMul), xp: Math.round(base.xp * (1 + (c.rewardMul - 1) / 2)) });
+  }
+  // une mission est jouable si c'est la première de la campagne, ou si la précédente a été jouée
+  function missionUnlocked(profile, cid, mid) {
+    const c = CAMPAIGNS.find(x => x.id === cid); if (!c || !campaignUnlocked(profile, cid)) return false;
+    const i = c.missions.indexOf(mid); if (i <= 0) return i === 0;
+    const st = campaignState(profile, cid), prev = c.missions[i - 1];
+    // campagne régulière : les missions déjà tentées avant l'existence des campagnes comptent
+    return !!st.played[prev] || (cid === 'reguliere' && !!(profile.missions[prev] && profile.missions[prev].attempts));
+  }
+  function campaignProgress(profile, cid) {
+    const c = CAMPAIGNS.find(x => x.id === cid), st = campaignState(profile, cid);
+    const played = c.missions.filter(m => st.played[m] || (cid === 'reguliere' && profile.missions[m] && profile.missions[m].attempts)).length;
+    const won = c.missions.filter(m => st.won[m] || (cid === 'reguliere' && profile.missions[m] && profile.missions[m].wins)).length;
+    return { played, won, total: c.missions.length };
+  }
+  // Bataille rapide : adversaire de la Karst au niveau de votre puissance d'équipe, carte et objectif tirés au sort.
+  function quickBattle(profile, rng) {
+    rng = rng || Math.random; const pick = (a) => a[Math.floor(rng() * a.length)];
+    const karst = OPERATORS.filter(o => o.faction === 'karst').map(o => o.id);
+    for (let i = karst.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [karst[i], karst[j]] = [karst[j], karst[i]]; }
+    // niveau : le plus haut dont la note moyenne reste un peu sous la vôtre (vos tactiques et vos ordres font la différence)
+    const target = teamRating(profile) - 2, rate = (lv) => karst.slice(0, 5).reduce((s, id) => s + defRating(enemyDef(id, lv)), 0) / 5;
+    let level = 0; while (level < 12 && rate(level + 1) <= target) level++;
+    const size = rate(0) > target + 4 ? 4 : 5;                     // escouade de recrues face à des vétérans : un adversaire de moins
+    const objective = pick(['eliminate', 'eliminate', 'capture', 'capture', 'hold']);
+    const tac = Object.keys(TACTICS); const t1 = pick(tac), t2 = pick(tac.filter(t => t !== t1));
+    return { id: 'rapide', name: 'Bataille rapide', quick: true, desc: 'Un adversaire à votre mesure.', mapId: pick(['entrepot', 'place', 'raffinerie']), enemy: karst.slice(0, size), level,
+      order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: rng() < 0.5 ? [t1] : [t1, t2], reward: QUICK.reward, xp: QUICK.xp, difficulty: 2 };
+  }
+  // niveau de l'adversaire de bataille rapide : l'écart de puissance avec une escouade de recrues, converti en niveaux
+  let baseRating = null;
+  function quickLevel(profile) { if (baseRating === null) baseRating = teamRating(newProfile()); return Math.max(0, Math.min(12, Math.round((teamRating(profile) - baseRating) / RATING_PER_LEVEL))); }
+  // Après chaque bataille : campagne, bataille rapide, opérations spéciales (appelé par applyRewards)
+  function applyModes(profile, mission, result, r) {
+    const won = result.winner === 0;
+    r.modeLines = [];
+    profile.ops = profile.ops || { wins: 0, captureWins: 0, cleanWins: 0, done: {} }; profile.freePacks = profile.freePacks || {};
+    if (mission.campaign) {
+      const c = CAMPAIGNS.find(x => x.id === mission.campaign), st = campaignState(profile, c.id), mid = mission.id.includes(':') ? mission.id.split(':')[1] : mission.id;
+      st.played[mid] = true; if (won) st.won[mid] = true;
+      const pr = campaignProgress(profile, c.id);
+      if (pr.played === pr.total && !st.participationPaid) { st.participationPaid = true; profile.credits += c.participation; r.modeLines.push(`${c.name} : toutes les missions jouées — prime de participation +${c.participation} crédits`); }
+      if (pr.won === pr.total && !st.completionPaid) { st.completionPaid = true; profile.credits += c.completion; r.modeLines.push(`${c.name} terminée : prime de campagne +${c.completion} crédits`); }
+    }
+    if (mission.quick) {
+      profile.quick = profile.quick || { wins: 0, played: 0 }; profile.quick.played++;
+      if (won) { profile.quick.wins++; if (profile.quick.wins % QUICK.prizeEvery === 0) { profile.freePacks[QUICK.prizePack] = (profile.freePacks[QUICK.prizePack] || 0) + 1; r.modeLines.push(`Bataille rapide : ${QUICK.prizeEvery} victoires — ${PACKS[QUICK.prizePack].name} offert !`); } }
+    }
+    if (won) {
+      profile.ops.wins++;
+      if (result.teams[0].capture >= 100) profile.ops.captureWins++;
+      if (result.teams[0].units.every(u => u.alive)) profile.ops.cleanWins++;
+    }
+    for (const op of SPECIAL_OPS) {
+      if (profile.ops.done[op.id] || (profile.ops[op.stat] || 0) < op.goal) continue;
+      profile.ops.done[op.id] = true; profile.credits += op.reward.credits || 0;
+      if (op.reward.pack) profile.freePacks[op.reward.pack] = (profile.freePacks[op.reward.pack] || 0) + 1;
+      r.modeLines.push(`${op.name} accomplie : +${op.reward.credits} crédits${op.reward.pack ? ' et un ' + PACKS[op.reward.pack].name.toLowerCase() + ' offert' : ''}`);
+    }
   }
   // Libellé court de l'objectif d'une mission (QG, écran VS)
   function objectiveLabel(m) {
@@ -290,7 +371,8 @@
     profile.career.battles++; if (r.won) profile.career.wins++; else if (r.draw) profile.career.draws++; else profile.career.losses++;
     profile.career.kills += result.teams[0].units.reduce((s, u) => s + u.stats.kills, 0);
     profile.career.losses_units += result.teams[0].units.filter(u => !u.alive).length;
-    if (mission.id !== 'ligue') { profile.missions[mission.id] = profile.missions[mission.id] || { attempts: 0, wins: 0 }; profile.missions[mission.id].attempts++; if (r.won) profile.missions[mission.id].wins++; }
+    if (mission.id !== 'ligue' && mission.id !== 'rapide') { profile.missions[mission.id] = profile.missions[mission.id] || { attempts: 0, wins: 0 }; profile.missions[mission.id].attempts++; if (r.won) profile.missions[mission.id].wins++; }
+    applyModes(profile, mission, result, r);
     r.achievements = checkAchievements(profile, result);
     return r;
   }
@@ -350,7 +432,7 @@
       // ancienne convalescence (indisponible une mission) → blessure grave
       for (const id in p.operators) { const st = p.operators[id]; if (st.recovery > 0) { st.wounded = true; st.woundRest = 0; } delete st.recovery; }
       if (p.achievements === undefined) p.achievements = {}; if (p.tacticsUsed === undefined) p.tacticsUsed = 0;
-      for (const k of ['teamName', 'insignia', 'uniform', 'unlocked', 'xp', 'tactics', 'perks', 'packsOpened', 'league', 'leagueSeasons', 'headgear']) if (p[k] === undefined) p[k] = fresh[k];
+      for (const k of ['teamName', 'insignia', 'uniform', 'unlocked', 'xp', 'tactics', 'perks', 'packsOpened', 'league', 'leagueSeasons', 'headgear', 'campaigns', 'quick', 'freePacks', 'ops']) if (p[k] === undefined) p[k] = fresh[k];
       p.inventory = p.inventory || fresh.inventory; p.inventory.weapons = Object.assign({}, fresh.inventory.weapons, p.inventory.weapons); p.inventory.armors = Object.assign({}, fresh.inventory.armors, p.inventory.armors);
       p.squad = p.squad.filter(id => p.operators[id] && p.operators[id].unlocked);
       return p;
@@ -358,6 +440,6 @@
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { newProfile, levelFor, isWounded, squadSynergies, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));

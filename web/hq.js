@@ -13,7 +13,9 @@
   let storage = null; try { storage = window.localStorage; storage.getItem('x'); } catch (e) { storage = null; }
   let profile = (storage && Game.load(storage)) || Game.newProfile();
   let selected = profile.squad[0] || OPERATORS[0].id;
-  let selectedMission = MISSIONS[0].id;
+  let selectedMission = MISSIONS[0].id, selectedCampaign = 'reguliere', quickPending = null;
+  // la mission sélectionnée, telle qu'elle sera jouée (campagne : adversaire ajusté ; bataille rapide : tirée au sort une fois)
+  const currentMission = () => selectedMission === 'rapide' ? (quickPending = quickPending || Game.quickBattle(profile)) : Game.campaignMission(selectedCampaign, selectedMission.includes(':') ? selectedMission.split(':')[1] : selectedMission);
   let lastRewards = null;
   const saveNow = () => { if (storage) Game.save(profile, storage); };
 
@@ -57,7 +59,7 @@
   }
   $('#teamName').addEventListener('change', (e) => { if (Game.setCustomization(profile, 'teamName', e.target.value)) { saveNow(); render(); } else e.target.value = profile.teamName; });
   function renderDeploy() {
-    const m = MISSIONS.find(x => x.id === selectedMission);
+    const m = currentMission();
     const squad = profile.squad.map(id => OPERATORS.find(o => o.id === id).callsign).join(', ') || 'aucun';
     const tac = (profile.tactics.equipped || []).map(id => TACTICS[id].name).join(', ') || 'aucune';
     $('#hqDeploy').innerHTML = `<div class="deploy"><div><b>${esc(m.name)}</b> — ${OT.MAPS[m.mapId].name}</div><div>Escouade (${profile.squad.length}) : ${esc(squad)}</div><div>Ordre : ${ORDERS[profile.order].name} · Tactiques : ${esc(tac)}</div><div>Puissance ${Game.teamRating(profile)} contre niveau ${m.level} du Groupe Karst (${ORDERS[m.order].name}${m.enemyTactics && m.enemyTactics.length ? ', tactiques : ' + m.enemyTactics.map(t => TACTICS[t].name).join(', ') : ''})</div></div>`;
@@ -91,7 +93,7 @@
     showVs(opts, mission);
   });
   function renderPacks() {
-    $('#hqPacks').innerHTML = Object.values(PACKS).map(pk => `<div class="pack"><b>${esc(pk.name)}</b><div class="muted">${pk.cards} cartes · recrues, tactiques, perks, XP, crédits, cosmétiques${pk.id === 'elite' ? ' — meilleures chances' : ''}</div><button data-pack="${pk.id}" ${profile.credits >= pk.price ? '' : 'disabled'}>Ouvrir — ${pk.price} cr.</button></div>`).join('');
+    $('#hqPacks').innerHTML = Object.values(PACKS).map(pk => `<div class="pack"><b>${esc(pk.name)}</b><div class="muted">${pk.cards} cartes · recrues, tactiques, perks, XP, crédits, cosmétiques${pk.id === 'elite' ? ' — meilleures chances' : ''}</div>${(profile.freePacks && profile.freePacks[pk.id]) ? `<button class="on" data-pack="${pk.id}">Ouvrir — offert (${profile.freePacks[pk.id]})</button>` : `<button data-pack="${pk.id}" ${profile.credits >= pk.price ? '' : 'disabled'}>Ouvrir — ${pk.price} cr.</button>`}</div>`).join('');
     $('#hqPacks').querySelectorAll('button[data-pack]').forEach(b => b.addEventListener('click', () => {
       const cards = Game.openPack(profile, b.dataset.pack);
       if (!cards) { flash('Crédits insuffisants.'); return; }
@@ -192,19 +194,39 @@
   }
 
   function renderMissions() {
+    // bataille rapide + opérations spéciales
+    const q = profile.quick || { wins: 0 }, prize = DATA.QUICK.prizeEvery, k = q.wins % prize;
+    $('#hqQuick').innerHTML = `<div class="mission quickcard ${selectedMission === 'rapide' ? 'sel' : ''}" data-id="rapide"><div class="crow"><b>Bataille rapide</b><span class="diff">${k}/${prize}</span></div>
+      <div class="mdesc">Un adversaire du Groupe Karst à votre mesure, carte et objectif au hasard. ${PACKS[DATA.QUICK.prizePack].name} offert toutes les ${prize} victoires.</div>
+      <div class="prizebar">${Array.from({ length: prize }, (_, i) => `<i class="${i < k ? 'on' : ''}"></i>`).join('')}</div>
+      <div class="crow small"><span>${q.wins || 0} victoire${q.wins > 1 ? 's' : ''} en bataille rapide</span><span>${DATA.QUICK.reward} cr. de base</span></div></div>`;
+    const ops = profile.ops || { done: {} };
+    $('#hqOps').innerHTML = DATA.SPECIAL_OPS.map(op => { const v = Math.min(op.goal, ops[op.stat] || 0), done = ops.done && ops.done[op.id]; return `<div class="opsrow ${done ? 'done' : ''}"><div class="crow"><b>${esc(op.name)}</b><span class="spacer"></span><span>${done ? 'Accomplie' : v + '/' + op.goal}</span></div><div class="muted">${esc(op.desc)} — ${op.reward.credits} cr.${op.reward.pack ? ' + ' + PACKS[op.reward.pack].name.toLowerCase() : ''}</div><div class="xpbar big"><i style="width:${100 * v / op.goal}%"></i></div></div>`; }).join('');
+    // campagnes
+    $('#hqCampaigns').innerHTML = DATA.CAMPAIGNS.map(c => { const ok = Game.campaignUnlocked(profile, c.id), pr = Game.campaignProgress(profile, c.id);
+      const req = c.unlock ? (c.unlock.rank !== undefined ? `Rang ${c.unlock.rank} (${RANKS[c.unlock.rank].name})` : `Puissance d’équipe ${c.unlock.rating}`) : '';
+      return `<button class="campbtn ${selectedCampaign === c.id ? 'on' : ''} ${ok ? '' : 'locked'}" data-camp="${c.id}" title="${esc(c.desc)}"><b>${esc(c.name)}</b><small>${ok ? `${pr.played}/${pr.total} jouées · ${pr.won} gagnées` : '🔒 ' + req}</small></button>`; }).join('');
+    const camp = DATA.CAMPAIGNS.find(c => c.id === selectedCampaign), campOk = Game.campaignUnlocked(profile, camp.id);
+    $('#hqCampInfo').textContent = campOk ? `${camp.desc} Prime de participation ${camp.participation} cr. (toutes jouées), prime de campagne ${camp.completion} cr. (toutes gagnées).` : `Verrouillée — ${camp.unlock.rank !== undefined ? 'atteindre le rang ' + camp.unlock.rank + ' (' + RANKS[camp.unlock.rank].name + ')' : 'atteindre une puissance d’équipe de ' + camp.unlock.rating} pour l’ouvrir.`;
     const el = $('#hqMissions');
-    el.innerHTML = MISSIONS.map(m => {
-      const done = profile.missions[m.id];
-      return `<div class="mission ${selectedMission === m.id ? 'sel' : ''}" data-id="${m.id}">
-        <div class="crow"><b>${esc(m.name)}</b><span class="diff">${'◆'.repeat(m.difficulty)}${'◇'.repeat(4 - m.difficulty)}</span></div>
-        <div class="mdesc">${esc(m.desc)}</div>
-        <div class="crow small"><span>${OT.MAPS[m.mapId].name} · ${Game.objectiveLabel(m)}</span></div>
-        <div class="crow small"><span>${DATA.FACTIONS.karst.name} : ${m.enemy.map(id => OPERATORS.find(o => o.id === id).callsign).join(', ')} (niv. ${m.level}, ${ORDERS[m.order].name}${m.enemyWeapons ? ', armes silencieuses' : ''})</span></div>
-        <div class="crow small"><span>Récompense : ${m.reward} cr. · ${m.xp} XP de base</span><span>${done ? `${done.wins}/${done.attempts} réussie${done.wins > 1 ? 's' : ''}` : 'Jamais tentée'}</span></div>
+    el.innerHTML = camp.missions.map((mid, i) => {
+      const m = Game.campaignMission(camp.id, mid), unlocked = Game.missionUnlocked(profile, camp.id, mid);
+      const done = profile.missions[m.id]; const st = (profile.campaigns && profile.campaigns[camp.id]) || { played: {}, won: {} };
+      const won = st.won[mid] || (camp.id === 'reguliere' && done && done.wins);
+      return `<div class="mission ${selectedMission === m.id ? 'sel' : ''} ${unlocked ? '' : 'locked'} ${won ? 'won' : ''}" data-id="${m.id}">
+        <div class="crow"><span class="mnum">${String(i + 1).padStart(2, '0')}</span><b>${esc(m.name)}</b>${m.final ? '<span class="final">FINALE</span>' : ''}${won ? '<span class="good">✓</span>' : ''}<span class="spacer"></span><span class="diff">${'◆'.repeat(m.difficulty)}${'◇'.repeat(4 - m.difficulty)}</span></div>
+        ${unlocked ? `<div class="mdesc">${esc(m.desc)}</div>
+        <div class="crow small"><span>${OT.MAPS[m.mapId].name} · ${Game.objectiveLabel(m)}</span><span>Karst niv. ${m.level}, ${ORDERS[m.order].name}${m.enemyWeapons ? ', armes silencieuses' : ''}</span></div>
+        <div class="crow small"><span>Récompense : ${m.reward} cr. · ${m.xp} XP de base</span><span>${done ? `${done.wins}/${done.attempts} réussie${done.wins > 1 ? 's' : ''}` : 'Jamais tentée'}</span></div>` : '<div class="crow small"><span>🔒 Jouez la mission précédente pour l’ouvrir.</span></div>'}
       </div>`;
     }).join('');
-    el.querySelectorAll('.mission').forEach(m => m.addEventListener('click', () => { selectedMission = m.dataset.id; renderMissions(); renderDeploy(); }));
+    const pick = (id) => { selectedMission = id; renderMissions(); renderDeploy(); renderSquad(); };
+    el.querySelectorAll('.mission').forEach(m => m.addEventListener('click', () => { if (m.classList.contains('locked')) { flash('Mission verrouillée : jouez d’abord la précédente.'); return; } pick(m.dataset.id); }));
+    $('#hqQuick').querySelector('.mission').addEventListener('click', () => pick('rapide'));
+    $('#hqCampaigns').querySelectorAll('.campbtn').forEach(b => b.addEventListener('click', () => { selectedCampaign = b.dataset.camp; const c = DATA.CAMPAIGNS.find(x => x.id === selectedCampaign); selectedMission = Game.campaignMission(c.id, c.missions[0]).id; renderMissions(); renderDeploy(); }));
+    $('#launch').textContent = selectedMission === 'rapide' ? 'Lancer la bataille rapide' : 'Lancer la mission';
   }
+
 
   function renderArmory() {
     const el = $('#hqArmory');
@@ -233,7 +255,9 @@
   $('#selFormation').addEventListener('change', (e) => { if (e.target.value) { Game.applyFormation(profile, e.target.value); saveNow(); render(); e.target.value = ''; } });
   $('#launch').addEventListener('click', () => {
     if (!Game.squadReady(profile)) return;
-    const mission = MISSIONS.find(m => m.id === selectedMission);
+    const mission = currentMission(); if (!mission) return;
+    if (!mission.quick && !Game.missionUnlocked(profile, selectedCampaign, selectedMission.includes(':') ? selectedMission.split(':')[1] : selectedMission)) { flash('Mission verrouillée : jouez d’abord la précédente.'); return; }
+    if (mission.quick) quickPending = null;          // la prochaine bataille rapide sera un nouveau tirage
     const seed = Math.floor(Math.random() * 1000000);
     profile.lastSeed = seed; saveNow();
     showVs(Game.battleOptions(profile, mission, seed), mission);
@@ -250,7 +274,7 @@
     $('#vsTac0').innerHTML = tacs(profile.tactics.equipped);
     // adversaire : puissance calculée de la même façon à partir de ses fiches effectives
     const enemyDefs = opts.teams[1].operators;
-    const enemyRating = Math.round(enemyDefs.reduce((s, d) => { const w = WEAPONS[d.weaponId || ROLES[d.role].weapon], a = ARMORS[d.armor]; const stats = Game.STATS.reduce((t, k) => t + d[k], 0) / Game.STATS.length; return s + stats * 0.4 + (w.damage * w.rpm / 60) * Math.min(1, w.range / 40) / 8 + w.accuracy * 10 + a.torso * 20; }, 0) / enemyDefs.length);
+    const enemyRating = Math.round(enemyDefs.reduce((s, d) => s + Game.defRating(d), 0) / enemyDefs.length);
     const km = profile.missions[mission.id] || { attempts: 0, wins: 0 };
     const lt = mission.league ? League.AI_TEAMS.find(t => t.id === mission.league) : null; const ls = lt && profile.league ? profile.league.standings[lt.id] : null;
     $('#vsName1').textContent = lt ? lt.name : 'Groupe Karst'; $('#vsRank1').textContent = `Niveau ${mission.level} · ${ORDERS[mission.order].name}`; $('#vsIns1').textContent = lt ? lt.insignia : '⚑';
@@ -298,6 +322,7 @@
     if (r.leagueRank) extra.push(`Ligue : vous êtes ${r.leagueRank}${r.leagueRank === 1 ? 'er' : 'e'} au classement.`);
     if (r.promotions && r.promotions.length) extra.push('Promotion à choisir (fiche de l’opérateur) : ' + r.promotions.map(p => `${p.callsign} (niveau ${p.level})`).join(', '));
     if (r.expired && r.expired.length) extra.push('Contrat expiré, à renouveler : ' + r.expired.join(', '));
+    for (const l of (r.modeLines || [])) extra.push(l);
     $('#rwExtra').innerHTML = extra.map(esc).join('<br>');
     // figure : le meilleur opérateur de la mission (le plus de neutralisations, puis de dégâts)
     const best = result.teams[0].units.slice().sort((a, b) => (b.stats.kills - a.stats.kills) || (b.stats.damageDealt - a.stats.damageDealt))[0];
