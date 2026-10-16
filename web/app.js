@@ -5,6 +5,7 @@
   const { Battle, DATA, DT, fmtT } = OT;
   const params = new URLSearchParams(location.search);
   const MANUAL = params.get('manual') === '1';
+  if (MANUAL) document.documentElement.classList.add('manual');   // captures reproductibles : pas de transitions CSS (aucune image n'est dessinée entre deux étapes)
 
   const STATE_FR = { idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache' };
   const STATUS_FR = { ok: 'Indemne', wounded: 'Blessé', critical: 'Grave', down: 'Neutralisé' };
@@ -13,6 +14,8 @@
     { name: 'Bravo', color: 0xe85a4f, css: '#e85a4f', uniform: 0x6b5a3e, vest: 0x4e4230 },
   ];
   const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯' };
+  const tacIcon = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'timg')) || TACTIC_ICON[id] || '◆';      // icône dessinée si disponible
+  const roleImg = (role) => (OT.imgTag && OT.imgTag('role_' + role, 'rimg')) || '';
   const $ = (s) => document.querySelector(s);
 
   // ---------------------------------------------------------------------------------------------
@@ -279,7 +282,7 @@
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.42, 24), new THREE.MeshBasicMaterial({ color: t.color, transparent: true, opacity: 0.8, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; f.group.add(ring);
     scene.add(f.group);
     const label = document.createElement('div'); label.className = 'label team' + u.team;
-    label.innerHTML = `<div class="lname">${u.callsign}</div><div class="lbar"><i></i></div>`;
+    label.innerHTML = `<div class="lbar"><i></i></div><div class="lplate">${roleImg(u.role.id)}<span class="lname">${u.callsign}</span></div>`;
     $('#labels').appendChild(label);
     meshes[u.id] = Object.assign(f, { ring, label, prev: { x: u.x, z: u.z, facing: u.facing }, cur: { x: u.x, z: u.z, facing: u.facing },
       anim: { crouch: 0, fall: 0, fallDir: 0, recoil: 0, flinch: 0, aim: 0, phase: Math.random() * 6.28 } });
@@ -423,6 +426,68 @@
   // ---------------------------------------------------------------------------------------------
   // Boucle : simulation à vitesse réglable, interpolation des positions entre deux pas
   // ---------------------------------------------------------------------------------------------
+  // ---- Zone de capture : grille d'hexagones au sol (couleur de l'équipe qui la tient), disque et contour --------------
+  let zoneGroup = null, zoneMats = null;
+  function buildZone() {
+    if (zoneGroup) { zoneGroup.traverse(o => { if (o.isMesh) o.geometry.dispose(); }); scene.remove(zoneGroup); zoneGroup = null; }
+    const z = battle.zone; if (!z) return;
+    zoneGroup = new THREE.Group(); zoneGroup.position.set(z.x, 0, z.z);
+    const s = 1.05, w = 0.07, pos = [], idx = [];
+    const quad = (ax, az, bx, bz) => { const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz), nx = -dz / L * w, nz = dx / L * w, i = pos.length / 3;
+      pos.push(ax + nx, 0, az + nz, bx + nx, 0, bz + nz, bx - nx, 0, bz - nz, ax - nx, 0, az - nz); idx.push(i, i + 1, i + 2, i, i + 2, i + 3); };
+    const R = Math.ceil(z.r / s) + 1;
+    for (let q = -R; q <= R; q++) for (let r = -R; r <= R; r++) {
+      const cx = s * 1.5 * q, cz = s * Math.sqrt(3) * (r + q / 2);
+      if (Math.hypot(cx, cz) > z.r - s * 0.6) continue;
+      const pts = []; for (let k = 0; k < 6; k++) { const a = Math.PI / 3 * k; pts.push([cx + Math.cos(a) * s * 0.9, cz + Math.sin(a) * s * 0.9]); }
+      for (let k = 0; k < 6; k++) quad(pts[k][0], pts[k][1], pts[(k + 1) % 6][0], pts[(k + 1) % 6][1]);
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
+    zoneMats = { hex: new THREE.MeshBasicMaterial({ color: 0xe8d36a, transparent: true, opacity: 0.75, depthWrite: false }),
+      disc: new THREE.MeshBasicMaterial({ color: 0xe8d36a, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide }),
+      ring: new THREE.MeshBasicMaterial({ color: 0xe8d36a, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }) };
+    const hex = new THREE.Mesh(g, zoneMats.hex); hex.position.y = 0.035; hex.renderOrder = 2; zoneGroup.add(hex);
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(z.r, 48), zoneMats.disc); disc.rotation.x = -Math.PI / 2; disc.position.y = 0.03; zoneGroup.add(disc);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(z.r - 0.12, z.r + 0.12, 64), zoneMats.ring); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; zoneGroup.add(ring);
+    scene.add(zoneGroup);
+  }
+  function updateZone() {
+    const z = battle.zone; if (!z || !zoneMats) return;
+    const col = z.contested ? 0xffffff : z.holder === 0 ? TEAM[0].color : z.holder === 1 ? TEAM[1].color : 0xe8d36a;
+    const pulse = 0.55 + 0.35 * Math.sin(performance.now() / (z.contested ? 120 : 420));
+    zoneMats.hex.color.setHex(col); zoneMats.ring.color.setHex(col); zoneMats.disc.color.setHex(col);
+    zoneMats.hex.opacity = z.holder === null ? 0.55 : pulse; zoneMats.disc.opacity = z.holder === null ? 0.05 : 0.12;
+  }
+  // ---- Emblème peint au sol de chaque zone de départ (grand cercle + insigne de l'équipe) ------------------------------
+  let emblemGroup = null;
+  function buildSpawnEmblems() {
+    if (emblemGroup) { emblemGroup.traverse(o => { if (o.isMesh) { o.geometry.dispose(); if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); scene.remove(emblemGroup); }
+    emblemGroup = new THREE.Group();
+    battle.teams.forEach((team, ti) => {
+      const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+      const col = '#' + TEAM[ti].color.toString(16).padStart(6, '0');
+      g.strokeStyle = col; g.lineWidth = 16; g.globalAlpha = 0.9; g.beginPath(); g.arc(128, 128, 112, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = col; g.globalAlpha = 0.85; g.font = 'bold 140px "Segoe UI Symbol", "Noto Sans Symbols", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(insigniaGlyph(team), 128, 136);
+      const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
+      const size = team.spawn.r * 2 + 4;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.6, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2; m.rotation.z = ti === 0 ? -Math.PI / 2 : Math.PI / 2; m.position.set(team.spawn.x, 0.025, team.spawn.z); emblemGroup.add(m);
+    });
+    scene.add(emblemGroup);
+  }
+  // ---- Bannière de fin (« ALPHA L'EMPORTE ! ») sur l'image figée, avant l'écran de résultat ------------------------
+  let bannerTimer = null;
+  function showBanner(after) {
+    const r = battle.result, el = $('#banner');
+    const txt = r.winner === -1 ? 'ÉGALITÉ' : `${battle.teams[r.winner].name.toUpperCase()} L'EMPORTE !`;
+    $('#bannerText').textContent = txt; $('#bannerSub').textContent = r.reason;
+    el.className = 'banner ' + (r.winner === 1 ? 'team1' : r.winner === 0 ? 'team0' : 'draw'); el.offsetWidth; el.classList.add('show');
+    clearTimeout(bannerTimer); bannerTimer = setTimeout(() => { hideBanner(); after(); }, 2600);
+    el.onclick = () => { clearTimeout(bannerTimer); hideBanner(); after(); };
+  }
+  function hideBanner() { clearTimeout(bannerTimer); const el = $('#banner'); if (el) { el.className = 'banner hidden'; el.onclick = null; } }
+  let instantResult = false;
+
   let battle = null, simTime = 0, speed = 1, paused = true, acc = 0, lastFrame = 0, logIndex = 0, ended = false, frameDt = 0, lastAnimTime = 0, contactPlayed = false;
   const unitById = {};
 
@@ -431,6 +496,9 @@
     battle = new Battle(opts); simTime = 0; acc = 0; logIndex = 0; ended = false; fxLast = 0; lastAnimTime = 0; contactPlayed = false; pendingSounds.length = 0;
     for (const k in unitById) delete unitById[k];
     buildMap(battle.map);
+    buildZone(); buildSpawnEmblems();
+    $('#app').classList.toggle('capture', !!battle.zone);
+    hideBanner();
     for (const u of battle.units) { makeOperator(u); unitById[u.id] = u; }
     $('#journal').innerHTML = ''; $('#ticker').innerHTML = '';
     $('#result').classList.add('hidden');
@@ -469,7 +537,7 @@
       m.lastStepPhase = ph;
     }
     pumpLog();
-    if (battle.over && !ended) { ended = true; paused = true; updatePlayButton(); showResult(); play(battle.result.winner === 0 ? 'victoire' : 'defaite', null, { vol: 1, varie: 0 }); }
+    if (battle.over && !ended) { ended = true; paused = true; updatePlayButton(); if (instantResult || MANUAL) showResult(); else showBanner(showResult); play(battle.result.winner === 0 ? 'victoire' : 'defaite', null, { vol: 1, varie: 0 }); }
   }
   const pendingSounds = [];
 
@@ -535,14 +603,21 @@
     battle.teams.forEach((team, ti) => {
       const hp = team.units.reduce((s, u) => s + (u.alive ? u.hp : 0), 0), max = team.units.reduce((s, u) => s + u.maxHp, 0);
       const pct = Math.round(100 * hp / max);
-      $('#tbar' + ti).style.width = pct + '%'; $('#tpct' + ti).textContent = pct + '%';
+      $('#tbar' + ti).style.width = pct + '%';
+      if (battle.zone) { const c = Math.floor(team.capture); $('#cbar' + ti).style.width = c + '%'; $('#tpct' + ti).textContent = c + '%'; $('#tpct' + ti).title = `Zone capturée à ${c} % — vie ${pct} %`; }
+      else { $('#tpct' + ti).textContent = pct + '%'; $('#tpct' + ti).title = 'État de l\u2019équipe (vie restante)'; }
     });
+    if (battle.zone) {
+      const z = battle.zone, el = $('#zoneState');
+      el.textContent = z.contested ? 'Zone disputée' : z.holder === null ? 'Zone libre' : `Zone : ${battle.teams[z.holder].name}`;
+      el.className = 'zstate ' + (z.contested ? 'contested' : z.holder === null ? '' : 'team' + z.holder);
+    }
   }
   // cartes de tactiques : à gauche celles du joueur (cliquables), à droite celles de l'adversaire (état seulement)
   function buildTacticCards() {
     battle.teams.forEach((team, ti) => {
       const el = $('#tactics' + ti);
-      el.innerHTML = team.tacticIds.map(id => { const t = DATA.TACTICS[id]; return `<div class="tcard ${t.active ? '' : 'passive'} ${ti === 1 ? 'enemy' : ''}" data-tactic="${id}" title="${escapeHtml(t.desc)}"><div class="ticon">${TACTIC_ICON[id] || '◆'}</div><div class="tname">${escapeHtml(t.name)}</div><div class="tuse"></div><div class="cd"></div></div>`; }).join('');
+      el.innerHTML = team.tacticIds.map(id => { const t = DATA.TACTICS[id]; return `<div class="tcard ${t.active ? '' : 'passive'} ${ti === 1 ? 'enemy' : ''}" data-tactic="${id}" title="${escapeHtml(t.desc)}"><div class="ticon">${tacIcon(id)}</div><div class="tname">${escapeHtml(t.name)}</div><div class="tuse"></div><div class="cd"></div></div>`; }).join('');
       if (ti === 0) el.querySelectorAll('.tcard').forEach(c => c.addEventListener('click', () => {
         const id = c.dataset.tactic; if (!DATA.TACTICS[id].active) return;
         const r = battle.useTactic(0, id);
@@ -656,7 +731,7 @@
     if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) renderer.setSize(w, h, false);
     camera.aspect = w / h; camera.updateProjectionMatrix();
   }
-  function render() { resize(); applyCamera(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); renderer.render(scene, camera); updateLabels(); updateRosters(); }
+  function render() { resize(); applyCamera(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); if (battle.zone) updateZone(); renderer.render(scene, camera); updateLabels(); updateRosters(); }
 
   function frame(now) {
     requestAnimationFrame(frame);
@@ -681,7 +756,9 @@
   // API de test (identique dans les deux modes ; en mode manuel il n'y a pas de boucle d'animation)
   window.API = {
     step: (n, dt) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; render(); return battle.t; },
-    runToEnd: () => { while (!battle.over) stepSim(); acc = DT; render(); return battle.result; },
+    runToEnd: () => { instantResult = true; while (!battle.over) stepSim(); instantResult = false; acc = DT; render(); return battle.result; },
+    start: (opts) => { newBattle(opts); render(); return battle.zone || true; },
+    banner: () => { $('#result').classList.add('hidden'); showBanner(() => showResult()); },
     battle: () => battle, render,
     camera: (yaw, pitch, dist, tx, tz) => { cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; if (tx !== undefined) cam.target.set(tx, 0, tz); render(); },
     focus: (cs, yaw, pitch, dist) => { const u = battle.units.find(x => x.callsign === cs); setCamMode('free'); cam.follow = null; cam.init = false; cam.target.set(u.x, 0.9, u.z); cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; for (let i = 0; i < 30; i++) applyCamera(); render(); return [u.x, u.z, u.facing, u.stance, u.state]; },

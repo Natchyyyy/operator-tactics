@@ -13,7 +13,7 @@
   header { display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; }
   header h1 { font-size: 15px; letter-spacing: 0.18em; margin: 0; color: var(--accent); font-weight: 700; }
   header h1 small { color: var(--muted); letter-spacing: 0.05em; font-weight: 400; margin-left: 8px; font-size: 11px; }
-  #app { display: grid; grid-template-rows: 60px 40px 1fr 112px; height: 100%; }
+  #app { display: grid; grid-template-rows: 74px 40px 1fr 112px; height: 100%; }
   .topbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; padding: 0 12px; background: linear-gradient(90deg, #14233a 0%, var(--panel) 40%, var(--panel) 60%, #3a1619 100%); border-bottom: 1px solid var(--line); }
   .tb { display: flex; align-items: center; gap: 10px; min-width: 0; } .tb.rev { flex-direction: row-reverse; text-align: right; }
   .tbmain { flex: 1; min-width: 0; } .tbname { font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -34,11 +34,23 @@
   #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
   .label { position: absolute; left: 0; top: 0; text-align: center; font-size: 11px; font-weight: 700; text-shadow: 0 1px 2px #000, 0 0 4px #000; white-space: nowrap; will-change: transform; }
   .label.team0 { color: #9fc8f5; } .label.team1 { color: #f5a3a3; } .label.down { opacity: 0.5; }
-  .lbar { width: 40px; height: 4px; background: rgba(0,0,0,.6); margin: 2px auto 0; border-radius: 2px; overflow: hidden; } .lbar i { display: block; height: 100%; background: var(--ok); }
+  .lbar { width: 46px; height: 5px; background: rgba(0,0,0,.7); margin: 0 auto 2px; border-radius: 2px; overflow: hidden; border: 1px solid rgba(0,0,0,.8); } .lbar i { display: block; height: 100%; background: var(--ok); }
+  .lplate { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px 1px 3px; border-radius: 3px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 1px #000; border: 1px solid rgba(0,0,0,.5); }
+  .label.team0 .lplate { background: rgba(38,96,178,.88); } .label.team1 .lplate { background: rgba(178,46,40,.88); } .label.down .lplate { background: rgba(60,60,60,.8); }
+  .lplate .rimg { width: 24px; height: 11px; object-fit: cover; filter: brightness(1.6) drop-shadow(0 0 1px #000); }
+  .cbar { display: none; height: 14px; background: #0b0e11; border-radius: 3px; overflow: hidden; margin-top: 4px; border: 1px solid #000; } .cbar i { display: block; height: 100%; width: 0; background: repeating-linear-gradient(135deg, var(--a0) 0 10px, #6fb4ff 10px 20px); transition: width .3s; } .cbar.rev i { margin-left: auto; background: repeating-linear-gradient(45deg, var(--a1) 0 10px, #ff8c80 10px 20px); }
+  #app.capture .cbar { display: block; } #app.capture .tbar { height: 5px; margin-top: 3px; }
+  .zstate { display: none; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; padding: 2px 8px; border-radius: 10px; background: #2a2a1c; color: #e8d36a; border: 1px solid #5a5530; } #app.capture .zstate { display: inline-block; }
+  .zstate.team0 { color: #fff; background: #1f4f8f; border-color: var(--a0); } .zstate.team1 { color: #fff; background: #8f2a24; border-color: var(--a1); } .zstate.contested { color: #111; background: #e9eef3; border-color: #fff; animation: zblink .5s infinite alternate; } @keyframes zblink { to { opacity: .55; } }
+  .banner { position: absolute; left: 0; top: 18%; z-index: 8; display: flex; flex-direction: column; padding: 16px 60px 16px 40px; color: #fff; clip-path: polygon(0 0, 100% 0, calc(100% - 40px) 100%, 0 100%); transform: translateX(-105%); transition: transform .45s cubic-bezier(.2,.8,.2,1); cursor: pointer; max-width: 70%; }
+  html.manual *, html.manual *::before { transition: none !important; animation: none !important; }
+  .banner.show { transform: translateX(0); } .banner.hidden { display: none; }
+  .banner.team0 { background: linear-gradient(90deg, #1d5aa6, #2b74d0); } .banner.team1 { background: linear-gradient(90deg, #a1261f, #cf3b31); } .banner.draw { background: linear-gradient(90deg, #444, #666); }
+  #bannerText { font-size: 46px; font-weight: 900; letter-spacing: .06em; line-height: 1; text-shadow: 0 2px 6px #0008; } #bannerSub { font-size: 14px; opacity: .9; margin-top: 6px; }
   .tactics { position: absolute; top: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 3; } .tactics.left { left: 12px; } .tactics.right { right: 12px; align-items: flex-end; }
   .tcard { width: 92px; background: rgba(15,20,26,.85); border: 1px solid var(--line); border-radius: 10px; padding: 6px; text-align: center; cursor: pointer; backdrop-filter: blur(4px); position: relative; overflow: hidden; }
   .tcard:hover { border-color: var(--accent); } .tcard.passive { cursor: default; opacity: .75; } .tcard.off { opacity: .4; cursor: default; } .tcard.enemy { cursor: default; }
-  .tcard .ticon { font-size: 26px; line-height: 1; margin: 4px 0; } .tcard .tname { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.1; } .tcard .tuse { font-size: 10px; color: var(--muted); margin-top: 3px; }
+  .tcard .ticon { font-size: 26px; line-height: 1; margin: 4px 0; } .ticon .timg { width: 64px; height: 64px; object-fit: contain; display: block; margin: 0 auto; filter: drop-shadow(0 2px 3px #000); } .tcard.off .timg { filter: grayscale(1) brightness(.6); } .tcard .tname { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.1; } .tcard .tuse { font-size: 10px; color: var(--muted); margin-top: 3px; }
   .tcard .cd { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); }
   #ticker { position: absolute; left: 12px; bottom: 10px; max-width: 46%; pointer-events: none; font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; text-shadow: 0 1px 2px #000; z-index: 2; } #ticker div { color: #c9d2db; opacity: .9; } #ticker .t { color: var(--muted); margin-right: 8px; } #ticker div.k-down { color: #ffd1c8; font-weight: 700; }
   #journalWrap { position: absolute; right: 12px; top: 12px; bottom: 12px; width: 420px; max-width: 70%; background: rgba(15,20,26,.92); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; z-index: 5; }
@@ -271,11 +283,12 @@
 <div id="fade"></div>
 <div id="app" class="screen hidden">
   <div class="topbar">
-    <div class="tb team0"><span class="ins" id="ins0">✶</span><div class="tbmain"><div class="tbname" id="tname0">Alpha</div><div class="tbar"><i id="tbar0"></i></div></div><span class="tpct" id="tpct0">100%</span></div>
-    <div class="tbcenter"><span class="clock" id="clock">0:00.0</span><div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div></div>
-    <div class="tb team1 rev"><span class="ins" id="ins1">⚑</span><div class="tbmain"><div class="tbname" id="tname1">Bravo</div><div class="tbar rev"><i id="tbar1"></i></div></div><span class="tpct" id="tpct1">100%</span></div>
+    <div class="tb team0"><span class="ins" id="ins0">✶</span><div class="tbmain"><div class="tbname" id="tname0">Alpha</div><div class="cbar"><i id="cbar0"></i></div><div class="tbar"><i id="tbar0"></i></div></div><span class="tpct" id="tpct0">100%</span></div>
+    <div class="tbcenter"><span class="clock" id="clock">0:00.0</span><span id="zoneState" class="zstate"></span></div>
+    <div class="tb team1 rev"><span class="ins" id="ins1">⚑</span><div class="tbmain"><div class="tbname" id="tname1">Bravo</div><div class="cbar rev"><i id="cbar1"></i></div><div class="tbar rev"><i id="tbar1"></i></div></div><span class="tpct" id="tpct1">100%</span></div>
   </div>
   <div class="controls">
+    <div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div>
     <div class="group"><label>Alpha</label><select id="order0" title="Ordre d'Alpha — modifiable pendant la bataille"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
     <div class="group"><label>Bravo</label><select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
     <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option><option value="raffinerie">Raffinerie</option></select></div>
@@ -295,6 +308,7 @@
     <div id="tactics0" class="tactics left"></div>
     <div id="tactics1" class="tactics right"></div>
     <div id="ticker"></div>
+    <div id="banner" class="banner hidden"><span id="bannerText"></span><small id="bannerSub"></small></div>
     <div id="journalWrap" class="hidden"><div class="jhead">Journal de combat <button id="closeJournal" class="mini">×</button></div><div id="journal"></div></div>
     <div id="result" class="overlay hidden"><div class="dialog">
       <div class="resHead"><div class="resTeam team0"><span id="resIns0" class="ins big"></span><div><div id="resName0" class="rn"></div><div id="resPct0" class="rp"></div></div></div><div><h2 id="resTitle"></h2><p id="resReason"></p></div><div class="resTeam team1 rev"><span id="resIns1" class="ins big"></span><div><div id="resName1" class="rn"></div><div id="resPct1" class="rp"></div></div></div></div>
@@ -322,6 +336,7 @@
 <script src="lecteur.js"></script>
 <script src="figure.js"></script>
 <script src="portrait.js"></script>
+<script src="images.js"></script>
 <script src="../sim/rng.js"></script>
 <script src="../sim/data.js"></script>
 <script src="../sim/map.js"></script>

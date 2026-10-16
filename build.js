@@ -1,12 +1,14 @@
 // Assemble une seule page autonome : dist/index.html (three.js + simulation + interface inclus).
 const fs = require('fs'), path = require('path');
 const root = __dirname;
+require('./outils/images_js.js');   // régénère web/images.js à partir de web/img
 let html = fs.readFileSync(path.join(root, 'web/index.html'), 'utf8');
 const inline = (src) => () => `<script>\n${fs.readFileSync(path.join(root, src), 'utf8')}\n</script>`; // fonction : évite les motifs $& de String.replace
 html = html.replace('<script src="three.min.js"></script>', inline('web/three.min.js'))
   .replace('<script src="lecteur.js"></script>', inline('web/lecteur.js'))
   .replace('<script src="figure.js"></script>', inline('web/figure.js'))
   .replace('<script src="portrait.js"></script>', inline('web/portrait.js'))
+  .replace('<script src="images.js"></script>', inline('web/images.js'))
   .replace('<script src="../sim/rng.js"></script>', inline('sim/rng.js'))
   .replace('<script src="../sim/data.js"></script>', inline('sim/data.js'))
   .replace('<script src="../sim/map.js"></script>', inline('sim/map.js'))
