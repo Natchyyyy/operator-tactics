@@ -61,6 +61,28 @@
         box(31.5, 2.5, 3, 1.2, 1.1, 'cover', 'étal'), box(31.5, 40.3, 3, 1.2, 1.1, 'cover', 'étal'),
       ]),
     },
+    raffinerie: {
+      id: 'raffinerie', name: 'Raffinerie', width: 72, depth: 46,
+      spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
+      obstacles: mirrored(72, [
+        box(-1, -1, 74, 1, 3.2, 'wall', 'mur nord'), box(-1, 46, 74, 1, 3.2, 'wall', 'mur sud'),
+        box(-1, 0, 1, 46, 3.2, 'wall', 'mur ouest'), box(72, 0, 1, 46, 3.2, 'wall', 'mur est'),
+        // écrans devant les zones de départ
+        box(9, 15, 2, 5, 2.6, 'wall', 'conteneur'), box(9, 26, 2, 5, 2.6, 'wall', 'conteneur'),
+        // cuves (hautes, rondes au rendu) et station de pompage au centre
+        box(14, 5, 6, 6, 5.0, 'wall', 'cuve'), box(14, 35, 6, 6, 5.0, 'wall', 'cuve'),
+        box(27, 17, 8, 12, 5.0, 'wall', 'cuve'),
+        box(34, 21, 4, 4, 3.0, 'wall', 'pompe'),
+        // passerelles : piliers
+        box(22, 3, 1.5, 1.5, 3.0, 'wall', 'pilier'), box(22, 41.5, 1.5, 1.5, 3.0, 'wall', 'pilier'),
+        // tuyauteries basses, fûts, armoires électriques (couverts)
+        box(8, 20.5, 1, 5, 1.2, 'cover', 'tuyauterie'), box(22, 10, 8, 1, 1.2, 'cover', 'tuyauterie'), box(22, 35, 8, 1, 1.2, 'cover', 'tuyauterie'),
+        box(20, 22.5, 1.5, 1.5, 1.1, 'cover', 'fût'), box(10, 11, 1.5, 1.5, 1.1, 'cover', 'fût'), box(10, 33.5, 1.5, 1.5, 1.1, 'cover', 'fût'),
+        box(30, 8, 2, 1.5, 1.1, 'cover', 'armoire'), box(30, 36.5, 2, 1.5, 1.1, 'cover', 'armoire'),
+        box(16, 15.5, 3, 1, 1.0, 'cover', 'muret'), box(16, 29.5, 3, 1, 1.0, 'cover', 'muret'),
+        box(26, 3, 3, 1.2, 1.1, 'cover', 'caisses'), box(26, 41.8, 3, 1.2, 1.1, 'cover', 'caisses'),
+      ]),
+    },
   };
 
   // ---- Lancer de rayon segment / boîte (méthode des « slabs ») -------------------------

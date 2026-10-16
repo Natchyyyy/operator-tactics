@@ -130,6 +130,10 @@
     voiture: [new THREE.MeshStandardMaterial({ color: 0x8e9aa6, roughness: 0.4, metalness: 0.5 }), new THREE.MeshStandardMaterial({ color: 0x5a2e2a, roughness: 0.4, metalness: 0.5 })],
     stone: new THREE.MeshStandardMaterial({ color: 0x9d9a92, roughness: 0.9, map: texConcrete }),
     etal: [new THREE.MeshStandardMaterial({ color: 0xb04a3a, roughness: 0.9 }), new THREE.MeshStandardMaterial({ color: 0x3a6a8a, roughness: 0.9 })],
+    cuve: [new THREE.MeshStandardMaterial({ color: 0xb9bcbf, roughness: 0.55, metalness: 0.6, map: texCorrugated }), new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.7, metalness: 0.4, map: texCorrugated })],
+    pompe: new THREE.MeshStandardMaterial({ color: 0x4a6a4a, roughness: 0.6, metalness: 0.5 }),
+    pipe: new THREE.MeshStandardMaterial({ color: 0x9a9ea3, roughness: 0.4, metalness: 0.7 }),
+    armoire: new THREE.MeshStandardMaterial({ color: 0x6a7a86, roughness: 0.5, metalness: 0.5 }),
   };
   function materialFor(o, i) {
     const n = o.name || '';
@@ -150,6 +154,10 @@
     if (n.startsWith('fontaine')) return MATERIALS.stone;
     if (n.startsWith('étal')) return MATERIALS.etal[i % 2];
     if (n.startsWith('bac')) return MATERIALS.stone;
+    if (n.startsWith('cuve')) return MATERIALS.cuve[i % 2];
+    if (n.startsWith('pompe')) return MATERIALS.pompe;
+    if (n.startsWith('tuyauterie')) return MATERIALS.pipe;
+    if (n.startsWith('armoire')) return MATERIALS.armoire;
     return MATERIALS.wall;
   }
   function buildMap(map) {
@@ -179,6 +187,21 @@
       let mesh;
       if ((o.name || '').startsWith('fût')) {
         mesh = new THREE.Mesh(new THREE.CylinderGeometry(Math.min(o.w, o.d) / 2, Math.min(o.w, o.d) / 2, o.h, 16), materialFor(o, i));
+      } else if ((o.name || '').startsWith('cuve')) {
+        // cuve : cylindre inscrit dans la boîte (la simulation garde la boîte ; l'écart est au plus de 1,2 m dans les coins)
+        mesh = new THREE.Group();
+        const r = Math.min(o.w, o.d) / 2, body = new THREE.Mesh(new THREE.CylinderGeometry(r, r, o.h, 28), materialFor(o, i)); mesh.add(body);
+        const top = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.03, r * 1.03, 0.25, 28), MATERIALS.pipe); top.position.y = o.h / 2; mesh.add(top);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(r * 1.02, 0.08, 6, 28), MATERIALS.pipe); ring.rotation.x = Math.PI / 2; ring.position.y = -o.h / 2 + o.h * 0.35; mesh.add(ring);
+        if (o.d > o.w + 0.5 || o.w > o.d + 0.5) { // cuve allongée : deux cylindres couchés côte à côte sur la longueur
+          mesh.clear(); const along = o.d > o.w; const L = along ? o.d : o.w, R = Math.min(o.w, o.d) / 2;
+          const c = new THREE.Mesh(new THREE.CylinderGeometry(R, R, L, 24), materialFor(o, i)); c.rotation.x = along ? Math.PI / 2 : 0; c.rotation.z = along ? 0 : Math.PI / 2; c.position.y = R - o.h / 2 + (o.h - 2 * R) * 0.5; mesh.add(c);
+          const legs = new THREE.Mesh(new THREE.BoxGeometry(o.w * 0.9, o.h - 2 * R + 0.3, o.d * 0.9), MATERIALS.pompe); legs.position.y = -o.h / 2 + (o.h - 2 * R + 0.3) / 2; mesh.add(legs);
+        }
+      } else if ((o.name || '').startsWith('tuyauterie')) {
+        mesh = new THREE.Group(); const along = o.w > o.d; const L = Math.max(o.w, o.d);
+        for (let k = 0; k < 3; k++) { const rr = 0.14 - k * 0.02; const c = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, L, 12), MATERIALS.pipe); c.rotation.z = along ? Math.PI / 2 : 0; c.rotation.x = along ? 0 : Math.PI / 2; c.position.y = -o.h / 2 + 0.25 + k * 0.33; mesh.add(c); }
+        for (let k = -1; k <= 1; k++) { const sup = new THREE.Mesh(new THREE.BoxGeometry(along ? 0.15 : Math.min(o.w, o.d) * 0.9, o.h, along ? Math.min(o.w, o.d) * 0.9 : 0.15), MATERIALS.armoire); sup.position.set(along ? k * L * 0.45 : 0, 0, along ? 0 : k * L * 0.45); mesh.add(sup); }
       } else if ((o.name || '').startsWith('sacs')) {
         // un empilement de sacs : 3 rangées légèrement décalées
         mesh = new THREE.Group();
@@ -191,7 +214,7 @@
       if (mesh.isGroup) mesh.children.forEach(c => { c.castShadow = true; c.receiveShadow = true; });
       mapGroup.add(mesh);
       // arêtes pour la lisibilité des couverts hauts
-      if (o.kind === 'wall' && !(o.name || '').startsWith('mur ')) {
+      if (o.kind === 'wall' && !/^(mur |cuve|tuyauterie)/.test(o.name || '')) {
         const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(o.w, o.h, o.d)), new THREE.LineBasicMaterial({ color: 0x1a1d20, transparent: true, opacity: 0.5 }));
         edges.position.copy(mesh.position); mapGroup.add(edges);
       }
