@@ -39,18 +39,20 @@ const Son = (() => {
     src.start(ac.currentTime + .003 + (o.delai || 0)); return true;
   }
   ["pointerdown", "keydown"].forEach(ev => document.addEventListener(ev, function f(){ document.removeEventListener(ev, f, true); init(); }, true));
-  // boucle d'ambiance : une seule à la fois, fondu entre deux, arrêt en fondu
-  let loop = null;
+  // boucles : plusieurs voies indépendantes (ambiance, musique), une boucle par voie, fondu entre deux
+  const loops = {};
   async function boucle(nom, o = {}){
+    const voie = o.voie || "ambiance";
     if(!init()) return false; if(loading) await loading; const L = buf[nom];
-    if(loop && loop.nom === nom) return true;
-    arreterBoucle(.8);
+    if(loops[voie] && loops[voie].nom === nom) return true;
+    arreterBoucle(.8, voie);
     if(!nom || !L) return false;
     const src = ac.createBufferSource(); src.buffer = L[0]; src.loop = true; const g = ac.createGain(); g.gain.value = 0; src.connect(g).connect(master); src.start();
-    g.gain.linearRampToValueAtTime(o.vol == null ? 1 : o.vol, ac.currentTime + 1.2);
-    loop = {nom, src, g}; return true;
+    g.gain.linearRampToValueAtTime(o.vol == null ? 1 : o.vol, ac.currentTime + (o.fondu || 1.2));
+    loops[voie] = {nom, src, g}; return true;
   }
-  function arreterBoucle(fondu = .6){ if(!loop) return; const {src, g} = loop; loop = null; try{ g.gain.linearRampToValueAtTime(0, ac.currentTime + fondu); src.stop(ac.currentTime + fondu + .05); }catch(e){} }
-  return {init, jouer, charger, boucle, arreterBoucle, get pret(){ return !!loading; }, volume(v){ if(master) master.gain.value = v; }};
+  function arreterBoucle(fondu = .6, voie){ const keys = voie ? [voie] : Object.keys(loops); for(const k of keys){ const l = loops[k]; if(!l) continue; delete loops[k]; try{ l.g.gain.linearRampToValueAtTime(0, ac.currentTime + fondu); l.src.stop(ac.currentTime + fondu + .05); }catch(e){} } }
+  function volumeBoucle(voie, v, t = .5){ const l = loops[voie]; if(l) try{ l.g.gain.linearRampToValueAtTime(v, ac.currentTime + t); }catch(e){} }
+  return {init, jouer, charger, boucle, arreterBoucle, volumeBoucle, get pret(){ return !!loading; }, volume(v){ if(master) master.gain.value = v; }};
 })();
 window.Son = Son;

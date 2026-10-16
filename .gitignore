@@ -1,0 +1,4 @@
+captures/
+sons/__pycache__/
+sons/out/*.wav
+node_modules/

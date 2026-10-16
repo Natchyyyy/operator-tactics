@@ -20,6 +20,7 @@
       teamName: 'Alpha', insignia: 'etoile', uniform: 'olive', unlocked: { insignias: ['etoile', 'bouclier'], uniforms: ['olive'] },
       xp: 0, tactics: { owned: { fumigene: true, drill: true }, equipped: ['fumigene', 'drill'] }, perks: {}, packsOpened: 0,
       league: null, leagueSeasons: 0, achievements: {}, tacticsUsed: 0,
+      headgear: { casque: true, casque_lunettes: true },   // couvre-chefs possédés (communs à tous les opérateurs)
     };
   }
   const levelFor = (xp) => { let l = 0; while (l < MAX_LEVEL && xp >= XP_TABLE[l + 1]) l++; return l; };
@@ -116,14 +117,23 @@
     }
     if (type === 'cosmetic') {
       const ins = INSIGNIAS.filter(i => !profile.unlocked.insignias.includes(i.id)), unis = UNIFORMS.filter(u => !profile.unlocked.uniforms.includes(u.id));
-      const pool = [...ins.map(i => ({ kind: 'insignia', item: i })), ...unis.map(u => ({ kind: 'uniform', item: u }))];
-      if (pool.length) { const c = pick(pool); (c.kind === 'insignia' ? profile.unlocked.insignias : profile.unlocked.uniforms).push(c.item.id); return { type: 'cosmetic', id: c.item.id, title: c.kind === 'insignia' ? `Insigne : ${c.item.name}` : `Uniforme : ${c.item.name}`, text: 'Personnalisation d\'équipe débloquée.', rarity: 2 }; }
+      const hgs = Object.keys(HEADGEAR_PRICES).filter(h => !profile.headgear[h]);
+      const pool = [...ins.map(i => ({ kind: 'insignia', item: i })), ...unis.map(u => ({ kind: 'uniform', item: u })), ...hgs.map(h => ({ kind: 'headgear', item: { id: h, name: h } }))];
+      if (pool.length) { const c = pick(pool); if (c.kind === 'headgear') { profile.headgear[c.item.id] = true; return { type: 'cosmetic', id: c.item.id, title: `Couvre-chef : ${c.item.id.replace(/_/g, ' ')}`, text: 'À attribuer sur la fiche d\'un opérateur.', rarity: 2 }; } (c.kind === 'insignia' ? profile.unlocked.insignias : profile.unlocked.uniforms).push(c.item.id); return { type: 'cosmetic', id: c.item.id, title: c.kind === 'insignia' ? `Insigne : ${c.item.name}` : `Uniforme : ${c.item.name}`, text: 'Personnalisation d\'équipe débloquée.', rarity: 2 }; }
       type = 'credits';
     }
     const v = 50 + Math.floor(rng() * 71); profile.credits += v;
     return { type: 'credits', title: `+${v} crédits`, text: 'Prime de mission.', rarity: 1 };
   }
   const STAT_FR = { marksmanship: 'Tir', reflexes: 'Réflexes', mobility: 'Mobilité', perception: 'Perception', composure: 'Sang-froid', endurance: 'Endurance' };
+  // Couvre-chefs : achat (prix dans Figure.HEADGEAR côté web ; ici table miroir) et attribution à un opérateur
+  const HEADGEAR_PRICES = { casque: 0, casque_lunettes: 0, beret_rouge: 90, beret_vert: 90, beret_bleu: 90, casquette: 60, bonnet: 60, chapeau: 110, lunettes_soleil: 70, foulard: 80, foulard_rouge: 80, nu: 40 };
+  function buyHeadgear(profile, id) {
+    if (HEADGEAR_PRICES[id] === undefined || profile.headgear[id]) return false;
+    if (profile.credits < HEADGEAR_PRICES[id]) return false;
+    profile.credits -= HEADGEAR_PRICES[id]; profile.headgear[id] = true; return true;
+  }
+  function setHeadgear(profile, opId, id) { if (!profile.headgear[id] || !profile.operators[opId]) return false; profile.operators[opId].headgear = id; return true; }
   function setCustomization(profile, field, value) {
     if (field === 'teamName') { const v = String(value || '').trim().slice(0, 18); if (!v) return false; profile.teamName = v; return true; }
     if (field === 'insignia') { if (!profile.unlocked.insignias.includes(value)) return false; profile.insignia = value; return true; }
@@ -304,7 +314,7 @@
       const fresh = newProfile();
       for (const id in fresh.operators) { if (!p.operators[id]) p.operators[id] = fresh.operators[id]; else for (const k of ['tours', 'traits', 'pendingPromotions', 'history', 'dupes', 'headgear']) if (p.operators[id][k] === undefined) p.operators[id][k] = fresh.operators[id][k]; }
       if (p.achievements === undefined) p.achievements = {}; if (p.tacticsUsed === undefined) p.tacticsUsed = 0;
-      for (const k of ['teamName', 'insignia', 'uniform', 'unlocked', 'xp', 'tactics', 'perks', 'packsOpened', 'league', 'leagueSeasons']) if (p[k] === undefined) p[k] = fresh[k];
+      for (const k of ['teamName', 'insignia', 'uniform', 'unlocked', 'xp', 'tactics', 'perks', 'packsOpened', 'league', 'leagueSeasons', 'headgear']) if (p[k] === undefined) p[k] = fresh[k];
       p.inventory = p.inventory || fresh.inventory; p.inventory.weapons = Object.assign({}, fresh.inventory.weapons, p.inventory.weapons); p.inventory.armors = Object.assign({}, fresh.inventory.armors, p.inventory.armors);
       p.squad = p.squad.filter(id => p.operators[id] && p.operators[id].unlocked);
       return p;
@@ -312,6 +322,6 @@
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));

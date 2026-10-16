@@ -129,3 +129,58 @@ def ambiance_ville(i):
         x = np.sin(2*np.pi*rng.uniform(380, 460)*t_(.35))*env_ad(int(.35*SR), .02, .25); place(out, lp(x, 1200)*.05, rng.uniform(1, d - 1))
     n = int(.5*SR); w = np.linspace(0, 1, n); out[:n] = out[:n]*w + out[-n:]*(1 - w); out = out[:-n]
     return reverb(stereo(out, 0, .6, 12), "outdoor", .2)
+
+STEREO |= {"musique_qg", "musique_bataille", "musique_titre"}
+
+def pad(freqs, d, det=.3, lp_f=1800):
+    """nappe : sommes de sinus légèrement désaccordés, souffle, lente ondulation"""
+    t = t_(d); out = np.zeros(len(t))
+    for f in freqs:
+        for k, g in [(1, 1), (2, .35), (3, .12)]:
+            out += g*(np.sin(2*np.pi*f*k*t) + np.sin(2*np.pi*f*k*(1 + det/100)*t + 1.3))/len(freqs)
+    out *= (.7 + .3*np.sin(2*np.pi*t/d*3 + .5))
+    return lp(out, lp_f)
+
+def kick(f0=60, d=.5):
+    t = t_(d); ph = 2*np.pi*(f0*t + 40*(1 - np.exp(-t/.05))*.05*t)
+    return np.sin(2*np.pi*f0*t)*env_ad(len(t), .001, .25) + lp(noise(d), 300)*env_ad(len(t), .0005, .03)*.4
+
+def loopable(out, fade_s=.6):
+    n = int(fade_s*SR); w = np.linspace(0, 1, n); out[:n] = out[:n]*w + out[-n:]*(1 - w); return out[:-n]
+
+@snd("musique_qg", 1, -34)          # QG : nappe en ré mineur, battement lent, discret (boucle 16 s)
+def musique_qg(i):
+    seed(400); d = 16.6; out = silence(d)
+    prog = [[73.4, 110, 146.8, 174.6], [69.3, 103.8, 138.6, 164.8], [58.3, 87.3, 116.5, 146.8], [65.4, 98, 130.8, 155.6]]  # Dm, Bb(no5)…
+    for k, ch in enumerate(prog):
+        seg = pad(ch, 4.15, .35, 1500)*env_ad(int(4.15*SR), .8, 6.0, 2); place(out, seg*.25, k*4.15)
+    for k in range(16): place(out, kick(55, .5)*.35, k*1.0375 + .02)
+    for k in range(8): place(out, hp(noise(.08), 5000)*env_ad(int(.08*SR), .001, .04)*.05, k*2.075 + 1.0375)
+    out = loopable(out, .6)
+    out += lp(noise(len(out)/SR + .01, "pink")[:len(out)], 300)*.003
+    return reverb(stereo(out, 0, .5, 10), "hall", .35)
+
+@snd("musique_bataille", 1, -33)    # bataille : pulsation tendue, basse en ostinato, cordes synthétiques (boucle 12 s)
+def musique_bataille(i):
+    seed(401); d = 12.6; out = silence(d); bpm = 100; beat = 60/bpm
+    bass = [36.7, 36.7, 43.65, 41.2]  # D, D, G, F
+    for bar in range(4):
+        f = bass[bar]
+        for k in range(8):
+            t0 = bar*4*beat + k*beat/2; x = np.sin(2*np.pi*f*t_(.22))*env_ad(int(.22*SR), .002, .12); place(out, lp(x, 400)*.5, t0)
+        ch = pad([f*4, f*6, f*8], 4*beat, .25, 2200)*env_ad(int(4*beat*SR), .3, 5, 2); place(out, ch*.14, bar*4*beat)
+    for k in range(16): place(out, kick(50, .4)*.5, k*beat)
+    for k in range(8): place(out, kick(140, .15)*.25, k*2*beat + beat); place(out, bp(noise(.1), 1500, 4000)*env_ad(int(.1*SR), .001, .05)*.15, k*2*beat + beat)
+    for k in range(32): place(out, hp(noise(.05), 6000)*env_ad(int(.05*SR), .001, .025)*.04, k*beat/2)
+    out = out[:int(16*beat*SR)]  # exactement 4 mesures
+    out = loopable(out, .4)
+    out += lp(noise(len(out)/SR + .01, "pink")[:len(out)], 300)*.004   # léger souffle : évite la coupe du silence final (trim) et garde la boucle entière
+    return reverb(stereo(out, 0, .4, 8), "room", .2)
+
+@snd("musique_titre", 1, -32)       # titre : montée de nappe + grosse percussion (one-shot 6 s)
+def musique_titre(i):
+    seed(402); d = 6.0; out = silence(d)
+    seg = pad([73.4, 110, 146.8, 220], 5.5, .4, 2400)*env_ad(int(5.5*SR), 2.2, 4.0, 1.5); place(out, seg*.35, 0)
+    place(out, kick(45, 1.2)*.9, 2.2); place(out, kick(45, 1.2)*.7, 2.2 + .55); place(out, kick(40, 2.0)*1.0, 3.3)
+    place(out, lp(noise(1.5), 900)*env_ad(int(1.5*SR), .05, .6)*.25, 3.3)
+    return reverb(stereo(out, 0, .6, 12), "hall", .4)

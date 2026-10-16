@@ -270,91 +270,19 @@
   // couleur par équipe, animations de marche / posture / chute / recul / impact.
   // ---------------------------------------------------------------------------------------------
   const meshes = {}; // unitId -> { group, pose, parts…, label, prev, cur, anim }
-  const geo = {
-    thigh: new THREE.CylinderGeometry(0.095, 0.085, 0.42, 8), shin: new THREE.CylinderGeometry(0.08, 0.07, 0.42, 8), boot: new THREE.BoxGeometry(0.16, 0.1, 0.26),
-    torso: new THREE.BoxGeometry(0.4, 0.5, 0.26), vest: new THREE.BoxGeometry(0.44, 0.4, 0.32), pouch: new THREE.BoxGeometry(0.1, 0.12, 0.08), pack: new THREE.BoxGeometry(0.3, 0.3, 0.16),
-    upperArm: new THREE.CylinderGeometry(0.06, 0.055, 0.3, 8), foreArm: new THREE.CylinderGeometry(0.055, 0.05, 0.3, 8), hand: new THREE.SphereGeometry(0.05, 6, 6),
-    neck: new THREE.CylinderGeometry(0.06, 0.07, 0.08, 8), head: new THREE.SphereGeometry(0.13, 12, 10), helmet: new THREE.SphereGeometry(0.16, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.58), goggles: new THREE.BoxGeometry(0.2, 0.06, 0.06),
-    rifle: { body: new THREE.BoxGeometry(0.05, 0.08, 0.6), barrel: new THREE.CylinderGeometry(0.012, 0.012, 0.3, 6), mag: new THREE.BoxGeometry(0.035, 0.16, 0.06), stock: new THREE.BoxGeometry(0.045, 0.1, 0.22) },
-    lmg: { body: new THREE.BoxGeometry(0.06, 0.1, 0.7), barrel: new THREE.CylinderGeometry(0.014, 0.014, 0.4, 6), mag: new THREE.BoxGeometry(0.12, 0.14, 0.14), stock: new THREE.BoxGeometry(0.05, 0.11, 0.24) },
-    dmr: { body: new THREE.BoxGeometry(0.045, 0.07, 0.65), barrel: new THREE.CylinderGeometry(0.011, 0.011, 0.5, 6), mag: new THREE.BoxGeometry(0.03, 0.12, 0.06), stock: new THREE.BoxGeometry(0.045, 0.1, 0.26), scope: new THREE.CylinderGeometry(0.025, 0.025, 0.22, 8) },
-    smg: { body: new THREE.BoxGeometry(0.05, 0.08, 0.38), barrel: new THREE.CylinderGeometry(0.012, 0.012, 0.14, 6), mag: new THREE.BoxGeometry(0.03, 0.18, 0.05), stock: new THREE.BoxGeometry(0.03, 0.06, 0.18) },
-    shotgun: { body: new THREE.BoxGeometry(0.05, 0.08, 0.55), barrel: new THREE.CylinderGeometry(0.014, 0.014, 0.4, 6), mag: new THREE.BoxGeometry(0.03, 0.05, 0.3), stock: new THREE.BoxGeometry(0.045, 0.11, 0.24) },
-    ring: new THREE.RingGeometry(0.34, 0.42, 24),
-  };
-  const sharedMats = {
-    skin: new THREE.MeshStandardMaterial({ color: 0xc9a27e, roughness: 0.8 }),
-    gun: new THREE.MeshStandardMaterial({ color: 0x1c1e22, roughness: 0.45, metalness: 0.6 }),
-    gunDark: new THREE.MeshStandardMaterial({ color: 0x2a2d31, roughness: 0.6, metalness: 0.4 }),
-    boot: new THREE.MeshStandardMaterial({ color: 0x1f1b17, roughness: 0.9 }),
-    goggles: new THREE.MeshStandardMaterial({ color: 0x0d0f12, roughness: 0.3, metalness: 0.5 }),
-  };
-  function makeWeapon(id) {
-    const g = geo[id] || geo.rifle; const w = new THREE.Group();
-    const body = new THREE.Mesh(g.body, sharedMats.gun); w.add(body);
-    const barrel = new THREE.Mesh(g.barrel, sharedMats.gunDark); barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0.02, g.body.parameters.depth / 2 + g.barrel.parameters.height / 2); w.add(barrel);
-    const mag = new THREE.Mesh(g.mag, sharedMats.gunDark); mag.position.set(0, -g.body.parameters.height / 2 - g.mag.parameters.height / 2 + 0.02, 0.05); w.add(mag);
-    const stock = new THREE.Mesh(g.stock, sharedMats.gunDark); stock.position.set(0, -0.01, -g.body.parameters.depth / 2 - g.stock.parameters.depth / 2 + 0.02); w.add(stock);
-    if (g.scope) { const sc = new THREE.Mesh(g.scope, sharedMats.gun); sc.rotation.x = Math.PI / 2; sc.position.set(0, g.body.parameters.height / 2 + 0.03, 0); w.add(sc); }
-    w.muzzle = new THREE.Vector3(0, 0.02, g.body.parameters.depth / 2 + g.barrel.parameters.height);
-    return w;
-  }
+  const Figure = OT.Figure;
   function makeOperator(u) {
     const t = TEAM[u.team];
     let fac = DATA.FACTIONS[u.def.faction || 'allied'] || DATA.FACTIONS.allied;   // uniforme selon la faction, marqueurs selon l'équipe
     const teamDef = battle.teams[u.team]; if (!u.def.faction && teamDef.uniform) { const uni = DATA.UNIFORMS.find(x => x.id === teamDef.uniform); if (uni) fac = uni; }
-    const matU = new THREE.MeshStandardMaterial({ color: fac.uniform, roughness: 0.95 });
-    const matV = new THREE.MeshStandardMaterial({ color: fac.vest, roughness: 0.9 });
-    const matHelmet = new THREE.MeshStandardMaterial({ color: fac.vest, roughness: 0.65 });
-    const matMark = new THREE.MeshBasicMaterial({ color: t.color });
-    const group = new THREE.Group();
-    const pose = new THREE.Group(); group.add(pose);     // tout le corps : posture, chute
-    const hips = new THREE.Group(); hips.position.y = 0.86; pose.add(hips);
-    // jambes (pivot à la hanche)
-    const legs = [];
-    for (const side of [-1, 1]) {
-      const leg = new THREE.Group(); leg.position.set(side * 0.11, 0, 0); hips.add(leg);
-      const thigh = new THREE.Mesh(geo.thigh, matU); thigh.position.y = -0.21; leg.add(thigh);
-      const knee = new THREE.Group(); knee.position.y = -0.42; leg.add(knee);
-      const shin = new THREE.Mesh(geo.shin, matU); shin.position.y = -0.21; knee.add(shin);
-      const boot = new THREE.Mesh(geo.boot, sharedMats.boot); boot.position.set(0, -0.4, 0.04); knee.add(boot);
-      legs.push({ leg, knee });
-    }
-    // torse (pivot au bassin)
-    const torso = new THREE.Group(); hips.add(torso);
-    const chest = new THREE.Mesh(geo.torso, matU); chest.position.y = 0.3; torso.add(chest);
-    const vest = new THREE.Mesh(geo.vest, matV); vest.position.set(0, 0.3, 0.0); torso.add(vest);
-    for (const px of [-0.13, 0, 0.13]) { const po = new THREE.Mesh(geo.pouch, matV); po.position.set(px, 0.17, 0.19); torso.add(po); }
-    const pack = new THREE.Mesh(geo.pack, matV); pack.position.set(0, 0.32, -0.22); torso.add(pack);
-    const band = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.03, 6, 12), matMark); band.position.set(0.2, 0.42, 0); band.rotation.y = Math.PI / 2; torso.add(band); // brassard
-    const band2 = band.clone(); band2.position.x = -0.2; torso.add(band2);
-    // tête
-    const neck = new THREE.Mesh(geo.neck, sharedMats.skin); neck.position.y = 0.58; torso.add(neck);
-    const headG = new THREE.Group(); headG.position.y = 0.74; torso.add(headG);
-    const head = new THREE.Mesh(geo.head, sharedMats.skin); headG.add(head);
-    const helmet = new THREE.Mesh(geo.helmet, matHelmet); helmet.position.y = 0.02; headG.add(helmet);
-    const goggles = new THREE.Mesh(geo.goggles, sharedMats.goggles); goggles.position.set(0, 0.03, 0.12); headG.add(goggles);
-    // bras + arme : les deux mains tiennent l'arme devant la poitrine
-    const shoulderR = new THREE.Group(); shoulderR.position.set(0.24, 0.52, 0.02); torso.add(shoulderR);
-    const upperR = new THREE.Mesh(geo.upperArm, matU); upperR.position.y = -0.15; shoulderR.add(upperR);
-    const elbowR = new THREE.Group(); elbowR.position.y = -0.3; shoulderR.add(elbowR);
-    const foreR = new THREE.Mesh(geo.foreArm, matU); foreR.position.y = -0.15; elbowR.add(foreR);
-    const handR = new THREE.Mesh(geo.hand, sharedMats.skin); handR.position.y = -0.3; elbowR.add(handR);
-    const shoulderL = new THREE.Group(); shoulderL.position.set(-0.24, 0.52, 0.02); torso.add(shoulderL);
-    const upperL = new THREE.Mesh(geo.upperArm, matU); upperL.position.y = -0.15; shoulderL.add(upperL);
-    const elbowL = new THREE.Group(); elbowL.position.y = -0.3; shoulderL.add(elbowL);
-    const foreL = new THREE.Mesh(geo.foreArm, matU); foreL.position.y = -0.15; elbowL.add(foreL);
-    const handL = new THREE.Mesh(geo.hand, sharedMats.skin); handL.position.y = -0.3; elbowL.add(handL);
-    const weapon = makeWeapon(u.weapon); weapon.position.set(0.1, 0.33, 0.32); torso.add(weapon);
-    const ring = new THREE.Mesh(geo.ring, new THREE.MeshBasicMaterial({ color: t.color, transparent: true, opacity: 0.8, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; group.add(ring);
-    pose.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
-    scene.add(group);
+    const f = Figure.build({ id: u.def.id, weapon: u.weapon.id, uniform: fac.uniform, vest: fac.vest, teamColor: t.color, headgear: u.def.headgear || (u.def.faction ? 'casque_lunettes' : 'casque') });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.42, 24), new THREE.MeshBasicMaterial({ color: t.color, transparent: true, opacity: 0.8, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; f.group.add(ring);
+    scene.add(f.group);
     const label = document.createElement('div'); label.className = 'label team' + u.team;
     label.innerHTML = `<div class="lname">${u.callsign}</div><div class="lbar"><i></i></div>`;
     $('#labels').appendChild(label);
-    meshes[u.id] = { group, pose, hips, legs, torso, headG, shoulderR, elbowR, shoulderL, elbowL, weapon, ring, label,
-      prev: { x: u.x, z: u.z, facing: u.facing }, cur: { x: u.x, z: u.z, facing: u.facing },
-      anim: { crouch: 0, fall: 0, fallDir: 0, recoil: 0, flinch: 0, aim: 0, phase: Math.random() * 6.28 } };
+    meshes[u.id] = Object.assign(f, { ring, label, prev: { x: u.x, z: u.z, facing: u.facing }, cur: { x: u.x, z: u.z, facing: u.facing },
+      anim: { crouch: 0, fall: 0, fallDir: 0, recoil: 0, flinch: 0, aim: 0, phase: Math.random() * 6.28 } });
   }
   function clearOperators() { for (const id in meshes) { scene.remove(meshes[id].group); meshes[id].label.remove(); delete meshes[id]; } }
 
@@ -378,15 +306,16 @@
     m.torso.rotation.z = a.flinch * 0.15 * Math.sin(a.phase * 3);
     m.headG.rotation.x = -a.crouch * 0.3 - a.flinch * 0.2;
     // bras : épaulé (cible) ou arme basse
-    const shoulder = u.alive ? lerp(0.55, 1.35, a.aim) : 0.15, elbow = u.alive ? lerp(-1.1, -0.9, a.aim) : -0.3;
-    m.shoulderR.rotation.x = -shoulder + a.recoil * 0.2; m.elbowR.rotation.x = elbow; m.shoulderR.rotation.z = 0.15;
-    m.shoulderL.rotation.x = -shoulder - 0.25 + a.recoil * 0.2; m.elbowL.rotation.x = elbow - 0.3; m.shoulderL.rotation.z = -0.45;
+    // bras : les épaules tournent vers l'avant (x négatif = bras levé devant), les coudes se replient vers l'avant (x négatif)
+    // arme basse : bras droit le long de la crosse, main gauche sous le garde-main ; épaulé : les deux bras montent
+    Figure.armPose(m, u.alive ? a.aim : 0);
+    if (!u.alive) { m.shoulderR.rotation.x = -0.1; m.shoulderL.rotation.x = -0.1; m.elbowR.rotation.x = -0.2; m.elbowL.rotation.x = -0.2; }
+    m.shoulderR.rotation.x -= a.recoil * 0.2; m.shoulderL.rotation.x -= a.recoil * 0.2; m.weapon.position.z -= a.recoil * 0.05;
     // rechargement : arme basculée vers le bas, main gauche qui travaille sous l'arme
     a.reload = lerp(a.reload || 0, u.alive && u.reloading > 0 ? 1 : 0, Math.min(1, dt * 10));
     const rl = a.reload;
-    m.weapon.position.set(0.1, lerp(0.2, 0.42, a.aim) - rl * 0.12, lerp(0.28, 0.36, a.aim) - a.recoil * 0.05 - rl * 0.06);
-    m.weapon.rotation.x = lerp(0.45, -0.02, a.aim) + rl * 0.7; m.weapon.rotation.z = rl * 0.35;
-    if (rl > 0.05) { m.shoulderL.rotation.x += rl * (0.5 + 0.25 * Math.sin(simTime * 16)); m.elbowL.rotation.x -= rl * 0.6; m.headG.rotation.x += rl * 0.35; }
+    m.weapon.position.y -= rl * 0.12; m.weapon.position.z -= rl * 0.06; m.weapon.rotation.x += rl * 0.7; m.weapon.rotation.z += rl * 0.35;
+    if (rl > 0.05) { m.shoulderL.rotation.x += rl * (0.4 + 0.2 * Math.sin(simTime * 16)); m.elbowL.rotation.x -= rl * 0.5; m.headG.rotation.x += rl * 0.35; }
     // chute
     if (a.fall > 0) { const f = a.fall < 0.5 ? 2 * a.fall * a.fall : 1 - Math.pow(-2 * a.fall + 2, 2) / 2; m.pose.rotation.x = -Math.PI / 2 * f * 0.95; m.pose.rotation.z = a.fallDir * 0.4 * f; m.pose.position.y = 0.22 * f; m.ring.material.opacity = 0.8 - 0.6 * f; }
   }
@@ -479,7 +408,14 @@
     Son.jouer(name, opt);
   }
   const AMBIENCE = { entrepot: 'ambiance_port', raffinerie: 'ambiance_port', place: 'ambiance_ville' };
-  function ambience(on) { if (!window.Son) return; if (!on || muted) { Son.arreterBoucle(); return; } if (battle) Son.boucle(AMBIENCE[battle.map.id] || 'ambiance_port', { vol: 0.9 }); }
+  let musicVol = 1; try { musicVol = localStorage.getItem('ot-music') === '0' ? 0 : 1; } catch (e) { /* rien */ }
+  // ambiance + musique : la musique de bataille remplace celle du QG ; tout s'arrête en sourdine
+  function ambience(on) {
+    if (!window.Son) return;
+    if (!on || muted) { Son.arreterBoucle(0.8, 'ambiance'); if (!on && !muted) Son.boucle('musique_qg', { voie: 'musique', vol: 0.8 * musicVol, fondu: 2 }); if (muted) Son.arreterBoucle(0.6, 'musique'); return; }
+    if (battle) { Son.boucle(AMBIENCE[battle.map.id] || 'ambiance_port', { voie: 'ambiance', vol: 0.9 }); Son.boucle('musique_bataille', { voie: 'musique', vol: 0.7 * musicVol, fondu: 1.5 }); }
+  }
+  window.OT_MUSIC = { set(v) { musicVol = v; try { localStorage.setItem('ot-music', v ? '1' : '0'); } catch (e) { /* rien */ } if (window.Son) Son.volumeBoucle('musique', (battle && !$('#app').classList.contains('hidden') ? 0.7 : 0.8) * v); }, get: () => musicVol };
   function setMuted(m) { muted = m; try { localStorage.setItem('ot-mute', m ? '1' : '0'); } catch (e) { /* rien */ } $('#mute').textContent = m ? '🔇' : '🔊'; $('#mute').classList.toggle('on', !m); ambience(!m && !$('#app').classList.contains('hidden')); }
   $('#mute').addEventListener('click', () => setMuted(!muted));
   document.addEventListener('click', (e) => { if (e.target.closest('button') && !e.target.closest('#mute')) play('clic', null, { vol: 0.8, varie: 0.05 }); }, true);
@@ -741,14 +677,14 @@
   setMuted(muted);
   setMode('free');
   newBattle(optsFromForm());
-  if (!MANUAL && params.get('mode') !== 'free') window.HQ.show(); else window.HQ.hide();
+  if (!MANUAL && params.get('mode') !== 'free') { if (params.get('skipTitle') === '1') window.HQ.show(); else { $('#hq').classList.add('hidden'); $('#app').classList.add('hidden'); } } else window.HQ.hide();
   // API de test (identique dans les deux modes ; en mode manuel il n'y a pas de boucle d'animation)
   window.API = {
     step: (n, dt) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; render(); return battle.t; },
     runToEnd: () => { while (!battle.over) stepSim(); acc = DT; render(); return battle.result; },
     battle: () => battle, render,
     camera: (yaw, pitch, dist, tx, tz) => { cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; if (tx !== undefined) cam.target.set(tx, 0, tz); render(); },
-    focus: (cs, yaw, pitch, dist) => { const u = battle.units.find(x => x.callsign === cs); cam.follow = null; cam.target.set(u.x, 0.9, u.z); cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; render(); return [u.x, u.z, u.facing, u.stance, u.state]; },
+    focus: (cs, yaw, pitch, dist) => { const u = battle.units.find(x => x.callsign === cs); setCamMode('free'); cam.follow = null; cam.init = false; cam.target.set(u.x, 0.9, u.z); cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; for (let i = 0; i < 30; i++) applyCamera(); render(); return [u.x, u.z, u.facing, u.stance, u.state]; },
     pause: (p) => { paused = p !== false; updatePlayButton(); },
     settle: () => { for (let i = 0; i < 80; i++) applyCamera(); render(); },
     useTactic: (id) => battle.useTactic(0, id),

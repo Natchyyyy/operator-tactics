@@ -14,8 +14,11 @@ async def main():
         pg.on("console", lambda m: errs.append(f"console.{m.type}: {m.text}") if m.type == "error" else None)
         url = sys.argv[1] + ("&" if "?" in sys.argv[1] else "?") + "seed=3"
         await pg.goto(url, timeout=120000); await pg.wait_for_function("window.PRET", timeout=60000)
-        # ---- Quartier général : la page s'ouvre sur le QG, profil neuf ----
-        check("la page s'ouvre sur le quartier général", await pg.is_visible("#hq") and not await pg.is_visible("#app"))
+        # ---- Écran titre puis quartier général ----
+        check("la page s'ouvre sur l'écran titre (scène 3D)", await pg.is_visible("#title") and await pg.evaluate("() => !!document.querySelector('#titleScene')"))
+        await pg.click("#titleStart"); await pg.wait_for_timeout(600)
+        check("« Entrer au quartier général » ouvre le QG", await pg.is_visible("#hq") and not await pg.is_visible("#app") and not await pg.is_visible("#title"))
+        nport = await pg.evaluate("() => document.querySelectorAll('#hqRoster img.portrait').length"); check("les portraits 3D des opérateurs sont rendus", nport >= 10, nport)
         check("300 crédits et 5 opérateurs débloqués au départ", (await pg.inner_text("#credits")) == "300" and await pg.evaluate("() => document.querySelectorAll('.opcard:not(.locked)').length") == 5)
         # accueil : puissance, rang, personnalisation
         rating = await pg.inner_text("#hqRating"); check("la puissance d'équipe est affichée (nombre)", rating.strip().isdigit(), rating)
@@ -65,7 +68,7 @@ async def main():
         check("chaque opérateur engagé a gagné de l'expérience et une bataille à son compteur", all(prof["operators"][i]["xp"] > 0 and prof["operators"][i]["battles"] == 1 for i in prof["squad"]))
         check("le bilan de mission s'affiche au QG", await pg.is_visible("#hqRewards"))
         # rechargement de la page : la progression est conservée
-        await pg.reload(); await pg.wait_for_function("window.PRET", timeout=60000)
+        await pg.reload(); await pg.wait_for_function("window.PRET", timeout=60000); await pg.click("#titleStart"); await pg.wait_for_timeout(600)
         check("après rechargement, la progression est conservée", (await pg.inner_text("#credits")) == str(prof["credits"]))
         # ---- Ligue : un match, classement mis à jour ----
         await pg.click("[data-tab='ligue']"); await pg.wait_for_timeout(100)
@@ -115,8 +118,8 @@ async def main():
         # changer l'ordre d'Alpha en Tenir et relancer : l'ordre est bien transmis à la simulation
         await pg.select_option("#order0", "hold"); await pg.click("#newBattle"); await pg.wait_for_timeout(200)
         order = await pg.evaluate("() => window.API.battle().teams[0].order"); check("le sélecteur d'ordre modifie la simulation", order == "hold", order)
-        son = await pg.evaluate("async () => { if (typeof Son === 'undefined') return 'pas de lecteur'; Son.init(); await Son.charger(); return [Son.jouer('tir_fusil'), Son.jouer('pas'), Son.jouer('recharge'), Son.jouer('victoire')].every(Boolean); }")
-        check("les 14 bruitages se décodent et se jouent", son is True, son)
+        son = await pg.evaluate("async () => { if (typeof Son === 'undefined') return 'pas de lecteur'; Son.init(); await Son.charger(); return [Son.jouer('tir_fusil'), Son.jouer('pas'), Son.jouer('recharge'), Son.jouer('victoire'), Son.jouer('musique_titre')].every(Boolean) && await Son.boucle('musique_qg', { voie: 'musique', vol: .5 }); }")
+        check("les bruitages et musiques se décodent et se jouent", son is True, son)
         check("aucune erreur JavaScript", not errs, errs[:5])
         print(f"\n{ok}/{tot} vérifications réussies"); await br.close()
         sys.exit(0 if ok == tot else 1)
