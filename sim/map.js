@@ -20,6 +20,7 @@
       id: 'entrepot', name: 'Entrepôt des docks', width: 64, depth: 40,
       // zones de départ (centre + rayon) ; l'équipe A à l'ouest, B à l'est
       spawns: [ { x: 5.5, z: 20, r: 3.5 }, { x: 58.5, z: 20, r: 3.5 } ],
+      capture: { x: 32, z: 9, r: 6 },   // zone à capturer : allée nord, devant les caisses (le centre est un bâtiment)
       obstacles: mirrored(64, [
         // murs périphériques
         box(-1, -1, 66, 1, 3.2, 'wall', 'mur nord'), box(-1, 40, 66, 1, 3.2, 'wall', 'mur sud'),
@@ -44,6 +45,7 @@
     place: {
       id: 'place', name: 'Place du marché', width: 70, depth: 44,
       spawns: [ { x: 5.5, z: 22, r: 3.5 }, { x: 64.5, z: 22, r: 3.5 } ],
+      capture: { x: 35, z: 22, r: 7 },  // la place elle-même
       obstacles: mirrored(70, [
         box(-1, -1, 72, 1, 3.2, 'wall', 'mur nord'), box(-1, 44, 72, 1, 3.2, 'wall', 'mur sud'),
         box(-1, 0, 1, 44, 3.2, 'wall', 'mur ouest'), box(70, 0, 1, 44, 3.2, 'wall', 'mur est'),
@@ -64,6 +66,7 @@
     raffinerie: {
       id: 'raffinerie', name: 'Raffinerie', width: 72, depth: 46,
       spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
+      capture: { x: 36, z: 10, r: 6 },  // aire de pompage nord (le centre est fermé par les cuves)
       obstacles: mirrored(72, [
         box(-1, -1, 74, 1, 3.2, 'wall', 'mur nord'), box(-1, 46, 74, 1, 3.2, 'wall', 'mur sud'),
         box(-1, 0, 1, 46, 3.2, 'wall', 'mur ouest'), box(72, 0, 1, 46, 3.2, 'wall', 'mur est'),
@@ -116,7 +119,7 @@
   // ---- La carte instanciée ---------------------------------------------------------------
   function GameMap(def) {
     this.def = def; this.id = def.id; this.name = def.name;
-    this.width = def.width; this.depth = def.depth; this.obstacles = def.obstacles; this.spawns = def.spawns;
+    this.width = def.width; this.depth = def.depth; this.obstacles = def.obstacles; this.spawns = def.spawns; this.capture = def.capture || null;
     this.cols = Math.ceil(def.width / CELL); this.rows = Math.ceil(def.depth / CELL);
     this.blocked = new Uint8Array(this.cols * this.rows);
     for (let r = 0; r < this.rows; r++) for (let c = 0; c < this.cols; c++) {

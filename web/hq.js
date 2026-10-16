@@ -192,7 +192,7 @@
       return `<div class="mission ${selectedMission === m.id ? 'sel' : ''}" data-id="${m.id}">
         <div class="crow"><b>${esc(m.name)}</b><span class="diff">${'◆'.repeat(m.difficulty)}${'◇'.repeat(4 - m.difficulty)}</span></div>
         <div class="mdesc">${esc(m.desc)}</div>
-        <div class="crow small"><span>${OT.MAPS[m.mapId].name} · ${m.objective === 'hold' ? `tenir ${m.duration} s` : 'neutraliser l’adversaire'}</span></div>
+        <div class="crow small"><span>${OT.MAPS[m.mapId].name} · ${Game.objectiveLabel(m)}</span></div>
         <div class="crow small"><span>${DATA.FACTIONS.karst.name} : ${m.enemy.map(id => OPERATORS.find(o => o.id === id).callsign).join(', ')} (niv. ${m.level}, ${ORDERS[m.order].name}${m.enemyWeapons ? ', armes silencieuses' : ''})</span></div>
         <div class="crow small"><span>Récompense : ${m.reward} cr. · ${m.xp} XP de base</span><span>${done ? `${done.wins}/${done.attempts} réussie${done.wins > 1 ? 's' : ''}` : 'Jamais tentée'}</span></div>
       </div>`;
@@ -250,7 +250,7 @@
     $('#vsName1').textContent = lt ? lt.name : 'Groupe Karst'; $('#vsRank1').textContent = `Niveau ${mission.level} · ${ORDERS[mission.order].name}`; $('#vsIns1').textContent = lt ? lt.insignia : '⚑';
     $('#vsRating1').innerHTML = `${enemyRating}<small>Puissance</small>`; $('#vsRec1').innerHTML = ls ? `Victoires <b>${ls.wins}</b><br>Défaites <b>${ls.losses}</b>` : `Contre vous : <b>${km.attempts - km.wins}</b> victoires<br><b>${km.wins}</b> défaites`;
     $('#vsTac1').innerHTML = tacs(mission.enemyTactics || []);
-    $('#vsLoc').textContent = OT.MAPS[mission.mapId].name; $('#vsObj').textContent = mission.objective === 'hold' ? `— tenir ${mission.duration} s` : '— neutraliser l\u2019adversaire';
+    $('#vsLoc').textContent = OT.MAPS[mission.mapId].name; $('#vsObj').textContent = '— ' + Game.objectiveLabel(mission);
     $('#vsSquad0').innerHTML = opts.teams[0].operators.map(d => `<span>${esc(d.callsign)} · ${ROLES[d.role].name}</span>`).join('');
     $('#vsSquad1').innerHTML = enemyDefs.map(d => `<span>${esc(d.callsign)} · ${ROLES[d.role].name}</span>`).join('');
     $('#vs').classList.remove('hidden');

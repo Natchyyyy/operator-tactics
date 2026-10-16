@@ -76,6 +76,13 @@
     // objectif : { type: 'eliminate' } (défaut) ou { type: 'hold', team, duration } : l'équipe team gagne si elle tient jusqu'à duration
     this.objective = opts.objective || { type: 'eliminate' };
     if (this.objective.type === 'hold') this.timeLimit = this.objective.duration;
+    // { type: 'capture', x?, z?, r?, rate? } : une zone au centre de la carte ; l'équipe qui l'occupe seule fait monter sa jauge,
+    // 100 % = victoire (même sans avoir éliminé l'adversaire). Zone disputée (les deux équipes dedans) : aucune progression.
+    if (this.objective.type === 'capture') {
+      const o = this.objective, mc = this.map.capture || { x: this.map.width / 2, z: this.map.depth / 2, r: 7 };
+      this.zone = { x: o.x !== undefined ? o.x : mc.x, z: o.z !== undefined ? o.z : mc.z, r: o.r || mc.r, holder: null, contested: false };
+      if (!opts.timeLimit) this.timeLimit = 300;
+    }
     this.t = 0; this.tick = 0; this.over = false; this.result = null;
     this.log = []; this.events = [];
     this.lastShotTime = 0;
@@ -91,7 +98,7 @@
       });
       const tactics = {};
       for (const id of (td.tactics || [])) if (TACTICS[id]) tactics[id] = { uses: TACTICS[id].active ? TACTICS[id].uses : 0, cooldownUntil: 0, used: 0 };
-      this.teams.push({ index: ti, name: td.name || (ti === 0 ? 'Alpha' : 'Bravo'), order, units, spawn: this.map.spawns[ti], lastSeen: {}, tactics, tacticIds: (td.tactics || []).filter(id => TACTICS[id]), auto: !!td.autoTactics });
+      this.teams.push({ index: ti, name: td.name || (ti === 0 ? 'Alpha' : 'Bravo'), order, units, spawn: this.map.spawns[ti], lastSeen: {}, tactics, tacticIds: (td.tactics || []).filter(id => TACTICS[id]), auto: !!td.autoTactics, capture: 0 });
     });
     this.units = this.teams.flatMap(t => t.units);
     this.placeUnits();
@@ -148,12 +155,65 @@
       if (phase < DT - 1e-6) this.decide(u);
       this.act(u);
     }
+    this.updateCapture();
     this.checkEnd();
   };
   Battle.prototype.run = function (maxSeconds) {
     const limit = maxSeconds || this.timeLimit + 1;
     while (!this.over && this.t < limit) this.step();
     return this.result;
+  };
+
+  // ---- Capture de zone ---------------------------------------------------------------------
+  Battle.prototype.inZone = function (p, margin) { return !!this.zone && Math.hypot(p.x - this.zone.x, p.z - this.zone.z) <= this.zone.r + (margin || 0); };
+  Battle.prototype.updateCapture = function () {
+    const z = this.zone; if (!z) return;
+    const n = this.teams.map(t => t.units.filter(u => u.alive && this.inZone(u)).length);
+    const prev = z.holder;
+    z.contested = n[0] > 0 && n[1] > 0;
+    z.holder = z.contested ? -1 : n[0] > 0 ? 0 : n[1] > 0 ? 1 : null;
+    if (z.holder !== prev) {
+      if (z.contested) this.logEvent('zone', `La zone est disputée : progression bloquée.`, {});
+      else if (z.holder !== null) this.logEvent('zone', `${this.teams[z.holder].name} occupe la zone (${n[z.holder]} opérateur${n[z.holder] > 1 ? 's' : ''}).`, { team: z.holder });
+    }
+    // zone disputée : on s'entend à quelques mètres (pas, voix) → position approximative des adversaires présents dans la zone
+    if (z.contested && this.tick % 10 === 0) {
+      for (const u of this.units) if (u.alive && this.inZone(u, 2)) for (const e of this.enemiesOf(u)) if (e.alive && this.inZone(e, 2) && !u.visible.has(e.id)) {
+        const k = u.knowledge[e.id]; if (k && this.t - k.t < 2) continue;
+        u.knowledge[e.id] = { x: e.x + this.rng.gauss() * 1.5, z: e.z + this.rng.gauss() * 1.5, t: this.t, seen: false, source: 'ouïe' };
+      }
+    }
+    if (z.holder === 0 || z.holder === 1) {
+      const t = this.teams[z.holder];
+      const rate = (this.objective.rate || 1.6) + 0.4 * (n[z.holder] - 1);   // % par seconde : 1 opérateur ≈ 62 s, 5 ≈ 31 s
+      const before = t.capture; t.capture = Math.min(100, t.capture + rate * DT);
+      for (const m of [25, 50, 75]) if (before < m && t.capture >= m) this.logEvent('zone', `${t.name} : zone capturée à ${m} %.`, { team: z.holder });
+    }
+  };
+  // Prendre position dans la zone : un couvert à l'intérieur (face à la menace) ou, à défaut, un point libre réparti autour du centre.
+  Battle.prototype.occupyZone = function (u, facePos) {
+    const z = this.zone;
+    if (!u.zoneSpot) {
+      let best = null, bs = -Infinity;
+      for (const cp of this.map.coverPoints) {
+        if (Math.hypot(cp.x - z.x, cp.z - z.z) > z.r - 0.6) continue;
+        if (this.alliesOf(u).some(a => a.alive && a.zoneSpot && Math.hypot(a.zoneSpot.x - cp.x, a.zoneSpot.z - cp.z) < 2)) continue;
+        const sc = (this.map.coverFrom(cp.x, cp.z, facePos.x, facePos.z, true) ? 3 : 0) - Math.hypot(cp.x - u.x, cp.z - u.z) * 0.05 + this.rng.next() * 0.5;
+        if (sc > bs) { bs = sc; best = cp; }
+      }
+      if (!best) {
+        const side = Math.sign(this.teams[u.team].spawn.x - z.x) || 1;
+        for (let k = 0; k < 12 && !best; k++) {
+          const a = (u.idx / 5) * Math.PI * 2 + this.rng.range(-0.5, 0.5), rr = z.r * this.rng.range(0.25, 0.7);
+          const f = this.map.nearestFree(z.x + side * Math.abs(Math.cos(a)) * rr * 0.6 + Math.cos(a) * rr * 0.4, z.z + Math.sin(a) * rr);
+          if (f) { const c = this.map.centerOf(f.c, f.r); if (this.inZone(c, -0.4)) best = c; }
+        }
+      }
+      u.zoneSpot = best ? { x: best.x, z: best.z } : { x: z.x, z: z.z };
+    }
+    if (Math.hypot(u.zoneSpot.x - u.x, u.zoneSpot.z - u.z) > 1.0 && this.setGoal(u, u.zoneSpot.x, u.zoneSpot.z, 'advance')) { u.state = 'tozone'; u.stance = 'stand'; return; }
+    this.stop(u); u.state = 'capture'; u.facing = Math.atan2(facePos.z - u.z, facePos.x - u.x);
+    u.stance = this.map.coverFrom(u.x, u.z, facePos.x, facePos.z, false) ? 'crouch' : 'stand';
   };
 
   // ---- Perception ------------------------------------------------------------------------
@@ -325,13 +385,13 @@
   };
   Battle.prototype.holdPost = function (u, threatPos) {
     const team = this.teams[u.team];
-    const home = team.anchor || team.spawn; // ordre donné en cours de bataille : on tient autour de la position actuelle
+    const home = this.zone || team.anchor || team.spawn; // capture : on tient la zone ; ordre donné en cours de bataille : autour de la position actuelle
     if (!u.post) {
       // poste : un couvert près du départ, face à la menace, avec le plus de vues sur les axes d'approche
       const dirx = Math.sign(this.map.spawns[1 - u.team].x - home.x) || 1;
       let best = null, bs = -Infinity;
       for (const cp of this.map.coverPoints) {
-        const dh = Math.hypot(cp.x - home.x, cp.z - home.z); if (dh > 18) continue;
+        const dh = Math.hypot(cp.x - home.x, cp.z - home.z); if (dh > (this.zone ? this.zone.r - 0.5 : 18)) continue;
         if (!this.map.coverFrom(cp.x, cp.z, threatPos.x, threatPos.z, true)) continue;
         let occupied = false;
         for (const a of this.alliesOf(u)) if (a.alive && a.post && Math.hypot(a.post.x - cp.x, a.post.z - cp.z) < 2.5) { occupied = true; break; }
@@ -339,6 +399,7 @@
         const sc = this.map.openness(cp.x, cp.z, dirx, 6) * 2 - dh * 0.15 + this.rng.next() * 0.05;
         if (sc > bs) { bs = sc; best = cp; }
       }
+      if (!best && this.zone) { this.occupyZone(u, threatPos); return; }   // aucun couvert libre dans la zone : on s'y installe quand même
       u.post = best ? { x: best.x, z: best.z } : (team.anchor ? { x: u.x, z: u.z } : { x: u.home.x, z: u.home.z });
     }
     if (Math.hypot(u.post.x - u.x, u.post.z - u.z) > 1.2) { if (this.setGoal(u, u.post.x, u.post.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; } }
@@ -347,7 +408,12 @@
 
   Battle.prototype.decide = function (u) {
     if (!u.alive) return;
-    const order = this.teams[u.team].order;
+    let order = this.teams[u.team].order;
+    // capture : « Tenir » veut dire tenir la ZONE ; tant qu'on n'y est pas, on y va prudemment (et les postes hors zone sont oubliés)
+    if (this.zone && order === 'hold') {
+      if (u.post && !this.inZone(u.post, 1)) u.post = null;
+      if (!this.inZone(u, 2)) order = 'careful';
+    }
     const threats = this.visibleEnemies(u);
     const home = this.teams[u.team].spawn, objective = this.map.spawns[1 - u.team];
     const beingShot = this.t - u.lastShotByAt < 1.5;
@@ -397,6 +463,14 @@
       const wantCover = !cover && (beingShot || u.hp < u.maxHp * 0.7 || u.suppression > 0.35 || order !== 'assault' || u.reloading > 0);
 
       if (pinned && cover) { u.stance = 'crouch'; u.state = 'pinned'; this.stop(u); return; }
+      // capture : si la zone n'est pas à nous, on ne s'éternise pas dans un échange de tirs à distance — on progresse vers la zone,
+      // de couvert en couvert (le tireur d'élite reste en appui)
+      if (this.zone && this.zone.holder !== u.team && u.role.id !== 'marksman' && !pinned && !this.inZone(u, 1) && u.reloading <= 0) {
+        const dz = Math.hypot(u.x - this.zone.x, u.z - this.zone.z);
+        const cp = this.findCover(u, threat, 14, { towards: this.zone });
+        if (cp && Math.hypot(cp.x - this.zone.x, cp.z - this.zone.z) < dz - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
+        if (order === 'assault' && this.setGoal(u, this.zone.x, this.zone.z, 'advance')) { u.state = 'advancing'; u.stance = 'stand'; return; }
+      }
       // tireur d'élite trop près : reculer vers un couvert plus lointain
       if (u.role.id === 'marksman' && d < u.weapon.minRange && order !== 'hold') {
         const cp = this.findCover(u, target, 25, { minRange: u.weapon.minRange * 1.5, towards: home });
@@ -451,6 +525,9 @@
       let nearest = known[0], nd = Infinity;
       for (const k of known) { const dd = Math.hypot(k.k.x - u.x, k.k.z - u.z); if (dd < nd) { nd = dd; nearest = k; } }
       const threatPos = nearest.k;
+      // capture : on n'abandonne pas la zone pour courir après une position connue lointaine ; on s'y installe face à la menace
+      // … sauf si l'adversaire est lui-même dans la zone : il faut aller l'en déloger
+      if (this.zone && u.role.id !== 'marksman' && !(this.zone.contested && this.inZone(threatPos, 1.5)) && (nd > 10 || this.inZone(u))) { this.occupyZone(u, threatPos); return; }
       if (order === 'hold') { this.holdPost(u, threatPos); return; }
       if (u.role.id === 'marksman') {
         // un poste de tir à bonne distance AVEC vue sur la position connue
@@ -487,6 +564,17 @@
     }
 
     // 3) aucune information : se déployer / avancer vers l'objectif
+    if (this.zone && (u.role.id !== 'marksman' || this.inZone(u))) {
+      // capture : tout le monde vers la zone (le tireur d'élite garde son poste de surveillance plus bas)
+      if (order === 'careful' || u.role.id === 'support') {
+        if (this.t < u.pauseUntil && !this.inZone(u, 3)) { this.stop(u); u.state = 'pause'; u.stance = 'stand'; return; }
+        if (!this.inZone(u, 3)) {
+          const cp = this.findCover(u, this.zone, 14, { towards: this.zone });
+          if (cp && Math.hypot(cp.x - this.zone.x, cp.z - this.zone.z) < Math.hypot(u.x - this.zone.x, u.z - this.zone.z) - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
+        }
+      }
+      this.occupyZone(u, objective); return;
+    }
     if (order === 'hold') { this.holdPost(u, objective); return; }
     // chaque opérateur avance sur sa propre « voie » (décalage latéral) pour ne pas se regrouper
     const lane = this.laneOf(u);
@@ -865,6 +953,13 @@
     if (alive[0] === 0 && alive[1] === 0) { winner = -1; reason = 'Les deux équipes sont hors de combat.'; }
     else if (alive[0] === 0) { winner = 1; reason = `${this.teams[0].name} est entièrement neutralisée.`; }
     else if (alive[1] === 0) { winner = 0; reason = `${this.teams[1].name} est entièrement neutralisée.`; }
+    else if (this.zone && this.teams.some(t => t.capture >= 100)) {
+      winner = this.teams[0].capture >= 100 ? 0 : 1; reason = `${this.teams[winner].name} a sécurisé la zone (100 %).`;
+    }
+    else if (this.zone && this.t >= this.timeLimit && Math.abs(this.teams[0].capture - this.teams[1].capture) >= 5) {
+      winner = this.teams[0].capture > this.teams[1].capture ? 0 : 1;
+      reason = `Temps écoulé : ${this.teams[winner].name} contrôle davantage la zone (${Math.round(this.teams[winner].capture)} % contre ${Math.round(this.teams[1 - winner].capture)} %).`;
+    }
     else if (this.objective.type === 'hold' && this.t >= this.objective.duration) {
       winner = this.objective.team; reason = `Temps écoulé : ${this.teams[winner].name} a tenu la position (${alive[winner]} opérateur${alive[winner] > 1 ? 's' : ''} en état).`;
     }
@@ -887,7 +982,7 @@
     return {
       winner, reason, duration: this.t, seed: this.seed, map: this.map.name,
       teams: this.teams.map(t => ({
-        name: t.name, order: ORDERS[t.order].name, orderId: t.order,
+        name: t.name, order: ORDERS[t.order].name, orderId: t.order, capture: Math.round(t.capture || 0),
         alive: t.units.filter(u => u.alive).length,
         hpPct: Math.round(100 * t.units.reduce((s, u) => s + (u.alive ? u.hp : 0), 0) / t.units.reduce((s, u) => s + u.maxHp, 0)),
         kills: t.units.reduce((s, u) => s + u.stats.kills, 0) + (t.indirectKills || 0),
@@ -908,6 +1003,7 @@
   Battle.prototype.snapshot = function () {
     return {
       t: this.t, over: this.over,
+      zone: this.zone ? { x: this.zone.x, z: this.zone.z, r: this.zone.r, holder: this.zone.holder, contested: this.zone.contested, capture: this.teams.map(t => t.capture) } : null,
       units: this.units.map(u => ({ id: u.id, team: u.team, callsign: u.callsign, role: u.role.id, x: u.x, z: u.z, facing: u.facing, stance: u.stance, hp: u.hp, maxHp: u.maxHp, status: u.status, alive: u.alive, ammo: u.ammo, mags: u.mags, reloading: u.reloading, state: u.state, suppression: u.suppression, moving: u.moving, target: u.target ? u.target.id : null, visible: u.visible.size, weapon: u.weapon.id })),
     };
   };

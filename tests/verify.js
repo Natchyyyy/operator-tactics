@@ -310,5 +310,35 @@ function duel(opts) {
   check('résultat : spéciaux agrégés (tête, séries, revanches, vétérans) et état d\'équipe en %', sp && ['headshots', 'streaks', 'revenge', 'veteran'].every(k => typeof sp[k] === 'number') && bs.result.teams.every(t => t.hpPct >= 0 && t.hpPct <= 100) && sp.headshots === bs.teams[0].units.reduce((a, x) => a + x.stats.headshots, 0));
 }
 
+{
+  // ---- capture de zone ----
+  for (const id of Object.keys(MAPS)) {
+    const b = new Battle({ seed: 1, mapId: id, objective: { type: 'capture' } });
+    const f = b.map.nearestFree(b.zone.x, b.zone.z), c = f && b.map.centerOf(f.c, f.r);
+    const freeCells = (() => { let n = 0; for (let dx = -b.zone.r; dx <= b.zone.r; dx++) for (let dz = -b.zone.r; dz <= b.zone.r; dz++) { if (dx * dx + dz * dz > b.zone.r * b.zone.r) continue; const g = b.map.nearestFree(b.zone.x + dx, b.zone.z + dz); if (g) { const cc = b.map.centerOf(g.c, g.r); if (Math.hypot(cc.x - b.zone.x - dx, cc.z - b.zone.z - dz) < 0.8) n++; } } return n; })();
+    check(`capture (${id}) : zone sur l'axe de symétrie, centre accessible, assez de place pour 5 opérateurs`, Math.abs(b.zone.x - b.map.width / 2) < 0.01 && c && b.inZone(c) && freeCells >= 20, { zone: b.zone, c, freeCells });
+  }
+  // progression : seule l'équipe présente sans adversaire progresse ; zone disputée = bloquée
+  const b = new Battle({ seed: 1, mapId: 'place', objective: { type: 'capture' } });
+  const A = b.teams[0].units, B = b.teams[1].units, put = (u, x, z) => { u.x = x; u.z = z; };
+  A.forEach((u, i) => put(u, i < 2 ? b.zone.x - 1 + i : 3, i < 2 ? b.zone.z : 3)); B.forEach(u => put(u, b.map.width - 3, 3));
+  for (let i = 0; i < 10; i++) b.updateCapture();
+  const exp = 10 * OT.DT * (1.6 + 0.4);
+  check('capture : 2 opérateurs seuls dans la zone → +2 %/s', Math.abs(b.teams[0].capture - exp) < 1e-6 && b.teams[1].capture === 0 && b.zone.holder === 0, { cap: b.teams[0].capture, exp });
+  put(B[0], b.zone.x + 1, b.zone.z + 1); const before = b.teams[0].capture;
+  for (let i = 0; i < 10; i++) b.updateCapture();
+  check('capture : zone disputée → aucune progression', b.teams[0].capture === before && b.teams[1].capture === 0 && b.zone.contested);
+  put(B[0], b.map.width - 3, 3); b.teams[0].capture = 99.95; b.updateCapture(); b.checkEnd();
+  check('capture : 100 % → victoire de l\'équipe qui tient la zone, même avec tous les adversaires debout', b.over && b.result.winner === 0 && /zone/.test(b.result.reason) && b.result.teams[0].capture === 100 && B.every(u => u.alive), b.result);
+  // des batailles réelles : toutes se terminent, et la zone est effectivement prise par moments
+  let ended = 0, viaZone = 0, occupied = 0, n = 0;
+  for (const id of Object.keys(MAPS)) for (let s = 1; s <= 4; s++) {
+    const bb = new Battle({ seed: s, mapId: id, objective: { type: 'capture' } }); let occ = false;
+    while (!bb.over && bb.t < bb.timeLimit + 1) { bb.step(); if (bb.zone.holder === 0 || bb.zone.holder === 1) occ = true; }
+    n++; if (bb.over) ended++; if (/zone/.test(bb.result.reason)) viaZone++; if (occ) occupied++;
+  }
+  check('capture : 12 batailles réelles se terminent, la zone est occupée dans la plupart', ended === n && occupied >= n * 0.75, { ended, occupied, viaZone, n });
+}
+
 console.log(`\n${pass}/${pass + fail} vérifications réussies${fail ? '  — ÉCHECS : ' + fail : ''}`);
 process.exit(fail ? 1 : 0);
