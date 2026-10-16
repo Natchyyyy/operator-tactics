@@ -1,0 +1,22 @@
+{
+ "source": "role_marksman.jpg",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#0af505",
+ "morceaux_effaces": 1,
+ "part_sujet": 0.131,
+ "fichiers": [
+  "role_marksman_detoure.png",
+  "role_marksman_256.png",
+  "role_marksman_128.png",
+  "role_marksman_64.png",
+  "role_marksman_32.png"
+ ],
+ "taille_finale": [
+  1032,
+  1032
+ ]
+}

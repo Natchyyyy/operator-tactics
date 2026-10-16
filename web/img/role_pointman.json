@@ -1,0 +1,22 @@
+{
+ "source": "role_pointman.jpg",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#08f804",
+ "morceaux_effaces": 1,
+ "part_sujet": 0.229,
+ "fichiers": [
+  "role_pointman_detoure.png",
+  "role_pointman_256.png",
+  "role_pointman_128.png",
+  "role_pointman_64.png",
+  "role_pointman_32.png"
+ ],
+ "taille_finale": [
+  932,
+  932
+ ]
+}

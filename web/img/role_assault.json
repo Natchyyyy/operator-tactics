@@ -1,0 +1,22 @@
+{
+ "source": "role_assault.jpg",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#00ff00",
+ "morceaux_effaces": 0,
+ "part_sujet": 1.0,
+ "fichiers": [
+  "role_assault_detoure.png",
+  "role_assault_256.png",
+  "role_assault_128.png",
+  "role_assault_64.png",
+  "role_assault_32.png"
+ ],
+ "taille_finale": [
+  1146,
+  1146
+ ]
+}
