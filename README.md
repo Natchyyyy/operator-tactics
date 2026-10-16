@@ -15,7 +15,7 @@ l'issue dépend uniquement des événements simulés (perception, déplacements,
 | `sim/data.js` | armes, protections, rôles, compétences, opérateurs (Coalition et Groupe Karst), ordres, missions, prix, table d'expérience |
 | `sim/map.js` | cartes (obstacles 3D avec hauteur), grille + A*, lignes de vue (rayon 3D), points de couverture |
 | `sim/engine.js` | moteur de combat : perception, radio, IA, déplacements, tirs, dégâts, suppression, fin de bataille, journal |
-| `sim/game.js` | boucle de jeu : profil, collection, équipement, voies, missions, récompenses, convalescence, défis, paquets de cartes, perks, rang, tactiques équipées, personnalisation, sauvegarde locale |
+| `sim/game.js` | boucle de jeu : profil, collection, équipement, voies, missions, récompenses, blessures graves, synergies, défis, paquets de cartes, perks, rang, tactiques équipées, personnalisation, sauvegarde locale |
 | `sim/league.js` | ligue solo : saison de 8 matchs contre 9 équipes IA, matchs IA réellement simulés, classement, prix |
 | `web/app.js` | rendu three.js, animations, effets, interface de bataille, résultat |
 | `web/hq.js` | quartier général à onglets (accueil, équipe, cartes, missions, ligue), écran VS, écran de récompenses |

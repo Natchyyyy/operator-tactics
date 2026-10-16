@@ -73,7 +73,7 @@ async def main():
         # ---- Ligue : un match, classement mis à jour ----
         await pg.click("[data-tab='ligue']"); await pg.wait_for_timeout(100)
         rows = await pg.evaluate("() => document.querySelectorAll('#lgTable tr').length - 1"); check("le classement de ligue affiche 10 équipes", rows == 10, rows)
-        await pg.evaluate("() => { const p = window.HQ.profile(); for (const id in p.operators) if (p.operators[id].unlocked) p.operators[id].recovery = 0; p.squad = ['op_vautour','op_lynx','op_granit','op_bastion','op_belier']; }")
+        await pg.evaluate("() => { const p = window.HQ.profile(); for (const id in p.operators) if (p.operators[id].unlocked) p.operators[id].wounded = false; p.squad = ['op_vautour','op_lynx','op_granit','op_bastion','op_belier']; }")
         await pg.click("[data-tab='ligue']"); await pg.wait_for_timeout(100); await pg.click("#lgPlay"); await pg.wait_for_timeout(300)
         check("le match de ligue passe par l'écran VS avec l'équipe adverse nommée", await pg.evaluate("() => !document.querySelector('#vs').classList.contains('hidden') && document.querySelector('#vsName1').textContent !== 'Groupe Karst'"))
         await pg.click("#vsGo"); await pg.wait_for_timeout(600); await pg.evaluate("() => { API.pause(true); API.runToEnd(); }"); await pg.click("#resHq"); await pg.wait_for_timeout(1200); await pg.click("#rwContinue"); await pg.wait_for_timeout(200)

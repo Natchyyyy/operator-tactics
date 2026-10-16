@@ -180,7 +180,7 @@
     if (!isAvailable(profile, id) || profile.squad.length >= 5) return false;
     profile.squad.push(id); return true;
   }
-  // Une escouade part avec 3 à 5 opérateurs disponibles (ni verrouillés, ni en convalescence).
+  // Une escouade part avec 3 à 5 opérateurs disponibles (débloqués et sous contrat ; un blessé grave peut partir, à demi-capacité).
   // Disponible = débloqué et sous contrat. Un blessé grave reste déployable (à demi-capacité) : c'est au joueur de choisir.
   const isAvailable = (profile, id) => { const st = profile.operators[id]; return !!st && st.unlocked && (st.tours === undefined || st.tours > 0); };
   const isWounded = (profile, id) => !!(profile.operators[id] && profile.operators[id].wounded);
@@ -192,7 +192,7 @@
     profile.credits -= price; st.tours = (st.tours > 0 ? st.tours : 0) + CONTRACT.tours[OPERATORS.find(o => o.id === id).rarity]; return true;
   }
   const squadReady = (profile) => profile.squad.length >= 3 && profile.squad.length <= 5 && profile.squad.every(id => isAvailable(profile, id));
-  // Soins : un opérateur en convalescence redevient disponible contre des crédits.
+  // Soins : un blessé grave retrouve ses compétences contre des crédits.
   const TREATMENT_PRICE = 80;
   // Filet de sécurité : tant que moins de 3 opérateurs sont disponibles, les soins sont gratuits (on ne reste jamais bloqué).
   // soins gratuits tant que moins de 3 opérateurs disponibles sont en bonne santé (on ne bloque jamais le joueur)
@@ -259,7 +259,7 @@
     }
     return done;
   }
-  // Un match de ligue est traité comme une mission générique pour les récompenses individuelles (crédits, XP, convalescence)
+  // Un match de ligue est traité comme une mission générique pour les récompenses individuelles (crédits, XP, blessures)
   const LEAGUE_MISSION = { id: 'ligue', name: 'Match de ligue', reward: 200, xp: 50, level: 0 };
   function applyRewards(profile, mission, result) {
     const r = computeRewards(profile, mission, result);
