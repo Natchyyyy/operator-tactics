@@ -18,11 +18,11 @@ l'issue dépend uniquement des événements simulés (perception, déplacements,
 | `sim/game.js` | boucle de jeu : profil, collection, équipement, voies, missions, récompenses, blessures graves, synergies, défis, paquets de cartes, perks, rang, tactiques équipées, personnalisation, sauvegarde locale |
 | `sim/league.js` | ligue solo : saison de 8 matchs contre 9 équipes IA, matchs IA réellement simulés, classement, prix |
 | `web/app.js` | rendu three.js, animations, effets, interface de bataille, résultat |
-| `web/hq.js` | quartier général à onglets (accueil, équipe, cartes, missions, ligue), écran VS, écran de récompenses |
-| `tests/verify.js` | 61 vérifications du moteur (`node tests/verify.js 40`) |
+| `web/hq.js` | quartier général à onglets (accueil, équipe, cartes, jouer, ligue), écran VS, écran de récompenses en panneaux |
+| `tests/verify.js` | 69 vérifications du moteur (`node tests/verify.js 40`) |
 | `tests/league.js` | 10 vérifications de la ligue |
-| `tests/game.js` | 47 vérifications de la boucle de jeu |
-| `tests/verif_page.py` | 44 vérifications de la page dans un navigateur (Playwright, WebGL logiciel) |
+| `tests/game.js` | 82 vérifications de la boucle de jeu |
+| `tests/verif_page.py` | 50 vérifications de la page dans un navigateur (Playwright, WebGL logiciel) |
 | `sons/sons_ot.py` | les 14 bruitages (synthèse hors ligne avec la boîte à outils ; `fabriquer.py` → `sons/out`, `integrer.py` → page) |
 | `tests/run.js`, `tests/trace.js`, `tests/stats.js` | une bataille en console, trace seconde par seconde, statistiques d'équilibrage |
 
@@ -37,10 +37,15 @@ l'issue dépend uniquement des événements simulés (perception, déplacements,
 - Ordres : Assaut (contact), Tenir (postes face aux axes, embuscade, calé), Prudent (bonds, contournement, repli) ; l'ordre d'Alpha se change en cours de bataille (`Battle.setOrder`).
 - Compétences : un trait par opérateur (`DATA.TRAITS`), chaque effet est implémenté dans engine.js (rechercher `has(u, '…')`).
 - Tactiques (`DATA.TACTICS`) : actives (fumigène = obstacle temporaire bloquant la vue, drone, soins, mortier) jouées par le joueur ou par l'IA adverse ; passives appliquées dès le début. Effets dans engine.js (`useTactic`, `updateTactics`, `hasTactic`).
-- Fin : équipe neutralisée, objectif « tenir » à l'échéance, ou limite de temps (décision aux effectifs puis à l'état).
+- Objectifs : neutraliser, tenir (échéance), **capturer la zone** (jauge par équipe : 1,6 %/s + 0,4 par opérateur présent, bloquée si la zone est disputée, 100 % = victoire).
+- Synergies d'escouade (`DATA.SYNERGIES`) : Commandement (Meneur → Radio et Appui : dégâts −10 %), Guidage radio (Radio → tireur, appui, brèche : précision +8 %), Appui-feu (Appui → Assaut, Pointe : récupération +20 %) — actives tant que la source est debout.
+- Blessure grave : un neutralisé revient avec ses compétences ÷2 et −25 % de PV jusqu'aux soins (crédits) ou à 2 missions de repos.
+- Spéciaux : tête, séries, de groupe (cible déjà touchée par un allié < 5 s), revanches, vétérans.
+- Modes : bataille rapide (adversaire à votre mesure, paquet offert toutes les 5 victoires), campagnes régulière / vétéran / élite, opérations spéciales, ligue.
+- Fin : équipe neutralisée, objectif atteint, ou limite de temps (décision aux effectifs puis à l'état).
 
 ## Limites connues
 - Modèles d'opérateurs construits par programme (pas de modèles externes) ; bruitages et ambiances synthétisés, pas de musique.
-- Trois cartes, 14 opérateurs recrutables + 8 ennemis du Groupe Karst, 7 armes, 3 protections, 9 missions, 8 tactiques, 7 défis.
+- Trois cartes, 14 opérateurs recrutables + 8 ennemis du Groupe Karst, 7 armes, 3 protections, 12 missions × 3 campagnes, 8 tactiques, 7 défis, 3 opérations spéciales.
 - Pas de multijoueur : la ligue oppose le joueur à des équipes IA (leurs matchs entre elles sont simulés par le même moteur).
 - La sauvegarde est locale au navigateur (localStorage) : pas de synchronisation entre appareils.
