@@ -83,7 +83,7 @@
         <div class="crow"><span class="role">${roleIcon[o.role]}</span><span class="cs">${esc(o.callsign)}</span><span class="rar r${o.rarity}">${RARITY_FR[o.rarity]}</span><span class="st">${recovering ? 'Convalescent' : st.unlocked ? 'Niv. ' + lvl : PRICES.operator[o.rarity] + ' cr.'}</span></div>
         <div class="cunit">${esc(o.unit)} — ${ROLES[o.role].name} · <span class="trait">${TRAITS[o.trait].name}</span></div>
         ${st.unlocked ? `<div class="xp" title="${st.xp} XP"><i style="width:${pct}%"></i></div>` : ''}
-        <div class="crow small">${recovering ? `<button class="mini" data-act="treat" ${profile.credits >= Game.TREATMENT_PRICE ? '' : 'disabled'}>Soigner (${Game.TREATMENT_PRICE} cr.)</button>` : st.unlocked ? `<button class="mini ${inSquad ? 'on' : ''}" data-act="squad">${inSquad ? 'Dans l’escouade' : 'Ajouter'}</button>` : `<button class="mini" data-act="recruit" ${profile.credits >= PRICES.operator[o.rarity] ? '' : 'disabled'}>Recruter</button>`}<span>${recovering ? 'Indisponible une mission' : st.unlocked ? `${st.battles} bat. · ${st.kills} neutr.` : 'Verrouillé'}</span></div>
+        <div class="crow small">${recovering ? `<button class="mini" data-act="treat" ${profile.credits >= Game.treatmentPrice(profile) ? '' : 'disabled'}>Soigner (${Game.treatmentPrice(profile) ? Game.treatmentPrice(profile) + ' cr.' : 'gratuit'})</button>` : st.unlocked ? `<button class="mini ${inSquad ? 'on' : ''}" data-act="squad">${inSquad ? 'Dans l’escouade' : 'Ajouter'}</button>` : `<button class="mini" data-act="recruit" ${profile.credits >= PRICES.operator[o.rarity] ? '' : 'disabled'}>Recruter</button>`}<span>${recovering ? 'Indisponible une mission' : st.unlocked ? `${st.battles} bat. · ${st.kills} neutr.` : 'Verrouillé'}</span></div>
       </div>`;
     }).join('');
     el.querySelectorAll('.opcard').forEach(card => {
@@ -183,8 +183,56 @@
     const mission = MISSIONS.find(m => m.id === selectedMission);
     const seed = Math.floor(Math.random() * 1000000);
     profile.lastSeed = seed; saveNow();
-    window.HQ.onLaunch(Game.battleOptions(profile, mission, seed), mission);
+    showVs(Game.battleOptions(profile, mission, seed), mission);
   });
+  // Écran « VS » : présentation des deux équipes avant la bataille
+  let pendingLaunch = null;
+  function showVs(opts, mission) {
+    pendingLaunch = { opts, mission };
+    const ins = INSIGNIAS.find(i => i.id === profile.insignia) || INSIGNIAS[0];
+    const r = Game.rankFor(profile.xp || 0);
+    $('#vsName0').textContent = profile.teamName; $('#vsRank0').textContent = `Rang ${r} · ${RANKS[r].name}`; $('#vsIns0').textContent = ins.glyph;
+    $('#vsRating0').innerHTML = `${Game.teamRating(profile)}<small>Puissance</small>`; $('#vsRec0').innerHTML = `Victoires <b>${profile.career.wins}</b><br>Défaites <b>${profile.career.losses}</b>`;
+    const tacs = (ids) => { const out = ids.map(id => `<span title="${esc(TACTICS[id].desc)}"><i>${TACTIC_ICON[id]}</i>${esc(TACTICS[id].name)}</span>`); while (out.length < 3) out.push('<span class="empty">—</span>'); return out.join(''); };
+    $('#vsTac0').innerHTML = tacs(profile.tactics.equipped);
+    // adversaire : puissance calculée de la même façon à partir de ses fiches effectives
+    const enemyDefs = opts.teams[1].operators;
+    const enemyRating = Math.round(enemyDefs.reduce((s, d) => { const w = WEAPONS[d.weaponId || ROLES[d.role].weapon], a = ARMORS[d.armor]; const stats = Game.STATS.reduce((t, k) => t + d[k], 0) / Game.STATS.length; return s + stats * 0.4 + (w.damage * w.rpm / 60) * Math.min(1, w.range / 40) / 8 + w.accuracy * 10 + a.torso * 20; }, 0) / enemyDefs.length);
+    const km = profile.missions[mission.id] || { attempts: 0, wins: 0 };
+    $('#vsName1').textContent = 'Groupe Karst'; $('#vsRank1').textContent = `Niveau ${mission.level} · ${ORDERS[mission.order].name}`; $('#vsIns1').textContent = '⚑';
+    $('#vsRating1').innerHTML = `${enemyRating}<small>Puissance</small>`; $('#vsRec1').innerHTML = `Contre vous : <b>${km.attempts - km.wins}</b> victoires<br><b>${km.wins}</b> défaites`;
+    $('#vsTac1').innerHTML = tacs(mission.enemyTactics || []);
+    $('#vsLoc').textContent = OT.MAPS[mission.mapId].name; $('#vsObj').textContent = mission.objective === 'hold' ? `— tenir ${mission.duration} s` : '— neutraliser l\u2019adversaire';
+    $('#vsSquad0').innerHTML = opts.teams[0].operators.map(d => `<span>${esc(d.callsign)} · ${ROLES[d.role].name}</span>`).join('');
+    $('#vsSquad1').innerHTML = enemyDefs.map(d => `<span>${esc(d.callsign)} · ${ROLES[d.role].name}</span>`).join('');
+    $('#vs').classList.remove('hidden');
+  }
+  $('#vsBack').addEventListener('click', () => { $('#vs').classList.add('hidden'); pendingLaunch = null; });
+  $('#vsGo').addEventListener('click', () => { if (!pendingLaunch) return; const { opts, mission } = pendingLaunch; pendingLaunch = null; $('#vs').classList.add('hidden'); window.HQ.onLaunch(opts, mission); });
+  // Écran de récompenses après une mission
+  function showRewards(r, result, mission) {
+    const rows = [];
+    rows.push(['', r.won ? 'Victoire' : r.draw ? 'Égalité' : 'Défaite', r.base]);
+    if (r.kills) rows.push([r.kills, 'Neutralisations', r.killCredits]);
+    if (r.specials) rows.push([r.specials, 'Spéciaux (tête, séries, revanches, vétérans)', r.specialCredits]);
+    for (const c of (r.challenges || [])) rows.push(['✓', `Défi : ${c.name}`, c.reward]);
+    $('#rwTitle').textContent = 'Récompenses';
+    $('#rwRows').innerHTML = rows.map(([n, label, v]) => `<tr><td>${n}</td><td>${esc(label)}</td><td>${v ? v + ' ●' : ''}</td></tr>`).join('');
+    const total = r.credits + (r.challenges || []).reduce((s, c) => s + c.reward, 0);
+    $('#rwTotal').textContent = total;
+    const rk = Game.rankFor(profile.xp), next = Game.xpToNextRank(profile.xp);
+    $('#rwRank').textContent = `Rang ${rk} · ${RANKS[rk].name}`; $('#rwXpEarned').textContent = `+${r.playerXp} XP`;
+    $('#rwXpBar').style.width = next === null ? '100%' : (100 * (profile.xp - RANKS[rk].xp) / (RANKS[rk + 1].xp - RANKS[rk].xp)).toFixed(0) + '%';
+    $('#rwRankUp').textContent = r.rankUp ? `Promotion : ${r.rankUp} !` : '';
+    const extra = [];
+    if (r.levelUps && r.levelUps.length) extra.push('Promotions : ' + r.levelUps.map(l => `${l.callsign} → niveau ${l.level}`).join(', '));
+    if (r.recovering && r.recovering.length) extra.push('Évacués (indisponibles une mission) : ' + r.recovering.join(', '));
+    $('#rwExtra').innerHTML = extra.map(esc).join('<br>');
+    $('#rewards').classList.remove('hidden');
+    // pièces qui tombent
+    for (let i = 0; i < Math.min(24, 6 + Math.floor(total / 25)); i++) { const c = document.createElement('div'); c.className = 'coinfx'; c.textContent = '●'; c.style.left = (20 + Math.random() * 60) + '%'; c.style.top = '10%'; c.style.animationDelay = (Math.random() * 0.8) + 's'; document.body.appendChild(c); setTimeout(() => c.remove(), 2400); }
+  }
+  $('#rwContinue').addEventListener('click', () => { $('#rewards').classList.add('hidden'); });
   $('#resetSave').addEventListener('click', () => {
     if ($('#resetSave').dataset.confirm !== '1') { $('#resetSave').dataset.confirm = '1'; $('#resetSave').textContent = 'Confirmer la réinitialisation'; setTimeout(() => { $('#resetSave').dataset.confirm = '0'; $('#resetSave').textContent = 'Réinitialiser'; }, 4000); return; }
     profile = Game.reset(storage || { removeItem: () => {} }); lastRewards = null; selected = profile.squad[0]; $('#resetSave').dataset.confirm = '0'; $('#resetSave').textContent = 'Réinitialiser'; render(); flash('Nouvelle carrière.');
@@ -203,6 +251,7 @@
       const r = Game.applyRewards(profile, mission, result);
       lastRewards = Object.assign({ mission: mission.name }, r);
       saveNow();
+      setTimeout(() => showRewards(r, result, mission), 260);
       return r;
     },
     profile: () => profile, storageAvailable: () => !!storage,

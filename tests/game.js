@@ -61,7 +61,7 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   const before = p.credits, xpBefore = Object.fromEntries(p.squad.map(id => [id, p.operators[id].xp]));
   const r = Game.applyRewards(p, m, b.result);
   const challengeCredits = r.challenges.reduce((s, c) => s + c.reward, 0);
-  check('les crédits gagnés dépendent de l\'issue (plus les défis accomplis)', p.credits - before === r.credits + challengeCredits && r.credits === Math.round(m.reward * (r.won ? 1 : r.draw ? 0.5 : 0.3)), r);
+  check('les crédits gagnés dépendent de l\'issue, des neutralisations et des spéciaux (plus les défis)', p.credits - before === r.credits + challengeCredits && r.base === Math.round(m.reward * (r.won ? 1 : r.draw ? 0.5 : 0.3)) && r.credits === r.base + r.kills * 8 + r.specials * 6 && r.kills === b.result.teams[0].kills, r);
   const xpOk = p.squad.every(id => { const u = b.result.teams[0].units.find(x => x.id === '0:' + id); const exp = Math.round((m.xp + Math.round(u.stats.damageDealt * 0.25) + u.stats.kills * 25 + (r.won ? 20 : 0)) * (u.alive ? 1 : 0.7)); return p.operators[id].xp - xpBefore[id] === exp; });
   check('l\'expérience de chacun découle de ses actions réelles (dégâts, neutralisations, survie)', xpOk);
   check('la carrière est mise à jour', p.career.battles === 1 && (p.career.wins + p.career.losses + p.career.draws) === 1 && p.missions[m.id].attempts === 1);
@@ -86,6 +86,9 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   const q2 = Game.newProfile(); q2.operators.op_lynx.recovery = 1; q2.squad = q2.squad.filter(id => id !== 'op_lynx');
   const b2 = new Battle({ seed: 8, teams: Game.buildTeams(q2, m) }); b2.run(); Game.applyRewards(q2, m, b2.result);
   check('la convalescence dure une mission', q2.operators.op_lynx.recovery === 0 && Game.isAvailable(q2, 'op_lynx'));
+  // filet de sécurité : escouade entièrement évacuée et sans crédits → soins gratuits jusqu'à 3 disponibles
+  const q3 = Game.newProfile(); for (const id of q3.squad) q3.operators[id].recovery = 1; q3.squad = []; q3.credits = 0;
+  check('sans opérateur disponible ni crédits, les soins sont gratuits jusqu\'à 3 disponibles', Game.treatmentPrice(q3) === 0 && Game.treat(q3, 'op_vautour') && Game.treat(q3, 'op_lynx') && Game.treat(q3, 'op_granit') && Game.treatmentPrice(q3) === Game.TREATMENT_PRICE && !Game.treat(q3, 'op_bastion'));
 }
 // défis : vérifiés sur le résultat réel, récompense unique
 {

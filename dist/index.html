@@ -127,6 +127,28 @@
   .opened { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; } .ccard { width: 150px; min-height: 120px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); padding: 8px; cursor: pointer; perspective: 600px; } .ccard .in { transition: transform .5s; transform-style: preserve-3d; position: relative; min-height: 104px; } .ccard.flipped .in { transform: rotateY(180deg); } .ccard .face { position: absolute; inset: 0; backface-visibility: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 4px; font-size: 11px; } .ccard .back { background: repeating-linear-gradient(45deg, #2a3a2e 0 6px, #22302a 6px 12px); border-radius: 8px; font-size: 24px; color: var(--accent); } .ccard .front { transform: rotateY(180deg); } .ccard .front b { font-size: 12px; } .ccard .ctype { font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); } .ccard.t-operator .front b { color: var(--a0); } .ccard.t-tactic .front b { color: #a9d8ff; } .ccard.t-perk .front b { color: var(--ok); } .ccard.t-cosmetic .front b { color: var(--accent); }
   .tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; } .tcardq { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; font-size: 11px; display: flex; flex-direction: column; gap: 4px; } .tcardq .ticon { font-size: 24px; } .tcardq b { font-size: 12px; } .tcardq.eq { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; } .tcardq.locked { opacity: .4; cursor: default; }
   .deploy { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+
+  /* ---- écran VS et récompenses ---- */
+  #vs, #rewards { position: fixed; z-index: 35; }
+  .vsbox { width: min(1000px, 94%); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 24px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px 20px; box-shadow: 0 20px 60px #000a; animation: pop .3s ease-out; }
+  .vscol { display: flex; flex-direction: column; gap: 6px; min-width: 0; } .vscol.rev { text-align: right; align-items: flex-end; }
+  .vsname { font-size: 24px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; } .team0 .vsname { color: var(--a0); } .team1 .vsname { color: var(--a1); }
+  .vsrank { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+  .vsrow { display: flex; align-items: center; gap: 12px; } .vscol.rev .vsrow { flex-direction: row-reverse; }
+  .vsrating { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; } .vsrating small { display: block; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; font-weight: 600; }
+  .vsrec { font-size: 12px; color: #c4ccd5; line-height: 1.5; }
+  .vstac { display: flex; gap: 6px; flex-wrap: wrap; } .vscol.rev .vstac { justify-content: flex-end; } .vstac span { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 11px; display: inline-flex; gap: 6px; align-items: center; } .vstac span i { font-style: normal; font-size: 16px; } .vstac .empty { opacity: .4; }
+  .vsmid { align-self: center; font-size: 32px; font-weight: 900; color: var(--accent); letter-spacing: .1em; padding: 0 6px; }
+  .vsloc { grid-column: 1 / -1; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 13px; } .vsloc .lbl { margin: 0 6px 0 0; display: inline; }
+  .vssquads { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } .vssq { display: flex; gap: 6px; flex-wrap: wrap; } .vssq.team1 { justify-content: flex-end; } .vssq span { background: var(--panel2); border-top: 3px solid var(--a0); border-radius: 6px; padding: 4px 8px; font-size: 11px; } .vssq.team1 span { border-top-color: var(--a1); }
+  .vsbox .actions { grid-column: 1 / -1; margin-top: 4px; } #vsGo { font-size: 16px; padding: 10px 28px; }
+  .dialog.rewards { max-width: 560px; text-align: center; background: linear-gradient(180deg, var(--panel), #121a16); }
+  .dialog.rewards h2 { color: var(--accent); letter-spacing: .15em; text-transform: uppercase; font-size: 22px; }
+  table.rw { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 14px; } table.rw td { padding: 6px 8px; border-bottom: 1px solid #1d242b; text-align: left; } table.rw td:first-child { color: var(--accent); font-weight: 700; width: 40px; text-align: right; } table.rw td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .rwTotal { display: flex; align-items: baseline; justify-content: center; gap: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 8px 0 14px; } .rwTotal b { font-size: 44px; color: var(--text); font-variant-numeric: tabular-nums; } .rwTotal .coin { color: var(--accent); font-size: 28px; }
+  .rwXp { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; text-align: left; font-size: 13px; } .xpbar.big { width: 100%; height: 10px; margin: 8px 0 4px; } .rwXp .good { font-weight: 700; min-height: 1em; }
+  .coinfx { position: fixed; pointer-events: none; z-index: 36; color: var(--accent); font-size: 18px; animation: coinfall 1.4s ease-in forwards; } @keyframes coinfall { from { transform: translateY(-40px) rotate(0); opacity: 1; } to { transform: translateY(70vh) rotate(720deg); opacity: 0; } }
+  @media (max-width: 800px) { .vsbox { grid-template-columns: 1fr; } .vsmid { text-align: center; } .vscol.rev { text-align: left; align-items: flex-start; } .vscol.rev .vsrow { flex-direction: row; } }
   @media (max-width: 1100px) { .hqgrid.two { grid-template-columns: 1fr; } .homeTop { grid-template-columns: 1fr; } }
   @media (max-width: 1100px) { .hqgrid { grid-template-columns: 1fr 1fr; } .hqcol.detail { grid-column: 1 / -1; order: 3; } }
   @media (max-width: 800px) { .hqgrid { grid-template-columns: 1fr; } .hqcol.detail { grid-column: auto; } .stats, .equip, .prep { grid-template-columns: 1fr; } .squad { grid-template-columns: repeat(3, 1fr); } }
@@ -192,6 +214,22 @@
     </div>
   </div>
 </div>
+<div id="vs" class="overlay hidden"><div class="vsbox">
+  <div class="vscol team0"><div class="vsname" id="vsName0"></div><div class="vsrank" id="vsRank0"></div><div class="vsrow"><span class="ins big" id="vsIns0"></span><div class="vsrating" id="vsRating0"></div><div class="vsrec" id="vsRec0"></div></div><div class="vstac" id="vsTac0"></div></div>
+  <div class="vsmid">VS</div>
+  <div class="vscol team1 rev"><div class="vsname" id="vsName1"></div><div class="vsrank" id="vsRank1"></div><div class="vsrow"><span class="ins big" id="vsIns1"></span><div class="vsrating" id="vsRating1"></div><div class="vsrec" id="vsRec1"></div></div><div class="vstac" id="vsTac1"></div></div>
+  <div class="vsloc"><span class="lbl">Lieu</span> <b id="vsLoc"></b> <span class="muted" id="vsObj"></span></div>
+  <div class="vssquads"><div id="vsSquad0" class="vssq team0"></div><div id="vsSquad1" class="vssq team1"></div></div>
+  <div class="actions"><button id="vsBack">Retour</button><button id="vsGo" class="on">Bataille</button></div>
+</div></div>
+<div id="rewards" class="overlay hidden"><div class="dialog rewards">
+  <h2 id="rwTitle"></h2>
+  <table class="rw"><tbody id="rwRows"></tbody></table>
+  <div class="rwTotal"><span>Vous gagnez</span><b id="rwTotal"></b><span class="coin">●</span></div>
+  <div class="rwXp"><div class="crow"><span id="rwRank"></span><span class="spacer"></span><span id="rwXpEarned"></span></div><div class="xpbar big"><i id="rwXpBar"></i></div><div id="rwRankUp" class="good"></div></div>
+  <div id="rwExtra" class="muted" style="font-size:12px"></div>
+  <div class="actions"><button id="rwContinue" class="on">Continuer</button></div>
+</div></div>
 <div id="flash" class="hidden"></div>
 <div id="fade"></div>
 <div id="app" class="screen hidden">
@@ -1878,9 +1916,12 @@ window.Son = Son;
   const squadReady = (profile) => profile.squad.length >= 3 && profile.squad.length <= 5 && profile.squad.every(id => isAvailable(profile, id));
   // Soins : un opérateur en convalescence redevient disponible contre des crédits.
   const TREATMENT_PRICE = 80;
+  // Filet de sécurité : tant que moins de 3 opérateurs sont disponibles, les soins sont gratuits (on ne reste jamais bloqué).
+  const treatmentPrice = (profile) => Object.keys(profile.operators).filter(id => isAvailable(profile, id)).length < 3 ? 0 : TREATMENT_PRICE;
   function treat(profile, id) {
-    const st = profile.operators[id]; if (!st || !(st.recovery > 0) || profile.credits < TREATMENT_PRICE) return false;
-    profile.credits -= TREATMENT_PRICE; st.recovery = 0; return true;
+    const st = profile.operators[id]; if (!st || !(st.recovery > 0)) return false;
+    const price = treatmentPrice(profile); if (profile.credits < price) return false;
+    profile.credits -= price; st.recovery = 0; return true;
   }
   function recruit(profile, id) {
     const base = OPERATORS.find(o => o.id === id); const st = profile.operators[id];
@@ -1906,7 +1947,10 @@ window.Son = Son;
   // Calculées depuis le résultat réel de la bataille : participation, dégâts, neutralisations, victoire.
   function computeRewards(profile, mission, result) {
     const won = result.winner === 0, draw = result.winner === -1;
-    const credits = Math.round(mission.reward * (won ? 1 : draw ? 0.5 : 0.3));
+    const base = Math.round(mission.reward * (won ? 1 : draw ? 0.5 : 0.3));
+    const kills = result.teams[0].kills || 0; const sp = result.teams[0].specials || {};
+    const specials = (sp.headshots || 0) + (sp.streaks || 0) + (sp.revenge || 0) + (sp.veteran || 0);
+    const credits = base + kills * 8 + specials * 6;
     const xp = {};
     for (const u of result.teams[0].units) {
       const id = u.id.split(':')[1];
@@ -1914,7 +1958,7 @@ window.Son = Son;
       if (!u.alive) v = Math.round(v * 0.7);          // un opérateur évacué apprend moins
       xp[id] = v;
     }
-    return { won, draw, credits, xp };
+    return { won, draw, credits, base, kills, specials, killCredits: kills * 8, specialCredits: specials * 6, xp };
   }
   // Conditions des défis : (mission, résultat) → vrai si le défi est accompli dans cette bataille
   const CHALLENGE_CHECKS = {
@@ -1981,7 +2025,7 @@ window.Son = Son;
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));
 
@@ -2072,7 +2116,7 @@ window.Son = Son;
         <div class="crow"><span class="role">${roleIcon[o.role]}</span><span class="cs">${esc(o.callsign)}</span><span class="rar r${o.rarity}">${RARITY_FR[o.rarity]}</span><span class="st">${recovering ? 'Convalescent' : st.unlocked ? 'Niv. ' + lvl : PRICES.operator[o.rarity] + ' cr.'}</span></div>
         <div class="cunit">${esc(o.unit)} — ${ROLES[o.role].name} · <span class="trait">${TRAITS[o.trait].name}</span></div>
         ${st.unlocked ? `<div class="xp" title="${st.xp} XP"><i style="width:${pct}%"></i></div>` : ''}
-        <div class="crow small">${recovering ? `<button class="mini" data-act="treat" ${profile.credits >= Game.TREATMENT_PRICE ? '' : 'disabled'}>Soigner (${Game.TREATMENT_PRICE} cr.)</button>` : st.unlocked ? `<button class="mini ${inSquad ? 'on' : ''}" data-act="squad">${inSquad ? 'Dans l’escouade' : 'Ajouter'}</button>` : `<button class="mini" data-act="recruit" ${profile.credits >= PRICES.operator[o.rarity] ? '' : 'disabled'}>Recruter</button>`}<span>${recovering ? 'Indisponible une mission' : st.unlocked ? `${st.battles} bat. · ${st.kills} neutr.` : 'Verrouillé'}</span></div>
+        <div class="crow small">${recovering ? `<button class="mini" data-act="treat" ${profile.credits >= Game.treatmentPrice(profile) ? '' : 'disabled'}>Soigner (${Game.treatmentPrice(profile) ? Game.treatmentPrice(profile) + ' cr.' : 'gratuit'})</button>` : st.unlocked ? `<button class="mini ${inSquad ? 'on' : ''}" data-act="squad">${inSquad ? 'Dans l’escouade' : 'Ajouter'}</button>` : `<button class="mini" data-act="recruit" ${profile.credits >= PRICES.operator[o.rarity] ? '' : 'disabled'}>Recruter</button>`}<span>${recovering ? 'Indisponible une mission' : st.unlocked ? `${st.battles} bat. · ${st.kills} neutr.` : 'Verrouillé'}</span></div>
       </div>`;
     }).join('');
     el.querySelectorAll('.opcard').forEach(card => {
@@ -2172,8 +2216,56 @@ window.Son = Son;
     const mission = MISSIONS.find(m => m.id === selectedMission);
     const seed = Math.floor(Math.random() * 1000000);
     profile.lastSeed = seed; saveNow();
-    window.HQ.onLaunch(Game.battleOptions(profile, mission, seed), mission);
+    showVs(Game.battleOptions(profile, mission, seed), mission);
   });
+  // Écran « VS » : présentation des deux équipes avant la bataille
+  let pendingLaunch = null;
+  function showVs(opts, mission) {
+    pendingLaunch = { opts, mission };
+    const ins = INSIGNIAS.find(i => i.id === profile.insignia) || INSIGNIAS[0];
+    const r = Game.rankFor(profile.xp || 0);
+    $('#vsName0').textContent = profile.teamName; $('#vsRank0').textContent = `Rang ${r} · ${RANKS[r].name}`; $('#vsIns0').textContent = ins.glyph;
+    $('#vsRating0').innerHTML = `${Game.teamRating(profile)}<small>Puissance</small>`; $('#vsRec0').innerHTML = `Victoires <b>${profile.career.wins}</b><br>Défaites <b>${profile.career.losses}</b>`;
+    const tacs = (ids) => { const out = ids.map(id => `<span title="${esc(TACTICS[id].desc)}"><i>${TACTIC_ICON[id]}</i>${esc(TACTICS[id].name)}</span>`); while (out.length < 3) out.push('<span class="empty">—</span>'); return out.join(''); };
+    $('#vsTac0').innerHTML = tacs(profile.tactics.equipped);
+    // adversaire : puissance calculée de la même façon à partir de ses fiches effectives
+    const enemyDefs = opts.teams[1].operators;
+    const enemyRating = Math.round(enemyDefs.reduce((s, d) => { const w = WEAPONS[d.weaponId || ROLES[d.role].weapon], a = ARMORS[d.armor]; const stats = Game.STATS.reduce((t, k) => t + d[k], 0) / Game.STATS.length; return s + stats * 0.4 + (w.damage * w.rpm / 60) * Math.min(1, w.range / 40) / 8 + w.accuracy * 10 + a.torso * 20; }, 0) / enemyDefs.length);
+    const km = profile.missions[mission.id] || { attempts: 0, wins: 0 };
+    $('#vsName1').textContent = 'Groupe Karst'; $('#vsRank1').textContent = `Niveau ${mission.level} · ${ORDERS[mission.order].name}`; $('#vsIns1').textContent = '⚑';
+    $('#vsRating1').innerHTML = `${enemyRating}<small>Puissance</small>`; $('#vsRec1').innerHTML = `Contre vous : <b>${km.attempts - km.wins}</b> victoires<br><b>${km.wins}</b> défaites`;
+    $('#vsTac1').innerHTML = tacs(mission.enemyTactics || []);
+    $('#vsLoc').textContent = OT.MAPS[mission.mapId].name; $('#vsObj').textContent = mission.objective === 'hold' ? `— tenir ${mission.duration} s` : '— neutraliser l\u2019adversaire';
+    $('#vsSquad0').innerHTML = opts.teams[0].operators.map(d => `<span>${esc(d.callsign)} · ${ROLES[d.role].name}</span>`).join('');
+    $('#vsSquad1').innerHTML = enemyDefs.map(d => `<span>${esc(d.callsign)} · ${ROLES[d.role].name}</span>`).join('');
+    $('#vs').classList.remove('hidden');
+  }
+  $('#vsBack').addEventListener('click', () => { $('#vs').classList.add('hidden'); pendingLaunch = null; });
+  $('#vsGo').addEventListener('click', () => { if (!pendingLaunch) return; const { opts, mission } = pendingLaunch; pendingLaunch = null; $('#vs').classList.add('hidden'); window.HQ.onLaunch(opts, mission); });
+  // Écran de récompenses après une mission
+  function showRewards(r, result, mission) {
+    const rows = [];
+    rows.push(['', r.won ? 'Victoire' : r.draw ? 'Égalité' : 'Défaite', r.base]);
+    if (r.kills) rows.push([r.kills, 'Neutralisations', r.killCredits]);
+    if (r.specials) rows.push([r.specials, 'Spéciaux (tête, séries, revanches, vétérans)', r.specialCredits]);
+    for (const c of (r.challenges || [])) rows.push(['✓', `Défi : ${c.name}`, c.reward]);
+    $('#rwTitle').textContent = 'Récompenses';
+    $('#rwRows').innerHTML = rows.map(([n, label, v]) => `<tr><td>${n}</td><td>${esc(label)}</td><td>${v ? v + ' ●' : ''}</td></tr>`).join('');
+    const total = r.credits + (r.challenges || []).reduce((s, c) => s + c.reward, 0);
+    $('#rwTotal').textContent = total;
+    const rk = Game.rankFor(profile.xp), next = Game.xpToNextRank(profile.xp);
+    $('#rwRank').textContent = `Rang ${rk} · ${RANKS[rk].name}`; $('#rwXpEarned').textContent = `+${r.playerXp} XP`;
+    $('#rwXpBar').style.width = next === null ? '100%' : (100 * (profile.xp - RANKS[rk].xp) / (RANKS[rk + 1].xp - RANKS[rk].xp)).toFixed(0) + '%';
+    $('#rwRankUp').textContent = r.rankUp ? `Promotion : ${r.rankUp} !` : '';
+    const extra = [];
+    if (r.levelUps && r.levelUps.length) extra.push('Promotions : ' + r.levelUps.map(l => `${l.callsign} → niveau ${l.level}`).join(', '));
+    if (r.recovering && r.recovering.length) extra.push('Évacués (indisponibles une mission) : ' + r.recovering.join(', '));
+    $('#rwExtra').innerHTML = extra.map(esc).join('<br>');
+    $('#rewards').classList.remove('hidden');
+    // pièces qui tombent
+    for (let i = 0; i < Math.min(24, 6 + Math.floor(total / 25)); i++) { const c = document.createElement('div'); c.className = 'coinfx'; c.textContent = '●'; c.style.left = (20 + Math.random() * 60) + '%'; c.style.top = '10%'; c.style.animationDelay = (Math.random() * 0.8) + 's'; document.body.appendChild(c); setTimeout(() => c.remove(), 2400); }
+  }
+  $('#rwContinue').addEventListener('click', () => { $('#rewards').classList.add('hidden'); });
   $('#resetSave').addEventListener('click', () => {
     if ($('#resetSave').dataset.confirm !== '1') { $('#resetSave').dataset.confirm = '1'; $('#resetSave').textContent = 'Confirmer la réinitialisation'; setTimeout(() => { $('#resetSave').dataset.confirm = '0'; $('#resetSave').textContent = 'Réinitialiser'; }, 4000); return; }
     profile = Game.reset(storage || { removeItem: () => {} }); lastRewards = null; selected = profile.squad[0]; $('#resetSave').dataset.confirm = '0'; $('#resetSave').textContent = 'Réinitialiser'; render(); flash('Nouvelle carrière.');
@@ -2192,6 +2284,7 @@ window.Son = Son;
       const r = Game.applyRewards(profile, mission, result);
       lastRewards = Object.assign({ mission: mission.name }, r);
       saveNow();
+      setTimeout(() => showRewards(r, result, mission), 260);
       return r;
     },
     profile: () => profile, storageAvailable: () => !!storage,

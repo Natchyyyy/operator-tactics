@@ -149,9 +149,12 @@
   const squadReady = (profile) => profile.squad.length >= 3 && profile.squad.length <= 5 && profile.squad.every(id => isAvailable(profile, id));
   // Soins : un opérateur en convalescence redevient disponible contre des crédits.
   const TREATMENT_PRICE = 80;
+  // Filet de sécurité : tant que moins de 3 opérateurs sont disponibles, les soins sont gratuits (on ne reste jamais bloqué).
+  const treatmentPrice = (profile) => Object.keys(profile.operators).filter(id => isAvailable(profile, id)).length < 3 ? 0 : TREATMENT_PRICE;
   function treat(profile, id) {
-    const st = profile.operators[id]; if (!st || !(st.recovery > 0) || profile.credits < TREATMENT_PRICE) return false;
-    profile.credits -= TREATMENT_PRICE; st.recovery = 0; return true;
+    const st = profile.operators[id]; if (!st || !(st.recovery > 0)) return false;
+    const price = treatmentPrice(profile); if (profile.credits < price) return false;
+    profile.credits -= price; st.recovery = 0; return true;
   }
   function recruit(profile, id) {
     const base = OPERATORS.find(o => o.id === id); const st = profile.operators[id];
@@ -177,7 +180,10 @@
   // Calculées depuis le résultat réel de la bataille : participation, dégâts, neutralisations, victoire.
   function computeRewards(profile, mission, result) {
     const won = result.winner === 0, draw = result.winner === -1;
-    const credits = Math.round(mission.reward * (won ? 1 : draw ? 0.5 : 0.3));
+    const base = Math.round(mission.reward * (won ? 1 : draw ? 0.5 : 0.3));
+    const kills = result.teams[0].kills || 0; const sp = result.teams[0].specials || {};
+    const specials = (sp.headshots || 0) + (sp.streaks || 0) + (sp.revenge || 0) + (sp.veteran || 0);
+    const credits = base + kills * 8 + specials * 6;
     const xp = {};
     for (const u of result.teams[0].units) {
       const id = u.id.split(':')[1];
@@ -185,7 +191,7 @@
       if (!u.alive) v = Math.round(v * 0.7);          // un opérateur évacué apprend moins
       xp[id] = v;
     }
-    return { won, draw, credits, xp };
+    return { won, draw, credits, base, kills, specials, killCredits: kills * 8, specialCredits: specials * 6, xp };
   }
   // Conditions des défis : (mission, résultat) → vrai si le défi est accompli dans cette bataille
   const CHALLENGE_CHECKS = {
@@ -252,6 +258,6 @@
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));
