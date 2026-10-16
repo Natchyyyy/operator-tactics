@@ -597,7 +597,7 @@
     u.stats.hits++; u.stats.damageDealt += dmg; e.stats.damageTaken += dmg; if (loc === 'tête') u.stats.headshots++;
     const absorbed = Math.round(w.damage * fall * mult * prot * 10) / 10;
     let text = `${u.callsign} touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV`;
-    if (absorbed > 0) text += ` (${absorbed} absorbés par ${e.armor.name.toLowerCase()})`;
+    if (absorbed > 0) text += ` (${absorbed} absorbés : ${e.armor.name})`;
     const prevStatus = e.status;
     if (e.hp <= 0) {
       e.alive = false; e.status = 'down'; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
