@@ -15,6 +15,7 @@ check('changer de protection', Game.setArmor(p, 'op_lynx', 'heavy') && p.operato
 // l'équipement change réellement la simulation
 {
   const m = DATA.MISSIONS[0];
+  p.tactics.equipped = []; // pas de tactique passive pour mesurer l'équipement seul
   const b = new Battle({ seed: 1, teams: Game.buildTeams(p, m) });
   const v = b.teams[0].units.find(u => u.callsign === 'Vautour'), l = b.teams[0].units.find(u => u.callsign === 'Lynx');
   check('l\'arme et la protection équipées sont celles de la bataille', v.weapon.id === 'smg' && l.armor.id === 'heavy', [v.weapon.id, l.armor.id]);
@@ -59,7 +60,8 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   const b = new Battle({ seed: 5, teams }); b.run();
   const before = p.credits, xpBefore = Object.fromEntries(p.squad.map(id => [id, p.operators[id].xp]));
   const r = Game.applyRewards(p, m, b.result);
-  check('les crédits gagnés dépendent de l\'issue', p.credits - before === r.credits && r.credits === Math.round(m.reward * (r.won ? 1 : r.draw ? 0.5 : 0.3)), r);
+  const challengeCredits = r.challenges.reduce((s, c) => s + c.reward, 0);
+  check('les crédits gagnés dépendent de l\'issue (plus les défis accomplis)', p.credits - before === r.credits + challengeCredits && r.credits === Math.round(m.reward * (r.won ? 1 : r.draw ? 0.5 : 0.3)), r);
   const xpOk = p.squad.every(id => { const u = b.result.teams[0].units.find(x => x.id === '0:' + id); const exp = Math.round((m.xp + Math.round(u.stats.damageDealt * 0.25) + u.stats.kills * 25 + (r.won ? 20 : 0)) * (u.alive ? 1 : 0.7)); return p.operators[id].xp - xpBefore[id] === exp; });
   check('l\'expérience de chacun découle de ses actions réelles (dégâts, neutralisations, survie)', xpOk);
   check('la carrière est mise à jour', p.career.battles === 1 && (p.career.wins + p.career.losses + p.career.draws) === 1 && p.missions[m.id].attempts === 1);
@@ -101,6 +103,31 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   // intégration : applyRewards sur une vraie bataille ne plante pas et liste les défis gagnés
   const q3 = Game.newProfile(); const b = new Battle({ seed: 2, teams: Game.buildTeams(q3, m) }); b.run(); const r = Game.applyRewards(q3, m, b.result);
   check('applyRewards renvoie la liste des défis accomplis (éventuellement vide)', Array.isArray(r.challenges));
+}
+// méta : rang du joueur, puissance, tactiques équipées, paquets, personnalisation
+{
+  const q = Game.newProfile();
+  check('rang : Recrue à 0 XP, Opérateur à 150, rang suivant indiqué', Game.rankFor(0) === 0 && Game.rankFor(150) === 1 && Game.xpToNextRank(0) === 150 && Game.xpToNextRank(99999) === null);
+  const r0 = Game.teamRating(q); q.operators.op_vautour.xp = 900; q.operators.op_lynx.xp = 900; const r1 = Game.teamRating(q);
+  check('la puissance d\'équipe est un nombre lisible qui augmente avec les niveaux', r0 > 20 && r0 < 80 && r1 > r0, [r0, r1]);
+  check('3 tactiques maximum, seulement celles possédées', !Game.equipTactic(q, 'barrage') && Game.equipTactic(q, 'drill') && q.tactics.equipped.length === 1 && Game.equipTactic(q, 'drill') && q.tactics.equipped.length === 2);
+  q.tactics.owned.reco = true; q.tactics.owned.soins = true; Game.equipTactic(q, 'reco');
+  check('la quatrième tactique est refusée', !Game.equipTactic(q, 'soins') && q.tactics.equipped.length === 3);
+  const teams = Game.buildTeams(q, DATA.MISSIONS[0]);
+  check('les tactiques équipées et celles de la mission adverse partent dans la bataille', teams[0].tactics.length === 3 && teams[1].tactics.length === 1 && teams[1].autoTactics === true);
+  // paquets : tirage déterministe
+  const seq = [0.05, 0.2, 0.1, 0.9, 0.5, 0.3, 0.6, 0.7, 0.8, 0.2, 0.4, 0.9]; let i = 0; const rng = () => seq[(i++) % seq.length];
+  q.credits = 100; check('un paquet trop cher est refusé', Game.openPack(q, 'standard', rng) === null && q.credits === 100);
+  q.credits = 1000; const cards = Game.openPack(q, 'standard', rng);
+  check('un paquet standard donne 3 cartes et coûte 150 crédits', cards && cards.length === 3 && q.credits <= 850 + 200, cards && cards.map(c => c.type));
+  const perkCard = cards.find(c => c.type === 'perk');
+  if (perkCard) check('une carte perk ajoute +2 à la statistique effective de l\'opérateur', Game.effectiveDef(q, perkCard.id)[perkCard.stat] === Math.min(100, DATA.OPERATORS.find(o => o.id === perkCard.id)[perkCard.stat] + Game.levelFor(q.operators[perkCard.id].xp) * 2 + q.perks[perkCard.id][perkCard.stat]));
+  // beaucoup de paquets : rien ne plante, tout reste cohérent
+  q.credits = 100000; for (let k = 0; k < 60; k++) Game.openPack(q, k % 2 ? 'elite' : 'standard', Math.random);
+  const allPerksOk = Object.values(q.perks).every(p => Object.values(p).every(v => v >= 2 && v <= 10));
+  check('60 paquets : perks plafonnés à +10, profil cohérent (sauvegardable)', allPerksOk && !!Game.save(q, storage) && JSON.stringify(Game.load(storage)) === JSON.stringify(q));
+  check('personnalisation : nom d\'équipe, insigne possédé seulement', Game.setCustomization(q, 'teamName', '  Les Faucons  ') && q.teamName === 'Les Faucons' && !Game.setCustomization(Game.newProfile(), 'insignia', 'ancre') && Game.setCustomization(q, 'insignia', 'bouclier'));
+  Game.reset(storage);
 }
 // sauvegarde
 check('sauvegarde puis rechargement identiques', Game.save(p, storage) && JSON.stringify(Game.load(storage)) === JSON.stringify(p));
