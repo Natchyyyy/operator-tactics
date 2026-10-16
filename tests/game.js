@@ -52,7 +52,7 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
 {
   const m = DATA.MISSIONS[1];
   const teams = Game.buildTeams(p, m);
-  check('la mission fixe l\'ordre et le niveau de l\'ennemi', teams[1].order === 'hold' && teams[1].operators.every(d => d.level === 1 && d.marksmanship === DATA.OPERATORS.find(o => o.id === d.id).marksmanship + 2));
+  check('la mission fixe l\'ordre et le niveau de l\'ennemi', teams[1].order === m.order && teams[1].operators.every(d => d.level === m.level && d.marksmanship === Math.min(100, DATA.OPERATORS.find(o => o.id === d.id).marksmanship + 2 * m.level)));
   const b = new Battle({ seed: 5, teams }); b.run();
   const before = p.credits, xpBefore = Object.fromEntries(p.squad.map(id => [id, p.operators[id].xp]));
   const r = Game.applyRewards(p, m, b.result);
