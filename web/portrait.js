@@ -17,11 +17,14 @@
   function render(opts) {
     const k = JSON.stringify(opts); if (cache[k]) return cache[k];
     if (!ensure()) return null;
+    const W = opts.w || 220, H = opts.h || 260;                       // grande taille pour les écrans de fin (figure en pied)
+    renderer.setSize(W, H); camera.aspect = W / H; camera.updateProjectionMatrix();
     const f = root.Figure.build({ id: opts.id, weapon: opts.weapon, uniform: opts.uniform, vest: opts.vest, headgear: opts.headgear });
     root.Figure.poseStatic(f, !!opts.aiming);
     f.group.rotation.y = -0.45;
     scene.add(f.group);
-    if (opts.full) { camera.position.set(0.9, 1.1, 3.6); camera.lookAt(0, 0.95, 0); }
+    if (opts.full && opts.h) { camera.position.set(0.9, 1.05, 4.4); camera.lookAt(0, 0.92, 0); }   // en pied, cadrage complet (tête aux pieds)
+    else if (opts.full) { camera.position.set(0.9, 1.1, 3.6); camera.lookAt(0, 0.95, 0); }
     else { camera.position.set(0.32, 1.66, 0.95); camera.lookAt(0.03, 1.56, 0); }
     renderer.render(scene, camera);
     const url = renderer.domElement.toDataURL('image/png');

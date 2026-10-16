@@ -307,7 +307,7 @@ function duel(opts) {
   check('une tactique non équipée est refusée', !mkT([]).useTactic(0, 'fumigene').ok);
   // spéciaux : les compteurs existent et le résultat les agrège
   const bs = new Battle({ seed: 2 }); bs.run(); const sp = bs.result.teams[0].specials;
-  check('résultat : spéciaux agrégés (tête, séries, revanches, vétérans) et état d\'équipe en %', sp && ['headshots', 'streaks', 'revenge', 'veteran'].every(k => typeof sp[k] === 'number') && bs.result.teams.every(t => t.hpPct >= 0 && t.hpPct <= 100) && sp.headshots === bs.teams[0].units.reduce((a, x) => a + x.stats.headshots, 0));
+  check('résultat : spéciaux agrégés (tête, séries, revanches, vétérans, groupe) et état d\'équipe en %', sp && ['headshots', 'streaks', 'revenge', 'veteran', 'group'].every(k => typeof sp[k] === 'number') && bs.result.teams.every(t => t.hpPct >= 0 && t.hpPct <= 100) && sp.headshots === bs.teams[0].units.reduce((a, x) => a + x.stats.headshots, 0));
 }
 
 {
@@ -338,6 +338,15 @@ function duel(opts) {
     n++; if (bb.over) ended++; if (/zone/.test(bb.result.reason)) viaZone++; if (occ) occupied++;
   }
   check('capture : 12 batailles réelles se terminent, la zone est occupée dans la plupart', ended === n && occupied >= n * 0.75, { ended, occupied, viaZone, n });
+}
+
+{
+  // neutralisation de groupe : comptée seulement si un autre allié a touché la cible dans les 5 s
+  const b = new Battle({ seed: 1 }); const [a1, a2] = b.teams[0].units, e = b.teams[1].units[0];
+  e.armor = { torso: 0, head: 0, name: 'aucune' }; a1.weapon = Object.assign({}, a1.weapon, { damage: 500 });
+  e.hitBy[a2.id] = b.t - 2; b.applyHit(a1, e, 5);
+  const e2 = b.teams[1].units[1]; e2.armor = e.armor; e2.hitBy[a2.id] = b.t - 9; b.applyHit(a1, e2, 5);
+  check('neutralisation de groupe : comptée avec un allié qui a touché la cible il y a 2 s, pas 9 s', !e.alive && !e2.alive && a1.stats.group === 1, a1.stats);
 }
 
 console.log(`\n${pass}/${pass + fail} vérifications réussies${fail ? '  — ÉCHECS : ' + fail : ''}`);

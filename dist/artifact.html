@@ -78,6 +78,11 @@
   .dialog h2 { margin: 0 0 4px; font-size: 26px; letter-spacing: 0.1em; } .dialog h2.team0 { color: var(--a0); } .dialog h2.team1 { color: var(--a1); }
   .dialog p { color: var(--muted); margin: 0 0 14px; }
   #resTables { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .resfig { position: absolute; bottom: 4%; height: 62%; max-height: 640px; object-fit: contain; z-index: 11; pointer-events: none; filter: drop-shadow(0 10px 18px #000); } .resfig.left { left: 1%; } .resfig.right { right: 1%; transform: scaleX(-1); } .resfig.lost { filter: grayscale(.5) brightness(.65) drop-shadow(0 10px 18px #000); }
+  .dialog.resdlg { position: relative; z-index: 12; max-width: 1000px; }
+  .resHead h2 { font-size: 46px !important; font-weight: 900; text-align: center; letter-spacing: .08em !important; } .resHead p { text-align: center; }
+  #resSpecials .head { grid-column: 1 / -1; text-align: center; color: var(--text); font-weight: 800; letter-spacing: .14em; margin-top: 4px; }
+  details.resdet summary { cursor: pointer; color: var(--muted); font-size: 12px; margin: 6px 0; }
   table.res { width: 100%; border-collapse: collapse; font-size: 11.5px; white-space: nowrap; } table.res th { text-align: left; color: var(--muted); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--line); }
   table.res thead tr:first-child th { color: var(--text); font-size: 13px; padding-bottom: 6px; } table.res.team0 thead tr:first-child th { color: var(--a0); } table.res.team1 thead tr:first-child th { color: var(--a1); }
   table.res td { padding: 4px 5px; border-bottom: 1px solid #1d242b; } table.res td small { color: var(--muted); } table.res tr.dead td { color: var(--muted); }
@@ -171,6 +176,22 @@
   .vssquads { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } .vssq { display: flex; gap: 6px; flex-wrap: wrap; } .vssq.team1 { justify-content: flex-end; } .vssq span { background: var(--panel2); border-top: 3px solid var(--a0); border-radius: 6px; padding: 4px 8px; font-size: 11px; } .vssq.team1 span { border-top-color: var(--a1); }
   .vsbox .actions { grid-column: 1 / -1; margin-top: 4px; } #vsGo { font-size: 16px; padding: 10px 28px; }
   .dialog.rewards { max-width: 560px; text-align: center; background: linear-gradient(180deg, var(--panel), #121a16); }
+  #rewards { background: radial-gradient(ellipse at 50% 100%, rgba(40,90,60,.45), rgba(6,8,10,.94) 60%); }
+  .rwstage { display: grid; grid-template-columns: 340px 620px; gap: 20px; align-items: center; max-height: 94vh; }
+  .rwfig img { width: 340px; height: 520px; object-fit: contain; filter: drop-shadow(0 12px 18px #000); }
+  .rwpanels { display: flex; flex-direction: column; gap: 10px; max-height: 94vh; overflow: auto; padding-right: 4px; }
+  .rwp { background: linear-gradient(180deg, #16323a, #0f2329); border: 1px solid #2b4c55; border-radius: 4px 14px 4px 4px; overflow: hidden; box-shadow: 0 10px 30px #0008; opacity: 0; transform: translateY(14px); animation: rwin .35s ease forwards; }
+  .rwp:nth-of-type(2) { animation-delay: .5s; } .rwp:nth-of-type(3) { animation-delay: 1s; } .rwp:nth-of-type(4) { animation-delay: 1.4s; } @keyframes rwin { to { opacity: 1; transform: none; } }
+  .rwp header { font-weight: 900; letter-spacing: .14em; text-transform: uppercase; font-size: 13px; padding: 5px 12px; color: #111; clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%); width: 70%; }
+  .rwp.gold header { background: linear-gradient(90deg, #c9a227, #e6c34a); } .rwp.violet header { background: linear-gradient(90deg, #6a2bbd, #9b55f0); color: #fff; } .rwp.red header { background: linear-gradient(90deg, #a3261c, #d8402f); color: #fff; } .rwp.orange header { background: linear-gradient(90deg, #c76a12, #ee9530); }
+  .rwp > table, .rwp > div { margin: 6px 12px 10px; } .rwp .rwTotal { margin: 4px 12px 10px; background: #0b1316; border-radius: 8px; padding: 6px 12px; justify-content: space-between; }
+  .rwp .rwXp { background: transparent; border: 0; padding: 0; } .xpbar.big i { background: linear-gradient(90deg, #6a2bbd, #b07cff); transition: width 1.2s ease .8s; }
+  table.rw.small { font-size: 12px; margin: 4px 0 0; } table.rw.small td { padding: 3px 6px; }
+  .inj { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-bottom: 1px solid #23343a; font-weight: 700; } .inj .bad { margin-left: auto; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; } .inj .good { margin-left: auto; font-size: 11px; text-transform: uppercase; }
+  .achrow { display: flex; align-items: center; gap: 12px; padding: 6px 2px; } .achrow .achico { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; font-size: 28px; color: var(--accent); background: #0b1316; border-radius: 8px; } .achrow .achico img { width: 46px; height: 46px; object-fit: contain; } .achrow b { display: block; font-size: 15px; text-transform: uppercase; letter-spacing: .05em; } .achrow small { color: var(--muted); } .achrow .achrw { margin-left: auto; font-size: 12px; color: #ffd28a; font-weight: 700; text-align: right; }
+  i.coin { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: -2px; background: radial-gradient(circle at 35% 30%, #fff4b8, #e9b928 45%, #9a6d10 100%); box-shadow: 0 0 0 1px #6b4a08 inset, 0 1px 2px #000; } i.coin.big { width: 34px; height: 34px; }
+  .coinfx { color: transparent !important; width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff4b8, #e9b928 45%, #9a6d10 100%); }
+  html.manual .rwp { opacity: 1; transform: none; } .accent { color: var(--accent); } table.rw tr.good td:nth-child(2) { color: var(--ok); font-weight: 800; font-size: 18px; text-transform: uppercase; } table.rw tr.bad td:nth-child(2) { color: #ff6b5b; font-weight: 800; font-size: 18px; text-transform: uppercase; }
   .dialog.rewards h2 { color: var(--accent); letter-spacing: .15em; text-transform: uppercase; font-size: 22px; }
   table.rw { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 14px; } table.rw td { padding: 6px 8px; border-bottom: 1px solid #1d242b; text-align: left; } table.rw td:first-child { color: var(--accent); font-weight: 700; width: 40px; text-align: right; } table.rw td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
   .rwTotal { display: flex; align-items: baseline; justify-content: center; gap: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 8px 0 14px; } .rwTotal b { font-size: 44px; color: var(--text); font-variant-numeric: tabular-nums; } .rwTotal .coin { color: var(--accent); font-size: 28px; }
@@ -268,13 +289,19 @@
   <div class="vssquads"><div id="vsSyn0" class="vssq vssyn team0"></div><div id="vsSyn1" class="vssq vssyn team1"></div></div>
   <div class="actions"><button id="vsBack">Retour</button><button id="vsGo" class="on">Bataille</button></div>
 </div></div>
-<div id="rewards" class="overlay hidden"><div class="dialog rewards">
-  <h2 id="rwTitle"></h2>
-  <table class="rw"><tbody id="rwRows"></tbody></table>
-  <div class="rwTotal"><span>Vous gagnez</span><b id="rwTotal"></b><span class="coin">●</span></div>
-  <div class="rwXp"><div class="crow"><span id="rwRank"></span><span class="spacer"></span><span id="rwXpEarned"></span></div><div class="xpbar big"><i id="rwXpBar"></i></div><div id="rwRankUp" class="good"></div></div>
-  <div id="rwExtra" class="muted" style="font-size:12px"></div>
-  <div class="actions"><button id="rwContinue" class="on">Continuer</button></div>
+<div id="rewards" class="overlay hidden"><div class="rwstage">
+  <div class="rwfig"><img id="rwFig" alt=""></div>
+  <div class="rwpanels">
+    <section class="rwp gold"><header id="rwTitle">Récompenses</header>
+      <table class="rw"><tbody id="rwRows"></tbody></table>
+      <div class="rwTotal"><span>Vous gagnez</span><b id="rwTotal"></b><i class="coin big"></i></div></section>
+    <section class="rwp violet"><header>Rang</header>
+      <div class="rwXp"><div class="crow"><span id="rwRank"></span><span class="spacer"></span><span id="rwXpEarned"></span></div><div class="xpbar big"><i id="rwXpBar"></i></div><div id="rwRankUp" class="good"></div><table class="rw small"><tbody id="rwXpRows"></tbody></table></div></section>
+    <section class="rwp red" id="rwInjSec"><header>Rapport des blessés</header><div id="rwInjuries"></div></section>
+    <section class="rwp orange" id="rwAchSec"><header>Succès</header><div id="rwAch"></div></section>
+    <div id="rwExtra" class="muted" style="font-size:12px"></div>
+    <div class="actions"><button id="rwContinue" class="on">Continuer</button></div>
+  </div>
 </div></div>
 <div id="flash" class="hidden"></div>
 <div id="fade"></div>
@@ -307,10 +334,10 @@
     <div id="ticker"></div>
     <div id="banner" class="banner hidden"><span id="bannerText"></span><small id="bannerSub"></small></div>
     <div id="journalWrap" class="hidden"><div class="jhead">Journal de combat <button id="closeJournal" class="mini">×</button></div><div id="journal"></div></div>
-    <div id="result" class="overlay hidden"><div class="dialog">
+    <div id="result" class="overlay hidden"><img id="resFig0" class="resfig left" alt=""><img id="resFig1" class="resfig right" alt=""><div class="dialog resdlg">
       <div class="resHead"><div class="resTeam team0"><span id="resIns0" class="ins big"></span><div><div id="resName0" class="rn"></div><div id="resPct0" class="rp"></div></div></div><div><h2 id="resTitle"></h2><p id="resReason"></p></div><div class="resTeam team1 rev"><span id="resIns1" class="ins big"></span><div><div id="resName1" class="rn"></div><div id="resPct1" class="rp"></div></div></div></div>
       <div id="resSpecials"></div>
-      <div id="resTables"></div>
+      <details class="resdet"><summary>Détail par opérateur</summary><div id="resTables"></div></details>
       <div class="actions"><button id="resClose">Revoir la scène</button><button id="resReplay">Rejouer cette graine</button><button id="resNew">Nouvelle bataille</button><button id="resHq" class="on">Retour au QG</button></div>
     </div></div>
     <div id="help" class="overlay hidden"><div class="dialog">
@@ -549,11 +576,14 @@ window.Son = Son;
   function render(opts) {
     const k = JSON.stringify(opts); if (cache[k]) return cache[k];
     if (!ensure()) return null;
+    const W = opts.w || 220, H = opts.h || 260;                       // grande taille pour les écrans de fin (figure en pied)
+    renderer.setSize(W, H); camera.aspect = W / H; camera.updateProjectionMatrix();
     const f = root.Figure.build({ id: opts.id, weapon: opts.weapon, uniform: opts.uniform, vest: opts.vest, headgear: opts.headgear });
     root.Figure.poseStatic(f, !!opts.aiming);
     f.group.rotation.y = -0.45;
     scene.add(f.group);
-    if (opts.full) { camera.position.set(0.9, 1.1, 3.6); camera.lookAt(0, 0.95, 0); }
+    if (opts.full && opts.h) { camera.position.set(0.9, 1.05, 4.4); camera.lookAt(0, 0.92, 0); }   // en pied, cadrage complet (tête aux pieds)
+    else if (opts.full) { camera.position.set(0.9, 1.1, 3.6); camera.lookAt(0, 0.95, 0); }
     else { camera.position.set(0.32, 1.66, 0.95); camera.lookAt(0.03, 1.56, 0); }
     renderer.render(scene, camera);
     const url = renderer.domElement.toDataURL('image/png');
@@ -798,14 +828,14 @@ window.Son = Son;
   // ---- SUCCÈS ----------------------------------------------------------------------------
   // Vérifiés sur le profil après chaque bataille (game.js : ACHIEVEMENT_CHECKS). Icône affichée à côté du nom d'équipe.
   const ACHIEVEMENTS = [
-    { id: 'premiere',   name: 'Première victoire',  glyph: '★', desc: 'Remporter une bataille.' },
-    { id: 'dix',        name: 'Dix victoires',      glyph: '✪', desc: 'Remporter dix batailles.' },
-    { id: 'chasseur',   name: 'Chasseur',           glyph: '◎', desc: 'Cinquante neutralisations en carrière.' },
-    { id: 'collection', name: 'Collectionneur',     glyph: '▣', desc: 'Débloquer dix opérateurs.' },
-    { id: 'veteran',    name: 'Vétéran',            glyph: '✦', desc: 'Amener un opérateur au niveau 5.' },
-    { id: 'podium',     name: 'Sur le podium',      glyph: '♛', desc: 'Finir une saison de ligue dans les trois premiers.' },
-    { id: 'tacticien',  name: 'Tacticien',          glyph: '◆', desc: 'Jouer vingt tactiques actives.' },
-    { id: 'intact',     name: 'Sans une égratignure', glyph: '❖', desc: 'Gagner avec cinq opérateurs à plus de 90 % de vie.' },
+    { id: 'premiere',   name: 'Première victoire',  glyph: '★', desc: 'Remporter une bataille.', reward: { credits: 100 } },
+    { id: 'dix',        name: 'Dix victoires',      glyph: '✪', desc: 'Remporter dix batailles.', reward: { headgear: 'beret_rouge' } },
+    { id: 'chasseur',   name: 'Chasseur',           glyph: '◎', desc: 'Cinquante neutralisations en carrière.', reward: { headgear: 'chapeau' } },
+    { id: 'collection', name: 'Collectionneur',     glyph: '▣', desc: 'Débloquer dix opérateurs.', reward: { insignia: 'aigle' } },
+    { id: 'veteran',    name: 'Vétéran',            glyph: '✦', desc: 'Amener un opérateur au niveau 5.', reward: { headgear: 'beret_vert' } },
+    { id: 'podium',     name: 'Sur le podium',      glyph: '♛', desc: 'Finir une saison de ligue dans les trois premiers.', reward: { uniform: 'nuit' } },
+    { id: 'tacticien',  name: 'Tacticien',          glyph: '◆', desc: 'Jouer vingt tactiques actives.', reward: { credits: 250 } },
+    { id: 'intact',     name: 'Sans une égratignure', glyph: '❖', desc: 'Gagner avec cinq opérateurs à plus de 90 % de vie.', reward: { headgear: 'foulard_rouge' } },
   ];
   // ---- PROMOTIONS : second trait au choix (niveau 5), troisième (niveau 10) ----------------
   // Deux propositions par palier, tirées parmi les traits que l'opérateur n'a pas.
@@ -1169,7 +1199,8 @@ window.Son = Son;
     this.aimTarget = null; this.aimHistory = {};   // visée en cours / dernière visée par ennemi (reprise plus rapide)
     this.commitUntil = 0; this.commitAt = 0;        // engagement sur un déplacement (évite d'hésiter à chaque décision)
     this.targetLostAt = 0;
-    this.stats = { shots: 0, hits: 0, kills: 0, damageDealt: 0, damageTaken: 0, reloads: 0, headshots: 0, timeSuppressed: 0, distance: 0, streaks: 0, revenge: 0, veteran: 0, healed: 0 };
+    this.stats = { shots: 0, hits: 0, kills: 0, damageDealt: 0, damageTaken: 0, reloads: 0, headshots: 0, timeSuppressed: 0, distance: 0, streaks: 0, revenge: 0, veteran: 0, group: 0, healed: 0 };
+    this.hitBy = {};                 // unitId → dernier instant où cet adversaire m'a touché (neutralisations de groupe)
     this.lastKillAt = -99;
     this.decideOffset = (idx * 0.07) % DECIDE_EVERY;
   }
@@ -2068,6 +2099,7 @@ window.Son = Son;
     e.hp = Math.max(0, e.hp - dmg);
     e.lastHitAt = this.t; e.suppression = clamp(e.suppression + w.suppress * 1.2, 0, 1);
     u.stats.hits++; u.stats.damageDealt += dmg; e.stats.damageTaken += dmg; if (loc === 'tête') u.stats.headshots++;
+    e.hitBy[u.id] = this.t;
     const absorbed = Math.round(w.damage * fall * mult * prot * 10) / 10;
     let text = `${u.callsign} touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV`;
     if (absorbed > 0) text += ` (${absorbed} absorbés : ${e.armor.name})`;
@@ -2077,6 +2109,8 @@ window.Son = Son;
       u.stats.kills++;
       // « spéciaux » : série (deux neutralisations à moins de 10 s), revanche (celui qui a mis un allié hors de combat), vétéran (niveau supérieur)
       if (this.t - u.lastKillAt < 10) u.stats.streaks++;
+      // de groupe : au moins un autre allié avait touché la cible dans les 5 dernières secondes (tir croisé, travail d'équipe)
+      if (Object.keys(e.hitBy).some(id => id !== u.id && this.t - e.hitBy[id] <= 5)) u.stats.group++;
       u.lastKillAt = this.t;
       if (this.alliesOf(u).some(a => !a.alive && a.downedBy === e)) u.stats.revenge++;
       if ((e.def.level || 0) > (u.def.level || 0)) u.stats.veteran++;
@@ -2131,7 +2165,7 @@ window.Son = Son;
         alive: t.units.filter(u => u.alive).length,
         hpPct: Math.round(100 * t.units.reduce((s, u) => s + (u.alive ? u.hp : 0), 0) / t.units.reduce((s, u) => s + u.maxHp, 0)),
         kills: t.units.reduce((s, u) => s + u.stats.kills, 0) + (t.indirectKills || 0),
-        specials: { headshots: t.units.reduce((s, u) => s + u.stats.headshots, 0), streaks: t.units.reduce((s, u) => s + u.stats.streaks, 0), revenge: t.units.reduce((s, u) => s + u.stats.revenge, 0), veteran: t.units.reduce((s, u) => s + u.stats.veteran, 0) },
+        specials: { headshots: t.units.reduce((s, u) => s + u.stats.headshots, 0), streaks: t.units.reduce((s, u) => s + u.stats.streaks, 0), revenge: t.units.reduce((s, u) => s + u.stats.revenge, 0), veteran: t.units.reduce((s, u) => s + u.stats.veteran, 0), group: t.units.reduce((s, u) => s + u.stats.group, 0) },
         tactics: Object.keys(t.tactics || {}).map(id => ({ id, used: t.tactics[id].used })),
         shots: t.units.reduce((s, u) => s + u.stats.shots, 0), hits: t.units.reduce((s, u) => s + u.stats.hits, 0),
         units: t.units.map(u => ({
@@ -2341,7 +2375,7 @@ window.Son = Son;
     if (!isAvailable(profile, id) || profile.squad.length >= 5) return false;
     profile.squad.push(id); return true;
   }
-  // Une escouade part avec 3 à 5 opérateurs disponibles (ni verrouillés, ni en convalescence).
+  // Une escouade part avec 3 à 5 opérateurs disponibles (débloqués et sous contrat ; un blessé grave peut partir, à demi-capacité).
   // Disponible = débloqué et sous contrat. Un blessé grave reste déployable (à demi-capacité) : c'est au joueur de choisir.
   const isAvailable = (profile, id) => { const st = profile.operators[id]; return !!st && st.unlocked && (st.tours === undefined || st.tours > 0); };
   const isWounded = (profile, id) => !!(profile.operators[id] && profile.operators[id].wounded);
@@ -2353,7 +2387,7 @@ window.Son = Son;
     profile.credits -= price; st.tours = (st.tours > 0 ? st.tours : 0) + CONTRACT.tours[OPERATORS.find(o => o.id === id).rarity]; return true;
   }
   const squadReady = (profile) => profile.squad.length >= 3 && profile.squad.length <= 5 && profile.squad.every(id => isAvailable(profile, id));
-  // Soins : un opérateur en convalescence redevient disponible contre des crédits.
+  // Soins : un blessé grave retrouve ses compétences contre des crédits.
   const TREATMENT_PRICE = 80;
   // Filet de sécurité : tant que moins de 3 opérateurs sont disponibles, les soins sont gratuits (on ne reste jamais bloqué).
   // soins gratuits tant que moins de 3 opérateurs disponibles sont en bonne santé (on ne bloque jamais le joueur)
@@ -2389,7 +2423,7 @@ window.Son = Son;
     const won = result.winner === 0, draw = result.winner === -1;
     const base = Math.round(mission.reward * (won ? 1 : draw ? 0.5 : 0.3));
     const kills = result.teams[0].kills || 0; const sp = result.teams[0].specials || {};
-    const specials = (sp.headshots || 0) + (sp.streaks || 0) + (sp.revenge || 0) + (sp.veteran || 0);
+    const specials = (sp.headshots || 0) + (sp.streaks || 0) + (sp.revenge || 0) + (sp.veteran || 0) + (sp.group || 0);
     const credits = base + kills * 8 + specials * 6;
     const xp = {};
     for (const u of result.teams[0].units) {
@@ -2420,7 +2454,7 @@ window.Son = Son;
     }
     return done;
   }
-  // Un match de ligue est traité comme une mission générique pour les récompenses individuelles (crédits, XP, convalescence)
+  // Un match de ligue est traité comme une mission générique pour les récompenses individuelles (crédits, XP, blessures)
   const LEAGUE_MISSION = { id: 'ligue', name: 'Match de ligue', reward: 200, xp: 50, level: 0 };
   function applyRewards(profile, mission, result) {
     const r = computeRewards(profile, mission, result);
@@ -2484,8 +2518,17 @@ window.Son = Son;
   };
   function checkAchievements(profile, result) {
     const got = []; profile.achievements = profile.achievements || {};
-    for (const a of ACHIEVEMENTS) { if (profile.achievements[a.id]) continue; if (ACHIEVEMENT_CHECKS[a.id](profile, result)) { profile.achievements[a.id] = true; got.push(a); } }
+    for (const a of ACHIEVEMENTS) { if (profile.achievements[a.id]) continue; if (ACHIEVEMENT_CHECKS[a.id](profile, result)) { profile.achievements[a.id] = true; got.push(Object.assign({}, a, { rewardText: grantAchievementReward(profile, a.reward) })); } }
     return got;
+  }
+  // Récompense d'un succès (crédits ou cosmétique) ; renvoie un libellé. Un cosmétique déjà possédé est converti en crédits.
+  function grantAchievementReward(profile, rw) {
+    if (!rw) return '';
+    if (rw.credits) { profile.credits += rw.credits; return `+${rw.credits} crédits`; }
+    if (rw.headgear) { if (profile.headgear[rw.headgear]) { profile.credits += 80; return '+80 crédits (couvre-chef déjà possédé)'; } profile.headgear[rw.headgear] = true; return `Couvre-chef : ${rw.headgear.replace(/_/g, ' ')}`; }
+    if (rw.insignia) { const L = profile.unlocked.insignias; if (L.includes(rw.insignia)) { profile.credits += 80; return '+80 crédits (insigne déjà possédé)'; } L.push(rw.insignia); return `Insigne : ${(INSIGNIAS.find(i => i.id === rw.insignia) || {}).name}`; }
+    if (rw.uniform) { const L = profile.unlocked.uniforms; if (L.includes(rw.uniform)) { profile.credits += 80; return '+80 crédits (uniforme déjà possédé)'; } L.push(rw.uniform); return `Uniforme : ${(UNIFORMS.find(u => u.id === rw.uniform) || {}).name}`; }
+    return '';
   }
 
   // ---- Sauvegarde locale (navigateur) ----------------------------------------------------
@@ -2892,29 +2935,45 @@ window.Son = Son;
   function showRewards(r, result, mission) {
     const rows = [];
     rows.push(['', r.won ? 'Victoire' : r.draw ? 'Égalité' : 'Défaite', r.base]);
-    if (r.kills) rows.push([r.kills, 'Neutralisations', r.killCredits]);
-    if (r.specials) rows.push([r.specials, 'Spéciaux (tête, séries, revanches, vétérans)', r.specialCredits]);
+    rows.push([r.kills, 'Neutralisations', r.killCredits]);
+    rows.push([r.specials, 'Spéciaux', r.specialCredits]);
     for (const c of (r.challenges || [])) rows.push(['✓', `Défi : ${c.name}`, c.reward]);
     $('#rwTitle').textContent = 'Récompenses';
-    $('#rwRows').innerHTML = rows.map(([n, label, v]) => `<tr><td>${n}</td><td>${esc(label)}</td><td>${v ? v + ' ●' : ''}</td></tr>`).join('');
+    $('#rwRows').innerHTML = rows.map(([n, label, v], i) => `<tr class="${i === 0 ? (r.won ? 'good' : r.draw ? '' : 'bad') : ''}"><td>${n}</td><td>${esc(label)}</td><td>${v || 0} <i class="coin"></i></td></tr>`).join('');
     const total = r.credits + (r.challenges || []).reduce((s, c) => s + c.reward, 0);
-    $('#rwTotal').textContent = total;
+    // compteur qui monte (le nombre final est écrit tout de suite pour l'accessibilité et les tests)
+    const tEl = $('#rwTotal'); tEl.textContent = total; tEl.dataset.v = total;
+    if (!document.documentElement.classList.contains('manual')) { const t0 = performance.now(); const tick = (now) => { const k = Math.min(1, (now - t0) / 900); tEl.textContent = Math.round(total * k); if (k < 1 && tEl.dataset.v == total) requestAnimationFrame(tick); }; requestAnimationFrame(tick); }
     const rk = Game.rankFor(profile.xp), next = Game.xpToNextRank(profile.xp);
-    $('#rwRank').textContent = `Rang ${rk} · ${RANKS[rk].name}`; $('#rwXpEarned').textContent = `+${r.playerXp} XP`;
-    $('#rwXpBar').style.width = next === null ? '100%' : (100 * (profile.xp - RANKS[rk].xp) / (RANKS[rk + 1].xp - RANKS[rk].xp)).toFixed(0) + '%';
-    $('#rwRankUp').textContent = r.rankUp ? `Promotion : ${r.rankUp} !` : '';
+    $('#rwRank').innerHTML = `Rang <b>${rk}</b> · <span class="accent">${esc(RANKS[rk].name)}</span>`; $('#rwXpEarned').textContent = `+${r.playerXp} XP`;
+    const bar = $('#rwXpBar'); const target = next === null ? '100%' : (100 * (profile.xp - RANKS[rk].xp) / (RANKS[rk + 1].xp - RANKS[rk].xp)).toFixed(0) + '%';
+    bar.style.width = r.rankUp ? '0%' : Math.max(0, parseFloat(target) - (next === null ? 0 : 100 * r.playerXp / (RANKS[rk + 1].xp - RANKS[rk].xp))).toFixed(0) + '%';
+    requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = target; }));
+    $('#rwRankUp').textContent = r.rankUp ? `Promotion : ${r.rankUp} !` : (next === null ? 'Rang maximum' : `${next} XP avant le rang suivant`);
+    const kx = (result.teams[0].kills || 0) * 5, wx = r.won ? 30 : r.draw ? 10 : 0;   // même calcul que Game.applyRewards
+    $('#rwXpRows').innerHTML = [['Mission', r.playerXp - kx - wx], [r.won ? 'Victoire' : r.draw ? 'Égalité' : 'Défaite', wx], ['Neutralisations', kx]].map(([l, v]) => `<tr><td></td><td>${l}</td><td>${v} XP</td></tr>`).join('');
+    // blessés
+    const inj = (r.injured || []).map(n => `<div class="inj">✚ ${esc(n)}<span class="bad">Gravement blessé !</span></div>`).concat((r.healed || []).map(n => `<div class="inj">✓ ${esc(n)}<span class="good">Rétabli après repos</span></div>`));
+    $('#rwInjuries').innerHTML = inj.join(''); $('#rwInjSec').hidden = !inj.length;
+    // succès
+    const ACH_IMG = { premiere: 'ach_first', dix: 'ach_streak' };
+    $('#rwAch').innerHTML = (r.achievements || []).map(a => `<div class="achrow"><span class="achico">${(OT.imgTag && OT.imgTag(ACH_IMG[a.id])) || a.glyph}</span><div><b>${esc(a.name)}</b><small>${esc(a.desc)}</small></div><span class="achrw">${esc(a.rewardText || '')}</span></div>`).join('');
+    $('#rwAchSec').hidden = !(r.achievements && r.achievements.length);
     const extra = [];
-    if (r.levelUps && r.levelUps.length) extra.push('Promotions : ' + r.levelUps.map(l => `${l.callsign} → niveau ${l.level}`).join(', '));
-    if (r.injured && r.injured.length) extra.push('Gravement blessés (compétences ÷2 jusqu’aux soins) : ' + r.injured.join(', '));
+    if (r.levelUps && r.levelUps.length) extra.push('Niveaux : ' + r.levelUps.map(l => `${l.callsign} → niveau ${l.level}`).join(', '));
     if (r.leagueRank) extra.push(`Ligue : vous êtes ${r.leagueRank}${r.leagueRank === 1 ? 'er' : 'e'} au classement.`);
     if (r.promotions && r.promotions.length) extra.push('Promotion à choisir (fiche de l’opérateur) : ' + r.promotions.map(p => `${p.callsign} (niveau ${p.level})`).join(', '));
     if (r.expired && r.expired.length) extra.push('Contrat expiré, à renouveler : ' + r.expired.join(', '));
-    if (r.achievements && r.achievements.length) extra.push('Succès : ' + r.achievements.map(a => `${a.glyph} ${a.name}`).join(', '));
     $('#rwExtra').innerHTML = extra.map(esc).join('<br>');
+    // figure : le meilleur opérateur de la mission (le plus de neutralisations, puis de dégâts)
+    const best = result.teams[0].units.slice().sort((a, b) => (b.stats.kills - a.stats.kills) || (b.stats.damageDealt - a.stats.damageDealt))[0];
+    const bo = best && OPERATORS.find(o => o.id === best.id.split(':')[1]);
+    $('#rwFig').src = (bo && (() => { const st = profile.operators[bo.id]; const uni = DATA.UNIFORMS.find(u => u.id === profile.uniform) || DATA.UNIFORMS[0]; return OT.Portrait && OT.Portrait.render({ id: bo.id, weapon: st.weaponId, uniform: uni.uniform, vest: uni.vest, headgear: st.headgear || 'casque', full: true, w: 420, h: 640, aiming: r.won }); })()) || '';
     $('#rewards').classList.remove('hidden');
     // pièces qui tombent
-    for (let i = 0; i < Math.min(24, 6 + Math.floor(total / 25)); i++) { const c = document.createElement('div'); c.className = 'coinfx'; c.textContent = '●'; c.style.left = (20 + Math.random() * 60) + '%'; c.style.top = '10%'; c.style.animationDelay = (Math.random() * 0.8) + 's'; document.body.appendChild(c); setTimeout(() => c.remove(), 2400); }
+    for (let i = 0; i < Math.min(30, 8 + Math.floor(total / 20)); i++) { const c = document.createElement('div'); c.className = 'coinfx'; c.textContent = '●'; c.style.left = (35 + Math.random() * 55) + '%'; c.style.top = '8%'; c.style.animationDelay = (Math.random() * 1.1) + 's'; document.body.appendChild(c); setTimeout(() => c.remove(), 2800); }
   }
+
   $('#rwContinue').addEventListener('click', () => { $('#rewards').classList.add('hidden'); });
   $('#resetSave').addEventListener('click', () => {
     if ($('#resetSave').dataset.confirm !== '1') { $('#resetSave').dataset.confirm = '1'; $('#resetSave').textContent = 'Confirmer la réinitialisation'; setTimeout(() => { $('#resetSave').dataset.confirm = '0'; $('#resetSave').textContent = 'Réinitialiser'; }, 4000); return; }
@@ -3611,9 +3670,23 @@ window.Son = Son;
     const r = battle.result;
     const title = r.winner === -1 ? 'Égalité' : (r.winner === 0 ? 'Victoire' : 'Défaite');
     $('#resTitle').textContent = title; $('#resTitle').className = r.winner === -1 ? '' : 'team' + r.winner;
-    r.teams.forEach((t, ti) => { $('#resName' + ti).textContent = t.name; $('#resPct' + ti).textContent = t.hpPct + '%'; $('#resIns' + ti).textContent = insigniaGlyph(battle.teams[ti]); });
-    const sp = [['Neutralisations', 'kills'], ['Tirs à la tête', 'headshots'], ['Séries', 'streaks'], ['Revanches', 'revenge'], ['Vétérans abattus', 'veteran']];
-    $('#resSpecials').innerHTML = sp.map(([label, k]) => { const v = (ti) => k === 'kills' ? r.teams[ti].kills : r.teams[ti].specials[k]; return `<span class="l">${v(0)}</span><span class="m">${label}</span><span class="r">${v(1)}</span>`; }).join('');
+    r.teams.forEach((t, ti) => { $('#resName' + ti).textContent = t.name; $('#resPct' + ti).textContent = t.hpPct + '%'; $('#resPct' + ti).title = 'Vie restante de l\u2019équipe'; $('#resIns' + ti).textContent = insigniaGlyph(battle.teams[ti]); });
+    const row = (label, v0, v1) => `<span class="l">${v0}</span><span class="m">${label}</span><span class="r">${v1}</span>`;
+    let html = '';
+    if (battle.zone) html += row('Zone capturée', r.teams[0].capture + ' %', r.teams[1].capture + ' %');
+    html += row('Neutralisations', r.teams[0].kills, r.teams[1].kills) + '<span class="head">SPÉCIAUX</span>';
+    for (const [label, k] of [['Tirs à la tête', 'headshots'], ['Séries', 'streaks'], ['De groupe', 'group'], ['Revanches', 'revenge'], ['Vétérans abattus', 'veteran']]) html += row(label, r.teams[0].specials[k] || 0, r.teams[1].specials[k] || 0);
+    $('#resSpecials').innerHTML = html;
+    // figures : le meilleur opérateur de chaque équipe, en pied (le perdant baisse son arme)
+    r.teams.forEach((t, ti) => {
+      const best = t.units.slice().sort((a, b) => (b.stats.kills - a.stats.kills) || (b.stats.damageDealt - a.stats.damageDealt))[0];
+      const u = best && battle.units.find(x => x.id === best.id), img = $('#resFig' + ti);
+      if (!u || !OT.Portrait) { img.removeAttribute('src'); return; }
+      let fac = DATA.FACTIONS[u.def.faction || 'allied'] || DATA.FACTIONS.allied; const td = battle.teams[ti]; if (!u.def.faction && td.uniform) { const uni = DATA.UNIFORMS.find(x => x.id === td.uniform); if (uni) fac = uni; }
+      const won = r.winner === ti;
+      img.src = OT.Portrait.render({ id: u.def.id, weapon: u.weapon.id, uniform: fac.uniform, vest: fac.vest, headgear: u.def.headgear || (u.def.faction ? 'casque_lunettes' : 'casque'), full: true, w: 420, h: 640, aiming: won }) || '';
+      img.classList.toggle('lost', r.winner !== -1 && !won);
+    });
     let reward = '';
     if (mode === 'mission' && mission) { const rw = OT.Game.computeRewards(window.HQ.profile(), mission, r); reward = ` Récompenses au retour : +${rw.credits} crédits, ${Object.values(rw.xp).reduce((a, b) => a + b, 0)} XP répartis.`; }
     $('#resReason').textContent = `${r.reason} Durée : ${fmtT(r.duration)}. Carte : ${r.map}. Graine ${r.seed}.${reward}`;

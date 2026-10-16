@@ -46,7 +46,8 @@
     this.aimTarget = null; this.aimHistory = {};   // visée en cours / dernière visée par ennemi (reprise plus rapide)
     this.commitUntil = 0; this.commitAt = 0;        // engagement sur un déplacement (évite d'hésiter à chaque décision)
     this.targetLostAt = 0;
-    this.stats = { shots: 0, hits: 0, kills: 0, damageDealt: 0, damageTaken: 0, reloads: 0, headshots: 0, timeSuppressed: 0, distance: 0, streaks: 0, revenge: 0, veteran: 0, healed: 0 };
+    this.stats = { shots: 0, hits: 0, kills: 0, damageDealt: 0, damageTaken: 0, reloads: 0, headshots: 0, timeSuppressed: 0, distance: 0, streaks: 0, revenge: 0, veteran: 0, group: 0, healed: 0 };
+    this.hitBy = {};                 // unitId → dernier instant où cet adversaire m'a touché (neutralisations de groupe)
     this.lastKillAt = -99;
     this.decideOffset = (idx * 0.07) % DECIDE_EVERY;
   }
@@ -945,6 +946,7 @@
     e.hp = Math.max(0, e.hp - dmg);
     e.lastHitAt = this.t; e.suppression = clamp(e.suppression + w.suppress * 1.2, 0, 1);
     u.stats.hits++; u.stats.damageDealt += dmg; e.stats.damageTaken += dmg; if (loc === 'tête') u.stats.headshots++;
+    e.hitBy[u.id] = this.t;
     const absorbed = Math.round(w.damage * fall * mult * prot * 10) / 10;
     let text = `${u.callsign} touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV`;
     if (absorbed > 0) text += ` (${absorbed} absorbés : ${e.armor.name})`;
@@ -954,6 +956,8 @@
       u.stats.kills++;
       // « spéciaux » : série (deux neutralisations à moins de 10 s), revanche (celui qui a mis un allié hors de combat), vétéran (niveau supérieur)
       if (this.t - u.lastKillAt < 10) u.stats.streaks++;
+      // de groupe : au moins un autre allié avait touché la cible dans les 5 dernières secondes (tir croisé, travail d'équipe)
+      if (Object.keys(e.hitBy).some(id => id !== u.id && this.t - e.hitBy[id] <= 5)) u.stats.group++;
       u.lastKillAt = this.t;
       if (this.alliesOf(u).some(a => !a.alive && a.downedBy === e)) u.stats.revenge++;
       if ((e.def.level || 0) > (u.def.level || 0)) u.stats.veteran++;
@@ -1008,7 +1012,7 @@
         alive: t.units.filter(u => u.alive).length,
         hpPct: Math.round(100 * t.units.reduce((s, u) => s + (u.alive ? u.hp : 0), 0) / t.units.reduce((s, u) => s + u.maxHp, 0)),
         kills: t.units.reduce((s, u) => s + u.stats.kills, 0) + (t.indirectKills || 0),
-        specials: { headshots: t.units.reduce((s, u) => s + u.stats.headshots, 0), streaks: t.units.reduce((s, u) => s + u.stats.streaks, 0), revenge: t.units.reduce((s, u) => s + u.stats.revenge, 0), veteran: t.units.reduce((s, u) => s + u.stats.veteran, 0) },
+        specials: { headshots: t.units.reduce((s, u) => s + u.stats.headshots, 0), streaks: t.units.reduce((s, u) => s + u.stats.streaks, 0), revenge: t.units.reduce((s, u) => s + u.stats.revenge, 0), veteran: t.units.reduce((s, u) => s + u.stats.veteran, 0), group: t.units.reduce((s, u) => s + u.stats.group, 0) },
         tactics: Object.keys(t.tactics || {}).map(id => ({ id, used: t.tactics[id].used })),
         shots: t.units.reduce((s, u) => s + u.stats.shots, 0), hits: t.units.reduce((s, u) => s + u.stats.hits, 0),
         units: t.units.map(u => ({

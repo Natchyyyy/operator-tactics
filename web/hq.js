@@ -269,29 +269,45 @@
   function showRewards(r, result, mission) {
     const rows = [];
     rows.push(['', r.won ? 'Victoire' : r.draw ? 'Égalité' : 'Défaite', r.base]);
-    if (r.kills) rows.push([r.kills, 'Neutralisations', r.killCredits]);
-    if (r.specials) rows.push([r.specials, 'Spéciaux (tête, séries, revanches, vétérans)', r.specialCredits]);
+    rows.push([r.kills, 'Neutralisations', r.killCredits]);
+    rows.push([r.specials, 'Spéciaux', r.specialCredits]);
     for (const c of (r.challenges || [])) rows.push(['✓', `Défi : ${c.name}`, c.reward]);
     $('#rwTitle').textContent = 'Récompenses';
-    $('#rwRows').innerHTML = rows.map(([n, label, v]) => `<tr><td>${n}</td><td>${esc(label)}</td><td>${v ? v + ' ●' : ''}</td></tr>`).join('');
+    $('#rwRows').innerHTML = rows.map(([n, label, v], i) => `<tr class="${i === 0 ? (r.won ? 'good' : r.draw ? '' : 'bad') : ''}"><td>${n}</td><td>${esc(label)}</td><td>${v || 0} <i class="coin"></i></td></tr>`).join('');
     const total = r.credits + (r.challenges || []).reduce((s, c) => s + c.reward, 0);
-    $('#rwTotal').textContent = total;
+    // compteur qui monte (le nombre final est écrit tout de suite pour l'accessibilité et les tests)
+    const tEl = $('#rwTotal'); tEl.textContent = total; tEl.dataset.v = total;
+    if (!document.documentElement.classList.contains('manual')) { const t0 = performance.now(); const tick = (now) => { const k = Math.min(1, (now - t0) / 900); tEl.textContent = Math.round(total * k); if (k < 1 && tEl.dataset.v == total) requestAnimationFrame(tick); }; requestAnimationFrame(tick); }
     const rk = Game.rankFor(profile.xp), next = Game.xpToNextRank(profile.xp);
-    $('#rwRank').textContent = `Rang ${rk} · ${RANKS[rk].name}`; $('#rwXpEarned').textContent = `+${r.playerXp} XP`;
-    $('#rwXpBar').style.width = next === null ? '100%' : (100 * (profile.xp - RANKS[rk].xp) / (RANKS[rk + 1].xp - RANKS[rk].xp)).toFixed(0) + '%';
-    $('#rwRankUp').textContent = r.rankUp ? `Promotion : ${r.rankUp} !` : '';
+    $('#rwRank').innerHTML = `Rang <b>${rk}</b> · <span class="accent">${esc(RANKS[rk].name)}</span>`; $('#rwXpEarned').textContent = `+${r.playerXp} XP`;
+    const bar = $('#rwXpBar'); const target = next === null ? '100%' : (100 * (profile.xp - RANKS[rk].xp) / (RANKS[rk + 1].xp - RANKS[rk].xp)).toFixed(0) + '%';
+    bar.style.width = r.rankUp ? '0%' : Math.max(0, parseFloat(target) - (next === null ? 0 : 100 * r.playerXp / (RANKS[rk + 1].xp - RANKS[rk].xp))).toFixed(0) + '%';
+    requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = target; }));
+    $('#rwRankUp').textContent = r.rankUp ? `Promotion : ${r.rankUp} !` : (next === null ? 'Rang maximum' : `${next} XP avant le rang suivant`);
+    const kx = (result.teams[0].kills || 0) * 5, wx = r.won ? 30 : r.draw ? 10 : 0;   // même calcul que Game.applyRewards
+    $('#rwXpRows').innerHTML = [['Mission', r.playerXp - kx - wx], [r.won ? 'Victoire' : r.draw ? 'Égalité' : 'Défaite', wx], ['Neutralisations', kx]].map(([l, v]) => `<tr><td></td><td>${l}</td><td>${v} XP</td></tr>`).join('');
+    // blessés
+    const inj = (r.injured || []).map(n => `<div class="inj">✚ ${esc(n)}<span class="bad">Gravement blessé !</span></div>`).concat((r.healed || []).map(n => `<div class="inj">✓ ${esc(n)}<span class="good">Rétabli après repos</span></div>`));
+    $('#rwInjuries').innerHTML = inj.join(''); $('#rwInjSec').hidden = !inj.length;
+    // succès
+    const ACH_IMG = { premiere: 'ach_first', dix: 'ach_streak' };
+    $('#rwAch').innerHTML = (r.achievements || []).map(a => `<div class="achrow"><span class="achico">${(OT.imgTag && OT.imgTag(ACH_IMG[a.id])) || a.glyph}</span><div><b>${esc(a.name)}</b><small>${esc(a.desc)}</small></div><span class="achrw">${esc(a.rewardText || '')}</span></div>`).join('');
+    $('#rwAchSec').hidden = !(r.achievements && r.achievements.length);
     const extra = [];
-    if (r.levelUps && r.levelUps.length) extra.push('Promotions : ' + r.levelUps.map(l => `${l.callsign} → niveau ${l.level}`).join(', '));
-    if (r.injured && r.injured.length) extra.push('Gravement blessés (compétences ÷2 jusqu’aux soins) : ' + r.injured.join(', '));
+    if (r.levelUps && r.levelUps.length) extra.push('Niveaux : ' + r.levelUps.map(l => `${l.callsign} → niveau ${l.level}`).join(', '));
     if (r.leagueRank) extra.push(`Ligue : vous êtes ${r.leagueRank}${r.leagueRank === 1 ? 'er' : 'e'} au classement.`);
     if (r.promotions && r.promotions.length) extra.push('Promotion à choisir (fiche de l’opérateur) : ' + r.promotions.map(p => `${p.callsign} (niveau ${p.level})`).join(', '));
     if (r.expired && r.expired.length) extra.push('Contrat expiré, à renouveler : ' + r.expired.join(', '));
-    if (r.achievements && r.achievements.length) extra.push('Succès : ' + r.achievements.map(a => `${a.glyph} ${a.name}`).join(', '));
     $('#rwExtra').innerHTML = extra.map(esc).join('<br>');
+    // figure : le meilleur opérateur de la mission (le plus de neutralisations, puis de dégâts)
+    const best = result.teams[0].units.slice().sort((a, b) => (b.stats.kills - a.stats.kills) || (b.stats.damageDealt - a.stats.damageDealt))[0];
+    const bo = best && OPERATORS.find(o => o.id === best.id.split(':')[1]);
+    $('#rwFig').src = (bo && (() => { const st = profile.operators[bo.id]; const uni = DATA.UNIFORMS.find(u => u.id === profile.uniform) || DATA.UNIFORMS[0]; return OT.Portrait && OT.Portrait.render({ id: bo.id, weapon: st.weaponId, uniform: uni.uniform, vest: uni.vest, headgear: st.headgear || 'casque', full: true, w: 420, h: 640, aiming: r.won }); })()) || '';
     $('#rewards').classList.remove('hidden');
     // pièces qui tombent
-    for (let i = 0; i < Math.min(24, 6 + Math.floor(total / 25)); i++) { const c = document.createElement('div'); c.className = 'coinfx'; c.textContent = '●'; c.style.left = (20 + Math.random() * 60) + '%'; c.style.top = '10%'; c.style.animationDelay = (Math.random() * 0.8) + 's'; document.body.appendChild(c); setTimeout(() => c.remove(), 2400); }
+    for (let i = 0; i < Math.min(30, 8 + Math.floor(total / 20)); i++) { const c = document.createElement('div'); c.className = 'coinfx'; c.textContent = '●'; c.style.left = (35 + Math.random() * 55) + '%'; c.style.top = '8%'; c.style.animationDelay = (Math.random() * 1.1) + 's'; document.body.appendChild(c); setTimeout(() => c.remove(), 2800); }
   }
+
   $('#rwContinue').addEventListener('click', () => { $('#rewards').classList.add('hidden'); });
   $('#resetSave').addEventListener('click', () => {
     if ($('#resetSave').dataset.confirm !== '1') { $('#resetSave').dataset.confirm = '1'; $('#resetSave').textContent = 'Confirmer la réinitialisation'; setTimeout(() => { $('#resetSave').dataset.confirm = '0'; $('#resetSave').textContent = 'Réinitialiser'; }, 4000); return; }

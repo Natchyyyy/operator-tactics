@@ -194,6 +194,15 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
 check('sauvegarde puis rechargement identiques', Game.save(p, storage) && JSON.stringify(Game.load(storage)) === JSON.stringify(p));
 check('sans sauvegarde : null (le jeu repart d\'un profil neuf)', Game.load({ getItem: () => null }) === null);
 check('sauvegarde corrompue : null, sans planter', Game.load({ getItem: () => '{garbage' }) === null);
+{
+  // succès : la récompense est réellement accordée (crédits ou cosmétique)
+  const q = Game.newProfile(); const c0 = q.credits; q.career.wins = 1;
+  const got = Game.checkAchievements(q, null);
+  check('succès « Première victoire » : +100 crédits réellement versés, libellé affiché', got.some(a => a.id === 'premiere' && a.rewardText === '+100 crédits') && q.credits === c0 + 100, { got, credits: q.credits });
+  q.career.wins = 10; const g2 = Game.checkAchievements(q, null);
+  check('succès « Dix victoires » : le béret rouge est débloqué', g2.some(a => a.id === 'dix') && q.headgear.beret_rouge === true);
+  check('un succès n\'est accordé qu\'une fois', Game.checkAchievements(q, null).length === 0);
+}
 check('stockage indisponible : la sauvegarde échoue proprement', Game.save(p, { setItem: () => { throw new Error('quota'); } }) === false);
 check('réinitialisation : profil neuf et stockage vidé', Game.reset(storage).credits === 300 && storage.getItem(Game.SAVE_KEY) === null);
 console.log(`\n${pass}/${pass + fail} vérifications réussies`); process.exit(fail ? 1 : 0);

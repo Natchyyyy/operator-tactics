@@ -104,7 +104,7 @@ async def main():
         check("le titre du résultat correspond au vainqueur calculé", title.strip() == exp, (title, exp))
         check("le nom d'équipe personnalisé est utilisé en bataille", await pg.inner_text("#resName0") == "Les Faucons" or True)
         pct0 = await pg.inner_text("#resPct0"); check("l'état d'équipe affiché (%) est celui du résultat", pct0.strip() == str(res["teams"][0]["hpPct"]) + "%", (pct0, res["teams"][0]["hpPct"]))
-        sp = await pg.evaluate("() => document.querySelectorAll('#resSpecials .l').length"); check("les « spéciaux » sont affichés (5 lignes)", sp == 5, sp)
+        sp = await pg.evaluate("() => [document.querySelectorAll('#resSpecials .l').length, document.querySelector('#resSpecials').textContent]"); check("neutralisations + 5 spéciaux affichés (tête, séries, groupe, revanches, vétérans)", sp[0] == 6 and 'De groupe' in sp[1], sp)
         rows = await pg.evaluate("() => document.querySelectorAll('#resTables tbody tr').length"); check("10 lignes dans les tableaux de résultat", rows == 10, rows)
         # cohérence interface ↔ simulation : compteur d'opérateurs en état
         b0 = await pg.inner_text("#tpct0"); b1 = await pg.inner_text("#tpct1")

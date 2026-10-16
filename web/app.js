@@ -662,9 +662,23 @@
     const r = battle.result;
     const title = r.winner === -1 ? 'Égalité' : (r.winner === 0 ? 'Victoire' : 'Défaite');
     $('#resTitle').textContent = title; $('#resTitle').className = r.winner === -1 ? '' : 'team' + r.winner;
-    r.teams.forEach((t, ti) => { $('#resName' + ti).textContent = t.name; $('#resPct' + ti).textContent = t.hpPct + '%'; $('#resIns' + ti).textContent = insigniaGlyph(battle.teams[ti]); });
-    const sp = [['Neutralisations', 'kills'], ['Tirs à la tête', 'headshots'], ['Séries', 'streaks'], ['Revanches', 'revenge'], ['Vétérans abattus', 'veteran']];
-    $('#resSpecials').innerHTML = sp.map(([label, k]) => { const v = (ti) => k === 'kills' ? r.teams[ti].kills : r.teams[ti].specials[k]; return `<span class="l">${v(0)}</span><span class="m">${label}</span><span class="r">${v(1)}</span>`; }).join('');
+    r.teams.forEach((t, ti) => { $('#resName' + ti).textContent = t.name; $('#resPct' + ti).textContent = t.hpPct + '%'; $('#resPct' + ti).title = 'Vie restante de l\u2019équipe'; $('#resIns' + ti).textContent = insigniaGlyph(battle.teams[ti]); });
+    const row = (label, v0, v1) => `<span class="l">${v0}</span><span class="m">${label}</span><span class="r">${v1}</span>`;
+    let html = '';
+    if (battle.zone) html += row('Zone capturée', r.teams[0].capture + ' %', r.teams[1].capture + ' %');
+    html += row('Neutralisations', r.teams[0].kills, r.teams[1].kills) + '<span class="head">SPÉCIAUX</span>';
+    for (const [label, k] of [['Tirs à la tête', 'headshots'], ['Séries', 'streaks'], ['De groupe', 'group'], ['Revanches', 'revenge'], ['Vétérans abattus', 'veteran']]) html += row(label, r.teams[0].specials[k] || 0, r.teams[1].specials[k] || 0);
+    $('#resSpecials').innerHTML = html;
+    // figures : le meilleur opérateur de chaque équipe, en pied (le perdant baisse son arme)
+    r.teams.forEach((t, ti) => {
+      const best = t.units.slice().sort((a, b) => (b.stats.kills - a.stats.kills) || (b.stats.damageDealt - a.stats.damageDealt))[0];
+      const u = best && battle.units.find(x => x.id === best.id), img = $('#resFig' + ti);
+      if (!u || !OT.Portrait) { img.removeAttribute('src'); return; }
+      let fac = DATA.FACTIONS[u.def.faction || 'allied'] || DATA.FACTIONS.allied; const td = battle.teams[ti]; if (!u.def.faction && td.uniform) { const uni = DATA.UNIFORMS.find(x => x.id === td.uniform); if (uni) fac = uni; }
+      const won = r.winner === ti;
+      img.src = OT.Portrait.render({ id: u.def.id, weapon: u.weapon.id, uniform: fac.uniform, vest: fac.vest, headgear: u.def.headgear || (u.def.faction ? 'casque_lunettes' : 'casque'), full: true, w: 420, h: 640, aiming: won }) || '';
+      img.classList.toggle('lost', r.winner !== -1 && !won);
+    });
     let reward = '';
     if (mode === 'mission' && mission) { const rw = OT.Game.computeRewards(window.HQ.profile(), mission, r); reward = ` Récompenses au retour : +${rw.credits} crédits, ${Object.values(rw.xp).reduce((a, b) => a + b, 0)} XP répartis.`; }
     $('#resReason').textContent = `${r.reason} Durée : ${fmtT(r.duration)}. Carte : ${r.map}. Graine ${r.seed}.${reward}`;

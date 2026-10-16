@@ -228,7 +228,7 @@
     const won = result.winner === 0, draw = result.winner === -1;
     const base = Math.round(mission.reward * (won ? 1 : draw ? 0.5 : 0.3));
     const kills = result.teams[0].kills || 0; const sp = result.teams[0].specials || {};
-    const specials = (sp.headshots || 0) + (sp.streaks || 0) + (sp.revenge || 0) + (sp.veteran || 0);
+    const specials = (sp.headshots || 0) + (sp.streaks || 0) + (sp.revenge || 0) + (sp.veteran || 0) + (sp.group || 0);
     const credits = base + kills * 8 + specials * 6;
     const xp = {};
     for (const u of result.teams[0].units) {
@@ -323,8 +323,17 @@
   };
   function checkAchievements(profile, result) {
     const got = []; profile.achievements = profile.achievements || {};
-    for (const a of ACHIEVEMENTS) { if (profile.achievements[a.id]) continue; if (ACHIEVEMENT_CHECKS[a.id](profile, result)) { profile.achievements[a.id] = true; got.push(a); } }
+    for (const a of ACHIEVEMENTS) { if (profile.achievements[a.id]) continue; if (ACHIEVEMENT_CHECKS[a.id](profile, result)) { profile.achievements[a.id] = true; got.push(Object.assign({}, a, { rewardText: grantAchievementReward(profile, a.reward) })); } }
     return got;
+  }
+  // Récompense d'un succès (crédits ou cosmétique) ; renvoie un libellé. Un cosmétique déjà possédé est converti en crédits.
+  function grantAchievementReward(profile, rw) {
+    if (!rw) return '';
+    if (rw.credits) { profile.credits += rw.credits; return `+${rw.credits} crédits`; }
+    if (rw.headgear) { if (profile.headgear[rw.headgear]) { profile.credits += 80; return '+80 crédits (couvre-chef déjà possédé)'; } profile.headgear[rw.headgear] = true; return `Couvre-chef : ${rw.headgear.replace(/_/g, ' ')}`; }
+    if (rw.insignia) { const L = profile.unlocked.insignias; if (L.includes(rw.insignia)) { profile.credits += 80; return '+80 crédits (insigne déjà possédé)'; } L.push(rw.insignia); return `Insigne : ${(INSIGNIAS.find(i => i.id === rw.insignia) || {}).name}`; }
+    if (rw.uniform) { const L = profile.unlocked.uniforms; if (L.includes(rw.uniform)) { profile.credits += 80; return '+80 crédits (uniforme déjà possédé)'; } L.push(rw.uniform); return `Uniforme : ${(UNIFORMS.find(u => u.id === rw.uniform) || {}).name}`; }
+    return '';
   }
 
   // ---- Sauvegarde locale (navigateur) ----------------------------------------------------
