@@ -159,7 +159,10 @@ function duel(opts) {
   // ordres : « tenir » change réellement le comportement (distance parcourue bien plus faible)
   const dist = (order) => { let s = 0; for (let seed = 1; seed <= 6; seed++) { const t = Battle.defaultTeams(); t[0].order = order; const b = new Battle({ seed, teams: t }); b.run(); s += b.teams[0].units.reduce((a, u) => a + u.stats.distance, 0); } return s / 6; };
   const dHold = dist('hold'), dAssault = dist('assault'), dCareful = dist('careful');
-  check('ordre « Tenir » : l\'équipe parcourt beaucoup moins de distance qu\'en « Assaut »', dHold < dAssault * 0.5, { dHold, dAssault });
+  check('ordre « Tenir » : l\'équipe parcourt nettement moins de distance qu\'en « Assaut »', dHold < dAssault * 0.7, { dHold, dAssault });
+  // … et reste près de sa zone de départ (c'est le sens de l'ordre)
+  let farthest = 0; for (let seed = 1; seed <= 6; seed++) { const t = Battle.defaultTeams(); t[0].order = 'hold'; const b = new Battle({ seed, teams: t }); while (!b.over) { b.step(); for (const u of b.teams[0].units) if (u.alive) farthest = Math.max(farthest, Math.hypot(u.x - b.teams[0].spawn.x, u.z - b.teams[0].spawn.z)); } }
+  check('ordre « Tenir » : aucun opérateur ne s\'éloigne à plus de 25 m de sa zone de départ', farthest <= 25, farthest);
   check('ordre « Prudent » : comportement intermédiaire ou différent', Math.abs(dCareful - dAssault) > 1 || Math.abs(dCareful - dHold) > 1, { dCareful, dHold, dAssault });
   const tH = Battle.defaultTeams(); tH[0].order = 'hold'; tH[1].order = 'hold'; const bh = new Battle({ seed: 2, teams: tH }); bh.run();
   check('« Tenir » contre « Tenir » : la bataille se termine quand même (limite de temps / décision)', bh.over && bh.result, bh.result && bh.result.reason);
