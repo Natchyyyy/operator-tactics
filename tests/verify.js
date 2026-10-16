@@ -127,9 +127,10 @@ function duel(opts) {
   const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
   check('les plaques lourdes réduisent les dégâts au torse par rapport au gilet léger (carabine)', dmg.light.length > 5 && dmg.heavy.length > 5 && mean(dmg.heavy) < mean(dmg.light) * 0.7, { light: mean(dmg.light), heavy: mean(dmg.heavy), n: [dmg.light.length, dmg.heavy.length] });
   // … et un coût en mobilité
-  const b0 = results[0].b; const light = b0.units.find(u => u.armor.id === 'light'), heavy = b0.units.find(u => u.armor.id === 'heavy');
+  const b0 = new Battle({ seed: 1 }); const light = b0.units.find(u => u.armor.id === 'light'), heavy = b0.units.find(u => u.armor.id === 'heavy');
   const heavyBase = DATA.ARMORS.heavy.mobility, lightBase = DATA.ARMORS.light.mobility;
-  check('les plaques lourdes ralentissent (multiplicateur de vitesse plus faible)', heavyBase < lightBase && heavy.speed() / (1.5 + heavy.def.mobility / 100 * 1.4) < light.speed() / (1.5 + light.def.mobility / 100 * 1.4));
+  // à statistique de mobilité égale, la vitesse réelle (speed) est plus faible avec des plaques lourdes
+  check('les plaques lourdes ralentissent (vitesse réelle plus faible à mobilité égale)', heavyBase < lightBase && heavy.speed() / (1.5 + heavy.def.mobility / 100 * 1.4) < light.speed() / (1.5 + light.def.mobility / 100 * 1.4) - 0.1);
 }
 {
   // armes : avantages et inconvénients réels (chance de toucher et dégâts selon la distance)
