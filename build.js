@@ -8,6 +8,8 @@ html = html.replace('<script src="three.min.js"></script>', inline('web/three.mi
   .replace('<script src="../sim/data.js"></script>', inline('sim/data.js'))
   .replace('<script src="../sim/map.js"></script>', inline('sim/map.js'))
   .replace('<script src="../sim/engine.js"></script>', inline('sim/engine.js'))
+  .replace('<script src="../sim/game.js"></script>', inline('sim/game.js'))
+  .replace('<script src="hq.js"></script>', inline('web/hq.js'))
   .replace('<script src="app.js"></script>', inline('web/app.js'));
 if (/<script src=/.test(html)) throw new Error('un script externe reste dans la page');
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });

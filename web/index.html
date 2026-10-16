@@ -8,6 +8,7 @@
   /* Une seule identité visuelle, sombre (poste de commandement) : fond anthracite bleuté, accent laiton, équipes bleu / orange. */
   :root { color-scheme: dark; --bg: #0e1114; --panel: #151a1f; --panel2: #1b2128; --line: #262e37; --text: #d7dde3; --muted: #8a95a1; --accent: #c9a84a; --a0: #5aa0ea; --a1: #f0a04a; --ok: #5fc46a; --warn: #e0b03a; --bad: #d9543c; }
   * { box-sizing: border-box; }
+  .hidden { display: none !important; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.35 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; overflow: hidden; }
   #app { display: grid; grid-template-rows: 48px 1fr 170px; grid-template-columns: 250px 1fr 250px; height: 100%; }
   header { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; }
@@ -59,13 +60,69 @@
   table.res thead tr:first-child th { color: var(--text); font-size: 13px; padding-bottom: 6px; } table.res.team0 thead tr:first-child th { color: var(--a0); } table.res.team1 thead tr:first-child th { color: var(--a1); }
   table.res td { padding: 4px 5px; border-bottom: 1px solid #1d242b; } table.res td small { color: var(--muted); } table.res tr.dead td { color: var(--muted); }
   .actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
-  #help .dialog { max-width: 620px; } #help ul { margin: 0; padding-left: 18px; color: #c4ccd5; } #help li { margin: 4px 0; }
+  #help { position: fixed; } #help .dialog { max-width: 620px; } #help ul { margin: 0; padding-left: 18px; color: #c4ccd5; } #help li { margin: 4px 0; }
   @media (max-width: 1100px) { #app { grid-template-columns: 200px 1fr 200px; } .cunit { display: none; } }
   @media (max-width: 800px) { #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr 140px; } aside { display: none; } header { flex-wrap: wrap; white-space: normal; padding: 6px 12px; gap: 6px; height: auto; } .spacer { display: none; } }
+
+  /* ---- Quartier général ---- */
+  .screen.hidden { display: none !important; }
+  #hq { display: grid; grid-template-rows: 48px 1fr; height: 100%; }
+  #hq header .cred { font-weight: 700; color: var(--accent); font-size: 15px; } #hq header .career { color: var(--muted); font-size: 12px; }
+  .hqgrid { display: grid; grid-template-columns: 300px 1fr 360px; gap: 12px; padding: 12px; min-height: 0; }
+  .hqcol { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; overflow-y: auto; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .hqcol h3 { margin: 0 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+  .opcard { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; cursor: pointer; }
+  .opcard:hover { border-color: var(--muted); } .opcard.sel { border-color: var(--accent); } .opcard.locked { opacity: 0.6; } .opcard.insquad { background: #1d2a1f; }
+  .rar { font-size: 10px; border-radius: 4px; padding: 1px 5px; letter-spacing: 0.05em; background: #2a333d; color: #b7c2cd; } .rar.r2 { background: #243a52; color: #9fc8f5; } .rar.r3 { background: #4a3a1a; color: #f0c76a; }
+  .xp { height: 4px; background: #0b0e11; border-radius: 2px; overflow: hidden; margin: 4px 0 6px; } .xp i { display: block; height: 100%; background: var(--accent); }
+  button.mini { padding: 3px 8px; font-size: 11px; } button:disabled { opacity: 0.45; cursor: default; }
+  .dhead { display: flex; align-items: center; gap: 12px; } .dname { font-size: 18px; font-weight: 700; } .dname small { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
+  .role.big { font-size: 14px; padding: 8px 10px; } .lvl { margin-left: auto; text-align: right; font-weight: 700; } .lvl small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; margin: 6px 0; }
+  .stat { display: grid; grid-template-columns: 84px 1fr 60px; align-items: center; gap: 8px; font-size: 12px; } .stat .val { text-align: right; font-variant-numeric: tabular-nums; } .stat small { color: var(--ok); }
+  .sbar { position: relative; height: 8px; background: #0b0e11; border-radius: 4px; overflow: hidden; } .sbar i { display: block; height: 100%; background: #6f8aa6; } .sbar b { position: absolute; top: 0; height: 100%; background: var(--ok); }
+  .equip { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; } .equip label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; } .equip select { text-transform: none; letter-spacing: 0; }
+  .wspec { font-size: 11px; color: var(--muted); align-self: end; padding-bottom: 6px; }
+  .muted { color: var(--muted); }
+  .squad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; } .slot { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px; font-size: 11px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; min-width: 0; } .slot b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .slot.sel { border-color: var(--accent); } .slot.empty { justify-content: center; align-items: center; color: var(--muted); border-style: dashed; }
+  .prep { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .prep label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; } .prep select { text-transform: none; letter-spacing: 0; }
+  .mission { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; cursor: pointer; } .mission:hover { border-color: var(--muted); } .mission.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .mission .diff { margin-left: auto; color: var(--accent); letter-spacing: 2px; } .mdesc { font-size: 12px; color: #c4ccd5; margin: 4px 0; }
+  #launch { font-size: 15px; padding: 12px; } #launchHint { font-size: 11px; color: var(--muted); text-align: center; }
+  #hqRewards { background: #1d2a1f; border: 1px solid #2d4a33; border-radius: 8px; padding: 8px 10px; font-size: 12px; } #hqRewards .good { color: var(--ok); } #hqRewards .bad { color: var(--bad); }
+  #flash { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--accent); color: #111; padding: 8px 14px; border-radius: 8px; font-weight: 600; z-index: 30; box-shadow: 0 8px 30px #000a; }
+  @media (max-width: 1100px) { .hqgrid { grid-template-columns: 1fr 1fr; } .hqcol.detail { grid-column: 1 / -1; order: 3; } }
+  @media (max-width: 800px) { .hqgrid { grid-template-columns: 1fr; } .hqcol.detail { grid-column: auto; } .stats, .equip, .prep { grid-template-columns: 1fr; } .squad { grid-template-columns: repeat(3, 1fr); } }
 </style>
 </head>
 <body>
-<div id="app">
+<div id="hq" class="screen">
+  <header>
+    <h1>OPERATOR TACTICS <small>Quartier général</small></h1>
+    <span class="cred"><span id="credits">0</span> crédits</span>
+    <span class="career" id="career"></span>
+    <div class="spacer"></div>
+    <button id="freeBattle" title="Bataille d'entraînement sans récompense, avec graine et ordres libres">Bataille libre</button>
+    <button id="resetSave">Réinitialiser</button>
+    <button id="hqHelp" title="Aide">?</button>
+  </header>
+  <div class="hqgrid">
+    <section class="hqcol"><h3>Opérateurs</h3><div id="hqRoster" style="display:flex;flex-direction:column;gap:6px"></div></section>
+    <section class="hqcol detail"><h3>Fiche</h3><div id="hqDetail"></div>
+      <h3 style="margin-top:8px">Escouade</h3><div class="squad" id="hqSquad"></div>
+      <div class="prep">
+        <label>Ordre <select id="selOrder"><option value="assault">Assaut — aller au contact</option><option value="hold">Tenir — se poster, tirer à vue</option><option value="careful">Prudent — de couvert en couvert</option></select></label>
+        <label>Formation (voies) <select id="selFormation"><option value="">Appliquer…</option><option value="ligne">Ligne (nord, centre, sud, nord, sud)</option><option value="nord">Tout par le nord</option><option value="sud">Tout par le sud</option><option value="coin">Coin (centre renforcé)</option><option value="tenailles">Tenailles (deux par flanc)</option><option value="auto">Automatique</option></select></label>
+      </div>
+    </section>
+    <section class="hqcol"><h3>Missions</h3><div id="hqMissions" style="display:flex;flex-direction:column;gap:6px"></div>
+      <div id="hqRewards" class="hidden"></div>
+      <button id="launch" class="on">Lancer la mission</button><div id="launchHint"></div>
+    </section>
+  </div>
+</div>
+<div id="flash" class="hidden"></div>
+<div id="app" class="screen hidden">
   <header>
     <h1>OPERATOR TACTICS <small id="mapLabel"></small></h1>
     <div class="group"><label>Alpha</label>
@@ -75,6 +132,8 @@
     <div class="group"><label>Graine</label><input id="seed" placeholder="aléatoire"></div>
     <button id="newBattle">Nouvelle bataille</button>
     <button id="replay" title="Rejouer la même graine avec les ordres choisis">Rejouer</button>
+    <span id="missionLabel" class="muted" hidden></span>
+    <button id="toHq">Quartier général</button>
     <div class="spacer"></div>
     <span class="alive team0" id="alive0">5</span><span class="clock" id="clock">0:00.0</span><span class="alive team1" id="alive1">5</span>
     <div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div>
@@ -88,7 +147,7 @@
     <div id="result" class="overlay hidden"><div class="dialog">
       <h2 id="resTitle"></h2><p id="resReason"></p>
       <div id="resTables"></div>
-      <div class="actions"><button id="resClose">Revoir la scène</button><button id="resReplay">Rejouer cette graine</button><button id="resNew" class="on">Nouvelle bataille</button></div>
+      <div class="actions"><button id="resClose">Revoir la scène</button><button id="resReplay">Rejouer cette graine</button><button id="resNew">Nouvelle bataille</button><button id="resHq" class="on">Retour au QG</button></div>
     </div></div>
     <div id="help" class="overlay hidden"><div class="dialog">
       <h2>Comment ça marche</h2>
@@ -98,6 +157,7 @@
         <li><b>Graine</b> : le même nombre rejoue exactement la même bataille. Vide = aléatoire.</li>
         <li><b>Caméra</b> : glisser pour tourner, molette pour zoomer, clic droit ou Maj+glisser pour déplacer. Cliquer sur une carte d'opérateur pour le suivre. Espace : pause.</li>
         <li><b>Rôles</b> : AS assaut (carabine), PT pointe (pistolet-mitrailleur), TE tireur d'élite, AP appui (mitrailleuse), BR brèche (fusil à pompe). Barre orange sous la vie : suppression.</li>
+        <li><b>Quartier général</b> : choisissez 5 opérateurs, leur arme, leur protection et leur voie d'approche, un ordre et une mission. La victoire rapporte des crédits (recrutement) et de l'expérience (+2 à chaque statistique par niveau, jusqu'au niveau 10). La progression est sauvegardée dans ce navigateur.</li>
       </ul>
       <div class="actions"><button onclick="document.getElementById('help').classList.add('hidden')" class="on">Fermer</button></div>
     </div></div>
@@ -110,6 +170,8 @@
 <script src="../sim/data.js"></script>
 <script src="../sim/map.js"></script>
 <script src="../sim/engine.js"></script>
+<script src="../sim/game.js"></script>
+<script src="hq.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

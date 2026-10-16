@@ -94,9 +94,10 @@
       const sp = team.spawn, enemy = this.map.spawns[1 - ti];
       const face = Math.atan2(enemy.z - sp.z, enemy.x - sp.x);
       team.units.forEach((u, i) => {
-        // dispersés en arc autour du centre de la zone de départ
+        // dispersés autour du centre de la zone de départ, du côté de leur voie (nord / centre / sud)
         const a = ((i - 2) / 2) * 1.1, r = sp.r * (i % 2 ? 0.9 : 0.5);
-        let x = sp.x + Math.cos(a + face + Math.PI) * r * 0.6, z = sp.z + Math.sin(a) * sp.r;
+        const laneZ = this.laneOf(u);
+        let x = sp.x + Math.cos(a + face + Math.PI) * r * 0.6, z = sp.z + laneZ * 0.25 + ((i % 3) - 1) * 0.9;
         const free = this.map.nearestFree(x, z); if (free) { const c = this.map.centerOf(free.c, free.r); x = c.x; z = c.z; }
         u.x = x; u.z = z; u.facing = face; u.home = { x, z };
         u.lastProgress = { x, z, t: 0 };
@@ -104,6 +105,9 @@
     });
   };
 
+  // Voie d'approche d'un opérateur : décalage latéral (m) par rapport à l'axe des zones de départ.
+  // def.lane : -1 (nord), 0 (centre), 1 (sud) choisi par le joueur ; sinon répartition automatique.
+  Battle.prototype.laneOf = function (u) { return u.def.lane !== undefined && u.def.lane !== null ? u.def.lane * 11 : (u.idx - 2) * 5.5; };
   Battle.prototype.logEvent = function (kind, text, data) {
     const e = Object.assign({ t: Math.round(this.t * 10) / 10, time: fmtT(this.t), kind, text }, data || {});
     this.log.push(e); return e;
@@ -450,7 +454,7 @@
     // 3) aucune information : se déployer / avancer vers l'objectif
     if (order === 'hold') { this.holdPost(u, objective); return; }
     // chaque opérateur avance sur sa propre « voie » (décalage latéral) pour ne pas se regrouper
-    const lane = (u.idx - 2) * 5.5;
+    const lane = this.laneOf(u);
     const dirx = Math.sign(objective.x - home.x) || 1;
     const progress = (u.x - home.x) * dirx;
     const span = Math.abs(objective.x - home.x);

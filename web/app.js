@@ -328,6 +328,17 @@
   // ---------------------------------------------------------------------------------------------
   // Commandes
   // ---------------------------------------------------------------------------------------------
+  // Deux modes : « mission » (lancée depuis le QG, récompenses à la fin) et « libre » (graine et ordres au choix, sans récompense).
+  let mode = 'free', mission = null, rewardsApplied = false;
+  function setMode(m, mis) {
+    mode = m; mission = mis || null; rewardsApplied = false;
+    const free = m === 'free';
+    for (const id of ['order0', 'order1', 'seed', 'newBattle', 'replay', 'resReplay', 'resNew']) $('#' + id).hidden = !free;
+    document.querySelectorAll('header .group').forEach(g => { if (g.querySelector('#order0, #order1, #seed')) g.hidden = !free; });
+    $('#missionLabel').hidden = free; if (!free) $('#missionLabel').textContent = `Mission : ${mis.name}`;
+    $('#toHq').textContent = free ? 'Quartier général' : 'Abandonner';
+    $('#resHq').textContent = free ? 'Quartier général' : 'Retour au QG';
+  }
   function updatePlayButton() { $('#play').textContent = paused ? '▶ Lancer' : '❚❚ Pause'; $('#play').classList.toggle('on', !paused); }
   function optsFromForm() {
     const teams = Battle.defaultTeams();
@@ -343,6 +354,16 @@
   $('#resNew').addEventListener('click', () => { $('#seed').value = ''; newBattle(optsFromForm()); paused = false; updatePlayButton(); });
   $('#resReplay').addEventListener('click', () => { const o = optsFromForm(); o.seed = battle.seed; newBattle(o); paused = false; updatePlayButton(); });
   $('#resClose').addEventListener('click', () => $('#result').classList.add('hidden'));
+  function goHq() {
+    paused = true; updatePlayButton(); $('#result').classList.add('hidden');
+    if (mode === 'mission' && battle.over && !rewardsApplied) { rewardsApplied = true; window.HQ.finishMission(mission, battle.result); }
+    window.HQ.show();
+  }
+  $('#toHq').addEventListener('click', goHq);
+  $('#resHq').addEventListener('click', goHq);
+  $('#freeBattle').addEventListener('click', () => { setMode('free'); window.HQ.hide(); newBattle(optsFromForm()); });
+  $('#hqHelp').addEventListener('click', () => { $('#help').classList.toggle('hidden'); });
+  window.HQ.onLaunch = (opts, mis) => { setMode('mission', mis); window.HQ.hide(); newBattle(opts); paused = false; updatePlayButton(); };
   $('#toggleHelp').addEventListener('click', () => $('#help').classList.toggle('hidden'));
   window.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.target.matches('input,select')) { e.preventDefault(); $('#play').click(); } });
 
@@ -369,7 +390,9 @@
   // Démarrage
   // ---------------------------------------------------------------------------------------------
   $('#seed').value = params.get('seed') || '';
+  setMode('free');
   newBattle(optsFromForm());
+  if (!MANUAL && params.get('mode') !== 'free') window.HQ.show();
   if (MANUAL) {
     window.API = {
       step: (n, dt) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; render(); return battle.t; },

@@ -14,6 +14,37 @@ async def main():
         pg.on("console", lambda m: errs.append(f"console.{m.type}: {m.text}") if m.type == "error" else None)
         url = sys.argv[1] + ("&" if "?" in sys.argv[1] else "?") + "seed=3"
         await pg.goto(url, timeout=120000); await pg.wait_for_function("window.PRET", timeout=60000)
+        # ---- Quartier général : la page s'ouvre sur le QG, profil neuf ----
+        check("la page s'ouvre sur le quartier général", await pg.is_visible("#hq") and not await pg.is_visible("#app"))
+        check("300 crédits et 5 opérateurs débloqués au départ", (await pg.inner_text("#credits")) == "300" and await pg.evaluate("() => document.querySelectorAll('.opcard:not(.locked)').length") == 5)
+        # équiper Lynx d'un fusil à pompe depuis la fiche
+        await pg.click(".opcard[data-id='op_lynx']"); await pg.select_option("#selWeapon", "shotgun"); await pg.wait_for_timeout(100)
+        check("le changement d'arme est enregistré dans le profil", await pg.evaluate("() => window.HQ.profile().operators.op_lynx.weaponId") == "shotgun")
+        await pg.select_option("#selFormation", "nord"); await pg.wait_for_timeout(100)
+        check("la formation « nord » assigne la voie nord", await pg.evaluate("() => window.HQ.profile().squad.every(id => window.HQ.profile().operators[id].lane === -1)"))
+        saved = await pg.evaluate("() => { try { return !!localStorage.getItem('operator-tactics-save-v1'); } catch (e) { return 'indispo'; } }")
+        check("la progression est sauvegardée dans le navigateur", saved is True, saved)
+        # lancer la première mission
+        await pg.click(".mission[data-id='patrouille']"); await pg.click("#launch"); await pg.wait_for_timeout(300)
+        check("la mission ouvre l'écran de bataille", await pg.is_visible("#app") and not await pg.is_visible("#hq"))
+        check("Lynx porte bien le fusil à pompe dans la bataille", await pg.evaluate("() => window.API.battle().units.find(u => u.callsign === 'Lynx').weapon.id") == "shotgun")
+        check("l'ennemi de la mission est celui annoncé (ordre Assaut, 5 opérateurs)", await pg.evaluate("() => window.API.battle().teams[1].order === 'assault' && window.API.battle().teams[1].units.length === 5"))
+        await pg.click("[data-speed='4']")
+        await pg.wait_for_function("() => window.API.battle().over", timeout=400000); await pg.wait_for_timeout(500)
+        res_m = await pg.evaluate("() => window.API.battle().result")
+        await pg.click("#resHq"); await pg.wait_for_timeout(300)
+        prof = await pg.evaluate("() => window.HQ.profile()")
+        exp_credits = 300 + round(180 * (1 if res_m["winner"] == 0 else 0.5 if res_m["winner"] == -1 else 0.3))
+        check("retour au QG : crédits créditées selon l'issue réelle", prof["credits"] == exp_credits, (prof["credits"], exp_credits, res_m["winner"]))
+        check("chaque opérateur engagé a gagné de l'expérience et une bataille à son compteur", all(prof["operators"][i]["xp"] > 0 and prof["operators"][i]["battles"] == 1 for i in prof["squad"]))
+        check("le bilan de mission s'affiche au QG", await pg.is_visible("#hqRewards"))
+        # rechargement de la page : la progression est conservée
+        await pg.reload(); await pg.wait_for_function("window.PRET", timeout=60000)
+        check("après rechargement, la progression est conservée", (await pg.inner_text("#credits")) == str(exp_credits))
+        # ---- Bataille libre (graine fixée) ----
+        await pg.click("#freeBattle"); await pg.wait_for_timeout(200)
+        await pg.fill("#seed", "3"); await pg.click("#newBattle"); await pg.wait_for_timeout(200)
+        await pg.click("#play"); await pg.wait_for_timeout(100)  # « Nouvelle bataille » lance tout de suite ; on met en pause pour tester ▶ ci-dessous
         check("la page a un titre", (await pg.title()) == "Operator Tactics", await pg.title())
         check("la scène 3D est là (canvas WebGL)", await pg.evaluate("() => !!document.querySelector('#scene').getContext('webgl2') || !!document.querySelector('#scene').getContext('webgl')"))
         n = await pg.evaluate("() => document.querySelectorAll('.card').length"); check("10 cartes d'opérateurs affichées", n == 10, n)
@@ -40,7 +71,7 @@ async def main():
         check("journal = statistiques (touchés)", hits_log == hits_stats, (hits_log, hits_stats))
         await pg.screenshot(path="captures/verif-resultat.png")
         # rejouer la même graine : même vainqueur
-        await pg.click("#resReplay"); await pg.wait_for_timeout(300)
+        await pg.click("#resReplay"); await pg.wait_for_timeout(300); await pg.click("#play"); await pg.wait_for_timeout(100); await pg.click("#play")
         await pg.evaluate("() => window.API.step(5)")
         same = await pg.evaluate("() => window.API.battle().seed"); check("« Rejouer cette graine » relance la même graine", same == res["seed"], (same, res["seed"]))
         # changer l'ordre d'Alpha en Tenir et relancer : l'ordre est bien transmis à la simulation

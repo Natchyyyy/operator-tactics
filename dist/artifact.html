@@ -3,6 +3,7 @@
   /* Une seule identité visuelle, sombre (poste de commandement) : fond anthracite bleuté, accent laiton, équipes bleu / orange. */
   :root { color-scheme: dark; --bg: #0e1114; --panel: #151a1f; --panel2: #1b2128; --line: #262e37; --text: #d7dde3; --muted: #8a95a1; --accent: #c9a84a; --a0: #5aa0ea; --a1: #f0a04a; --ok: #5fc46a; --warn: #e0b03a; --bad: #d9543c; }
   * { box-sizing: border-box; }
+  .hidden { display: none !important; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.35 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; overflow: hidden; }
   #app { display: grid; grid-template-rows: 48px 1fr 170px; grid-template-columns: 250px 1fr 250px; height: 100%; }
   header { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; }
@@ -54,11 +55,67 @@
   table.res thead tr:first-child th { color: var(--text); font-size: 13px; padding-bottom: 6px; } table.res.team0 thead tr:first-child th { color: var(--a0); } table.res.team1 thead tr:first-child th { color: var(--a1); }
   table.res td { padding: 4px 5px; border-bottom: 1px solid #1d242b; } table.res td small { color: var(--muted); } table.res tr.dead td { color: var(--muted); }
   .actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
-  #help .dialog { max-width: 620px; } #help ul { margin: 0; padding-left: 18px; color: #c4ccd5; } #help li { margin: 4px 0; }
+  #help { position: fixed; } #help .dialog { max-width: 620px; } #help ul { margin: 0; padding-left: 18px; color: #c4ccd5; } #help li { margin: 4px 0; }
   @media (max-width: 1100px) { #app { grid-template-columns: 200px 1fr 200px; } .cunit { display: none; } }
   @media (max-width: 800px) { #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr 140px; } aside { display: none; } header { flex-wrap: wrap; white-space: normal; padding: 6px 12px; gap: 6px; height: auto; } .spacer { display: none; } }
+
+  /* ---- Quartier général ---- */
+  .screen.hidden { display: none !important; }
+  #hq { display: grid; grid-template-rows: 48px 1fr; height: 100%; }
+  #hq header .cred { font-weight: 700; color: var(--accent); font-size: 15px; } #hq header .career { color: var(--muted); font-size: 12px; }
+  .hqgrid { display: grid; grid-template-columns: 300px 1fr 360px; gap: 12px; padding: 12px; min-height: 0; }
+  .hqcol { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; overflow-y: auto; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .hqcol h3 { margin: 0 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+  .opcard { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; cursor: pointer; }
+  .opcard:hover { border-color: var(--muted); } .opcard.sel { border-color: var(--accent); } .opcard.locked { opacity: 0.6; } .opcard.insquad { background: #1d2a1f; }
+  .rar { font-size: 10px; border-radius: 4px; padding: 1px 5px; letter-spacing: 0.05em; background: #2a333d; color: #b7c2cd; } .rar.r2 { background: #243a52; color: #9fc8f5; } .rar.r3 { background: #4a3a1a; color: #f0c76a; }
+  .xp { height: 4px; background: #0b0e11; border-radius: 2px; overflow: hidden; margin: 4px 0 6px; } .xp i { display: block; height: 100%; background: var(--accent); }
+  button.mini { padding: 3px 8px; font-size: 11px; } button:disabled { opacity: 0.45; cursor: default; }
+  .dhead { display: flex; align-items: center; gap: 12px; } .dname { font-size: 18px; font-weight: 700; } .dname small { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
+  .role.big { font-size: 14px; padding: 8px 10px; } .lvl { margin-left: auto; text-align: right; font-weight: 700; } .lvl small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; margin: 6px 0; }
+  .stat { display: grid; grid-template-columns: 84px 1fr 60px; align-items: center; gap: 8px; font-size: 12px; } .stat .val { text-align: right; font-variant-numeric: tabular-nums; } .stat small { color: var(--ok); }
+  .sbar { position: relative; height: 8px; background: #0b0e11; border-radius: 4px; overflow: hidden; } .sbar i { display: block; height: 100%; background: #6f8aa6; } .sbar b { position: absolute; top: 0; height: 100%; background: var(--ok); }
+  .equip { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; } .equip label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; } .equip select { text-transform: none; letter-spacing: 0; }
+  .wspec { font-size: 11px; color: var(--muted); align-self: end; padding-bottom: 6px; }
+  .muted { color: var(--muted); }
+  .squad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; } .slot { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px; font-size: 11px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; min-width: 0; } .slot b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .slot.sel { border-color: var(--accent); } .slot.empty { justify-content: center; align-items: center; color: var(--muted); border-style: dashed; }
+  .prep { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .prep label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; } .prep select { text-transform: none; letter-spacing: 0; }
+  .mission { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; cursor: pointer; } .mission:hover { border-color: var(--muted); } .mission.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .mission .diff { margin-left: auto; color: var(--accent); letter-spacing: 2px; } .mdesc { font-size: 12px; color: #c4ccd5; margin: 4px 0; }
+  #launch { font-size: 15px; padding: 12px; } #launchHint { font-size: 11px; color: var(--muted); text-align: center; }
+  #hqRewards { background: #1d2a1f; border: 1px solid #2d4a33; border-radius: 8px; padding: 8px 10px; font-size: 12px; } #hqRewards .good { color: var(--ok); } #hqRewards .bad { color: var(--bad); }
+  #flash { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--accent); color: #111; padding: 8px 14px; border-radius: 8px; font-weight: 600; z-index: 30; box-shadow: 0 8px 30px #000a; }
+  @media (max-width: 1100px) { .hqgrid { grid-template-columns: 1fr 1fr; } .hqcol.detail { grid-column: 1 / -1; order: 3; } }
+  @media (max-width: 800px) { .hqgrid { grid-template-columns: 1fr; } .hqcol.detail { grid-column: auto; } .stats, .equip, .prep { grid-template-columns: 1fr; } .squad { grid-template-columns: repeat(3, 1fr); } }
 </style>
-<div id="app">
+<div id="hq" class="screen">
+  <header>
+    <h1>OPERATOR TACTICS <small>Quartier général</small></h1>
+    <span class="cred"><span id="credits">0</span> crédits</span>
+    <span class="career" id="career"></span>
+    <div class="spacer"></div>
+    <button id="freeBattle" title="Bataille d'entraînement sans récompense, avec graine et ordres libres">Bataille libre</button>
+    <button id="resetSave">Réinitialiser</button>
+    <button id="hqHelp" title="Aide">?</button>
+  </header>
+  <div class="hqgrid">
+    <section class="hqcol"><h3>Opérateurs</h3><div id="hqRoster" style="display:flex;flex-direction:column;gap:6px"></div></section>
+    <section class="hqcol detail"><h3>Fiche</h3><div id="hqDetail"></div>
+      <h3 style="margin-top:8px">Escouade</h3><div class="squad" id="hqSquad"></div>
+      <div class="prep">
+        <label>Ordre <select id="selOrder"><option value="assault">Assaut — aller au contact</option><option value="hold">Tenir — se poster, tirer à vue</option><option value="careful">Prudent — de couvert en couvert</option></select></label>
+        <label>Formation (voies) <select id="selFormation"><option value="">Appliquer…</option><option value="ligne">Ligne (nord, centre, sud, nord, sud)</option><option value="nord">Tout par le nord</option><option value="sud">Tout par le sud</option><option value="coin">Coin (centre renforcé)</option><option value="tenailles">Tenailles (deux par flanc)</option><option value="auto">Automatique</option></select></label>
+      </div>
+    </section>
+    <section class="hqcol"><h3>Missions</h3><div id="hqMissions" style="display:flex;flex-direction:column;gap:6px"></div>
+      <div id="hqRewards" class="hidden"></div>
+      <button id="launch" class="on">Lancer la mission</button><div id="launchHint"></div>
+    </section>
+  </div>
+</div>
+<div id="flash" class="hidden"></div>
+<div id="app" class="screen hidden">
   <header>
     <h1>OPERATOR TACTICS <small id="mapLabel"></small></h1>
     <div class="group"><label>Alpha</label>
@@ -68,6 +125,8 @@
     <div class="group"><label>Graine</label><input id="seed" placeholder="aléatoire"></div>
     <button id="newBattle">Nouvelle bataille</button>
     <button id="replay" title="Rejouer la même graine avec les ordres choisis">Rejouer</button>
+    <span id="missionLabel" class="muted" hidden></span>
+    <button id="toHq">Quartier général</button>
     <div class="spacer"></div>
     <span class="alive team0" id="alive0">5</span><span class="clock" id="clock">0:00.0</span><span class="alive team1" id="alive1">5</span>
     <div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div>
@@ -81,7 +140,7 @@
     <div id="result" class="overlay hidden"><div class="dialog">
       <h2 id="resTitle"></h2><p id="resReason"></p>
       <div id="resTables"></div>
-      <div class="actions"><button id="resClose">Revoir la scène</button><button id="resReplay">Rejouer cette graine</button><button id="resNew" class="on">Nouvelle bataille</button></div>
+      <div class="actions"><button id="resClose">Revoir la scène</button><button id="resReplay">Rejouer cette graine</button><button id="resNew">Nouvelle bataille</button><button id="resHq" class="on">Retour au QG</button></div>
     </div></div>
     <div id="help" class="overlay hidden"><div class="dialog">
       <h2>Comment ça marche</h2>
@@ -91,6 +150,7 @@
         <li><b>Graine</b> : le même nombre rejoue exactement la même bataille. Vide = aléatoire.</li>
         <li><b>Caméra</b> : glisser pour tourner, molette pour zoomer, clic droit ou Maj+glisser pour déplacer. Cliquer sur une carte d'opérateur pour le suivre. Espace : pause.</li>
         <li><b>Rôles</b> : AS assaut (carabine), PT pointe (pistolet-mitrailleur), TE tireur d'élite, AP appui (mitrailleuse), BR brèche (fusil à pompe). Barre orange sous la vie : suppression.</li>
+        <li><b>Quartier général</b> : choisissez 5 opérateurs, leur arme, leur protection et leur voie d'approche, un ordre et une mission. La victoire rapporte des crédits (recrutement) et de l'expérience (+2 à chaque statistique par niveau, jusqu'au niveau 10). La progression est sauvegardée dans ce navigateur.</li>
       </ul>
       <div class="actions"><button onclick="document.getElementById('help').classList.add('hidden')" class="on">Fermer</button></div>
     </div></div>
@@ -167,12 +227,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   // ---- RÔLES -------------------------------------------------------------------------
   // Le rôle oriente l'IA (voir engine.js : decide) et l'arme par défaut.
+  // weapons : armes que ce rôle sait employer (la première est celle par défaut)
   const ROLES = {
-    assault:  { id: 'assault',  name: 'Assaut',      weapon: 'carbine' },
-    pointman: { id: 'pointman', name: 'Pointe',      weapon: 'smg' },
-    marksman: { id: 'marksman', name: 'Tireur d\'élite', weapon: 'dmr' },
-    support:  { id: 'support',  name: 'Appui',       weapon: 'lmg' },
-    breacher: { id: 'breacher', name: 'Brèche',      weapon: 'shotgun' },
+    assault:  { id: 'assault',  name: 'Assaut',      weapon: 'carbine', weapons: ['carbine', 'smg', 'shotgun'] },
+    pointman: { id: 'pointman', name: 'Pointe',      weapon: 'smg',     weapons: ['smg', 'shotgun', 'carbine'] },
+    marksman: { id: 'marksman', name: 'Tireur d\'élite', weapon: 'dmr', weapons: ['dmr', 'carbine'] },
+    support:  { id: 'support',  name: 'Appui',       weapon: 'lmg',     weapons: ['lmg', 'carbine'] },
+    breacher: { id: 'breacher', name: 'Brèche',      weapon: 'shotgun', weapons: ['shotgun', 'smg', 'carbine'] },
   };
 
   // ---- OPÉRATEURS --------------------------------------------------------------------
@@ -184,18 +245,19 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   //  composure    : résistance à la suppression et aux blessures (tir sous le feu)
   //  endurance    : points de vie (80 + endurance/5)
   // Inspirations : unités réelles (nom de l'unité), personnages fictifs.
+  // rarity : 1 commun, 2 rare, 3 élite — sert au prix de recrutement et à la présentation
   const OPERATORS = [
-    { id: 'op_vautour', callsign: 'Vautour', unit: 'GIGN (France)',           role: 'assault',  armor: 'medium', marksmanship: 74, reflexes: 70, mobility: 68, perception: 66, composure: 78, endurance: 72 },
-    { id: 'op_lynx',    callsign: 'Lynx',    unit: 'Commando Hubert (France)', role: 'pointman', armor: 'light',  marksmanship: 66, reflexes: 84, mobility: 86, perception: 74, composure: 64, endurance: 62 },
-    { id: 'op_granit',  callsign: 'Granit',  unit: 'GSG 9 (Allemagne)',       role: 'marksman', armor: 'light',  marksmanship: 90, reflexes: 60, mobility: 58, perception: 88, composure: 82, endurance: 60 },
-    { id: 'op_bastion', callsign: 'Bastion', unit: 'KSK (Allemagne)',         role: 'support',  armor: 'heavy',  marksmanship: 58, reflexes: 56, mobility: 54, perception: 60, composure: 86, endurance: 90 },
-    { id: 'op_belier',  callsign: 'Bélier',  unit: 'SAS (Royaume-Uni)',       role: 'breacher', armor: 'heavy',  marksmanship: 62, reflexes: 72, mobility: 70, perception: 58, composure: 76, endurance: 84 },
+    { id: 'op_vautour', callsign: 'Vautour', unit: 'GIGN (France)',           role: 'assault',  armor: 'medium', rarity: 1, marksmanship: 74, reflexes: 70, mobility: 68, perception: 66, composure: 78, endurance: 72 },
+    { id: 'op_lynx',    callsign: 'Lynx',    unit: 'Commando Hubert (France)', role: 'pointman', armor: 'light',  rarity: 1, marksmanship: 66, reflexes: 84, mobility: 86, perception: 74, composure: 64, endurance: 62 },
+    { id: 'op_granit',  callsign: 'Granit',  unit: 'GSG 9 (Allemagne)',       role: 'marksman', armor: 'light',  rarity: 2, marksmanship: 90, reflexes: 60, mobility: 58, perception: 88, composure: 82, endurance: 60 },
+    { id: 'op_bastion', callsign: 'Bastion', unit: 'KSK (Allemagne)',         role: 'support',  armor: 'heavy',  rarity: 1, marksmanship: 58, reflexes: 56, mobility: 54, perception: 60, composure: 86, endurance: 90 },
+    { id: 'op_belier',  callsign: 'Bélier',  unit: 'SAS (Royaume-Uni)',       role: 'breacher', armor: 'heavy',  rarity: 1, marksmanship: 62, reflexes: 72, mobility: 70, perception: 58, composure: 76, endurance: 84 },
 
-    { id: 'op_cobra',   callsign: 'Cobra',   unit: 'Navy SEALs (États-Unis)', role: 'assault',  armor: 'medium', marksmanship: 76, reflexes: 72, mobility: 70, perception: 64, composure: 74, endurance: 74 },
-    { id: 'op_furet',   callsign: 'Furet',   unit: 'JTF2 (Canada)',           role: 'pointman', armor: 'light',  marksmanship: 64, reflexes: 86, mobility: 88, perception: 76, composure: 60, endurance: 60 },
-    { id: 'op_harfang', callsign: 'Harfang', unit: 'FSK (Norvège)',           role: 'marksman', armor: 'light',  marksmanship: 92, reflexes: 58, mobility: 56, perception: 90, composure: 84, endurance: 58 },
-    { id: 'op_bouclier',callsign: 'Bouclier',unit: 'GROM (Pologne)',          role: 'support',  armor: 'heavy',  marksmanship: 56, reflexes: 58, mobility: 52, perception: 62, composure: 88, endurance: 92 },
-    { id: 'op_marteau', callsign: 'Marteau', unit: 'Sayeret Matkal (Israël)', role: 'breacher', armor: 'heavy',  marksmanship: 60, reflexes: 74, mobility: 72, perception: 56, composure: 78, endurance: 86 },
+    { id: 'op_cobra',   callsign: 'Cobra',   unit: 'Navy SEALs (États-Unis)', role: 'assault',  armor: 'medium', rarity: 2, marksmanship: 76, reflexes: 72, mobility: 70, perception: 64, composure: 74, endurance: 74 },
+    { id: 'op_furet',   callsign: 'Furet',   unit: 'JTF2 (Canada)',           role: 'pointman', armor: 'light',  rarity: 2, marksmanship: 64, reflexes: 86, mobility: 88, perception: 76, composure: 60, endurance: 60 },
+    { id: 'op_harfang', callsign: 'Harfang', unit: 'FSK (Norvège)',           role: 'marksman', armor: 'light',  rarity: 3, marksmanship: 92, reflexes: 58, mobility: 56, perception: 90, composure: 84, endurance: 58 },
+    { id: 'op_bouclier',callsign: 'Bouclier',unit: 'GROM (Pologne)',          role: 'support',  armor: 'heavy',  rarity: 2, marksmanship: 56, reflexes: 58, mobility: 52, perception: 62, composure: 88, endurance: 92 },
+    { id: 'op_marteau', callsign: 'Marteau', unit: 'Sayeret Matkal (Israël)', role: 'breacher', armor: 'heavy',  rarity: 3, marksmanship: 60, reflexes: 74, mobility: 72, perception: 56, composure: 78, endurance: 86 },
   ];
 
   // ---- ORDRES TACTIQUES --------------------------------------------------------------
@@ -206,7 +268,27 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     careful: { id: 'careful', name: 'Prudent',    desc: 'Avancer de couvert en couvert, se replier si blessé.' },
   };
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS };
+  // ---- MISSIONS ----------------------------------------------------------------------
+  // enemy : composition (identifiants d'opérateurs), level : niveau des ennemis, order : leur ordre tactique
+  // reward : crédits en cas de victoire (la défaite rapporte une fraction), xp : expérience de base par opérateur engagé
+  const MISSIONS = [
+    { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille adverse de cinq hommes avance sur les docks. Interceptez-la.', mapId: 'entrepot', enemy: ['op_cobra', 'op_furet', 'op_bouclier', 'op_marteau', 'op_vautour'], level: 0, order: 'assault', reward: 180, xp: 40, difficulty: 1 },
+    { id: 'embuscade', name: 'Position retranchée', desc: 'L\'adversaire tient l\'entrepôt derrière ses conteneurs. Il faudra aller le chercher.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_furet'], level: 1, order: 'hold', reward: 260, xp: 55, difficulty: 2 },
+    { id: 'assaut', name: 'Assaut méthodique', desc: 'Une équipe aguerrie progresse de couvert en couvert. Tenez ou contre-attaquez.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_granit'], level: 2, order: 'careful', reward: 340, xp: 70, difficulty: 3 },
+    { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_lynx'], level: 4, order: 'assault', reward: 480, xp: 90, difficulty: 4 },
+  ];
+
+  // ---- ÉCONOMIE ----------------------------------------------------------------------
+  const PRICES = {
+    operator: { 1: 250, 2: 450, 3: 700 },           // recrutement selon la rareté
+    weapon:   { carbine: 0, smg: 120, dmr: 260, lmg: 300, shotgun: 160 },
+    armor:    { light: 0, medium: 150, heavy: 320 },
+  };
+  // Expérience nécessaire pour atteindre chaque niveau (niveau 0 → 1 : 100, etc.) ; +2 à chaque statistique par niveau (max 10).
+  const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
+  const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
+
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));
 
 </script>
@@ -547,9 +629,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       const sp = team.spawn, enemy = this.map.spawns[1 - ti];
       const face = Math.atan2(enemy.z - sp.z, enemy.x - sp.x);
       team.units.forEach((u, i) => {
-        // dispersés en arc autour du centre de la zone de départ
+        // dispersés autour du centre de la zone de départ, du côté de leur voie (nord / centre / sud)
         const a = ((i - 2) / 2) * 1.1, r = sp.r * (i % 2 ? 0.9 : 0.5);
-        let x = sp.x + Math.cos(a + face + Math.PI) * r * 0.6, z = sp.z + Math.sin(a) * sp.r;
+        const laneZ = this.laneOf(u);
+        let x = sp.x + Math.cos(a + face + Math.PI) * r * 0.6, z = sp.z + laneZ * 0.25 + ((i % 3) - 1) * 0.9;
         const free = this.map.nearestFree(x, z); if (free) { const c = this.map.centerOf(free.c, free.r); x = c.x; z = c.z; }
         u.x = x; u.z = z; u.facing = face; u.home = { x, z };
         u.lastProgress = { x, z, t: 0 };
@@ -557,6 +640,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     });
   };
 
+  // Voie d'approche d'un opérateur : décalage latéral (m) par rapport à l'axe des zones de départ.
+  // def.lane : -1 (nord), 0 (centre), 1 (sud) choisi par le joueur ; sinon répartition automatique.
+  Battle.prototype.laneOf = function (u) { return u.def.lane !== undefined && u.def.lane !== null ? u.def.lane * 11 : (u.idx - 2) * 5.5; };
   Battle.prototype.logEvent = function (kind, text, data) {
     const e = Object.assign({ t: Math.round(this.t * 10) / 10, time: fmtT(this.t), kind, text }, data || {});
     this.log.push(e); return e;
@@ -903,7 +989,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     // 3) aucune information : se déployer / avancer vers l'objectif
     if (order === 'hold') { this.holdPost(u, objective); return; }
     // chaque opérateur avance sur sa propre « voie » (décalage latéral) pour ne pas se regrouper
-    const lane = (u.idx - 2) * 5.5;
+    const lane = this.laneOf(u);
     const dirx = Math.sign(objective.x - home.x) || 1;
     const progress = (u.x - home.x) * dirx;
     const span = Math.abs(objective.x - home.x);
@@ -1186,6 +1272,283 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   root.Battle = Battle; root.Unit = Unit; root.DT = DT; root.fmtT = fmtT;
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? Object.assign({}, require('./rng.js'), require('./data.js'), require('./map.js')) : (window.OT = window.OT || {}));
+
+</script>
+<script>
+// Boucle de jeu OPERATOR TACTICS : profil du joueur, collection, équipement, missions, récompenses, sauvegarde.
+// Logique pure (testable en ligne de commande) ; l'interface (web/app.js) ne fait que l'afficher.
+(function (root, deps) {
+  const { DATA } = deps;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL } = DATA;
+  const STATS = ['marksmanship', 'reflexes', 'mobility', 'perception', 'composure', 'endurance'];
+  const SAVE_KEY = 'operator-tactics-save-v1';
+  const STARTING = ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
+
+  // ---- Profil ---------------------------------------------------------------------------
+  function newProfile() {
+    const operators = {};
+    for (const o of OPERATORS) operators[o.id] = { unlocked: STARTING.includes(o.id), xp: 0, weaponId: ROLES[o.role].weapon, armorId: o.armor, battles: 0, kills: 0, lane: null };
+    return {
+      version: 1, credits: 300, operators, squad: STARTING.slice(), order: 'assault',
+      inventory: { weapons: { carbine: true, smg: true, dmr: true, lmg: true, shotgun: true }, armors: { light: true, medium: true, heavy: true } },
+      career: { battles: 0, wins: 0, losses: 0, draws: 0, kills: 0, losses_units: 0 }, missions: {}, lastSeed: null,
+    };
+  }
+  const levelFor = (xp) => { let l = 0; while (l < MAX_LEVEL && xp >= XP_TABLE[l + 1]) l++; return l; };
+  const xpToNext = (xp) => { const l = levelFor(xp); return l >= MAX_LEVEL ? null : XP_TABLE[l + 1] - xp; };
+
+  // Fiche d'opérateur effective (statistiques bonifiées par le niveau, arme et protection équipées, voie).
+  function effectiveDef(profile, id) {
+    const base = OPERATORS.find(o => o.id === id); const st = profile.operators[id];
+    const level = levelFor(st.xp);
+    const def = Object.assign({}, base, { level, weaponId: st.weaponId, armor: st.armorId, lane: st.lane });
+    for (const k of STATS) def[k] = Math.min(100, base[k] + level * LEVEL_STAT_BONUS);
+    return def;
+  }
+  // Fiche d'un ennemi de mission : niveau fixé par la mission.
+  function enemyDef(id, level) {
+    const base = OPERATORS.find(o => o.id === id);
+    const def = Object.assign({}, base, { level });
+    for (const k of STATS) def[k] = Math.min(100, base[k] + level * LEVEL_STAT_BONUS);
+    return def;
+  }
+  function buildTeams(profile, mission) {
+    return [
+      { name: 'Alpha', order: profile.order, operators: profile.squad.map(id => effectiveDef(profile, id)) },
+      { name: 'Bravo', order: mission.order, operators: mission.enemy.map(id => enemyDef(id, mission.level)) },
+    ];
+  }
+
+  // ---- Règles d'équipement / d'escouade -----------------------------------------------
+  function canEquipWeapon(profile, id, weaponId) {
+    const base = OPERATORS.find(o => o.id === id);
+    return !!profile.inventory.weapons[weaponId] && ROLES[base.role].weapons.includes(weaponId);
+  }
+  function setWeapon(profile, id, weaponId) { if (!canEquipWeapon(profile, id, weaponId)) return false; profile.operators[id].weaponId = weaponId; return true; }
+  function setArmor(profile, id, armorId) { if (!profile.inventory.armors[armorId]) return false; profile.operators[id].armorId = armorId; return true; }
+  function setLane(profile, id, lane) { profile.operators[id].lane = lane === null ? null : Math.max(-1, Math.min(1, lane)); return true; }
+  function toggleSquad(profile, id) {
+    const i = profile.squad.indexOf(id);
+    if (i >= 0) { if (profile.squad.length <= 1) return false; profile.squad.splice(i, 1); return true; }
+    if (!profile.operators[id].unlocked || profile.squad.length >= 5) return false;
+    profile.squad.push(id); return true;
+  }
+  const squadReady = (profile) => profile.squad.length === 5;
+  function recruit(profile, id) {
+    const base = OPERATORS.find(o => o.id === id); const st = profile.operators[id];
+    if (!base || st.unlocked) return false;
+    const price = PRICES.operator[base.rarity];
+    if (profile.credits < price) return false;
+    profile.credits -= price; st.unlocked = true; return true;
+  }
+  function applyFormation(profile, formation) {
+    // Formations prêtes à l'emploi : répartition des voies pour l'escouade actuelle (ordre : liste de l'escouade)
+    const lanes = { ligne: [-1, 0, 1, -1, 1], nord: [-1, -1, -1, -1, -1], sud: [1, 1, 1, 1, 1], coin: [0, -1, 1, 0, 0], tenailles: [-1, -1, 1, 1, 0], auto: [null, null, null, null, null] }[formation];
+    if (!lanes) return false;
+    profile.squad.forEach((id, i) => { profile.operators[id].lane = lanes[i]; });
+    return true;
+  }
+
+  // ---- Récompenses ---------------------------------------------------------------------
+  // Calculées depuis le résultat réel de la bataille : participation, dégâts, neutralisations, victoire.
+  function computeRewards(profile, mission, result) {
+    const won = result.winner === 0, draw = result.winner === -1;
+    const credits = Math.round(mission.reward * (won ? 1 : draw ? 0.5 : 0.3));
+    const xp = {};
+    for (const u of result.teams[0].units) {
+      const id = u.id.split(':')[1];
+      let v = mission.xp + Math.round(u.stats.damageDealt * 0.25) + u.stats.kills * 25 + (won ? 20 : 0);
+      if (!u.alive) v = Math.round(v * 0.7);          // un opérateur évacué apprend moins
+      xp[id] = v;
+    }
+    return { won, draw, credits, xp };
+  }
+  function applyRewards(profile, mission, result) {
+    const r = computeRewards(profile, mission, result);
+    profile.credits += r.credits;
+    r.levelUps = [];
+    for (const u of result.teams[0].units) {
+      const id = u.id.split(':')[1]; const st = profile.operators[id];
+      const before = levelFor(st.xp); st.xp += r.xp[id]; st.battles++; st.kills += u.stats.kills;
+      const after = levelFor(st.xp); if (after > before) r.levelUps.push({ id, callsign: u.callsign, level: after });
+    }
+    profile.career.battles++; if (r.won) profile.career.wins++; else if (r.draw) profile.career.draws++; else profile.career.losses++;
+    profile.career.kills += result.teams[0].units.reduce((s, u) => s + u.stats.kills, 0);
+    profile.career.losses_units += result.teams[0].units.filter(u => !u.alive).length;
+    profile.missions[mission.id] = profile.missions[mission.id] || { attempts: 0, wins: 0 };
+    profile.missions[mission.id].attempts++; if (r.won) profile.missions[mission.id].wins++;
+    return r;
+  }
+
+  // ---- Sauvegarde locale (navigateur) ----------------------------------------------------
+  function save(profile, storage) {
+    try { storage.setItem(SAVE_KEY, JSON.stringify(profile)); return true; } catch (e) { return false; }
+  }
+  function load(storage) {
+    try {
+      const raw = storage.getItem(SAVE_KEY); if (!raw) return null;
+      const p = JSON.parse(raw); if (!p || p.version !== 1 || !p.operators || !p.squad) return null;
+      // tolérance : opérateurs ajoutés depuis la sauvegarde
+      const fresh = newProfile();
+      for (const id in fresh.operators) if (!p.operators[id]) p.operators[id] = fresh.operators[id];
+      p.squad = p.squad.filter(id => p.operators[id] && p.operators[id].unlocked);
+      return p;
+    } catch (e) { return null; }
+  }
+  function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
+
+  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, recruit, applyFormation, computeRewards, applyRewards, save, load, reset, STATS, SAVE_KEY };
+})(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
+   typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));
+
+</script>
+<script>
+// Quartier général : collection, escouade, équipement, formation, missions, récompenses, sauvegarde.
+// Toute la logique vient de sim/game.js ; ce fichier affiche le profil et relaie les actions.
+(function () {
+  const OT = window.OT; const { Game, DATA } = OT;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES } = DATA;
+  const $ = (s) => document.querySelector(s);
+  const STAT_FR = { marksmanship: 'Tir', reflexes: 'Réflexes', mobility: 'Mobilité', perception: 'Perception', composure: 'Sang-froid', endurance: 'Endurance' };
+  const LANE_FR = { '-1': 'Nord', '0': 'Centre', '1': 'Sud', 'null': 'Auto' };
+  const RARITY_FR = { 1: 'Commun', 2: 'Rare', 3: 'Élite' };
+  const roleIcon = { assault: 'AS', pointman: 'PT', marksman: 'TE', support: 'AP', breacher: 'BR' };
+
+  let storage = null; try { storage = window.localStorage; storage.getItem('x'); } catch (e) { storage = null; }
+  let profile = (storage && Game.load(storage)) || Game.newProfile();
+  let selected = profile.squad[0] || OPERATORS[0].id;
+  let selectedMission = MISSIONS[0].id;
+  let lastRewards = null;
+  const saveNow = () => { if (storage) Game.save(profile, storage); };
+
+  const esc = (s) => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+  function render() {
+    $('#credits').textContent = profile.credits;
+    const c = profile.career;
+    $('#career').textContent = `${c.battles} bataille${c.battles > 1 ? 's' : ''} · ${c.wins} victoire${c.wins > 1 ? 's' : ''} · ${c.kills} neutralisation${c.kills > 1 ? 's' : ''}`;
+    renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderRewards();
+  }
+
+  function renderRoster() {
+    const el = $('#hqRoster');
+    el.innerHTML = OPERATORS.map(o => {
+      const st = profile.operators[o.id]; const lvl = Game.levelFor(st.xp); const next = Game.xpToNext(st.xp);
+      const inSquad = profile.squad.includes(o.id);
+      const pct = next === null ? 100 : Math.round(100 * (st.xp - DATA.XP_TABLE[lvl]) / (DATA.XP_TABLE[lvl + 1] - DATA.XP_TABLE[lvl]));
+      return `<div class="opcard ${st.unlocked ? '' : 'locked'} ${inSquad ? 'insquad' : ''} ${selected === o.id ? 'sel' : ''}" data-id="${o.id}">
+        <div class="crow"><span class="role">${roleIcon[o.role]}</span><span class="cs">${esc(o.callsign)}</span><span class="rar r${o.rarity}">${RARITY_FR[o.rarity]}</span><span class="st">${st.unlocked ? 'Niv. ' + lvl : PRICES.operator[o.rarity] + ' cr.'}</span></div>
+        <div class="cunit">${esc(o.unit)} — ${ROLES[o.role].name}</div>
+        ${st.unlocked ? `<div class="xp" title="${st.xp} XP"><i style="width:${pct}%"></i></div>` : ''}
+        <div class="crow small">${st.unlocked ? `<button class="mini ${inSquad ? 'on' : ''}" data-act="squad">${inSquad ? 'Dans l’escouade' : 'Ajouter'}</button>` : `<button class="mini" data-act="recruit" ${profile.credits >= PRICES.operator[o.rarity] ? '' : 'disabled'}>Recruter</button>`}<span>${st.unlocked ? `${st.battles} bat. · ${st.kills} neutr.` : 'Verrouillé'}</span></div>
+      </div>`;
+    }).join('');
+    el.querySelectorAll('.opcard').forEach(card => {
+      card.addEventListener('click', (e) => {
+        const id = card.dataset.id, act = e.target.dataset && e.target.dataset.act;
+        if (act === 'squad') { if (!Game.toggleSquad(profile, id)) flash(profile.squad.length >= 5 ? 'L’escouade est déjà au complet (5).' : 'Impossible.'); }
+        else if (act === 'recruit') { if (Game.recruit(profile, id)) flash(`${OPERATORS.find(o => o.id === id).callsign} rejoint l’unité.`); else flash('Crédits insuffisants.'); }
+        selected = id; saveNow(); render();
+      });
+    });
+  }
+
+  function renderDetail() {
+    const o = OPERATORS.find(x => x.id === selected); const st = profile.operators[o.id]; const def = Game.effectiveDef(profile, o.id);
+    const role = ROLES[o.role];
+    const stats = Game.STATS.map(k => `<div class="stat"><span>${STAT_FR[k]}</span><div class="sbar"><i style="width:${def[k]}%"></i>${def[k] > o[k] ? `<b style="left:${o[k]}%;width:${def[k] - o[k]}%"></b>` : ''}</div><span class="val">${def[k]}${def[k] > o[k] ? ` <small>(+${def[k] - o[k]})</small>` : ''}</span></div>`).join('');
+    const w = WEAPONS[st.weaponId], a = ARMORS[st.armorId];
+    $('#hqDetail').innerHTML = `
+      <div class="dhead"><span class="role big">${roleIcon[o.role]}</span><div><div class="dname">${esc(o.callsign)} <small>${role.name} · ${RARITY_FR[o.rarity]}</small></div><div class="cunit">Inspiré du ${esc(o.unit)}</div></div><div class="lvl">Niveau ${def.level}<small>${Game.xpToNext(st.xp) === null ? 'maximum' : Game.xpToNext(st.xp) + ' XP avant le suivant'}</small></div></div>
+      <div class="stats">${stats}</div>
+      ${st.unlocked ? `
+      <div class="equip">
+        <label>Arme <select id="selWeapon">${role.weapons.map(id => `<option value="${id}" ${id === st.weaponId ? 'selected' : ''} ${profile.inventory.weapons[id] ? '' : 'disabled'}>${WEAPONS[id].name}</option>`).join('')}</select></label>
+        <div class="wspec">Dégâts ${w.damage} · portée ${w.range} m · ${w.rpm} c/min · chargeur ${w.mag} · rechargement ${w.reload} s · précision ${Math.round(w.accuracy * 100)} %${w.minRange ? ` · pénalisé sous ${w.minRange} m` : ''}</div>
+        <label>Protection <select id="selArmor">${Object.values(ARMORS).map(ar => `<option value="${ar.id}" ${ar.id === st.armorId ? 'selected' : ''} ${profile.inventory.armors[ar.id] ? '' : 'disabled'}>${ar.name}</option>`).join('')}</select></label>
+        <div class="wspec">Absorbe ${Math.round(a.torso * 100)} % au torse, ${Math.round(a.head * 100)} % à la tête · vitesse × ${a.mobility}</div>
+        <label>Voie d’approche <select id="selLane">${[null, -1, 0, 1].map(l => `<option value="${l}" ${String(st.lane) === String(l) ? 'selected' : ''}>${LANE_FR[String(l)]}</option>`).join('')}</select></label>
+        <div class="wspec">Nord et Sud contournent le bâtiment central ; Centre laisse l’opérateur choisir le chemin le plus court.</div>
+      </div>` : `<p class="muted">Recrutez cet opérateur (${PRICES.operator[o.rarity]} crédits) pour l’équiper et l’engager.</p>`}`;
+    if (st.unlocked) {
+      $('#selWeapon').addEventListener('change', (e) => { Game.setWeapon(profile, o.id, e.target.value); saveNow(); render(); });
+      $('#selArmor').addEventListener('change', (e) => { Game.setArmor(profile, o.id, e.target.value); saveNow(); render(); });
+      $('#selLane').addEventListener('change', (e) => { Game.setLane(profile, o.id, e.target.value === 'null' ? null : parseInt(e.target.value, 10)); saveNow(); render(); });
+    }
+  }
+
+  function renderSquad() {
+    const el = $('#hqSquad');
+    const slots = [];
+    for (let i = 0; i < 5; i++) {
+      const id = profile.squad[i];
+      if (!id) { slots.push('<div class="slot empty">Emplacement libre</div>'); continue; }
+      const o = OPERATORS.find(x => x.id === id), st = profile.operators[id];
+      slots.push(`<div class="slot ${selected === id ? 'sel' : ''}" data-id="${id}"><span class="role">${roleIcon[o.role]}</span><b>${esc(o.callsign)}</b><span class="muted">${WEAPONS[st.weaponId].name.split(' ')[0]} · ${LANE_FR[String(st.lane)]}</span></div>`);
+    }
+    el.innerHTML = slots.join('');
+    el.querySelectorAll('.slot[data-id]').forEach(s => s.addEventListener('click', () => { selected = s.dataset.id; render(); }));
+    $('#selOrder').value = profile.order;
+    $('#launch').disabled = !Game.squadReady(profile);
+    $('#launchHint').textContent = Game.squadReady(profile) ? `${ORDERS[profile.order].desc}` : 'Complétez l’escouade (5 opérateurs) pour lancer la mission.';
+  }
+
+  function renderMissions() {
+    const el = $('#hqMissions');
+    el.innerHTML = MISSIONS.map(m => {
+      const done = profile.missions[m.id];
+      return `<div class="mission ${selectedMission === m.id ? 'sel' : ''}" data-id="${m.id}">
+        <div class="crow"><b>${esc(m.name)}</b><span class="diff">${'◆'.repeat(m.difficulty)}${'◇'.repeat(4 - m.difficulty)}</span></div>
+        <div class="mdesc">${esc(m.desc)}</div>
+        <div class="crow small"><span>Ennemi : ${m.enemy.map(id => OPERATORS.find(o => o.id === id).callsign).join(', ')} (niv. ${m.level}, ${ORDERS[m.order].name})</span></div>
+        <div class="crow small"><span>Récompense : ${m.reward} cr. · ${m.xp} XP de base</span><span>${done ? `${done.wins}/${done.attempts} réussie${done.wins > 1 ? 's' : ''}` : 'Jamais tentée'}</span></div>
+      </div>`;
+    }).join('');
+    el.querySelectorAll('.mission').forEach(m => m.addEventListener('click', () => { selectedMission = m.dataset.id; renderMissions(); }));
+  }
+
+  function renderRewards() {
+    const el = $('#hqRewards');
+    if (!lastRewards) { el.classList.add('hidden'); return; }
+    const r = lastRewards;
+    el.classList.remove('hidden');
+    el.innerHTML = `<b class="${r.won ? 'good' : r.draw ? '' : 'bad'}">${r.won ? 'Mission réussie' : r.draw ? 'Mission indécise' : 'Mission échouée'}</b> — ${r.mission}. Crédits : +${r.credits}. Expérience : ${Object.entries(r.xp).map(([id, v]) => `${OPERATORS.find(o => o.id === id).callsign} +${v}`).join(', ')}.${r.levelUps.length ? ' Promotions : ' + r.levelUps.map(l => `${l.callsign} → niveau ${l.level}`).join(', ') + '.' : ''}`;
+  }
+
+  let flashTimer = null;
+  function flash(msg) { const el = $('#flash'); el.textContent = msg; el.classList.remove('hidden'); clearTimeout(flashTimer); flashTimer = setTimeout(() => el.classList.add('hidden'), 2600); }
+
+  // ---- Lien avec la bataille --------------------------------------------------------------------
+  $('#selOrder').addEventListener('change', (e) => { profile.order = e.target.value; saveNow(); renderSquad(); });
+  $('#selFormation').addEventListener('change', (e) => { if (e.target.value) { Game.applyFormation(profile, e.target.value); saveNow(); render(); e.target.value = ''; } });
+  $('#launch').addEventListener('click', () => {
+    if (!Game.squadReady(profile)) return;
+    const mission = MISSIONS.find(m => m.id === selectedMission);
+    const seed = Math.floor(Math.random() * 1000000);
+    profile.lastSeed = seed; saveNow();
+    window.HQ.onLaunch({ seed, teams: Game.buildTeams(profile, mission), mapId: mission.mapId }, mission);
+  });
+  $('#resetSave').addEventListener('click', () => {
+    if ($('#resetSave').dataset.confirm !== '1') { $('#resetSave').dataset.confirm = '1'; $('#resetSave').textContent = 'Confirmer la réinitialisation'; setTimeout(() => { $('#resetSave').dataset.confirm = '0'; $('#resetSave').textContent = 'Réinitialiser'; }, 4000); return; }
+    profile = Game.reset(storage || { removeItem: () => {} }); lastRewards = null; selected = profile.squad[0]; $('#resetSave').dataset.confirm = '0'; $('#resetSave').textContent = 'Réinitialiser'; render(); flash('Nouvelle carrière.');
+  });
+
+  window.HQ = {
+    show() { $('#hq').classList.remove('hidden'); $('#app').classList.add('hidden'); render(); },
+    hide() { $('#hq').classList.add('hidden'); $('#app').classList.remove('hidden'); },
+    // appelé par app.js à la fin d'une bataille de mission : applique les récompenses au profil et sauvegarde
+    finishMission(mission, result) {
+      const r = Game.applyRewards(profile, mission, result);
+      lastRewards = Object.assign({ mission: mission.name }, r);
+      saveNow();
+      return r;
+    },
+    profile: () => profile, storageAvailable: () => !!storage,
+    onLaunch: null,
+  };
+  if (!storage) flash('Sauvegarde locale indisponible dans ce navigateur : la progression ne sera pas conservée.');
+  render();
+})();
 
 </script>
 <script>
@@ -1519,6 +1882,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // ---------------------------------------------------------------------------------------------
   // Commandes
   // ---------------------------------------------------------------------------------------------
+  // Deux modes : « mission » (lancée depuis le QG, récompenses à la fin) et « libre » (graine et ordres au choix, sans récompense).
+  let mode = 'free', mission = null, rewardsApplied = false;
+  function setMode(m, mis) {
+    mode = m; mission = mis || null; rewardsApplied = false;
+    const free = m === 'free';
+    for (const id of ['order0', 'order1', 'seed', 'newBattle', 'replay', 'resReplay', 'resNew']) $('#' + id).hidden = !free;
+    document.querySelectorAll('header .group').forEach(g => { if (g.querySelector('#order0, #order1, #seed')) g.hidden = !free; });
+    $('#missionLabel').hidden = free; if (!free) $('#missionLabel').textContent = `Mission : ${mis.name}`;
+    $('#toHq').textContent = free ? 'Quartier général' : 'Abandonner';
+    $('#resHq').textContent = free ? 'Quartier général' : 'Retour au QG';
+  }
   function updatePlayButton() { $('#play').textContent = paused ? '▶ Lancer' : '❚❚ Pause'; $('#play').classList.toggle('on', !paused); }
   function optsFromForm() {
     const teams = Battle.defaultTeams();
@@ -1534,6 +1908,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   $('#resNew').addEventListener('click', () => { $('#seed').value = ''; newBattle(optsFromForm()); paused = false; updatePlayButton(); });
   $('#resReplay').addEventListener('click', () => { const o = optsFromForm(); o.seed = battle.seed; newBattle(o); paused = false; updatePlayButton(); });
   $('#resClose').addEventListener('click', () => $('#result').classList.add('hidden'));
+  function goHq() {
+    paused = true; updatePlayButton(); $('#result').classList.add('hidden');
+    if (mode === 'mission' && battle.over && !rewardsApplied) { rewardsApplied = true; window.HQ.finishMission(mission, battle.result); }
+    window.HQ.show();
+  }
+  $('#toHq').addEventListener('click', goHq);
+  $('#resHq').addEventListener('click', goHq);
+  $('#freeBattle').addEventListener('click', () => { setMode('free'); window.HQ.hide(); newBattle(optsFromForm()); });
+  $('#hqHelp').addEventListener('click', () => { $('#help').classList.toggle('hidden'); });
+  window.HQ.onLaunch = (opts, mis) => { setMode('mission', mis); window.HQ.hide(); newBattle(opts); paused = false; updatePlayButton(); };
   $('#toggleHelp').addEventListener('click', () => $('#help').classList.toggle('hidden'));
   window.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.target.matches('input,select')) { e.preventDefault(); $('#play').click(); } });
 
@@ -1560,7 +1944,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // Démarrage
   // ---------------------------------------------------------------------------------------------
   $('#seed').value = params.get('seed') || '';
+  setMode('free');
   newBattle(optsFromForm());
+  if (!MANUAL && params.get('mode') !== 'free') window.HQ.show();
   if (MANUAL) {
     window.API = {
       step: (n, dt) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; render(); return battle.t; },

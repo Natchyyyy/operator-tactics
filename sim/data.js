@@ -30,12 +30,13 @@
 
   // ---- RÔLES -------------------------------------------------------------------------
   // Le rôle oriente l'IA (voir engine.js : decide) et l'arme par défaut.
+  // weapons : armes que ce rôle sait employer (la première est celle par défaut)
   const ROLES = {
-    assault:  { id: 'assault',  name: 'Assaut',      weapon: 'carbine' },
-    pointman: { id: 'pointman', name: 'Pointe',      weapon: 'smg' },
-    marksman: { id: 'marksman', name: 'Tireur d\'élite', weapon: 'dmr' },
-    support:  { id: 'support',  name: 'Appui',       weapon: 'lmg' },
-    breacher: { id: 'breacher', name: 'Brèche',      weapon: 'shotgun' },
+    assault:  { id: 'assault',  name: 'Assaut',      weapon: 'carbine', weapons: ['carbine', 'smg', 'shotgun'] },
+    pointman: { id: 'pointman', name: 'Pointe',      weapon: 'smg',     weapons: ['smg', 'shotgun', 'carbine'] },
+    marksman: { id: 'marksman', name: 'Tireur d\'élite', weapon: 'dmr', weapons: ['dmr', 'carbine'] },
+    support:  { id: 'support',  name: 'Appui',       weapon: 'lmg',     weapons: ['lmg', 'carbine'] },
+    breacher: { id: 'breacher', name: 'Brèche',      weapon: 'shotgun', weapons: ['shotgun', 'smg', 'carbine'] },
   };
 
   // ---- OPÉRATEURS --------------------------------------------------------------------
@@ -47,18 +48,19 @@
   //  composure    : résistance à la suppression et aux blessures (tir sous le feu)
   //  endurance    : points de vie (80 + endurance/5)
   // Inspirations : unités réelles (nom de l'unité), personnages fictifs.
+  // rarity : 1 commun, 2 rare, 3 élite — sert au prix de recrutement et à la présentation
   const OPERATORS = [
-    { id: 'op_vautour', callsign: 'Vautour', unit: 'GIGN (France)',           role: 'assault',  armor: 'medium', marksmanship: 74, reflexes: 70, mobility: 68, perception: 66, composure: 78, endurance: 72 },
-    { id: 'op_lynx',    callsign: 'Lynx',    unit: 'Commando Hubert (France)', role: 'pointman', armor: 'light',  marksmanship: 66, reflexes: 84, mobility: 86, perception: 74, composure: 64, endurance: 62 },
-    { id: 'op_granit',  callsign: 'Granit',  unit: 'GSG 9 (Allemagne)',       role: 'marksman', armor: 'light',  marksmanship: 90, reflexes: 60, mobility: 58, perception: 88, composure: 82, endurance: 60 },
-    { id: 'op_bastion', callsign: 'Bastion', unit: 'KSK (Allemagne)',         role: 'support',  armor: 'heavy',  marksmanship: 58, reflexes: 56, mobility: 54, perception: 60, composure: 86, endurance: 90 },
-    { id: 'op_belier',  callsign: 'Bélier',  unit: 'SAS (Royaume-Uni)',       role: 'breacher', armor: 'heavy',  marksmanship: 62, reflexes: 72, mobility: 70, perception: 58, composure: 76, endurance: 84 },
+    { id: 'op_vautour', callsign: 'Vautour', unit: 'GIGN (France)',           role: 'assault',  armor: 'medium', rarity: 1, marksmanship: 74, reflexes: 70, mobility: 68, perception: 66, composure: 78, endurance: 72 },
+    { id: 'op_lynx',    callsign: 'Lynx',    unit: 'Commando Hubert (France)', role: 'pointman', armor: 'light',  rarity: 1, marksmanship: 66, reflexes: 84, mobility: 86, perception: 74, composure: 64, endurance: 62 },
+    { id: 'op_granit',  callsign: 'Granit',  unit: 'GSG 9 (Allemagne)',       role: 'marksman', armor: 'light',  rarity: 2, marksmanship: 90, reflexes: 60, mobility: 58, perception: 88, composure: 82, endurance: 60 },
+    { id: 'op_bastion', callsign: 'Bastion', unit: 'KSK (Allemagne)',         role: 'support',  armor: 'heavy',  rarity: 1, marksmanship: 58, reflexes: 56, mobility: 54, perception: 60, composure: 86, endurance: 90 },
+    { id: 'op_belier',  callsign: 'Bélier',  unit: 'SAS (Royaume-Uni)',       role: 'breacher', armor: 'heavy',  rarity: 1, marksmanship: 62, reflexes: 72, mobility: 70, perception: 58, composure: 76, endurance: 84 },
 
-    { id: 'op_cobra',   callsign: 'Cobra',   unit: 'Navy SEALs (États-Unis)', role: 'assault',  armor: 'medium', marksmanship: 76, reflexes: 72, mobility: 70, perception: 64, composure: 74, endurance: 74 },
-    { id: 'op_furet',   callsign: 'Furet',   unit: 'JTF2 (Canada)',           role: 'pointman', armor: 'light',  marksmanship: 64, reflexes: 86, mobility: 88, perception: 76, composure: 60, endurance: 60 },
-    { id: 'op_harfang', callsign: 'Harfang', unit: 'FSK (Norvège)',           role: 'marksman', armor: 'light',  marksmanship: 92, reflexes: 58, mobility: 56, perception: 90, composure: 84, endurance: 58 },
-    { id: 'op_bouclier',callsign: 'Bouclier',unit: 'GROM (Pologne)',          role: 'support',  armor: 'heavy',  marksmanship: 56, reflexes: 58, mobility: 52, perception: 62, composure: 88, endurance: 92 },
-    { id: 'op_marteau', callsign: 'Marteau', unit: 'Sayeret Matkal (Israël)', role: 'breacher', armor: 'heavy',  marksmanship: 60, reflexes: 74, mobility: 72, perception: 56, composure: 78, endurance: 86 },
+    { id: 'op_cobra',   callsign: 'Cobra',   unit: 'Navy SEALs (États-Unis)', role: 'assault',  armor: 'medium', rarity: 2, marksmanship: 76, reflexes: 72, mobility: 70, perception: 64, composure: 74, endurance: 74 },
+    { id: 'op_furet',   callsign: 'Furet',   unit: 'JTF2 (Canada)',           role: 'pointman', armor: 'light',  rarity: 2, marksmanship: 64, reflexes: 86, mobility: 88, perception: 76, composure: 60, endurance: 60 },
+    { id: 'op_harfang', callsign: 'Harfang', unit: 'FSK (Norvège)',           role: 'marksman', armor: 'light',  rarity: 3, marksmanship: 92, reflexes: 58, mobility: 56, perception: 90, composure: 84, endurance: 58 },
+    { id: 'op_bouclier',callsign: 'Bouclier',unit: 'GROM (Pologne)',          role: 'support',  armor: 'heavy',  rarity: 2, marksmanship: 56, reflexes: 58, mobility: 52, perception: 62, composure: 88, endurance: 92 },
+    { id: 'op_marteau', callsign: 'Marteau', unit: 'Sayeret Matkal (Israël)', role: 'breacher', armor: 'heavy',  rarity: 3, marksmanship: 60, reflexes: 74, mobility: 72, perception: 56, composure: 78, endurance: 86 },
   ];
 
   // ---- ORDRES TACTIQUES --------------------------------------------------------------
@@ -69,5 +71,25 @@
     careful: { id: 'careful', name: 'Prudent',    desc: 'Avancer de couvert en couvert, se replier si blessé.' },
   };
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS };
+  // ---- MISSIONS ----------------------------------------------------------------------
+  // enemy : composition (identifiants d'opérateurs), level : niveau des ennemis, order : leur ordre tactique
+  // reward : crédits en cas de victoire (la défaite rapporte une fraction), xp : expérience de base par opérateur engagé
+  const MISSIONS = [
+    { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille adverse de cinq hommes avance sur les docks. Interceptez-la.', mapId: 'entrepot', enemy: ['op_cobra', 'op_furet', 'op_bouclier', 'op_marteau', 'op_vautour'], level: 0, order: 'assault', reward: 180, xp: 40, difficulty: 1 },
+    { id: 'embuscade', name: 'Position retranchée', desc: 'L\'adversaire tient l\'entrepôt derrière ses conteneurs. Il faudra aller le chercher.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_furet'], level: 1, order: 'hold', reward: 260, xp: 55, difficulty: 2 },
+    { id: 'assaut', name: 'Assaut méthodique', desc: 'Une équipe aguerrie progresse de couvert en couvert. Tenez ou contre-attaquez.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_granit'], level: 2, order: 'careful', reward: 340, xp: 70, difficulty: 3 },
+    { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_lynx'], level: 4, order: 'assault', reward: 480, xp: 90, difficulty: 4 },
+  ];
+
+  // ---- ÉCONOMIE ----------------------------------------------------------------------
+  const PRICES = {
+    operator: { 1: 250, 2: 450, 3: 700 },           // recrutement selon la rareté
+    weapon:   { carbine: 0, smg: 120, dmr: 260, lmg: 300, shotgun: 160 },
+    armor:    { light: 0, medium: 150, heavy: 320 },
+  };
+  // Expérience nécessaire pour atteindre chaque niveau (niveau 0 → 1 : 100, etc.) ; +2 à chaque statistique par niveau (max 10).
+  const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
+  const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
+
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));
