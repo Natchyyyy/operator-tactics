@@ -58,11 +58,13 @@ console.log(`   victoires : Alpha ${wins[0]}, Bravo ${wins[1]}, égalités ${win
 // ---- 2. Le journal correspond exactement aux événements simulés ----------------------------------------------
 let logOk = true, logInfo = null;
 for (const { b, r } of results) {
-  const hitEntries = b.log.filter(e => e.kind === 'hit' || e.kind === 'down').length;
+  const bullet = (e) => ['tête', 'torse', 'membre'].includes(e.loc);   // tirs ; les éclats de grenade sont journalisés à part
+  const hitEntries = b.log.filter(e => (e.kind === 'hit' || e.kind === 'down') && bullet(e)).length;
   const hits = b.units.reduce((s, u) => s + u.stats.hits, 0);
   const downs = b.log.filter(e => e.kind === 'down').length, dead = b.units.filter(u => !u.alive).length;
   const reloads = b.log.filter(e => e.kind === 'reload').length, reloadStats = b.units.reduce((s, u) => s + u.stats.reloads, 0);
-  const dmgLogged = b.log.filter(e => e.kind === 'hit' || e.kind === 'down').reduce((s, e) => s + e.dmg, 0);
+  const friendly = (e) => e.enemy && b.units.find(u => u.id === e.enemy).team === e.team && !bullet(e);   // éclats sur son propre camp : non crédités
+  const dmgLogged = b.log.filter(e => (e.kind === 'hit' || e.kind === 'down') && !friendly(e)).reduce((s, e) => s + e.dmg, 0);
   const dmgStats = b.units.reduce((s, u) => s + u.stats.damageDealt, 0);
   const alive = b.teams.map(t => t.units.filter(u => u.alive).length);
   const winnerOk = r.winner === -1 ? true : (alive[1 - r.winner] === 0 || b.t >= b.timeLimit || r.reason.includes('Plus personne'));
@@ -347,6 +349,55 @@ function duel(opts) {
   e.hitBy[a2.id] = b.t - 2; b.applyHit(a1, e, 5);
   const e2 = b.teams[1].units[1]; e2.armor = e.armor; e2.hitBy[a2.id] = b.t - 9; b.applyHit(a1, e2, 5);
   check('neutralisation de groupe : comptée avec un allié qui a touché la cible il y a 2 s, pas 9 s', !e.alive && !e2.alive && a1.stats.group === 1, a1.stats);
+}
+
+{
+  // ---- grenades ----
+  const GR = DATA.GRENADES;
+  // dotation par rôle
+  const b0 = new Battle({ seed: 1 }); const byRole = (r) => b0.units.find(u => u.role.id === r);
+  check('grenades : dotation par rôle (assaut 1 frag, pointe 1 incapacitante, brèche 1+1, appui et tireur aucune)', byRole('assault').grenades.frag === 1 && byRole('pointman').grenades.flash === 1 && byRole('breacher').grenades.frag === 1 && byRole('breacher').grenades.flash === 1 && !byRole('support').grenades.frag && !byRole('marksman').grenades.frag);
+  // explosion : dégâts selon la distance, un mur protège, crédit au lanceur
+  const mapE = new GameMap(MAPS.entrepot);
+  const wall = mapE.obstacles.find(o => o.h >= 2.5 && o.w >= 2 && o.d >= 2);
+  const mk = () => { const b = new Battle({ seed: 2 }); for (const u of b.units) { u.x = 1.5; u.z = 1.5 + u.idx * 0.1 + u.team * 2; } return b; };
+  let b = mk(); const thr = b.teams[0].units.find(u => u.role.id === 'assault'), near = b.teams[1].units[0], behind = b.teams[1].units[1], far = b.teams[1].units[2];
+  const gx = wall.x - 2.2, gz = wall.z + wall.d / 2;
+  near.x = gx + 1.5; near.z = gz; behind.x = wall.x + 0.8; behind.z = gz; far.x = gx - 8; far.z = gz;   // derrière le mur à ~3 m
+  near.armor = behind.armor = far.armor = { torso: 0, head: 0, name: 'aucune' };
+  const h = [near.hp, behind.hp, far.hp];
+  b.grenadesInFlight = [{ kind: 'frag', team: 0, thrower: thr, from: { x: 0, z: 0 }, x: gx, z: gz, landAt: 0, explodeAt: 0, landed: true }];
+  b.updateGrenades();
+  const exp = Math.round(GR.frag.damage * Math.pow(1 - 1.5 / GR.frag.radius, 1.5) * 10) / 10;
+  check('grenade : dégâts décroissants à 1,5 m, rien derrière un mur, rien au-delà du rayon', Math.abs((h[0] - near.hp) - Math.min(h[0], exp)) < 1e-6 && behind.hp === h[1] && far.hp === h[2], { d0: h[0] - near.hp, exp, behind: h[1] - behind.hp, far: h[2] - far.hp });
+  check('grenade : la suppression atteint aussi ceux qui sont à l\'abri (le bruit, le souffle)', behind.suppression > 0 && far.suppression > 0);
+  b = mk(); const t2 = b.teams[0].units.find(u => u.role.id === 'assault'), v = b.teams[1].units[0]; v.x = gx + 0.5; v.z = gz; v.armor = { torso: 0, head: 0, name: 'aucune' }; v.hp = 10;
+  b.grenadesInFlight = [{ kind: 'frag', team: 0, thrower: t2, x: gx, z: gz, landAt: 0, explodeAt: 0, landed: true }]; b.updateGrenades();
+  check('grenade : la neutralisation est créditée au lanceur', !v.alive && t2.stats.kills === 1 && b.computeResult(0, '').teams[0].kills >= 1);
+  // incapacitante : aveugle ceux qui voient l'éclair (plus aucun repérage), pas ceux derrière le mur
+  b = mk(); const t3 = b.teams[0].units.find(u => u.role.id === 'pointman'), seer = b.teams[1].units[0], hid = b.teams[1].units[1];
+  seer.x = gx + 2; seer.z = gz; seer.facing = Math.PI; hid.x = wall.x + 0.8; hid.z = gz;
+  b.grenadesInFlight = [{ kind: 'flash', team: 0, thrower: t3, x: gx, z: gz, landAt: 0, explodeAt: 0, landed: true }]; b.updateGrenades();
+  b.perceive(seer);
+  check('incapacitante : aveugle celui qui voit l\'éclair (aucun repérage, précision ×0,25), pas celui derrière le mur', seer.blindUntil > b.t + 1 && seer.visible.size === 0 && hid.blindUntil < b.t, { s: seer.blindUntil, h: hid.blindUntil, t: b.t });
+  // esquive : un adversaire qui voit la grenade tomber s'en écarte avant l'explosion
+  b = new Battle({ seed: 5, mapId: 'place' }); const T = b.teams[0].units.find(u => u.role.id === 'assault'), E = b.teams[1].units[0];
+  for (const u of b.units) if (u !== T && u !== E) u.alive = false;
+  E.x = 30; E.z = 30; T.x = 18; T.z = 30; const ff = b.map.nearestFree(E.x + 1, E.z); const cc = b.map.centerOf(ff.c, ff.r);
+  b.grenadesInFlight = [{ kind: 'frag', team: 0, thrower: T, x: cc.x, z: cc.z, landAt: b.t, explodeAt: b.t + GR.frag.fuse, landed: false }];
+  E.def = Object.assign({}, E.def, { reflexes: 90 }); b.rng = new OT.RNG(1);
+  let d0 = Math.hypot(E.x - cc.x, E.z - cc.z), dEnd = d0;
+  for (let k = 0; k < 16 && b.grenadesInFlight.length; k++) { b.step(); dEnd = Math.hypot(E.x - cc.x, E.z - cc.z); }
+  check('grenade : l\'adversaire qui la voit tomber s\'éloigne avant l\'explosion', dEnd > d0 + 1, { d0, dEnd, state: E.state });
+  // en vraie bataille : grenades lancées, jamais de tir pendant le lancer, toujours hors de portée des alliés
+  let thrown = 0, badAlly = 0, shotWhileThrow = 0;
+  for (const id of ['entrepot', 'place']) for (let sd = 1; sd <= 5; sd++) {
+    const bb = new Battle({ seed: sd, mapId: id });
+    const orig = bb.shoot.bind(bb); bb.shoot = (u, e, d) => { if (u.throwing) shotWhileThrow++; return orig(u, e, d); };
+    const origT = bb.tryGrenade.bind(bb); bb.tryGrenade = (u) => { const r = origT(u); if (r) { thrown++; if (bb.alliesOf(u).some(a => a.alive && Math.hypot(a.x - u.throwing.x, a.z - u.throwing.z) < 5)) badAlly++; } return r; };
+    bb.run();
+  }
+  check('en bataille : des grenades sont lancées, jamais vers un allié proche, jamais en tirant', thrown > 0 && badAlly === 0 && shotWhileThrow === 0, { thrown, badAlly, shotWhileThrow });
 }
 
 console.log(`\n${pass}/${pass + fail} vérifications réussies${fail ? '  — ÉCHECS : ' + fail : ''}`);

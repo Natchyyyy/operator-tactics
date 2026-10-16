@@ -2,7 +2,7 @@
 // Chaque opérateur perçoit, décide et agit individuellement. Le résultat découle des événements simulés.
 (function (root, deps) {
   const { RNG, DATA, GameMap, MAPS } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS, SYNERGIES, WOUND } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS, SYNERGIES, WOUND, GRENADES } = DATA;
   const SYNERGY_BY_ID = Object.fromEntries(SYNERGIES.map(s => [s.id, s]));
 
   const DT = 0.1;                 // pas de simulation (s)
@@ -32,6 +32,8 @@
     this.x = 0; this.z = 0; this.facing = 0; this.stance = 'stand';
     this.ammo = this.weapon.mag; this.mags = this.weapon.kit;
     this.reloading = 0;           // temps de rechargement restant (s)
+    this.grenades = Object.assign({}, this.role.grenades || {});   // dotation par rôle
+    this.throwing = null; this.lastGrenadeAt = -99; this.blindUntil = -99; this.evade = null;
     this.aimTimer = 0; this.fireAcc = 0; this.burst = 0;
     this.target = null; this.lastShotAt = -99; this.lastShotBy = null; this.lastShotByAt = -99; this.lastHitAt = -99;
     this.suppression = 0;
@@ -159,6 +161,7 @@
       if (phase < DT - 1e-6) this.decide(u);
       this.act(u);
     }
+    this.updateGrenades();
     this.updateCapture();
     this.checkEnd();
   };
@@ -166,6 +169,99 @@
     const limit = maxSeconds || this.timeLimit + 1;
     while (!this.over && this.t < limit) this.step();
     return this.result;
+  };
+
+  // ---- Grenades --------------------------------------------------------------------------------
+  // Lancer : un ennemi repéré il y a moins de 2 s, entre 8 et 24 m, qu'on ne peut pas toucher correctement (à couvert ou hors de vue),
+  // trajectoire possible (pas de mur haut entre les deux), aucun allié à moins de 5 m du point visé. Pas plus d'une toutes les 8 s.
+  Battle.prototype.tryGrenade = function (u) {
+    if (u.reloading > 0 || u.suppression > 0.7 || this.t < u.blindUntil || this.t - u.lastGrenadeAt < 8) return false;
+    const kind = u.grenades.frag > 0 ? 'frag' : u.grenades.flash > 0 ? 'flash' : null; if (!kind) return false;
+    if (this.tick % 3 !== 0) return false;                                       // évalué une décision sur trois (coût)
+    let best = null, bs = 0;
+    const known = this.knownEnemies(u);
+    for (const { unit: e, k } of known) {
+      if (this.t - k.t > 2) continue;
+      const d = Math.hypot(k.x - u.x, k.z - u.z); if (d < 8 || d > 24) continue;
+      if (u.visible.has(e.id) && this.hitChance(u, e, d, true).p >= 0.22) continue;     // on peut le toucher : on tire
+      if (this.alliesOf(u).some(a => a.alive && Math.hypot(a.x - k.x, a.z - k.z) < 5)) continue;
+      if (!this.map.hasLOS(u.x, 2.3, u.z, k.x, 1.4, k.z)) continue;                // un mur haut empêche la trajectoire
+      let sc = 1;
+      for (const { unit: o, k: ko } of known) if (o !== e && this.t - ko.t < 3 && Math.hypot(ko.x - k.x, ko.z - k.z) < 4) sc += 1;   // groupe
+      if (this.zone && this.inZone(k)) sc += 0.5;                                      // déloger l'adversaire de la zone
+      if (sc > bs) { bs = sc; best = { x: k.x, z: k.z, d, e }; }
+    }
+    if (!best || (bs < 2 && !this.rng.chance(0.35))) return false;                     // un seul ennemi : pas systématique
+    this.stop(u); u.state = 'throw'; u.stance = 'stand'; u.facing = Math.atan2(best.z - u.z, best.x - u.x);
+    u.throwing = { at: this.t + 0.6 + (1 - u.def.reflexes / 100) * 0.4, x: best.x, z: best.z, d: best.d, kind, target: best.e.callsign };
+    return true;
+  };
+  Battle.prototype.releaseGrenade = function (u) {
+    const th = u.throwing; u.throwing = null; u.state = 'engage';
+    if (!u.alive) return;
+    u.grenades[th.kind]--; u.lastGrenadeAt = this.t;
+    const err = 0.4 + th.d * 0.05;
+    let x = th.x + this.rng.gauss() * err, z = th.z + this.rng.gauss() * err;
+    if (this.map.insideObstacle(x, z) || !this.map.inBounds(x, z)) { const f = this.map.nearestFree(x, z); if (f) { const c = this.map.centerOf(f.c, f.r); x = c.x; z = c.z; } }
+    const G = GRENADES[th.kind], flight = 0.45 + th.d / 22;
+    this.grenadesInFlight = this.grenadesInFlight || [];
+    const g = { kind: th.kind, team: u.team, thrower: u, from: { x: u.x, z: u.z }, x, z, landAt: this.t + flight, explodeAt: this.t + flight + G.fuse, landed: false };
+    this.grenadesInFlight.push(g);
+    this.logEvent('grenade', `${u.callsign} lance une ${G.name} vers ${th.target}.`, { unit: u.id, team: u.team });
+    this.emit({ type: 'grenade_throw', kind: th.kind, from: { x: u.x, y: 1.7, z: u.z }, to: { x, y: 0.1, z }, flight, explodeAt: g.explodeAt });
+  };
+  Battle.prototype.startEvade = function (u) {
+    const ev = u.evade; ev.started = true;
+    if (!u.alive) return;
+    const R = GRENADES[ev.kind].radius, dx = u.x - ev.x, dz = u.z - ev.z, L = Math.hypot(dx, dz) || 1;
+    let best = null;
+    for (const a of [0, 0.6, -0.6, 1.2, -1.2]) {          // fuir à l'opposé ; sinon de biais
+      const ang = Math.atan2(dz / L, dx / L) + a, px = ev.x + Math.cos(ang) * (R + 2), pz = ev.z + Math.sin(ang) * (R + 2);
+      const f = this.map.nearestFree(px, pz); if (!f) continue; const c = this.map.centerOf(f.c, f.r);
+      if (Math.hypot(c.x - ev.x, c.z - ev.z) > R * 0.8) { best = c; break; }
+    }
+    if (best && this.setGoal(u, best.x, best.z, 'close')) { u.state = 'evade'; u.stance = 'stand'; u.commitUntil = ev.until; u.commitAt = this.t; }
+  };
+  Battle.prototype.updateGrenades = function () {
+    const L = this.grenadesInFlight; if (!L || !L.length) return;
+    for (let i = L.length - 1; i >= 0; i--) {
+      const g = L[i];
+      if (!g.landed && this.t >= g.landAt) {
+        g.landed = true;
+        // qui la voit tomber (ou l'entend tout près) tente de s'en écarter — les deux camps : une grenade ne choisit pas
+        if (g.kind === 'frag') for (const u of this.units) {
+          if (!u.alive) continue; const d = Math.hypot(u.x - g.x, u.z - g.z); if (d > GRENADES.frag.radius) continue;
+          const notices = d < 2.5 || (this.t >= u.blindUntil && this.map.hasLOS(u.x, u.eyeY(), u.z, g.x, 0.2, g.z));
+          if (notices && this.rng.chance(0.85)) {
+            u.evade = { x: g.x, z: g.z, kind: g.kind, at: this.t + 0.15 + (1 - u.def.reflexes / 100) * 0.5, until: g.explodeAt + 0.3, started: false };
+            if (u.team !== g.team) this.logEvent('grenade', `${u.callsign} : « Grenade ! »`, { unit: u.id, team: u.team, silent: d > 4 });
+          }
+        }
+      }
+      if (this.t < g.explodeAt) continue;
+      L.splice(i, 1);
+      const G = GRENADES[g.kind];
+      this.emit({ type: 'grenade_blast', kind: g.kind, x: g.x, z: g.z });
+      let hits = 0;
+      for (const u of this.units) {
+        if (!u.alive) continue;
+        const d = Math.hypot(u.x - g.x, u.z - g.z);
+        if (d < 9) u.suppression = clamp(u.suppression + G.suppress * (1 - d / 9), 0, 1);
+        if (d > G.radius) continue;
+        if (g.kind === 'frag') {
+          if (!this.map.hasLOS(g.x, 0.4, g.z, u.x, u.chestY(), u.z)) continue;      // un mur protège de l'explosion
+          const dmg = Math.round(G.damage * Math.pow(1 - d / G.radius, 1.5) * (1 - u.armor.torso * 0.6) * 10) / 10;
+          if (dmg >= 1) { hits++; this.applyDamage(g.thrower, u, dmg, 'éclat de grenade', g.team); }
+        } else {
+          if (!this.map.hasLOS(g.x, 0.5, g.z, u.x, u.eyeY(), u.z)) continue;
+          const facing = angDiff(Math.atan2(g.z - u.z, g.x - u.x), u.facing) < Math.PI * 0.6;
+          const dur = G.blind * (1 - d / G.radius) * (facing ? 1 : 0.4) + 0.8;
+          u.blindUntil = Math.max(u.blindUntil, this.t + dur); u.visible = new Set(); hits++;
+          this.logEvent('flash', `${u.callsign} est aveuglé (${dur.toFixed(1)} s).`, { unit: u.id, team: u.team, silent: u.team === g.team });
+        }
+      }
+      if (!hits) this.logEvent('grenade', `La ${G.name} de ${g.thrower.callsign} explose sans toucher personne.`, { team: g.team, silent: true });
+    }
   };
 
   // ---- Capture de zone ---------------------------------------------------------------------
@@ -226,6 +322,7 @@
     return this.map.hasLOS(u.x, u.eyeY(), u.z, e.x, e.chestY(), e.z);
   };
   Battle.prototype.perceive = function (u) {
+    if (this.t < u.blindUntil) { u.visible = new Set(); return; }   // aveuglé par une grenade incapacitante : plus aucun repérage
     const visRange = (30 + (u.def.perception / 100) * 45) * (has(u, 'eagle') ? 1.2 : 1); // 30..75 m (Œil de lynx : +20 %)
     const fov = Math.PI * 0.62;                          // ~112° de champ visuel
     const newVisible = new Set();
@@ -452,6 +549,9 @@
       u.burst = 0;
     }
 
+    // grenade : en train de lancer, ou d'esquiver une grenade adverse → rien d'autre
+    if (u.throwing || (u.evade && this.t < u.evade.until)) return;
+    if (this.tryGrenade(u)) return;
     // engagement sur un déplacement en cours : on continue (en tirant si possible) sauf si on vient d'être touché
     if (this.t < u.commitUntil && u.goal && u.lastHitAt <= u.commitAt) return;
 
@@ -607,10 +707,14 @@
     }
     // arrivé près de l'objectif sans avoir trouvé personne : ratisser la zone (points aléatoires autour de la zone ennemie)
     if (progress >= span - 8) {
+      if (u.searchSince === undefined) u.searchSince = this.t;
+      // ratissage prolongé sans contact (> 15 s) : on élargit à toute la carte (deux survivants ne tournent pas indéfiniment chacun chez l'autre)
+      const wide = this.t - u.searchSince > 15;
       if (!u.searchGoal || this.t > u.searchUntil || Math.hypot(u.searchGoal.x - u.x, u.searchGoal.z - u.z) < 1.5) {
         for (let k = 0; k < 10; k++) {
           const a = this.rng.range(0, Math.PI * 2), r = this.rng.range(2, objective.r + 9);
-          const sx = objective.x + Math.cos(a) * r, sz = clamp(objective.z + Math.sin(a) * r, 2, this.map.depth - 2);
+          let sx = objective.x + Math.cos(a) * r, sz = clamp(objective.z + Math.sin(a) * r, 2, this.map.depth - 2);
+          if (wide) { sx = this.rng.range(4, this.map.width - 4); sz = this.rng.range(3, this.map.depth - 3); }
           const f = this.map.nearestFree(sx, sz); if (!f) continue;
           const c = this.map.centerOf(f.c, f.r); u.searchGoal = c; u.searchUntil = this.t + 8; break;
         }
@@ -636,6 +740,10 @@
       u.reloading -= DT;
       if (u.reloading <= 0) { u.reloading = 0; u.mags--; u.ammo = u.weapon.mag; this.logEvent('reloaded', `${u.callsign} a rechargé.`, { unit: u.id, team: u.team, silent: true }); }
     }
+    // lancer de grenade en cours : la grenade part au bout du geste
+    if (u.throwing && this.t >= u.throwing.at) this.releaseGrenade(u);
+    // esquive d'une grenade signalée : courir à l'écart (une fois le réflexe passé)
+    if (u.evade && !u.evade.started && this.t >= u.evade.at) this.startEvade(u);
     // déplacement
     const wasMoving = u.moving;
     u.moving = false;
@@ -644,6 +752,7 @@
     // orientation : vers la cible si on en a une, sinon vers la marche
     if (u.target && u.target.alive) u.facing = Math.atan2(u.target.z - u.z, u.target.x - u.x);
     // tir
+    if (u.throwing) { u.fireAcc = 0; return; }   // on ne tire pas en lançant
     if (u.target && u.target.alive && u.visible.has(u.target.id) && u.state !== 'pinned' && u.state !== 'noammo' && u.state !== 'wait') this.fireAt(u, u.target);
     else if (u.target && u.target.alive && u.state !== 'pinned' && u.state !== 'noammo' && this.canSuppress(u, u.target)) this.suppressAt(u, u.target);
     else { u.fireAcc = Math.min(u.fireAcc, 1); if (u.target && !u.target.alive) u.target = null; }
@@ -801,12 +910,18 @@
   Battle.prototype.applyDamage = function (shooter, e, dmg, cause, teamIndex) {
     e.hp = Math.max(0, e.hp - dmg); e.lastHitAt = this.t; e.stats.damageTaken += dmg;
     const team = this.teams[teamIndex];
+    const friendly = !!shooter && shooter.team === e.team;      // tir ami (éclats) : ni crédit ni neutralisation comptée
+    if (shooter && !friendly) { shooter.stats.damageDealt += dmg; e.hitBy[shooter.id] = this.t; }
     if (e.hp <= 0) {
       e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
-      this.logEvent('down', `${e.callsign} est hors de combat (${cause}).`, { team: teamIndex, enemy: e.id, dmg, loc: cause, unit: null });
-      this.emit({ type: 'down', unit: e.id }); team.indirectKills = (team.indirectKills || 0) + 1; team.indirectDamage = (team.indirectDamage || 0) + dmg; return;
+      this.logEvent('down', `${e.callsign} est hors de combat (${cause}${shooter ? ' — ' + shooter.callsign : ''}).`, { team: teamIndex, enemy: e.id, dmg, loc: cause, unit: shooter && !friendly ? shooter.id : null });
+      this.emit({ type: 'down', unit: e.id });
+      if (shooter && !friendly) { shooter.stats.kills++; if (this.t - shooter.lastKillAt < 10) shooter.stats.streaks++; shooter.lastKillAt = this.t; e.downedBy = shooter; }
+      else if (!friendly) team.indirectKills = (team.indirectKills || 0) + 1;
+      if (!friendly) team.indirectDamage = (team.indirectDamage || 0) + dmg;
+      return;
     }
-    team.indirectDamage = (team.indirectDamage || 0) + dmg;
+    if (!friendly) team.indirectDamage = (team.indirectDamage || 0) + dmg;
     e.status = e.hp <= e.maxHp * 0.2 ? 'critical' : (e.hp <= e.maxHp * 0.5 ? 'wounded' : 'ok');
     this.logEvent('hit', `${e.callsign} est touché par un ${cause} : −${dmg} PV.`, { team: teamIndex, enemy: e.id, dmg, loc: cause, unit: null });
   };
@@ -886,6 +1001,7 @@
     if (this.hasTactic(tt, 'blitz') && this.t < 30) p *= 0.9;                                        // Éclair : précision −10 % au début
     if (has(u, 'patience') && u.burst === 0 && u.aimFull) p *= 1.25;               // Patience : premier tir posé
     if (this.synergy(u, 'guidage')) p *= 1.08;                                        // synergie Guidage radio
+    if (this.t < u.blindUntil) p *= 0.25;                                             // aveuglé
     if (e.moving) p *= has(u, 'opportunity') ? 0.9 : 0.8;                             // Tir d'opportunité
     if (e.stance === 'crouch') p *= 0.85;
     if (this.isBraced(e)) p *= 0.9;           // un défenseur installé expose moins de silhouette
@@ -1030,7 +1146,7 @@
     return {
       t: this.t, over: this.over,
       zone: this.zone ? { x: this.zone.x, z: this.zone.z, r: this.zone.r, holder: this.zone.holder, contested: this.zone.contested, capture: this.teams.map(t => t.capture) } : null,
-      units: this.units.map(u => ({ id: u.id, team: u.team, callsign: u.callsign, role: u.role.id, x: u.x, z: u.z, facing: u.facing, stance: u.stance, hp: u.hp, maxHp: u.maxHp, status: u.status, alive: u.alive, ammo: u.ammo, mags: u.mags, reloading: u.reloading, state: u.state, suppression: u.suppression, moving: u.moving, target: u.target ? u.target.id : null, visible: u.visible.size, weapon: u.weapon.id })),
+      units: this.units.map(u => ({ id: u.id, team: u.team, callsign: u.callsign, role: u.role.id, throwing: !!u.throwing, blind: this.t < u.blindUntil, x: u.x, z: u.z, facing: u.facing, stance: u.stance, hp: u.hp, maxHp: u.maxHp, status: u.status, alive: u.alive, ammo: u.ammo, mags: u.mags, reloading: u.reloading, state: u.state, suppression: u.suppression, moving: u.moving, target: u.target ? u.target.id : null, visible: u.visible.size, weapon: u.weapon.id })),
     };
   };
 

@@ -87,5 +87,19 @@
  ],
  "musique_titre": [
   "musique_titre_0.ogg"
+ ],
+ "explosion": [
+  "explosion_0.ogg",
+  "explosion_1.ogg",
+  "explosion_2.ogg"
+ ],
+ "flashbang": [
+  "flashbang_0.ogg",
+  "flashbang_1.ogg"
+ ],
+ "grenade_rebond": [
+  "grenade_rebond_0.ogg",
+  "grenade_rebond_1.ogg",
+  "grenade_rebond_2.ogg"
  ]
 }

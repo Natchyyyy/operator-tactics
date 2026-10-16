@@ -94,6 +94,31 @@ def contact(i):
     place(out, lp(noise(.06), 700)*env_ad(int(.06*SR), .001, .03)*.6, 0)
     return reverb(soft_clip(out, 1.3), "hall", .3)
 
+@snd("explosion", 3, -12)       # grenade / obus : coup sourd très grave, souffle, débris qui retombent
+def explosion(i):
+    seed(210 + i); out = silence(2.2)
+    b = resonator(noise(1.0), rng.uniform(38, 50), 1.6)*env_ad(int(1.0*SR), .002, .55)*3.2; place(out, lp(b, 180), 0)
+    c = lp(noise(.25), 2600)*env_ad(int(.25*SR), .0008, .09, 2.5)*1.4; place(out, c, 0)
+    w = lp(noise(1.4), 700)*env_ad(int(1.4*SR), .02, .7)*.55; place(out, w, .01)
+    for k in range(9):        # graviers, éclats
+        g = bp(noise(.02), 2500, 7000)*env_ad(int(.02*SR), .0004, .008)*rng.uniform(.08, .2); place(out, g, rng.uniform(.25, 1.5))
+    return reverb(soft_clip(out, 1.8), "outdoor", .35)
+
+@snd("flashbang", 2, -12)        # grenade incapacitante : détonation sèche et claquante, puis sifflement d'oreille
+def flashbang(i):
+    seed(220 + i); out = silence(2.4)
+    c = hp(noise(.12), 900)*env_ad(int(.12*SR), .0003, .03, 3)*2.2; place(out, c, 0)
+    place(out, resonator(noise(.3), 140, 2.5)*env_ad(int(.3*SR), .001, .08)*1.2, 0)
+    t = np.sin(2*np.pi*rng.uniform(3600, 4200)*t_(2.0))*env_ad(int(2.0*SR), .05, 1.2, 2)*.12; place(out, t, .05)
+    return reverb(soft_clip(out, 1.5), "outdoor", .25)
+
+@snd("grenade_rebond", 3, -30)   # la grenade touche le sol : tintement métallique sourd, deux rebonds
+def grenade_rebond(i):
+    seed(230 + i); out = silence(.6)
+    for k, (at, g) in enumerate([(0, 1), (rng.uniform(.14, .2), .55), (rng.uniform(.28, .34), .25)]):
+        m = modal(.12, [(rng.uniform(1100, 1400), 1, .03), (rng.uniform(2600, 3000), .4, .015), (420, .5, .04)], strike=.7, hard=.6); place(out, m*g, at)
+    return reverb(out, "outdoor", .12)
+
 @snd("victoire", 1, -24)         # deux notes de marimba qui montent
 def victoire(i):
     seed(200); out = silence(1.6); place(out, marimba(note(67), 1.3, .9, .4), 0); place(out, marimba(note(74), 1.4, 1.0, .4), .22)

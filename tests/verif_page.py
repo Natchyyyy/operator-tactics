@@ -123,9 +123,9 @@ async def main():
         check("les barres d'état des équipes correspondent au résultat", b0.strip() == str(res["teams"][0]["hpPct"]) + "%" and b1.strip() == str(res["teams"][1]["hpPct"]) + "%", (b0, b1, res["teams"][0]["hpPct"], res["teams"][1]["hpPct"]))
         # le journal contient la fin
         j = await pg.inner_text("#journal"); check("le journal contient le début et la fin de l'engagement", "Début de l'engagement" in j and "Fin de l'engagement" in j)
-        hits_log = await pg.evaluate("() => window.API.battle().log.filter(e => e.kind === 'hit' || e.kind === 'down').length")
+        hits_log = await pg.evaluate("() => window.API.battle().log.filter(e => (e.kind === 'hit' || e.kind === 'down') && ['tête', 'torse', 'membre'].includes(e.loc)).length")
         hits_stats = sum(u["stats"]["hits"] for t in res["teams"] for u in t["units"])
-        check("journal = statistiques (touchés)", hits_log == hits_stats, (hits_log, hits_stats))
+        check("journal = statistiques (touchés par balle ; éclats journalisés à part)", hits_log == hits_stats, (hits_log, hits_stats))
         await pg.screenshot(path="captures/verif-resultat.png")
         # rejouer la même graine : même vainqueur
         await pg.click("#resReplay"); await pg.wait_for_timeout(300); await pg.click("#play"); await pg.wait_for_timeout(100); await pg.click("#play")
