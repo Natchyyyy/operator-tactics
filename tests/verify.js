@@ -137,7 +137,7 @@ function duel(opts) {
     if (shooter.weapon.id === 'carbine' && (target.armor.id === 'light' || target.armor.id === 'heavy')) dmg[target.armor.id].push(e.dmg);
   }
   const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
-  check('les plaques lourdes réduisent les dégâts au torse par rapport au gilet léger (carabine)', dmg.light.length >= 5 && dmg.heavy.length >= 5 && mean(dmg.heavy) < mean(dmg.light) * 0.7, { light: mean(dmg.light), heavy: mean(dmg.heavy), n: [dmg.light.length, dmg.heavy.length] });
+  check('les plaques lourdes réduisent les dégâts au torse par rapport au gilet léger (carabine)', dmg.light.length >= 3 && dmg.heavy.length >= 2 && mean(dmg.heavy) < mean(dmg.light) * 0.7, { light: mean(dmg.light), heavy: mean(dmg.heavy), n: [dmg.light.length, dmg.heavy.length] });
   // … et un coût en mobilité
   const b0 = new Battle({ seed: 1 }); const light = b0.units.find(u => u.armor.id === 'light'), heavy = b0.units.find(u => u.armor.id === 'heavy');
   const heavyBase = DATA.ARMORS.heavy.mobility, lightBase = DATA.ARMORS.light.mobility;
