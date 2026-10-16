@@ -675,7 +675,7 @@
     if (absorbed > 0) text += ` (${absorbed} absorbés : ${e.armor.name})`;
     const prevStatus = e.status;
     if (e.hp <= 0) {
-      e.alive = false; e.status = 'down'; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
+      e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
       u.stats.kills++;
       text += ` — ${e.callsign} est hors de combat.`;
       this.logEvent('down', text, { unit: u.id, enemy: e.id, team: u.team, dmg, loc });
