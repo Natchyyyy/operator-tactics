@@ -27,10 +27,13 @@ async def main():
         # lancer la première mission
         await pg.click(".mission[data-id='patrouille']"); await pg.click("#launch"); await pg.wait_for_timeout(600)
         check("la mission ouvre l'écran de bataille", await pg.is_visible("#app") and not await pg.is_visible("#hq"))
+        tc = await pg.evaluate("() => document.querySelectorAll('#tactics0 .tcard').length"); check("les tactiques équipées d'Alpha sont affichées en bataille", tc == 2, tc)
         check("Lynx porte bien le fusil à pompe dans la bataille", await pg.evaluate("() => window.API.battle().units.find(u => u.callsign === 'Lynx').weapon.id") == "shotgun")
         check("l'ennemi de la mission est celui annoncé (ordre Prudent, 5 opérateurs)", await pg.evaluate("() => window.API.battle().teams[1].order === 'careful' && window.API.battle().teams[1].units.length === 5"))
         await pg.click("[data-speed='4']"); await pg.wait_for_timeout(1500)
         await pg.select_option("#order0", "hold"); await pg.wait_for_timeout(200)
+        used = await pg.evaluate("() => { const b = window.API.battle(); const r = b.useTactic(0, 'fumigene'); return [r.ok, r.reason, b.map.dynamic.length, b.teams[0].tactics.fumigene.uses]; }")
+        check("le fumigène peut être joué (ou refusé pour une raison explicite) pendant la mission", (used[0] is True and used[2] == 1 and used[3] == 1) or (used[0] is False and used[1] == 'aucune position adverse connue'), used)
         check("l'ordre d'Alpha changé en cours de bataille est appliqué et journalisé", await pg.evaluate("() => window.API.battle().teams[0].order === 'hold' && window.API.battle().log.some(e => e.kind === 'order')"))
         await pg.wait_for_function("() => window.API.battle().over", timeout=400000); await pg.wait_for_timeout(500)
         res_m = await pg.evaluate("() => window.API.battle().result")
@@ -60,12 +63,14 @@ async def main():
         check(f"la bataille se joue jusqu'au bout en temps réel ({dt:.0f} s réelles pour {res['duration']:.0f} s simulées à 4×)", res is not None)
         await pg.wait_for_timeout(500)
         shown = await pg.evaluate("() => !document.querySelector('#result').classList.contains('hidden')"); check("l'écran de résultat s'affiche", shown)
-        title = await pg.inner_text("#resTitle"); exp = "Égalité" if res["winner"] == -1 else "Victoire " + res["teams"][res["winner"]]["name"]
+        title = await pg.inner_text("#resTitle"); exp = "Égalité" if res["winner"] == -1 else ("Victoire" if res["winner"] == 0 else "Défaite")
         check("le titre du résultat correspond au vainqueur calculé", title.strip() == exp, (title, exp))
+        pct0 = await pg.inner_text("#resPct0"); check("l'état d'équipe affiché (%) est celui du résultat", pct0.strip() == str(res["teams"][0]["hpPct"]) + "%", (pct0, res["teams"][0]["hpPct"]))
+        sp = await pg.evaluate("() => document.querySelectorAll('#resSpecials .l').length"); check("les « spéciaux » sont affichés (5 lignes)", sp == 5, sp)
         rows = await pg.evaluate("() => document.querySelectorAll('#resTables tbody tr').length"); check("10 lignes dans les tableaux de résultat", rows == 10, rows)
         # cohérence interface ↔ simulation : compteur d'opérateurs en état
-        a0 = await pg.inner_text("#alive0"); a1 = await pg.inner_text("#alive1")
-        check("les compteurs d'effectifs correspondent", int(a0) == res["teams"][0]["alive"] and int(a1) == res["teams"][1]["alive"], (a0, a1, res["teams"][0]["alive"], res["teams"][1]["alive"]))
+        b0 = await pg.inner_text("#tpct0"); b1 = await pg.inner_text("#tpct1")
+        check("les barres d'état des équipes correspondent au résultat", b0.strip() == str(res["teams"][0]["hpPct"]) + "%" and b1.strip() == str(res["teams"][1]["hpPct"]) + "%", (b0, b1, res["teams"][0]["hpPct"], res["teams"][1]["hpPct"]))
         # le journal contient la fin
         j = await pg.inner_text("#journal"); check("le journal contient le début et la fin de l'engagement", "Début de l'engagement" in j and "Fin de l'engagement" in j)
         hits_log = await pg.evaluate("() => window.API.battle().log.filter(e => e.kind === 'hit' || e.kind === 'down').length")

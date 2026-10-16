@@ -6,51 +6,65 @@
 <title>Operator Tactics</title>
 <style>
   /* Une seule identité visuelle, sombre (poste de commandement) : fond anthracite bleuté, accent laiton, équipes bleu / orange. */
-  :root { color-scheme: dark; --bg: #0e1114; --panel: #151a1f; --panel2: #1b2128; --line: #262e37; --text: #d7dde3; --muted: #8a95a1; --accent: #c9a84a; --a0: #5aa0ea; --a1: #f0a04a; --ok: #5fc46a; --warn: #e0b03a; --bad: #d9543c; }
+  :root { color-scheme: dark; --bg: #0e1114; --panel: #151a1f; --panel2: #1b2128; --line: #262e37; --text: #d7dde3; --muted: #8a95a1; --accent: #c9a84a; --a0: #4f9cf0; --a1: #e85a4f; --ok: #5fc46a; --warn: #e0b03a; --bad: #d9543c; }
   * { box-sizing: border-box; }
   .hidden { display: none !important; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.35 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; overflow: hidden; }
-  #app { display: grid; grid-template-rows: 48px 1fr 170px; grid-template-columns: 250px 1fr 250px; height: 100%; }
-  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; }
+  header { display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; }
   header h1 { font-size: 15px; letter-spacing: 0.18em; margin: 0; color: var(--accent); font-weight: 700; }
   header h1 small { color: var(--muted); letter-spacing: 0.05em; font-weight: 400; margin-left: 8px; font-size: 11px; }
-  @media (max-width: 1500px) { header h1 small { display: none; } }
-  @media (max-width: 1600px) { #app header .group label { display: none; } #app header button, #app header select, #app header input { padding: 5px 8px; } #app header input { width: 70px; } }
-  .spacer { flex: 1; }
-  .clock { font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; padding: 0 10px; }
-  .alive { font-weight: 700; font-size: 15px; } .alive.team0 { color: var(--a0); } .alive.team1 { color: var(--a1); }
-  button, select, input { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer; }
+  #app { display: grid; grid-template-rows: 60px 40px 1fr 112px; height: 100%; }
+  .topbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; padding: 0 12px; background: linear-gradient(90deg, #14233a 0%, var(--panel) 40%, var(--panel) 60%, #3a1619 100%); border-bottom: 1px solid var(--line); }
+  .tb { display: flex; align-items: center; gap: 10px; min-width: 0; } .tb.rev { flex-direction: row-reverse; text-align: right; }
+  .tbmain { flex: 1; min-width: 0; } .tbname { font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tbar { height: 12px; background: #0b0e11; border-radius: 6px; overflow: hidden; margin-top: 4px; border: 1px solid #000; } .tbar i { display: block; height: 100%; width: 100%; background: var(--a0); transition: width .3s; } .tbar.rev i { margin-left: auto; background: var(--a1); }
+  .tpct { font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; min-width: 58px; text-align: center; }
+  .ins { width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; background: #0b0e11; border: 2px solid currentColor; flex: none; } .team0 .ins { color: var(--a0); } .team1 .ins { color: var(--a1); } .ins.big { width: 56px; height: 56px; font-size: 30px; }
+  .tbcenter { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .controls { display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; }
+  .controls .group label { display: none; }
+  .clock { font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; }
+  button, select, input { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; font: inherit; cursor: pointer; }
   button:hover { border-color: var(--muted); } button.on { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 700; }
-  input { width: 90px; cursor: text; }
+  input { width: 80px; cursor: text; }
   .group { display: flex; align-items: center; gap: 6px; } .group label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
-  aside { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
-  aside#roster1 { border-right: 0; border-left: 1px solid var(--line); }
-  .rhead { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 6px 6px; border-bottom: 2px solid; margin-bottom: 2px; }
-  .rhead.team0 { border-color: var(--a0); } .rhead.team1 { border-color: var(--a1); }
-  .rname { font-weight: 700; letter-spacing: 0.12em; font-size: 14px; } .rorder { color: var(--muted); font-size: 11px; }
-  .card { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; cursor: pointer; transition: border-color .15s; }
-  .card:hover { border-color: var(--muted); } .card.follow { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-  .card.dead { opacity: 0.45; }
-  .crow { display: flex; align-items: center; gap: 6px; } .crow .st { margin-left: auto; color: var(--muted); font-size: 11px; white-space: nowrap; }
-  .crow.small { font-size: 11px; color: var(--muted); justify-content: space-between; margin-top: 3px; }
-  .role { font-size: 10px; font-weight: 700; background: #2a333d; color: #cfd8e2; border-radius: 4px; padding: 1px 4px; letter-spacing: 0.05em; }
-  .cs { font-weight: 700; }
-  .cunit { color: var(--muted); font-size: 11px; margin: 2px 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .bars { display: flex; flex-direction: column; gap: 3px; }
-  .hp, .sup { height: 6px; background: #0b0e11; border-radius: 3px; overflow: hidden; } .sup { height: 3px; }
-  .hp i { display: block; height: 100%; background: var(--ok); transition: width .2s; } .sup i { display: block; height: 100%; background: #c86a3a; transition: width .2s; }
-  #roster0 .card.dead .hp i, #roster1 .card.dead .hp i { background: var(--bad); }
-  main { position: relative; background: #000; }
+  .spacer { flex: 1; }
+  main { position: relative; background: #000; min-height: 0; }
   #scene { width: 100%; height: 100%; display: block; }
   #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
   .label { position: absolute; left: 0; top: 0; text-align: center; font-size: 11px; font-weight: 700; text-shadow: 0 1px 2px #000, 0 0 4px #000; white-space: nowrap; will-change: transform; }
-  .label.team0 { color: #9fc8f5; } .label.team1 { color: #f5c48d; } .label.down { opacity: 0.5; }
+  .label.team0 { color: #9fc8f5; } .label.team1 { color: #f5a3a3; } .label.down { opacity: 0.5; }
   .lbar { width: 40px; height: 4px; background: rgba(0,0,0,.6); margin: 2px auto 0; border-radius: 2px; overflow: hidden; } .lbar i { display: block; height: 100%; background: var(--ok); }
-  #journal { grid-column: 1 / -1; background: var(--panel); border-top: 1px solid var(--line); overflow-y: auto; padding: 6px 12px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+  .tactics { position: absolute; top: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 3; } .tactics.left { left: 12px; } .tactics.right { right: 12px; align-items: flex-end; }
+  .tcard { width: 92px; background: rgba(15,20,26,.85); border: 1px solid var(--line); border-radius: 10px; padding: 6px; text-align: center; cursor: pointer; backdrop-filter: blur(4px); position: relative; overflow: hidden; }
+  .tcard:hover { border-color: var(--accent); } .tcard.passive { cursor: default; opacity: .75; } .tcard.off { opacity: .4; cursor: default; } .tcard.enemy { cursor: default; }
+  .tcard .ticon { font-size: 26px; line-height: 1; margin: 4px 0; } .tcard .tname { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.1; } .tcard .tuse { font-size: 10px; color: var(--muted); margin-top: 3px; }
+  .tcard .cd { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); }
+  #ticker { position: absolute; left: 12px; bottom: 10px; max-width: 46%; pointer-events: none; font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; text-shadow: 0 1px 2px #000; z-index: 2; } #ticker div { color: #c9d2db; opacity: .9; } #ticker .t { color: var(--muted); margin-right: 8px; } #ticker div.k-down { color: #ffd1c8; font-weight: 700; }
+  #journalWrap { position: absolute; right: 12px; top: 12px; bottom: 12px; width: 420px; max-width: 70%; background: rgba(15,20,26,.92); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; z-index: 5; }
+  .jhead { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  #journal { flex: 1; overflow-y: auto; padding: 6px 10px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; }
   .entry { padding: 1px 0; color: #b9c2cc; } .entry .t { color: var(--muted); margin-right: 8px; }
   .entry.team0 .t { color: var(--a0); } .entry.team1 .t { color: var(--a1); }
   .entry.k-down { color: #ffd1c8; font-weight: 600; } .entry.k-hit { color: #e4e9ee; } .entry.k-spot { color: #9aa8b5; } .entry.k-start, .entry.k-end { color: var(--accent); font-weight: 700; }
-  .entry.k-noammo, .entry.k-reload { color: #c7b58a; }
+  .entry.k-noammo, .entry.k-reload { color: #c7b58a; } .entry.k-tactic, .entry.k-order { color: #a9d8ff; font-weight: 600; }
+  .bottombar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 8px 12px; background: var(--panel); border-top: 1px solid var(--line); min-height: 0; }
+  .roster { display: flex; gap: 6px; min-width: 0; } .roster.team1 { justify-content: flex-end; }
+  .card { flex: 1; min-width: 0; max-width: 200px; background: var(--panel2); border: 1px solid var(--line); border-top: 3px solid var(--a0); border-radius: 8px; padding: 6px 8px; cursor: pointer; transition: border-color .15s; display: flex; flex-direction: column; gap: 3px; }
+  .roster.team1 .card { border-top-color: var(--a1); max-width: 130px; cursor: default; }
+  .card:hover { border-color: var(--muted); } .card.follow { box-shadow: 0 0 0 1px var(--accent) inset; border-color: var(--accent); }
+  .card.dead { opacity: 0.45; }
+  .crow { display: flex; align-items: center; gap: 6px; min-width: 0; } .crow .st { margin-left: auto; color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .crow.small { font-size: 10px; color: var(--muted); justify-content: space-between; }
+  .role { font-size: 9px; font-weight: 700; background: #2a333d; color: #cfd8e2; border-radius: 4px; padding: 1px 4px; letter-spacing: 0.05em; flex: none; }
+  .cs { font-weight: 700; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cunit { display: none; }
+  .bars { display: flex; flex-direction: column; gap: 2px; }
+  .hp, .sup { height: 6px; background: #0b0e11; border-radius: 3px; overflow: hidden; } .sup { height: 3px; }
+  .hp i { display: block; height: 100%; background: var(--ok); transition: width .2s; } .sup i { display: block; height: 100%; background: #c86a3a; transition: width .2s; }
+  .card.dead .hp i { background: var(--bad); }
+  .resHead { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: center; margin-bottom: 10px; } .resTeam { display: flex; align-items: center; gap: 10px; } .resTeam.rev { flex-direction: row-reverse; text-align: right; } .rn { font-weight: 800; letter-spacing: .1em; text-transform: uppercase; } .rp { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; } .team0 .rp { color: var(--a0); } .team1 .rp { color: var(--a1); }
+  #resSpecials { display: grid; grid-template-columns: 1fr auto 1fr; gap: 4px 14px; font-size: 13px; margin: 6px auto 12px; max-width: 520px; } #resSpecials .l { text-align: right; font-weight: 700; color: var(--a0); } #resSpecials .r { font-weight: 700; color: var(--a1); } #resSpecials .m { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 11px; text-align: center; }
   .overlay { position: absolute; inset: 0; background: rgba(8,10,13,.82); display: flex; align-items: center; justify-content: center; z-index: 10; }
   .overlay.hidden { display: none; }
   .dialog { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px 26px; max-width: 1100px; width: 94%; max-height: 92%; overflow: auto; box-shadow: 0 20px 60px #000a; }
@@ -62,8 +76,7 @@
   table.res td { padding: 4px 5px; border-bottom: 1px solid #1d242b; } table.res td small { color: var(--muted); } table.res tr.dead td { color: var(--muted); }
   .actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
   #help { position: fixed; } #help .dialog { max-width: 620px; } #help ul { margin: 0; padding-left: 18px; color: #c4ccd5; } #help li { margin: 4px 0; }
-  @media (max-width: 1100px) { #app { grid-template-columns: 200px 1fr 200px; } .cunit { display: none; } }
-  @media (max-width: 800px) { #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr 140px; } aside { display: none; } header { flex-wrap: wrap; white-space: normal; padding: 6px 12px; gap: 6px; height: auto; } .spacer { display: none; } }
+  @media (max-width: 800px) { #app { grid-template-rows: 56px auto 1fr 96px; } .controls { flex-wrap: wrap; white-space: normal; padding: 4px 8px; gap: 4px; } .spacer { display: none; } .tactics .tcard { width: 64px; } .tcard .ticon { font-size: 18px; } .roster.team1 { display: none; } .bottombar { grid-template-columns: 1fr; } .tpct { font-size: 15px; min-width: 44px; } }
 
   /* ---- Quartier général ---- */
   .screen.hidden { display: none !important; }
@@ -133,50 +146,53 @@
 <div id="flash" class="hidden"></div>
 <div id="fade"></div>
 <div id="app" class="screen hidden">
-  <header>
-    <h1>OPERATOR TACTICS <small id="mapLabel"></small></h1>
-    <div class="group"><label>Alpha</label>
-      <select id="order0" title="Ordre d'Alpha — modifiable pendant la bataille"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
-    <div class="group"><label>Bravo</label>
-      <select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
+  <div class="topbar">
+    <div class="tb team0"><span class="ins" id="ins0">✶</span><div class="tbmain"><div class="tbname" id="tname0">Alpha</div><div class="tbar"><i id="tbar0"></i></div></div><span class="tpct" id="tpct0">100%</span></div>
+    <div class="tbcenter"><span class="clock" id="clock">0:00.0</span><div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div></div>
+    <div class="tb team1 rev"><span class="ins" id="ins1">⚑</span><div class="tbmain"><div class="tbname" id="tname1">Bravo</div><div class="tbar rev"><i id="tbar1"></i></div></div><span class="tpct" id="tpct1">100%</span></div>
+  </div>
+  <div class="controls">
+    <div class="group"><label>Alpha</label><select id="order0" title="Ordre d'Alpha — modifiable pendant la bataille"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
+    <div class="group"><label>Bravo</label><select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
     <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option><option value="raffinerie">Raffinerie</option></select></div>
     <div class="group"><label>Graine</label><input id="seed" placeholder="aléatoire"></div>
-    <button id="newBattle">Nouvelle</button>
-    <button id="replay" title="Rejouer la même graine avec les ordres choisis">Rejouer</button>
+    <button id="newBattle">Nouvelle</button><button id="replay" title="Rejouer la même graine">Rejouer</button>
     <span id="missionLabel" class="muted" hidden></span>
-    <button id="toHq">QG</button>
     <div class="spacer"></div>
-    <span class="alive team0" id="alive0">5</span><span class="clock" id="clock">0:00.0</span><span class="alive team1" id="alive1">5</span>
-    <div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div>
-    <span id="seedLabel" hidden></span>
+    <div class="group"><label>Caméra</label><button data-cam="follow" class="on" title="Derrière un soldat (clic sur une carte pour choisir, sinon automatique)">Suivre</button><button data-cam="sat" title="Vue satellite">Sat</button><button data-cam="free" title="Vue libre : glisser, molette, clic droit">Libre</button></div>
+    <button id="toggleJournal">Journal</button>
+    <button id="toHq">QG</button>
     <button id="mute" title="Son">🔊</button>
     <button id="toggleHelp" title="Aide">?</button>
-  </header>
-  <aside id="roster0"></aside>
+  </div>
   <main>
     <canvas id="scene"></canvas>
     <div id="labels"></div>
+    <div id="tactics0" class="tactics left"></div>
+    <div id="tactics1" class="tactics right"></div>
+    <div id="ticker"></div>
+    <div id="journalWrap" class="hidden"><div class="jhead">Journal de combat <button id="closeJournal" class="mini">×</button></div><div id="journal"></div></div>
     <div id="result" class="overlay hidden"><div class="dialog">
-      <h2 id="resTitle"></h2><p id="resReason"></p>
+      <div class="resHead"><div class="resTeam team0"><span id="resIns0" class="ins big"></span><div><div id="resName0" class="rn"></div><div id="resPct0" class="rp"></div></div></div><div><h2 id="resTitle"></h2><p id="resReason"></p></div><div class="resTeam team1 rev"><span id="resIns1" class="ins big"></span><div><div id="resName1" class="rn"></div><div id="resPct1" class="rp"></div></div></div></div>
+      <div id="resSpecials"></div>
       <div id="resTables"></div>
       <div class="actions"><button id="resClose">Revoir la scène</button><button id="resReplay">Rejouer cette graine</button><button id="resNew">Nouvelle bataille</button><button id="resHq" class="on">Retour au QG</button></div>
     </div></div>
     <div id="help" class="overlay hidden"><div class="dialog">
       <h2>Comment ça marche</h2>
       <ul>
-        <li><b>Deux escouades de cinq opérateurs</b> s'affrontent de façon autonome : chacun voit, entend, décide et tire pour son propre compte. Rien n'est scripté : les murs bloquent réellement la vue et les tirs, les couverts bas cachent un soldat accroupi, les armes et les protections ont les effets affichés.</li>
-        <li><b>Ordres</b> : <i>Assaut</i> (aller au contact), <i>Tenir</i> (se poster, tirer à vue), <i>Prudent</i> (de couvert en couvert, repli si blessé). L'ordre d'Alpha se change <b>pendant la bataille</b> : « Tenir » donné en cours de route fait tenir l'escouade là où elle se trouve.</li>
-        <li><b>Graine</b> : le même nombre rejoue exactement la même bataille. Vide = aléatoire.</li>
-        <li><b>Caméra</b> : glisser pour tourner, molette pour zoomer, clic droit ou Maj+glisser pour déplacer. Cliquer sur une carte d'opérateur pour le suivre. Espace : pause.</li>
-        <li><b>Rôles</b> : AS assaut (carabine), PT pointe (pistolet-mitrailleur), TE tireur d'élite, AP appui (mitrailleuse), BR brèche (fusil à pompe). Barre orange sous la vie : suppression.</li>
-        <li><b>Compétences</b> : chaque opérateur a un trait aux effets réels dans la simulation (vitesse, visée, rechargement, repérage, suppression…), décrit sur sa fiche.</li>
-        <li><b>Quartier général</b> : choisissez 5 opérateurs, leur arme, leur protection et leur voie d'approche, un ordre et une mission. La victoire rapporte des crédits (recrutement) et de l'expérience (+2 à chaque statistique par niveau, jusqu'au niveau 10). La progression est sauvegardée dans ce navigateur.</li>
+        <li><b>Deux escouades</b> s'affrontent de façon autonome : chacun voit, entend, décide et tire pour son propre compte. Les murs bloquent réellement la vue et les tirs, les couverts bas cachent un soldat accroupi, les armes, protections et compétences ont les effets affichés.</li>
+        <li><b>Barres du haut</b> : état réel de chaque équipe (points de vie restants / total). <b>Cartes du bas</b> : vos soldats (vie, suppression, munitions, état) — cliquer pour suivre un soldat à la caméra.</li>
+        <li><b>Tactiques</b> (cartes à gauche) : fumigène, drone, soins, mortier… à jouer pendant la bataille, avec un nombre d'emplois et un temps de recharge ; les tactiques passives (exercice, retranchement…) s'appliquent dès le début. L'adversaire joue aussi les siennes (à droite).</li>
+        <li><b>Ordres</b> : <i>Assaut</i> (aller au contact), <i>Tenir</i> (se poster, tirer à vue), <i>Prudent</i> (de couvert en couvert). L'ordre d'Alpha se change pendant la bataille.</li>
+        <li><b>Caméra</b> : <i>Suivre</i> se place derrière un soldat et change de point de vue au gré de l'action ; <i>Sat</i> montre toute la carte ; <i>Libre</i> : glisser pour tourner, molette pour zoomer, clic droit pour déplacer. Espace : pause.</li>
+        <li><b>Compétences</b> : chaque opérateur a un trait aux effets réels (vitesse, visée, rechargement, repérage, suppression…), décrit sur sa fiche au QG.</li>
+        <li><b>Quartier général</b> : 3 à 5 opérateurs, arme, protection, voie d'approche, ordre, 3 tactiques, puis une mission. Victoire → crédits, expérience, rang ; paquets de cartes (recrues, tactiques, perks, cosmétiques). Un opérateur neutralisé est indisponible une mission (ou soigné). Tout est sauvegardé dans ce navigateur.</li>
       </ul>
       <div class="actions"><button onclick="document.getElementById('help').classList.add('hidden')" class="on">Fermer</button></div>
     </div></div>
   </main>
-  <aside id="roster1"></aside>
-  <div id="journal"></div>
+  <div class="bottombar"><div id="roster0" class="roster team0"></div><div id="roster1" class="roster team1"></div></div>
 </div>
 <script>
 console.warn('Scripts "build/three.js" and "build/three.min.js" are deprecated with r150+, and will be removed with r160. Please use ES Modules or alternatives: https://threejs.org/docs/index.html#manual/en/introduction/Installation'),
@@ -381,16 +397,30 @@ window.Son = Son;
   // enemy : composition (identifiants d'opérateurs), level : niveau des ennemis, order : leur ordre tactique
   // reward : crédits en cas de victoire (la défaite rapporte une fraction), xp : expérience de base par opérateur engagé
   const MISSIONS = [
-    { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille adverse de cinq hommes progresse prudemment sur les docks. Interceptez-la.', mapId: 'entrepot', enemy: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal', 'k_fauve'], level: 0, order: 'careful', reward: 180, xp: 40, difficulty: 1 },
-    { id: 'embuscade', name: 'Position retranchée', desc: 'L\'adversaire tient l\'entrepôt derrière ses conteneurs. Il faudra aller le chercher.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_hyene', 'k_chacal', 'k_vipere'], level: 3, order: 'hold', reward: 260, xp: 55, difficulty: 2 },
-    { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact par les deux couloirs. Tenez ou contre-attaquez.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_fauve'], level: 2, order: 'assault', reward: 340, xp: 70, difficulty: 3 },
-    { id: 'marche', name: 'Marché sous le feu', desc: 'Une équipe adverse ratisse la place du marché. Reprenez-la rue par rue.', mapId: 'place', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 0, order: 'careful', reward: 240, xp: 50, difficulty: 2 },
-    { id: 'tenir', name: 'Tenir la place', desc: 'Tenez la place 140 secondes face à un assaut : il suffit qu\'un seul opérateur soit encore en état à l\'échéance.', mapId: 'place', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_vipere'], level: 6, order: 'assault', objective: 'hold', duration: 140, reward: 360, xp: 70, difficulty: 3 },
-    { id: 'nuit', name: 'Infiltration adverse', desc: 'Des opérateurs équipés d\'armes silencieuses s\'infiltrent prudemment : vous les entendrez à peine.', mapId: 'place', enemy: ['k_vipere', 'k_fauve', 'k_molosse', 'k_taipan', 'k_chacal'], enemyWeapons: { k_vipere: 'smgsil', k_fauve: 'smgsil', k_molosse: 'smgsil' }, level: 7, order: 'careful', reward: 420, xp: 85, difficulty: 4 },
-    { id: 'cuves', name: 'Entre les cuves', desc: 'Le Groupe Karst s\'est installé dans la raffinerie. Combat rapproché entre les cuves et les tuyauteries.', mapId: 'raffinerie', enemy: ['k_chacal', 'k_vipere', 'k_fauve', 'k_hyene', 'k_molosse'], level: 3, order: 'assault', reward: 320, xp: 65, difficulty: 3 },
-    { id: 'pompage', name: 'Station de pompage', desc: 'Tenez la station de pompage deux minutes face à des assaillants aguerris.', mapId: 'raffinerie', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_rapace'], level: 6, order: 'assault', objective: 'hold', duration: 120, reward: 400, xp: 80, difficulty: 4 },
-    { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 5, order: 'assault', reward: 480, xp: 90, difficulty: 4 },
+    { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille adverse de cinq hommes progresse prudemment sur les docks. Interceptez-la.', mapId: 'entrepot', enemy: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal', 'k_fauve'], level: 0, order: 'careful', enemyTactics: ['drill'], reward: 180, xp: 40, difficulty: 1 },
+    { id: 'embuscade', name: 'Position retranchée', desc: 'L\'adversaire tient l\'entrepôt derrière ses conteneurs. Il faudra aller le chercher.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_hyene', 'k_chacal', 'k_vipere'], level: 3, order: 'hold', enemyTactics: ['retranche'], reward: 260, xp: 55, difficulty: 2 },
+    { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact par les deux couloirs. Tenez ou contre-attaquez.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_fauve'], level: 2, order: 'assault', enemyTactics: ['blitz', 'fumigene'], reward: 340, xp: 70, difficulty: 3 },
+    { id: 'marche', name: 'Marché sous le feu', desc: 'Une équipe adverse ratisse la place du marché. Reprenez-la rue par rue.', mapId: 'place', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 0, order: 'careful', enemyTactics: ['discipline', 'soins'], reward: 240, xp: 50, difficulty: 2 },
+    { id: 'tenir', name: 'Tenir la place', desc: 'Tenez la place 140 secondes face à un assaut : il suffit qu\'un seul opérateur soit encore en état à l\'échéance.', mapId: 'place', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_vipere'], level: 6, order: 'assault', objective: 'hold', duration: 140, enemyTactics: ['fumigene', 'barrage'], reward: 360, xp: 70, difficulty: 3 },
+    { id: 'nuit', name: 'Infiltration adverse', desc: 'Des opérateurs équipés d\'armes silencieuses s\'infiltrent prudemment : vous les entendrez à peine.', mapId: 'place', enemy: ['k_vipere', 'k_fauve', 'k_molosse', 'k_taipan', 'k_chacal'], enemyWeapons: { k_vipere: 'smgsil', k_fauve: 'smgsil', k_molosse: 'smgsil' }, level: 7, order: 'careful', enemyTactics: ['reco', 'discipline'], reward: 420, xp: 85, difficulty: 4 },
+    { id: 'cuves', name: 'Entre les cuves', desc: 'Le Groupe Karst s\'est installé dans la raffinerie. Il progresse prudemment entre les cuves et les tuyauteries : un terrain qui favorise celui qui tient.', mapId: 'raffinerie', enemy: ['k_chacal', 'k_vipere', 'k_fauve', 'k_hyene', 'k_molosse'], level: 1, order: 'careful', enemyTactics: ['retranche', 'soins'], reward: 320, xp: 65, difficulty: 2 },
+    { id: 'pompage', name: 'Station de pompage', desc: 'Tenez la station de pompage deux minutes face à des assaillants aguerris.', mapId: 'raffinerie', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_rapace'], level: 8, order: 'assault', objective: 'hold', duration: 120, enemyTactics: ['blitz', 'barrage', 'fumigene'], reward: 400, xp: 80, difficulty: 4 },
+    { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 5, order: 'assault', enemyTactics: ['blitz', 'reco', 'soins'], reward: 480, xp: 90, difficulty: 4 },
   ];
+
+  // ---- TACTIQUES (cartes jouées en bataille ou passives) ---------------------------------
+  // Chaque effet est implémenté dans engine.js (useTactic / applyPassiveTactics). active : déclenchée par le joueur
+  // (uses : nombre d'emplois par bataille, cooldown en s) ; sinon passive, appliquée au début.
+  const TACTICS = {
+    fumigene:    { id: 'fumigene',    name: 'Fumigène',          active: true, uses: 2, cooldown: 25, desc: 'Un écran de fumée de 8 m pendant 15 s entre l\'escouade et la menace la plus proche : coupe la vue dans les deux sens.' },
+    reco:        { id: 'reco',        name: 'Drone de reco',     active: true, uses: 1, cooldown: 0,  desc: 'Révèle la position de tous les adversaires à toute l\'escouade pendant 8 s.' },
+    soins:       { id: 'soins',       name: 'Trousse de soins',  active: true, uses: 2, cooldown: 20, desc: 'L\'opérateur le plus blessé encore en état récupère 35 PV en 5 s.' },
+    barrage:     { id: 'barrage',     name: 'Appui mortier',     active: true, uses: 1, cooldown: 0,  desc: 'Après 4 s, trois obus tombent autour de la position adverse connue la plus proche : dégâts dans 3 m, suppression dans 8 m.' },
+    drill:       { id: 'drill',       name: 'Exercice de base',  active: false, desc: 'Déplacement 12 % plus rapide pendant les 20 premières secondes ; dégâts subis −10 % tant que l\'adversaire tient.' },
+    blitz:       { id: 'blitz',       name: 'Éclair',            active: false, desc: 'Cadence de tir +20 % pendant 30 s au début de la bataille, précision −10 % pendant ce temps.' },
+    retranche:   { id: 'retranche',   name: 'Retranchement',     active: false, desc: 'Position préparée atteinte en 1,5 s au lieu de 3 ; les couverts partiels protègent un peu mieux (×0,5 au lieu de ×0,55).' },
+    discipline:  { id: 'discipline',  name: 'Discipline de feu', active: false, desc: 'Pas de tir sous 12 % de chances de toucher (économie de munitions) ; +12 % de précision à l\'arrêt.' },
+  };
 
   // ---- DÉFIS -------------------------------------------------------------------------
   // Récompense unique, vérifiée sur le résultat réel de la mission (les conditions sont codées dans game.js : CHALLENGE_CHECKS).
@@ -404,6 +434,28 @@ window.Son = Son;
     { id: 'elite',      name: 'Détachement brisé',   desc: 'Réussir « Détachement d\'élite ».', reward: 400 },
   ];
 
+  // ---- PERSONNALISATION ----------------------------------------------------------------
+  const INSIGNIAS = [
+    { id: 'etoile', name: 'Étoile', glyph: '✶' }, { id: 'bouclier', name: 'Bouclier', glyph: '⛨' }, { id: 'aigle', name: 'Aigle', glyph: '⚚' },
+    { id: 'eclair', name: 'Éclair', glyph: '⚡' }, { id: 'ancre', name: 'Ancre', glyph: '⚓' }, { id: 'rose', name: 'Rose des vents', glyph: '✵' },
+  ];
+  const UNIFORMS = [
+    { id: 'olive', name: 'Olive', uniform: 0x3a4a3c, vest: 0x2b352d }, { id: 'urbain', name: 'Urbain', uniform: 0x4a4e55, vest: 0x2a2d33 },
+    { id: 'desert', name: 'Désert', uniform: 0x8a7a55, vest: 0x5d523a }, { id: 'nuit', name: 'Nuit', uniform: 0x252a36, vest: 0x161a22 },
+  ];
+  // ---- RANGS DU JOUEUR -------------------------------------------------------------------
+  const RANKS = [
+    { xp: 0, name: 'Recrue' }, { xp: 150, name: 'Opérateur' }, { xp: 400, name: 'Chef d\'équipe' }, { xp: 800, name: 'Sergent' },
+    { xp: 1400, name: 'Adjudant' }, { xp: 2200, name: 'Lieutenant' }, { xp: 3300, name: 'Capitaine' }, { xp: 4800, name: 'Commandant' },
+  ];
+  // ---- PAQUETS DE CARTES -----------------------------------------------------------------
+  // Tirage : poids par type de carte. operator → recrue (ou XP si déjà connu) ; tactic → tactique ; perk → +2 à une statistique
+  // d'un opérateur (max +10 par statistique) ; xp → expérience d'un opérateur ; credits ; cosmetic → insigne / uniforme.
+  const PACKS = {
+    standard: { id: 'standard', name: 'Paquet standard', price: 150, cards: 3, weights: { operator: 14, tactic: 16, perk: 34, xp: 20, credits: 12, cosmetic: 4 } },
+    elite:    { id: 'elite',    name: 'Paquet élite',    price: 420, cards: 5, weights: { operator: 26, tactic: 22, perk: 30, xp: 10, credits: 6, cosmetic: 6 } },
+  };
+
   // ---- ÉCONOMIE ----------------------------------------------------------------------
   const PRICES = {
     operator: { 1: 250, 2: 450, 3: 700 },           // recrutement selon la rareté
@@ -414,7 +466,7 @@ window.Son = Son;
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
   const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));
 
 </script>
@@ -500,6 +552,9 @@ window.Son = Son;
         box(8, 20.5, 1, 5, 1.2, 'cover', 'tuyauterie'), box(22, 10, 8, 1, 1.2, 'cover', 'tuyauterie'), box(22, 35, 8, 1, 1.2, 'cover', 'tuyauterie'),
         box(20, 22.5, 1.5, 1.5, 1.1, 'cover', 'fût'), box(10, 11, 1.5, 1.5, 1.1, 'cover', 'fût'), box(10, 33.5, 1.5, 1.5, 1.1, 'cover', 'fût'),
         box(30, 8, 2, 1.5, 1.1, 'cover', 'armoire'), box(30, 36.5, 2, 1.5, 1.1, 'cover', 'armoire'),
+        // silos au milieu des couloirs nord et sud : cassent les longues lignes de vue (sinon le défenseur domine)
+        box(29, 2, 3, 3, 4.0, 'wall', 'cuve'), box(29, 41, 3, 3, 4.0, 'wall', 'cuve'),
+        box(18, 20, 2, 6, 2.6, 'wall', 'conteneur'),
         box(16, 15.5, 3, 1, 1.0, 'cover', 'muret'), box(16, 29.5, 3, 1, 1.0, 'cover', 'muret'),
         box(26, 3, 3, 1.2, 1.1, 'cover', 'caisses'), box(26, 41.8, 3, 1.2, 1.1, 'cover', 'caisses'),
       ]),
@@ -542,6 +597,7 @@ window.Son = Son;
       for (const o of this.obstacles) if (pointInBox(x, z, o, RADIUS)) { this.blocked[r * this.cols + c] = 1; break; }
     }
     this.coverPoints = this.computeCoverPoints();
+    this.dynamic = [];
   }
 
   GameMap.prototype.cellOf = function (x, z) {
@@ -560,8 +616,10 @@ window.Son = Son;
   GameMap.prototype.inBounds = function (x, z) { return x > RADIUS && z > RADIUS && x < this.width - RADIUS && z < this.depth - RADIUS; };
 
   // Ligne de vue entre deux points 3D : null si libre, sinon l'obstacle qui bloque.
+  // this.dynamic : obstacles temporaires (fumigènes) — bloquent la vue, pas la marche (kind 'smoke').
   GameMap.prototype.blocker = function (ax, ay, az, bx, by, bz) {
     for (const o of this.obstacles) if (segmentHitsBox(ax, ay, az, bx, by, bz, o)) return o;
+    if (this.dynamic) for (const o of this.dynamic) if (segmentHitsBox(ax, ay, az, bx, by, bz, o)) return o;
     return null;
   };
   GameMap.prototype.hasLOS = function (ax, ay, az, bx, by, bz) { return this.blocker(ax, ay, az, bx, by, bz) === null; };
@@ -705,7 +763,7 @@ window.Son = Son;
 // Chaque opérateur perçoit, décide et agit individuellement. Le résultat découle des événements simulés.
 (function (root, deps) {
   const { RNG, DATA, GameMap, MAPS } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS } = DATA;
 
   const DT = 0.1;                 // pas de simulation (s)
   const DECIDE_EVERY = 0.3;       // fréquence des décisions de l'IA (s)
@@ -745,7 +803,8 @@ window.Son = Son;
     this.aimTarget = null; this.aimHistory = {};   // visée en cours / dernière visée par ennemi (reprise plus rapide)
     this.commitUntil = 0; this.commitAt = 0;        // engagement sur un déplacement (évite d'hésiter à chaque décision)
     this.targetLostAt = 0;
-    this.stats = { shots: 0, hits: 0, kills: 0, damageDealt: 0, damageTaken: 0, reloads: 0, headshots: 0, timeSuppressed: 0, distance: 0 };
+    this.stats = { shots: 0, hits: 0, kills: 0, damageDealt: 0, damageTaken: 0, reloads: 0, headshots: 0, timeSuppressed: 0, distance: 0, streaks: 0, revenge: 0, veteran: 0, healed: 0 };
+    this.lastKillAt = -99;
     this.decideOffset = (idx * 0.07) % DECIDE_EVERY;
   }
   Unit.prototype.pos = function () { return { x: this.x, z: this.z }; };
@@ -755,6 +814,8 @@ window.Son = Son;
   Unit.prototype.speed = function () {
     const armorMob = has(this, 'colossus') ? (1 + this.armor.mobility) / 2 : this.armor.mobility; // Colosse : pénalité des plaques divisée par deux
     let v = (1.5 + (this.def.mobility / 100) * 1.4) * armorMob;
+    const team = this.battle.teams[this.team];
+    if (team && team.tactics && team.tactics.drill && this.battle.t < 20) v *= 1.12;                 // Exercice de base : 20 premières secondes
     if (has(this, 'runner')) v *= 1.15;                                                               // Sprinteur
     if (this.stance === 'crouch') v *= 0.55;
     if (this.state === 'closing' || this.state === 'retreat') v *= 1.2;        // sprint
@@ -788,7 +849,9 @@ window.Son = Son;
         const def = Object.assign({}, base, (td.overrides && td.overrides[i]) || {});
         return new Unit(this, def, ti, i);
       });
-      this.teams.push({ index: ti, name: td.name || (ti === 0 ? 'Alpha' : 'Bravo'), order, units, spawn: this.map.spawns[ti], lastSeen: {} });
+      const tactics = {};
+      for (const id of (td.tactics || [])) if (TACTICS[id]) tactics[id] = { uses: TACTICS[id].active ? TACTICS[id].uses : 0, cooldownUntil: 0, used: 0 };
+      this.teams.push({ index: ti, name: td.name || (ti === 0 ? 'Alpha' : 'Bravo'), order, units, spawn: this.map.spawns[ti], lastSeen: {}, tactics, tacticIds: (td.tactics || []).filter(id => TACTICS[id]), auto: !!td.autoTactics });
     });
     this.units = this.teams.flatMap(t => t.units);
     this.placeUnits();
@@ -833,6 +896,7 @@ window.Son = Son;
   Battle.prototype.step = function () {
     if (this.over) return;
     this.t = Math.round((this.t + DT) * 1000) / 1000; this.tick++;
+    this.updateTactics();
     for (const u of this.units) if (u.alive) this.perceive(u);
     if (Math.abs((this.t % COMMS_EVERY)) < DT / 2 || (this.t % COMMS_EVERY) > COMMS_EVERY - DT / 2) this.comms();
     // ordre de traitement mélangé à chaque pas : aucune équipe n'a l'avantage d'agir toujours la première
@@ -902,6 +966,8 @@ window.Son = Son;
         }
       }
     }
+    // drone de reconnaissance actif pour mon équipe : position exacte de tous les adversaires
+    if (this.teams[u.team].recoUntil > this.t) for (const e of this.enemiesOf(u)) if (e.alive && !newVisible.has(e.id)) u.knowledge[e.id] = { x: e.x, z: e.z, t: this.t, seen: false, source: 'drone' };
     u.visible = newVisible;
     // oubli
     const ttl = KNOWLEDGE_TTL * (has(u, 'radio') ? 1.5 : 1);                                       // Radio : positions gardées plus longtemps
@@ -1303,6 +1369,115 @@ window.Son = Son;
     }
   };
 
+  // ---- Tactiques ---------------------------------------------------------------------
+  // Passives : appliquées à la création. Actives : useTactic(team, id) par le joueur (ou l'IA adverse si team.auto).
+  Battle.prototype.hasTactic = function (team, id) { return !!(team.tactics && team.tactics[id]); };
+  Battle.prototype.canUseTactic = function (teamIndex, id) {
+    const team = this.teams[teamIndex], st = team.tactics[id], def = TACTICS[id];
+    if (!st || !def || !def.active) return { ok: false, reason: 'tactique indisponible' };
+    if (st.uses <= 0) return { ok: false, reason: 'plus d\'utilisation' };
+    if (this.t < st.cooldownUntil) return { ok: false, reason: `recharge (${(st.cooldownUntil - this.t).toFixed(0)} s)` };
+    if (this.over) return { ok: false, reason: 'bataille terminée' };
+    const alive = team.units.filter(u => u.alive); if (!alive.length) return { ok: false, reason: 'aucun opérateur' };
+    if (id === 'fumigene' || id === 'barrage') { if (!this.teamKnownEnemies(team).length) return { ok: false, reason: 'aucune position adverse connue' }; }
+    if (id === 'soins' && !alive.some(u => u.hp < u.maxHp - 5)) return { ok: false, reason: 'personne à soigner' };
+    return { ok: true };
+  };
+  Battle.prototype.teamKnownEnemies = function (team) {
+    const out = {};
+    for (const u of team.units) if (u.alive) for (const id in u.knowledge) { const k = u.knowledge[id]; if (!out[id] || k.t > out[id].t) out[id] = k; }
+    return Object.values(out);
+  };
+  Battle.prototype.teamCentroid = function (team) {
+    const a = team.units.filter(u => u.alive); return { x: a.reduce((s, u) => s + u.x, 0) / a.length, z: a.reduce((s, u) => s + u.z, 0) / a.length };
+  };
+  Battle.prototype.useTactic = function (teamIndex, id) {
+    const can = this.canUseTactic(teamIndex, id); if (!can.ok) return can;
+    const team = this.teams[teamIndex], st = team.tactics[id], def = TACTICS[id];
+    st.uses--; st.used++; st.cooldownUntil = this.t + (def.cooldown || 0);
+    const c = this.teamCentroid(team);
+    if (id === 'fumigene') {
+      // le fumigène tombe entre le centre de l'escouade et la position adverse connue la plus proche, à 6 m de l'escouade
+      const ks = this.teamKnownEnemies(team); let k = ks[0], kd = Infinity; for (const q of ks) { const d = Math.hypot(q.x - c.x, q.z - c.z); if (d < kd) { kd = d; k = q; } }
+      const dx = k.x - c.x, dz = k.z - c.z, L = Math.hypot(dx, dz) || 1, dist = Math.min(6, L * 0.5);
+      const sx = c.x + dx / L * dist, sz = c.z + dz / L * dist, R = 4;
+      const smoke = { x: sx - R, z: sz - R, w: 2 * R, d: 2 * R, h: 2.5, kind: 'smoke', name: 'fumée', until: this.t + 15, team: teamIndex };
+      this.map.dynamic.push(smoke);
+      this.logEvent('tactic', `${team.name} déploie un fumigène.`, { team: teamIndex, tactic: id });
+      this.emit({ type: 'smoke', x: sx, z: sz, r: R, until: smoke.until, team: teamIndex });
+    } else if (id === 'reco') {
+      team.recoUntil = this.t + 8;
+      this.logEvent('tactic', `${team.name} lance un drone de reconnaissance : positions adverses révélées pendant 8 s.`, { team: teamIndex, tactic: id });
+      this.emit({ type: 'reco', team: teamIndex, until: team.recoUntil });
+    } else if (id === 'soins') {
+      let target = null; for (const u of team.units) if (u.alive && (!target || u.hp / u.maxHp < target.hp / target.maxHp)) target = u;
+      target.healing = { remaining: 35, rate: 7, by: id }; // 35 PV en 5 s
+      this.logEvent('tactic', `${team.name} : trousse de soins pour ${target.callsign}.`, { team: teamIndex, tactic: id, unit: target.id });
+      this.emit({ type: 'heal', unit: target.id });
+    } else if (id === 'barrage') {
+      const ks = this.teamKnownEnemies(team); let k = ks[0], kd = Infinity; for (const q of ks) { const d = Math.hypot(q.x - c.x, q.z - c.z); if (d < kd) { kd = d; k = q; } }
+      this.pendingShells = this.pendingShells || [];
+      for (let i = 0; i < 3; i++) this.pendingShells.push({ at: this.t + 4 + i * 0.7, x: k.x + this.rng.gauss() * 3, z: k.z + this.rng.gauss() * 3, team: teamIndex });
+      this.logEvent('tactic', `${team.name} demande un appui mortier sur une position adverse : impact dans 4 s.`, { team: teamIndex, tactic: id });
+      this.emit({ type: 'barrage_called', x: k.x, z: k.z, team: teamIndex });
+    }
+    return { ok: true };
+  };
+  Battle.prototype.updateTactics = function () {
+    // fumées : expiration
+    if (this.map.dynamic.length) for (let i = this.map.dynamic.length - 1; i >= 0; i--) if (this.t >= this.map.dynamic[i].until) this.map.dynamic.splice(i, 1);
+    // obus : impact
+    if (this.pendingShells && this.pendingShells.length) for (let i = this.pendingShells.length - 1; i >= 0; i--) {
+      const sh = this.pendingShells[i]; if (this.t < sh.at) continue;
+      this.pendingShells.splice(i, 1);
+      this.emit({ type: 'shell', x: sh.x, z: sh.z });
+      for (const u of this.units) {
+        if (!u.alive) continue;
+        const d = Math.hypot(u.x - sh.x, u.z - sh.z);
+        if (d < 8) u.suppression = clamp(u.suppression + 0.5 * (1 - d / 8), 0, 1);
+        if (d < 3) {
+          const dmg = Math.round(45 * (1 - d / 3) * (1 - u.armor.torso * 0.5) * 10) / 10;
+          if (dmg > 0) this.applyDamage(null, u, dmg, 'obus', sh.team);
+        }
+      }
+      this.logEvent('shell', `Obus de mortier en (${sh.x.toFixed(0)}, ${sh.z.toFixed(0)}).`, { team: sh.team, silent: true });
+    }
+    // soins : régénération progressive
+    for (const u of this.units) if (u.alive && u.healing) {
+      const h = Math.min(u.healing.remaining, u.healing.rate * DT, u.maxHp - u.hp);
+      u.hp += h; u.healing.remaining -= h; u.stats.healed += h;
+      u.status = u.hp <= u.maxHp * 0.2 ? 'critical' : (u.hp <= u.maxHp * 0.5 ? 'wounded' : 'ok');
+      if (u.healing.remaining <= 0.01 || u.hp >= u.maxHp) { u.healing = null; }
+    }
+    // IA adverse : emploie ses tactiques actives à des moments raisonnables
+    for (const team of this.teams) if (team.auto) this.autoTactics(team);
+  };
+  Battle.prototype.autoTactics = function (team) {
+    if (this.tick % 10 !== 0) return; // une décision par seconde
+    const alive = team.units.filter(u => u.alive); if (!alive.length) return;
+    const underFire = alive.filter(u => this.t - u.lastShotByAt < 2).length;
+    for (const id of team.tacticIds) {
+      if (!TACTICS[id].active || !this.canUseTactic(team.index, id).ok) continue;
+      if (id === 'fumigene' && underFire >= 2 && this.rng.chance(0.5)) this.useTactic(team.index, id);
+      else if (id === 'reco' && this.t > 10 && !this.teamKnownEnemies(team).length && this.rng.chance(0.3)) this.useTactic(team.index, id);
+      else if (id === 'soins' && alive.some(u => u.hp < u.maxHp * 0.45) && this.rng.chance(0.6)) this.useTactic(team.index, id);
+      else if (id === 'barrage' && this.t > 15 && this.teamKnownEnemies(team).length >= 2 && this.rng.chance(0.4)) this.useTactic(team.index, id);
+    }
+  };
+  // Dégâts hors tir direct (obus) : même comptabilité que les tirs, attribués à l'équipe
+  Battle.prototype.applyDamage = function (shooter, e, dmg, cause, teamIndex) {
+    e.hp = Math.max(0, e.hp - dmg); e.lastHitAt = this.t; e.stats.damageTaken += dmg;
+    const team = this.teams[teamIndex];
+    if (e.hp <= 0) {
+      e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
+      this.logEvent('down', `${e.callsign} est hors de combat (${cause}).`, { team: teamIndex, enemy: e.id, dmg, loc: cause, unit: null });
+      this.emit({ type: 'down', unit: e.id }); team.indirectKills = (team.indirectKills || 0) + 1; team.indirectDamage = (team.indirectDamage || 0) + dmg; return;
+    }
+    team.indirectDamage = (team.indirectDamage || 0) + dmg;
+    e.status = e.hp <= e.maxHp * 0.2 ? 'critical' : (e.hp <= e.maxHp * 0.5 ? 'wounded' : 'ok');
+    this.logEvent('hit', `${e.callsign} est touché par un ${cause} : −${dmg} PV.`, { team: teamIndex, enemy: e.id, dmg, loc: cause, unit: null });
+  };
+
   // ---- Tir de suppression (appui) : arroser un couvert bas derrière lequel un ennemi vient de se cacher ------------
   // Conditions : rôle appui, position vue il y a moins de 2 s, l'ennemi est bien là (± 1 m), et le rayon vers sa poitrine
   // n'est bloqué que par un couvert bas (les balles claquent dans le couvert : pas de dégâts, mais suppression).
@@ -1331,7 +1506,8 @@ window.Son = Son;
   // « Calé » : ordre Tenir, immobile à son poste depuis au moins 3 s (bonus de précision et silhouette réduite).
   Battle.prototype.isBraced = function (u) {
     if (!u.alive || u.moving) return false;
-    const still = this.t - (u.stillSince === undefined ? this.t : u.stillSince) >= 3;
+    const need = this.hasTactic(this.teams[u.team], 'retranche') ? 1.5 : 3;                           // Retranchement
+    const still = this.t - (u.stillSince === undefined ? this.t : u.stillSince) >= need;
     if (has(u, 'ambusher') && still) return true;                 // Affût : position préparée quel que soit l'ordre
     return this.teams[u.team].order === 'hold' && still && u.post && Math.hypot(u.post.x - u.x, u.post.z - u.z) < 1.6;
   };
@@ -1341,7 +1517,7 @@ window.Son = Son;
     return false;
   };
   // Seuil de chance de toucher en dessous duquel on ne gaspille pas ses munitions (l'appui tire plus volontiers : suppression).
-  Battle.prototype.fireThreshold = function (u) { return u.role.id === 'support' ? 0.045 : 0.08; };
+  Battle.prototype.fireThreshold = function (u) { const base = u.role.id === 'support' ? 0.045 : 0.08; return this.hasTactic(this.teams[u.team], 'discipline') ? base * 1.5 : base; }; // Discipline de feu
   Battle.prototype.hitChance = function (u, e, d, asIfStill) {
     const w = u.weapon;
     let p = w.accuracy * (0.45 + 0.55 * u.def.marksmanship / 100);
@@ -1356,12 +1532,15 @@ window.Son = Son;
     const hard = has(u, 'hardened') ? 0.5 : 1;                                       // Endurci
     if (u.status === 'wounded') p *= 1 - 0.15 * hard; else if (u.status === 'critical') p *= 1 - 0.35 * hard;
     if (this.isBraced(u)) p *= 1.1;           // position préparée : arme calée, repères pris
+    const tt = this.teams[u.team];
+    if (this.hasTactic(tt, 'discipline') && !u.moving) p *= 1.12;                                   // Discipline de feu
+    if (this.hasTactic(tt, 'blitz') && this.t < 30) p *= 0.9;                                        // Éclair : précision −10 % au début
     if (has(u, 'patience') && u.burst === 0 && u.aimFull) p *= 1.25;               // Patience : premier tir posé
     if (e.moving) p *= has(u, 'opportunity') ? 0.9 : 0.8;                             // Tir d'opportunité
     if (e.stance === 'crouch') p *= 0.85;
     if (this.isBraced(e)) p *= 0.9;           // un défenseur installé expose moins de silhouette
     const cv = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
-    if (cv) p *= cv.level === 'partial' ? 0.55 : 0.3; // 'full' : seul un bout dépasse (ne devrait pas arriver si LOS poitrine)
+    if (cv) p *= cv.level === 'partial' ? (this.hasTactic(this.teams[e.team], 'retranche') ? 0.5 : 0.55) : 0.3; // couvert partiel (Retranchement : ×0,5)
     if (w.rpm > 100) p *= 1 - (has(u, 'gunner') ? 0.03 : 0.06) * Math.min(u.burst, 5);   // Tir soutenu : perte en rafale divisée par deux
     return { p: clamp(p, 0.03, 0.95), cover: cv };
   };
@@ -1373,7 +1552,7 @@ window.Son = Son;
     // sans ligne de vue sur la poitrine, pas de tir (la perception l'a vérifié ce pas-ci, on re-vérifie par sécurité)
     if (!this.canSee(u, e)) return;
     if (this.hitChance(u, e, d).p < this.fireThreshold(u)) { u.fireAcc = Math.min(u.fireAcc, 0.99); return; }
-    u.fireAcc += DT * u.weapon.rpm / 60;
+    u.fireAcc += DT * u.weapon.rpm / 60 * (this.hasTactic(this.teams[u.team], 'blitz') && this.t < 30 ? 1.2 : 1); // Éclair : cadence +20 %
     while (u.fireAcc >= 1 && u.ammo > 0) {
       u.fireAcc -= 1;
       this.shoot(u, e, d);
@@ -1410,6 +1589,7 @@ window.Son = Son;
     else { loc = 'membre'; mult = 0.55; prot = 0; }
     let dmg = w.damage * fall * mult * (1 - prot) * this.rng.range(0.85, 1.15);
     if (has(u, 'breach') && d < 10 && (w.cls === 'brèche' || w.cls === 'pm')) dmg *= 1.15;   // Enfonceur
+    if (this.hasTactic(this.teams[e.team], 'drill') && this.teams[u.team].order === 'hold') dmg *= 0.9; // Exercice de base : −10 % tant que l'adversaire tient
     dmg = Math.round(dmg * 10) / 10;
     const before = e.hp;
     e.hp = Math.max(0, e.hp - dmg);
@@ -1422,6 +1602,12 @@ window.Son = Son;
     if (e.hp <= 0) {
       e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
       u.stats.kills++;
+      // « spéciaux » : série (deux neutralisations à moins de 10 s), revanche (celui qui a mis un allié hors de combat), vétéran (niveau supérieur)
+      if (this.t - u.lastKillAt < 10) u.stats.streaks++;
+      u.lastKillAt = this.t;
+      if (this.alliesOf(u).some(a => !a.alive && a.downedBy === e)) u.stats.revenge++;
+      if ((e.def.level || 0) > (u.def.level || 0)) u.stats.veteran++;
+      e.downedBy = u;
       text += ` — ${e.callsign} est hors de combat.`;
       this.logEvent('down', text, { unit: u.id, enemy: e.id, team: u.team, dmg, loc });
       this.emit({ type: 'down', unit: e.id });
@@ -1463,6 +1649,10 @@ window.Son = Son;
       teams: this.teams.map(t => ({
         name: t.name, order: ORDERS[t.order].name, orderId: t.order,
         alive: t.units.filter(u => u.alive).length,
+        hpPct: Math.round(100 * t.units.reduce((s, u) => s + (u.alive ? u.hp : 0), 0) / t.units.reduce((s, u) => s + u.maxHp, 0)),
+        kills: t.units.reduce((s, u) => s + u.stats.kills, 0) + (t.indirectKills || 0),
+        specials: { headshots: t.units.reduce((s, u) => s + u.stats.headshots, 0), streaks: t.units.reduce((s, u) => s + u.stats.streaks, 0), revenge: t.units.reduce((s, u) => s + u.stats.revenge, 0), veteran: t.units.reduce((s, u) => s + u.stats.veteran, 0) },
+        tactics: Object.keys(t.tactics || {}).map(id => ({ id, used: t.tactics[id].used })),
         shots: t.units.reduce((s, u) => s + u.stats.shots, 0), hits: t.units.reduce((s, u) => s + u.stats.hits, 0),
         units: t.units.map(u => ({
           id: u.id, callsign: u.callsign, role: u.role.name, weapon: u.weapon.name, armor: u.armor.name, unit: u.def.unit,
@@ -1492,7 +1682,7 @@ window.Son = Son;
 // Logique pure (testable en ligne de commande) ; l'interface (web/app.js) ne fait que l'afficher.
 (function (root, deps) {
   const { DATA } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL } = DATA;
   const STATS = ['marksmanship', 'reflexes', 'mobility', 'perception', 'composure', 'endurance'];
   const SAVE_KEY = 'operator-tactics-save-v1';
   const STARTING = ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
@@ -1505,6 +1695,9 @@ window.Son = Son;
       version: 1, credits: 300, operators, squad: STARTING.slice(), order: 'assault',
       inventory: { weapons: { carbine: true, smg: true, dmr: true, lmg: true, shotgun: true }, armors: { light: true, medium: true, heavy: true } }, // battle, smgsil : à acheter
       career: { battles: 0, wins: 0, losses: 0, draws: 0, kills: 0, losses_units: 0 }, missions: {}, challenges: {}, lastSeed: null,
+      // méta à la manière des jeux de cartes : nom et insigne d'équipe, uniforme, rang du joueur, tactiques, perks par opérateur
+      teamName: 'Alpha', insignia: 'etoile', uniform: 'olive', unlocked: { insignias: ['etoile', 'bouclier'], uniforms: ['olive'] },
+      xp: 0, tactics: { owned: { fumigene: true, drill: true }, equipped: ['fumigene', 'drill'] }, perks: {}, packsOpened: 0,
     };
   }
   const levelFor = (xp) => { let l = 0; while (l < MAX_LEVEL && xp >= XP_TABLE[l + 1]) l++; return l; };
@@ -1515,7 +1708,8 @@ window.Son = Son;
     const base = OPERATORS.find(o => o.id === id); const st = profile.operators[id];
     const level = levelFor(st.xp);
     const def = Object.assign({}, base, { level, weaponId: st.weaponId, armor: st.armorId, lane: st.lane });
-    for (const k of STATS) def[k] = Math.min(100, base[k] + level * LEVEL_STAT_BONUS);
+    const perks = (profile.perks && profile.perks[id]) || {};
+    for (const k of STATS) def[k] = Math.min(100, base[k] + level * LEVEL_STAT_BONUS + (perks[k] || 0));
     return def;
   }
   // Fiche d'un ennemi de mission : niveau fixé par la mission.
@@ -1526,10 +1720,88 @@ window.Son = Son;
     return def;
   }
   function buildTeams(profile, mission) {
+    const uni = UNIFORMS.find(u => u.id === profile.uniform) || UNIFORMS[0];
     return [
-      { name: 'Alpha', order: profile.order, operators: profile.squad.map(id => effectiveDef(profile, id)) },
-      { name: 'Bravo', order: mission.order, operators: mission.enemy.map(id => enemyDef(id, mission.level, mission.enemyWeapons && mission.enemyWeapons[id])) },
+      { name: profile.teamName || 'Alpha', order: profile.order, operators: profile.squad.map(id => effectiveDef(profile, id)), tactics: (profile.tactics && profile.tactics.equipped) || [], insignia: profile.insignia, uniform: uni.id },
+      { name: 'Groupe Karst', order: mission.order, operators: mission.enemy.map(id => enemyDef(id, mission.level, mission.enemyWeapons && mission.enemyWeapons[id])), tactics: mission.enemyTactics || [], autoTactics: true, insignia: 'karst' },
     ];
+  }
+  // ---- Rang du joueur, puissance d'équipe (indicatifs) ----------------------------------
+  const rankFor = (xp) => { let r = 0; while (r < RANKS.length - 1 && xp >= RANKS[r + 1].xp) r++; return r; };
+  const xpToNextRank = (xp) => { const r = rankFor(xp); return r >= RANKS.length - 1 ? null : RANKS[r + 1].xp - xp; };
+  // Puissance : moyenne des statistiques effectives + arme + protection, ramenée à une échelle lisible (≈ 25–70).
+  // Purement informative : le combat n'en tient aucun compte.
+  function operatorRating(profile, id) {
+    const d = effectiveDef(profile, id); const st = profile.operators[id];
+    const stats = STATS.reduce((s, k) => s + d[k], 0) / STATS.length;
+    const w = WEAPONS[st.weaponId], a = ARMORS[st.armorId];
+    const wv = (w.damage * w.rpm / 60) * Math.min(1, w.range / 40) / 8 + w.accuracy * 10;
+    const av = a.torso * 20;
+    return stats * 0.4 + wv + av;
+  }
+  const teamRating = (profile) => profile.squad.length ? Math.round(profile.squad.reduce((s, id) => s + operatorRating(profile, id), 0) / profile.squad.length) : 0;
+  // ---- Tactiques équipées (3 emplacements) -----------------------------------------------
+  function equipTactic(profile, id) {
+    if (!TACTICS[id] || !profile.tactics.owned[id]) return false;
+    const eq = profile.tactics.equipped;
+    if (eq.includes(id)) { eq.splice(eq.indexOf(id), 1); return true; } // retirer
+    if (eq.length >= 3) return false;
+    eq.push(id); return true;
+  }
+  // ---- Paquets de cartes -----------------------------------------------------------------
+  // rng : fonction () → [0,1) (injectable pour les tests). Renvoie la liste des cartes obtenues, déjà appliquées au profil.
+  function openPack(profile, packId, rng) {
+    const pack = PACKS[packId]; if (!pack) return null;
+    if (profile.credits < pack.price) return null;
+    profile.credits -= pack.price; profile.packsOpened = (profile.packsOpened || 0) + 1;
+    rng = rng || Math.random;
+    const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+    const types = Object.keys(pack.weights), total = types.reduce((s, k) => s + pack.weights[k], 0);
+    const cards = [];
+    for (let i = 0; i < pack.cards; i++) {
+      let r = rng() * total, type = types[0]; for (const k of types) { r -= pack.weights[k]; if (r < 0) { type = k; break; } }
+      cards.push(drawCard(profile, type, rng, pick));
+    }
+    return cards;
+  }
+  function drawCard(profile, type, rng, pick) {
+    const recruitable = OPERATORS.filter(o => !o.faction);
+    if (type === 'operator') {
+      const locked = recruitable.filter(o => !profile.operators[o.id].unlocked);
+      if (locked.length) { const o = pick(locked); profile.operators[o.id].unlocked = true; return { type: 'operator', id: o.id, title: o.callsign, text: `Nouvelle recrue : ${ROLES[o.role].name} (${o.unit})`, rarity: o.rarity }; }
+      type = 'xp';
+    }
+    if (type === 'tactic') {
+      const locked = Object.values(TACTICS).filter(t => !profile.tactics.owned[t.id]);
+      if (locked.length) { const t = pick(locked); profile.tactics.owned[t.id] = true; return { type: 'tactic', id: t.id, title: t.name, text: t.desc, rarity: 2 }; }
+      type = 'credits';
+    }
+    if (type === 'perk') {
+      const owned = recruitable.filter(o => profile.operators[o.id].unlocked);
+      const o = pick(owned); const open = STATS.filter(k => ((profile.perks[o.id] || {})[k] || 0) < 10);
+      if (open.length) { const k = pick(open); profile.perks[o.id] = profile.perks[o.id] || {}; profile.perks[o.id][k] = (profile.perks[o.id][k] || 0) + 2; return { type: 'perk', id: o.id, stat: k, title: `${o.callsign} : ${STAT_FR[k]} +2`, text: 'Bonus permanent à une statistique (cumulable jusqu\'à +10).', rarity: 1 }; }
+      type = 'xp';
+    }
+    if (type === 'xp') {
+      const owned = recruitable.filter(o => profile.operators[o.id].unlocked); const o = pick(owned); const v = 40 + Math.floor(rng() * 41);
+      const before = levelFor(profile.operators[o.id].xp); profile.operators[o.id].xp += v; const after = levelFor(profile.operators[o.id].xp);
+      return { type: 'xp', id: o.id, title: `${o.callsign} : +${v} XP`, text: after > before ? `Promotion : niveau ${after} !` : 'Expérience de terrain.', rarity: 1 };
+    }
+    if (type === 'cosmetic') {
+      const ins = INSIGNIAS.filter(i => !profile.unlocked.insignias.includes(i.id)), unis = UNIFORMS.filter(u => !profile.unlocked.uniforms.includes(u.id));
+      const pool = [...ins.map(i => ({ kind: 'insignia', item: i })), ...unis.map(u => ({ kind: 'uniform', item: u }))];
+      if (pool.length) { const c = pick(pool); (c.kind === 'insignia' ? profile.unlocked.insignias : profile.unlocked.uniforms).push(c.item.id); return { type: 'cosmetic', id: c.item.id, title: c.kind === 'insignia' ? `Insigne : ${c.item.name}` : `Uniforme : ${c.item.name}`, text: 'Personnalisation d\'équipe débloquée.', rarity: 2 }; }
+      type = 'credits';
+    }
+    const v = 50 + Math.floor(rng() * 71); profile.credits += v;
+    return { type: 'credits', title: `+${v} crédits`, text: 'Prime de mission.', rarity: 1 };
+  }
+  const STAT_FR = { marksmanship: 'Tir', reflexes: 'Réflexes', mobility: 'Mobilité', perception: 'Perception', composure: 'Sang-froid', endurance: 'Endurance' };
+  function setCustomization(profile, field, value) {
+    if (field === 'teamName') { const v = String(value || '').trim().slice(0, 18); if (!v) return false; profile.teamName = v; return true; }
+    if (field === 'insignia') { if (!profile.unlocked.insignias.includes(value)) return false; profile.insignia = value; return true; }
+    if (field === 'uniform') { if (!profile.unlocked.uniforms.includes(value)) return false; profile.uniform = value; return true; }
+    return false;
   }
   // Options complètes de bataille pour une mission (carte, objectif, équipes)
   function battleOptions(profile, mission, seed) {
@@ -1619,6 +1891,9 @@ window.Son = Son;
     const r = computeRewards(profile, mission, result);
     profile.credits += r.credits;
     r.challenges = checkChallenges(profile, mission, result);
+    const rankBefore = rankFor(profile.xp || 0);
+    r.playerXp = mission.xp + (result.teams[0].kills || 0) * 5 + (r.won ? 30 : r.draw ? 10 : 0);
+    profile.xp = (profile.xp || 0) + r.playerXp; r.rankUp = rankFor(profile.xp) > rankBefore ? RANKS[rankFor(profile.xp)].name : null;
     r.levelUps = [];
     for (const u of result.teams[0].units) {
       const id = u.id.split(':')[1]; const st = profile.operators[id];
@@ -1649,6 +1924,7 @@ window.Son = Son;
       // tolérance : opérateurs ajoutés depuis la sauvegarde
       const fresh = newProfile();
       for (const id in fresh.operators) if (!p.operators[id]) p.operators[id] = fresh.operators[id];
+      for (const k of ['teamName', 'insignia', 'uniform', 'unlocked', 'xp', 'tactics', 'perks', 'packsOpened']) if (p[k] === undefined) p[k] = fresh[k];
       p.inventory = p.inventory || fresh.inventory; p.inventory.weapons = Object.assign({}, fresh.inventory.weapons, p.inventory.weapons); p.inventory.armors = Object.assign({}, fresh.inventory.armors, p.inventory.armors);
       p.squad = p.squad.filter(id => p.operators[id] && p.operators[id].unlocked);
       return p;
@@ -1656,7 +1932,7 @@ window.Son = Son;
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));
 
@@ -1842,9 +2118,10 @@ window.Son = Son;
   const STATE_FR = { idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache' };
   const STATUS_FR = { ok: 'Indemne', wounded: 'Blessé', critical: 'Grave', down: 'Neutralisé' };
   const TEAM = [
-    { name: 'Alpha', color: 0x3f7fc8, css: '#5aa0ea', uniform: 0x3a4a3c, vest: 0x2b352d },
-    { name: 'Bravo', color: 0xd9822b, css: '#f0a04a', uniform: 0x6b5a3e, vest: 0x4e4230 },
+    { name: 'Alpha', color: 0x4f9cf0, css: '#4f9cf0', uniform: 0x3a4a3c, vest: 0x2b352d },
+    { name: 'Bravo', color: 0xe85a4f, css: '#e85a4f', uniform: 0x6b5a3e, vest: 0x4e4230 },
   ];
+  const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯' };
   const $ = (s) => document.querySelector(s);
 
   // ---------------------------------------------------------------------------------------------
@@ -1869,19 +2146,56 @@ window.Son = Son;
   const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 400);
 
   // caméra orbitale maison (glisser : tourner ; molette : zoom ; clic droit / Maj : déplacer)
-  const cam = { target: new THREE.Vector3(32, 0, 20), yaw: Math.PI / 2 + 0.28, pitch: 0.95, dist: 60, follow: null };
-  function applyCamera() {
-    if (cam.follow) { const m = meshes[cam.follow]; if (m) cam.target.lerp(new THREE.Vector3(m.group.position.x, 0, m.group.position.z), 0.15); }
-    const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
-    camera.position.set(cam.target.x + cam.dist * cp * Math.cos(cam.yaw), cam.target.y + cam.dist * sp, cam.target.z + cam.dist * cp * Math.sin(cam.yaw));
-    camera.lookAt(cam.target);
+  // Trois modes : « follow » (derrière un soldat, choisi ou automatique), « sat » (vue d'ensemble), « free » (orbite libre)
+  const cam = { mode: 'follow', target: new THREE.Vector3(32, 0, 20), yaw: Math.PI / 2 + 0.28, pitch: 0.95, dist: 60, follow: null, autoFollow: null, autoUntil: 0, pos: new THREE.Vector3(), look: new THREE.Vector3(), init: false };
+  function pickAutoFollow() {
+    if (!battle) return null;
+    // le soldat le plus « engagé » : vient de tirer ou d'être pris pour cible ; priorité à l'équipe du joueur
+    let best = null, bs = -Infinity;
+    for (const u of battle.units) {
+      if (!u.alive) continue;
+      let sc = (u.team === 0 ? 2 : 0) + (battle.t - u.lastShotAt < 3 ? 6 : 0) + (battle.t - u.lastShotByAt < 3 ? 5 : 0) + (u.target ? 3 : 0) + (u.moving ? 1 : 0) + (u.id === cam.autoFollow ? 2.5 : 0);
+      if (sc > bs) { bs = sc; best = u; }
+    }
+    return best ? best.id : null;
   }
+  function applyCamera() {
+    if (cam.mode === 'follow') {
+      let id = cam.follow;
+      if (!id || !unitById[id] || !unitById[id].alive) { if (!cam.autoFollow || simTime > cam.autoUntil || !unitById[cam.autoFollow] || !unitById[cam.autoFollow].alive) { cam.autoFollow = pickAutoFollow(); cam.autoUntil = simTime + 6; } id = cam.autoFollow; }
+      const m = id && meshes[id], u = id && unitById[id];
+      if (m && u) {
+        const yaw = m.group.rotation.y; // orientation du soldat (rotation.y = -facing + π/2)
+        const fx = Math.cos(-(yaw - Math.PI / 2)), fz = Math.sin(-(yaw - Math.PI / 2));
+        const px = m.group.position.x, pz = m.group.position.z;
+        const want = new THREE.Vector3(px - fx * 5.2, 2.6, pz - fz * 5.2), look = new THREE.Vector3(px + fx * 7, 1.1, pz + fz * 7);
+        if (!cam.init) { cam.pos.copy(want); cam.look.copy(look); cam.init = true; }
+        cam.pos.lerp(want, 0.08); cam.look.lerp(look, 0.12);
+        camera.position.copy(cam.pos); camera.lookAt(cam.look);
+        cam.target.set(px, 0, pz);
+        return;
+      }
+    }
+    if (cam.mode === 'sat') {
+      const map = battle.map; const want = new THREE.Vector3(map.width / 2, 78, map.depth / 2 + 22), look = new THREE.Vector3(map.width / 2, 0, map.depth / 2);
+      if (!cam.init) { cam.pos.copy(want); cam.look.copy(look); cam.init = true; }
+      cam.pos.lerp(want, 0.08); cam.look.lerp(look, 0.08); camera.position.copy(cam.pos); camera.lookAt(cam.look); return;
+    }
+    // libre (orbite)
+    const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    const want = new THREE.Vector3(cam.target.x + cam.dist * cp * Math.cos(cam.yaw), cam.target.y + cam.dist * sp, cam.target.z + cam.dist * cp * Math.sin(cam.yaw));
+    if (!cam.init) { cam.pos.copy(want); cam.look.copy(cam.target); cam.init = true; }
+    cam.pos.lerp(want, 0.2); cam.look.lerp(cam.target, 0.2);
+    camera.position.copy(cam.pos); camera.lookAt(cam.look);
+  }
+  function setCamMode(mode) { cam.mode = mode; document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === mode)); if (mode === 'free') { cam.target.set(battle.map.width / 2, 0, battle.map.depth / 2); cam.dist = 60; } }
   (function cameraControls() {
     let drag = null;
     canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, b: e.button, shift: e.shiftKey }; canvas.setPointerCapture(e.pointerId); });
     canvas.addEventListener('pointermove', (e) => {
       if (!drag) return;
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+      if (cam.mode !== 'free') { if (Math.abs(dx) + Math.abs(dy) > 3) { setCamMode('free'); cam.yaw = Math.atan2(camera.position.z - cam.target.z, camera.position.x - cam.target.x); cam.pitch = Math.max(0.15, Math.min(1.5, Math.atan2(camera.position.y, Math.hypot(camera.position.x - cam.target.x, camera.position.z - cam.target.z)))); cam.dist = camera.position.distanceTo(cam.target); } return; }
       if (drag.b === 2 || drag.shift) {
         cam.follow = null;
         const right = new THREE.Vector3(Math.cos(cam.yaw + Math.PI / 2), 0, Math.sin(cam.yaw + Math.PI / 2));
@@ -1891,7 +2205,7 @@ window.Son = Son;
       if (MANUAL) render();
     });
     canvas.addEventListener('pointerup', () => { drag = null; });
-    canvas.addEventListener('wheel', (e) => { e.preventDefault(); cam.dist = Math.max(8, Math.min(140, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); if (MANUAL) render(); }, { passive: false });
+    canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (cam.mode !== 'free') return; cam.dist = Math.max(8, Math.min(140, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); if (MANUAL) render(); }, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   })();
 
@@ -2096,7 +2410,8 @@ window.Son = Son;
   }
   function makeOperator(u) {
     const t = TEAM[u.team];
-    const fac = DATA.FACTIONS[u.def.faction || 'allied'] || DATA.FACTIONS.allied;   // uniforme selon la faction, marqueurs selon l'équipe
+    let fac = DATA.FACTIONS[u.def.faction || 'allied'] || DATA.FACTIONS.allied;   // uniforme selon la faction, marqueurs selon l'équipe
+    const teamDef = battle.teams[u.team]; if (!u.def.faction && teamDef.uniform) { const uni = DATA.UNIFORMS.find(x => x.id === teamDef.uniform); if (uni) fac = uni; }
     const matU = new THREE.MeshStandardMaterial({ color: fac.uniform, roughness: 0.95 });
     const matV = new THREE.MeshStandardMaterial({ color: fac.vest, roughness: 0.9 });
     const matHelmet = new THREE.MeshStandardMaterial({ color: fac.vest, roughness: 0.65 });
@@ -2213,6 +2528,21 @@ window.Son = Son;
       for (let i = 0; i < (ground ? 2 : 4); i++) { const sp = new THREE.Mesh(sparkGeo, sparkMat); sp.position.set(to.x, Math.max(0.05, to.y), to.z); scene.add(sp); fx.push({ obj: sp, until: arrive + 0.3, start: arrive, vel: new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 2.5, (Math.random() - 0.5) * 3), gravity: 9 }); }
     }
   }
+  // effets de tactiques : nappe de fumée, obus, soins, drone
+  const smokeMat = new THREE.MeshStandardMaterial({ color: 0xc9c9c4, transparent: true, opacity: 0.55, roughness: 1, depthWrite: false });
+  function addSmoke(ev) {
+    const g = new THREE.Group();
+    for (let i = 0; i < 14; i++) { const r = 1.2 + Math.random() * 1.6; const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), smokeMat.clone()); m.position.set(ev.x + (Math.random() - 0.5) * ev.r * 1.6, 0.8 + Math.random() * 1.6, ev.z + (Math.random() - 0.5) * ev.r * 1.6); m.userData.drift = new THREE.Vector3((Math.random() - 0.5) * 0.15, 0.08 + Math.random() * 0.1, (Math.random() - 0.5) * 0.15); g.add(m); }
+    scene.add(g); fx.push({ obj: g, kind: 'smoke', until: ev.until, start: simTime });
+  }
+  function addShell(ev) {
+    const flash = new THREE.Mesh(new THREE.SphereGeometry(1.6, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffb060, transparent: true, opacity: 0.9 })); flash.position.set(ev.x, 0.8, ev.z); scene.add(flash); fx.push({ obj: flash, until: simTime + 0.25, grow: 3 , start: simTime });
+    for (let i = 0; i < 10; i++) { const d = new THREE.Mesh(dustGeo, dustMat); d.position.set(ev.x, 0.3, ev.z); d.scale.setScalar(1.5 + Math.random()); scene.add(d); fx.push({ obj: d, until: simTime + 1.6, start: simTime, vel: new THREE.Vector3((Math.random() - 0.5) * 6, 2 + Math.random() * 4, (Math.random() - 0.5) * 6), gravity: 4 }); }
+    const scorch = new THREE.Mesh(new THREE.CircleGeometry(2.2, 16), new THREE.MeshBasicMaterial({ color: 0x1a1612, transparent: true, opacity: 0.7 })); scorch.rotation.x = -Math.PI / 2; scorch.position.set(ev.x, 0.02, ev.z); scene.add(scorch); fx.push({ obj: scorch, until: simTime + 60 });
+  }
+  function addHeal(ev) { const m = meshes[ev.unit]; if (!m) return; const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.75, 24), new THREE.MeshBasicMaterial({ color: 0x5fc46a, transparent: true, opacity: 0.9, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; m.group.add(ring); fx.push({ obj: ring, until: simTime + 5, kind: 'heal', parent: m.group }); }
+  function addReco(ev) { const team = battle.teams[ev.team]; const c = battle.teamCentroid(team); const drone = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.2, 4), new THREE.MeshBasicMaterial({ color: ev.team === 0 ? 0x4f9cf0 : 0xe85a4f })); drone.position.set(c.x, 9, c.z); scene.add(drone); fx.push({ obj: drone, until: ev.until, kind: 'drone', cx: c.x, cz: c.z }); }
+  function addBarrageMarker(ev) { const ring = new THREE.Mesh(new THREE.RingGeometry(2.6, 3, 32), new THREE.MeshBasicMaterial({ color: 0xff7a3a, transparent: true, opacity: 0.8, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.set(ev.x, 0.04, ev.z); scene.add(ring); fx.push({ obj: ring, until: simTime + 4.2, kind: 'marker' }); }
   let fxLast = 0;
   function updateFx() {
     const dt = Math.max(0, simTime - fxLast); fxLast = simTime;
@@ -2225,7 +2555,11 @@ window.Son = Son;
         if (simTime >= f.start) { f.obj.visible = true; f.obj.position.addScaledVector(f.vel, dt); f.vel.y -= f.gravity * dt; if (f.obj.position.y < 0.02) { f.obj.position.y = 0.02; f.vel.multiplyScalar(0.3); } }
         else f.obj.visible = false;
       } else if (f.grow) { if (simTime >= f.start) { f.obj.visible = true; const k = 1 + (simTime - f.start) * f.grow; f.obj.scale.setScalar(k); } else f.obj.visible = false; }
-      if (simTime > f.until) { scene.remove(f.obj); fx.splice(i, 1); }
+      else if (f.kind === 'smoke') { const life = (simTime - f.start) / (f.until - f.start); for (const m of f.obj.children) { m.position.addScaledVector(m.userData.drift, dt); m.material.opacity = 0.55 * (life < 0.1 ? life / 0.1 : 1 - Math.max(0, (life - 0.6) / 0.4)); m.scale.setScalar(1 + life * 0.6); } }
+      else if (f.kind === 'drone') { const a = simTime * 1.4; f.obj.position.set(f.cx + Math.cos(a) * 6, 9 + Math.sin(a * 2) * 0.4, f.cz + Math.sin(a) * 6); f.obj.rotation.y = a; }
+      else if (f.kind === 'marker') { f.obj.material.opacity = 0.5 + 0.5 * Math.sin(simTime * 8); }
+      else if (f.kind === 'heal') { f.obj.rotation.z = simTime * 2; f.obj.material.opacity = 0.5 + 0.4 * Math.sin(simTime * 6); }
+      if (simTime > f.until) { (f.parent || scene).remove(f.obj); fx.splice(i, 1); }
     }
   }
 
@@ -2269,13 +2603,11 @@ window.Son = Son;
     for (const k in unitById) delete unitById[k];
     buildMap(battle.map);
     for (const u of battle.units) { makeOperator(u); unitById[u.id] = u; }
-    $('#journal').innerHTML = '';
+    $('#journal').innerHTML = ''; $('#ticker').innerHTML = '';
     $('#result').classList.add('hidden');
+    cam.init = false; cam.autoFollow = null; cam.follow = null; if (cam.mode === 'free') { cam.target.set(battle.map.width / 2, 0, battle.map.depth / 2); }
     buildRosters();
-    cam.follow = null;
     syncMeshes(1);
-    $('#seedLabel').textContent = `graine ${battle.seed}`;
-    $('#mapLabel').textContent = battle.map.name;
     pumpLog();
   }
 
@@ -2292,7 +2624,13 @@ window.Son = Son;
         pendingSounds.push({ at: simTime + d / 110, name: ev.hit ? 'impact_corps' : 'impact_beton', pos: ev.to, vol: ev.hit ? 1 : (ev.to.y < 0.15 ? 0.5 : 0.9) });
       }
       if (ev.type === 'down') { const m = meshes[ev.unit]; if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; } }
+      if (ev.type === 'smoke') addSmoke(ev);
+      if (ev.type === 'shell') { addShell(ev); play('tir_pompe', { x: ev.x, y: 1, z: ev.z }, { vol: 1.3, vitesse: 0.6 }); }
+      if (ev.type === 'heal') addHeal(ev);
+      if (ev.type === 'reco') addReco(ev);
+      if (ev.type === 'barrage_called') addBarrageMarker(ev);
     }
+    updateTacticCards();
     // sons différés (impacts à l'arrivée de la balle), pas, rechargements, contact
     for (let i = pendingSounds.length - 1; i >= 0; i--) if (simTime >= pendingSounds[i].at) { const ps = pendingSounds[i]; play(ps.name, ps.pos, { vol: ps.vol }); pendingSounds.splice(i, 1); }
     if (speed <= 2) for (const u of battle.units) {
@@ -2336,20 +2674,23 @@ window.Son = Son;
   // Interface : effectifs, journal, résultat
   // ---------------------------------------------------------------------------------------------
   const roleIcon = { assault: 'AS', pointman: 'PT', marksman: 'TE', support: 'AP', breacher: 'BR' };
+  function insigniaGlyph(team) {
+    if (team.insignia === 'karst' || (team.units[0] && team.units[0].def.faction === 'karst')) return '⚑';
+    const ins = DATA.INSIGNIAS.find(i => i.id === team.insignia); return ins ? ins.glyph : (team.index === 0 ? '✶' : '⚑');
+  }
   function buildRosters() {
     battle.teams.forEach((team, ti) => {
+      $('#tname' + ti).textContent = team.name; $('#ins' + ti).textContent = insigniaGlyph(team);
       const el = $('#roster' + ti);
-      const fac = team.units[0] && team.units[0].def.faction ? DATA.FACTIONS[team.units[0].def.faction].name : null;
-      el.innerHTML = `<div class="rhead team${ti}"><span class="rname">${team.name}${fac ? ` <small>${fac}</small>` : ''}</span><span class="rorder">${DATA.ORDERS[team.order].name}</span></div>` +
-        team.units.map(u => `
-        <div class="card" data-id="${u.id}">
+      el.innerHTML = team.units.map(u => `
+        <div class="card" data-id="${u.id}" title="${u.def.unit} — ${u.weapon.name}">
           <div class="crow"><span class="role">${roleIcon[u.role.id]}</span><span class="cs">${u.callsign}</span><span class="st"></span></div>
-          <div class="cunit">${u.def.unit} — ${u.weapon.name}</div>
           <div class="bars"><div class="hp"><i></i></div><div class="sup"><i></i></div></div>
           <div class="crow small"><span class="ammo"></span><span class="status"></span></div>
         </div>`).join('');
-      el.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => { cam.follow = cam.follow === c.dataset.id ? null : c.dataset.id; el.querySelectorAll('.card').forEach(k => k.classList.toggle('follow', k.dataset.id === cam.follow)); }));
+      if (ti === 0) el.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => { cam.follow = cam.follow === c.dataset.id ? null : c.dataset.id; cam.mode = 'follow'; setCamMode('follow'); el.querySelectorAll('.card').forEach(k => k.classList.toggle('follow', k.dataset.id === cam.follow)); }));
     });
+    buildTacticCards();
   }
   function updateRosters() {
     for (const u of battle.units) {
@@ -2362,11 +2703,41 @@ window.Son = Son;
       c.querySelector('.status').textContent = `${Math.round(u.hp)} PV · ${STATUS_FR[u.status]}`;
     }
     $('#clock').textContent = fmtT(battle.t);
-    $('#alive0').textContent = battle.teams[0].units.filter(u => u.alive).length;
-    $('#alive1').textContent = battle.teams[1].units.filter(u => u.alive).length;
+    battle.teams.forEach((team, ti) => {
+      const hp = team.units.reduce((s, u) => s + (u.alive ? u.hp : 0), 0), max = team.units.reduce((s, u) => s + u.maxHp, 0);
+      const pct = Math.round(100 * hp / max);
+      $('#tbar' + ti).style.width = pct + '%'; $('#tpct' + ti).textContent = pct + '%';
+    });
   }
+  // cartes de tactiques : à gauche celles du joueur (cliquables), à droite celles de l'adversaire (état seulement)
+  function buildTacticCards() {
+    battle.teams.forEach((team, ti) => {
+      const el = $('#tactics' + ti);
+      el.innerHTML = team.tacticIds.map(id => { const t = DATA.TACTICS[id]; return `<div class="tcard ${t.active ? '' : 'passive'} ${ti === 1 ? 'enemy' : ''}" data-tactic="${id}" title="${escapeHtml(t.desc)}"><div class="ticon">${TACTIC_ICON[id] || '◆'}</div><div class="tname">${escapeHtml(t.name)}</div><div class="tuse"></div><div class="cd"></div></div>`; }).join('');
+      if (ti === 0) el.querySelectorAll('.tcard').forEach(c => c.addEventListener('click', () => {
+        const id = c.dataset.tactic; if (!DATA.TACTICS[id].active) return;
+        const r = battle.useTactic(0, id);
+        if (!r.ok) flashBattle(`${DATA.TACTICS[id].name} : ${r.reason}.`); else { pumpLog(); for (const ev of battle.drainEvents()) { if (ev.type === 'smoke') addSmoke(ev); if (ev.type === 'heal') addHeal(ev); if (ev.type === 'reco') addReco(ev); if (ev.type === 'barrage_called') addBarrageMarker(ev); } }
+        updateTacticCards();
+      }));
+    });
+  }
+  function updateTacticCards() {
+    battle.teams.forEach((team, ti) => {
+      $('#tactics' + ti).querySelectorAll('.tcard').forEach(c => {
+        const id = c.dataset.tactic, t = DATA.TACTICS[id], st = team.tactics[id];
+        if (!t.active) { c.querySelector('.tuse').textContent = 'passive'; return; }
+        const cd = Math.max(0, st.cooldownUntil - battle.t);
+        c.querySelector('.tuse').textContent = st.uses <= 0 ? 'épuisé' : cd > 0 ? `${cd.toFixed(0)} s` : `${st.uses} ×`;
+        c.classList.toggle('off', st.uses <= 0 || cd > 0);
+        c.querySelector('.cd').style.width = cd > 0 && t.cooldown ? (100 * (1 - cd / t.cooldown)) + '%' : '0';
+      });
+    });
+  }
+  let bflashTimer = null;
+  function flashBattle(msg) { let el = $('#bflash'); if (!el) { el = document.createElement('div'); el.id = 'bflash'; el.style.cssText = 'position:absolute;left:50%;top:14px;transform:translateX(-50%);background:rgba(15,20,26,.9);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:12px;z-index:6;pointer-events:none'; $('main').appendChild(el); } el.textContent = msg; el.style.display = 'block'; clearTimeout(bflashTimer); bflashTimer = setTimeout(() => { el.style.display = 'none'; }, 2200); }
   function pumpLog() {
-    const j = $('#journal');
+    const j = $('#journal'), tk = $('#ticker');
     while (logIndex < battle.log.length) {
       const e = battle.log[logIndex++];
       if (e.kind === 'reload' && e.unit && unitById[e.unit]) { const u = unitById[e.unit]; play('recharge', { x: u.x, y: 1, z: u.z }, { vol: 0.9 }); }
@@ -2376,6 +2747,7 @@ window.Son = Son;
       div.className = 'entry k-' + e.kind + (e.team !== undefined ? ' team' + e.team : '');
       div.innerHTML = `<span class="t">${e.time}</span>${escapeHtml(e.text)}`;
       j.appendChild(div);
+      if (e.kind !== 'spot' || /contact/.test(e.text)) { const d2 = div.cloneNode(true); d2.className = 'k-' + e.kind; tk.appendChild(d2); while (tk.children.length > 4) tk.removeChild(tk.firstChild); }
     }
     while (j.children.length > 400) j.removeChild(j.firstChild);
     j.scrollTop = j.scrollHeight;
@@ -2384,8 +2756,11 @@ window.Son = Son;
 
   function showResult() {
     const r = battle.result;
-    const title = r.winner === -1 ? 'Égalité' : `Victoire ${r.teams[r.winner].name}`;
+    const title = r.winner === -1 ? 'Égalité' : (r.winner === 0 ? 'Victoire' : 'Défaite');
     $('#resTitle').textContent = title; $('#resTitle').className = r.winner === -1 ? '' : 'team' + r.winner;
+    r.teams.forEach((t, ti) => { $('#resName' + ti).textContent = t.name; $('#resPct' + ti).textContent = t.hpPct + '%'; $('#resIns' + ti).textContent = insigniaGlyph(battle.teams[ti]); });
+    const sp = [['Neutralisations', 'kills'], ['Tirs à la tête', 'headshots'], ['Séries', 'streaks'], ['Revanches', 'revenge'], ['Vétérans abattus', 'veteran']];
+    $('#resSpecials').innerHTML = sp.map(([label, k]) => { const v = (ti) => k === 'kills' ? r.teams[ti].kills : r.teams[ti].specials[k]; return `<span class="l">${v(0)}</span><span class="m">${label}</span><span class="r">${v(1)}</span>`; }).join('');
     let reward = '';
     if (mode === 'mission' && mission) { const rw = OT.Game.computeRewards(window.HQ.profile(), mission, r); reward = ` Récompenses au retour : +${rw.credits} crédits, ${Object.values(rw.xp).reduce((a, b) => a + b, 0)} XP répartis.`; }
     $('#resReason').textContent = `${r.reason} Durée : ${fmtT(r.duration)}. Carte : ${r.map}. Graine ${r.seed}.${reward}`;
@@ -2442,6 +2817,9 @@ window.Son = Son;
   $('#hqHelp').addEventListener('click', () => { $('#help').classList.toggle('hidden'); });
   window.HQ.onLaunch = (opts, mis) => { setMode('mission', mis); window.HQ.hide(); $('#order0').value = opts.teams[0].order; newBattle(opts); paused = false; updatePlayButton(); };
   $('#toggleHelp').addEventListener('click', () => $('#help').classList.toggle('hidden'));
+  $('#toggleJournal').addEventListener('click', () => { $('#journalWrap').classList.toggle('hidden'); $('#journal').scrollTop = $('#journal').scrollHeight; });
+  $('#closeJournal').addEventListener('click', () => $('#journalWrap').classList.add('hidden'));
+  document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => { setCamMode(b.dataset.cam); if (b.dataset.cam !== 'follow') cam.follow = null; }));
   window.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.target.matches('input,select')) { e.preventDefault(); $('#play').click(); } });
 
   function resize() {
@@ -2479,6 +2857,8 @@ window.Son = Son;
     camera: (yaw, pitch, dist, tx, tz) => { cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; if (tx !== undefined) cam.target.set(tx, 0, tz); render(); },
     focus: (cs, yaw, pitch, dist) => { const u = battle.units.find(x => x.callsign === cs); cam.follow = null; cam.target.set(u.x, 0.9, u.z); cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; render(); return [u.x, u.z, u.facing, u.stance, u.state]; },
     pause: (p) => { paused = p !== false; updatePlayButton(); },
+    settle: () => { for (let i = 0; i < 80; i++) applyCamera(); render(); },
+    useTactic: (id) => battle.useTactic(0, id),
   };
   if (MANUAL) render(); else requestAnimationFrame((t) => { lastFrame = t; frame(t); });
   window.PRET = true;

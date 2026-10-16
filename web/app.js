@@ -9,9 +9,10 @@
   const STATE_FR = { idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache' };
   const STATUS_FR = { ok: 'Indemne', wounded: 'Blessé', critical: 'Grave', down: 'Neutralisé' };
   const TEAM = [
-    { name: 'Alpha', color: 0x3f7fc8, css: '#5aa0ea', uniform: 0x3a4a3c, vest: 0x2b352d },
-    { name: 'Bravo', color: 0xd9822b, css: '#f0a04a', uniform: 0x6b5a3e, vest: 0x4e4230 },
+    { name: 'Alpha', color: 0x4f9cf0, css: '#4f9cf0', uniform: 0x3a4a3c, vest: 0x2b352d },
+    { name: 'Bravo', color: 0xe85a4f, css: '#e85a4f', uniform: 0x6b5a3e, vest: 0x4e4230 },
   ];
+  const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯' };
   const $ = (s) => document.querySelector(s);
 
   // ---------------------------------------------------------------------------------------------
@@ -36,19 +37,56 @@
   const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 400);
 
   // caméra orbitale maison (glisser : tourner ; molette : zoom ; clic droit / Maj : déplacer)
-  const cam = { target: new THREE.Vector3(32, 0, 20), yaw: Math.PI / 2 + 0.28, pitch: 0.95, dist: 60, follow: null };
-  function applyCamera() {
-    if (cam.follow) { const m = meshes[cam.follow]; if (m) cam.target.lerp(new THREE.Vector3(m.group.position.x, 0, m.group.position.z), 0.15); }
-    const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
-    camera.position.set(cam.target.x + cam.dist * cp * Math.cos(cam.yaw), cam.target.y + cam.dist * sp, cam.target.z + cam.dist * cp * Math.sin(cam.yaw));
-    camera.lookAt(cam.target);
+  // Trois modes : « follow » (derrière un soldat, choisi ou automatique), « sat » (vue d'ensemble), « free » (orbite libre)
+  const cam = { mode: 'follow', target: new THREE.Vector3(32, 0, 20), yaw: Math.PI / 2 + 0.28, pitch: 0.95, dist: 60, follow: null, autoFollow: null, autoUntil: 0, pos: new THREE.Vector3(), look: new THREE.Vector3(), init: false };
+  function pickAutoFollow() {
+    if (!battle) return null;
+    // le soldat le plus « engagé » : vient de tirer ou d'être pris pour cible ; priorité à l'équipe du joueur
+    let best = null, bs = -Infinity;
+    for (const u of battle.units) {
+      if (!u.alive) continue;
+      let sc = (u.team === 0 ? 2 : 0) + (battle.t - u.lastShotAt < 3 ? 6 : 0) + (battle.t - u.lastShotByAt < 3 ? 5 : 0) + (u.target ? 3 : 0) + (u.moving ? 1 : 0) + (u.id === cam.autoFollow ? 2.5 : 0);
+      if (sc > bs) { bs = sc; best = u; }
+    }
+    return best ? best.id : null;
   }
+  function applyCamera() {
+    if (cam.mode === 'follow') {
+      let id = cam.follow;
+      if (!id || !unitById[id] || !unitById[id].alive) { if (!cam.autoFollow || simTime > cam.autoUntil || !unitById[cam.autoFollow] || !unitById[cam.autoFollow].alive) { cam.autoFollow = pickAutoFollow(); cam.autoUntil = simTime + 6; } id = cam.autoFollow; }
+      const m = id && meshes[id], u = id && unitById[id];
+      if (m && u) {
+        const yaw = m.group.rotation.y; // orientation du soldat (rotation.y = -facing + π/2)
+        const fx = Math.cos(-(yaw - Math.PI / 2)), fz = Math.sin(-(yaw - Math.PI / 2));
+        const px = m.group.position.x, pz = m.group.position.z;
+        const want = new THREE.Vector3(px - fx * 5.2, 2.6, pz - fz * 5.2), look = new THREE.Vector3(px + fx * 7, 1.1, pz + fz * 7);
+        if (!cam.init) { cam.pos.copy(want); cam.look.copy(look); cam.init = true; }
+        cam.pos.lerp(want, 0.08); cam.look.lerp(look, 0.12);
+        camera.position.copy(cam.pos); camera.lookAt(cam.look);
+        cam.target.set(px, 0, pz);
+        return;
+      }
+    }
+    if (cam.mode === 'sat') {
+      const map = battle.map; const want = new THREE.Vector3(map.width / 2, 78, map.depth / 2 + 22), look = new THREE.Vector3(map.width / 2, 0, map.depth / 2);
+      if (!cam.init) { cam.pos.copy(want); cam.look.copy(look); cam.init = true; }
+      cam.pos.lerp(want, 0.08); cam.look.lerp(look, 0.08); camera.position.copy(cam.pos); camera.lookAt(cam.look); return;
+    }
+    // libre (orbite)
+    const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    const want = new THREE.Vector3(cam.target.x + cam.dist * cp * Math.cos(cam.yaw), cam.target.y + cam.dist * sp, cam.target.z + cam.dist * cp * Math.sin(cam.yaw));
+    if (!cam.init) { cam.pos.copy(want); cam.look.copy(cam.target); cam.init = true; }
+    cam.pos.lerp(want, 0.2); cam.look.lerp(cam.target, 0.2);
+    camera.position.copy(cam.pos); camera.lookAt(cam.look);
+  }
+  function setCamMode(mode) { cam.mode = mode; document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === mode)); if (mode === 'free') { cam.target.set(battle.map.width / 2, 0, battle.map.depth / 2); cam.dist = 60; } }
   (function cameraControls() {
     let drag = null;
     canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, b: e.button, shift: e.shiftKey }; canvas.setPointerCapture(e.pointerId); });
     canvas.addEventListener('pointermove', (e) => {
       if (!drag) return;
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+      if (cam.mode !== 'free') { if (Math.abs(dx) + Math.abs(dy) > 3) { setCamMode('free'); cam.yaw = Math.atan2(camera.position.z - cam.target.z, camera.position.x - cam.target.x); cam.pitch = Math.max(0.15, Math.min(1.5, Math.atan2(camera.position.y, Math.hypot(camera.position.x - cam.target.x, camera.position.z - cam.target.z)))); cam.dist = camera.position.distanceTo(cam.target); } return; }
       if (drag.b === 2 || drag.shift) {
         cam.follow = null;
         const right = new THREE.Vector3(Math.cos(cam.yaw + Math.PI / 2), 0, Math.sin(cam.yaw + Math.PI / 2));
@@ -58,7 +96,7 @@
       if (MANUAL) render();
     });
     canvas.addEventListener('pointerup', () => { drag = null; });
-    canvas.addEventListener('wheel', (e) => { e.preventDefault(); cam.dist = Math.max(8, Math.min(140, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); if (MANUAL) render(); }, { passive: false });
+    canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (cam.mode !== 'free') return; cam.dist = Math.max(8, Math.min(140, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); if (MANUAL) render(); }, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   })();
 
@@ -263,7 +301,8 @@
   }
   function makeOperator(u) {
     const t = TEAM[u.team];
-    const fac = DATA.FACTIONS[u.def.faction || 'allied'] || DATA.FACTIONS.allied;   // uniforme selon la faction, marqueurs selon l'équipe
+    let fac = DATA.FACTIONS[u.def.faction || 'allied'] || DATA.FACTIONS.allied;   // uniforme selon la faction, marqueurs selon l'équipe
+    const teamDef = battle.teams[u.team]; if (!u.def.faction && teamDef.uniform) { const uni = DATA.UNIFORMS.find(x => x.id === teamDef.uniform); if (uni) fac = uni; }
     const matU = new THREE.MeshStandardMaterial({ color: fac.uniform, roughness: 0.95 });
     const matV = new THREE.MeshStandardMaterial({ color: fac.vest, roughness: 0.9 });
     const matHelmet = new THREE.MeshStandardMaterial({ color: fac.vest, roughness: 0.65 });
@@ -380,6 +419,21 @@
       for (let i = 0; i < (ground ? 2 : 4); i++) { const sp = new THREE.Mesh(sparkGeo, sparkMat); sp.position.set(to.x, Math.max(0.05, to.y), to.z); scene.add(sp); fx.push({ obj: sp, until: arrive + 0.3, start: arrive, vel: new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 2.5, (Math.random() - 0.5) * 3), gravity: 9 }); }
     }
   }
+  // effets de tactiques : nappe de fumée, obus, soins, drone
+  const smokeMat = new THREE.MeshStandardMaterial({ color: 0xc9c9c4, transparent: true, opacity: 0.55, roughness: 1, depthWrite: false });
+  function addSmoke(ev) {
+    const g = new THREE.Group();
+    for (let i = 0; i < 14; i++) { const r = 1.2 + Math.random() * 1.6; const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), smokeMat.clone()); m.position.set(ev.x + (Math.random() - 0.5) * ev.r * 1.6, 0.8 + Math.random() * 1.6, ev.z + (Math.random() - 0.5) * ev.r * 1.6); m.userData.drift = new THREE.Vector3((Math.random() - 0.5) * 0.15, 0.08 + Math.random() * 0.1, (Math.random() - 0.5) * 0.15); g.add(m); }
+    scene.add(g); fx.push({ obj: g, kind: 'smoke', until: ev.until, start: simTime });
+  }
+  function addShell(ev) {
+    const flash = new THREE.Mesh(new THREE.SphereGeometry(1.6, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffb060, transparent: true, opacity: 0.9 })); flash.position.set(ev.x, 0.8, ev.z); scene.add(flash); fx.push({ obj: flash, until: simTime + 0.25, grow: 3 , start: simTime });
+    for (let i = 0; i < 10; i++) { const d = new THREE.Mesh(dustGeo, dustMat); d.position.set(ev.x, 0.3, ev.z); d.scale.setScalar(1.5 + Math.random()); scene.add(d); fx.push({ obj: d, until: simTime + 1.6, start: simTime, vel: new THREE.Vector3((Math.random() - 0.5) * 6, 2 + Math.random() * 4, (Math.random() - 0.5) * 6), gravity: 4 }); }
+    const scorch = new THREE.Mesh(new THREE.CircleGeometry(2.2, 16), new THREE.MeshBasicMaterial({ color: 0x1a1612, transparent: true, opacity: 0.7 })); scorch.rotation.x = -Math.PI / 2; scorch.position.set(ev.x, 0.02, ev.z); scene.add(scorch); fx.push({ obj: scorch, until: simTime + 60 });
+  }
+  function addHeal(ev) { const m = meshes[ev.unit]; if (!m) return; const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.75, 24), new THREE.MeshBasicMaterial({ color: 0x5fc46a, transparent: true, opacity: 0.9, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; m.group.add(ring); fx.push({ obj: ring, until: simTime + 5, kind: 'heal', parent: m.group }); }
+  function addReco(ev) { const team = battle.teams[ev.team]; const c = battle.teamCentroid(team); const drone = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.2, 4), new THREE.MeshBasicMaterial({ color: ev.team === 0 ? 0x4f9cf0 : 0xe85a4f })); drone.position.set(c.x, 9, c.z); scene.add(drone); fx.push({ obj: drone, until: ev.until, kind: 'drone', cx: c.x, cz: c.z }); }
+  function addBarrageMarker(ev) { const ring = new THREE.Mesh(new THREE.RingGeometry(2.6, 3, 32), new THREE.MeshBasicMaterial({ color: 0xff7a3a, transparent: true, opacity: 0.8, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.set(ev.x, 0.04, ev.z); scene.add(ring); fx.push({ obj: ring, until: simTime + 4.2, kind: 'marker' }); }
   let fxLast = 0;
   function updateFx() {
     const dt = Math.max(0, simTime - fxLast); fxLast = simTime;
@@ -392,7 +446,11 @@
         if (simTime >= f.start) { f.obj.visible = true; f.obj.position.addScaledVector(f.vel, dt); f.vel.y -= f.gravity * dt; if (f.obj.position.y < 0.02) { f.obj.position.y = 0.02; f.vel.multiplyScalar(0.3); } }
         else f.obj.visible = false;
       } else if (f.grow) { if (simTime >= f.start) { f.obj.visible = true; const k = 1 + (simTime - f.start) * f.grow; f.obj.scale.setScalar(k); } else f.obj.visible = false; }
-      if (simTime > f.until) { scene.remove(f.obj); fx.splice(i, 1); }
+      else if (f.kind === 'smoke') { const life = (simTime - f.start) / (f.until - f.start); for (const m of f.obj.children) { m.position.addScaledVector(m.userData.drift, dt); m.material.opacity = 0.55 * (life < 0.1 ? life / 0.1 : 1 - Math.max(0, (life - 0.6) / 0.4)); m.scale.setScalar(1 + life * 0.6); } }
+      else if (f.kind === 'drone') { const a = simTime * 1.4; f.obj.position.set(f.cx + Math.cos(a) * 6, 9 + Math.sin(a * 2) * 0.4, f.cz + Math.sin(a) * 6); f.obj.rotation.y = a; }
+      else if (f.kind === 'marker') { f.obj.material.opacity = 0.5 + 0.5 * Math.sin(simTime * 8); }
+      else if (f.kind === 'heal') { f.obj.rotation.z = simTime * 2; f.obj.material.opacity = 0.5 + 0.4 * Math.sin(simTime * 6); }
+      if (simTime > f.until) { (f.parent || scene).remove(f.obj); fx.splice(i, 1); }
     }
   }
 
@@ -436,13 +494,11 @@
     for (const k in unitById) delete unitById[k];
     buildMap(battle.map);
     for (const u of battle.units) { makeOperator(u); unitById[u.id] = u; }
-    $('#journal').innerHTML = '';
+    $('#journal').innerHTML = ''; $('#ticker').innerHTML = '';
     $('#result').classList.add('hidden');
+    cam.init = false; cam.autoFollow = null; cam.follow = null; if (cam.mode === 'free') { cam.target.set(battle.map.width / 2, 0, battle.map.depth / 2); }
     buildRosters();
-    cam.follow = null;
     syncMeshes(1);
-    $('#seedLabel').textContent = `graine ${battle.seed}`;
-    $('#mapLabel').textContent = battle.map.name;
     pumpLog();
   }
 
@@ -459,7 +515,13 @@
         pendingSounds.push({ at: simTime + d / 110, name: ev.hit ? 'impact_corps' : 'impact_beton', pos: ev.to, vol: ev.hit ? 1 : (ev.to.y < 0.15 ? 0.5 : 0.9) });
       }
       if (ev.type === 'down') { const m = meshes[ev.unit]; if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; } }
+      if (ev.type === 'smoke') addSmoke(ev);
+      if (ev.type === 'shell') { addShell(ev); play('tir_pompe', { x: ev.x, y: 1, z: ev.z }, { vol: 1.3, vitesse: 0.6 }); }
+      if (ev.type === 'heal') addHeal(ev);
+      if (ev.type === 'reco') addReco(ev);
+      if (ev.type === 'barrage_called') addBarrageMarker(ev);
     }
+    updateTacticCards();
     // sons différés (impacts à l'arrivée de la balle), pas, rechargements, contact
     for (let i = pendingSounds.length - 1; i >= 0; i--) if (simTime >= pendingSounds[i].at) { const ps = pendingSounds[i]; play(ps.name, ps.pos, { vol: ps.vol }); pendingSounds.splice(i, 1); }
     if (speed <= 2) for (const u of battle.units) {
@@ -503,20 +565,23 @@
   // Interface : effectifs, journal, résultat
   // ---------------------------------------------------------------------------------------------
   const roleIcon = { assault: 'AS', pointman: 'PT', marksman: 'TE', support: 'AP', breacher: 'BR' };
+  function insigniaGlyph(team) {
+    if (team.insignia === 'karst' || (team.units[0] && team.units[0].def.faction === 'karst')) return '⚑';
+    const ins = DATA.INSIGNIAS.find(i => i.id === team.insignia); return ins ? ins.glyph : (team.index === 0 ? '✶' : '⚑');
+  }
   function buildRosters() {
     battle.teams.forEach((team, ti) => {
+      $('#tname' + ti).textContent = team.name; $('#ins' + ti).textContent = insigniaGlyph(team);
       const el = $('#roster' + ti);
-      const fac = team.units[0] && team.units[0].def.faction ? DATA.FACTIONS[team.units[0].def.faction].name : null;
-      el.innerHTML = `<div class="rhead team${ti}"><span class="rname">${team.name}${fac ? ` <small>${fac}</small>` : ''}</span><span class="rorder">${DATA.ORDERS[team.order].name}</span></div>` +
-        team.units.map(u => `
-        <div class="card" data-id="${u.id}">
+      el.innerHTML = team.units.map(u => `
+        <div class="card" data-id="${u.id}" title="${u.def.unit} — ${u.weapon.name}">
           <div class="crow"><span class="role">${roleIcon[u.role.id]}</span><span class="cs">${u.callsign}</span><span class="st"></span></div>
-          <div class="cunit">${u.def.unit} — ${u.weapon.name}</div>
           <div class="bars"><div class="hp"><i></i></div><div class="sup"><i></i></div></div>
           <div class="crow small"><span class="ammo"></span><span class="status"></span></div>
         </div>`).join('');
-      el.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => { cam.follow = cam.follow === c.dataset.id ? null : c.dataset.id; el.querySelectorAll('.card').forEach(k => k.classList.toggle('follow', k.dataset.id === cam.follow)); }));
+      if (ti === 0) el.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => { cam.follow = cam.follow === c.dataset.id ? null : c.dataset.id; cam.mode = 'follow'; setCamMode('follow'); el.querySelectorAll('.card').forEach(k => k.classList.toggle('follow', k.dataset.id === cam.follow)); }));
     });
+    buildTacticCards();
   }
   function updateRosters() {
     for (const u of battle.units) {
@@ -529,11 +594,41 @@
       c.querySelector('.status').textContent = `${Math.round(u.hp)} PV · ${STATUS_FR[u.status]}`;
     }
     $('#clock').textContent = fmtT(battle.t);
-    $('#alive0').textContent = battle.teams[0].units.filter(u => u.alive).length;
-    $('#alive1').textContent = battle.teams[1].units.filter(u => u.alive).length;
+    battle.teams.forEach((team, ti) => {
+      const hp = team.units.reduce((s, u) => s + (u.alive ? u.hp : 0), 0), max = team.units.reduce((s, u) => s + u.maxHp, 0);
+      const pct = Math.round(100 * hp / max);
+      $('#tbar' + ti).style.width = pct + '%'; $('#tpct' + ti).textContent = pct + '%';
+    });
   }
+  // cartes de tactiques : à gauche celles du joueur (cliquables), à droite celles de l'adversaire (état seulement)
+  function buildTacticCards() {
+    battle.teams.forEach((team, ti) => {
+      const el = $('#tactics' + ti);
+      el.innerHTML = team.tacticIds.map(id => { const t = DATA.TACTICS[id]; return `<div class="tcard ${t.active ? '' : 'passive'} ${ti === 1 ? 'enemy' : ''}" data-tactic="${id}" title="${escapeHtml(t.desc)}"><div class="ticon">${TACTIC_ICON[id] || '◆'}</div><div class="tname">${escapeHtml(t.name)}</div><div class="tuse"></div><div class="cd"></div></div>`; }).join('');
+      if (ti === 0) el.querySelectorAll('.tcard').forEach(c => c.addEventListener('click', () => {
+        const id = c.dataset.tactic; if (!DATA.TACTICS[id].active) return;
+        const r = battle.useTactic(0, id);
+        if (!r.ok) flashBattle(`${DATA.TACTICS[id].name} : ${r.reason}.`); else { pumpLog(); for (const ev of battle.drainEvents()) { if (ev.type === 'smoke') addSmoke(ev); if (ev.type === 'heal') addHeal(ev); if (ev.type === 'reco') addReco(ev); if (ev.type === 'barrage_called') addBarrageMarker(ev); } }
+        updateTacticCards();
+      }));
+    });
+  }
+  function updateTacticCards() {
+    battle.teams.forEach((team, ti) => {
+      $('#tactics' + ti).querySelectorAll('.tcard').forEach(c => {
+        const id = c.dataset.tactic, t = DATA.TACTICS[id], st = team.tactics[id];
+        if (!t.active) { c.querySelector('.tuse').textContent = 'passive'; return; }
+        const cd = Math.max(0, st.cooldownUntil - battle.t);
+        c.querySelector('.tuse').textContent = st.uses <= 0 ? 'épuisé' : cd > 0 ? `${cd.toFixed(0)} s` : `${st.uses} ×`;
+        c.classList.toggle('off', st.uses <= 0 || cd > 0);
+        c.querySelector('.cd').style.width = cd > 0 && t.cooldown ? (100 * (1 - cd / t.cooldown)) + '%' : '0';
+      });
+    });
+  }
+  let bflashTimer = null;
+  function flashBattle(msg) { let el = $('#bflash'); if (!el) { el = document.createElement('div'); el.id = 'bflash'; el.style.cssText = 'position:absolute;left:50%;top:14px;transform:translateX(-50%);background:rgba(15,20,26,.9);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:12px;z-index:6;pointer-events:none'; $('main').appendChild(el); } el.textContent = msg; el.style.display = 'block'; clearTimeout(bflashTimer); bflashTimer = setTimeout(() => { el.style.display = 'none'; }, 2200); }
   function pumpLog() {
-    const j = $('#journal');
+    const j = $('#journal'), tk = $('#ticker');
     while (logIndex < battle.log.length) {
       const e = battle.log[logIndex++];
       if (e.kind === 'reload' && e.unit && unitById[e.unit]) { const u = unitById[e.unit]; play('recharge', { x: u.x, y: 1, z: u.z }, { vol: 0.9 }); }
@@ -543,6 +638,7 @@
       div.className = 'entry k-' + e.kind + (e.team !== undefined ? ' team' + e.team : '');
       div.innerHTML = `<span class="t">${e.time}</span>${escapeHtml(e.text)}`;
       j.appendChild(div);
+      if (e.kind !== 'spot' || /contact/.test(e.text)) { const d2 = div.cloneNode(true); d2.className = 'k-' + e.kind; tk.appendChild(d2); while (tk.children.length > 4) tk.removeChild(tk.firstChild); }
     }
     while (j.children.length > 400) j.removeChild(j.firstChild);
     j.scrollTop = j.scrollHeight;
@@ -551,8 +647,11 @@
 
   function showResult() {
     const r = battle.result;
-    const title = r.winner === -1 ? 'Égalité' : `Victoire ${r.teams[r.winner].name}`;
+    const title = r.winner === -1 ? 'Égalité' : (r.winner === 0 ? 'Victoire' : 'Défaite');
     $('#resTitle').textContent = title; $('#resTitle').className = r.winner === -1 ? '' : 'team' + r.winner;
+    r.teams.forEach((t, ti) => { $('#resName' + ti).textContent = t.name; $('#resPct' + ti).textContent = t.hpPct + '%'; $('#resIns' + ti).textContent = insigniaGlyph(battle.teams[ti]); });
+    const sp = [['Neutralisations', 'kills'], ['Tirs à la tête', 'headshots'], ['Séries', 'streaks'], ['Revanches', 'revenge'], ['Vétérans abattus', 'veteran']];
+    $('#resSpecials').innerHTML = sp.map(([label, k]) => { const v = (ti) => k === 'kills' ? r.teams[ti].kills : r.teams[ti].specials[k]; return `<span class="l">${v(0)}</span><span class="m">${label}</span><span class="r">${v(1)}</span>`; }).join('');
     let reward = '';
     if (mode === 'mission' && mission) { const rw = OT.Game.computeRewards(window.HQ.profile(), mission, r); reward = ` Récompenses au retour : +${rw.credits} crédits, ${Object.values(rw.xp).reduce((a, b) => a + b, 0)} XP répartis.`; }
     $('#resReason').textContent = `${r.reason} Durée : ${fmtT(r.duration)}. Carte : ${r.map}. Graine ${r.seed}.${reward}`;
@@ -609,6 +708,9 @@
   $('#hqHelp').addEventListener('click', () => { $('#help').classList.toggle('hidden'); });
   window.HQ.onLaunch = (opts, mis) => { setMode('mission', mis); window.HQ.hide(); $('#order0').value = opts.teams[0].order; newBattle(opts); paused = false; updatePlayButton(); };
   $('#toggleHelp').addEventListener('click', () => $('#help').classList.toggle('hidden'));
+  $('#toggleJournal').addEventListener('click', () => { $('#journalWrap').classList.toggle('hidden'); $('#journal').scrollTop = $('#journal').scrollHeight; });
+  $('#closeJournal').addEventListener('click', () => $('#journalWrap').classList.add('hidden'));
+  document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => { setCamMode(b.dataset.cam); if (b.dataset.cam !== 'follow') cam.follow = null; }));
   window.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.target.matches('input,select')) { e.preventDefault(); $('#play').click(); } });
 
   function resize() {
@@ -646,6 +748,8 @@
     camera: (yaw, pitch, dist, tx, tz) => { cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; if (tx !== undefined) cam.target.set(tx, 0, tz); render(); },
     focus: (cs, yaw, pitch, dist) => { const u = battle.units.find(x => x.callsign === cs); cam.follow = null; cam.target.set(u.x, 0.9, u.z); cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; render(); return [u.x, u.z, u.facing, u.stance, u.state]; },
     pause: (p) => { paused = p !== false; updatePlayButton(); },
+    settle: () => { for (let i = 0; i < 80; i++) applyCamera(); render(); },
+    useTactic: (id) => battle.useTactic(0, id),
   };
   if (MANUAL) render(); else requestAnimationFrame((t) => { lastFrame = t; frame(t); });
   window.PRET = true;

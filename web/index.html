@@ -6,51 +6,65 @@
 <title>Operator Tactics</title>
 <style>
   /* Une seule identité visuelle, sombre (poste de commandement) : fond anthracite bleuté, accent laiton, équipes bleu / orange. */
-  :root { color-scheme: dark; --bg: #0e1114; --panel: #151a1f; --panel2: #1b2128; --line: #262e37; --text: #d7dde3; --muted: #8a95a1; --accent: #c9a84a; --a0: #5aa0ea; --a1: #f0a04a; --ok: #5fc46a; --warn: #e0b03a; --bad: #d9543c; }
+  :root { color-scheme: dark; --bg: #0e1114; --panel: #151a1f; --panel2: #1b2128; --line: #262e37; --text: #d7dde3; --muted: #8a95a1; --accent: #c9a84a; --a0: #4f9cf0; --a1: #e85a4f; --ok: #5fc46a; --warn: #e0b03a; --bad: #d9543c; }
   * { box-sizing: border-box; }
   .hidden { display: none !important; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.35 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; overflow: hidden; }
-  #app { display: grid; grid-template-rows: 48px 1fr 170px; grid-template-columns: 250px 1fr 250px; height: 100%; }
-  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; }
+  header { display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; }
   header h1 { font-size: 15px; letter-spacing: 0.18em; margin: 0; color: var(--accent); font-weight: 700; }
   header h1 small { color: var(--muted); letter-spacing: 0.05em; font-weight: 400; margin-left: 8px; font-size: 11px; }
-  @media (max-width: 1500px) { header h1 small { display: none; } }
-  @media (max-width: 1600px) { #app header .group label { display: none; } #app header button, #app header select, #app header input { padding: 5px 8px; } #app header input { width: 70px; } }
-  .spacer { flex: 1; }
-  .clock { font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; padding: 0 10px; }
-  .alive { font-weight: 700; font-size: 15px; } .alive.team0 { color: var(--a0); } .alive.team1 { color: var(--a1); }
-  button, select, input { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer; }
+  #app { display: grid; grid-template-rows: 60px 40px 1fr 112px; height: 100%; }
+  .topbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; padding: 0 12px; background: linear-gradient(90deg, #14233a 0%, var(--panel) 40%, var(--panel) 60%, #3a1619 100%); border-bottom: 1px solid var(--line); }
+  .tb { display: flex; align-items: center; gap: 10px; min-width: 0; } .tb.rev { flex-direction: row-reverse; text-align: right; }
+  .tbmain { flex: 1; min-width: 0; } .tbname { font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tbar { height: 12px; background: #0b0e11; border-radius: 6px; overflow: hidden; margin-top: 4px; border: 1px solid #000; } .tbar i { display: block; height: 100%; width: 100%; background: var(--a0); transition: width .3s; } .tbar.rev i { margin-left: auto; background: var(--a1); }
+  .tpct { font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; min-width: 58px; text-align: center; }
+  .ins { width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; background: #0b0e11; border: 2px solid currentColor; flex: none; } .team0 .ins { color: var(--a0); } .team1 .ins { color: var(--a1); } .ins.big { width: 56px; height: 56px; font-size: 30px; }
+  .tbcenter { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .controls { display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; }
+  .controls .group label { display: none; }
+  .clock { font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; }
+  button, select, input { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; font: inherit; cursor: pointer; }
   button:hover { border-color: var(--muted); } button.on { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 700; }
-  input { width: 90px; cursor: text; }
+  input { width: 80px; cursor: text; }
   .group { display: flex; align-items: center; gap: 6px; } .group label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
-  aside { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
-  aside#roster1 { border-right: 0; border-left: 1px solid var(--line); }
-  .rhead { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 6px 6px; border-bottom: 2px solid; margin-bottom: 2px; }
-  .rhead.team0 { border-color: var(--a0); } .rhead.team1 { border-color: var(--a1); }
-  .rname { font-weight: 700; letter-spacing: 0.12em; font-size: 14px; } .rorder { color: var(--muted); font-size: 11px; }
-  .card { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; cursor: pointer; transition: border-color .15s; }
-  .card:hover { border-color: var(--muted); } .card.follow { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-  .card.dead { opacity: 0.45; }
-  .crow { display: flex; align-items: center; gap: 6px; } .crow .st { margin-left: auto; color: var(--muted); font-size: 11px; white-space: nowrap; }
-  .crow.small { font-size: 11px; color: var(--muted); justify-content: space-between; margin-top: 3px; }
-  .role { font-size: 10px; font-weight: 700; background: #2a333d; color: #cfd8e2; border-radius: 4px; padding: 1px 4px; letter-spacing: 0.05em; }
-  .cs { font-weight: 700; }
-  .cunit { color: var(--muted); font-size: 11px; margin: 2px 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .bars { display: flex; flex-direction: column; gap: 3px; }
-  .hp, .sup { height: 6px; background: #0b0e11; border-radius: 3px; overflow: hidden; } .sup { height: 3px; }
-  .hp i { display: block; height: 100%; background: var(--ok); transition: width .2s; } .sup i { display: block; height: 100%; background: #c86a3a; transition: width .2s; }
-  #roster0 .card.dead .hp i, #roster1 .card.dead .hp i { background: var(--bad); }
-  main { position: relative; background: #000; }
+  .spacer { flex: 1; }
+  main { position: relative; background: #000; min-height: 0; }
   #scene { width: 100%; height: 100%; display: block; }
   #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
   .label { position: absolute; left: 0; top: 0; text-align: center; font-size: 11px; font-weight: 700; text-shadow: 0 1px 2px #000, 0 0 4px #000; white-space: nowrap; will-change: transform; }
-  .label.team0 { color: #9fc8f5; } .label.team1 { color: #f5c48d; } .label.down { opacity: 0.5; }
+  .label.team0 { color: #9fc8f5; } .label.team1 { color: #f5a3a3; } .label.down { opacity: 0.5; }
   .lbar { width: 40px; height: 4px; background: rgba(0,0,0,.6); margin: 2px auto 0; border-radius: 2px; overflow: hidden; } .lbar i { display: block; height: 100%; background: var(--ok); }
-  #journal { grid-column: 1 / -1; background: var(--panel); border-top: 1px solid var(--line); overflow-y: auto; padding: 6px 12px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+  .tactics { position: absolute; top: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 3; } .tactics.left { left: 12px; } .tactics.right { right: 12px; align-items: flex-end; }
+  .tcard { width: 92px; background: rgba(15,20,26,.85); border: 1px solid var(--line); border-radius: 10px; padding: 6px; text-align: center; cursor: pointer; backdrop-filter: blur(4px); position: relative; overflow: hidden; }
+  .tcard:hover { border-color: var(--accent); } .tcard.passive { cursor: default; opacity: .75; } .tcard.off { opacity: .4; cursor: default; } .tcard.enemy { cursor: default; }
+  .tcard .ticon { font-size: 26px; line-height: 1; margin: 4px 0; } .tcard .tname { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.1; } .tcard .tuse { font-size: 10px; color: var(--muted); margin-top: 3px; }
+  .tcard .cd { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); }
+  #ticker { position: absolute; left: 12px; bottom: 10px; max-width: 46%; pointer-events: none; font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; text-shadow: 0 1px 2px #000; z-index: 2; } #ticker div { color: #c9d2db; opacity: .9; } #ticker .t { color: var(--muted); margin-right: 8px; } #ticker div.k-down { color: #ffd1c8; font-weight: 700; }
+  #journalWrap { position: absolute; right: 12px; top: 12px; bottom: 12px; width: 420px; max-width: 70%; background: rgba(15,20,26,.92); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; z-index: 5; }
+  .jhead { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  #journal { flex: 1; overflow-y: auto; padding: 6px 10px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; }
   .entry { padding: 1px 0; color: #b9c2cc; } .entry .t { color: var(--muted); margin-right: 8px; }
   .entry.team0 .t { color: var(--a0); } .entry.team1 .t { color: var(--a1); }
   .entry.k-down { color: #ffd1c8; font-weight: 600; } .entry.k-hit { color: #e4e9ee; } .entry.k-spot { color: #9aa8b5; } .entry.k-start, .entry.k-end { color: var(--accent); font-weight: 700; }
-  .entry.k-noammo, .entry.k-reload { color: #c7b58a; }
+  .entry.k-noammo, .entry.k-reload { color: #c7b58a; } .entry.k-tactic, .entry.k-order { color: #a9d8ff; font-weight: 600; }
+  .bottombar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 8px 12px; background: var(--panel); border-top: 1px solid var(--line); min-height: 0; }
+  .roster { display: flex; gap: 6px; min-width: 0; } .roster.team1 { justify-content: flex-end; }
+  .card { flex: 1; min-width: 0; max-width: 200px; background: var(--panel2); border: 1px solid var(--line); border-top: 3px solid var(--a0); border-radius: 8px; padding: 6px 8px; cursor: pointer; transition: border-color .15s; display: flex; flex-direction: column; gap: 3px; }
+  .roster.team1 .card { border-top-color: var(--a1); max-width: 130px; cursor: default; }
+  .card:hover { border-color: var(--muted); } .card.follow { box-shadow: 0 0 0 1px var(--accent) inset; border-color: var(--accent); }
+  .card.dead { opacity: 0.45; }
+  .crow { display: flex; align-items: center; gap: 6px; min-width: 0; } .crow .st { margin-left: auto; color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .crow.small { font-size: 10px; color: var(--muted); justify-content: space-between; }
+  .role { font-size: 9px; font-weight: 700; background: #2a333d; color: #cfd8e2; border-radius: 4px; padding: 1px 4px; letter-spacing: 0.05em; flex: none; }
+  .cs { font-weight: 700; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cunit { display: none; }
+  .bars { display: flex; flex-direction: column; gap: 2px; }
+  .hp, .sup { height: 6px; background: #0b0e11; border-radius: 3px; overflow: hidden; } .sup { height: 3px; }
+  .hp i { display: block; height: 100%; background: var(--ok); transition: width .2s; } .sup i { display: block; height: 100%; background: #c86a3a; transition: width .2s; }
+  .card.dead .hp i { background: var(--bad); }
+  .resHead { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: center; margin-bottom: 10px; } .resTeam { display: flex; align-items: center; gap: 10px; } .resTeam.rev { flex-direction: row-reverse; text-align: right; } .rn { font-weight: 800; letter-spacing: .1em; text-transform: uppercase; } .rp { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; } .team0 .rp { color: var(--a0); } .team1 .rp { color: var(--a1); }
+  #resSpecials { display: grid; grid-template-columns: 1fr auto 1fr; gap: 4px 14px; font-size: 13px; margin: 6px auto 12px; max-width: 520px; } #resSpecials .l { text-align: right; font-weight: 700; color: var(--a0); } #resSpecials .r { font-weight: 700; color: var(--a1); } #resSpecials .m { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 11px; text-align: center; }
   .overlay { position: absolute; inset: 0; background: rgba(8,10,13,.82); display: flex; align-items: center; justify-content: center; z-index: 10; }
   .overlay.hidden { display: none; }
   .dialog { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px 26px; max-width: 1100px; width: 94%; max-height: 92%; overflow: auto; box-shadow: 0 20px 60px #000a; }
@@ -62,8 +76,7 @@
   table.res td { padding: 4px 5px; border-bottom: 1px solid #1d242b; } table.res td small { color: var(--muted); } table.res tr.dead td { color: var(--muted); }
   .actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
   #help { position: fixed; } #help .dialog { max-width: 620px; } #help ul { margin: 0; padding-left: 18px; color: #c4ccd5; } #help li { margin: 4px 0; }
-  @media (max-width: 1100px) { #app { grid-template-columns: 200px 1fr 200px; } .cunit { display: none; } }
-  @media (max-width: 800px) { #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr 140px; } aside { display: none; } header { flex-wrap: wrap; white-space: normal; padding: 6px 12px; gap: 6px; height: auto; } .spacer { display: none; } }
+  @media (max-width: 800px) { #app { grid-template-rows: 56px auto 1fr 96px; } .controls { flex-wrap: wrap; white-space: normal; padding: 4px 8px; gap: 4px; } .spacer { display: none; } .tactics .tcard { width: 64px; } .tcard .ticon { font-size: 18px; } .roster.team1 { display: none; } .bottombar { grid-template-columns: 1fr; } .tpct { font-size: 15px; min-width: 44px; } }
 
   /* ---- Quartier général ---- */
   .screen.hidden { display: none !important; }
@@ -133,50 +146,53 @@
 <div id="flash" class="hidden"></div>
 <div id="fade"></div>
 <div id="app" class="screen hidden">
-  <header>
-    <h1>OPERATOR TACTICS <small id="mapLabel"></small></h1>
-    <div class="group"><label>Alpha</label>
-      <select id="order0" title="Ordre d'Alpha — modifiable pendant la bataille"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
-    <div class="group"><label>Bravo</label>
-      <select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
+  <div class="topbar">
+    <div class="tb team0"><span class="ins" id="ins0">✶</span><div class="tbmain"><div class="tbname" id="tname0">Alpha</div><div class="tbar"><i id="tbar0"></i></div></div><span class="tpct" id="tpct0">100%</span></div>
+    <div class="tbcenter"><span class="clock" id="clock">0:00.0</span><div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div></div>
+    <div class="tb team1 rev"><span class="ins" id="ins1">⚑</span><div class="tbmain"><div class="tbname" id="tname1">Bravo</div><div class="tbar rev"><i id="tbar1"></i></div></div><span class="tpct" id="tpct1">100%</span></div>
+  </div>
+  <div class="controls">
+    <div class="group"><label>Alpha</label><select id="order0" title="Ordre d'Alpha — modifiable pendant la bataille"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
+    <div class="group"><label>Bravo</label><select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
     <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option><option value="raffinerie">Raffinerie</option></select></div>
     <div class="group"><label>Graine</label><input id="seed" placeholder="aléatoire"></div>
-    <button id="newBattle">Nouvelle</button>
-    <button id="replay" title="Rejouer la même graine avec les ordres choisis">Rejouer</button>
+    <button id="newBattle">Nouvelle</button><button id="replay" title="Rejouer la même graine">Rejouer</button>
     <span id="missionLabel" class="muted" hidden></span>
-    <button id="toHq">QG</button>
     <div class="spacer"></div>
-    <span class="alive team0" id="alive0">5</span><span class="clock" id="clock">0:00.0</span><span class="alive team1" id="alive1">5</span>
-    <div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div>
-    <span id="seedLabel" hidden></span>
+    <div class="group"><label>Caméra</label><button data-cam="follow" class="on" title="Derrière un soldat (clic sur une carte pour choisir, sinon automatique)">Suivre</button><button data-cam="sat" title="Vue satellite">Sat</button><button data-cam="free" title="Vue libre : glisser, molette, clic droit">Libre</button></div>
+    <button id="toggleJournal">Journal</button>
+    <button id="toHq">QG</button>
     <button id="mute" title="Son">🔊</button>
     <button id="toggleHelp" title="Aide">?</button>
-  </header>
-  <aside id="roster0"></aside>
+  </div>
   <main>
     <canvas id="scene"></canvas>
     <div id="labels"></div>
+    <div id="tactics0" class="tactics left"></div>
+    <div id="tactics1" class="tactics right"></div>
+    <div id="ticker"></div>
+    <div id="journalWrap" class="hidden"><div class="jhead">Journal de combat <button id="closeJournal" class="mini">×</button></div><div id="journal"></div></div>
     <div id="result" class="overlay hidden"><div class="dialog">
-      <h2 id="resTitle"></h2><p id="resReason"></p>
+      <div class="resHead"><div class="resTeam team0"><span id="resIns0" class="ins big"></span><div><div id="resName0" class="rn"></div><div id="resPct0" class="rp"></div></div></div><div><h2 id="resTitle"></h2><p id="resReason"></p></div><div class="resTeam team1 rev"><span id="resIns1" class="ins big"></span><div><div id="resName1" class="rn"></div><div id="resPct1" class="rp"></div></div></div></div>
+      <div id="resSpecials"></div>
       <div id="resTables"></div>
       <div class="actions"><button id="resClose">Revoir la scène</button><button id="resReplay">Rejouer cette graine</button><button id="resNew">Nouvelle bataille</button><button id="resHq" class="on">Retour au QG</button></div>
     </div></div>
     <div id="help" class="overlay hidden"><div class="dialog">
       <h2>Comment ça marche</h2>
       <ul>
-        <li><b>Deux escouades de cinq opérateurs</b> s'affrontent de façon autonome : chacun voit, entend, décide et tire pour son propre compte. Rien n'est scripté : les murs bloquent réellement la vue et les tirs, les couverts bas cachent un soldat accroupi, les armes et les protections ont les effets affichés.</li>
-        <li><b>Ordres</b> : <i>Assaut</i> (aller au contact), <i>Tenir</i> (se poster, tirer à vue), <i>Prudent</i> (de couvert en couvert, repli si blessé). L'ordre d'Alpha se change <b>pendant la bataille</b> : « Tenir » donné en cours de route fait tenir l'escouade là où elle se trouve.</li>
-        <li><b>Graine</b> : le même nombre rejoue exactement la même bataille. Vide = aléatoire.</li>
-        <li><b>Caméra</b> : glisser pour tourner, molette pour zoomer, clic droit ou Maj+glisser pour déplacer. Cliquer sur une carte d'opérateur pour le suivre. Espace : pause.</li>
-        <li><b>Rôles</b> : AS assaut (carabine), PT pointe (pistolet-mitrailleur), TE tireur d'élite, AP appui (mitrailleuse), BR brèche (fusil à pompe). Barre orange sous la vie : suppression.</li>
-        <li><b>Compétences</b> : chaque opérateur a un trait aux effets réels dans la simulation (vitesse, visée, rechargement, repérage, suppression…), décrit sur sa fiche.</li>
-        <li><b>Quartier général</b> : choisissez 5 opérateurs, leur arme, leur protection et leur voie d'approche, un ordre et une mission. La victoire rapporte des crédits (recrutement) et de l'expérience (+2 à chaque statistique par niveau, jusqu'au niveau 10). La progression est sauvegardée dans ce navigateur.</li>
+        <li><b>Deux escouades</b> s'affrontent de façon autonome : chacun voit, entend, décide et tire pour son propre compte. Les murs bloquent réellement la vue et les tirs, les couverts bas cachent un soldat accroupi, les armes, protections et compétences ont les effets affichés.</li>
+        <li><b>Barres du haut</b> : état réel de chaque équipe (points de vie restants / total). <b>Cartes du bas</b> : vos soldats (vie, suppression, munitions, état) — cliquer pour suivre un soldat à la caméra.</li>
+        <li><b>Tactiques</b> (cartes à gauche) : fumigène, drone, soins, mortier… à jouer pendant la bataille, avec un nombre d'emplois et un temps de recharge ; les tactiques passives (exercice, retranchement…) s'appliquent dès le début. L'adversaire joue aussi les siennes (à droite).</li>
+        <li><b>Ordres</b> : <i>Assaut</i> (aller au contact), <i>Tenir</i> (se poster, tirer à vue), <i>Prudent</i> (de couvert en couvert). L'ordre d'Alpha se change pendant la bataille.</li>
+        <li><b>Caméra</b> : <i>Suivre</i> se place derrière un soldat et change de point de vue au gré de l'action ; <i>Sat</i> montre toute la carte ; <i>Libre</i> : glisser pour tourner, molette pour zoomer, clic droit pour déplacer. Espace : pause.</li>
+        <li><b>Compétences</b> : chaque opérateur a un trait aux effets réels (vitesse, visée, rechargement, repérage, suppression…), décrit sur sa fiche au QG.</li>
+        <li><b>Quartier général</b> : 3 à 5 opérateurs, arme, protection, voie d'approche, ordre, 3 tactiques, puis une mission. Victoire → crédits, expérience, rang ; paquets de cartes (recrues, tactiques, perks, cosmétiques). Un opérateur neutralisé est indisponible une mission (ou soigné). Tout est sauvegardé dans ce navigateur.</li>
       </ul>
       <div class="actions"><button onclick="document.getElementById('help').classList.add('hidden')" class="on">Fermer</button></div>
     </div></div>
   </main>
-  <aside id="roster1"></aside>
-  <div id="journal"></div>
+  <div class="bottombar"><div id="roster0" class="roster team0"></div><div id="roster1" class="roster team1"></div></div>
 </div>
 <script src="three.min.js"></script>
 <script src="lecteur.js"></script>
