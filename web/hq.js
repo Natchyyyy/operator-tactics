@@ -1,7 +1,7 @@
 // Quartier général : collection, escouade, équipement, formation, missions, récompenses, sauvegarde.
 // Toute la logique vient de sim/game.js ; ce fichier affiche le profil et relaie les actions.
 (function () {
-  const OT = window.OT; const { Game, DATA } = OT;
+  const OT = window.OT; const { Game, DATA, League } = OT;
   const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES, TRAITS, CHALLENGES, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS } = DATA;
   const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯' };
   const $ = (s) => document.querySelector(s);
@@ -20,7 +20,7 @@
   const esc = (s) => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
   let tab = 'accueil';
-  function showTab(t) { tab = t; document.querySelectorAll('.hqpanel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== t)); document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); }
+  function showTab(t) { tab = t; document.querySelectorAll('.hqpanel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== t)); document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); render(); }
   document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
   document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.go)));
 
@@ -28,7 +28,7 @@
     $('#credits').textContent = profile.credits;
     const c = profile.career;
     $('#career').textContent = `${c.battles} bataille${c.battles > 1 ? 's' : ''} · ${c.kills} neutralisation${c.kills > 1 ? 's' : ''} · ${c.losses_units} opérateur${c.losses_units > 1 ? 's' : ''} évacué${c.losses_units > 1 ? 's' : ''}`;
-    renderHome(); renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderDeploy(); renderArmory(); renderPacks(); renderTactics(); renderPerks(); renderChallenges(); renderRewards();
+    renderHome(); renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderDeploy(); renderArmory(); renderPacks(); renderTactics(); renderPerks(); renderChallenges(); renderLeague(); renderRewards();
   }
   function renderHome() {
     const ins = INSIGNIAS.find(i => i.id === profile.insignia) || INSIGNIAS[0];
@@ -51,6 +51,34 @@
     const tac = (profile.tactics.equipped || []).map(id => TACTICS[id].name).join(', ') || 'aucune';
     $('#hqDeploy').innerHTML = `<div class="deploy"><div><b>${esc(m.name)}</b> — ${OT.MAPS[m.mapId].name}</div><div>Escouade (${profile.squad.length}) : ${esc(squad)}</div><div>Ordre : ${ORDERS[profile.order].name} · Tactiques : ${esc(tac)}</div><div>Puissance ${Game.teamRating(profile)} contre niveau ${m.level} du Groupe Karst (${ORDERS[m.order].name}${m.enemyTactics && m.enemyTactics.length ? ', tactiques : ' + m.enemyTactics.map(t => TACTICS[t].name).join(', ') : ''})</div></div>`;
   }
+  function renderLeague() {
+    if (!profile.league) { profile.league = League.newSeason(Math.floor(Math.random() * 1e9)); saveNow(); }
+    const sn = profile.league; const rows = League.table(sn); const me = rows.find(r => r.id === 'player');
+    const opp = sn.finished ? null : League.nextOpponent(sn);
+    $('#lgInfo').innerHTML = `<div><b>Saison ${(profile.leagueSeasons || 0) + 1}</b> — ${sn.round}/${League.SEASON_BATTLES} batailles jouées${sn.finished ? ' · terminée' : ''}</div><div>Votre place : <b>${me.rank}${me.rank === 1 ? 'er' : 'e'}</b> (${me.points} pts, diff. ${me.diff > 0 ? '+' : ''}${me.diff})${me.qualified ? '' : ` — ${League.QUALIFY - me.played} bataille${League.QUALIFY - me.played > 1 ? 's' : ''} pour être classé`}</div>${opp ? `<div>Prochain adversaire : <b>${opp.insignia} ${esc(opp.name)}</b> (${ORDERS[opp.order].name}${opp.tactics.length ? ', ' + opp.tactics.map(t => TACTICS[t].name).join(', ') : ''}) — ${OT.MAPS[League.nextMap(sn)].name}</div>` : ''}<div class="muted">Prix de fin de saison : ${League.PRIZES.join(' / ')} crédits pour le podium, +${League.PARTICIPATION} si toutes les batailles sont jouées.</div>`;
+    $('#lgPlay').textContent = sn.finished ? 'Nouvelle saison' : 'Match de ligue';
+    $('#lgPlay').disabled = !sn.finished && !Game.squadReady(profile);
+    $('#lgHint').textContent = sn.finished ? 'La saison est terminée : encaissez les prix et repartez pour une nouvelle.' : Game.squadReady(profile) ? 'Récompenses d\u2019un match : crédits, XP, pas de défis de mission.' : 'Il faut au moins 3 opérateurs disponibles.';
+    $('#lgTable').innerHTML = `<tr><th>#</th><th>Équipe</th><th>J</th><th>V-N-D</th><th>Diff.</th><th>Pts</th></tr>` + rows.map(r => `<tr class="${r.id === 'player' ? 'me' : ''} ${r.rank <= 3 && r.qualified ? 'podium' : ''} ${r.qualified ? '' : 'nq'}"><td>${r.rank}</td><td><span class="ins small ${r.id === 'player' ? 'team0' : ''}">${r.id === 'player' ? (INSIGNIAS.find(i => i.id === profile.insignia) || INSIGNIAS[0]).glyph : r.insignia}</span>${r.id === 'player' ? esc(profile.teamName) : esc(r.name)}</td><td>${r.played}</td><td>${r.wins}-${r.draws}-${r.losses}</td><td>${r.diff > 0 ? '+' : ''}${r.diff}</td><td><b>${r.points}</b></td></tr>`).join('');
+    $('#lgHistory').innerHTML = sn.history.length ? sn.history.slice().reverse().map(h => { const t = League.AI_TEAMS.find(x => x.id === h.opponent); return `<div>J${h.round + 1} · ${t.insignia} ${esc(t.name)} — <b class="${h.winner === 0 ? 'good' : h.winner === 1 ? 'bad' : ''}">${h.winner === 0 ? 'victoire' : h.winner === 1 ? 'défaite' : 'égalité'}</b> (${h.diff > 0 ? '+' : ''}${h.diff}) · ${esc(h.map)}</div>`; }).join('') : '<div class="muted">Aucun match joué cette saison.</div>';
+  }
+  $('#lgPlay').addEventListener('click', () => {
+    const sn = profile.league;
+    if (sn.finished) {
+      const prize = League.seasonPrize(sn); profile.credits += prize.credits; profile.leagueSeasons = (profile.leagueSeasons || 0) + 1; profile.league = League.newSeason(Math.floor(Math.random() * 1e9)); saveNow(); render();
+      flash(`Saison terminée : ${prize.lines.join(' · ')}${prize.credits ? '' : ' Aucun prix.'}`); return;
+    }
+    if (!Game.squadReady(profile)) return;
+    const opp = League.nextOpponent(sn);
+    const uni = UNIFORMS.find(u => u.id === profile.uniform) || UNIFORMS[0];
+    const teams = [
+      { name: profile.teamName, order: profile.order, operators: profile.squad.map(id => Game.effectiveDef(profile, id)), tactics: profile.tactics.equipped, insignia: profile.insignia, uniform: uni.id },
+      League.aiTeamDef(opp, sn.seed, sn.round),
+    ];
+    const opts = { seed: Math.floor(Math.random() * 1e6), mapId: League.nextMap(sn), teams };
+    const mission = Object.assign({}, Game.LEAGUE_MISSION, { name: `Ligue — ${opp.name}`, mapId: opts.mapId, order: opp.order, enemyTactics: opp.tactics, league: opp.id, level: teams[1].operators[0].level });
+    showVs(opts, mission);
+  });
   function renderPacks() {
     $('#hqPacks').innerHTML = Object.values(PACKS).map(pk => `<div class="pack"><b>${esc(pk.name)}</b><div class="muted">${pk.cards} cartes · recrues, tactiques, perks, XP, crédits, cosmétiques${pk.id === 'elite' ? ' — meilleures chances' : ''}</div><button data-pack="${pk.id}" ${profile.credits >= pk.price ? '' : 'disabled'}>Ouvrir — ${pk.price} cr.</button></div>`).join('');
     $('#hqPacks').querySelectorAll('button[data-pack]').forEach(b => b.addEventListener('click', () => {
@@ -199,8 +227,9 @@
     const enemyDefs = opts.teams[1].operators;
     const enemyRating = Math.round(enemyDefs.reduce((s, d) => { const w = WEAPONS[d.weaponId || ROLES[d.role].weapon], a = ARMORS[d.armor]; const stats = Game.STATS.reduce((t, k) => t + d[k], 0) / Game.STATS.length; return s + stats * 0.4 + (w.damage * w.rpm / 60) * Math.min(1, w.range / 40) / 8 + w.accuracy * 10 + a.torso * 20; }, 0) / enemyDefs.length);
     const km = profile.missions[mission.id] || { attempts: 0, wins: 0 };
-    $('#vsName1').textContent = 'Groupe Karst'; $('#vsRank1').textContent = `Niveau ${mission.level} · ${ORDERS[mission.order].name}`; $('#vsIns1').textContent = '⚑';
-    $('#vsRating1').innerHTML = `${enemyRating}<small>Puissance</small>`; $('#vsRec1').innerHTML = `Contre vous : <b>${km.attempts - km.wins}</b> victoires<br><b>${km.wins}</b> défaites`;
+    const lt = mission.league ? League.AI_TEAMS.find(t => t.id === mission.league) : null; const ls = lt && profile.league ? profile.league.standings[lt.id] : null;
+    $('#vsName1').textContent = lt ? lt.name : 'Groupe Karst'; $('#vsRank1').textContent = `Niveau ${mission.level} · ${ORDERS[mission.order].name}`; $('#vsIns1').textContent = lt ? lt.insignia : '⚑';
+    $('#vsRating1').innerHTML = `${enemyRating}<small>Puissance</small>`; $('#vsRec1').innerHTML = ls ? `Victoires <b>${ls.wins}</b><br>Défaites <b>${ls.losses}</b>` : `Contre vous : <b>${km.attempts - km.wins}</b> victoires<br><b>${km.wins}</b> défaites`;
     $('#vsTac1').innerHTML = tacs(mission.enemyTactics || []);
     $('#vsLoc').textContent = OT.MAPS[mission.mapId].name; $('#vsObj').textContent = mission.objective === 'hold' ? `— tenir ${mission.duration} s` : '— neutraliser l\u2019adversaire';
     $('#vsSquad0').innerHTML = opts.teams[0].operators.map(d => `<span>${esc(d.callsign)} · ${ROLES[d.role].name}</span>`).join('');
@@ -227,6 +256,7 @@
     const extra = [];
     if (r.levelUps && r.levelUps.length) extra.push('Promotions : ' + r.levelUps.map(l => `${l.callsign} → niveau ${l.level}`).join(', '));
     if (r.recovering && r.recovering.length) extra.push('Évacués (indisponibles une mission) : ' + r.recovering.join(', '));
+    if (r.leagueRank) extra.push(`Ligue : vous êtes ${r.leagueRank}${r.leagueRank === 1 ? 'er' : 'e'} au classement.`);
     $('#rwExtra').innerHTML = extra.map(esc).join('<br>');
     $('#rewards').classList.remove('hidden');
     // pièces qui tombent
@@ -244,11 +274,12 @@
     setTimeout(() => { $('#hq').classList.toggle('hidden', !showHq); $('#app').classList.toggle('hidden', showHq); if (showHq) render(); requestAnimationFrame(() => f.classList.remove('on')); }, 220);
   }
   window.HQ = {
-    show() { switchTo(true); showTab('accueil'); },
+    show() { switchTo(true); showTab(lastRewards && lastRewards.mission && lastRewards.mission.startsWith('Ligue') ? 'ligue' : 'accueil'); },
     hide() { switchTo(false); },
     // appelé par app.js à la fin d'une bataille de mission : applique les récompenses au profil et sauvegarde
     finishMission(mission, result) {
       const r = Game.applyRewards(profile, mission, result);
+      if (mission.league && profile.league && !profile.league.finished) { League.applyPlayerResult(profile.league, mission.league, result); r.leagueRank = League.table(profile.league).find(x => x.id === 'player').rank; }
       lastRewards = Object.assign({ mission: mission.name }, r);
       saveNow();
       setTimeout(() => showRewards(r, result, mission), 260);

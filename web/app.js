@@ -478,7 +478,9 @@
     if (pos) { const sp = spatial(pos.x, pos.y || 1, pos.z); opt.vol = (opt.vol == null ? 1 : opt.vol) * sp.vol; opt.pan = sp.pan; }
     Son.jouer(name, opt);
   }
-  function setMuted(m) { muted = m; try { localStorage.setItem('ot-mute', m ? '1' : '0'); } catch (e) { /* rien */ } $('#mute').textContent = m ? '🔇' : '🔊'; $('#mute').classList.toggle('on', !m); }
+  const AMBIENCE = { entrepot: 'ambiance_port', raffinerie: 'ambiance_port', place: 'ambiance_ville' };
+  function ambience(on) { if (!window.Son) return; if (!on || muted) { Son.arreterBoucle(); return; } if (battle) Son.boucle(AMBIENCE[battle.map.id] || 'ambiance_port', { vol: 0.9 }); }
+  function setMuted(m) { muted = m; try { localStorage.setItem('ot-mute', m ? '1' : '0'); } catch (e) { /* rien */ } $('#mute').textContent = m ? '🔇' : '🔊'; $('#mute').classList.toggle('on', !m); ambience(!m && !$('#app').classList.contains('hidden')); }
   $('#mute').addEventListener('click', () => setMuted(!muted));
   document.addEventListener('click', (e) => { if (e.target.closest('button') && !e.target.closest('#mute')) play('clic', null, { vol: 0.8, varie: 0.05 }); }, true);
 
@@ -687,7 +689,7 @@
     const seed = seedTxt === '' ? Math.floor(Math.random() * 100000) : (parseInt(seedTxt, 10) || 1);
     return { seed, teams, mapId: $('#mapSel').value };
   }
-  $('#play').addEventListener('click', () => { if (battle.over) return; paused = !paused; updatePlayButton(); });
+  $('#play').addEventListener('click', () => { if (battle.over) return; paused = !paused; updatePlayButton(); ambience(true); });
   // ordres en cours de bataille : appliqués immédiatement à la simulation (Alpha toujours ; Bravo en bataille libre)
   $('#order0').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0) { battle.setOrder(0, e.target.value); pumpLog(); buildRosters(); } });
   $('#order1').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0 && mode === 'free') { battle.setOrder(1, e.target.value); pumpLog(); buildRosters(); } });
@@ -698,15 +700,15 @@
   $('#resReplay').addEventListener('click', () => { const o = optsFromForm(); o.seed = battle.seed; newBattle(o); paused = false; updatePlayButton(); });
   $('#resClose').addEventListener('click', () => $('#result').classList.add('hidden'));
   function goHq() {
-    paused = true; updatePlayButton(); $('#result').classList.add('hidden');
+    paused = true; updatePlayButton(); $('#result').classList.add('hidden'); ambience(false);
     if (mode === 'mission' && battle.over && !rewardsApplied) { rewardsApplied = true; window.HQ.finishMission(mission, battle.result); }
     window.HQ.show();
   }
   $('#toHq').addEventListener('click', goHq);
   $('#resHq').addEventListener('click', goHq);
-  $('#freeBattle').addEventListener('click', () => { setMode('free'); window.HQ.hide(); newBattle(optsFromForm()); });
+  $('#freeBattle').addEventListener('click', () => { setMode('free'); window.HQ.hide(); newBattle(optsFromForm()); ambience(true); });
   $('#hqHelp').addEventListener('click', () => { $('#help').classList.toggle('hidden'); });
-  window.HQ.onLaunch = (opts, mis) => { setMode('mission', mis); window.HQ.hide(); $('#order0').value = opts.teams[0].order; newBattle(opts); paused = false; updatePlayButton(); };
+  window.HQ.onLaunch = (opts, mis) => { setMode('mission', mis); window.HQ.hide(); $('#order0').value = opts.teams[0].order; newBattle(opts); paused = false; updatePlayButton(); ambience(true); };
   $('#toggleHelp').addEventListener('click', () => $('#help').classList.toggle('hidden'));
   $('#toggleJournal').addEventListener('click', () => { $('#journalWrap').classList.toggle('hidden'); $('#journal').scrollTop = $('#journal').scrollHeight; });
   $('#closeJournal').addEventListener('click', () => $('#journalWrap').classList.add('hidden'));

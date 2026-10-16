@@ -39,6 +39,18 @@ const Son = (() => {
     src.start(ac.currentTime + .003 + (o.delai || 0)); return true;
   }
   ["pointerdown", "keydown"].forEach(ev => document.addEventListener(ev, function f(){ document.removeEventListener(ev, f, true); init(); }, true));
-  return {init, jouer, charger, get pret(){ return !!loading; }, volume(v){ if(master) master.gain.value = v; }};
+  // boucle d'ambiance : une seule à la fois, fondu entre deux, arrêt en fondu
+  let loop = null;
+  async function boucle(nom, o = {}){
+    if(!init()) return false; if(loading) await loading; const L = buf[nom];
+    if(loop && loop.nom === nom) return true;
+    arreterBoucle(.8);
+    if(!nom || !L) return false;
+    const src = ac.createBufferSource(); src.buffer = L[0]; src.loop = true; const g = ac.createGain(); g.gain.value = 0; src.connect(g).connect(master); src.start();
+    g.gain.linearRampToValueAtTime(o.vol == null ? 1 : o.vol, ac.currentTime + 1.2);
+    loop = {nom, src, g}; return true;
+  }
+  function arreterBoucle(fondu = .6){ if(!loop) return; const {src, g} = loop; loop = null; try{ g.gain.linearRampToValueAtTime(0, ac.currentTime + fondu); src.stop(ac.currentTime + fondu + .05); }catch(e){} }
+  return {init, jouer, charger, boucle, arreterBoucle, get pret(){ return !!loading; }, volume(v){ if(master) master.gain.value = v; }};
 })();
 window.Son = Son;

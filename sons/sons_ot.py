@@ -103,3 +103,29 @@ def victoire(i):
 def defaite(i):
     seed(201); out = silence(1.8); place(out, marimba(note(62), 1.5, .9, .6), 0); place(out, marimba(note(57), 1.7, 1.0, .6), .3)
     return reverb(out, "hall", .35)
+
+STEREO = {"ambiance_port", "ambiance_ville"}
+
+@snd("ambiance_port", 1, -38)    # boucle : vent, mer lointaine, grincements métalliques (entrepôt, raffinerie)
+def ambiance_port(i):
+    seed(300); d = 8.0; t = t_(d)
+    wind = sweep_bp(noise(d, "pink"), 250, 700, 1.4)*(.55 + .45*np.sin(2*np.pi*t/d*2)**2)
+    sea = lp(noise(d, "brown"), 300)*(.5 + .5*np.sin(2*np.pi*t/d*1 + 1)**2)*.8
+    out = lp(wind, 2200)*.6 + sea*.5
+    for k in range(5):   # grincements
+        x = np.zeros(int(.5*SR)); x[0] = 1; g = resonator(x, rng.uniform(400, 900), 40)*env_ad(len(x), .02, .3)*.12
+        place(out, g, rng.uniform(.5, d - 1))
+    # boucle propre : fondu croisé des extrémités
+    n = int(.5*SR); w = np.linspace(0, 1, n); out[:n] = out[:n]*w + out[-n:]*(1 - w); out = out[:-n]
+    return reverb(stereo(out, 0, .6, 12), "outdoor", .25)
+
+@snd("ambiance_ville", 1, -38)   # boucle : rumeur urbaine, circulation lointaine (place du marché)
+def ambiance_ville(i):
+    seed(301); d = 8.0; t = t_(d)
+    hum = lp(noise(d, "brown"), 180)*(.6 + .4*np.sin(2*np.pi*t/d*3)**2)
+    traffic = sweep_bp(noise(d, "pink"), 150, 500, 1.2)*.5
+    out = hum*.7 + lp(traffic, 1500)*.5
+    for k in range(3):   # klaxon lointain filtré
+        x = np.sin(2*np.pi*rng.uniform(380, 460)*t_(.35))*env_ad(int(.35*SR), .02, .25); place(out, lp(x, 1200)*.05, rng.uniform(1, d - 1))
+    n = int(.5*SR); w = np.linspace(0, 1, n); out[:n] = out[:n]*w + out[-n:]*(1 - w); out = out[:-n]
+    return reverb(stereo(out, 0, .6, 12), "outdoor", .2)

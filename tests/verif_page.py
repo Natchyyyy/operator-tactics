@@ -67,6 +67,15 @@ async def main():
         # rechargement de la page : la progression est conservée
         await pg.reload(); await pg.wait_for_function("window.PRET", timeout=60000)
         check("après rechargement, la progression est conservée", (await pg.inner_text("#credits")) == str(prof["credits"]))
+        # ---- Ligue : un match, classement mis à jour ----
+        await pg.click("[data-tab='ligue']"); await pg.wait_for_timeout(100)
+        rows = await pg.evaluate("() => document.querySelectorAll('#lgTable tr').length - 1"); check("le classement de ligue affiche 10 équipes", rows == 10, rows)
+        await pg.evaluate("() => { const p = window.HQ.profile(); for (const id in p.operators) if (p.operators[id].unlocked) p.operators[id].recovery = 0; p.squad = ['op_vautour','op_lynx','op_granit','op_bastion','op_belier']; }")
+        await pg.click("[data-tab='ligue']"); await pg.wait_for_timeout(100); await pg.click("#lgPlay"); await pg.wait_for_timeout(300)
+        check("le match de ligue passe par l'écran VS avec l'équipe adverse nommée", await pg.evaluate("() => !document.querySelector('#vs').classList.contains('hidden') && document.querySelector('#vsName1').textContent !== 'Groupe Karst'"))
+        await pg.click("#vsGo"); await pg.wait_for_timeout(600); await pg.evaluate("() => { API.pause(true); API.runToEnd(); }"); await pg.click("#resHq"); await pg.wait_for_timeout(1200); await pg.click("#rwContinue"); await pg.wait_for_timeout(200)
+        lg = await pg.evaluate("() => { const s = window.HQ.profile().league; return [s.round, s.history.length, s.standings.player.played, Object.values(s.standings).reduce((a, x) => a + x.played, 0)]; }")
+        check("après le match : journée jouée, résultat enregistré, les autres équipes ont joué entre elles", lg[0] == 1 and lg[1] == 1 and lg[2] == 1 and lg[3] >= 9, lg)
         # ---- Bataille libre (graine fixée) ----
         await pg.click("#freeBattle"); await pg.wait_for_timeout(600)
         await pg.fill("#seed", "3"); await pg.click("#newBattle"); await pg.wait_for_timeout(200)
