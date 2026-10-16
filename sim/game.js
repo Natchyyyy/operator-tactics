@@ -10,7 +10,7 @@
   // ---- Profil ---------------------------------------------------------------------------
   function newProfile() {
     const operators = {};
-    for (const o of OPERATORS) operators[o.id] = { unlocked: STARTING.includes(o.id), xp: 0, weaponId: ROLES[o.role].weapon, armorId: o.armor, battles: 0, kills: 0, lane: null };
+    for (const o of OPERATORS) if (!o.faction) operators[o.id] = { unlocked: STARTING.includes(o.id), xp: 0, weaponId: ROLES[o.role].weapon, armorId: o.armor, battles: 0, kills: 0, lane: null };
     return {
       version: 1, credits: 300, operators, squad: STARTING.slice(), order: 'assault',
       inventory: { weapons: { carbine: true, smg: true, dmr: true, lmg: true, shotgun: true }, armors: { light: true, medium: true, heavy: true } }, // battle, smgsil : à acheter

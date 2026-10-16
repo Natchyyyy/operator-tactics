@@ -659,7 +659,7 @@
     if (this.isBraced(e)) p *= 0.9;           // un défenseur installé expose moins de silhouette
     const cv = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
     if (cv) p *= cv.level === 'partial' ? 0.55 : 0.3; // 'full' : seul un bout dépasse (ne devrait pas arriver si LOS poitrine)
-    if (w.rpm > 100 && !has(u, 'gunner')) p *= 1 - 0.06 * Math.min(u.burst, 5);     // Tir soutenu : pas de perte en rafale
+    if (w.rpm > 100) p *= 1 - (has(u, 'gunner') ? 0.03 : 0.06) * Math.min(u.burst, 5);   // Tir soutenu : perte en rafale divisée par deux
     return { p: clamp(p, 0.03, 0.95), cover: cv };
   };
   Battle.prototype.fireAt = function (u, e) {
@@ -690,7 +690,7 @@
     } else {
       // la balle passe près : suppression (moindre si la cible est à couvert ou si le tir est lointain)
       const far = d > u.weapon.range ? 0.5 : 1;
-      e.suppression = clamp(e.suppression + u.weapon.suppress * 0.55 * (cover ? 0.7 : 1) * far * (has(u, 'gunner') ? 1.3 : 1), 0, 1);
+      e.suppression = clamp(e.suppression + u.weapon.suppress * 0.55 * (cover ? 0.7 : 1) * far * (has(u, 'gunner') ? 1.2 : 1), 0, 1);
       const spread = 0.4 + d * 0.03;
       to = { x: e.x + this.rng.gauss() * spread, y: e.chestY() + this.rng.gauss() * 0.5, z: e.z + this.rng.gauss() * spread };
     }

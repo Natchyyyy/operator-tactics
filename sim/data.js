@@ -16,7 +16,7 @@
     carbine:  { id: 'carbine',  name: 'Carabine 5,56',      cls: 'fusil',    accuracy: 0.50, damage: 32, range: 45, minRange: 0,  rpm: 110, mag: 30,  reload: 2.6, aim: 0.55, falloff: 0.8,  suppress: 0.14, kit: 6 },
     smg:      { id: 'smg',      name: 'Pistolet-mitrailleur 9 mm', cls: 'pm', accuracy: 0.56, damage: 25, range: 24, minRange: 0,  rpm: 170, mag: 30,  reload: 2.0, aim: 0.3,  falloff: 0.5,  suppress: 0.12, kit: 7 },
     dmr:      { id: 'dmr',      name: 'Fusil de précision 7,62', cls: 'tireur', accuracy: 0.72, damage: 58, range: 90, minRange: 15, rpm: 36,  mag: 20,  reload: 3.0, aim: 1.4,  falloff: 0.9,  suppress: 0.28, kit: 5 },
-    lmg:      { id: 'lmg',      name: 'Mitrailleuse légère 5,56', cls: 'appui', accuracy: 0.36, damage: 30, range: 55, minRange: 0,  rpm: 210, mag: 100, reload: 6.5, aim: 0.9,  falloff: 0.8,  suppress: 0.26, kit: 3 },
+    lmg:      { id: 'lmg',      name: 'Mitrailleuse légère 5,56', cls: 'appui', accuracy: 0.32, damage: 30, range: 55, minRange: 0,  rpm: 210, mag: 100, reload: 6.5, aim: 0.9,  falloff: 0.8,  suppress: 0.26, kit: 3 },
     shotgun:  { id: 'shotgun',  name: 'Fusil à pompe cal. 12', cls: 'brèche', accuracy: 0.80, damage: 85, range: 12, minRange: 0,  rpm: 55,  mag: 7,   reload: 3.8, aim: 0.25, falloff: 0.3,  suppress: 0.2,  kit: 5 },
     // à acheter à l'armurerie
     battle:   { id: 'battle',   name: 'Fusil de combat 7,62', cls: 'fusil',    accuracy: 0.52, damage: 46, range: 60, minRange: 0,  rpm: 75,  mag: 20,  reload: 2.9, aim: 0.7,  falloff: 0.85, suppress: 0.2,  kit: 5 },
@@ -57,7 +57,7 @@
     hardened:    { id: 'hardened',    name: 'Endurci',           desc: 'Les blessures réduisent deux fois moins sa précision et sa vitesse.' },
     radio:       { id: 'radio',       name: 'Radio',             desc: 'Transmet immédiatement ce qu\'il voit et garde les positions connues 50 % plus longtemps.' },
     ambusher:    { id: 'ambusher',    name: 'Affût',             desc: 'Immobile depuis 3 s, il tire comme depuis une position préparée, quel que soit l\'ordre.' },
-    gunner:      { id: 'gunner',      name: 'Tir soutenu',       desc: 'Rafales longues sans perte de précision, suppression 30 % plus forte.' },
+    gunner:      { id: 'gunner',      name: 'Tir soutenu',       desc: 'Perd deux fois moins de précision en rafale longue ; suppression 20 % plus forte.' },
     ghost:       { id: 'ghost',       name: 'Fantôme',           desc: 'Plus difficile à repérer (−40 %) ; ses tirs s\'entendent moins loin.' },
   };
 
@@ -88,7 +88,22 @@
     { id: 'op_ardoise', callsign: 'Ardoise', unit: 'SASR (Australie)',         role: 'marksman', armor: 'medium', trait: 'ambusher', rarity: 2, marksmanship: 86, reflexes: 64, mobility: 62, perception: 84, composure: 80, endurance: 68 },
     { id: 'op_enclume', callsign: 'Enclume', unit: 'KCT (Pays-Bas)',           role: 'support',  armor: 'medium', trait: 'gunner', rarity: 1, marksmanship: 62, reflexes: 60, mobility: 62, perception: 62, composure: 82, endurance: 84 },
     { id: 'op_ombre',   callsign: 'Ombre',   unit: 'UEI (Espagne)',            role: 'pointman', armor: 'light',  trait: 'ghost', rarity: 3, marksmanship: 72, reflexes: 90, mobility: 84, perception: 82, composure: 70, endurance: 60 },
+
+    // ---- Faction adverse : « Groupe Karst », société militaire privée fictive (non recrutable) ----
+    { id: 'k_molosse', callsign: 'Molosse', unit: 'Groupe Karst — section d\'assaut', faction: 'karst', role: 'assault',  armor: 'medium', trait: 'leader',      rarity: 2, marksmanship: 70, reflexes: 70, mobility: 68, perception: 62, composure: 76, endurance: 76 },
+    { id: 'k_vipere',  callsign: 'Vipère',  unit: 'Groupe Karst — éclaireurs',        faction: 'karst', role: 'pointman', armor: 'light',  trait: 'ghost',       rarity: 2, marksmanship: 64, reflexes: 86, mobility: 86, perception: 78, composure: 62, endurance: 60 },
+    { id: 'k_rapace',  callsign: 'Rapace',  unit: 'Groupe Karst — tireurs',           faction: 'karst', role: 'marksman', armor: 'light',  trait: 'patience',    rarity: 3, marksmanship: 90, reflexes: 60, mobility: 58, perception: 88, composure: 82, endurance: 60 },
+    { id: 'k_hyene',   callsign: 'Hyène',   unit: 'Groupe Karst — appui feu',         faction: 'karst', role: 'support',  armor: 'heavy',  trait: 'gunner',      rarity: 2, marksmanship: 58, reflexes: 56, mobility: 54, perception: 60, composure: 86, endurance: 90 },
+    { id: 'k_chacal',  callsign: 'Chacal',  unit: 'Groupe Karst — brèche',            faction: 'karst', role: 'breacher', armor: 'heavy',  trait: 'breach',      rarity: 2, marksmanship: 62, reflexes: 74, mobility: 70, perception: 56, composure: 76, endurance: 84 },
+    { id: 'k_fauve',   callsign: 'Fauve',   unit: 'Groupe Karst — section d\'assaut', faction: 'karst', role: 'assault',  armor: 'medium', trait: 'runner',      rarity: 2, marksmanship: 72, reflexes: 76, mobility: 78, perception: 66, composure: 66, endurance: 70 },
+    { id: 'k_taipan',  callsign: 'Taïpan',  unit: 'Groupe Karst — tireurs',           faction: 'karst', role: 'marksman', armor: 'medium', trait: 'ambusher',    rarity: 3, marksmanship: 86, reflexes: 62, mobility: 60, perception: 84, composure: 84, endurance: 66 },
+    { id: 'k_bison',   callsign: 'Bison',   unit: 'Groupe Karst — appui feu',         faction: 'karst', role: 'support',  armor: 'heavy',  trait: 'colossus',    rarity: 2, marksmanship: 56, reflexes: 58, mobility: 56, perception: 60, composure: 88, endurance: 92 },
   ];
+  // Factions : couleurs d'uniforme (rendu) et nom
+  const FACTIONS = {
+    allied: { id: 'allied', name: 'Coalition', uniform: 0x3a4a3c, vest: 0x2b352d },
+    karst:  { id: 'karst',  name: 'Groupe Karst', uniform: 0x3b3a40, vest: 0x5a2628 },
+  };
 
   // ---- ORDRES TACTIQUES --------------------------------------------------------------
   // Chaque ordre modifie réellement les décisions (engine.js : decide / chooseTarget / movement).
@@ -102,13 +117,13 @@
   // enemy : composition (identifiants d'opérateurs), level : niveau des ennemis, order : leur ordre tactique
   // reward : crédits en cas de victoire (la défaite rapporte une fraction), xp : expérience de base par opérateur engagé
   const MISSIONS = [
-    { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille adverse de cinq hommes progresse prudemment sur les docks. Interceptez-la.', mapId: 'entrepot', enemy: ['op_cobra', 'op_furet', 'op_bouclier', 'op_marteau', 'op_vautour'], level: 0, order: 'careful', reward: 180, xp: 40, difficulty: 1 },
-    { id: 'embuscade', name: 'Position retranchée', desc: 'L\'adversaire tient l\'entrepôt derrière ses conteneurs. Il faudra aller le chercher.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_furet'], level: 3, order: 'hold', reward: 260, xp: 55, difficulty: 2 },
-    { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact par les deux couloirs. Tenez ou contre-attaquez.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_granit'], level: 3, order: 'assault', reward: 340, xp: 70, difficulty: 3 },
-    { id: 'marche', name: 'Marché sous le feu', desc: 'Une équipe adverse ratisse la place du marché. Reprenez-la rue par rue.', mapId: 'place', enemy: ['op_sirocco', 'op_furet', 'op_enclume', 'op_marteau', 'op_ardoise'], level: 1, order: 'careful', reward: 240, xp: 50, difficulty: 2 },
-    { id: 'tenir', name: 'Tenir la place', desc: 'Tenez la place 140 secondes face à un assaut : il suffit qu\'un seul opérateur soit encore en état à l\'échéance.', mapId: 'place', enemy: ['op_cobra', 'op_sirocco', 'op_bouclier', 'op_marteau', 'op_ombre'], level: 6, order: 'assault', objective: 'hold', duration: 140, reward: 360, xp: 70, difficulty: 3 },
-    { id: 'nuit', name: 'Infiltration adverse', desc: 'Des opérateurs équipés d\'armes silencieuses s\'infiltrent prudemment : vous les entendrez à peine.', mapId: 'place', enemy: ['op_ombre', 'op_furet', 'op_sirocco', 'op_ardoise', 'op_lynx'], enemyWeapons: { op_ombre: 'smgsil', op_furet: 'smgsil', op_sirocco: 'smgsil' }, level: 6, order: 'careful', reward: 420, xp: 85, difficulty: 4 },
-    { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_lynx'], level: 5, order: 'assault', reward: 480, xp: 90, difficulty: 4 },
+    { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille adverse de cinq hommes progresse prudemment sur les docks. Interceptez-la.', mapId: 'entrepot', enemy: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal', 'k_fauve'], level: 0, order: 'careful', reward: 180, xp: 40, difficulty: 1 },
+    { id: 'embuscade', name: 'Position retranchée', desc: 'L\'adversaire tient l\'entrepôt derrière ses conteneurs. Il faudra aller le chercher.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_hyene', 'k_chacal', 'k_vipere'], level: 3, order: 'hold', reward: 260, xp: 55, difficulty: 2 },
+    { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact par les deux couloirs. Tenez ou contre-attaquez.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_fauve'], level: 2, order: 'assault', reward: 340, xp: 70, difficulty: 3 },
+    { id: 'marche', name: 'Marché sous le feu', desc: 'Une équipe adverse ratisse la place du marché. Reprenez-la rue par rue.', mapId: 'place', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 0, order: 'careful', reward: 240, xp: 50, difficulty: 2 },
+    { id: 'tenir', name: 'Tenir la place', desc: 'Tenez la place 140 secondes face à un assaut : il suffit qu\'un seul opérateur soit encore en état à l\'échéance.', mapId: 'place', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_vipere'], level: 6, order: 'assault', objective: 'hold', duration: 140, reward: 360, xp: 70, difficulty: 3 },
+    { id: 'nuit', name: 'Infiltration adverse', desc: 'Des opérateurs équipés d\'armes silencieuses s\'infiltrent prudemment : vous les entendrez à peine.', mapId: 'place', enemy: ['k_vipere', 'k_fauve', 'k_molosse', 'k_taipan', 'k_chacal'], enemyWeapons: { k_vipere: 'smgsil', k_fauve: 'smgsil', k_molosse: 'smgsil' }, level: 7, order: 'careful', reward: 420, xp: 85, difficulty: 4 },
+    { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 5, order: 'assault', reward: 480, xp: 90, difficulty: 4 },
   ];
 
   // ---- ÉCONOMIE ----------------------------------------------------------------------
@@ -121,5 +136,5 @@
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
   const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, MISSIONS, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, MISSIONS, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));

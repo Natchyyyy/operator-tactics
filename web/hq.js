@@ -27,7 +27,7 @@
 
   function renderRoster() {
     const el = $('#hqRoster');
-    el.innerHTML = OPERATORS.map(o => {
+    el.innerHTML = OPERATORS.filter(o => !o.faction).map(o => {
       const st = profile.operators[o.id]; const lvl = Game.levelFor(st.xp); const next = Game.xpToNext(st.xp);
       const inSquad = profile.squad.includes(o.id);
       const pct = next === null ? 100 : Math.round(100 * (st.xp - DATA.XP_TABLE[lvl]) / (DATA.XP_TABLE[lvl + 1] - DATA.XP_TABLE[lvl]));
@@ -97,7 +97,7 @@
         <div class="crow"><b>${esc(m.name)}</b><span class="diff">${'◆'.repeat(m.difficulty)}${'◇'.repeat(4 - m.difficulty)}</span></div>
         <div class="mdesc">${esc(m.desc)}</div>
         <div class="crow small"><span>${OT.MAPS[m.mapId].name} · ${m.objective === 'hold' ? `tenir ${m.duration} s` : 'neutraliser l’adversaire'}</span></div>
-        <div class="crow small"><span>Ennemi : ${m.enemy.map(id => OPERATORS.find(o => o.id === id).callsign).join(', ')} (niv. ${m.level}, ${ORDERS[m.order].name}${m.enemyWeapons ? ', armes silencieuses' : ''})</span></div>
+        <div class="crow small"><span>${DATA.FACTIONS.karst.name} : ${m.enemy.map(id => OPERATORS.find(o => o.id === id).callsign).join(', ')} (niv. ${m.level}, ${ORDERS[m.order].name}${m.enemyWeapons ? ', armes silencieuses' : ''})</span></div>
         <div class="crow small"><span>Récompense : ${m.reward} cr. · ${m.xp} XP de base</span><span>${done ? `${done.wins}/${done.attempts} réussie${done.wins > 1 ? 's' : ''}` : 'Jamais tentée'}</span></div>
       </div>`;
     }).join('');

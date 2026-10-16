@@ -240,9 +240,10 @@
   }
   function makeOperator(u) {
     const t = TEAM[u.team];
-    const matU = new THREE.MeshStandardMaterial({ color: t.uniform, roughness: 0.95 });
-    const matV = new THREE.MeshStandardMaterial({ color: t.vest, roughness: 0.9 });
-    const matHelmet = new THREE.MeshStandardMaterial({ color: t.vest, roughness: 0.65 });
+    const fac = DATA.FACTIONS[u.def.faction || 'allied'] || DATA.FACTIONS.allied;   // uniforme selon la faction, marqueurs selon l'équipe
+    const matU = new THREE.MeshStandardMaterial({ color: fac.uniform, roughness: 0.95 });
+    const matV = new THREE.MeshStandardMaterial({ color: fac.vest, roughness: 0.9 });
+    const matHelmet = new THREE.MeshStandardMaterial({ color: fac.vest, roughness: 0.65 });
     const matMark = new THREE.MeshBasicMaterial({ color: t.color });
     const group = new THREE.Group();
     const pose = new THREE.Group(); group.add(pose);     // tout le corps : posture, chute
@@ -434,7 +435,8 @@
   function buildRosters() {
     battle.teams.forEach((team, ti) => {
       const el = $('#roster' + ti);
-      el.innerHTML = `<div class="rhead team${ti}"><span class="rname">${team.name}</span><span class="rorder">${DATA.ORDERS[team.order].name}</span></div>` +
+      const fac = team.units[0] && team.units[0].def.faction ? DATA.FACTIONS[team.units[0].def.faction].name : null;
+      el.innerHTML = `<div class="rhead team${ti}"><span class="rname">${team.name}${fac ? ` <small>${fac}</small>` : ''}</span><span class="rorder">${DATA.ORDERS[team.order].name}</span></div>` +
         team.units.map(u => `
         <div class="card" data-id="${u.id}">
           <div class="crow"><span class="role">${roleIcon[u.role.id]}</span><span class="cs">${u.callsign}</span><span class="st"></span></div>
@@ -562,18 +564,15 @@
   setMode('free');
   newBattle(optsFromForm());
   if (!MANUAL && params.get('mode') !== 'free') window.HQ.show(); else window.HQ.hide();
-  if (MANUAL) {
-    window.API = {
-      step: (n, dt) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; render(); return battle.t; },
-      runToEnd: () => { while (!battle.over) stepSim(); acc = DT; render(); return battle.result; },
-      battle: () => battle, camera: (yaw, pitch, dist, tx, tz) => { cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; if (tx !== undefined) cam.target.set(tx, 0, tz); render(); },
-      focus: (cs, yaw, pitch, dist) => { const u = battle.units.find(x => x.callsign === cs); cam.follow = null; cam.target.set(u.x, 0.9, u.z); cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; render(); return [u.x, u.z, u.facing, u.stance, u.state]; },
-      render,
-    };
-    render();
-  } else {
-    requestAnimationFrame((t) => { lastFrame = t; frame(t); });
-  }
-  window.API = window.API || { battle: () => battle, render, step: (n) => { for (let i = 0; i < (n || 1); i++) stepSim(); render(); return battle.t; } };
+  // API de test (identique dans les deux modes ; en mode manuel il n'y a pas de boucle d'animation)
+  window.API = {
+    step: (n, dt) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; render(); return battle.t; },
+    runToEnd: () => { while (!battle.over) stepSim(); acc = DT; render(); return battle.result; },
+    battle: () => battle, render,
+    camera: (yaw, pitch, dist, tx, tz) => { cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; if (tx !== undefined) cam.target.set(tx, 0, tz); render(); },
+    focus: (cs, yaw, pitch, dist) => { const u = battle.units.find(x => x.callsign === cs); cam.follow = null; cam.target.set(u.x, 0.9, u.z); cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; render(); return [u.x, u.z, u.facing, u.stance, u.state]; },
+    pause: (p) => { paused = p !== false; updatePlayButton(); },
+  };
+  if (MANUAL) render(); else requestAnimationFrame((t) => { lastFrame = t; frame(t); });
   window.PRET = true;
 })();
