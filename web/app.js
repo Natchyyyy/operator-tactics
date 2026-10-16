@@ -294,39 +294,32 @@
   function animateOperator(u, m, dt) {
     const a = m.anim;
     a.crouch = lerp(a.crouch, u.alive && u.stance === 'crouch' ? 1 : 0, Math.min(1, dt * 8));
-    a.aim = lerp(a.aim, u.alive && u.target ? 1 : 0, Math.min(1, dt * 6));
+    a.aim = lerp(a.aim, u.alive && (u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture') ? 1 : 0, Math.min(1, dt * 6));
     if (!u.alive) a.fall = Math.min(1, Math.max(0, (simTime - (u.downAt || 0)) * 2.2));
     a.recoil = Math.max(0, a.recoil - dt * 10); a.flinch = Math.max(0, a.flinch - dt * 4);
-    const walking = u.alive && u.moving;
-    if (walking) a.phase += dt * (u.state === 'closing' ? 11 : 8.5);
-    const swing = walking ? Math.sin(a.phase) : 0, swingAmp = 0.55 * (1 - a.crouch * 0.6);
-    // jambes
-    m.legs[0].leg.rotation.x = swing * swingAmp - a.crouch * 1.1; m.legs[0].knee.rotation.x = Math.max(0, -swing) * 0.8 + a.crouch * 1.5;
-    m.legs[1].leg.rotation.x = -swing * swingAmp - a.crouch * 1.1; m.legs[1].knee.rotation.x = Math.max(0, swing) * 0.8 + a.crouch * 1.5;
-    m.hips.position.y = 0.86 - a.crouch * 0.42 + (walking ? Math.abs(Math.cos(a.phase)) * 0.025 : 0);
-    // torse : léger penché en avant quand accroupi ou en marche, recul au tir, tressaillement à l'impact
-    m.torso.rotation.x = a.crouch * 0.35 + (walking ? 0.08 : 0) - a.recoil * 0.08 + a.flinch * 0.25;
+    const walking = u.alive && u.moving, running = walking && (u.state === 'closing' || u.state === 'retreat' || u.state === 'evade' || u.state === 'tozone');
+    if (walking) a.phase += dt * (running ? 11 : 8.5);
+    const swing = walking ? Math.sin(a.phase) : 0, swingAmp = (running ? 0.7 : 0.5) * (1 - a.crouch * 0.6);
+    // jambes : hanche et genou ; accroupi = cuisses vers l'avant, genoux pliés, bassin abaissé
+    m.legs[0].leg.rotation.x = swing * swingAmp - a.crouch * 1.15; m.legs[0].knee.rotation.x = Math.max(0, -swing) * 0.9 + a.crouch * 1.75;
+    m.legs[1].leg.rotation.x = -swing * swingAmp - a.crouch * 0.55; m.legs[1].knee.rotation.x = Math.max(0, swing) * 0.9 + a.crouch * 1.95;
+    m.hips.position.y = m.hipsY - a.crouch * 0.4 + (walking ? Math.abs(Math.cos(a.phase)) * 0.03 : 0);
+    // torse : penché en avant en course ou accroupi, recul au tir, tressaillement à l'impact ; épaule gauche avancée en visée
+    m.torso.rotation.x = a.crouch * 0.3 + (running ? 0.22 : walking ? 0.08 : 0) - a.recoil * 0.06 + a.flinch * 0.25;
+    m.torso.rotation.y = a.aim * 0.18;
     m.torso.rotation.z = a.flinch * 0.15 * Math.sin(a.phase * 3);
-    m.headG.rotation.x = -a.crouch * 0.3 - a.flinch * 0.2;
-    // bras : épaulé (cible) ou arme basse
-    // bras : les épaules tournent vers l'avant (x négatif = bras levé devant), les coudes se replient vers l'avant (x négatif)
-    // arme basse : bras droit le long de la crosse, main gauche sous le garde-main ; épaulé : les deux bras montent
-    Figure.armPose(m, u.alive ? a.aim : 0);
-    if (!u.alive) { m.shoulderR.rotation.x = -0.1; m.shoulderL.rotation.x = -0.1; m.elbowR.rotation.x = -0.2; m.elbowL.rotation.x = -0.2; }
-    m.shoulderR.rotation.x -= a.recoil * 0.2; m.shoulderL.rotation.x -= a.recoil * 0.2; m.weapon.position.z -= a.recoil * 0.05;
-    // rechargement : arme basculée vers le bas, main gauche qui travaille sous l'arme
+    m.headG.rotation.x = -a.crouch * 0.25 - (running ? 0.15 : 0) - a.flinch * 0.2; m.headG.rotation.y = -a.aim * 0.16;
+    // rechargement, lancer de grenade, aveuglement : la pose des bras suit l'arme (cinématique inverse)
     a.reload = lerp(a.reload || 0, u.alive && u.reloading > 0 ? 1 : 0, Math.min(1, dt * 10));
-    const rl = a.reload;
-    m.weapon.position.y -= rl * 0.12; m.weapon.position.z -= rl * 0.06; m.weapon.rotation.x += rl * 0.7; m.weapon.rotation.z += rl * 0.35;
-    if (rl > 0.05) { m.shoulderL.rotation.x += rl * (0.4 + 0.2 * Math.sin(simTime * 16)); m.elbowL.rotation.x -= rl * 0.5; m.headG.rotation.x += rl * 0.35; }
-    // lancer de grenade : bras droit armé en arrière puis projeté vers l'avant
     a.throwT = u.alive && u.throwing ? Math.min(1, (a.throwT || 0) + dt * 1.8) : Math.max(0, (a.throwT || 0) - dt * 4);
-    if (a.throwT > 0) { const k = a.throwT, wind = k < 0.6 ? k / 0.6 : 1 - (k - 0.6) / 0.4; m.shoulderR.rotation.x = -2.4 * wind - (k > 0.6 ? 0.6 : 0); m.elbowR.rotation.x = -1.2 * wind; m.torso.rotation.y = 0.35 * wind; m.weapon.position.y -= 0.1 * Math.min(1, k * 3); }
-    // aveuglé : bras levé devant les yeux
-    if (u.alive && u.blindUntil > simTime) { m.shoulderL.rotation.x = -2.1; m.elbowL.rotation.x = -1.6; m.headG.rotation.x = 0.3; }
+    const blind = u.alive && u.blindUntil > simTime;
+    Figure.armPose(m, u.alive ? a.aim * (1 - a.reload * 0.7) : 0.15, { recoil: a.recoil, reload: a.reload, throwT: a.throwT, blind });
+    if (a.reload > 0.05) m.headG.rotation.x += a.reload * 0.3;
+    if (blind) m.headG.rotation.x += 0.25;
     // chute
     if (a.fall > 0) { const f = a.fall < 0.5 ? 2 * a.fall * a.fall : 1 - Math.pow(-2 * a.fall + 2, 2) / 2; m.pose.rotation.x = -Math.PI / 2 * f * 0.95; m.pose.rotation.z = a.fallDir * 0.4 * f; m.pose.position.y = 0.22 * f; m.ring.material.opacity = 0.8 - 0.6 * f; }
   }
+
 
   // traçantes et impacts : petits cylindres lumineux (visibles), éclair de bouche, étincelles, poussière
   const fx = []; // { obj, until, vel?, kind }

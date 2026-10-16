@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Planche des figures</title>
+<style>html,body{margin:0;background:#15181c;color:#ddd;font:13px system-ui} canvas{display:block} #lbl{position:fixed;left:0;right:0;bottom:8px;display:flex;justify-content:space-around;pointer-events:none}</style></head>
+<body><canvas id="c"></canvas><div id="lbl"></div>
+<script src="../web/three.min.js"></script>
+<script src="../web/figure.js"></script>
+<script>
+// Planche de contrôle visuel des personnages : poses (arme basse, épaulée, accroupi, rechargement, lancer, aveuglé), armes, couvre-chefs.
+// Utilisation : outils/capture.py http://127.0.0.1:8765/outils/figures.html sortie --taille 1920x1080 [--etape "js:poser('face')"]
+const W = innerWidth, H = innerHeight, cv = document.getElementById('c');
+const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true }); r.setSize(W, H); r.shadowMap.enabled = true; r.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x1b1f24);
+scene.add(new THREE.HemisphereLight(0xdde6f0, 0x3a3630, 1.5));
+const key = new THREE.DirectionalLight(0xffe9c4, 2.8); key.position.set(3, 6, 5); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.camera.left = -8; key.shadow.camera.right = 8; key.shadow.camera.top = 4; key.shadow.camera.bottom = -2; scene.add(key);
+const rim = new THREE.DirectionalLight(0x6fa8ff, 1.2); rim.position.set(-3, 2, -3); scene.add(rim);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 20), new THREE.MeshStandardMaterial({ color: 0x3a3f46, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+const cam = new THREE.PerspectiveCamera(30, W / H, 0.1, 100);
+const F = window.OT.Figure;
+const SET = [
+  { id: 'op_vautour', weapon: 'carbine', headgear: 'casque', pose: { aim: 0 }, t: 'Arme basse — carabine' },
+  { id: 'op_lynx', weapon: 'smg', headgear: 'casque_lunettes', pose: { aim: 1 }, t: 'Épaulé — PM' },
+  { id: 'op_granit', weapon: 'dmr', headgear: 'chapeau', pose: { aim: 1 }, t: 'Épaulé — précision' },
+  { id: 'op_bastion', weapon: 'lmg', headgear: 'casque', pose: { aim: 0.6, crouch: 1 }, t: 'Accroupi — mitrailleuse' },
+  { id: 'op_belier', weapon: 'shotgun', headgear: 'beret_rouge', pose: { aim: 0.3, reload: 1 }, t: 'Rechargement — pompe' },
+  { id: 'op_cobra', weapon: 'battle', headgear: 'casquette', pose: { aim: 0, throwT: 0.4 }, t: 'Lancer de grenade' },
+  { id: 'k_molosse', weapon: 'carbine', headgear: 'foulard_rouge', pose: { aim: 0.5, blind: true }, uniform: 0x4a3b33, vest: 0x2e2622, t: 'Aveuglé — Karst' },
+];
+const figs = [];
+SET.forEach((s, i) => {
+  const f = F.build({ id: s.id, weapon: s.weapon, uniform: s.uniform || 0x3a4a3c, vest: s.vest || 0x2b352d, headgear: s.headgear, teamColor: i === 6 ? 0xe85a4f : 0x4f9cf0 });
+  f.group.position.set((i - 3) * 1.45, 0, 0); scene.add(f.group); figs.push({ f, s });
+});
+function apply() {
+  for (const { f, s } of figs) {
+    const p = s.pose, c = p.crouch || 0;
+    f.legs[0].leg.rotation.x = -c * 1.15; f.legs[0].knee.rotation.x = c * 1.75; f.legs[1].leg.rotation.x = -c * 0.55; f.legs[1].knee.rotation.x = c * 1.95;
+    f.hips.position.y = f.hipsY - c * 0.4; f.torso.rotation.x = c * 0.3; f.torso.rotation.y = (p.aim || 0) * 0.18; f.headG.rotation.y = -(p.aim || 0) * 0.16;
+    F.armPose(f, p.aim || 0, { reload: p.reload || 0, throwT: p.throwT || 0, blind: !!p.blind });
+  }
+}
+let view = 'face';
+window.poser = (v) => { view = v; draw(); return v; };
+function draw() {
+  apply();
+  for (const { f } of figs) f.group.rotation.y = view === 'face' ? -0.5 : view === 'profil' ? -Math.PI / 2 : view === 'dos' ? Math.PI - 0.5 : 0;
+  cam.position.set(0, 1.25, 11.5); cam.lookAt(0, 0.95, 0);
+  r.render(scene, cam);
+  document.getElementById('lbl').innerHTML = SET.map(s => `<span>${s.t}</span>`).join('');
+}
+// gros plan sur la figure i (0..6) : zoom(i, 'face'|'profil'|'dos')
+window.zoom = (i, v) => { view = v || 'face'; apply(); for (const { f } of figs) f.group.rotation.y = view === 'face' ? -0.5 : view === 'profil' ? -Math.PI / 2 : Math.PI - 0.5; const x = (i - 3) * 1.45; cam.position.set(x + 0.6, 1.45, 3.4); cam.lookAt(x, 1.05, 0); r.render(scene, cam); document.getElementById('lbl').innerHTML = ''; return i; };
+draw(); window.PRET = true;
+</script></body></html>
