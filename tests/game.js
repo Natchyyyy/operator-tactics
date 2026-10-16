@@ -85,6 +85,23 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   const b2 = new Battle({ seed: 8, teams: Game.buildTeams(q2, m) }); b2.run(); Game.applyRewards(q2, m, b2.result);
   check('la convalescence dure une mission', q2.operators.op_lynx.recovery === 0 && Game.isAvailable(q2, 'op_lynx'));
 }
+// défis : vérifiés sur le résultat réel, récompense unique
+{
+  const q = Game.newProfile(); const m = DATA.MISSIONS[0];
+  // on fabrique un résultat de victoire sans perte à partir d'une vraie bataille (en forçant l'issue : les unités restent en état)
+  const fake = (over) => Object.assign({ winner: 0, teams: [{ alive: 5, orderId: 'assault', units: Array.from({ length: 5 }, (_, i) => ({ id: '0:' + q.squad[i], callsign: 'x', role: 'Assaut', alive: true, stats: { kills: 0, timeSuppressed: 0, damageDealt: 0 } })) }, { alive: 0, units: [] }] }, over || {});
+  const c0 = q.credits; const done = Game.checkChallenges(q, m, fake());
+  check('« Sans perte » accordé sur une victoire sans neutralisé, crédits ajoutés', done.some(c => c.id === 'sans_perte') && q.credits === c0 + 200 && q.challenges.sans_perte === true, done.map(c => c.id));
+  check('un défi ne se gagne qu\'une fois', Game.checkChallenges(q, m, fake()).length === 0 && q.credits === c0 + 200);
+  const lost = fake({ winner: 1 }); check('aucun défi sur une défaite', Game.checkChallenges(Game.newProfile(), m, lost).length === 0);
+  const three = fake(); three.teams[0].units = three.teams[0].units.slice(0, 3); three.teams[0].alive = 3;
+  check('« À trois » exige une escouade de trois', Game.checkChallenges(Game.newProfile(), m, three).some(c => c.id === 'a_trois'));
+  const sniper = fake(); sniper.teams[0].units[0].role = DATA.ROLES.marksman.name; sniper.teams[0].units[0].stats.kills = 3;
+  check('« Œil du tireur » : 3 neutralisations par un tireur d\'élite', Game.checkChallenges(Game.newProfile(), m, sniper).some(c => c.id === 'tireur'));
+  // intégration : applyRewards sur une vraie bataille ne plante pas et liste les défis gagnés
+  const q3 = Game.newProfile(); const b = new Battle({ seed: 2, teams: Game.buildTeams(q3, m) }); b.run(); const r = Game.applyRewards(q3, m, b.result);
+  check('applyRewards renvoie la liste des défis accomplis (éventuellement vide)', Array.isArray(r.challenges));
+}
 // sauvegarde
 check('sauvegarde puis rechargement identiques', Game.save(p, storage) && JSON.stringify(Game.load(storage)) === JSON.stringify(p));
 check('sans sauvegarde : null (le jeu repart d\'un profil neuf)', Game.load({ getItem: () => null }) === null);

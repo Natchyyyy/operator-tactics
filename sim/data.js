@@ -126,6 +126,18 @@
     { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 5, order: 'assault', reward: 480, xp: 90, difficulty: 4 },
   ];
 
+  // ---- DÉFIS -------------------------------------------------------------------------
+  // Récompense unique, vérifiée sur le résultat réel de la mission (les conditions sont codées dans game.js : CHALLENGE_CHECKS).
+  const CHALLENGES = [
+    { id: 'sans_perte', name: 'Sans perte',          desc: 'Réussir une mission sans aucun opérateur neutralisé.', reward: 200 },
+    { id: 'a_trois',    name: 'À trois',             desc: 'Réussir une mission avec une escouade de trois.', reward: 250 },
+    { id: 'methodique', name: 'Méthodique',          desc: 'Réussir « Position retranchée » avec l\'ordre Prudent.', reward: 150 },
+    { id: 'pas_un_pouce', name: 'Pas un pouce',      desc: 'Réussir « Tenir la place » avec cinq opérateurs encore en état.', reward: 300 },
+    { id: 'tireur',     name: 'Œil du tireur',       desc: 'Un tireur d\'élite neutralise trois adversaires dans une même mission.', reward: 200 },
+    { id: 'silence',    name: 'Silence radio',       desc: 'Réussir « Infiltration adverse » sans qu\'aucun opérateur ne reste cloué au sol plus de 3 s.', reward: 300 },
+    { id: 'elite',      name: 'Détachement brisé',   desc: 'Réussir « Détachement d\'élite ».', reward: 400 },
+  ];
+
   // ---- ÉCONOMIE ----------------------------------------------------------------------
   const PRICES = {
     operator: { 1: 250, 2: 450, 3: 700 },           // recrutement selon la rareté
@@ -136,5 +148,5 @@
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
   const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, MISSIONS, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));

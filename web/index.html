@@ -91,6 +91,7 @@
   .mission { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; cursor: pointer; } .mission:hover { border-color: var(--muted); } .mission.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
   .mission .diff { margin-left: auto; color: var(--accent); letter-spacing: 2px; } .mdesc { font-size: 12px; color: #c4ccd5; margin: 4px 0; }
   .armo { display: flex; align-items: center; gap: 8px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 12px; } .armo > div { flex: 1; min-width: 0; } .armo .wspec { padding: 0; }
+  .chal { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px 6px; border-radius: 6px; } .chal > div { flex: 1; min-width: 0; } .chal .mark { width: 16px; text-align: center; color: var(--muted); } .chal.done { background: #1d2a1f; } .chal.done .mark { color: var(--ok); }
   #launch { font-size: 15px; padding: 12px; } #launchHint { font-size: 11px; color: var(--muted); text-align: center; }
   #hqRewards { background: #1d2a1f; border: 1px solid #2d4a33; border-radius: 8px; padding: 8px 10px; font-size: 12px; } #hqRewards .good { color: var(--ok); } #hqRewards .bad { color: var(--bad); }
   #fade { position: fixed; inset: 0; background: var(--bg); opacity: 0; pointer-events: none; transition: opacity .22s ease; z-index: 40; } #fade.on { opacity: 1; pointer-events: auto; }
@@ -123,6 +124,7 @@
     </section>
     <section class="hqcol"><h3>Missions</h3><div id="hqMissions" style="display:flex;flex-direction:column;gap:6px"></div>
       <h3 style="margin-top:6px">Armurerie</h3><div id="hqArmory" style="display:flex;flex-direction:column;gap:6px"></div>
+      <h3 style="margin-top:6px">Défis</h3><div id="hqChallenges" style="display:flex;flex-direction:column;gap:4px"></div>
       <div id="hqRewards" class="hidden"></div>
       <button id="launch" class="on">Lancer la mission</button><div id="launchHint"></div>
     </section>

@@ -2,7 +2,7 @@
 // Logique pure (testable en ligne de commande) ; l'interface (web/app.js) ne fait que l'afficher.
 (function (root, deps) {
   const { DATA } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL } = DATA;
   const STATS = ['marksmanship', 'reflexes', 'mobility', 'perception', 'composure', 'endurance'];
   const SAVE_KEY = 'operator-tactics-save-v1';
   const STARTING = ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
@@ -14,7 +14,7 @@
     return {
       version: 1, credits: 300, operators, squad: STARTING.slice(), order: 'assault',
       inventory: { weapons: { carbine: true, smg: true, dmr: true, lmg: true, shotgun: true }, armors: { light: true, medium: true, heavy: true } }, // battle, smgsil : à acheter
-      career: { battles: 0, wins: 0, losses: 0, draws: 0, kills: 0, losses_units: 0 }, missions: {}, lastSeed: null,
+      career: { battles: 0, wins: 0, losses: 0, draws: 0, kills: 0, losses_units: 0 }, missions: {}, challenges: {}, lastSeed: null,
     };
   }
   const levelFor = (xp) => { let l = 0; while (l < MAX_LEVEL && xp >= XP_TABLE[l + 1]) l++; return l; };
@@ -105,9 +105,30 @@
     }
     return { won, draw, credits, xp };
   }
+  // Conditions des défis : (mission, résultat) → vrai si le défi est accompli dans cette bataille
+  const CHALLENGE_CHECKS = {
+    sans_perte:   (m, r) => r.winner === 0 && r.teams[0].alive === r.teams[0].units.length,
+    a_trois:      (m, r) => r.winner === 0 && r.teams[0].units.length === 3,
+    methodique:   (m, r) => r.winner === 0 && m.id === 'embuscade' && r.teams[0].orderId === 'careful',
+    pas_un_pouce: (m, r) => r.winner === 0 && m.id === 'tenir' && r.teams[0].units.length === 5 && r.teams[0].alive === 5,
+    tireur:       (m, r) => r.teams[0].units.some(u => u.role === ROLES.marksman.name && u.stats.kills >= 3),
+    silence:      (m, r) => r.winner === 0 && m.id === 'nuit' && r.teams[0].units.every(u => u.stats.timeSuppressed <= 3),
+    elite:        (m, r) => r.winner === 0 && m.id === 'elite',
+  };
+  function checkChallenges(profile, mission, result) {
+    const done = [];
+    profile.challenges = profile.challenges || {};
+    for (const c of CHALLENGES) {
+      if (profile.challenges[c.id]) continue;
+      const f = CHALLENGE_CHECKS[c.id]; if (!f || !f(mission, result)) continue;
+      profile.challenges[c.id] = true; profile.credits += c.reward; done.push(c);
+    }
+    return done;
+  }
   function applyRewards(profile, mission, result) {
     const r = computeRewards(profile, mission, result);
     profile.credits += r.credits;
+    r.challenges = checkChallenges(profile, mission, result);
     r.levelUps = [];
     for (const u of result.teams[0].units) {
       const id = u.id.split(':')[1]; const st = profile.operators[id];
@@ -145,6 +166,6 @@
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, applyFormation, computeRewards, applyRewards, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));

@@ -758,7 +758,7 @@
     return {
       winner, reason, duration: this.t, seed: this.seed, map: this.map.name,
       teams: this.teams.map(t => ({
-        name: t.name, order: ORDERS[t.order].name,
+        name: t.name, order: ORDERS[t.order].name, orderId: t.order,
         alive: t.units.filter(u => u.alive).length,
         shots: t.units.reduce((s, u) => s + u.stats.shots, 0), hits: t.units.reduce((s, u) => s + u.stats.hits, 0),
         units: t.units.map(u => ({
