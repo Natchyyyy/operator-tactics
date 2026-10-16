@@ -1,0 +1,22 @@
+{
+ "source": "role_breacher.png",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#10a91d",
+ "morceaux_effaces": 7,
+ "part_sujet": 0.085,
+ "fichiers": [
+  "role_breacher_detoure.png",
+  "role_breacher_256.png",
+  "role_breacher_128.png",
+  "role_breacher_64.png",
+  "role_breacher_32.png"
+ ],
+ "taille_finale": [
+  1066,
+  1066
+ ]
+}

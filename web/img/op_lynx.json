@@ -1,0 +1,21 @@
+{
+ "source": "op_lynx.png",
+ "type": "portrait",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#02c306",
+ "morceaux_effaces": 0,
+ "part_sujet": 0.359,
+ "fichiers": [
+  "op_lynx_detoure.png",
+  "op_lynx_512.png",
+  "op_lynx_256.png",
+  "op_lynx_128.png"
+ ],
+ "taille_finale": [
+  974,
+  974
+ ]
+}

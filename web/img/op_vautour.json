@@ -1,0 +1,21 @@
+{
+ "source": "op_vautour.png",
+ "type": "portrait",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#03b906",
+ "morceaux_effaces": 0,
+ "part_sujet": 0.388,
+ "fichiers": [
+  "op_vautour_detoure.png",
+  "op_vautour_512.png",
+  "op_vautour_256.png",
+  "op_vautour_128.png"
+ ],
+ "taille_finale": [
+  1014,
+  1014
+ ]
+}

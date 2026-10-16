@@ -1,0 +1,22 @@
+{
+ "source": "ach_first.png",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#06cc06",
+ "morceaux_effaces": 0,
+ "part_sujet": 0.209,
+ "fichiers": [
+  "ach_first_detoure.png",
+  "ach_first_256.png",
+  "ach_first_128.png",
+  "ach_first_64.png",
+  "ach_first_32.png"
+ ],
+ "taille_finale": [
+  848,
+  848
+ ]
+}

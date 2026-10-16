@@ -1,0 +1,22 @@
+{
+ "source": "role_support.png",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#00ff00",
+ "morceaux_effaces": 1,
+ "part_sujet": 0.134,
+ "fichiers": [
+  "role_support_detoure.png",
+  "role_support_256.png",
+  "role_support_128.png",
+  "role_support_64.png",
+  "role_support_32.png"
+ ],
+ "taille_finale": [
+  1070,
+  1070
+ ]
+}

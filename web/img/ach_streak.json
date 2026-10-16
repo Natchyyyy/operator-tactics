@@ -1,0 +1,22 @@
+{
+ "source": "ach_streak.png",
+ "type": "icone",
+ "taille_source": [
+  1024,
+  1024
+ ],
+ "fond": "#09e705",
+ "morceaux_effaces": 1,
+ "part_sujet": 0.228,
+ "fichiers": [
+  "ach_streak_detoure.png",
+  "ach_streak_256.png",
+  "ach_streak_128.png",
+  "ach_streak_64.png",
+  "ach_streak_32.png"
+ ],
+ "taille_finale": [
+  934,
+  934
+ ]
+}
