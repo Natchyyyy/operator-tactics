@@ -80,9 +80,8 @@
 
   /* ---- Quartier général ---- */
   .screen.hidden { display: none !important; }
-  #hq { display: grid; grid-template-rows: 48px 1fr; height: 100%; }
   #hq header .cred { font-weight: 700; color: var(--accent); font-size: 15px; } #hq header .career { color: var(--muted); font-size: 12px; }
-  .hqgrid { display: grid; grid-template-columns: 300px 1fr 360px; gap: 12px; padding: 12px; min-height: 0; }
+  .hqgrid { display: grid; grid-template-columns: 300px 1fr 360px; gap: 12px; padding: 12px; min-height: 0; height: 100%; }
   .hqcol { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; overflow-y: auto; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
   .hqcol h3 { margin: 0 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
   .opcard { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; cursor: pointer; }
@@ -111,6 +110,24 @@
   .dialog { animation: pop .25s ease-out; } @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { #fade { transition: none; } .dialog { animation: none; } }
   #flash { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--accent); color: #111; padding: 8px 14px; border-radius: 8px; font-weight: 600; z-index: 30; box-shadow: 0 8px 30px #000a; }
+
+  /* ---- QG : onglets, accueil, cartes ---- */
+  #hq { display: grid; grid-template-rows: 60px 1fr; height: 100%; }
+  .hqteam { display: flex; align-items: center; gap: 10px; min-width: 0; } .hqname { font-weight: 800; letter-spacing: .1em; text-transform: uppercase; font-size: 14px; } .hqrank { font-size: 11px; color: var(--muted); } .xpbar { width: 160px; height: 4px; background: #0b0e11; border-radius: 2px; overflow: hidden; margin-top: 3px; } .xpbar i { display: block; height: 100%; background: var(--accent); }
+  .tabs { display: flex; gap: 4px; margin-left: 10px; } .tabs button { border-radius: 6px 6px 0 0; }
+  .hqpanel { min-height: 0; overflow: auto; } .hqgrid.two { grid-template-columns: 360px 1fr; }
+  .home { padding: 16px; display: flex; flex-direction: column; gap: 14px; max-width: 1100px; margin: 0 auto; }
+  .homeTop { display: grid; grid-template-columns: auto 1fr 1fr; gap: 18px; align-items: start; }
+  .rating { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px; padding: 14px 22px; text-align: center; } .rating .big { font-size: 64px; font-weight: 800; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; } .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-top: 6px; }
+  .record { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; } .record b { font-size: 20px; margin-right: 6px; }
+  .custom { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 6px; } .custom label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); } .custom input { width: 100%; text-transform: none; letter-spacing: 0; }
+  .pick { display: flex; gap: 6px; flex-wrap: wrap; } .pick button { width: 40px; height: 40px; font-size: 20px; padding: 0; display: inline-flex; align-items: center; justify-content: center; } .pick button.locked { opacity: .35; cursor: default; } .pick .sw { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #0b0e11; }
+  .homeBtns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; } .homeBtns button { padding: 18px 12px; font-size: 16px; font-weight: 700; display: flex; flex-direction: column; gap: 4px; align-items: center; } .homeBtns button small { font-size: 11px; font-weight: 400; color: var(--muted); } .homeBtns button.on small { color: #333; }
+  .packs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .pack { background: linear-gradient(160deg, #26322a, #141a16); border: 1px solid #3a4a3c; border-radius: 10px; padding: 12px; text-align: center; } .pack b { display: block; font-size: 14px; } .pack .muted { font-size: 11px; margin: 4px 0 8px; }
+  .opened { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; } .ccard { width: 150px; min-height: 120px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); padding: 8px; cursor: pointer; perspective: 600px; } .ccard .in { transition: transform .5s; transform-style: preserve-3d; position: relative; min-height: 104px; } .ccard.flipped .in { transform: rotateY(180deg); } .ccard .face { position: absolute; inset: 0; backface-visibility: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 4px; font-size: 11px; } .ccard .back { background: repeating-linear-gradient(45deg, #2a3a2e 0 6px, #22302a 6px 12px); border-radius: 8px; font-size: 24px; color: var(--accent); } .ccard .front { transform: rotateY(180deg); } .ccard .front b { font-size: 12px; } .ccard .ctype { font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); } .ccard.t-operator .front b { color: var(--a0); } .ccard.t-tactic .front b { color: #a9d8ff; } .ccard.t-perk .front b { color: var(--ok); } .ccard.t-cosmetic .front b { color: var(--accent); }
+  .tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; } .tcardq { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; font-size: 11px; display: flex; flex-direction: column; gap: 4px; } .tcardq .ticon { font-size: 24px; } .tcardq b { font-size: 12px; } .tcardq.eq { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; } .tcardq.locked { opacity: .4; cursor: default; }
+  .deploy { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+  @media (max-width: 1100px) { .hqgrid.two { grid-template-columns: 1fr; } .homeTop { grid-template-columns: 1fr; } }
   @media (max-width: 1100px) { .hqgrid { grid-template-columns: 1fr 1fr; } .hqcol.detail { grid-column: 1 / -1; order: 3; } }
   @media (max-width: 800px) { .hqgrid { grid-template-columns: 1fr; } .hqcol.detail { grid-column: auto; } .stats, .equip, .prep { grid-template-columns: 1fr; } .squad { grid-template-columns: repeat(3, 1fr); } }
 </style>
@@ -118,29 +135,61 @@
 <body>
 <div id="hq" class="screen">
   <header>
-    <h1>OPERATOR TACTICS <small>Quartier général</small></h1>
+    <h1>OPERATOR TACTICS</h1>
+    <div class="hqteam"><span class="ins team0" id="hqIns">✶</span><div><div class="hqname" id="hqTeamName">Alpha</div><div class="hqrank"><span id="hqRank">Recrue</span> · <span id="hqXp"></span><div class="xpbar"><i id="hqXpBar"></i></div></div></div></div>
     <span class="cred"><span id="credits">0</span> crédits</span>
-    <span class="career" id="career"></span>
+    <nav class="tabs"><button data-tab="accueil" class="on">Accueil</button><button data-tab="equipe">Équipe</button><button data-tab="cartes">Cartes</button><button data-tab="missions">Missions</button></nav>
     <div class="spacer"></div>
     <button id="freeBattle" title="Bataille d'entraînement sans récompense, avec graine et ordres libres">Bataille libre</button>
     <button id="resetSave">Réinitialiser</button>
     <button id="hqHelp" title="Aide">?</button>
   </header>
-  <div class="hqgrid">
-    <section class="hqcol"><h3>Opérateurs</h3><div id="hqRoster" style="display:flex;flex-direction:column;gap:6px"></div></section>
-    <section class="hqcol detail"><h3>Fiche</h3><div id="hqDetail"></div>
-      <h3 style="margin-top:8px">Escouade</h3><div class="squad" id="hqSquad"></div>
-      <div class="prep">
-        <label>Ordre <select id="selOrder"><option value="assault">Assaut — aller au contact</option><option value="hold">Tenir — se poster, tirer à vue</option><option value="careful">Prudent — de couvert en couvert</option></select></label>
-        <label>Formation (voies) <select id="selFormation"><option value="">Appliquer…</option><option value="ligne">Ligne (nord, centre, sud, nord, sud)</option><option value="nord">Tout par le nord</option><option value="sud">Tout par le sud</option><option value="coin">Coin (centre renforcé)</option><option value="tenailles">Tenailles (deux par flanc)</option><option value="auto">Automatique</option></select></label>
+  <!-- Accueil : puissance, bilan, personnalisation, raccourcis -->
+  <div class="hqpanel" data-panel="accueil">
+    <div class="home">
+      <div class="homeTop">
+        <div class="rating"><div class="big" id="hqRating">0</div><div class="lbl">Puissance d'équipe</div><div class="muted" style="font-size:11px">indicative : le combat n'en tient pas compte</div></div>
+        <div class="record"><div><b id="hqWins">0</b> victoires</div><div><b id="hqLosses">0</b> défaites</div><div><b id="hqDraws">0</b> égalités</div><div class="muted" id="career"></div></div>
+        <div class="custom">
+          <label>Nom d'équipe <input id="teamName" maxlength="18"></label>
+          <div class="lbl">Insigne</div><div id="insPick" class="pick"></div>
+          <div class="lbl">Uniforme</div><div id="uniPick" class="pick"></div>
+        </div>
       </div>
-    </section>
-    <section class="hqcol"><h3>Missions</h3><div id="hqMissions" style="display:flex;flex-direction:column;gap:6px"></div>
-      <h3 style="margin-top:6px">Armurerie</h3><div id="hqArmory" style="display:flex;flex-direction:column;gap:6px"></div>
-      <h3 style="margin-top:6px">Défis</h3><div id="hqChallenges" style="display:flex;flex-direction:column;gap:4px"></div>
       <div id="hqRewards" class="hidden"></div>
-      <button id="launch" class="on">Lancer la mission</button><div id="launchHint"></div>
-    </section>
+      <div class="homeBtns"><button data-go="cartes">Mes cartes<small>paquets, tactiques, perks</small></button><button data-go="equipe">Mon équipe<small>opérateurs, équipement, formation</small></button><button data-go="missions" class="on">Jouer<small>missions contre le Groupe Karst</small></button></div>
+    </div>
+  </div>
+  <!-- Équipe -->
+  <div class="hqpanel hidden" data-panel="equipe">
+    <div class="hqgrid two">
+      <section class="hqcol"><h3>Opérateurs</h3><div id="hqRoster" style="display:flex;flex-direction:column;gap:6px"></div></section>
+      <section class="hqcol detail"><h3>Fiche</h3><div id="hqDetail"></div>
+        <h3 style="margin-top:8px">Escouade</h3><div class="squad" id="hqSquad"></div>
+        <div class="prep">
+          <label>Ordre <select id="selOrder"><option value="assault">Assaut — aller au contact</option><option value="hold">Tenir — se poster, tirer à vue</option><option value="careful">Prudent — de couvert en couvert</option></select></label>
+          <label>Formation (voies) <select id="selFormation"><option value="">Appliquer…</option><option value="ligne">Ligne (nord, centre, sud, nord, sud)</option><option value="nord">Tout par le nord</option><option value="sud">Tout par le sud</option><option value="coin">Coin (centre renforcé)</option><option value="tenailles">Tenailles (deux par flanc)</option><option value="auto">Automatique</option></select></label>
+        </div>
+      </section>
+    </div>
+  </div>
+  <!-- Cartes : paquets, tactiques, armurerie, perks -->
+  <div class="hqpanel hidden" data-panel="cartes">
+    <div class="hqgrid two">
+      <section class="hqcol"><h3>Paquets de cartes</h3><div id="hqPacks" class="packs"></div><div id="hqOpened" class="opened"></div>
+        <h3 style="margin-top:8px">Armurerie</h3><div id="hqArmory" style="display:flex;flex-direction:column;gap:6px"></div></section>
+      <section class="hqcol"><h3>Tactiques <small class="muted">(3 emportées en mission)</small></h3><div id="hqTactics" class="tgrid"></div>
+        <h3 style="margin-top:8px">Perks acquis</h3><div id="hqPerks" class="muted" style="font-size:12px"></div></section>
+    </div>
+  </div>
+  <!-- Missions -->
+  <div class="hqpanel hidden" data-panel="missions">
+    <div class="hqgrid two">
+      <section class="hqcol"><h3>Missions</h3><div id="hqMissions" style="display:flex;flex-direction:column;gap:6px"></div></section>
+      <section class="hqcol"><h3>Déploiement</h3><div id="hqDeploy"></div>
+        <button id="launch" class="on">Lancer la mission</button><div id="launchHint"></div>
+        <h3 style="margin-top:10px">Défis</h3><div id="hqChallenges" style="display:flex;flex-direction:column;gap:4px"></div></section>
+    </div>
   </div>
 </div>
 <div id="flash" class="hidden"></div>

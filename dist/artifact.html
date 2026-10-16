@@ -75,9 +75,8 @@
 
   /* ---- Quartier général ---- */
   .screen.hidden { display: none !important; }
-  #hq { display: grid; grid-template-rows: 48px 1fr; height: 100%; }
   #hq header .cred { font-weight: 700; color: var(--accent); font-size: 15px; } #hq header .career { color: var(--muted); font-size: 12px; }
-  .hqgrid { display: grid; grid-template-columns: 300px 1fr 360px; gap: 12px; padding: 12px; min-height: 0; }
+  .hqgrid { display: grid; grid-template-columns: 300px 1fr 360px; gap: 12px; padding: 12px; min-height: 0; height: 100%; }
   .hqcol { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; overflow-y: auto; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
   .hqcol h3 { margin: 0 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
   .opcard { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; cursor: pointer; }
@@ -106,34 +105,84 @@
   .dialog { animation: pop .25s ease-out; } @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { #fade { transition: none; } .dialog { animation: none; } }
   #flash { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--accent); color: #111; padding: 8px 14px; border-radius: 8px; font-weight: 600; z-index: 30; box-shadow: 0 8px 30px #000a; }
+
+  /* ---- QG : onglets, accueil, cartes ---- */
+  #hq { display: grid; grid-template-rows: 60px 1fr; height: 100%; }
+  .hqteam { display: flex; align-items: center; gap: 10px; min-width: 0; } .hqname { font-weight: 800; letter-spacing: .1em; text-transform: uppercase; font-size: 14px; } .hqrank { font-size: 11px; color: var(--muted); } .xpbar { width: 160px; height: 4px; background: #0b0e11; border-radius: 2px; overflow: hidden; margin-top: 3px; } .xpbar i { display: block; height: 100%; background: var(--accent); }
+  .tabs { display: flex; gap: 4px; margin-left: 10px; } .tabs button { border-radius: 6px 6px 0 0; }
+  .hqpanel { min-height: 0; overflow: auto; } .hqgrid.two { grid-template-columns: 360px 1fr; }
+  .home { padding: 16px; display: flex; flex-direction: column; gap: 14px; max-width: 1100px; margin: 0 auto; }
+  .homeTop { display: grid; grid-template-columns: auto 1fr 1fr; gap: 18px; align-items: start; }
+  .rating { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px; padding: 14px 22px; text-align: center; } .rating .big { font-size: 64px; font-weight: 800; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; } .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-top: 6px; }
+  .record { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; } .record b { font-size: 20px; margin-right: 6px; }
+  .custom { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 6px; } .custom label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); } .custom input { width: 100%; text-transform: none; letter-spacing: 0; }
+  .pick { display: flex; gap: 6px; flex-wrap: wrap; } .pick button { width: 40px; height: 40px; font-size: 20px; padding: 0; display: inline-flex; align-items: center; justify-content: center; } .pick button.locked { opacity: .35; cursor: default; } .pick .sw { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #0b0e11; }
+  .homeBtns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; } .homeBtns button { padding: 18px 12px; font-size: 16px; font-weight: 700; display: flex; flex-direction: column; gap: 4px; align-items: center; } .homeBtns button small { font-size: 11px; font-weight: 400; color: var(--muted); } .homeBtns button.on small { color: #333; }
+  .packs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .pack { background: linear-gradient(160deg, #26322a, #141a16); border: 1px solid #3a4a3c; border-radius: 10px; padding: 12px; text-align: center; } .pack b { display: block; font-size: 14px; } .pack .muted { font-size: 11px; margin: 4px 0 8px; }
+  .opened { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; } .ccard { width: 150px; min-height: 120px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); padding: 8px; cursor: pointer; perspective: 600px; } .ccard .in { transition: transform .5s; transform-style: preserve-3d; position: relative; min-height: 104px; } .ccard.flipped .in { transform: rotateY(180deg); } .ccard .face { position: absolute; inset: 0; backface-visibility: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 4px; font-size: 11px; } .ccard .back { background: repeating-linear-gradient(45deg, #2a3a2e 0 6px, #22302a 6px 12px); border-radius: 8px; font-size: 24px; color: var(--accent); } .ccard .front { transform: rotateY(180deg); } .ccard .front b { font-size: 12px; } .ccard .ctype { font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); } .ccard.t-operator .front b { color: var(--a0); } .ccard.t-tactic .front b { color: #a9d8ff; } .ccard.t-perk .front b { color: var(--ok); } .ccard.t-cosmetic .front b { color: var(--accent); }
+  .tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; } .tcardq { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; font-size: 11px; display: flex; flex-direction: column; gap: 4px; } .tcardq .ticon { font-size: 24px; } .tcardq b { font-size: 12px; } .tcardq.eq { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; } .tcardq.locked { opacity: .4; cursor: default; }
+  .deploy { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+  @media (max-width: 1100px) { .hqgrid.two { grid-template-columns: 1fr; } .homeTop { grid-template-columns: 1fr; } }
   @media (max-width: 1100px) { .hqgrid { grid-template-columns: 1fr 1fr; } .hqcol.detail { grid-column: 1 / -1; order: 3; } }
   @media (max-width: 800px) { .hqgrid { grid-template-columns: 1fr; } .hqcol.detail { grid-column: auto; } .stats, .equip, .prep { grid-template-columns: 1fr; } .squad { grid-template-columns: repeat(3, 1fr); } }
 </style>
 <div id="hq" class="screen">
   <header>
-    <h1>OPERATOR TACTICS <small>Quartier général</small></h1>
+    <h1>OPERATOR TACTICS</h1>
+    <div class="hqteam"><span class="ins team0" id="hqIns">✶</span><div><div class="hqname" id="hqTeamName">Alpha</div><div class="hqrank"><span id="hqRank">Recrue</span> · <span id="hqXp"></span><div class="xpbar"><i id="hqXpBar"></i></div></div></div></div>
     <span class="cred"><span id="credits">0</span> crédits</span>
-    <span class="career" id="career"></span>
+    <nav class="tabs"><button data-tab="accueil" class="on">Accueil</button><button data-tab="equipe">Équipe</button><button data-tab="cartes">Cartes</button><button data-tab="missions">Missions</button></nav>
     <div class="spacer"></div>
     <button id="freeBattle" title="Bataille d'entraînement sans récompense, avec graine et ordres libres">Bataille libre</button>
     <button id="resetSave">Réinitialiser</button>
     <button id="hqHelp" title="Aide">?</button>
   </header>
-  <div class="hqgrid">
-    <section class="hqcol"><h3>Opérateurs</h3><div id="hqRoster" style="display:flex;flex-direction:column;gap:6px"></div></section>
-    <section class="hqcol detail"><h3>Fiche</h3><div id="hqDetail"></div>
-      <h3 style="margin-top:8px">Escouade</h3><div class="squad" id="hqSquad"></div>
-      <div class="prep">
-        <label>Ordre <select id="selOrder"><option value="assault">Assaut — aller au contact</option><option value="hold">Tenir — se poster, tirer à vue</option><option value="careful">Prudent — de couvert en couvert</option></select></label>
-        <label>Formation (voies) <select id="selFormation"><option value="">Appliquer…</option><option value="ligne">Ligne (nord, centre, sud, nord, sud)</option><option value="nord">Tout par le nord</option><option value="sud">Tout par le sud</option><option value="coin">Coin (centre renforcé)</option><option value="tenailles">Tenailles (deux par flanc)</option><option value="auto">Automatique</option></select></label>
+  <!-- Accueil : puissance, bilan, personnalisation, raccourcis -->
+  <div class="hqpanel" data-panel="accueil">
+    <div class="home">
+      <div class="homeTop">
+        <div class="rating"><div class="big" id="hqRating">0</div><div class="lbl">Puissance d'équipe</div><div class="muted" style="font-size:11px">indicative : le combat n'en tient pas compte</div></div>
+        <div class="record"><div><b id="hqWins">0</b> victoires</div><div><b id="hqLosses">0</b> défaites</div><div><b id="hqDraws">0</b> égalités</div><div class="muted" id="career"></div></div>
+        <div class="custom">
+          <label>Nom d'équipe <input id="teamName" maxlength="18"></label>
+          <div class="lbl">Insigne</div><div id="insPick" class="pick"></div>
+          <div class="lbl">Uniforme</div><div id="uniPick" class="pick"></div>
+        </div>
       </div>
-    </section>
-    <section class="hqcol"><h3>Missions</h3><div id="hqMissions" style="display:flex;flex-direction:column;gap:6px"></div>
-      <h3 style="margin-top:6px">Armurerie</h3><div id="hqArmory" style="display:flex;flex-direction:column;gap:6px"></div>
-      <h3 style="margin-top:6px">Défis</h3><div id="hqChallenges" style="display:flex;flex-direction:column;gap:4px"></div>
       <div id="hqRewards" class="hidden"></div>
-      <button id="launch" class="on">Lancer la mission</button><div id="launchHint"></div>
-    </section>
+      <div class="homeBtns"><button data-go="cartes">Mes cartes<small>paquets, tactiques, perks</small></button><button data-go="equipe">Mon équipe<small>opérateurs, équipement, formation</small></button><button data-go="missions" class="on">Jouer<small>missions contre le Groupe Karst</small></button></div>
+    </div>
+  </div>
+  <!-- Équipe -->
+  <div class="hqpanel hidden" data-panel="equipe">
+    <div class="hqgrid two">
+      <section class="hqcol"><h3>Opérateurs</h3><div id="hqRoster" style="display:flex;flex-direction:column;gap:6px"></div></section>
+      <section class="hqcol detail"><h3>Fiche</h3><div id="hqDetail"></div>
+        <h3 style="margin-top:8px">Escouade</h3><div class="squad" id="hqSquad"></div>
+        <div class="prep">
+          <label>Ordre <select id="selOrder"><option value="assault">Assaut — aller au contact</option><option value="hold">Tenir — se poster, tirer à vue</option><option value="careful">Prudent — de couvert en couvert</option></select></label>
+          <label>Formation (voies) <select id="selFormation"><option value="">Appliquer…</option><option value="ligne">Ligne (nord, centre, sud, nord, sud)</option><option value="nord">Tout par le nord</option><option value="sud">Tout par le sud</option><option value="coin">Coin (centre renforcé)</option><option value="tenailles">Tenailles (deux par flanc)</option><option value="auto">Automatique</option></select></label>
+        </div>
+      </section>
+    </div>
+  </div>
+  <!-- Cartes : paquets, tactiques, armurerie, perks -->
+  <div class="hqpanel hidden" data-panel="cartes">
+    <div class="hqgrid two">
+      <section class="hqcol"><h3>Paquets de cartes</h3><div id="hqPacks" class="packs"></div><div id="hqOpened" class="opened"></div>
+        <h3 style="margin-top:8px">Armurerie</h3><div id="hqArmory" style="display:flex;flex-direction:column;gap:6px"></div></section>
+      <section class="hqcol"><h3>Tactiques <small class="muted">(3 emportées en mission)</small></h3><div id="hqTactics" class="tgrid"></div>
+        <h3 style="margin-top:8px">Perks acquis</h3><div id="hqPerks" class="muted" style="font-size:12px"></div></section>
+    </div>
+  </div>
+  <!-- Missions -->
+  <div class="hqpanel hidden" data-panel="missions">
+    <div class="hqgrid two">
+      <section class="hqcol"><h3>Missions</h3><div id="hqMissions" style="display:flex;flex-direction:column;gap:6px"></div></section>
+      <section class="hqcol"><h3>Déploiement</h3><div id="hqDeploy"></div>
+        <button id="launch" class="on">Lancer la mission</button><div id="launchHint"></div>
+        <h3 style="margin-top:10px">Défis</h3><div id="hqChallenges" style="display:flex;flex-direction:column;gap:4px"></div></section>
+    </div>
   </div>
 </div>
 <div id="flash" class="hidden"></div>
@@ -1935,7 +1984,8 @@ window.Son = Son;
 // Toute la logique vient de sim/game.js ; ce fichier affiche le profil et relaie les actions.
 (function () {
   const OT = window.OT; const { Game, DATA } = OT;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES, TRAITS, CHALLENGES } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES, TRAITS, CHALLENGES, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS } = DATA;
+  const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯' };
   const $ = (s) => document.querySelector(s);
   const STAT_FR = { marksmanship: 'Tir', reflexes: 'Réflexes', mobility: 'Mobilité', perception: 'Perception', composure: 'Sang-froid', endurance: 'Endurance' };
   const LANE_FR = { '-1': 'Nord', '0': 'Centre', '1': 'Sud', 'null': 'Auto' };
@@ -1951,11 +2001,57 @@ window.Son = Son;
 
   const esc = (s) => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
+  let tab = 'accueil';
+  function showTab(t) { tab = t; document.querySelectorAll('.hqpanel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== t)); document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); }
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+  document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.go)));
+
   function render() {
     $('#credits').textContent = profile.credits;
     const c = profile.career;
-    $('#career').textContent = `${c.battles} bataille${c.battles > 1 ? 's' : ''} · ${c.wins} victoire${c.wins > 1 ? 's' : ''} · ${c.kills} neutralisation${c.kills > 1 ? 's' : ''} · ${c.losses_units} opérateur${c.losses_units > 1 ? 's' : ''} évacué${c.losses_units > 1 ? 's' : ''}`;
-    renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderArmory(); renderChallenges(); renderRewards();
+    $('#career').textContent = `${c.battles} bataille${c.battles > 1 ? 's' : ''} · ${c.kills} neutralisation${c.kills > 1 ? 's' : ''} · ${c.losses_units} opérateur${c.losses_units > 1 ? 's' : ''} évacué${c.losses_units > 1 ? 's' : ''}`;
+    renderHome(); renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderDeploy(); renderArmory(); renderPacks(); renderTactics(); renderPerks(); renderChallenges(); renderRewards();
+  }
+  function renderHome() {
+    const ins = INSIGNIAS.find(i => i.id === profile.insignia) || INSIGNIAS[0];
+    $('#hqIns').textContent = ins.glyph; $('#hqTeamName').textContent = profile.teamName;
+    const r = Game.rankFor(profile.xp || 0), next = Game.xpToNextRank(profile.xp || 0);
+    $('#hqRank').textContent = RANKS[r].name; $('#hqXp').textContent = next === null ? 'rang maximal' : `${next} XP avant le rang suivant`;
+    $('#hqXpBar').style.width = next === null ? '100%' : (100 * ((profile.xp || 0) - RANKS[r].xp) / (RANKS[r + 1].xp - RANKS[r].xp)).toFixed(0) + '%';
+    $('#hqRating').textContent = Game.teamRating(profile);
+    $('#hqWins').textContent = profile.career.wins; $('#hqLosses').textContent = profile.career.losses; $('#hqDraws').textContent = profile.career.draws;
+    if (document.activeElement !== $('#teamName')) $('#teamName').value = profile.teamName;
+    $('#insPick').innerHTML = INSIGNIAS.map(i => { const ok = profile.unlocked.insignias.includes(i.id); return `<button data-ins="${i.id}" class="${profile.insignia === i.id ? 'on' : ''} ${ok ? '' : 'locked'}" title="${i.name}${ok ? '' : ' (à débloquer dans un paquet)'}">${i.glyph}</button>`; }).join('');
+    $('#insPick').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { if (Game.setCustomization(profile, 'insignia', b.dataset.ins)) { saveNow(); render(); } }));
+    $('#uniPick').innerHTML = UNIFORMS.map(u => { const ok = profile.unlocked.uniforms.includes(u.id); return `<button data-uni="${u.id}" class="${profile.uniform === u.id ? 'on' : ''} ${ok ? '' : 'locked'}" title="${u.name}${ok ? '' : ' (à débloquer dans un paquet)'}"><span class="sw" style="background:#${u.uniform.toString(16).padStart(6, '0')}"></span></button>`; }).join('');
+    $('#uniPick').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { if (Game.setCustomization(profile, 'uniform', b.dataset.uni)) { saveNow(); render(); } }));
+  }
+  $('#teamName').addEventListener('change', (e) => { if (Game.setCustomization(profile, 'teamName', e.target.value)) { saveNow(); render(); } else e.target.value = profile.teamName; });
+  function renderDeploy() {
+    const m = MISSIONS.find(x => x.id === selectedMission);
+    const squad = profile.squad.map(id => OPERATORS.find(o => o.id === id).callsign).join(', ') || 'aucun';
+    const tac = (profile.tactics.equipped || []).map(id => TACTICS[id].name).join(', ') || 'aucune';
+    $('#hqDeploy').innerHTML = `<div class="deploy"><div><b>${esc(m.name)}</b> — ${OT.MAPS[m.mapId].name}</div><div>Escouade (${profile.squad.length}) : ${esc(squad)}</div><div>Ordre : ${ORDERS[profile.order].name} · Tactiques : ${esc(tac)}</div><div>Puissance ${Game.teamRating(profile)} contre niveau ${m.level} du Groupe Karst (${ORDERS[m.order].name}${m.enemyTactics && m.enemyTactics.length ? ', tactiques : ' + m.enemyTactics.map(t => TACTICS[t].name).join(', ') : ''})</div></div>`;
+  }
+  function renderPacks() {
+    $('#hqPacks').innerHTML = Object.values(PACKS).map(pk => `<div class="pack"><b>${esc(pk.name)}</b><div class="muted">${pk.cards} cartes · recrues, tactiques, perks, XP, crédits, cosmétiques${pk.id === 'elite' ? ' — meilleures chances' : ''}</div><button data-pack="${pk.id}" ${profile.credits >= pk.price ? '' : 'disabled'}>Ouvrir — ${pk.price} cr.</button></div>`).join('');
+    $('#hqPacks').querySelectorAll('button[data-pack]').forEach(b => b.addEventListener('click', () => {
+      const cards = Game.openPack(profile, b.dataset.pack);
+      if (!cards) { flash('Crédits insuffisants.'); return; }
+      saveNow(); render();
+      $('#hqOpened').innerHTML = cards.map((c, i) => `<div class="ccard t-${c.type}" data-i="${i}"><div class="in"><div class="face back">◆</div><div class="face front"><span class="ctype">${{ operator: 'Recrue', tactic: 'Tactique', perk: 'Perk', xp: 'Expérience', credits: 'Crédits', cosmetic: 'Cosmétique' }[c.type]}</span><b>${esc(c.title)}</b><span>${esc(c.text)}</span></div></div></div>`).join('') + `<div class="muted" style="width:100%;font-size:11px">Cliquez sur les cartes pour les retourner (${cards.length}).</div>`;
+      $('#hqOpened').querySelectorAll('.ccard').forEach(cc => cc.addEventListener('click', () => cc.classList.add('flipped')));
+      setTimeout(() => $('#hqOpened').querySelectorAll('.ccard').forEach((cc, i) => setTimeout(() => cc.classList.add('flipped'), 400 + i * 350)), 300);
+    }));
+  }
+  function renderTactics() {
+    const eq = profile.tactics.equipped;
+    $('#hqTactics').innerHTML = Object.values(TACTICS).map(t => { const owned = !!profile.tactics.owned[t.id]; return `<div class="tcardq ${eq.includes(t.id) ? 'eq' : ''} ${owned ? '' : 'locked'}" data-t="${t.id}" title="${esc(t.desc)}"><span class="ticon">${TACTIC_ICON[t.id]}</span><b>${esc(t.name)}</b><span class="muted">${t.active ? `active · ${t.uses} emploi${t.uses > 1 ? 's' : ''}${t.cooldown ? ', recharge ' + t.cooldown + ' s' : ''}` : 'passive'}</span><span>${esc(t.desc)}</span><span class="muted">${owned ? (eq.includes(t.id) ? 'Emportée' : 'Possédée') : 'À trouver dans un paquet'}</span></div>`; }).join('');
+    $('#hqTactics').querySelectorAll('.tcardq').forEach(c => c.addEventListener('click', () => { const id = c.dataset.t; if (!profile.tactics.owned[id]) return; if (!Game.equipTactic(profile, id)) flash('Trois tactiques au maximum : retirez-en une d\u2019abord.'); saveNow(); render(); }));
+  }
+  function renderPerks() {
+    const rows = Object.entries(profile.perks || {}).filter(([, p]) => Object.keys(p).length).map(([id, p]) => `${OPERATORS.find(o => o.id === id).callsign} : ${Object.entries(p).map(([k, v]) => `${Game.STAT_FR[k]} +${v}`).join(', ')}`);
+    $('#hqPerks').innerHTML = rows.length ? rows.map(r => `<div>${esc(r)}</div>`).join('') : 'Aucun perk pour l\u2019instant : ils se trouvent dans les paquets de cartes (+2 à une statistique, jusqu\u2019à +10).';
   }
 
   function renderRoster() {
@@ -2036,7 +2132,7 @@ window.Son = Son;
         <div class="crow small"><span>Récompense : ${m.reward} cr. · ${m.xp} XP de base</span><span>${done ? `${done.wins}/${done.attempts} réussie${done.wins > 1 ? 's' : ''}` : 'Jamais tentée'}</span></div>
       </div>`;
     }).join('');
-    el.querySelectorAll('.mission').forEach(m => m.addEventListener('click', () => { selectedMission = m.dataset.id; renderMissions(); }));
+    el.querySelectorAll('.mission').forEach(m => m.addEventListener('click', () => { selectedMission = m.dataset.id; renderMissions(); renderDeploy(); }));
   }
 
   function renderArmory() {
@@ -2055,7 +2151,7 @@ window.Son = Son;
     if (!lastRewards) { el.classList.add('hidden'); return; }
     const r = lastRewards;
     el.classList.remove('hidden');
-    el.innerHTML = `<b class="${r.won ? 'good' : r.draw ? '' : 'bad'}">${r.won ? 'Mission réussie' : r.draw ? 'Mission indécise' : 'Mission échouée'}</b> — ${r.mission}. Crédits : +${r.credits}. Expérience : ${Object.entries(r.xp).map(([id, v]) => `${OPERATORS.find(o => o.id === id).callsign} +${v}`).join(', ')}.${r.levelUps.length ? ' Promotions : ' + r.levelUps.map(l => `${l.callsign} → niveau ${l.level}`).join(', ') + '.' : ''}${r.recovering && r.recovering.length ? ` <span class="bad">Évacués, indisponibles pour la prochaine mission : ${r.recovering.join(', ')}.</span>` : ''}${r.challenges && r.challenges.length ? ` <span class="good">Défi${r.challenges.length > 1 ? 's' : ''} accompli${r.challenges.length > 1 ? 's' : ''} : ${r.challenges.map(c => `${c.name} (+${c.reward} cr.)`).join(', ')}.</span>` : ''}`;
+    el.innerHTML = `<b class="${r.won ? 'good' : r.draw ? '' : 'bad'}">${r.won ? 'Mission réussie' : r.draw ? 'Mission indécise' : 'Mission échouée'}</b> — ${r.mission}. Crédits : +${r.credits}. Expérience : ${Object.entries(r.xp).map(([id, v]) => `${OPERATORS.find(o => o.id === id).callsign} +${v}`).join(', ')}.${r.levelUps.length ? ' Promotions : ' + r.levelUps.map(l => `${l.callsign} → niveau ${l.level}`).join(', ') + '.' : ''}${r.recovering && r.recovering.length ? ` <span class="bad">Évacués, indisponibles pour la prochaine mission : ${r.recovering.join(', ')}.</span>` : ''}${r.playerXp ? ` Rang : +${r.playerXp} XP${r.rankUp ? ` — <b class="good">promu ${esc(r.rankUp)}</b>` : ''}.` : ''}${r.challenges && r.challenges.length ? ` <span class="good">Défi${r.challenges.length > 1 ? 's' : ''} accompli${r.challenges.length > 1 ? 's' : ''} : ${r.challenges.map(c => `${c.name} (+${c.reward} cr.)`).join(', ')}.</span>` : ''}`;
   }
 
   let flashTimer = null;
@@ -2082,7 +2178,7 @@ window.Son = Son;
     setTimeout(() => { $('#hq').classList.toggle('hidden', !showHq); $('#app').classList.toggle('hidden', showHq); if (showHq) render(); requestAnimationFrame(() => f.classList.remove('on')); }, 220);
   }
   window.HQ = {
-    show() { switchTo(true); },
+    show() { switchTo(true); showTab('accueil'); },
     hide() { switchTo(false); },
     // appelé par app.js à la fin d'une bataille de mission : applique les récompenses au profil et sauvegarde
     finishMission(mission, result) {
