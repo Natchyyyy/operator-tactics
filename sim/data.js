@@ -13,11 +13,11 @@
   // suppress  : effet de suppression de chaque tir proche de la cible (0..1)
   // kit       : nombre de chargeurs emportés (en plus de celui dans l'arme)
   const WEAPONS = {
-    carbine:  { id: 'carbine',  name: 'Carabine 5,56',      cls: 'fusil',    accuracy: 0.62, damage: 32, range: 45, minRange: 0,  rpm: 110, mag: 30,  reload: 2.6, aim: 0.55, falloff: 0.8,  suppress: 0.12, kit: 6 },
-    smg:      { id: 'smg',      name: 'Pistolet-mitrailleur 9 mm', cls: 'pm', accuracy: 0.58, damage: 24, range: 22, minRange: 0,  rpm: 160, mag: 30,  reload: 2.2, aim: 0.35, falloff: 0.55, suppress: 0.10, kit: 7 },
-    dmr:      { id: 'dmr',      name: 'Fusil de précision 7,62', cls: 'tireur', accuracy: 0.82, damage: 58, range: 90, minRange: 12, rpm: 40,  mag: 20,  reload: 3.0, aim: 1.1,  falloff: 0.9,  suppress: 0.25, kit: 5 },
-    lmg:      { id: 'lmg',      name: 'Mitrailleuse légère 5,56', cls: 'appui', accuracy: 0.45, damage: 30, range: 55, minRange: 0,  rpm: 210, mag: 100, reload: 6.5, aim: 0.9,  falloff: 0.8,  suppress: 0.22, kit: 3 },
-    shotgun:  { id: 'shotgun',  name: 'Fusil à pompe cal. 12', cls: 'brèche', accuracy: 0.70, damage: 75, range: 10, minRange: 0,  rpm: 55,  mag: 7,   reload: 3.8, aim: 0.3,  falloff: 0.25, suppress: 0.18, kit: 5 },
+    carbine:  { id: 'carbine',  name: 'Carabine 5,56',      cls: 'fusil',    accuracy: 0.50, damage: 32, range: 45, minRange: 0,  rpm: 110, mag: 30,  reload: 2.6, aim: 0.55, falloff: 0.8,  suppress: 0.14, kit: 6 },
+    smg:      { id: 'smg',      name: 'Pistolet-mitrailleur 9 mm', cls: 'pm', accuracy: 0.56, damage: 25, range: 24, minRange: 0,  rpm: 170, mag: 30,  reload: 2.0, aim: 0.3,  falloff: 0.5,  suppress: 0.12, kit: 7 },
+    dmr:      { id: 'dmr',      name: 'Fusil de précision 7,62', cls: 'tireur', accuracy: 0.72, damage: 58, range: 90, minRange: 15, rpm: 36,  mag: 20,  reload: 3.0, aim: 1.4,  falloff: 0.9,  suppress: 0.28, kit: 5 },
+    lmg:      { id: 'lmg',      name: 'Mitrailleuse légère 5,56', cls: 'appui', accuracy: 0.36, damage: 30, range: 55, minRange: 0,  rpm: 210, mag: 100, reload: 6.5, aim: 0.9,  falloff: 0.8,  suppress: 0.26, kit: 3 },
+    shotgun:  { id: 'shotgun',  name: 'Fusil à pompe cal. 12', cls: 'brèche', accuracy: 0.80, damage: 85, range: 12, minRange: 0,  rpm: 55,  mag: 7,   reload: 3.8, aim: 0.25, falloff: 0.3,  suppress: 0.2,  kit: 5 },
   };
 
   // ---- PROTECTIONS -------------------------------------------------------------------

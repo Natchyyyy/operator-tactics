@@ -17,6 +17,16 @@ Battle.prototype.shoot = function (u, e, d) {
   if (!this.canSee(u, e)) violations.push(`${u.callsign} tire sur ${e.callsign} sans ligne de vue (${d.toFixed(1)} m)`);
   return origShoot.call(this, u, e, d);
 };
+const origSuppress = Battle.prototype.suppressAt;
+let suppressShots = 0;
+Battle.prototype.suppressAt = function (u, e) {
+  const k = u.knowledge[e.id];
+  if (!k || this.t - k.t > 2) violations.push(`${u.callsign} tire de suppression sans position récente de ${e.callsign}`);
+  const blk = this.map.blocker(u.x, u.eyeY(), u.z, e.x, e.chestY(), e.z);
+  if (!blk || blk.kind !== 'cover') violations.push(`${u.callsign} tir de suppression sans couvert bas entre lui et ${e.callsign}`);
+  if (u.role.id !== 'support') violations.push(`${u.callsign} (${u.role.id}) fait du tir de suppression`);
+  const before = u.stats.shots; const r = origSuppress.call(this, u, e); suppressShots += u.stats.shots - before; return r;
+};
 const origStep = Battle.prototype.step;
 Battle.prototype.step = function () {
   origStep.call(this);
@@ -38,6 +48,7 @@ for (let seed = 1; seed <= N; seed++) {
 }
 check(`${N} batailles se terminent avec un résultat`, results.every(x => x.r && x.b.over));
 check('aucune règle de tir / déplacement violée pendant ces batailles', violations.length === 0, violations.slice(0, 5));
+check('le tir de suppression existe et ne fait jamais de dégâts (compté dans les tirs, jamais dans les touchés)', suppressShots > 0 && results.every(x => x.b.units.every(u => u.stats.hits <= u.stats.shots - (u.stats.suppressShots || 0))), suppressShots);
 check('temps de calcul raisonnable (< 3 s par bataille)', maxMs < 3000, maxMs);
 const durations = results.map(x => x.r.duration);
 console.log(`   durées : min ${Math.min(...durations).toFixed(0)} s, moyenne ${(durations.reduce((a, b) => a + b, 0) / N).toFixed(0)} s, max ${Math.max(...durations).toFixed(0)} s`);

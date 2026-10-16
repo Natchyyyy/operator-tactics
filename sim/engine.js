@@ -49,6 +49,8 @@
   Unit.prototype.speed = function () {
     let v = (1.5 + (this.def.mobility / 100) * 1.4) * this.armor.mobility;
     if (this.stance === 'crouch') v *= 0.55;
+    if (this.state === 'closing' || this.state === 'retreat') v *= 1.2;        // sprint
+    else if (this.state === 'bounding' || this.state === 'advancing') { if (Object.keys(this.knowledge).length) v *= 0.8; } // pas tactique au contact
     if (this.status === 'wounded') v *= 0.8; else if (this.status === 'critical') v *= 0.5;
     return v;
   };
@@ -236,6 +238,7 @@
       // depuis ce point debout, puis-je voir la menace ? (sinon c'est une cachette, pas une position de tir)
       const canShoot = this.map.hasLOS(cp.x, EYE.stand, cp.z, threat.x, CHEST.stand, threat.z);
       if (opts.requireShoot && !canShoot) continue;
+      if (opts.flank && this.map.coverFrom(opts.flank.x, opts.flank.z, cp.x, cp.z, opts.flank.stance === 'stand')) continue; // la cible y serait encore couverte
       const dt = Math.hypot(cp.x - threat.x, cp.z - threat.z);
       let s = 10 - d * 0.6;
       if (cv.level === 'partial') s += 3; else s += 1.5;
@@ -243,9 +246,12 @@
       if (opts.minRange && dt < opts.minRange) continue; // trop près de la menace pour cette arme
       if (opts.towards) s -= Math.hypot(cp.x - opts.towards.x, cp.z - opts.towards.z) * 0.25;
       if (opts.preferDist) s -= Math.abs(dt - opts.preferDist) * 0.08;
-      // ne pas prendre un couvert occupé par un allié
+      // ne pas prendre un couvert occupé, visé ou réservé par un allié
       let occupied = false;
-      for (const a of this.alliesOf(u)) if (a.alive && Math.hypot(a.x - cp.x, a.z - cp.z) < 1.2) { occupied = true; break; }
+      for (const a of this.alliesOf(u)) {
+        if (!a.alive) continue;
+        if (Math.hypot(a.x - cp.x, a.z - cp.z) < 1.2 || (a.goal && Math.hypot(a.goal.x - cp.x, a.goal.z - cp.z) < 1.2) || (a.post && Math.hypot(a.post.x - cp.x, a.post.z - cp.z) < 1.2)) { occupied = true; break; }
+      }
       if (occupied) continue;
       s += this.rng.next() * 0.05; // départage aléatoire des ex æquo (sinon l'ordre de la liste favoriserait un côté)
       if (s > bestScore) { bestScore = s; best = cp; }
@@ -282,10 +288,21 @@
   Battle.prototype.holdPost = function (u, threatPos) {
     const home = this.teams[u.team].spawn;
     if (!u.post) {
-      const cp = this.findCover(u, threatPos, 16, { towards: home, preferDist: 25 });
-      u.post = cp ? { x: cp.x, z: cp.z } : { x: u.home.x, z: u.home.z };
+      // poste : un couvert près du départ, face à la menace, avec le plus de vues sur les axes d'approche
+      const dirx = Math.sign(this.map.spawns[1 - u.team].x - home.x) || 1;
+      let best = null, bs = -Infinity;
+      for (const cp of this.map.coverPoints) {
+        const dh = Math.hypot(cp.x - home.x, cp.z - home.z); if (dh > 18) continue;
+        if (!this.map.coverFrom(cp.x, cp.z, threatPos.x, threatPos.z, true)) continue;
+        let occupied = false;
+        for (const a of this.alliesOf(u)) if (a.alive && a.post && Math.hypot(a.post.x - cp.x, a.post.z - cp.z) < 2.5) { occupied = true; break; }
+        if (occupied) continue;
+        const sc = this.map.openness(cp.x, cp.z, dirx, 6) * 2 - dh * 0.15 + this.rng.next() * 0.05;
+        if (sc > bs) { bs = sc; best = cp; }
+      }
+      u.post = best ? { x: best.x, z: best.z } : { x: u.home.x, z: u.home.z };
     }
-    if (Math.hypot(u.post.x - u.x, u.post.z - u.z) > 0.8) { if (this.setGoal(u, u.post.x, u.post.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; } }
+    if (Math.hypot(u.post.x - u.x, u.post.z - u.z) > 1.2) { if (this.setGoal(u, u.post.x, u.post.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; } }
     this.stop(u); u.state = 'hold'; u.stance = 'stand'; u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x);
   };
 
@@ -333,8 +350,10 @@
     if (threats.length > 0) {
       const target = u.target;
       const d = dist2(u, target);
-      const cover = this.map.coverFrom(u.x, u.z, target.x, target.z, true);
-      const pinned = u.suppression > 0.8 - u.def.composure / 400; // composure 80 → 0,6
+      // la menace dont on se couvre : celui qui me tire dessus (même hors de vue), sinon ma cible
+      const threat = (beingShot && u.lastShotBy && u.lastShotBy.alive) ? u.lastShotBy : target;
+      const cover = this.map.coverFrom(u.x, u.z, threat.x, threat.z, true);
+      const pinned = u.suppression > 0.8 - u.def.composure / 400 + (this.isBraced(u) ? 0.15 : 0); // composure 80 → 0,6 ; calé : +0,15
       const effective = this.hitChance(u, target, d, true).p >= this.fireThreshold(u);
       const wantCover = !cover && (beingShot || u.hp < u.maxHp * 0.7 || u.suppression > 0.35 || order !== 'assault' || u.reloading > 0);
 
@@ -344,20 +363,38 @@
         const cp = this.findCover(u, target, 25, { minRange: u.weapon.minRange * 1.5, towards: home });
         if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'fallback'; u.stance = 'stand'; return; }
       }
+      // ordre « Tenir » : on combat depuis son poste ; s'il ne couvre pas face à cette cible, on prend le couvert voisin et il devient le poste
+      if (order === 'hold') {
+        if (!cover) {
+          const postCovers = u.post && this.map.coverFrom(u.post.x, u.post.z, threat.x, threat.z, true);
+          if (postCovers && Math.hypot(u.post.x - u.x, u.post.z - u.z) > 1.2 && this.setGoal(u, u.post.x, u.post.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; }
+          if (!postCovers) { const cp = this.findCover(u, threat, 9, { minRange: u.weapon.minRange, requireShoot: true }) || this.findCover(u, threat, 9, { minRange: u.weapon.minRange }); if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.post = { x: cp.x, z: cp.z }; u.state = 'tocover'; u.stance = 'stand'; return; } }
+        }
+        this.stop(u);
+        const teamEngaged = this.alliesOf(u).some(a => a.alive && (this.t - a.lastShotAt < 3 || this.t - a.lastShotByAt < 3)) || this.t - u.lastShotAt < 3;
+        const ambush = !teamEngaged && d > u.weapon.range * 0.7 && !beingShot; // embuscade : on laisse approcher tant que personne n'est engagé
+        if (!effective || ambush) { u.state = 'wait'; u.stance = cover ? 'crouch' : 'stand'; return; }
+        u.state = 'engage'; u.stance = (u.reloading > 0 && cover) ? 'crouch' : 'stand'; return;
+      }
       // tir inefficace à cette distance (arme courte, cible trop loin) : se rapprocher de couvert en couvert
-      if (!effective && order !== 'hold' && !pinned) {
+      if (!effective && !pinned) {
         const cp = this.findCover(u, target, 16, { towards: target });
         let gx, gz;
         if (cp && Math.hypot(cp.x - target.x, cp.z - target.z) < d - 2) { gx = cp.x; gz = cp.z; }
         else { gx = u.x + (target.x - u.x) * 0.5; gz = u.z + (target.z - u.z) * 0.5; }
         if (this.setGoal(u, gx, gz, 'close')) { u.state = 'closing'; u.stance = 'stand'; return; }
       }
-      if (!effective && order === 'hold') { // on attend qu'il approche, accroupi derrière le couvert de son poste
-        if (!cover && u.post && Math.hypot(u.post.x - u.x, u.post.z - u.z) > 0.8 && this.setGoal(u, u.post.x, u.post.z, 'cover')) { u.state = 'tocover'; return; }
-        this.stop(u); u.state = 'wait'; u.stance = cover ? 'crouch' : 'stand'; return;
+      // contournement : la cible est à couvert face à moi et je la touche mal → chercher un angle d'où son couvert ne sert plus
+      if (effective && order !== 'hold' && (u.role.id === 'assault' || u.role.id === 'pointman') && !beingShot && u.suppression < 0.3) {
+        const tc = this.map.coverFrom(target.x, target.z, u.x, u.z, target.stance === 'stand');
+        if (tc && this.hitChance(u, target, d, true).p < 0.16) {
+          const cp = this.findCover(u, target, 16, { requireShoot: true, flank: target });
+          if (cp && this.setGoal(u, cp.x, cp.z, 'close')) { u.state = 'closing'; u.stance = 'stand'; if (this.t - (u.lastFlankLog || -99) > 15) { u.lastFlankLog = this.t; this.logEvent('flank', `${u.callsign} contourne ${target.callsign}, à couvert.`, { unit: u.id, team: u.team }); } return; }
+        }
       }
       if (wantCover) {
-        const cp = this.findCover(u, target, 9, { minRange: u.weapon.minRange });
+        // d'abord un couvert d'où l'on peut encore tirer sur la cible ; sinon n'importe quel couvert proche
+        const cp = this.findCover(u, threat, 9, { minRange: u.weapon.minRange, requireShoot: true }) || this.findCover(u, threat, 9, { minRange: u.weapon.minRange });
         if (cp) {
           if (this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; }
         }
@@ -392,7 +429,7 @@
       }
       if (order === 'careful' || u.role.id === 'support' || u.status !== 'ok') {
         // de couvert en couvert : un point plus proche de la menace que moi, pause courte à chaque bond
-        if (this.t < u.pauseUntil) { this.stop(u); u.state = 'pause'; u.stance = 'crouch'; u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x); return; }
+        if (this.t < u.pauseUntil) { this.stop(u); u.state = 'pause'; u.stance = 'stand'; u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x); return; }
         if (u.status === 'critical' && order !== 'assault') { // repli
           const cp = this.findCover(u, threatPos, 40, { wantShoot: false, towards: home });
           if (cp && this.setGoal(u, cp.x, cp.z, 'hide')) { u.state = 'retreat'; u.stance = 'stand'; return; }
@@ -420,7 +457,7 @@
     const stepLen = order === 'careful' ? 12 : 22;
     let gx = home.x + dirx * Math.min(span - 6, progress + stepLen), gz = clamp(home.z + lane, 2, this.map.depth - 2);
     if (order === 'careful' || u.role.id === 'support') {
-      if (this.t < u.pauseUntil) { this.stop(u); u.state = 'pause'; u.stance = 'crouch'; return; }
+      if (this.t < u.pauseUntil) { this.stop(u); u.state = 'pause'; u.stance = 'stand'; return; }
       const cp = this.findCover(u, objective, 18, { towards: { x: gx, z: gz } });
       if (cp && (cp.x - u.x) * dirx > 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
     }
@@ -456,19 +493,22 @@
   // ---- Action (chaque pas) ---------------------------------------------------------------
   Battle.prototype.act = function (u) {
     // suppression : décroît avec le sang-froid
-    if (u.suppression > 0) { u.suppression = Math.max(0, u.suppression - DT * 0.22 * (0.5 + u.def.composure / 100)); if (u.suppression > 0.3) u.stats.timeSuppressed += DT; }
+    if (u.suppression > 0) { u.suppression = Math.max(0, u.suppression - DT * 0.18 * (0.5 + u.def.composure / 100) * (this.isBraced(u) ? 1.4 : 1)); if (u.suppression > 0.3) u.stats.timeSuppressed += DT; }
     // rechargement
     if (u.reloading > 0) {
       u.reloading -= DT;
       if (u.reloading <= 0) { u.reloading = 0; u.mags--; u.ammo = u.weapon.mag; this.logEvent('reloaded', `${u.callsign} a rechargé.`, { unit: u.id, team: u.team, silent: true }); }
     }
     // déplacement
+    const wasMoving = u.moving;
     u.moving = false;
     if (u.path && u.goal) this.move(u);
+    if (u.moving) u.stillSince = undefined; else if (wasMoving || u.stillSince === undefined) u.stillSince = this.t;
     // orientation : vers la cible si on en a une, sinon vers la marche
     if (u.target && u.target.alive) u.facing = Math.atan2(u.target.z - u.z, u.target.x - u.x);
     // tir
-    if (u.target && u.target.alive && u.visible.has(u.target.id) && u.state !== 'pinned' && u.state !== 'noammo') this.fireAt(u, u.target);
+    if (u.target && u.target.alive && u.visible.has(u.target.id) && u.state !== 'pinned' && u.state !== 'noammo' && u.state !== 'wait') this.fireAt(u, u.target);
+    else if (u.target && u.target.alive && u.state !== 'pinned' && u.state !== 'noammo' && this.canSuppress(u, u.target)) this.suppressAt(u, u.target);
     else { u.fireAcc = Math.min(u.fireAcc, 1); if (u.target && !u.target.alive) u.target = null; }
   };
 
@@ -525,12 +565,40 @@
     }
   };
 
+  // ---- Tir de suppression (appui) : arroser un couvert bas derrière lequel un ennemi vient de se cacher ------------
+  // Conditions : rôle appui, position vue il y a moins de 2 s, l'ennemi est bien là (± 1 m), et le rayon vers sa poitrine
+  // n'est bloqué que par un couvert bas (les balles claquent dans le couvert : pas de dégâts, mais suppression).
+  Battle.prototype.canSuppress = function (u, e) {
+    if (u.role.id !== 'support' || u.reloading > 0 || u.ammo < 20) return false;
+    const k = u.knowledge[e.id]; if (!k || this.t - k.t > 2 || Math.hypot(k.x - e.x, k.z - e.z) > 1.2) return false;
+    const d = dist2(u, e); if (d > u.weapon.range * 1.1 || d < 6) return false;
+    const blk = this.map.blocker(u.x, u.eyeY(), u.z, e.x, e.chestY(), e.z);
+    return !!blk && blk.kind === 'cover' && this.map.hasLOS(u.x, u.eyeY(), u.z, e.x, 1.6, e.z);
+  };
+  Battle.prototype.suppressAt = function (u, e) {
+    if (u.aimTimer > 0) { u.aimTimer -= DT; return; }
+    u.fireAcc += DT * u.weapon.rpm / 60 * 0.6; // rafales courtes
+    while (u.fireAcc >= 1 && u.ammo > 0) {
+      u.fireAcc -= 1; u.ammo--; u.stats.shots++; u.stats.suppressShots = (u.stats.suppressShots || 0) + 1; u.lastShotAt = this.t; this.lastShotTime = this.t;
+      e.lastShotBy = u; e.lastShotByAt = this.t;
+      e.suppression = clamp(e.suppression + u.weapon.suppress * 0.8, 0, 1);
+      const to = { x: e.x + this.rng.gauss() * 0.6, y: 0.9 + this.rng.gauss() * 0.3, z: e.z + this.rng.gauss() * 0.6 };
+      this.emit({ type: 'shot', shooter: u.id, target: e.id, from: { x: u.x, y: u.eyeY() - 0.15, z: u.z }, to, hit: false, suppressive: true });
+    }
+    if (this.t - (u.lastSuppressLog || -99) > 8) { u.lastSuppressLog = this.t; this.logEvent('suppress', `${u.callsign} arrose le couvert de ${e.callsign} (tir de suppression).`, { unit: u.id, team: u.team }); }
+    if (u.ammo === 0 && u.mags > 0) this.startReload(u);
+  };
+
   // ---- Tir -----------------------------------------------------------------------------
+  // « Calé » : ordre Tenir, immobile à son poste depuis au moins 3 s (bonus de précision et silhouette réduite).
+  Battle.prototype.isBraced = function (u) {
+    return this.teams[u.team].order === 'hold' && !u.moving && u.alive && this.t - (u.stillSince === undefined ? this.t : u.stillSince) >= 3 && u.post && Math.hypot(u.post.x - u.x, u.post.z - u.z) < 1.6;
+  };
   // Seuil de chance de toucher en dessous duquel on ne gaspille pas ses munitions (l'appui tire plus volontiers : suppression).
   Battle.prototype.fireThreshold = function (u) { return u.role.id === 'support' ? 0.045 : 0.08; };
   Battle.prototype.hitChance = function (u, e, d, asIfStill) {
     const w = u.weapon;
-    let p = w.accuracy * (0.55 + 0.6 * u.def.marksmanship / 100);
+    let p = w.accuracy * (0.45 + 0.55 * u.def.marksmanship / 100);
     const r = d / w.range;
     let f;
     if (r <= 0.5) f = 1; else if (r <= 1) f = 1 - (r - 0.5) * 1.2; else f = Math.max(0.08, 0.4 - (r - 1) * 0.6);
@@ -540,8 +608,10 @@
     if (u.stance === 'crouch') p *= 1.1;
     p *= 1 - 0.6 * u.suppression * (1 - u.def.composure / 150);
     if (u.status === 'wounded') p *= 0.85; else if (u.status === 'critical') p *= 0.65;
+    if (this.isBraced(u)) p *= 1.1;           // position préparée : arme calée, repères pris
     if (e.moving) p *= 0.8;
     if (e.stance === 'crouch') p *= 0.85;
+    if (this.isBraced(e)) p *= 0.9;           // un défenseur installé expose moins de silhouette
     const cv = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
     if (cv) p *= cv.level === 'partial' ? 0.55 : 0.3; // 'full' : seul un bout dépasse (ne devrait pas arriver si LOS poitrine)
     if (w.rpm > 100) p *= 1 - 0.06 * Math.min(u.burst, 5);
@@ -573,8 +643,9 @@
       to = { x: e.x, y: e.chestY(), z: e.z };
       this.applyHit(u, e, d);
     } else {
-      // la balle passe près : suppression
-      e.suppression = clamp(e.suppression + u.weapon.suppress * (cover ? 0.7 : 1), 0, 1);
+      // la balle passe près : suppression (moindre si la cible est à couvert ou si le tir est lointain)
+      const far = d > u.weapon.range ? 0.5 : 1;
+      e.suppression = clamp(e.suppression + u.weapon.suppress * 0.55 * (cover ? 0.7 : 1) * far, 0, 1);
       const spread = 0.4 + d * 0.03;
       to = { x: e.x + this.rng.gauss() * spread, y: e.chestY() + this.rng.gauss() * 0.5, z: e.z + this.rng.gauss() * spread };
     }
@@ -593,7 +664,7 @@
     dmg = Math.round(dmg * 10) / 10;
     const before = e.hp;
     e.hp = Math.max(0, e.hp - dmg);
-    e.lastHitAt = this.t; e.suppression = clamp(e.suppression + w.suppress * 1.5, 0, 1);
+    e.lastHitAt = this.t; e.suppression = clamp(e.suppression + w.suppress * 1.2, 0, 1);
     u.stats.hits++; u.stats.damageDealt += dmg; e.stats.damageTaken += dmg; if (loc === 'tête') u.stats.headshots++;
     const absorbed = Math.round(w.damage * fall * mult * prot * 10) / 10;
     let text = `${u.callsign} touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV`;
