@@ -198,5 +198,26 @@ function duel(opts) {
   check('une blessure grave réduit la chance de toucher et la vitesse', p2 < p0 && (() => { const v0 = u.speed(); u.status = 'critical'; const v1 = u.speed(); u.status = 'ok'; return v1 < v0; })(), { p0, p2 });
 }
 
+{
+  // objectif « tenir » : l'équipe désignée gagne à l'échéance si elle a encore quelqu'un en état
+  const t = Battle.defaultTeams(); t[0].order = 'hold';
+  const b = new Battle({ seed: 3, teams: t, mapId: 'place', objective: { type: 'hold', team: 0, duration: 20 } }); b.run();
+  const alive0 = b.teams[0].units.filter(u => u.alive).length;
+  check('objectif « tenir » : fin à l\'échéance, victoire du défenseur s\'il reste quelqu\'un', b.over && b.t <= 20.05 && (alive0 > 0 ? b.result.winner === 0 : b.result.winner === 1), { t: b.t, winner: b.result.winner, alive0 });
+}
+{
+  // arme silencieuse : un tir n'est entendu que de près
+  const map = new GameMap(MAPS.entrepot);
+  const t = Battle.defaultTeams(); t[1].overrides = [{ weaponId: 'smgsil' }];
+  const b = new Battle({ seed: 1, teams: t });
+  const shooter = b.teams[1].units[0], listener = b.teams[0].units[0];
+  // le tireur silencieux vient de tirer à 40 m derrière le bâtiment (aucune vue) : pas d'information par l'ouïe
+  shooter.x = 44; shooter.z = 16; listener.x = 20; listener.z = 16; shooter.lastShotAt = b.t; listener.knowledge = {};
+  b.perceive(listener); const heardSil = !!listener.knowledge[shooter.id];
+  shooter.weapon = DATA.WEAPONS.smg; listener.knowledge = {}; b.perceive(listener); const heardLoud = !!listener.knowledge[shooter.id];
+  check('un PM silencieux ne s\'entend pas à 24 m derrière un mur, un PM classique si', !heardSil && heardLoud, { heardSil, heardLoud });
+  check('la deuxième carte (Place du marché) se joue de bout en bout', (() => { const c = new Battle({ seed: 2, mapId: 'place' }); c.run(); return c.over && !!c.result; })());
+}
+
 console.log(`\n${pass}/${pass + fail} vérifications réussies${fail ? '  — ÉCHECS : ' + fail : ''}`);
 process.exit(fail ? 1 : 0);

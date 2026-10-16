@@ -13,7 +13,7 @@
     for (const o of OPERATORS) operators[o.id] = { unlocked: STARTING.includes(o.id), xp: 0, weaponId: ROLES[o.role].weapon, armorId: o.armor, battles: 0, kills: 0, lane: null };
     return {
       version: 1, credits: 300, operators, squad: STARTING.slice(), order: 'assault',
-      inventory: { weapons: { carbine: true, smg: true, dmr: true, lmg: true, shotgun: true }, armors: { light: true, medium: true, heavy: true } },
+      inventory: { weapons: { carbine: true, smg: true, dmr: true, lmg: true, shotgun: true }, armors: { light: true, medium: true, heavy: true } }, // battle, smgsil : à acheter
       career: { battles: 0, wins: 0, losses: 0, draws: 0, kills: 0, losses_units: 0 }, missions: {}, lastSeed: null,
     };
   }
@@ -29,17 +29,23 @@
     return def;
   }
   // Fiche d'un ennemi de mission : niveau fixé par la mission.
-  function enemyDef(id, level) {
+  function enemyDef(id, level, weaponId) {
     const base = OPERATORS.find(o => o.id === id);
-    const def = Object.assign({}, base, { level });
+    const def = Object.assign({}, base, { level }); if (weaponId) def.weaponId = weaponId;
     for (const k of STATS) def[k] = Math.min(100, base[k] + level * LEVEL_STAT_BONUS);
     return def;
   }
   function buildTeams(profile, mission) {
     return [
       { name: 'Alpha', order: profile.order, operators: profile.squad.map(id => effectiveDef(profile, id)) },
-      { name: 'Bravo', order: mission.order, operators: mission.enemy.map(id => enemyDef(id, mission.level)) },
+      { name: 'Bravo', order: mission.order, operators: mission.enemy.map(id => enemyDef(id, mission.level, mission.enemyWeapons && mission.enemyWeapons[id])) },
     ];
+  }
+  // Options complètes de bataille pour une mission (carte, objectif, équipes)
+  function battleOptions(profile, mission, seed) {
+    const opts = { seed, teams: buildTeams(profile, mission), mapId: mission.mapId };
+    if (mission.objective === 'hold') opts.objective = { type: 'hold', team: 0, duration: mission.duration || 90 };
+    return opts;
   }
 
   // ---- Règles d'équipement / d'escouade -----------------------------------------------
@@ -63,6 +69,11 @@
     const price = PRICES.operator[base.rarity];
     if (profile.credits < price) return false;
     profile.credits -= price; st.unlocked = true; return true;
+  }
+  function buyWeapon(profile, weaponId) {
+    if (!WEAPONS[weaponId] || profile.inventory.weapons[weaponId]) return false;
+    const price = PRICES.weapon[weaponId]; if (price === undefined || profile.credits < price) return false;
+    profile.credits -= price; profile.inventory.weapons[weaponId] = true; return true;
   }
   function applyFormation(profile, formation) {
     // Formations prêtes à l'emploi : répartition des voies pour l'escouade actuelle (ordre : liste de l'escouade)
@@ -114,12 +125,13 @@
       // tolérance : opérateurs ajoutés depuis la sauvegarde
       const fresh = newProfile();
       for (const id in fresh.operators) if (!p.operators[id]) p.operators[id] = fresh.operators[id];
+      p.inventory = p.inventory || fresh.inventory; p.inventory.weapons = Object.assign({}, fresh.inventory.weapons, p.inventory.weapons); p.inventory.armors = Object.assign({}, fresh.inventory.armors, p.inventory.armors);
       p.squad = p.squad.filter(id => p.operators[id] && p.operators[id].unlocked);
       return p;
     } catch (e) { return null; }
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, recruit, applyFormation, computeRewards, applyRewards, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, recruit, applyFormation, computeRewards, applyRewards, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));

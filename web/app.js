@@ -110,6 +110,10 @@
     for (let i = 0; i < 2500; i++) { const v = 150 + Math.random() * 100; g.fillStyle = `rgba(${v},${v},${v},0.35)`; g.fillRect(Math.random() * w, Math.random() * h, Math.random() * 3, Math.random() * 3); }
     g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 2; g.strokeRect(1, 1, w - 2, h - 2);
   }, 2, 1);
+  const texWindows = makeTexture(256, 256, (g, w, h) => {
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+    for (let y = 24; y < h - 20; y += 64) for (let x = 20; x < w - 20; x += 48) { g.fillStyle = Math.random() < 0.3 ? '#f0d8a0' : '#2b3340'; g.fillRect(x, y, 26, 36); g.fillStyle = '#d8d2c4'; g.fillRect(x - 3, y + 36, 32, 4); }
+  }, 2, 1);
   const MATERIALS = {
     wall: new THREE.MeshStandardMaterial({ color: 0x8a8f94, roughness: 0.9, map: texConcrete }),
     building: new THREE.MeshStandardMaterial({ color: 0x7a7e83, roughness: 0.95, map: texConcrete }),
@@ -121,6 +125,11 @@
     barrel: new THREE.MeshStandardMaterial({ color: 0x3f5f7a, roughness: 0.6, metalness: 0.4 }),
     pallet: new THREE.MeshStandardMaterial({ color: 0xa08055, roughness: 1, map: texPlanks }),
     lowwall: new THREE.MeshStandardMaterial({ color: 0x7e8186, roughness: 0.95 }),
+    immeuble: [new THREE.MeshStandardMaterial({ color: 0xb8a68e, roughness: 0.9, map: texWindows }), new THREE.MeshStandardMaterial({ color: 0x9a8f86, roughness: 0.9, map: texWindows })],
+    kiosque: new THREE.MeshStandardMaterial({ color: 0x4f6b47, roughness: 0.8 }),
+    voiture: [new THREE.MeshStandardMaterial({ color: 0x8e9aa6, roughness: 0.4, metalness: 0.5 }), new THREE.MeshStandardMaterial({ color: 0x5a2e2a, roughness: 0.4, metalness: 0.5 })],
+    stone: new THREE.MeshStandardMaterial({ color: 0x9d9a92, roughness: 0.9, map: texConcrete }),
+    etal: [new THREE.MeshStandardMaterial({ color: 0xb04a3a, roughness: 0.9 }), new THREE.MeshStandardMaterial({ color: 0x3a6a8a, roughness: 0.9 })],
   };
   function materialFor(o, i) {
     const n = o.name || '';
@@ -134,6 +143,13 @@
     if (n.startsWith('fût')) return MATERIALS.barrel;
     if (n.startsWith('palettes')) return MATERIALS.pallet;
     if (n.startsWith('muret')) return MATERIALS.lowwall;
+    if (n.startsWith('immeuble')) return MATERIALS.immeuble[i % 2];
+    if (n.startsWith('kiosque')) return MATERIALS.kiosque;
+    if (n.startsWith('voiture')) return MATERIALS.voiture[i % 2];
+    if (n.startsWith('banc')) return MATERIALS.pallet;
+    if (n.startsWith('fontaine')) return MATERIALS.stone;
+    if (n.startsWith('étal')) return MATERIALS.etal[i % 2];
+    if (n.startsWith('bac')) return MATERIALS.stone;
     return MATERIALS.wall;
   }
   function buildMap(map) {
@@ -477,10 +493,10 @@
   function setMode(m, mis) {
     mode = m; mission = mis || null; rewardsApplied = false;
     const free = m === 'free';
-    for (const id of ['order0', 'order1', 'seed', 'newBattle', 'replay', 'resReplay', 'resNew']) $('#' + id).hidden = !free;
-    document.querySelectorAll('header .group').forEach(g => { if (g.querySelector('#order0, #order1, #seed')) g.hidden = !free; });
+    for (const id of ['order0', 'order1', 'seed', 'mapSel', 'newBattle', 'replay', 'resReplay', 'resNew']) $('#' + id).hidden = !free;
+    document.querySelectorAll('header .group').forEach(g => { if (g.querySelector('#order0, #order1, #seed, #mapSel')) g.hidden = !free; });
     $('#missionLabel').hidden = free; if (!free) $('#missionLabel').textContent = `Mission : ${mis.name}`;
-    $('#toHq').textContent = free ? 'Quartier général' : 'Abandonner';
+    $('#toHq').textContent = free ? 'QG' : 'Abandonner';
     $('#resHq').textContent = free ? 'Quartier général' : 'Retour au QG';
   }
   function updatePlayButton() { $('#play').textContent = paused ? '▶ Lancer' : '❚❚ Pause'; $('#play').classList.toggle('on', !paused); }
@@ -489,7 +505,7 @@
     teams[0].order = $('#order0').value; teams[1].order = $('#order1').value;
     const seedTxt = $('#seed').value.trim();
     const seed = seedTxt === '' ? Math.floor(Math.random() * 100000) : (parseInt(seedTxt, 10) || 1);
-    return { seed, teams };
+    return { seed, teams, mapId: $('#mapSel').value };
   }
   $('#play').addEventListener('click', () => { if (battle.over) return; paused = !paused; updatePlayButton(); });
   document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => { speed = parseFloat(b.dataset.speed); document.querySelectorAll('[data-speed]').forEach(k => k.classList.toggle('on', k === b)); }));

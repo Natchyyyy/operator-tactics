@@ -63,6 +63,9 @@
     this.rng = new RNG(this.seed);
     this.map = new GameMap(MAPS[opts.mapId || 'entrepot']);
     this.timeLimit = opts.timeLimit || 240;
+    // objectif : { type: 'eliminate' } (défaut) ou { type: 'hold', team, duration } : l'équipe team gagne si elle tient jusqu'à duration
+    this.objective = opts.objective || { type: 'eliminate' };
+    if (this.objective.type === 'hold') this.timeLimit = this.objective.duration;
     this.t = 0; this.tick = 0; this.over = false; this.result = null;
     this.log = []; this.events = [];
     this.lastShotTime = 0;
@@ -162,7 +165,7 @@
           else {
             p = 0.35 * (1 - d / visRange) * (0.6 + u.def.perception / 100);
             if (e.moving) p *= 1.6;
-            if (this.t - e.lastShotAt < 1.5) p *= 3;         // éclair de bouche, bruit
+            if (this.t - e.lastShotAt < 1.5) p *= e.weapon.silenced ? 1.6 : 3;   // éclair de bouche, bruit
             if (e.stance === 'crouch') p *= 0.6;
             p = clamp(p, 0.02, 1);
           }
@@ -179,8 +182,8 @@
           }
         }
       }
-      // 2) l'ouïe : un tir ennemi récent et proche donne une position approximative
-      if (!newVisible.has(e.id) && this.t - e.lastShotAt < 0.25 && d < 70) {
+      // 2) l'ouïe : un tir ennemi récent et proche donne une position approximative (bien moins loin si l'arme est silencieuse)
+      if (!newVisible.has(e.id) && this.t - e.lastShotAt < 0.25 && d < (e.weapon.silenced ? 18 : 70)) {
         const k = u.knowledge[e.id];
         if (!k || this.t - k.t > 1.5) {
           const err = 2 + d * 0.05;
@@ -694,6 +697,9 @@
     if (alive[0] === 0 && alive[1] === 0) { winner = -1; reason = 'Les deux équipes sont hors de combat.'; }
     else if (alive[0] === 0) { winner = 1; reason = `${this.teams[0].name} est entièrement neutralisée.`; }
     else if (alive[1] === 0) { winner = 0; reason = `${this.teams[1].name} est entièrement neutralisée.`; }
+    else if (this.objective.type === 'hold' && this.t >= this.objective.duration) {
+      winner = this.objective.team; reason = `Temps écoulé : ${this.teams[winner].name} a tenu la position (${alive[winner]} opérateur${alive[winner] > 1 ? 's' : ''} en état).`;
+    }
     else if (this.t >= this.timeLimit || (this.t - this.lastShotTime > 60 && this.units.every(u => !u.alive || u.totalAmmo() === 0))) {
       reason = this.t >= this.timeLimit ? 'Temps écoulé.' : 'Plus personne ne peut tirer.';
       if (alive[0] !== alive[1]) { winner = alive[0] > alive[1] ? 0 : 1; reason += ` ${this.teams[winner].name} garde plus d'opérateurs en état de combattre.`; }

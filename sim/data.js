@@ -18,6 +18,9 @@
     dmr:      { id: 'dmr',      name: 'Fusil de précision 7,62', cls: 'tireur', accuracy: 0.72, damage: 58, range: 90, minRange: 15, rpm: 36,  mag: 20,  reload: 3.0, aim: 1.4,  falloff: 0.9,  suppress: 0.28, kit: 5 },
     lmg:      { id: 'lmg',      name: 'Mitrailleuse légère 5,56', cls: 'appui', accuracy: 0.36, damage: 30, range: 55, minRange: 0,  rpm: 210, mag: 100, reload: 6.5, aim: 0.9,  falloff: 0.8,  suppress: 0.26, kit: 3 },
     shotgun:  { id: 'shotgun',  name: 'Fusil à pompe cal. 12', cls: 'brèche', accuracy: 0.80, damage: 85, range: 12, minRange: 0,  rpm: 55,  mag: 7,   reload: 3.8, aim: 0.25, falloff: 0.3,  suppress: 0.2,  kit: 5 },
+    // à acheter à l'armurerie
+    battle:   { id: 'battle',   name: 'Fusil de combat 7,62', cls: 'fusil',    accuracy: 0.52, damage: 46, range: 60, minRange: 0,  rpm: 75,  mag: 20,  reload: 2.9, aim: 0.7,  falloff: 0.85, suppress: 0.2,  kit: 5 },
+    smgsil:   { id: 'smgsil',   name: 'PM 9 mm silencieux', cls: 'pm',    accuracy: 0.58, damage: 22, range: 20, minRange: 0,  rpm: 150, mag: 30,  reload: 2.0, aim: 0.3,  falloff: 0.5,  suppress: 0.07, kit: 7, silenced: true },
   };
 
   // ---- PROTECTIONS -------------------------------------------------------------------
@@ -32,11 +35,11 @@
   // Le rôle oriente l'IA (voir engine.js : decide) et l'arme par défaut.
   // weapons : armes que ce rôle sait employer (la première est celle par défaut)
   const ROLES = {
-    assault:  { id: 'assault',  name: 'Assaut',      weapon: 'carbine', weapons: ['carbine', 'smg', 'shotgun'] },
-    pointman: { id: 'pointman', name: 'Pointe',      weapon: 'smg',     weapons: ['smg', 'shotgun', 'carbine'] },
-    marksman: { id: 'marksman', name: 'Tireur d\'élite', weapon: 'dmr', weapons: ['dmr', 'carbine'] },
-    support:  { id: 'support',  name: 'Appui',       weapon: 'lmg',     weapons: ['lmg', 'carbine'] },
-    breacher: { id: 'breacher', name: 'Brèche',      weapon: 'shotgun', weapons: ['shotgun', 'smg', 'carbine'] },
+    assault:  { id: 'assault',  name: 'Assaut',      weapon: 'carbine', weapons: ['carbine', 'battle', 'smg', 'smgsil', 'shotgun'] },
+    pointman: { id: 'pointman', name: 'Pointe',      weapon: 'smg',     weapons: ['smg', 'smgsil', 'shotgun', 'carbine'] },
+    marksman: { id: 'marksman', name: 'Tireur d\'élite', weapon: 'dmr', weapons: ['dmr', 'battle', 'carbine'] },
+    support:  { id: 'support',  name: 'Appui',       weapon: 'lmg',     weapons: ['lmg', 'battle', 'carbine'] },
+    breacher: { id: 'breacher', name: 'Brèche',      weapon: 'shotgun', weapons: ['shotgun', 'smg', 'smgsil', 'carbine'] },
   };
 
   // ---- OPÉRATEURS --------------------------------------------------------------------
@@ -61,6 +64,11 @@
     { id: 'op_harfang', callsign: 'Harfang', unit: 'FSK (Norvège)',           role: 'marksman', armor: 'light',  rarity: 3, marksmanship: 92, reflexes: 58, mobility: 56, perception: 90, composure: 84, endurance: 58 },
     { id: 'op_bouclier',callsign: 'Bouclier',unit: 'GROM (Pologne)',          role: 'support',  armor: 'heavy',  rarity: 2, marksmanship: 56, reflexes: 58, mobility: 52, perception: 62, composure: 88, endurance: 92 },
     { id: 'op_marteau', callsign: 'Marteau', unit: 'Sayeret Matkal (Israël)', role: 'breacher', armor: 'heavy',  rarity: 3, marksmanship: 60, reflexes: 74, mobility: 72, perception: 56, composure: 78, endurance: 86 },
+
+    { id: 'op_sirocco', callsign: 'Sirocco', unit: 'GIS (Italie)',             role: 'assault',  armor: 'light',  rarity: 2, marksmanship: 70, reflexes: 78, mobility: 80, perception: 70, composure: 68, endurance: 66 },
+    { id: 'op_ardoise', callsign: 'Ardoise', unit: 'SASR (Australie)',         role: 'marksman', armor: 'medium', rarity: 2, marksmanship: 86, reflexes: 64, mobility: 62, perception: 84, composure: 80, endurance: 68 },
+    { id: 'op_enclume', callsign: 'Enclume', unit: 'KCT (Pays-Bas)',           role: 'support',  armor: 'medium', rarity: 1, marksmanship: 62, reflexes: 60, mobility: 62, perception: 62, composure: 82, endurance: 84 },
+    { id: 'op_ombre',   callsign: 'Ombre',   unit: 'UEI (Espagne)',            role: 'pointman', armor: 'light',  rarity: 3, marksmanship: 72, reflexes: 90, mobility: 84, perception: 82, composure: 70, endurance: 60 },
   ];
 
   // ---- ORDRES TACTIQUES --------------------------------------------------------------
@@ -78,13 +86,16 @@
     { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille adverse de cinq hommes progresse prudemment sur les docks. Interceptez-la.', mapId: 'entrepot', enemy: ['op_cobra', 'op_furet', 'op_bouclier', 'op_marteau', 'op_vautour'], level: 0, order: 'careful', reward: 180, xp: 40, difficulty: 1 },
     { id: 'embuscade', name: 'Position retranchée', desc: 'L\'adversaire tient l\'entrepôt derrière ses conteneurs. Il faudra aller le chercher.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_furet'], level: 3, order: 'hold', reward: 260, xp: 55, difficulty: 2 },
     { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact par les deux couloirs. Tenez ou contre-attaquez.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_granit'], level: 3, order: 'assault', reward: 340, xp: 70, difficulty: 3 },
+    { id: 'marche', name: 'Marché sous le feu', desc: 'Une équipe adverse ratisse la place du marché. Reprenez-la rue par rue.', mapId: 'place', enemy: ['op_sirocco', 'op_furet', 'op_enclume', 'op_marteau', 'op_ardoise'], level: 1, order: 'careful', reward: 240, xp: 50, difficulty: 2 },
+    { id: 'tenir', name: 'Tenir la place', desc: 'Tenez la place 140 secondes face à un assaut : il suffit qu\'un seul opérateur soit encore en état à l\'échéance.', mapId: 'place', enemy: ['op_cobra', 'op_sirocco', 'op_bouclier', 'op_marteau', 'op_ombre'], level: 6, order: 'assault', objective: 'hold', duration: 140, reward: 360, xp: 70, difficulty: 3 },
+    { id: 'nuit', name: 'Infiltration adverse', desc: 'Des opérateurs équipés d\'armes silencieuses s\'infiltrent prudemment : vous les entendrez à peine.', mapId: 'place', enemy: ['op_ombre', 'op_furet', 'op_sirocco', 'op_ardoise', 'op_lynx'], enemyWeapons: { op_ombre: 'smgsil', op_furet: 'smgsil', op_sirocco: 'smgsil' }, level: 6, order: 'careful', reward: 420, xp: 85, difficulty: 4 },
     { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_lynx'], level: 5, order: 'assault', reward: 480, xp: 90, difficulty: 4 },
   ];
 
   // ---- ÉCONOMIE ----------------------------------------------------------------------
   const PRICES = {
     operator: { 1: 250, 2: 450, 3: 700 },           // recrutement selon la rareté
-    weapon:   { carbine: 0, smg: 120, dmr: 260, lmg: 300, shotgun: 160 },
+    weapon:   { carbine: 0, smg: 0, dmr: 0, lmg: 0, shotgun: 0, battle: 320, smgsil: 260 },
     armor:    { light: 0, medium: 150, heavy: 320 },
   };
   // Expérience nécessaire pour atteindre chaque niveau (niveau 0 → 1 : 100, etc.) ; +2 à chaque statistique par niveau (max 10).

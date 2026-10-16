@@ -21,8 +21,8 @@
   function render() {
     $('#credits').textContent = profile.credits;
     const c = profile.career;
-    $('#career').textContent = `${c.battles} bataille${c.battles > 1 ? 's' : ''} · ${c.wins} victoire${c.wins > 1 ? 's' : ''} · ${c.kills} neutralisation${c.kills > 1 ? 's' : ''}`;
-    renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderRewards();
+    $('#career').textContent = `${c.battles} bataille${c.battles > 1 ? 's' : ''} · ${c.wins} victoire${c.wins > 1 ? 's' : ''} · ${c.kills} neutralisation${c.kills > 1 ? 's' : ''} · ${c.losses_units} opérateur${c.losses_units > 1 ? 's' : ''} évacué${c.losses_units > 1 ? 's' : ''}`;
+    renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderArmory(); renderRewards();
   }
 
   function renderRoster() {
@@ -58,7 +58,7 @@
       <div class="stats">${stats}</div>
       ${st.unlocked ? `
       <div class="equip">
-        <label>Arme <select id="selWeapon">${role.weapons.map(id => `<option value="${id}" ${id === st.weaponId ? 'selected' : ''} ${profile.inventory.weapons[id] ? '' : 'disabled'}>${WEAPONS[id].name}</option>`).join('')}</select></label>
+        <label>Arme <select id="selWeapon">${role.weapons.map(id => `<option value="${id}" ${id === st.weaponId ? 'selected' : ''} ${profile.inventory.weapons[id] ? '' : 'disabled'}>${WEAPONS[id].name}${profile.inventory.weapons[id] ? '' : ' (armurerie : ' + PRICES.weapon[id] + ' cr.)'}</option>`).join('')}</select></label>
         <div class="wspec">Dégâts ${w.damage} · portée ${w.range} m · ${w.rpm} c/min · chargeur ${w.mag} · rechargement ${w.reload} s · précision ${Math.round(w.accuracy * 100)} %${w.minRange ? ` · pénalisé sous ${w.minRange} m` : ''}</div>
         <label>Protection <select id="selArmor">${Object.values(ARMORS).map(ar => `<option value="${ar.id}" ${ar.id === st.armorId ? 'selected' : ''} ${profile.inventory.armors[ar.id] ? '' : 'disabled'}>${ar.name}</option>`).join('')}</select></label>
         <div class="wspec">Absorbe ${Math.round(a.torso * 100)} % au torse, ${Math.round(a.head * 100)} % à la tête · vitesse × ${a.mobility}</div>
@@ -95,13 +95,21 @@
       return `<div class="mission ${selectedMission === m.id ? 'sel' : ''}" data-id="${m.id}">
         <div class="crow"><b>${esc(m.name)}</b><span class="diff">${'◆'.repeat(m.difficulty)}${'◇'.repeat(4 - m.difficulty)}</span></div>
         <div class="mdesc">${esc(m.desc)}</div>
-        <div class="crow small"><span>Ennemi : ${m.enemy.map(id => OPERATORS.find(o => o.id === id).callsign).join(', ')} (niv. ${m.level}, ${ORDERS[m.order].name})</span></div>
+        <div class="crow small"><span>${OT.MAPS[m.mapId].name} · ${m.objective === 'hold' ? `tenir ${m.duration} s` : 'neutraliser l’adversaire'}</span></div>
+        <div class="crow small"><span>Ennemi : ${m.enemy.map(id => OPERATORS.find(o => o.id === id).callsign).join(', ')} (niv. ${m.level}, ${ORDERS[m.order].name}${m.enemyWeapons ? ', armes silencieuses' : ''})</span></div>
         <div class="crow small"><span>Récompense : ${m.reward} cr. · ${m.xp} XP de base</span><span>${done ? `${done.wins}/${done.attempts} réussie${done.wins > 1 ? 's' : ''}` : 'Jamais tentée'}</span></div>
       </div>`;
     }).join('');
     el.querySelectorAll('.mission').forEach(m => m.addEventListener('click', () => { selectedMission = m.dataset.id; renderMissions(); }));
   }
 
+  function renderArmory() {
+    const el = $('#hqArmory');
+    const items = Object.values(WEAPONS).filter(w => !profile.inventory.weapons[w.id]);
+    if (!items.length) { el.innerHTML = '<div class="muted" style="font-size:12px">Toutes les armes sont disponibles.</div>'; return; }
+    el.innerHTML = items.map(w => `<div class="armo"><div><b>${esc(w.name)}</b><div class="wspec">Dégâts ${w.damage} · portée ${w.range} m · ${w.rpm} c/min · chargeur ${w.mag}${w.silenced ? ' · silencieux : presque inaudible au-delà de 18 m' : ''}</div></div><button class="mini" data-w="${w.id}" ${profile.credits >= PRICES.weapon[w.id] ? '' : 'disabled'}>${PRICES.weapon[w.id]} cr.</button></div>`).join('');
+    el.querySelectorAll('button[data-w]').forEach(b => b.addEventListener('click', () => { if (Game.buyWeapon(profile, b.dataset.w)) { flash(`${WEAPONS[b.dataset.w].name} ajouté à l’armurerie.`); saveNow(); render(); } }));
+  }
   function renderRewards() {
     const el = $('#hqRewards');
     if (!lastRewards) { el.classList.add('hidden'); return; }
@@ -121,7 +129,7 @@
     const mission = MISSIONS.find(m => m.id === selectedMission);
     const seed = Math.floor(Math.random() * 1000000);
     profile.lastSeed = seed; saveNow();
-    window.HQ.onLaunch({ seed, teams: Game.buildTeams(profile, mission), mapId: mission.mapId }, mission);
+    window.HQ.onLaunch(Game.battleOptions(profile, mission, seed), mission);
   });
   $('#resetSave').addEventListener('click', () => {
     if ($('#resetSave').dataset.confirm !== '1') { $('#resetSave').dataset.confirm = '1'; $('#resetSave').textContent = 'Confirmer la réinitialisation'; setTimeout(() => { $('#resetSave').dataset.confirm = '0'; $('#resetSave').textContent = 'Réinitialiser'; }, 4000); return; }

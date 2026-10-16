@@ -41,6 +41,26 @@
         box(31, 11.5, 2, 1.2, 1.1, 'cover', 'caisses'), box(31, 27.3, 2, 1.2, 1.1, 'cover', 'caisses'),
       ]),
     },
+    place: {
+      id: 'place', name: 'Place du marché', width: 70, depth: 44,
+      spawns: [ { x: 5.5, z: 22, r: 3.5 }, { x: 64.5, z: 22, r: 3.5 } ],
+      obstacles: mirrored(70, [
+        box(-1, -1, 72, 1, 3.2, 'wall', 'mur nord'), box(-1, 44, 72, 1, 3.2, 'wall', 'mur sud'),
+        box(-1, 0, 1, 44, 3.2, 'wall', 'mur ouest'), box(70, 0, 1, 44, 3.2, 'wall', 'mur est'),
+        // immeubles : deux par côté, puis un bloc central qui ferme la vue entre les zones de départ
+        box(10, 2, 8, 10, 4.5, 'wall', 'immeuble'), box(10, 32, 8, 10, 4.5, 'wall', 'immeuble'),
+        box(22, 16, 6, 12, 4.0, 'wall', 'immeuble'),
+        box(30, 11.5, 2, 2, 3.0, 'wall', 'kiosque'), box(30, 30.5, 2, 2, 3.0, 'wall', 'kiosque'),
+        // rues et place : voitures, murets, bancs, fontaine
+        box(26.5, 6, 2, 4.4, 1.4, 'cover', 'voiture'), box(26.5, 33.6, 2, 4.4, 1.4, 'cover', 'voiture'),
+        box(19, 13, 4, 0.8, 1.0, 'cover', 'muret'), box(19, 30.2, 4, 0.8, 1.0, 'cover', 'muret'),
+        box(14, 20, 0.8, 4, 1.0, 'cover', 'muret'), box(7, 8, 1.5, 1.5, 1.1, 'cover', 'bac à fleurs'), box(7, 34.5, 1.5, 1.5, 1.1, 'cover', 'bac à fleurs'),
+        box(30, 18, 2.5, 0.8, 0.8, 'cover', 'banc'), box(30, 25.2, 2.5, 0.8, 0.8, 'cover', 'banc'),
+        box(33, 20.5, 4, 3, 1.1, 'cover', 'fontaine'),
+        box(21, 4, 2, 2, 1.1, 'cover', 'étal'), box(21, 38, 2, 2, 1.1, 'cover', 'étal'),
+        box(31.5, 2.5, 3, 1.2, 1.1, 'cover', 'étal'), box(31.5, 40.3, 3, 1.2, 1.1, 'cover', 'étal'),
+      ]),
+    },
   };
 
   // ---- Lancer de rayon segment / boîte (méthode des « slabs ») -------------------------

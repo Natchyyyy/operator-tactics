@@ -15,6 +15,7 @@
   header h1 { font-size: 15px; letter-spacing: 0.18em; margin: 0; color: var(--accent); font-weight: 700; }
   header h1 small { color: var(--muted); letter-spacing: 0.05em; font-weight: 400; margin-left: 8px; font-size: 11px; }
   @media (max-width: 1500px) { header h1 small { display: none; } }
+  @media (max-width: 1600px) { #app header .group label { display: none; } #app header button, #app header select, #app header input { padding: 5px 8px; } #app header input { width: 70px; } }
   .spacer { flex: 1; }
   .clock { font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; padding: 0 10px; }
   .alive { font-weight: 700; font-size: 15px; } .alive.team0 { color: var(--a0); } .alive.team1 { color: var(--a1); }
@@ -88,6 +89,7 @@
   .prep { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .prep label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; } .prep select { text-transform: none; letter-spacing: 0; }
   .mission { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; cursor: pointer; } .mission:hover { border-color: var(--muted); } .mission.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
   .mission .diff { margin-left: auto; color: var(--accent); letter-spacing: 2px; } .mdesc { font-size: 12px; color: #c4ccd5; margin: 4px 0; }
+  .armo { display: flex; align-items: center; gap: 8px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 12px; } .armo > div { flex: 1; min-width: 0; } .armo .wspec { padding: 0; }
   #launch { font-size: 15px; padding: 12px; } #launchHint { font-size: 11px; color: var(--muted); text-align: center; }
   #hqRewards { background: #1d2a1f; border: 1px solid #2d4a33; border-radius: 8px; padding: 8px 10px; font-size: 12px; } #hqRewards .good { color: var(--ok); } #hqRewards .bad { color: var(--bad); }
   #flash { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--accent); color: #111; padding: 8px 14px; border-radius: 8px; font-weight: 600; z-index: 30; box-shadow: 0 8px 30px #000a; }
@@ -116,6 +118,7 @@
       </div>
     </section>
     <section class="hqcol"><h3>Missions</h3><div id="hqMissions" style="display:flex;flex-direction:column;gap:6px"></div>
+      <h3 style="margin-top:6px">Armurerie</h3><div id="hqArmory" style="display:flex;flex-direction:column;gap:6px"></div>
       <div id="hqRewards" class="hidden"></div>
       <button id="launch" class="on">Lancer la mission</button><div id="launchHint"></div>
     </section>
@@ -129,11 +132,12 @@
       <select id="order0"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
     <div class="group"><label>Bravo</label>
       <select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
+    <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option></select></div>
     <div class="group"><label>Graine</label><input id="seed" placeholder="aléatoire"></div>
-    <button id="newBattle">Nouvelle bataille</button>
+    <button id="newBattle">Nouvelle</button>
     <button id="replay" title="Rejouer la même graine avec les ordres choisis">Rejouer</button>
     <span id="missionLabel" class="muted" hidden></span>
-    <button id="toHq">Quartier général</button>
+    <button id="toHq">QG</button>
     <div class="spacer"></div>
     <span class="alive team0" id="alive0">5</span><span class="clock" id="clock">0:00.0</span><span class="alive team1" id="alive1">5</span>
     <div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div>

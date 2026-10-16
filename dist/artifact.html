@@ -10,6 +10,7 @@
   header h1 { font-size: 15px; letter-spacing: 0.18em; margin: 0; color: var(--accent); font-weight: 700; }
   header h1 small { color: var(--muted); letter-spacing: 0.05em; font-weight: 400; margin-left: 8px; font-size: 11px; }
   @media (max-width: 1500px) { header h1 small { display: none; } }
+  @media (max-width: 1600px) { #app header .group label { display: none; } #app header button, #app header select, #app header input { padding: 5px 8px; } #app header input { width: 70px; } }
   .spacer { flex: 1; }
   .clock { font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; padding: 0 10px; }
   .alive { font-weight: 700; font-size: 15px; } .alive.team0 { color: var(--a0); } .alive.team1 { color: var(--a1); }
@@ -83,6 +84,7 @@
   .prep { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .prep label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; } .prep select { text-transform: none; letter-spacing: 0; }
   .mission { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; cursor: pointer; } .mission:hover { border-color: var(--muted); } .mission.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
   .mission .diff { margin-left: auto; color: var(--accent); letter-spacing: 2px; } .mdesc { font-size: 12px; color: #c4ccd5; margin: 4px 0; }
+  .armo { display: flex; align-items: center; gap: 8px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 12px; } .armo > div { flex: 1; min-width: 0; } .armo .wspec { padding: 0; }
   #launch { font-size: 15px; padding: 12px; } #launchHint { font-size: 11px; color: var(--muted); text-align: center; }
   #hqRewards { background: #1d2a1f; border: 1px solid #2d4a33; border-radius: 8px; padding: 8px 10px; font-size: 12px; } #hqRewards .good { color: var(--ok); } #hqRewards .bad { color: var(--bad); }
   #flash { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--accent); color: #111; padding: 8px 14px; border-radius: 8px; font-weight: 600; z-index: 30; box-shadow: 0 8px 30px #000a; }
@@ -109,6 +111,7 @@
       </div>
     </section>
     <section class="hqcol"><h3>Missions</h3><div id="hqMissions" style="display:flex;flex-direction:column;gap:6px"></div>
+      <h3 style="margin-top:6px">Armurerie</h3><div id="hqArmory" style="display:flex;flex-direction:column;gap:6px"></div>
       <div id="hqRewards" class="hidden"></div>
       <button id="launch" class="on">Lancer la mission</button><div id="launchHint"></div>
     </section>
@@ -122,11 +125,12 @@
       <select id="order0"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
     <div class="group"><label>Bravo</label>
       <select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
+    <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option></select></div>
     <div class="group"><label>Graine</label><input id="seed" placeholder="aléatoire"></div>
-    <button id="newBattle">Nouvelle bataille</button>
+    <button id="newBattle">Nouvelle</button>
     <button id="replay" title="Rejouer la même graine avec les ordres choisis">Rejouer</button>
     <span id="missionLabel" class="muted" hidden></span>
-    <button id="toHq">Quartier général</button>
+    <button id="toHq">QG</button>
     <div class="spacer"></div>
     <span class="alive team0" id="alive0">5</span><span class="clock" id="clock">0:00.0</span><span class="alive team1" id="alive1">5</span>
     <div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div>
@@ -215,6 +219,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     dmr:      { id: 'dmr',      name: 'Fusil de précision 7,62', cls: 'tireur', accuracy: 0.72, damage: 58, range: 90, minRange: 15, rpm: 36,  mag: 20,  reload: 3.0, aim: 1.4,  falloff: 0.9,  suppress: 0.28, kit: 5 },
     lmg:      { id: 'lmg',      name: 'Mitrailleuse légère 5,56', cls: 'appui', accuracy: 0.36, damage: 30, range: 55, minRange: 0,  rpm: 210, mag: 100, reload: 6.5, aim: 0.9,  falloff: 0.8,  suppress: 0.26, kit: 3 },
     shotgun:  { id: 'shotgun',  name: 'Fusil à pompe cal. 12', cls: 'brèche', accuracy: 0.80, damage: 85, range: 12, minRange: 0,  rpm: 55,  mag: 7,   reload: 3.8, aim: 0.25, falloff: 0.3,  suppress: 0.2,  kit: 5 },
+    // à acheter à l'armurerie
+    battle:   { id: 'battle',   name: 'Fusil de combat 7,62', cls: 'fusil',    accuracy: 0.52, damage: 46, range: 60, minRange: 0,  rpm: 75,  mag: 20,  reload: 2.9, aim: 0.7,  falloff: 0.85, suppress: 0.2,  kit: 5 },
+    smgsil:   { id: 'smgsil',   name: 'PM 9 mm silencieux', cls: 'pm',    accuracy: 0.58, damage: 22, range: 20, minRange: 0,  rpm: 150, mag: 30,  reload: 2.0, aim: 0.3,  falloff: 0.5,  suppress: 0.07, kit: 7, silenced: true },
   };
 
   // ---- PROTECTIONS -------------------------------------------------------------------
@@ -229,11 +236,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // Le rôle oriente l'IA (voir engine.js : decide) et l'arme par défaut.
   // weapons : armes que ce rôle sait employer (la première est celle par défaut)
   const ROLES = {
-    assault:  { id: 'assault',  name: 'Assaut',      weapon: 'carbine', weapons: ['carbine', 'smg', 'shotgun'] },
-    pointman: { id: 'pointman', name: 'Pointe',      weapon: 'smg',     weapons: ['smg', 'shotgun', 'carbine'] },
-    marksman: { id: 'marksman', name: 'Tireur d\'élite', weapon: 'dmr', weapons: ['dmr', 'carbine'] },
-    support:  { id: 'support',  name: 'Appui',       weapon: 'lmg',     weapons: ['lmg', 'carbine'] },
-    breacher: { id: 'breacher', name: 'Brèche',      weapon: 'shotgun', weapons: ['shotgun', 'smg', 'carbine'] },
+    assault:  { id: 'assault',  name: 'Assaut',      weapon: 'carbine', weapons: ['carbine', 'battle', 'smg', 'smgsil', 'shotgun'] },
+    pointman: { id: 'pointman', name: 'Pointe',      weapon: 'smg',     weapons: ['smg', 'smgsil', 'shotgun', 'carbine'] },
+    marksman: { id: 'marksman', name: 'Tireur d\'élite', weapon: 'dmr', weapons: ['dmr', 'battle', 'carbine'] },
+    support:  { id: 'support',  name: 'Appui',       weapon: 'lmg',     weapons: ['lmg', 'battle', 'carbine'] },
+    breacher: { id: 'breacher', name: 'Brèche',      weapon: 'shotgun', weapons: ['shotgun', 'smg', 'smgsil', 'carbine'] },
   };
 
   // ---- OPÉRATEURS --------------------------------------------------------------------
@@ -258,6 +265,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     { id: 'op_harfang', callsign: 'Harfang', unit: 'FSK (Norvège)',           role: 'marksman', armor: 'light',  rarity: 3, marksmanship: 92, reflexes: 58, mobility: 56, perception: 90, composure: 84, endurance: 58 },
     { id: 'op_bouclier',callsign: 'Bouclier',unit: 'GROM (Pologne)',          role: 'support',  armor: 'heavy',  rarity: 2, marksmanship: 56, reflexes: 58, mobility: 52, perception: 62, composure: 88, endurance: 92 },
     { id: 'op_marteau', callsign: 'Marteau', unit: 'Sayeret Matkal (Israël)', role: 'breacher', armor: 'heavy',  rarity: 3, marksmanship: 60, reflexes: 74, mobility: 72, perception: 56, composure: 78, endurance: 86 },
+
+    { id: 'op_sirocco', callsign: 'Sirocco', unit: 'GIS (Italie)',             role: 'assault',  armor: 'light',  rarity: 2, marksmanship: 70, reflexes: 78, mobility: 80, perception: 70, composure: 68, endurance: 66 },
+    { id: 'op_ardoise', callsign: 'Ardoise', unit: 'SASR (Australie)',         role: 'marksman', armor: 'medium', rarity: 2, marksmanship: 86, reflexes: 64, mobility: 62, perception: 84, composure: 80, endurance: 68 },
+    { id: 'op_enclume', callsign: 'Enclume', unit: 'KCT (Pays-Bas)',           role: 'support',  armor: 'medium', rarity: 1, marksmanship: 62, reflexes: 60, mobility: 62, perception: 62, composure: 82, endurance: 84 },
+    { id: 'op_ombre',   callsign: 'Ombre',   unit: 'UEI (Espagne)',            role: 'pointman', armor: 'light',  rarity: 3, marksmanship: 72, reflexes: 90, mobility: 84, perception: 82, composure: 70, endurance: 60 },
   ];
 
   // ---- ORDRES TACTIQUES --------------------------------------------------------------
@@ -275,13 +287,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille adverse de cinq hommes progresse prudemment sur les docks. Interceptez-la.', mapId: 'entrepot', enemy: ['op_cobra', 'op_furet', 'op_bouclier', 'op_marteau', 'op_vautour'], level: 0, order: 'careful', reward: 180, xp: 40, difficulty: 1 },
     { id: 'embuscade', name: 'Position retranchée', desc: 'L\'adversaire tient l\'entrepôt derrière ses conteneurs. Il faudra aller le chercher.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_furet'], level: 3, order: 'hold', reward: 260, xp: 55, difficulty: 2 },
     { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact par les deux couloirs. Tenez ou contre-attaquez.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_granit'], level: 3, order: 'assault', reward: 340, xp: 70, difficulty: 3 },
+    { id: 'marche', name: 'Marché sous le feu', desc: 'Une équipe adverse ratisse la place du marché. Reprenez-la rue par rue.', mapId: 'place', enemy: ['op_sirocco', 'op_furet', 'op_enclume', 'op_marteau', 'op_ardoise'], level: 1, order: 'careful', reward: 240, xp: 50, difficulty: 2 },
+    { id: 'tenir', name: 'Tenir la place', desc: 'Tenez la place 140 secondes face à un assaut : il suffit qu\'un seul opérateur soit encore en état à l\'échéance.', mapId: 'place', enemy: ['op_cobra', 'op_sirocco', 'op_bouclier', 'op_marteau', 'op_ombre'], level: 6, order: 'assault', objective: 'hold', duration: 140, reward: 360, xp: 70, difficulty: 3 },
+    { id: 'nuit', name: 'Infiltration adverse', desc: 'Des opérateurs équipés d\'armes silencieuses s\'infiltrent prudemment : vous les entendrez à peine.', mapId: 'place', enemy: ['op_ombre', 'op_furet', 'op_sirocco', 'op_ardoise', 'op_lynx'], enemyWeapons: { op_ombre: 'smgsil', op_furet: 'smgsil', op_sirocco: 'smgsil' }, level: 6, order: 'careful', reward: 420, xp: 85, difficulty: 4 },
     { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['op_cobra', 'op_harfang', 'op_bouclier', 'op_marteau', 'op_lynx'], level: 5, order: 'assault', reward: 480, xp: 90, difficulty: 4 },
   ];
 
   // ---- ÉCONOMIE ----------------------------------------------------------------------
   const PRICES = {
     operator: { 1: 250, 2: 450, 3: 700 },           // recrutement selon la rareté
-    weapon:   { carbine: 0, smg: 120, dmr: 260, lmg: 300, shotgun: 160 },
+    weapon:   { carbine: 0, smg: 0, dmr: 0, lmg: 0, shotgun: 0, battle: 320, smgsil: 260 },
     armor:    { light: 0, medium: 150, heavy: 320 },
   };
   // Expérience nécessaire pour atteindre chaque niveau (niveau 0 → 1 : 100, etc.) ; +2 à chaque statistique par niveau (max 10).
@@ -334,6 +349,26 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         box(7, 6, 1.5, 1.4, 1.1, 'cover', 'fût'), box(7, 32.6, 1.5, 1.4, 1.1, 'cover', 'fût'),
         box(26, 9.2, 2.5, 1.2, 1.0, 'cover', 'muret'), box(26, 29.6, 2.5, 1.2, 1.0, 'cover', 'muret'),
         box(31, 11.5, 2, 1.2, 1.1, 'cover', 'caisses'), box(31, 27.3, 2, 1.2, 1.1, 'cover', 'caisses'),
+      ]),
+    },
+    place: {
+      id: 'place', name: 'Place du marché', width: 70, depth: 44,
+      spawns: [ { x: 5.5, z: 22, r: 3.5 }, { x: 64.5, z: 22, r: 3.5 } ],
+      obstacles: mirrored(70, [
+        box(-1, -1, 72, 1, 3.2, 'wall', 'mur nord'), box(-1, 44, 72, 1, 3.2, 'wall', 'mur sud'),
+        box(-1, 0, 1, 44, 3.2, 'wall', 'mur ouest'), box(70, 0, 1, 44, 3.2, 'wall', 'mur est'),
+        // immeubles : deux par côté, puis un bloc central qui ferme la vue entre les zones de départ
+        box(10, 2, 8, 10, 4.5, 'wall', 'immeuble'), box(10, 32, 8, 10, 4.5, 'wall', 'immeuble'),
+        box(22, 16, 6, 12, 4.0, 'wall', 'immeuble'),
+        box(30, 11.5, 2, 2, 3.0, 'wall', 'kiosque'), box(30, 30.5, 2, 2, 3.0, 'wall', 'kiosque'),
+        // rues et place : voitures, murets, bancs, fontaine
+        box(26.5, 6, 2, 4.4, 1.4, 'cover', 'voiture'), box(26.5, 33.6, 2, 4.4, 1.4, 'cover', 'voiture'),
+        box(19, 13, 4, 0.8, 1.0, 'cover', 'muret'), box(19, 30.2, 4, 0.8, 1.0, 'cover', 'muret'),
+        box(14, 20, 0.8, 4, 1.0, 'cover', 'muret'), box(7, 8, 1.5, 1.5, 1.1, 'cover', 'bac à fleurs'), box(7, 34.5, 1.5, 1.5, 1.1, 'cover', 'bac à fleurs'),
+        box(30, 18, 2.5, 0.8, 0.8, 'cover', 'banc'), box(30, 25.2, 2.5, 0.8, 0.8, 'cover', 'banc'),
+        box(33, 20.5, 4, 3, 1.1, 'cover', 'fontaine'),
+        box(21, 4, 2, 2, 1.1, 'cover', 'étal'), box(21, 38, 2, 2, 1.1, 'cover', 'étal'),
+        box(31.5, 2.5, 3, 1.2, 1.1, 'cover', 'étal'), box(31.5, 40.3, 3, 1.2, 1.1, 'cover', 'étal'),
       ]),
     },
   };
@@ -598,6 +633,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     this.rng = new RNG(this.seed);
     this.map = new GameMap(MAPS[opts.mapId || 'entrepot']);
     this.timeLimit = opts.timeLimit || 240;
+    // objectif : { type: 'eliminate' } (défaut) ou { type: 'hold', team, duration } : l'équipe team gagne si elle tient jusqu'à duration
+    this.objective = opts.objective || { type: 'eliminate' };
+    if (this.objective.type === 'hold') this.timeLimit = this.objective.duration;
     this.t = 0; this.tick = 0; this.over = false; this.result = null;
     this.log = []; this.events = [];
     this.lastShotTime = 0;
@@ -697,7 +735,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
           else {
             p = 0.35 * (1 - d / visRange) * (0.6 + u.def.perception / 100);
             if (e.moving) p *= 1.6;
-            if (this.t - e.lastShotAt < 1.5) p *= 3;         // éclair de bouche, bruit
+            if (this.t - e.lastShotAt < 1.5) p *= e.weapon.silenced ? 1.6 : 3;   // éclair de bouche, bruit
             if (e.stance === 'crouch') p *= 0.6;
             p = clamp(p, 0.02, 1);
           }
@@ -714,8 +752,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
           }
         }
       }
-      // 2) l'ouïe : un tir ennemi récent et proche donne une position approximative
-      if (!newVisible.has(e.id) && this.t - e.lastShotAt < 0.25 && d < 70) {
+      // 2) l'ouïe : un tir ennemi récent et proche donne une position approximative (bien moins loin si l'arme est silencieuse)
+      if (!newVisible.has(e.id) && this.t - e.lastShotAt < 0.25 && d < (e.weapon.silenced ? 18 : 70)) {
         const k = u.knowledge[e.id];
         if (!k || this.t - k.t > 1.5) {
           const err = 2 + d * 0.05;
@@ -1229,6 +1267,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (alive[0] === 0 && alive[1] === 0) { winner = -1; reason = 'Les deux équipes sont hors de combat.'; }
     else if (alive[0] === 0) { winner = 1; reason = `${this.teams[0].name} est entièrement neutralisée.`; }
     else if (alive[1] === 0) { winner = 0; reason = `${this.teams[1].name} est entièrement neutralisée.`; }
+    else if (this.objective.type === 'hold' && this.t >= this.objective.duration) {
+      winner = this.objective.team; reason = `Temps écoulé : ${this.teams[winner].name} a tenu la position (${alive[winner]} opérateur${alive[winner] > 1 ? 's' : ''} en état).`;
+    }
     else if (this.t >= this.timeLimit || (this.t - this.lastShotTime > 60 && this.units.every(u => !u.alive || u.totalAmmo() === 0))) {
       reason = this.t >= this.timeLimit ? 'Temps écoulé.' : 'Plus personne ne peut tirer.';
       if (alive[0] !== alive[1]) { winner = alive[0] > alive[1] ? 0 : 1; reason += ` ${this.teams[winner].name} garde plus d'opérateurs en état de combattre.`; }
@@ -1290,7 +1331,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     for (const o of OPERATORS) operators[o.id] = { unlocked: STARTING.includes(o.id), xp: 0, weaponId: ROLES[o.role].weapon, armorId: o.armor, battles: 0, kills: 0, lane: null };
     return {
       version: 1, credits: 300, operators, squad: STARTING.slice(), order: 'assault',
-      inventory: { weapons: { carbine: true, smg: true, dmr: true, lmg: true, shotgun: true }, armors: { light: true, medium: true, heavy: true } },
+      inventory: { weapons: { carbine: true, smg: true, dmr: true, lmg: true, shotgun: true }, armors: { light: true, medium: true, heavy: true } }, // battle, smgsil : à acheter
       career: { battles: 0, wins: 0, losses: 0, draws: 0, kills: 0, losses_units: 0 }, missions: {}, lastSeed: null,
     };
   }
@@ -1306,17 +1347,23 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return def;
   }
   // Fiche d'un ennemi de mission : niveau fixé par la mission.
-  function enemyDef(id, level) {
+  function enemyDef(id, level, weaponId) {
     const base = OPERATORS.find(o => o.id === id);
-    const def = Object.assign({}, base, { level });
+    const def = Object.assign({}, base, { level }); if (weaponId) def.weaponId = weaponId;
     for (const k of STATS) def[k] = Math.min(100, base[k] + level * LEVEL_STAT_BONUS);
     return def;
   }
   function buildTeams(profile, mission) {
     return [
       { name: 'Alpha', order: profile.order, operators: profile.squad.map(id => effectiveDef(profile, id)) },
-      { name: 'Bravo', order: mission.order, operators: mission.enemy.map(id => enemyDef(id, mission.level)) },
+      { name: 'Bravo', order: mission.order, operators: mission.enemy.map(id => enemyDef(id, mission.level, mission.enemyWeapons && mission.enemyWeapons[id])) },
     ];
+  }
+  // Options complètes de bataille pour une mission (carte, objectif, équipes)
+  function battleOptions(profile, mission, seed) {
+    const opts = { seed, teams: buildTeams(profile, mission), mapId: mission.mapId };
+    if (mission.objective === 'hold') opts.objective = { type: 'hold', team: 0, duration: mission.duration || 90 };
+    return opts;
   }
 
   // ---- Règles d'équipement / d'escouade -----------------------------------------------
@@ -1340,6 +1387,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     const price = PRICES.operator[base.rarity];
     if (profile.credits < price) return false;
     profile.credits -= price; st.unlocked = true; return true;
+  }
+  function buyWeapon(profile, weaponId) {
+    if (!WEAPONS[weaponId] || profile.inventory.weapons[weaponId]) return false;
+    const price = PRICES.weapon[weaponId]; if (price === undefined || profile.credits < price) return false;
+    profile.credits -= price; profile.inventory.weapons[weaponId] = true; return true;
   }
   function applyFormation(profile, formation) {
     // Formations prêtes à l'emploi : répartition des voies pour l'escouade actuelle (ordre : liste de l'escouade)
@@ -1391,13 +1443,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       // tolérance : opérateurs ajoutés depuis la sauvegarde
       const fresh = newProfile();
       for (const id in fresh.operators) if (!p.operators[id]) p.operators[id] = fresh.operators[id];
+      p.inventory = p.inventory || fresh.inventory; p.inventory.weapons = Object.assign({}, fresh.inventory.weapons, p.inventory.weapons); p.inventory.armors = Object.assign({}, fresh.inventory.armors, p.inventory.armors);
       p.squad = p.squad.filter(id => p.operators[id] && p.operators[id].unlocked);
       return p;
     } catch (e) { return null; }
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, recruit, applyFormation, computeRewards, applyRewards, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, recruit, applyFormation, computeRewards, applyRewards, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));
 
@@ -1426,8 +1479,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function render() {
     $('#credits').textContent = profile.credits;
     const c = profile.career;
-    $('#career').textContent = `${c.battles} bataille${c.battles > 1 ? 's' : ''} · ${c.wins} victoire${c.wins > 1 ? 's' : ''} · ${c.kills} neutralisation${c.kills > 1 ? 's' : ''}`;
-    renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderRewards();
+    $('#career').textContent = `${c.battles} bataille${c.battles > 1 ? 's' : ''} · ${c.wins} victoire${c.wins > 1 ? 's' : ''} · ${c.kills} neutralisation${c.kills > 1 ? 's' : ''} · ${c.losses_units} opérateur${c.losses_units > 1 ? 's' : ''} évacué${c.losses_units > 1 ? 's' : ''}`;
+    renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderArmory(); renderRewards();
   }
 
   function renderRoster() {
@@ -1463,7 +1516,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       <div class="stats">${stats}</div>
       ${st.unlocked ? `
       <div class="equip">
-        <label>Arme <select id="selWeapon">${role.weapons.map(id => `<option value="${id}" ${id === st.weaponId ? 'selected' : ''} ${profile.inventory.weapons[id] ? '' : 'disabled'}>${WEAPONS[id].name}</option>`).join('')}</select></label>
+        <label>Arme <select id="selWeapon">${role.weapons.map(id => `<option value="${id}" ${id === st.weaponId ? 'selected' : ''} ${profile.inventory.weapons[id] ? '' : 'disabled'}>${WEAPONS[id].name}${profile.inventory.weapons[id] ? '' : ' (armurerie : ' + PRICES.weapon[id] + ' cr.)'}</option>`).join('')}</select></label>
         <div class="wspec">Dégâts ${w.damage} · portée ${w.range} m · ${w.rpm} c/min · chargeur ${w.mag} · rechargement ${w.reload} s · précision ${Math.round(w.accuracy * 100)} %${w.minRange ? ` · pénalisé sous ${w.minRange} m` : ''}</div>
         <label>Protection <select id="selArmor">${Object.values(ARMORS).map(ar => `<option value="${ar.id}" ${ar.id === st.armorId ? 'selected' : ''} ${profile.inventory.armors[ar.id] ? '' : 'disabled'}>${ar.name}</option>`).join('')}</select></label>
         <div class="wspec">Absorbe ${Math.round(a.torso * 100)} % au torse, ${Math.round(a.head * 100)} % à la tête · vitesse × ${a.mobility}</div>
@@ -1500,13 +1553,21 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       return `<div class="mission ${selectedMission === m.id ? 'sel' : ''}" data-id="${m.id}">
         <div class="crow"><b>${esc(m.name)}</b><span class="diff">${'◆'.repeat(m.difficulty)}${'◇'.repeat(4 - m.difficulty)}</span></div>
         <div class="mdesc">${esc(m.desc)}</div>
-        <div class="crow small"><span>Ennemi : ${m.enemy.map(id => OPERATORS.find(o => o.id === id).callsign).join(', ')} (niv. ${m.level}, ${ORDERS[m.order].name})</span></div>
+        <div class="crow small"><span>${OT.MAPS[m.mapId].name} · ${m.objective === 'hold' ? `tenir ${m.duration} s` : 'neutraliser l’adversaire'}</span></div>
+        <div class="crow small"><span>Ennemi : ${m.enemy.map(id => OPERATORS.find(o => o.id === id).callsign).join(', ')} (niv. ${m.level}, ${ORDERS[m.order].name}${m.enemyWeapons ? ', armes silencieuses' : ''})</span></div>
         <div class="crow small"><span>Récompense : ${m.reward} cr. · ${m.xp} XP de base</span><span>${done ? `${done.wins}/${done.attempts} réussie${done.wins > 1 ? 's' : ''}` : 'Jamais tentée'}</span></div>
       </div>`;
     }).join('');
     el.querySelectorAll('.mission').forEach(m => m.addEventListener('click', () => { selectedMission = m.dataset.id; renderMissions(); }));
   }
 
+  function renderArmory() {
+    const el = $('#hqArmory');
+    const items = Object.values(WEAPONS).filter(w => !profile.inventory.weapons[w.id]);
+    if (!items.length) { el.innerHTML = '<div class="muted" style="font-size:12px">Toutes les armes sont disponibles.</div>'; return; }
+    el.innerHTML = items.map(w => `<div class="armo"><div><b>${esc(w.name)}</b><div class="wspec">Dégâts ${w.damage} · portée ${w.range} m · ${w.rpm} c/min · chargeur ${w.mag}${w.silenced ? ' · silencieux : presque inaudible au-delà de 18 m' : ''}</div></div><button class="mini" data-w="${w.id}" ${profile.credits >= PRICES.weapon[w.id] ? '' : 'disabled'}>${PRICES.weapon[w.id]} cr.</button></div>`).join('');
+    el.querySelectorAll('button[data-w]').forEach(b => b.addEventListener('click', () => { if (Game.buyWeapon(profile, b.dataset.w)) { flash(`${WEAPONS[b.dataset.w].name} ajouté à l’armurerie.`); saveNow(); render(); } }));
+  }
   function renderRewards() {
     const el = $('#hqRewards');
     if (!lastRewards) { el.classList.add('hidden'); return; }
@@ -1526,7 +1587,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     const mission = MISSIONS.find(m => m.id === selectedMission);
     const seed = Math.floor(Math.random() * 1000000);
     profile.lastSeed = seed; saveNow();
-    window.HQ.onLaunch({ seed, teams: Game.buildTeams(profile, mission), mapId: mission.mapId }, mission);
+    window.HQ.onLaunch(Game.battleOptions(profile, mission, seed), mission);
   });
   $('#resetSave').addEventListener('click', () => {
     if ($('#resetSave').dataset.confirm !== '1') { $('#resetSave').dataset.confirm = '1'; $('#resetSave').textContent = 'Confirmer la réinitialisation'; setTimeout(() => { $('#resetSave').dataset.confirm = '0'; $('#resetSave').textContent = 'Réinitialiser'; }, 4000); return; }
@@ -1664,6 +1725,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     for (let i = 0; i < 2500; i++) { const v = 150 + Math.random() * 100; g.fillStyle = `rgba(${v},${v},${v},0.35)`; g.fillRect(Math.random() * w, Math.random() * h, Math.random() * 3, Math.random() * 3); }
     g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 2; g.strokeRect(1, 1, w - 2, h - 2);
   }, 2, 1);
+  const texWindows = makeTexture(256, 256, (g, w, h) => {
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+    for (let y = 24; y < h - 20; y += 64) for (let x = 20; x < w - 20; x += 48) { g.fillStyle = Math.random() < 0.3 ? '#f0d8a0' : '#2b3340'; g.fillRect(x, y, 26, 36); g.fillStyle = '#d8d2c4'; g.fillRect(x - 3, y + 36, 32, 4); }
+  }, 2, 1);
   const MATERIALS = {
     wall: new THREE.MeshStandardMaterial({ color: 0x8a8f94, roughness: 0.9, map: texConcrete }),
     building: new THREE.MeshStandardMaterial({ color: 0x7a7e83, roughness: 0.95, map: texConcrete }),
@@ -1675,6 +1740,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     barrel: new THREE.MeshStandardMaterial({ color: 0x3f5f7a, roughness: 0.6, metalness: 0.4 }),
     pallet: new THREE.MeshStandardMaterial({ color: 0xa08055, roughness: 1, map: texPlanks }),
     lowwall: new THREE.MeshStandardMaterial({ color: 0x7e8186, roughness: 0.95 }),
+    immeuble: [new THREE.MeshStandardMaterial({ color: 0xb8a68e, roughness: 0.9, map: texWindows }), new THREE.MeshStandardMaterial({ color: 0x9a8f86, roughness: 0.9, map: texWindows })],
+    kiosque: new THREE.MeshStandardMaterial({ color: 0x4f6b47, roughness: 0.8 }),
+    voiture: [new THREE.MeshStandardMaterial({ color: 0x8e9aa6, roughness: 0.4, metalness: 0.5 }), new THREE.MeshStandardMaterial({ color: 0x5a2e2a, roughness: 0.4, metalness: 0.5 })],
+    stone: new THREE.MeshStandardMaterial({ color: 0x9d9a92, roughness: 0.9, map: texConcrete }),
+    etal: [new THREE.MeshStandardMaterial({ color: 0xb04a3a, roughness: 0.9 }), new THREE.MeshStandardMaterial({ color: 0x3a6a8a, roughness: 0.9 })],
   };
   function materialFor(o, i) {
     const n = o.name || '';
@@ -1688,6 +1758,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (n.startsWith('fût')) return MATERIALS.barrel;
     if (n.startsWith('palettes')) return MATERIALS.pallet;
     if (n.startsWith('muret')) return MATERIALS.lowwall;
+    if (n.startsWith('immeuble')) return MATERIALS.immeuble[i % 2];
+    if (n.startsWith('kiosque')) return MATERIALS.kiosque;
+    if (n.startsWith('voiture')) return MATERIALS.voiture[i % 2];
+    if (n.startsWith('banc')) return MATERIALS.pallet;
+    if (n.startsWith('fontaine')) return MATERIALS.stone;
+    if (n.startsWith('étal')) return MATERIALS.etal[i % 2];
+    if (n.startsWith('bac')) return MATERIALS.stone;
     return MATERIALS.wall;
   }
   function buildMap(map) {
@@ -2031,10 +2108,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function setMode(m, mis) {
     mode = m; mission = mis || null; rewardsApplied = false;
     const free = m === 'free';
-    for (const id of ['order0', 'order1', 'seed', 'newBattle', 'replay', 'resReplay', 'resNew']) $('#' + id).hidden = !free;
-    document.querySelectorAll('header .group').forEach(g => { if (g.querySelector('#order0, #order1, #seed')) g.hidden = !free; });
+    for (const id of ['order0', 'order1', 'seed', 'mapSel', 'newBattle', 'replay', 'resReplay', 'resNew']) $('#' + id).hidden = !free;
+    document.querySelectorAll('header .group').forEach(g => { if (g.querySelector('#order0, #order1, #seed, #mapSel')) g.hidden = !free; });
     $('#missionLabel').hidden = free; if (!free) $('#missionLabel').textContent = `Mission : ${mis.name}`;
-    $('#toHq').textContent = free ? 'Quartier général' : 'Abandonner';
+    $('#toHq').textContent = free ? 'QG' : 'Abandonner';
     $('#resHq').textContent = free ? 'Quartier général' : 'Retour au QG';
   }
   function updatePlayButton() { $('#play').textContent = paused ? '▶ Lancer' : '❚❚ Pause'; $('#play').classList.toggle('on', !paused); }
@@ -2043,7 +2120,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     teams[0].order = $('#order0').value; teams[1].order = $('#order1').value;
     const seedTxt = $('#seed').value.trim();
     const seed = seedTxt === '' ? Math.floor(Math.random() * 100000) : (parseInt(seedTxt, 10) || 1);
-    return { seed, teams };
+    return { seed, teams, mapId: $('#mapSel').value };
   }
   $('#play').addEventListener('click', () => { if (battle.over) return; paused = !paused; updatePlayButton(); });
   document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => { speed = parseFloat(b.dataset.speed); document.querySelectorAll('[data-speed]').forEach(k => k.classList.toggle('on', k === b)); }));

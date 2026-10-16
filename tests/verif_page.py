@@ -28,7 +28,7 @@ async def main():
         await pg.click(".mission[data-id='patrouille']"); await pg.click("#launch"); await pg.wait_for_timeout(300)
         check("la mission ouvre l'écran de bataille", await pg.is_visible("#app") and not await pg.is_visible("#hq"))
         check("Lynx porte bien le fusil à pompe dans la bataille", await pg.evaluate("() => window.API.battle().units.find(u => u.callsign === 'Lynx').weapon.id") == "shotgun")
-        check("l'ennemi de la mission est celui annoncé (ordre Assaut, 5 opérateurs)", await pg.evaluate("() => window.API.battle().teams[1].order === 'assault' && window.API.battle().teams[1].units.length === 5"))
+        check("l'ennemi de la mission est celui annoncé (ordre Prudent, 5 opérateurs)", await pg.evaluate("() => window.API.battle().teams[1].order === 'careful' && window.API.battle().teams[1].units.length === 5"))
         await pg.click("[data-speed='4']")
         await pg.wait_for_function("() => window.API.battle().over", timeout=400000); await pg.wait_for_timeout(500)
         res_m = await pg.evaluate("() => window.API.battle().result")
