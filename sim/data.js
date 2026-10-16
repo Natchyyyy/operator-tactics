@@ -61,6 +61,21 @@
     ghost:       { id: 'ghost',       name: 'Fantôme',           desc: 'Plus difficile à repérer (−40 %) ; ses tirs s\'entendent moins loin.' },
   };
 
+  // ---- SYNERGIES D'ESCOUADE (chaîne de rôles, comme dans le jeu d'origine) ---------------
+  // Tant qu'un opérateur « source » est debout, les alliés « cibles » (autres que lui) reçoivent le bonus. Effets dans engine.js
+  // (recherche « synergie »). La source et les cibles se décrivent par rôle (role) et/ou par compétence (trait).
+  const SYNERGIES = [
+    { id: 'commandement', name: 'Commandement', source: { trait: 'leader' }, target: { trait: 'radio', role: 'support' }, effect: 'dégâts subis −10 %',
+      desc: 'Un Meneur debout couvre son radio et ses servants d\'arme d\'appui : ils subissent 10 % de dégâts en moins.' },
+    { id: 'guidage', name: 'Guidage radio', source: { trait: 'radio' }, target: { role: ['marksman', 'support', 'breacher'] }, effect: 'précision +8 %',
+      desc: 'Un Radio debout transmet les corrections de tir : tireurs d\'élite, appuis et brècheurs gagnent 8 % de précision.' },
+    { id: 'appui', name: 'Appui-feu', source: { role: 'support' }, target: { role: ['assault', 'pointman'] }, effect: 'récupération de la suppression +20 %',
+      desc: 'Une arme d\'appui qui tient l\'adversaire sous son feu : les assaillants et éclaireurs se remettent 20 % plus vite d\'être cloués.' },
+  ];
+  // Blessure grave : un opérateur neutralisé revient « gravement blessé » ; il peut combattre mais ses compétences sont divisées par deux
+  // et ses points de vie réduits d'un quart, jusqu'à ce qu'il soit soigné (crédits) ou qu'il se repose (missions sans lui).
+  const WOUND = { statFactor: 0.5, hpFactor: 0.75, restMissions: 2 };
+
   // ---- OPÉRATEURS --------------------------------------------------------------------
   // Statistiques (0..100) toutes exploitées par le moteur :
   //  marksmanship : précision (multiplie la précision de l'arme)
@@ -209,5 +224,5 @@
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
   const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL, SYNERGIES, WOUND };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));

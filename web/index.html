@@ -141,6 +141,9 @@
   .promobox { background: #2a2416; border: 1px solid var(--accent); border-radius: 8px; padding: 8px 10px; font-size: 12px; margin: 6px 0; } .promochoices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; } .promochoice { text-align: left; display: flex; flex-direction: column; gap: 3px; padding: 8px; } .promochoice b { color: var(--accent); } .promochoice span { font-size: 11px; color: var(--muted); font-weight: 400; }
   .contract { font-size: 12px; color: var(--muted); margin: 4px 0 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .contract.bad { color: var(--bad); }
   .hist { margin-top: 8px; font-size: 12px; } .hist summary { cursor: pointer; color: var(--muted); } .histt { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; } .histt th { text-align: left; color: var(--muted); font-weight: 600; padding: 3px 6px; border-bottom: 1px solid var(--line); } .histt td { padding: 3px 6px; border-bottom: 1px solid #1d242b; } .histt tr.dead td { color: var(--muted); }
+  .syns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; } .syn { background: var(--panel2); border: 1px dashed var(--line); border-radius: 8px; padding: 6px 8px; font-size: 11px; display: flex; flex-direction: column; gap: 2px; opacity: .55; } .syn.on { opacity: 1; border-style: solid; border-color: #4f9d5a; background: #17241a; } .syn b { font-size: 12px; } .syn small { color: var(--muted); }
+  .wound { background: linear-gradient(90deg, #6b1712, #a3261c); color: #fff; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; border-radius: 5px; padding: 3px 7px; margin: 4px 0; cursor: pointer; } .wound u { cursor: pointer; }
+  .slot.wounded { border-color: #a3261c; } .stat.wounded .sbar i { background: #c0392b; } .stat.wounded .val { color: #ff8a7a; } .vssyn span { background: #17241a !important; border-color: #4f9d5a !important; } .vssyn span.empty { background: transparent !important; border-color: var(--line) !important; opacity: .6; }
   .portrait { width: 44px; height: 52px; border-radius: 6px; background: radial-gradient(ellipse at 50% 30%, #2a3340, #0b0e11); object-fit: cover; flex: none; border: 1px solid var(--line); } .portrait.full { width: 150px; height: 178px; border-radius: 10px; }
   .hgpick { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; max-width: 520px; } .hgpick .locked { opacity: .55; }
   .tabs { display: flex; gap: 4px; margin-left: 10px; } .tabs button { border-radius: 6px 6px 0 0; }
@@ -228,7 +231,7 @@
     <div class="hqgrid two">
       <section class="hqcol"><h3>Opérateurs</h3><div id="hqRoster" style="display:flex;flex-direction:column;gap:6px"></div></section>
       <section class="hqcol detail"><h3>Fiche</h3><div id="hqDetail"></div>
-        <h3 style="margin-top:8px">Escouade</h3><div class="squad" id="hqSquad"></div>
+        <h3 style="margin-top:8px">Escouade</h3><div class="squad" id="hqSquad"></div><div class="syns" id="hqSynergies"></div>
         <div class="prep">
           <label>Ordre <select id="selOrder"><option value="assault">Assaut — aller au contact</option><option value="hold">Tenir — se poster, tirer à vue</option><option value="careful">Prudent — de couvert en couvert</option></select></label>
           <label>Formation (voies) <select id="selFormation"><option value="">Appliquer…</option><option value="ligne">Ligne (nord, centre, sud, nord, sud)</option><option value="nord">Tout par le nord</option><option value="sud">Tout par le sud</option><option value="coin">Coin (centre renforcé)</option><option value="tenailles">Tenailles (deux par flanc)</option><option value="auto">Automatique</option></select></label>
@@ -269,6 +272,7 @@
   <div class="vscol team1 rev"><div class="vsname" id="vsName1"></div><div class="vsrank" id="vsRank1"></div><div class="vsrow"><span class="ins big" id="vsIns1"></span><div class="vsrating" id="vsRating1"></div><div class="vsrec" id="vsRec1"></div></div><div class="vstac" id="vsTac1"></div></div>
   <div class="vsloc"><span class="lbl">Lieu</span> <b id="vsLoc"></b> <span class="muted" id="vsObj"></span></div>
   <div class="vssquads"><div id="vsSquad0" class="vssq team0"></div><div id="vsSquad1" class="vssq team1"></div></div>
+  <div class="vssquads"><div id="vsSyn0" class="vssq vssyn team0"></div><div id="vsSyn1" class="vssq vssyn team1"></div></div>
   <div class="actions"><button id="vsBack">Retour</button><button id="vsGo" class="on">Bataille</button></div>
 </div></div>
 <div id="rewards" class="overlay hidden"><div class="dialog rewards">

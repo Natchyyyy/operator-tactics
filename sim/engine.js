@@ -2,7 +2,8 @@
 // Chaque opérateur perçoit, décide et agit individuellement. Le résultat découle des événements simulés.
 (function (root, deps) {
   const { RNG, DATA, GameMap, MAPS } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS, SYNERGIES, WOUND } = DATA;
+  const SYNERGY_BY_ID = Object.fromEntries(SYNERGIES.map(s => [s.id, s]));
 
   const DT = 0.1;                 // pas de simulation (s)
   const DECIDE_EVERY = 0.3;       // fréquence des décisions de l'IA (s)
@@ -25,7 +26,9 @@
     this.battle = battle; this.def = def; this.team = team; this.idx = idx;
     this.id = `${team}:${def.id}`; this.callsign = def.callsign;
     this.role = ROLES[def.role]; this.weapon = WEAPONS[def.weaponId || this.role.weapon]; this.armor = ARMORS[def.armor];
-    this.maxHp = 80 + def.endurance / 5 + (def.trait === 'colossus' || (Array.isArray(def.traits) && def.traits.includes('colossus')) ? 10 : 0); this.hp = this.maxHp;
+    this.maxHp = 80 + def.endurance / 5 + (def.trait === 'colossus' || (Array.isArray(def.traits) && def.traits.includes('colossus')) ? 10 : 0);
+    if (def.wounded) this.maxHp = Math.round(this.maxHp * WOUND.hpFactor);     // blessure grave non soignée
+    this.hp = this.maxHp;
     this.x = 0; this.z = 0; this.facing = 0; this.stance = 'stand';
     this.ammo = this.weapon.mag; this.mags = this.weapon.kit;
     this.reloading = 0;           // temps de rechargement restant (s)
@@ -624,6 +627,7 @@
       let rec = 0.18 * (0.5 + u.def.composure / 100) * (this.isBraced(u) ? 1.4 : 1);
       if (has(u, 'steady')) rec *= 1.5;                           // Sang-froid
       if (this.nearLeader(u)) rec *= 1.2;                          // Meneur à proximité
+      if (this.synergy(u, 'appui')) rec *= 1.2;                    // synergie Appui-feu
       u.suppression = Math.max(0, u.suppression - DT * rec); if (u.suppression > 0.3) u.stats.timeSuppressed += DT;
     }
     // rechargement
@@ -840,6 +844,22 @@
     return this.teams[u.team].order === 'hold' && still && u.post && Math.hypot(u.post.x - u.x, u.post.z - u.z) < 1.6;
   };
   // Un allié « Meneur » en état à moins de 12 m ?
+  // ---- Synergies d'escouade : vraies si une source (autre que u) est debout dans l'équipe et que u est une cible ----------
+  const matchSpec = (u, spec) => {
+    const okRole = spec.role === undefined ? null : [].concat(spec.role).includes(u.role.id);
+    const okTrait = spec.trait === undefined ? null : [].concat(spec.trait).some(t => has(u, t));
+    return okRole === true || okTrait === true;
+  };
+  Battle.prototype.synergy = function (u, id) {
+    const sy = SYNERGY_BY_ID[id]; if (!sy || !matchSpec(u, sy.target)) return false;
+    for (const a of this.teams[u.team].units) if (a !== u && a.alive && matchSpec(a, sy.source)) return true;
+    return false;
+  };
+  Battle.prototype.activeSynergies = function (teamIndex) {
+    const out = [];
+    for (const sy of SYNERGIES) { const tg = this.teams[teamIndex].units.filter(u => u.alive && this.synergy(u, sy.id)); if (tg.length) out.push({ id: sy.id, name: sy.name, targets: tg.map(u => u.callsign) }); }
+    return out;
+  };
   Battle.prototype.nearLeader = function (u) {
     for (const a of this.alliesOf(u)) if (a.alive && has(a, 'leader') && Math.hypot(a.x - u.x, a.z - u.z) < 12) return true;
     return false;
@@ -864,6 +884,7 @@
     if (this.hasTactic(tt, 'discipline') && !u.moving) p *= 1.12;                                   // Discipline de feu
     if (this.hasTactic(tt, 'blitz') && this.t < 30) p *= 0.9;                                        // Éclair : précision −10 % au début
     if (has(u, 'patience') && u.burst === 0 && u.aimFull) p *= 1.25;               // Patience : premier tir posé
+    if (this.synergy(u, 'guidage')) p *= 1.08;                                        // synergie Guidage radio
     if (e.moving) p *= has(u, 'opportunity') ? 0.9 : 0.8;                             // Tir d'opportunité
     if (e.stance === 'crouch') p *= 0.85;
     if (this.isBraced(e)) p *= 0.9;           // un défenseur installé expose moins de silhouette
@@ -918,6 +939,7 @@
     let dmg = w.damage * fall * mult * (1 - prot) * this.rng.range(0.85, 1.15);
     if (has(u, 'breach') && d < 10 && (w.cls === 'brèche' || w.cls === 'pm')) dmg *= 1.15;   // Enfonceur
     if (this.hasTactic(this.teams[e.team], 'drill') && this.teams[u.team].order === 'hold') dmg *= 0.9; // Exercice de base : −10 % tant que l'adversaire tient
+    if (this.synergy(e, 'commandement')) dmg *= 0.9;                                                   // synergie Commandement
     dmg = Math.round(dmg * 10) / 10;
     const before = e.hp;
     e.hp = Math.max(0, e.hp - dmg);

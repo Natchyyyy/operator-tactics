@@ -66,29 +66,57 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   check('l\'expérience de chacun découle de ses actions réelles (dégâts, neutralisations, survie)', xpOk);
   check('la carrière est mise à jour', p.career.battles === 1 && (p.career.wins + p.career.losses + p.career.draws) === 1 && p.missions[m.id].attempts === 1);
 }
-// convalescence et soins
+// blessures graves, soins, repos
 {
   const q = Game.newProfile(); const m = DATA.MISSIONS[0];
   const b = new Battle({ seed: 7, teams: Game.buildTeams(q, m) }); b.run();
   const downs = b.result.teams[0].units.filter(u => !u.alive).map(u => u.id.split(':')[1]);
   const r = Game.applyRewards(q, m, b.result);
-  check('les opérateurs neutralisés passent en convalescence et quittent l\'escouade', downs.every(id => q.operators[id].recovery === 1 && !q.squad.includes(id)) && r.recovering.length === downs.length, { downs, squad: q.squad });
-  if (downs.length) {
-    check('un convalescent ne peut pas être réengagé', !Game.toggleSquad(q, downs[0]));
-    const c0 = q.credits; q.credits = 500;
-    check('les soins le rendent disponible contre des crédits', Game.treat(q, downs[0]) && q.credits === 500 - Game.TREATMENT_PRICE && Game.isAvailable(q, downs[0]) && Game.toggleSquad(q, downs[0]));
-    q.credits = c0;
-  }
+  check('les opérateurs neutralisés reviennent gravement blessés (et restent déployables)', downs.length > 0 && downs.every(id => q.operators[id].wounded && Game.isAvailable(q, id) && q.squad.includes(id)) && r.injured.length === downs.length, { downs, squad: q.squad });
+  const id0 = downs[0], healthy = Game.effectiveDef(q, id0); q.operators[id0].wounded = false; const full = Game.effectiveDef(q, id0); q.operators[id0].wounded = true;
+  check('blessure grave : toutes les compétences divisées par deux', Game.STATS.every(k => healthy[k] === Math.round(full[k] * DATA.WOUND.statFactor)) && healthy.wounded === true, { healthy, full });
+  const bw = new Battle({ seed: 1, teams: Game.buildTeams(q, m) }); const uw = bw.teams[0].units.find(u => u.id === '0:' + id0), uh = new Battle({ seed: 1, teams: [{ operators: [Object.assign({}, healthy, { wounded: false })] }, { operators: ['k_vipere'] }] }).teams[0].units[0];   // même fiche (endurance déjà ÷2), sans la réduction de PV
+  check('blessure grave : points de vie réduits d\'un quart en bataille', Math.abs(uw.maxHp - Math.round(uh.maxHp * DATA.WOUND.hpFactor)) < 1e-9, { w: uw.maxHp, h: uh.maxHp });
+  check('blessure grave : la note de l\'opérateur baisse', Game.operatorRating(q, id0) < (() => { q.operators[id0].wounded = false; const v = Game.operatorRating(q, id0); q.operators[id0].wounded = true; return v; })());
+  q.credits = 500; q.operators.op_harfang.unlocked = true;  // assez d'opérateurs en bonne santé pour que les soins soient payants
+  const nHealthy = Object.keys(q.operators).filter(i => Game.isAvailable(q, i) && !Game.isWounded(q, i)).length;
+  check('les soins guérissent contre des crédits (gratuits seulement s\'il reste moins de 3 opérateurs valides)', Game.treat(q, id0) && q.credits === 500 - (nHealthy < 3 ? 0 : Game.TREATMENT_PRICE) && !q.operators[id0].wounded, { nHealthy, credits: q.credits });
+  check('on ne soigne pas un opérateur en bonne santé', !Game.treat(q, 'op_vautour') || q.operators.op_vautour.wounded === false && false);
   check('une escouade de 3 opérateurs peut partir, pas de 2', (() => { const z = Game.newProfile(); z.squad = z.squad.slice(0, 3); const ok3 = Game.squadReady(z); z.squad = z.squad.slice(0, 2); return ok3 && !Game.squadReady(z); })());
   const z = Game.newProfile(); z.squad = z.squad.slice(0, 3); const b3 = new Battle({ seed: 3, teams: Game.buildTeams(z, m) }); b3.run();
   check('une bataille à 3 contre 5 se joue jusqu\'au bout', b3.over && b3.teams[0].units.length === 3 && !!b3.result);
-  // après une nouvelle mission, la convalescence est terminée
-  const q2 = Game.newProfile(); q2.operators.op_lynx.recovery = 1; q2.squad = q2.squad.filter(id => id !== 'op_lynx');
-  const b2 = new Battle({ seed: 8, teams: Game.buildTeams(q2, m) }); b2.run(); Game.applyRewards(q2, m, b2.result);
-  check('la convalescence dure une mission', q2.operators.op_lynx.recovery === 0 && Game.isAvailable(q2, 'op_lynx'));
-  // filet de sécurité : escouade entièrement évacuée et sans crédits → soins gratuits jusqu'à 3 disponibles
-  const q3 = Game.newProfile(); for (const id of q3.squad) q3.operators[id].recovery = 1; q3.squad = []; q3.credits = 0;
-  check('sans opérateur disponible ni crédits, les soins sont gratuits jusqu\'à 3 disponibles', Game.treatmentPrice(q3) === 0 && Game.treat(q3, 'op_vautour') && Game.treat(q3, 'op_lynx') && Game.treat(q3, 'op_granit') && Game.treatmentPrice(q3) === Game.TREATMENT_PRICE && !Game.treat(q3, 'op_bastion'));
+  // repos : un blessé laissé en dehors de l'escouade guérit après WOUND.restMissions missions
+  const q2 = Game.newProfile(); q2.operators.op_lynx.wounded = true; q2.squad = q2.squad.filter(i => i !== 'op_lynx');
+  let healedAt = 0;
+  for (let k = 1; k <= 3 && q2.operators.op_lynx.wounded; k++) { for (const i of q2.squad) q2.operators[i].wounded = false; const bb = new Battle({ seed: 8 + k, teams: Game.buildTeams(q2, m) }); bb.run(); const rr = Game.applyRewards(q2, m, bb.result); if (rr.healed.includes('Lynx')) healedAt = k; q2.squad = q2.squad.filter(i => i !== 'op_lynx'); }
+  check(`le repos guérit en ${DATA.WOUND.restMissions} missions`, healedAt === DATA.WOUND.restMissions && !q2.operators.op_lynx.wounded, healedAt);
+  // un blessé engagé ne se repose pas
+  const q4 = Game.newProfile(); q4.operators.op_lynx.wounded = true; const b4 = new Battle({ seed: 5, teams: Game.buildTeams(q4, m) }); b4.run(); Game.applyRewards(q4, m, b4.result);
+  check('un blessé engagé en mission ne compte pas de repos', q4.operators.op_lynx.wounded && (q4.operators.op_lynx.woundRest || 0) === 0);
+  // filet de sécurité : toute l'escouade blessée et sans crédits → soins gratuits jusqu'à 3 valides
+  const q3 = Game.newProfile(); for (const i of q3.squad) q3.operators[i].wounded = true; q3.credits = 0;
+  check('sans opérateur valide ni crédits, les soins sont gratuits jusqu\'à 3 valides', Game.treatmentPrice(q3) === 0 && Game.treat(q3, 'op_vautour') && Game.treat(q3, 'op_lynx') && Game.treat(q3, 'op_granit') && Game.treatmentPrice(q3) === Game.TREATMENT_PRICE && !Game.treat(q3, 'op_bastion'));
+  // ancienne sauvegarde : convalescence → blessure grave
+  const old = Game.newProfile(); old.operators.op_lynx.recovery = 1; const store = { v: JSON.stringify(old), getItem() { return this.v; } };
+  const loaded = Game.load(store); check('ancienne sauvegarde : la convalescence devient une blessure grave', loaded.operators.op_lynx.wounded === true && loaded.operators.op_lynx.recovery === undefined);
+}
+// synergies d'escouade : actives seulement si la source est debout, effets mesurés
+{
+  const mk = (ops) => new Battle({ seed: 1, teams: [{ operators: ops }, { operators: ['k_vipere', 'k_fauve'] }] });
+  const b = mk(['op_cobra', 'op_sirocco', 'op_granit', 'op_bastion', 'op_belier']);
+  const [cobra, sirocco, granit, bastion, belier] = b.teams[0].units;
+  check('synergies : Commandement (Meneur → Radio, Appui), Guidage (Radio → tireur, appui, brèche), Appui-feu (Appui → Assaut, Pointe)',
+    b.synergy(sirocco, 'commandement') && b.synergy(bastion, 'commandement') && !b.synergy(granit, 'commandement') && !b.synergy(cobra, 'commandement')
+    && b.synergy(granit, 'guidage') && b.synergy(bastion, 'guidage') && b.synergy(belier, 'guidage') && !b.synergy(cobra, 'guidage') && !b.synergy(sirocco, 'guidage')
+    && b.synergy(cobra, 'appui') && b.synergy(sirocco, 'appui') && !b.synergy(bastion, 'appui'));
+  const e = b.teams[1].units[0]; granit.x = 2; granit.z = 2; e.x = 22; e.z = 2; granit.moving = false; e.moving = false; granit.stance = 'stand'; e.stance = 'stand'; granit.suppression = 0;
+  const p1 = b.hitChance(granit, e, 20).p; sirocco.alive = false; const p0 = b.hitChance(granit, e, 20).p; sirocco.alive = true;
+  check('Guidage radio : +8 % de précision, perdu quand le radio tombe', Math.abs(p1 / p0 - 1.08) < 1e-9, { p0, p1 });
+  // Commandement : mêmes dégâts à tirage égal, −10 % avec la synergie
+  const dmgOn = (alive) => { const bb = mk(['op_cobra', 'op_sirocco']); bb.teams[0].units[0].alive = alive; const tg = bb.teams[0].units[1], sh = bb.teams[1].units[0]; tg.armor = { torso: 0, head: 0, name: 'aucune' }; const h0 = tg.hp; bb.applyHit(sh, tg, 5); return h0 - tg.hp; };
+  const d1 = dmgOn(true), d0 = dmgOn(false);
+  check('Commandement : dégâts subis −10 % tant que le Meneur est debout', Math.abs(d1 / d0 - 0.9) < 0.011, { d0, d1 });
+  check('liste des synergies actives de l\'équipe', b.activeSynergies(0).length === 3 && b.activeSynergies(1).length === 0);
 }
 // défis : vérifiés sur le résultat réel, récompense unique
 {

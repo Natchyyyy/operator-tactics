@@ -2,7 +2,7 @@
 // Logique pure (testable en ligne de commande) ; l'interface (web/app.js) ne fait que l'afficher.
 (function (root, deps) {
   const { DATA } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL , SYNERGIES, WOUND } = DATA;
   const STATS = ['marksmanship', 'reflexes', 'mobility', 'perception', 'composure', 'endurance'];
   const SAVE_KEY = 'operator-tactics-save-v1';
   const STARTING = ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
@@ -33,6 +33,7 @@
     const def = Object.assign({}, base, { level, weaponId: st.weaponId, armor: st.armorId, lane: st.lane, traits: st.traits || [], headgear: st.headgear });
     const perks = (profile.perks && profile.perks[id]) || {};
     for (const k of STATS) def[k] = Math.min(100, base[k] + level * LEVEL_STAT_BONUS + (perks[k] || 0));
+    if (st.wounded) { def.wounded = true; for (const k of STATS) def[k] = Math.round(def[k] * WOUND.statFactor); }   // blessure grave : compétences ÷2
     return def;
   }
   // Fiche d'un ennemi de mission : niveau fixé par la mission.
@@ -147,6 +148,17 @@
     if (mission.objective === 'capture') opts.objective = { type: 'capture' };
     return opts;
   }
+  // Synergies d'une escouade (fiches d'opérateurs) : mêmes règles que le moteur, avec tout le monde debout
+  function squadSynergies(defs) {
+    const traitsOf = (d) => [d.trait].concat(d.traits || []);
+    const match = (d, spec) => (spec.role !== undefined && [].concat(spec.role).includes(d.role)) || (spec.trait !== undefined && [].concat(spec.trait).some(t => traitsOf(d).includes(t)));
+    const out = [];
+    for (const sy of SYNERGIES) {
+      const targets = defs.filter(d => match(d, sy.target) && defs.some(s => s !== d && match(s, sy.source)));
+      if (targets.length) out.push({ id: sy.id, name: sy.name, effect: sy.effect, desc: sy.desc, sources: defs.filter(s => match(s, sy.source)).map(s => s.callsign), targets: targets.map(d => d.callsign) });
+    }
+    return out;
+  }
   // Libellé court de l'objectif d'une mission (QG, écran VS)
   function objectiveLabel(m) {
     if (m.objective === 'hold') return `tenir ${m.duration} s`;
@@ -169,7 +181,9 @@
     profile.squad.push(id); return true;
   }
   // Une escouade part avec 3 à 5 opérateurs disponibles (ni verrouillés, ni en convalescence).
-  const isAvailable = (profile, id) => { const st = profile.operators[id]; return !!st && st.unlocked && !(st.recovery > 0) && (st.tours === undefined || st.tours > 0); };
+  // Disponible = débloqué et sous contrat. Un blessé grave reste déployable (à demi-capacité) : c'est au joueur de choisir.
+  const isAvailable = (profile, id) => { const st = profile.operators[id]; return !!st && st.unlocked && (st.tours === undefined || st.tours > 0); };
+  const isWounded = (profile, id) => !!(profile.operators[id] && profile.operators[id].wounded);
   const contractExpired = (profile, id) => { const st = profile.operators[id]; return !!st && st.unlocked && st.tours !== undefined && st.tours <= 0; };
   const renewPrice = (profile, id) => CONTRACT.renewPrice[OPERATORS.find(o => o.id === id).rarity];
   function renewContract(profile, id) {
@@ -181,11 +195,12 @@
   // Soins : un opérateur en convalescence redevient disponible contre des crédits.
   const TREATMENT_PRICE = 80;
   // Filet de sécurité : tant que moins de 3 opérateurs sont disponibles, les soins sont gratuits (on ne reste jamais bloqué).
-  const treatmentPrice = (profile) => Object.keys(profile.operators).filter(id => isAvailable(profile, id)).length < 3 ? 0 : TREATMENT_PRICE;
+  // soins gratuits tant que moins de 3 opérateurs disponibles sont en bonne santé (on ne bloque jamais le joueur)
+  const treatmentPrice = (profile) => Object.keys(profile.operators).filter(id => isAvailable(profile, id) && !isWounded(profile, id)).length < 3 ? 0 : TREATMENT_PRICE;
   function treat(profile, id) {
-    const st = profile.operators[id]; if (!st || !(st.recovery > 0)) return false;
+    const st = profile.operators[id]; if (!st || !st.wounded) return false;
     const price = treatmentPrice(profile); if (profile.credits < price) return false;
-    profile.credits -= price; st.recovery = 0; return true;
+    profile.credits -= price; st.wounded = false; st.woundRest = 0; return true;
   }
   function recruit(profile, id) {
     const base = OPERATORS.find(o => o.id === id); const st = profile.operators[id];
@@ -264,10 +279,13 @@
       st.history = st.history || []; st.history.push({ m: mission.name, won: r.won, draw: r.draw, kills: u.stats.kills, dmg: Math.round(u.stats.damageDealt), hits: u.stats.hits, shots: u.stats.shots, alive: u.alive, xp: r.xp[id] }); if (st.history.length > 20) st.history.shift();
     }
     profile.tacticsUsed = (profile.tacticsUsed || 0) + (result.teams[0].tactics || []).reduce((s, t) => s + (t.used || 0), 0);
-    // convalescence : ceux qui étaient déjà indisponibles récupèrent d'une mission ; les neutralisés de celle-ci sont indisponibles pour la prochaine
-    for (const id in profile.operators) if (profile.operators[id].recovery > 0) profile.operators[id].recovery--;
-    r.recovering = [];
-    for (const u of result.teams[0].units) if (!u.alive) { const id = u.id.split(':')[1]; profile.operators[id].recovery = 1; r.recovering.push(u.callsign); }
+    // blessures graves : les blessés laissés au repos guérissent après WOUND.restMissions missions ; les neutralisés de celle-ci
+    // reviennent gravement blessés (compétences ÷2) jusqu'aux soins ou au repos
+    const engaged = new Set(result.teams[0].units.map(u => u.id.split(':')[1]));
+    r.healed = []; r.injured = [];
+    for (const id in profile.operators) { const st = profile.operators[id]; if (!st.wounded || engaged.has(id)) continue; st.woundRest = (st.woundRest || 0) + 1; if (st.woundRest >= WOUND.restMissions) { st.wounded = false; st.woundRest = 0; r.healed.push(OPERATORS.find(o => o.id === id).callsign); } }
+    for (const u of result.teams[0].units) if (!u.alive) { const id = u.id.split(':')[1]; profile.operators[id].wounded = true; profile.operators[id].woundRest = 0; r.injured.push(u.callsign); }
+    r.recovering = r.injured;   // compatibilité de l'affichage
     profile.squad = profile.squad.filter(id => isAvailable(profile, id));
     profile.career.battles++; if (r.won) profile.career.wins++; else if (r.draw) profile.career.draws++; else profile.career.losses++;
     profile.career.kills += result.teams[0].units.reduce((s, u) => s + u.stats.kills, 0);
@@ -320,6 +338,8 @@
       // tolérance : opérateurs ajoutés depuis la sauvegarde
       const fresh = newProfile();
       for (const id in fresh.operators) { if (!p.operators[id]) p.operators[id] = fresh.operators[id]; else for (const k of ['tours', 'traits', 'pendingPromotions', 'history', 'dupes', 'headgear']) if (p.operators[id][k] === undefined) p.operators[id][k] = fresh.operators[id][k]; }
+      // ancienne convalescence (indisponible une mission) → blessure grave
+      for (const id in p.operators) { const st = p.operators[id]; if (st.recovery > 0) { st.wounded = true; st.woundRest = 0; } delete st.recovery; }
       if (p.achievements === undefined) p.achievements = {}; if (p.tacticsUsed === undefined) p.tacticsUsed = 0;
       for (const k of ['teamName', 'insignia', 'uniform', 'unlocked', 'xp', 'tactics', 'perks', 'packsOpened', 'league', 'leagueSeasons', 'headgear']) if (p[k] === undefined) p[k] = fresh[k];
       p.inventory = p.inventory || fresh.inventory; p.inventory.weapons = Object.assign({}, fresh.inventory.weapons, p.inventory.weapons); p.inventory.armors = Object.assign({}, fresh.inventory.armors, p.inventory.armors);
@@ -329,6 +349,6 @@
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { newProfile, levelFor, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { newProfile, levelFor, isWounded, squadSynergies, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));
