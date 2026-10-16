@@ -258,5 +258,57 @@ function duel(opts) {
   check('Sang-froid : la suppression retombe 50 % plus vite', Math.abs((0.6 - sS) / (0.6 - u.suppression) - 1.5) < 0.05, [sS, u.suppression]);
 }
 
+{
+  // tactiques actives : effets vérifiés dans la simulation
+  const mkT = (tactics, seed) => { const t = Battle.defaultTeams(); t[0].tactics = tactics; t[1].tactics = []; return new Battle({ seed: seed || 3, teams: t }); };
+  // fumigène : coupe une ligne de vue existante dans les deux sens, disparaît après 15 s
+  let b = mkT(['fumigene']); while (b.t < 8) b.step();
+  const u = b.teams[0].units.find(x => x.alive), e = b.teams[1].units.find(x => x.alive);
+  u.x = 10; u.z = 2.5; e.x = 26; e.z = 2.5; u.knowledge = { [e.id]: { x: e.x, z: e.z, t: b.t, seen: true } };
+  for (const o of b.teams[0].units) if (o !== u) { o.x = 10; o.z = 3.5; o.knowledge = {}; }
+  const before = b.canSee(u, e) && b.canSee(e, u);
+  const r = b.useTactic(0, 'fumigene');
+  const after = b.canSee(u, e) || b.canSee(e, u);
+  check('fumigène : la ligne de vue libre est coupée dans les deux sens, et la carte compte un obstacle temporaire', r.ok && before && !after && b.map.dynamic.length === 1, { r, before, after, smoke: b.map.dynamic[0] });
+  check('fumigène : les opérateurs peuvent le traverser (pas un obstacle de marche)', !b.map.insideObstacle(b.map.dynamic[0].x + 4, b.map.dynamic[0].z + 4));
+  const t0 = b.t; while (b.t < t0 + 15.2 && !b.over) b.step();
+  check('fumigène : dissipé après 15 s', b.map.dynamic.length === 0);
+  check('fumigène : un emploi consommé sur deux, recharge de 25 s en cours juste après', b.teams[0].tactics.fumigene.uses === 1 && b.teams[0].tactics.fumigene.cooldownUntil > t0);
+  // reconnaissance : toute l'escouade connaît toutes les positions adverses pendant 8 s
+  b = mkT(['reco']); while (b.t < 3) b.step();
+  for (const o of b.teams[0].units) o.knowledge = {};
+  check('drone : accepté même sans contact', b.useTactic(0, 'reco').ok);
+  b.step(); b.step();
+  const all = b.teams[0].units.filter(x => x.alive).every(o => b.teams[1].units.filter(x => x.alive).every(en => o.knowledge[en.id] && (o.knowledge[en.id].source === 'drone' || o.knowledge[en.id].source === 'vue') && Math.abs(o.knowledge[en.id].x - en.x) < 0.5 && Math.abs(o.knowledge[en.id].z - en.z) < 0.5));
+  check('drone : chaque opérateur connaît la position exacte de chaque adversaire', all);
+  check('drone : un seul emploi', !b.canUseTactic(0, 'reco').ok);
+  // soins : +35 PV en 5 s sur le plus blessé, sans dépasser le maximum
+  b = mkT(['soins']); while (b.t < 2) b.step();
+  const w = b.teams[0].units[1]; w.hp = 20; w.status = 'critical'; const others = b.teams[0].units.filter(x => x !== w); others.forEach(o => { o.hp = o.maxHp; });
+  check('soins : accepté quand quelqu\'un est blessé', b.useTactic(0, 'soins').ok && w.healing);
+  const hp0 = w.hp; for (let i = 0; i < 25; i++) b.updateTactics(), b.t += 0.1; // 2,5 s
+  check('soins : ~17 PV récupérés après 2,5 s, statut recalculé', w.hp - hp0 > 15 && w.hp - hp0 < 19 && w.status !== 'critical', { gain: w.hp - hp0, status: w.status });
+  for (let i = 0; i < 40; i++) b.updateTactics(), b.t += 0.1;
+  check('soins : 35 PV au total, puis arrêt', Math.abs(w.hp - hp0 - 35) < 0.5 && !w.healing, w.hp - hp0);
+  // mortier : 3 obus après 4 s, dégâts et suppression dans la zone, comptés dans le résultat
+  b = mkT(['barrage']); while (b.t < 3) b.step();
+  const tgt = b.teams[1].units[0]; tgt.x = 40; tgt.z = 5; b.teams[0].units[0].knowledge = { [tgt.id]: { x: 40, z: 5, t: b.t, seen: true } };
+  b.rng.gauss = () => 0; // obus au centre pour le test
+  check('mortier : accepté avec une position connue', b.useTactic(0, 'barrage').ok && b.pendingShells.length === 3);
+  const hpT = tgt.hp; const alive0 = tgt.alive; b.rng.gauss = () => 0;
+  for (let i = 0; i < 60; i++) { b.t += 0.1; b.updateTactics(); }
+  check('mortier : la cible au point d\'impact a subi des dégâts (ou est neutralisée) et la suppression', (tgt.hp < hpT || !tgt.alive) && (tgt.suppression > 0 || !tgt.alive) && b.pendingShells.length === 0, { hpT, hp: tgt.hp, alive0, alive: tgt.alive, sup: tgt.suppression });
+  // passives : mesurées
+  b = mkT(['drill']); const v1 = b.teams[0].units[0].speed(); const b0 = mkT([]); const v0 = b0.teams[0].units[0].speed();
+  check('exercice de base : +12 % de vitesse au début', Math.abs(v1 / v0 - 1.12) < 0.01);
+  b = mkT(['discipline']); const bd = mkT([]);
+  check('discipline de feu : seuil de tir ×1,5', Math.abs(b.fireThreshold(b.teams[0].units[0]) / bd.fireThreshold(bd.teams[0].units[0]) - 1.5) < 0.01);
+  // tactiques inconnues / refus
+  check('une tactique non équipée est refusée', !mkT([]).useTactic(0, 'fumigene').ok);
+  // spéciaux : les compteurs existent et le résultat les agrège
+  const bs = new Battle({ seed: 2 }); bs.run(); const sp = bs.result.teams[0].specials;
+  check('résultat : spéciaux agrégés (tête, séries, revanches, vétérans) et état d\'équipe en %', sp && ['headshots', 'streaks', 'revenge', 'veteran'].every(k => typeof sp[k] === 'number') && bs.result.teams.every(t => t.hpPct >= 0 && t.hpPct <= 100) && sp.headshots === bs.teams[0].units.reduce((a, x) => a + x.stats.headshots, 0));
+}
+
 console.log(`\n${pass}/${pass + fail} vérifications réussies${fail ? '  — ÉCHECS : ' + fail : ''}`);
 process.exit(fail ? 1 : 0);

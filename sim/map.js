@@ -124,6 +124,7 @@
       for (const o of this.obstacles) if (pointInBox(x, z, o, RADIUS)) { this.blocked[r * this.cols + c] = 1; break; }
     }
     this.coverPoints = this.computeCoverPoints();
+    this.dynamic = [];
   }
 
   GameMap.prototype.cellOf = function (x, z) {
@@ -142,8 +143,10 @@
   GameMap.prototype.inBounds = function (x, z) { return x > RADIUS && z > RADIUS && x < this.width - RADIUS && z < this.depth - RADIUS; };
 
   // Ligne de vue entre deux points 3D : null si libre, sinon l'obstacle qui bloque.
+  // this.dynamic : obstacles temporaires (fumigènes) — bloquent la vue, pas la marche (kind 'smoke').
   GameMap.prototype.blocker = function (ax, ay, az, bx, by, bz) {
     for (const o of this.obstacles) if (segmentHitsBox(ax, ay, az, bx, by, bz, o)) return o;
+    if (this.dynamic) for (const o of this.dynamic) if (segmentHitsBox(ax, ay, az, bx, by, bz, o)) return o;
     return null;
   };
   GameMap.prototype.hasLOS = function (ax, ay, az, bx, by, bz) { return this.blocker(ax, ay, az, bx, by, bz) === null; };

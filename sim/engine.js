@@ -2,7 +2,7 @@
 // Chaque opérateur perçoit, décide et agit individuellement. Le résultat découle des événements simulés.
 (function (root, deps) {
   const { RNG, DATA, GameMap, MAPS } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS } = DATA;
 
   const DT = 0.1;                 // pas de simulation (s)
   const DECIDE_EVERY = 0.3;       // fréquence des décisions de l'IA (s)
@@ -42,7 +42,8 @@
     this.aimTarget = null; this.aimHistory = {};   // visée en cours / dernière visée par ennemi (reprise plus rapide)
     this.commitUntil = 0; this.commitAt = 0;        // engagement sur un déplacement (évite d'hésiter à chaque décision)
     this.targetLostAt = 0;
-    this.stats = { shots: 0, hits: 0, kills: 0, damageDealt: 0, damageTaken: 0, reloads: 0, headshots: 0, timeSuppressed: 0, distance: 0 };
+    this.stats = { shots: 0, hits: 0, kills: 0, damageDealt: 0, damageTaken: 0, reloads: 0, headshots: 0, timeSuppressed: 0, distance: 0, streaks: 0, revenge: 0, veteran: 0, healed: 0 };
+    this.lastKillAt = -99;
     this.decideOffset = (idx * 0.07) % DECIDE_EVERY;
   }
   Unit.prototype.pos = function () { return { x: this.x, z: this.z }; };
@@ -52,6 +53,8 @@
   Unit.prototype.speed = function () {
     const armorMob = has(this, 'colossus') ? (1 + this.armor.mobility) / 2 : this.armor.mobility; // Colosse : pénalité des plaques divisée par deux
     let v = (1.5 + (this.def.mobility / 100) * 1.4) * armorMob;
+    const team = this.battle.teams[this.team];
+    if (team && team.tactics && team.tactics.drill && this.battle.t < 20) v *= 1.12;                 // Exercice de base : 20 premières secondes
     if (has(this, 'runner')) v *= 1.15;                                                               // Sprinteur
     if (this.stance === 'crouch') v *= 0.55;
     if (this.state === 'closing' || this.state === 'retreat') v *= 1.2;        // sprint
@@ -85,7 +88,9 @@
         const def = Object.assign({}, base, (td.overrides && td.overrides[i]) || {});
         return new Unit(this, def, ti, i);
       });
-      this.teams.push({ index: ti, name: td.name || (ti === 0 ? 'Alpha' : 'Bravo'), order, units, spawn: this.map.spawns[ti], lastSeen: {} });
+      const tactics = {};
+      for (const id of (td.tactics || [])) if (TACTICS[id]) tactics[id] = { uses: TACTICS[id].active ? TACTICS[id].uses : 0, cooldownUntil: 0, used: 0 };
+      this.teams.push({ index: ti, name: td.name || (ti === 0 ? 'Alpha' : 'Bravo'), order, units, spawn: this.map.spawns[ti], lastSeen: {}, tactics, tacticIds: (td.tactics || []).filter(id => TACTICS[id]), auto: !!td.autoTactics });
     });
     this.units = this.teams.flatMap(t => t.units);
     this.placeUnits();
@@ -130,6 +135,7 @@
   Battle.prototype.step = function () {
     if (this.over) return;
     this.t = Math.round((this.t + DT) * 1000) / 1000; this.tick++;
+    this.updateTactics();
     for (const u of this.units) if (u.alive) this.perceive(u);
     if (Math.abs((this.t % COMMS_EVERY)) < DT / 2 || (this.t % COMMS_EVERY) > COMMS_EVERY - DT / 2) this.comms();
     // ordre de traitement mélangé à chaque pas : aucune équipe n'a l'avantage d'agir toujours la première
@@ -199,6 +205,8 @@
         }
       }
     }
+    // drone de reconnaissance actif pour mon équipe : position exacte de tous les adversaires
+    if (this.teams[u.team].recoUntil > this.t) for (const e of this.enemiesOf(u)) if (e.alive && !newVisible.has(e.id)) u.knowledge[e.id] = { x: e.x, z: e.z, t: this.t, seen: false, source: 'drone' };
     u.visible = newVisible;
     // oubli
     const ttl = KNOWLEDGE_TTL * (has(u, 'radio') ? 1.5 : 1);                                       // Radio : positions gardées plus longtemps
@@ -600,6 +608,115 @@
     }
   };
 
+  // ---- Tactiques ---------------------------------------------------------------------
+  // Passives : appliquées à la création. Actives : useTactic(team, id) par le joueur (ou l'IA adverse si team.auto).
+  Battle.prototype.hasTactic = function (team, id) { return !!(team.tactics && team.tactics[id]); };
+  Battle.prototype.canUseTactic = function (teamIndex, id) {
+    const team = this.teams[teamIndex], st = team.tactics[id], def = TACTICS[id];
+    if (!st || !def || !def.active) return { ok: false, reason: 'tactique indisponible' };
+    if (st.uses <= 0) return { ok: false, reason: 'plus d\'utilisation' };
+    if (this.t < st.cooldownUntil) return { ok: false, reason: `recharge (${(st.cooldownUntil - this.t).toFixed(0)} s)` };
+    if (this.over) return { ok: false, reason: 'bataille terminée' };
+    const alive = team.units.filter(u => u.alive); if (!alive.length) return { ok: false, reason: 'aucun opérateur' };
+    if (id === 'fumigene' || id === 'barrage') { if (!this.teamKnownEnemies(team).length) return { ok: false, reason: 'aucune position adverse connue' }; }
+    if (id === 'soins' && !alive.some(u => u.hp < u.maxHp - 5)) return { ok: false, reason: 'personne à soigner' };
+    return { ok: true };
+  };
+  Battle.prototype.teamKnownEnemies = function (team) {
+    const out = {};
+    for (const u of team.units) if (u.alive) for (const id in u.knowledge) { const k = u.knowledge[id]; if (!out[id] || k.t > out[id].t) out[id] = k; }
+    return Object.values(out);
+  };
+  Battle.prototype.teamCentroid = function (team) {
+    const a = team.units.filter(u => u.alive); return { x: a.reduce((s, u) => s + u.x, 0) / a.length, z: a.reduce((s, u) => s + u.z, 0) / a.length };
+  };
+  Battle.prototype.useTactic = function (teamIndex, id) {
+    const can = this.canUseTactic(teamIndex, id); if (!can.ok) return can;
+    const team = this.teams[teamIndex], st = team.tactics[id], def = TACTICS[id];
+    st.uses--; st.used++; st.cooldownUntil = this.t + (def.cooldown || 0);
+    const c = this.teamCentroid(team);
+    if (id === 'fumigene') {
+      // le fumigène tombe entre le centre de l'escouade et la position adverse connue la plus proche, à 6 m de l'escouade
+      const ks = this.teamKnownEnemies(team); let k = ks[0], kd = Infinity; for (const q of ks) { const d = Math.hypot(q.x - c.x, q.z - c.z); if (d < kd) { kd = d; k = q; } }
+      const dx = k.x - c.x, dz = k.z - c.z, L = Math.hypot(dx, dz) || 1, dist = Math.min(6, L * 0.5);
+      const sx = c.x + dx / L * dist, sz = c.z + dz / L * dist, R = 4;
+      const smoke = { x: sx - R, z: sz - R, w: 2 * R, d: 2 * R, h: 2.5, kind: 'smoke', name: 'fumée', until: this.t + 15, team: teamIndex };
+      this.map.dynamic.push(smoke);
+      this.logEvent('tactic', `${team.name} déploie un fumigène.`, { team: teamIndex, tactic: id });
+      this.emit({ type: 'smoke', x: sx, z: sz, r: R, until: smoke.until, team: teamIndex });
+    } else if (id === 'reco') {
+      team.recoUntil = this.t + 8;
+      this.logEvent('tactic', `${team.name} lance un drone de reconnaissance : positions adverses révélées pendant 8 s.`, { team: teamIndex, tactic: id });
+      this.emit({ type: 'reco', team: teamIndex, until: team.recoUntil });
+    } else if (id === 'soins') {
+      let target = null; for (const u of team.units) if (u.alive && (!target || u.hp / u.maxHp < target.hp / target.maxHp)) target = u;
+      target.healing = { remaining: 35, rate: 7, by: id }; // 35 PV en 5 s
+      this.logEvent('tactic', `${team.name} : trousse de soins pour ${target.callsign}.`, { team: teamIndex, tactic: id, unit: target.id });
+      this.emit({ type: 'heal', unit: target.id });
+    } else if (id === 'barrage') {
+      const ks = this.teamKnownEnemies(team); let k = ks[0], kd = Infinity; for (const q of ks) { const d = Math.hypot(q.x - c.x, q.z - c.z); if (d < kd) { kd = d; k = q; } }
+      this.pendingShells = this.pendingShells || [];
+      for (let i = 0; i < 3; i++) this.pendingShells.push({ at: this.t + 4 + i * 0.7, x: k.x + this.rng.gauss() * 3, z: k.z + this.rng.gauss() * 3, team: teamIndex });
+      this.logEvent('tactic', `${team.name} demande un appui mortier sur une position adverse : impact dans 4 s.`, { team: teamIndex, tactic: id });
+      this.emit({ type: 'barrage_called', x: k.x, z: k.z, team: teamIndex });
+    }
+    return { ok: true };
+  };
+  Battle.prototype.updateTactics = function () {
+    // fumées : expiration
+    if (this.map.dynamic.length) for (let i = this.map.dynamic.length - 1; i >= 0; i--) if (this.t >= this.map.dynamic[i].until) this.map.dynamic.splice(i, 1);
+    // obus : impact
+    if (this.pendingShells && this.pendingShells.length) for (let i = this.pendingShells.length - 1; i >= 0; i--) {
+      const sh = this.pendingShells[i]; if (this.t < sh.at) continue;
+      this.pendingShells.splice(i, 1);
+      this.emit({ type: 'shell', x: sh.x, z: sh.z });
+      for (const u of this.units) {
+        if (!u.alive) continue;
+        const d = Math.hypot(u.x - sh.x, u.z - sh.z);
+        if (d < 8) u.suppression = clamp(u.suppression + 0.5 * (1 - d / 8), 0, 1);
+        if (d < 3) {
+          const dmg = Math.round(45 * (1 - d / 3) * (1 - u.armor.torso * 0.5) * 10) / 10;
+          if (dmg > 0) this.applyDamage(null, u, dmg, 'obus', sh.team);
+        }
+      }
+      this.logEvent('shell', `Obus de mortier en (${sh.x.toFixed(0)}, ${sh.z.toFixed(0)}).`, { team: sh.team, silent: true });
+    }
+    // soins : régénération progressive
+    for (const u of this.units) if (u.alive && u.healing) {
+      const h = Math.min(u.healing.remaining, u.healing.rate * DT, u.maxHp - u.hp);
+      u.hp += h; u.healing.remaining -= h; u.stats.healed += h;
+      u.status = u.hp <= u.maxHp * 0.2 ? 'critical' : (u.hp <= u.maxHp * 0.5 ? 'wounded' : 'ok');
+      if (u.healing.remaining <= 0.01 || u.hp >= u.maxHp) { u.healing = null; }
+    }
+    // IA adverse : emploie ses tactiques actives à des moments raisonnables
+    for (const team of this.teams) if (team.auto) this.autoTactics(team);
+  };
+  Battle.prototype.autoTactics = function (team) {
+    if (this.tick % 10 !== 0) return; // une décision par seconde
+    const alive = team.units.filter(u => u.alive); if (!alive.length) return;
+    const underFire = alive.filter(u => this.t - u.lastShotByAt < 2).length;
+    for (const id of team.tacticIds) {
+      if (!TACTICS[id].active || !this.canUseTactic(team.index, id).ok) continue;
+      if (id === 'fumigene' && underFire >= 2 && this.rng.chance(0.5)) this.useTactic(team.index, id);
+      else if (id === 'reco' && this.t > 10 && !this.teamKnownEnemies(team).length && this.rng.chance(0.3)) this.useTactic(team.index, id);
+      else if (id === 'soins' && alive.some(u => u.hp < u.maxHp * 0.45) && this.rng.chance(0.6)) this.useTactic(team.index, id);
+      else if (id === 'barrage' && this.t > 15 && this.teamKnownEnemies(team).length >= 2 && this.rng.chance(0.4)) this.useTactic(team.index, id);
+    }
+  };
+  // Dégâts hors tir direct (obus) : même comptabilité que les tirs, attribués à l'équipe
+  Battle.prototype.applyDamage = function (shooter, e, dmg, cause, teamIndex) {
+    e.hp = Math.max(0, e.hp - dmg); e.lastHitAt = this.t; e.stats.damageTaken += dmg;
+    const team = this.teams[teamIndex];
+    if (e.hp <= 0) {
+      e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
+      this.logEvent('down', `${e.callsign} est hors de combat (${cause}).`, { team: teamIndex, enemy: e.id, dmg, loc: cause, unit: null });
+      this.emit({ type: 'down', unit: e.id }); team.indirectKills = (team.indirectKills || 0) + 1; team.indirectDamage = (team.indirectDamage || 0) + dmg; return;
+    }
+    team.indirectDamage = (team.indirectDamage || 0) + dmg;
+    e.status = e.hp <= e.maxHp * 0.2 ? 'critical' : (e.hp <= e.maxHp * 0.5 ? 'wounded' : 'ok');
+    this.logEvent('hit', `${e.callsign} est touché par un ${cause} : −${dmg} PV.`, { team: teamIndex, enemy: e.id, dmg, loc: cause, unit: null });
+  };
+
   // ---- Tir de suppression (appui) : arroser un couvert bas derrière lequel un ennemi vient de se cacher ------------
   // Conditions : rôle appui, position vue il y a moins de 2 s, l'ennemi est bien là (± 1 m), et le rayon vers sa poitrine
   // n'est bloqué que par un couvert bas (les balles claquent dans le couvert : pas de dégâts, mais suppression).
@@ -628,7 +745,8 @@
   // « Calé » : ordre Tenir, immobile à son poste depuis au moins 3 s (bonus de précision et silhouette réduite).
   Battle.prototype.isBraced = function (u) {
     if (!u.alive || u.moving) return false;
-    const still = this.t - (u.stillSince === undefined ? this.t : u.stillSince) >= 3;
+    const need = this.hasTactic(this.teams[u.team], 'retranche') ? 1.5 : 3;                           // Retranchement
+    const still = this.t - (u.stillSince === undefined ? this.t : u.stillSince) >= need;
     if (has(u, 'ambusher') && still) return true;                 // Affût : position préparée quel que soit l'ordre
     return this.teams[u.team].order === 'hold' && still && u.post && Math.hypot(u.post.x - u.x, u.post.z - u.z) < 1.6;
   };
@@ -638,7 +756,7 @@
     return false;
   };
   // Seuil de chance de toucher en dessous duquel on ne gaspille pas ses munitions (l'appui tire plus volontiers : suppression).
-  Battle.prototype.fireThreshold = function (u) { return u.role.id === 'support' ? 0.045 : 0.08; };
+  Battle.prototype.fireThreshold = function (u) { const base = u.role.id === 'support' ? 0.045 : 0.08; return this.hasTactic(this.teams[u.team], 'discipline') ? base * 1.5 : base; }; // Discipline de feu
   Battle.prototype.hitChance = function (u, e, d, asIfStill) {
     const w = u.weapon;
     let p = w.accuracy * (0.45 + 0.55 * u.def.marksmanship / 100);
@@ -653,12 +771,15 @@
     const hard = has(u, 'hardened') ? 0.5 : 1;                                       // Endurci
     if (u.status === 'wounded') p *= 1 - 0.15 * hard; else if (u.status === 'critical') p *= 1 - 0.35 * hard;
     if (this.isBraced(u)) p *= 1.1;           // position préparée : arme calée, repères pris
+    const tt = this.teams[u.team];
+    if (this.hasTactic(tt, 'discipline') && !u.moving) p *= 1.12;                                   // Discipline de feu
+    if (this.hasTactic(tt, 'blitz') && this.t < 30) p *= 0.9;                                        // Éclair : précision −10 % au début
     if (has(u, 'patience') && u.burst === 0 && u.aimFull) p *= 1.25;               // Patience : premier tir posé
     if (e.moving) p *= has(u, 'opportunity') ? 0.9 : 0.8;                             // Tir d'opportunité
     if (e.stance === 'crouch') p *= 0.85;
     if (this.isBraced(e)) p *= 0.9;           // un défenseur installé expose moins de silhouette
     const cv = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
-    if (cv) p *= cv.level === 'partial' ? 0.55 : 0.3; // 'full' : seul un bout dépasse (ne devrait pas arriver si LOS poitrine)
+    if (cv) p *= cv.level === 'partial' ? (this.hasTactic(this.teams[e.team], 'retranche') ? 0.5 : 0.55) : 0.3; // couvert partiel (Retranchement : ×0,5)
     if (w.rpm > 100) p *= 1 - (has(u, 'gunner') ? 0.03 : 0.06) * Math.min(u.burst, 5);   // Tir soutenu : perte en rafale divisée par deux
     return { p: clamp(p, 0.03, 0.95), cover: cv };
   };
@@ -670,7 +791,7 @@
     // sans ligne de vue sur la poitrine, pas de tir (la perception l'a vérifié ce pas-ci, on re-vérifie par sécurité)
     if (!this.canSee(u, e)) return;
     if (this.hitChance(u, e, d).p < this.fireThreshold(u)) { u.fireAcc = Math.min(u.fireAcc, 0.99); return; }
-    u.fireAcc += DT * u.weapon.rpm / 60;
+    u.fireAcc += DT * u.weapon.rpm / 60 * (this.hasTactic(this.teams[u.team], 'blitz') && this.t < 30 ? 1.2 : 1); // Éclair : cadence +20 %
     while (u.fireAcc >= 1 && u.ammo > 0) {
       u.fireAcc -= 1;
       this.shoot(u, e, d);
@@ -707,6 +828,7 @@
     else { loc = 'membre'; mult = 0.55; prot = 0; }
     let dmg = w.damage * fall * mult * (1 - prot) * this.rng.range(0.85, 1.15);
     if (has(u, 'breach') && d < 10 && (w.cls === 'brèche' || w.cls === 'pm')) dmg *= 1.15;   // Enfonceur
+    if (this.hasTactic(this.teams[e.team], 'drill') && this.teams[u.team].order === 'hold') dmg *= 0.9; // Exercice de base : −10 % tant que l'adversaire tient
     dmg = Math.round(dmg * 10) / 10;
     const before = e.hp;
     e.hp = Math.max(0, e.hp - dmg);
@@ -719,6 +841,12 @@
     if (e.hp <= 0) {
       e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
       u.stats.kills++;
+      // « spéciaux » : série (deux neutralisations à moins de 10 s), revanche (celui qui a mis un allié hors de combat), vétéran (niveau supérieur)
+      if (this.t - u.lastKillAt < 10) u.stats.streaks++;
+      u.lastKillAt = this.t;
+      if (this.alliesOf(u).some(a => !a.alive && a.downedBy === e)) u.stats.revenge++;
+      if ((e.def.level || 0) > (u.def.level || 0)) u.stats.veteran++;
+      e.downedBy = u;
       text += ` — ${e.callsign} est hors de combat.`;
       this.logEvent('down', text, { unit: u.id, enemy: e.id, team: u.team, dmg, loc });
       this.emit({ type: 'down', unit: e.id });
@@ -760,6 +888,10 @@
       teams: this.teams.map(t => ({
         name: t.name, order: ORDERS[t.order].name, orderId: t.order,
         alive: t.units.filter(u => u.alive).length,
+        hpPct: Math.round(100 * t.units.reduce((s, u) => s + (u.alive ? u.hp : 0), 0) / t.units.reduce((s, u) => s + u.maxHp, 0)),
+        kills: t.units.reduce((s, u) => s + u.stats.kills, 0) + (t.indirectKills || 0),
+        specials: { headshots: t.units.reduce((s, u) => s + u.stats.headshots, 0), streaks: t.units.reduce((s, u) => s + u.stats.streaks, 0), revenge: t.units.reduce((s, u) => s + u.stats.revenge, 0), veteran: t.units.reduce((s, u) => s + u.stats.veteran, 0) },
+        tactics: Object.keys(t.tactics || {}).map(id => ({ id, used: t.tactics[id].used })),
         shots: t.units.reduce((s, u) => s + u.stats.shots, 0), hits: t.units.reduce((s, u) => s + u.stats.hits, 0),
         units: t.units.map(u => ({
           id: u.id, callsign: u.callsign, role: u.role.name, weapon: u.weapon.name, armor: u.armor.name, unit: u.def.unit,

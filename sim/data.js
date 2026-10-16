@@ -128,6 +128,20 @@
     { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 5, order: 'assault', reward: 480, xp: 90, difficulty: 4 },
   ];
 
+  // ---- TACTIQUES (cartes jouées en bataille ou passives) ---------------------------------
+  // Chaque effet est implémenté dans engine.js (useTactic / applyPassiveTactics). active : déclenchée par le joueur
+  // (uses : nombre d'emplois par bataille, cooldown en s) ; sinon passive, appliquée au début.
+  const TACTICS = {
+    fumigene:    { id: 'fumigene',    name: 'Fumigène',          active: true, uses: 2, cooldown: 25, desc: 'Un écran de fumée de 8 m pendant 15 s entre l\'escouade et la menace la plus proche : coupe la vue dans les deux sens.' },
+    reco:        { id: 'reco',        name: 'Drone de reco',     active: true, uses: 1, cooldown: 0,  desc: 'Révèle la position de tous les adversaires à toute l\'escouade pendant 8 s.' },
+    soins:       { id: 'soins',       name: 'Trousse de soins',  active: true, uses: 2, cooldown: 20, desc: 'L\'opérateur le plus blessé encore en état récupère 35 PV en 5 s.' },
+    barrage:     { id: 'barrage',     name: 'Appui mortier',     active: true, uses: 1, cooldown: 0,  desc: 'Après 4 s, trois obus tombent autour de la position adverse connue la plus proche : dégâts dans 3 m, suppression dans 8 m.' },
+    drill:       { id: 'drill',       name: 'Exercice de base',  active: false, desc: 'Déplacement 12 % plus rapide pendant les 20 premières secondes ; dégâts subis −10 % tant que l\'adversaire tient.' },
+    blitz:       { id: 'blitz',       name: 'Éclair',            active: false, desc: 'Cadence de tir +20 % pendant 30 s au début de la bataille, précision −10 % pendant ce temps.' },
+    retranche:   { id: 'retranche',   name: 'Retranchement',     active: false, desc: 'Position préparée atteinte en 1,5 s au lieu de 3 ; les couverts partiels protègent un peu mieux (×0,5 au lieu de ×0,55).' },
+    discipline:  { id: 'discipline',  name: 'Discipline de feu', active: false, desc: 'Pas de tir sous 12 % de chances de toucher (économie de munitions) ; +12 % de précision à l\'arrêt.' },
+  };
+
   // ---- DÉFIS -------------------------------------------------------------------------
   // Récompense unique, vérifiée sur le résultat réel de la mission (les conditions sont codées dans game.js : CHALLENGE_CHECKS).
   const CHALLENGES = [
@@ -150,5 +164,5 @@
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
   const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));
