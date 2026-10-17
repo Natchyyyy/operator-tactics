@@ -151,6 +151,8 @@
     { id: 'balise', name: 'Balise de localisation', desc: 'La balise d\'un agent disparu émet depuis l\'allée nord des docks. Quatre hommes du Groupe Karst la cherchent aussi. Prenez la zone et tenez-la jusqu\'à 100 % — inutile de neutraliser tout le monde.', mapId: 'entrepot', enemy: ['k_vipere', 'k_hyene', 'k_chacal', 'k_fauve'], level: 0, order: 'careful', objective: 'capture', enemyTactics: ['drill'], reward: 220, xp: 45, difficulty: 1 },
     { id: 'priseplace', name: 'Prise de la place', desc: 'Le Groupe Karst veut contrôler la place du marché. Occupez-la avant lui et ne la lâchez pas.', mapId: 'place', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 2, order: 'careful', objective: 'capture', enemyTactics: ['retranche', 'soins'], reward: 300, xp: 60, difficulty: 2 },
     { id: 'vannes', name: 'Les vannes', desc: 'L\'aire de pompage nord commande toute la raffinerie. Des assaillants aguerris foncent dessus : prenez-la de vitesse.', mapId: 'raffinerie', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_taipan', 'k_rapace'], level: 7, order: 'assault', objective: 'capture', enemyTactics: ['blitz', 'fumigene'], reward: 420, xp: 80, difficulty: 4 },
+    { id: 'galerie', name: 'Balise de la galerie', desc: 'Les balises de notre agent disparu émettent depuis le parking du centre commercial. Trouvez-les et sécurisez l\'enclos central.', mapId: 'parking', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 3, order: 'assault', objective: 'capture', enemyTactics: ['fumigene', 'soins'], reward: 320, xp: 65, difficulty: 2 },
+    { id: 'parking', name: 'Nettoyage du parking', desc: 'Le Groupe Karst s\'est retranché entre les voitures et les barrières du parking. Délogez-le.', mapId: 'parking', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_hyene'], level: 6, order: 'hold', enemyTactics: ['retranche', 'reco'], reward: 380, xp: 75, difficulty: 3 },
     { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 5, order: 'assault', enemyTactics: ['blitz', 'reco', 'soins'], reward: 480, xp: 90, difficulty: 4 },
   ];
 
@@ -159,14 +161,14 @@
   // prime de participation quand toutes ont été jouées, prime de campagne quand toutes ont été gagnées.
   // Vétéran et Élite rejouent les missions avec un adversaire plus aguerri (niveau +), plus de tactiques, de meilleures primes.
   const CAMPAIGNS = [
-    { id: 'reguliere', name: 'Campagne régulière', desc: 'Douze missions contre le Groupe Karst, des docks à la raffinerie.',
-      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'assaut', 'tenir', 'nuit', 'pompage', 'vannes', 'elite'],
+    { id: 'reguliere', name: 'Campagne régulière', desc: 'Quatorze missions contre le Groupe Karst, des docks à la raffinerie en passant par le centre commercial.',
+      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
       levelBonus: 0, rewardMul: 1, participation: 200, completion: 500, unlock: null },
     { id: 'veteran', name: 'Campagne vétéran', desc: 'Les mêmes théâtres, un adversaire plus aguerri (+4 niveaux, une tactique de plus).',
-      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'assaut', 'tenir', 'nuit', 'pompage', 'vannes', 'elite'],
+      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
       levelBonus: 4, extraTactic: true, rewardMul: 1.5, participation: 350, completion: 900, unlock: { rank: 3 } },
     { id: 'elite', name: 'Campagne élite', desc: 'Pour les escouades d\'exception : adversaire +8 niveaux, deux tactiques de plus.',
-      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'assaut', 'tenir', 'nuit', 'pompage', 'vannes', 'elite'],
+      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
       levelBonus: 8, extraTactic: 2, rewardMul: 2, participation: 600, completion: 1500, unlock: { rating: 60 } },
   ];
   // Bataille rapide : un adversaire à votre mesure (niveau tiré de la puissance d'équipe), carte et objectif au hasard ;

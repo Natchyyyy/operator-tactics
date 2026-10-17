@@ -175,7 +175,58 @@
     pompe: new THREE.MeshStandardMaterial({ color: 0x4a6a4a, roughness: 0.6, metalness: 0.5 }),
     pipe: new THREE.MeshStandardMaterial({ color: 0x9a9ea3, roughness: 0.4, metalness: 0.7 }),
     armoire: new THREE.MeshStandardMaterial({ color: 0x6a7a86, roughness: 0.5, metalness: 0.5 }),
+    carPaint: [0xd9dcdf, 0x8e9aa6, 0x5a2e2a, 0x2f3b4a, 0xe6e2d6, 0x3d4a3a].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.35, metalness: 0.55 })),
+    glass: new THREE.MeshStandardMaterial({ color: 0x1d2a33, roughness: 0.1, metalness: 0.8 }),
+    tyre: new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 }),
+    rim: new THREE.MeshStandardMaterial({ color: 0x9a9ea3, roughness: 0.4, metalness: 0.7 }),
+    light: new THREE.MeshBasicMaterial({ color: 0xfff2c4 }), lightRed: new THREE.MeshBasicMaterial({ color: 0x9a1a14 }),
+    bark: new THREE.MeshStandardMaterial({ color: 0x6b5a44, roughness: 1 }), frond: new THREE.MeshStandardMaterial({ color: 0x3f6b33, roughness: 0.9, side: THREE.DoubleSide }),
+    mall: new THREE.MeshStandardMaterial({ color: 0xd8cbb6, roughness: 0.85, map: texConcrete }), mallGlass: new THREE.MeshStandardMaterial({ color: 0x324a5a, roughness: 0.15, metalness: 0.7 }),
+    sign: new THREE.MeshBasicMaterial({ color: 0xc23b2f }), busPaint: new THREE.MeshStandardMaterial({ color: 0xe0e4e8, roughness: 0.4, metalness: 0.4 }),
   };
+  // ---- modèles de décor (le volume de collision reste la boîte de la carte ; ces modèles s'y inscrivent) ----------------
+  // voiture : caisse basse, habitacle vitré, roues, phares ; orientée selon le grand côté de la boîte
+  function carModel(o, i, kind) {
+    const g = new THREE.Group(), along = o.d >= o.w, L = Math.max(o.w, o.d), Wd = Math.min(o.w, o.d), H = o.h;
+    const paint = kind === 'bus' ? MATERIALS.busPaint : MATERIALS.carPaint[(i * 7 + Math.round(o.x * 3 + o.z)) % MATERIALS.carPaint.length];
+    const add = (geo, mat, x, y, z, rx, ry, rz) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (rx) m.rotation.x = rx; if (ry) m.rotation.y = ry; if (rz) m.rotation.z = rz; g.add(m); return m; };
+    const wheelR = kind === 'car' ? 0.32 : 0.45;
+    if (kind === 'car') {
+      add(new THREE.BoxGeometry(Wd * 0.96, H * 0.42, L * 0.98), paint, 0, -H / 2 + wheelR * 0.8 + H * 0.21, 0);
+      add(new THREE.BoxGeometry(Wd * 0.86, H * 0.36, L * 0.5), MATERIALS.glass, 0, -H / 2 + wheelR * 0.8 + H * 0.42 + H * 0.17, -L * 0.04);
+      add(new THREE.BoxGeometry(Wd * 0.8, 0.05, L * 0.46), paint, 0, -H / 2 + wheelR * 0.8 + H * 0.42 + H * 0.36, -L * 0.04);
+      for (const s of [-1, 1]) { add(new THREE.BoxGeometry(0.22, 0.1, 0.04), MATERIALS.light, s * Wd * 0.32, -H / 2 + wheelR + 0.25, L * 0.49); add(new THREE.BoxGeometry(0.22, 0.1, 0.04), MATERIALS.lightRed, s * Wd * 0.32, -H / 2 + wheelR + 0.25, -L * 0.49); }
+    } else {   // fourgon / bus : caisse haute, vitres latérales en bandeau
+      add(new THREE.BoxGeometry(Wd * 0.98, H - wheelR * 0.8, L * 0.99), paint, 0, wheelR * 0.4, 0);
+      for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.03, H * 0.25, L * (kind === 'bus' ? 0.85 : 0.35)), MATERIALS.glass, s * Wd * 0.5, H * 0.22, kind === 'bus' ? 0 : L * 0.28);
+      add(new THREE.BoxGeometry(Wd * 0.85, H * 0.3, 0.03), MATERIALS.glass, 0, H * 0.2, L * 0.497);
+      if (kind === 'bus') add(new THREE.BoxGeometry(0.03, H * 0.12, L * 0.9), MATERIALS.sign, Wd * 0.5 + 0.01, -H * 0.12, 0);
+    }
+    const wheelGeo = new THREE.CylinderGeometry(wheelR, wheelR, 0.22, 14);
+    for (const s of [-1, 1]) for (const f of [-1, 1]) { const w = add(wheelGeo, MATERIALS.tyre, s * Wd * 0.46, -H / 2 + wheelR, f * L * 0.33, 0, 0, Math.PI / 2); const r = new THREE.Mesh(new THREE.CylinderGeometry(wheelR * 0.55, wheelR * 0.55, 0.23, 10), MATERIALS.rim); w.add(r); }
+    if (!along) g.rotation.y = Math.PI / 2;
+    return g;
+  }
+  function palmModel(o) {
+    const g = new THREE.Group(), H = o.h;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.2, H, 8), MATERIALS.bark); g.add(trunk);
+    for (let k = 0; k < 8; k++) {   // palmes : feuilles longues, retombantes
+      const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 2.4, 1, 4), MATERIALS.frond); const pos = leaf.geometry.attributes.position;
+      for (let v = 0; v < pos.count; v++) { const y = pos.getY(v); pos.setZ(v, -Math.pow((y + 1.2) / 2.4, 2) * 0.9); }
+      pos.needsUpdate = true; leaf.geometry.computeVertexNormals();
+      const pivot = new THREE.Group(); pivot.position.y = H / 2; pivot.rotation.y = k * Math.PI / 4; leaf.position.set(0, 0, 1.15); leaf.rotation.x = -Math.PI / 2 + 0.35; pivot.add(leaf); g.add(pivot);
+    }
+    return g;
+  }
+  function mallModel(o) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(o.w, o.h, o.d), MATERIALS.mall); g.add(body);
+    const n = Math.floor(o.w / 3.2);   // vitrines au rez-de-chaussée, côté parking (+z)
+    for (let k = 0; k < n; k++) { const v = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.4, 0.05), MATERIALS.mallGlass); v.position.set(-o.w / 2 + 1.6 + k * 3.2, -o.h / 2 + 1.5, o.d / 2 + 0.03); g.add(v); }
+    const band = new THREE.Mesh(new THREE.BoxGeometry(o.w * 0.6, 0.8, 0.1), MATERIALS.sign); band.position.set(0, o.h / 2 - 1.2, o.d / 2 + 0.06); g.add(band);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(o.w + 0.4, 0.3, o.d + 0.4), MATERIALS.wall); roof.position.y = o.h / 2; g.add(roof);
+    return g;
+  }
   function materialFor(o, i) {
     const n = o.name || '';
     if (n.startsWith('mur ')) return MATERIALS.wall;
@@ -226,7 +277,13 @@
     });
     map.obstacles.forEach((o, i) => {
       let mesh;
-      if ((o.name || '').startsWith('fût')) {
+      if (/^(voiture|fourgon|bus)/.test(o.name || '')) {
+        mesh = carModel(o, i, (o.name || '').startsWith('voiture') ? 'car' : (o.name || '').startsWith('bus') ? 'bus' : 'van');
+      } else if ((o.name || '').startsWith('palmier')) {
+        mesh = palmModel(o);
+      } else if ((o.name || '').startsWith('centre commercial')) {
+        mesh = mallModel(o);
+      } else if ((o.name || '').startsWith('fût')) {
         mesh = new THREE.Mesh(new THREE.CylinderGeometry(Math.min(o.w, o.d) / 2, Math.min(o.w, o.d) / 2, o.h, 16), materialFor(o, i));
       } else if ((o.name || '').startsWith('cuve')) {
         // cuve : cylindre inscrit dans la boîte (la simulation garde la boîte ; l'écart est au plus de 1,2 m dans les coins)
@@ -252,10 +309,10 @@
       }
       mesh.position.set(o.x + o.w / 2, o.h / 2, o.z + o.d / 2);
       mesh.castShadow = true; mesh.receiveShadow = true;
-      if (mesh.isGroup) mesh.children.forEach(c => { c.castShadow = true; c.receiveShadow = true; });
+      if (mesh.isGroup) mesh.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
       mapGroup.add(mesh);
       // arêtes pour la lisibilité des couverts hauts
-      if (o.kind === 'wall' && !/^(mur |cuve|tuyauterie)/.test(o.name || '')) {
+      if (o.kind === 'wall' && !/^(mur |cuve|tuyauterie|fourgon|bus|palmier|centre)/.test(o.name || '')) {
         const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(o.w, o.h, o.d)), new THREE.LineBasicMaterial({ color: 0x1a1d20, transparent: true, opacity: 0.5 }));
         edges.position.copy(mesh.position); mapGroup.add(edges);
       }

@@ -89,6 +89,37 @@
         box(26, 3, 3, 1.2, 1.1, 'cover', 'caisses'), box(26, 41.8, 3, 1.2, 1.1, 'cover', 'caisses'),
       ]),
     },
+    parking: {
+      id: 'parking', name: 'Parking du centre commercial', width: 72, depth: 46,
+      spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
+      capture: { x: 36, z: 26, r: 6 },  // l'enclos central : barrières en béton et deux voitures (comme « Harrabah Mall »)
+      obstacles: mirrored(72, [
+        box(-1, -1, 74, 1, 3.2, 'wall', 'mur nord'), box(-1, 46, 74, 1, 3.2, 'wall', 'mur sud'),
+        box(-1, 0, 1, 46, 3.2, 'wall', 'mur ouest'), box(72, 0, 1, 46, 3.2, 'wall', 'mur est'),
+        // façade du centre commercial au nord, bus garé au sud (pièces centrées : symétriques par elles-mêmes)
+        box(26, 0, 20, 5, 6.0, 'wall', 'centre commercial'), box(30, 41, 12, 3, 3.0, 'wall', 'bus'),
+        // fourgons garés devant les zones de départ : écrans
+        box(11, 13, 2.5, 5.5, 2.4, 'wall', 'fourgon'), box(11, 27.5, 2.5, 5.5, 2.4, 'wall', 'fourgon'),
+        // guérite de parking et palmiers dans leurs bacs
+        box(30, 9, 2, 2, 3.0, 'wall', 'kiosque'),
+        box(15, 21.5, 1.5, 3, 1.0, 'cover', 'bac à fleurs'), box(15.5, 22.5, 0.5, 0.5, 5.0, 'wall', 'palmier'),
+        box(24, 3, 1.5, 1.5, 1.0, 'cover', 'bac à fleurs'), box(24.5, 3.5, 0.5, 0.5, 5.0, 'wall', 'palmier'),
+        // rangées de voitures garées (couvert : cache un homme accroupi)
+        box(17.5, 4, 2, 4.4, 1.4, 'cover', 'voiture'), box(17.5, 37.6, 2, 4.4, 1.4, 'cover', 'voiture'),
+        box(21.5, 8.5, 2, 4.4, 1.4, 'cover', 'voiture'), box(21.5, 33.1, 2, 4.4, 1.4, 'cover', 'voiture'),
+        box(21.5, 15.5, 2, 4.4, 1.4, 'cover', 'voiture'), box(21.5, 26.1, 2, 4.4, 1.4, 'cover', 'voiture'),
+        box(26, 13, 4.4, 2, 1.4, 'cover', 'voiture'), box(26, 31, 4.4, 2, 1.4, 'cover', 'voiture'),
+        // enclos central : barrières en béton avec des passages
+        box(29.5, 19, 0.6, 3.5, 0.95, 'cover', 'barrière'), box(29.5, 29.5, 0.6, 3.5, 0.95, 'cover', 'barrière'),
+        box(31, 18.5, 3, 0.6, 0.95, 'cover', 'barrière'), box(31, 33, 3, 0.6, 0.95, 'cover', 'barrière'),
+        box(32, 25.3, 1, 1.4, 0.95, 'cover', 'sacs de sable'),
+        box(35, 21, 2, 4.4, 1.4, 'cover', 'voiture'), box(35, 29.5, 2, 4.4, 1.4, 'cover', 'voiture'),
+        // divers
+        box(8, 6, 1.5, 1.4, 1.1, 'cover', 'fût'), box(8, 38.6, 1.5, 1.4, 1.1, 'cover', 'fût'),
+        box(16, 11, 1.2, 2.4, 1.0, 'cover', 'sacs de sable'), box(16, 32.6, 1.2, 2.4, 1.0, 'cover', 'sacs de sable'),
+        box(26.5, 38, 3, 1.2, 1.0, 'cover', 'muret'), box(26.5, 7, 3, 1.2, 1.0, 'cover', 'muret'),
+      ]),
+    },
   };
 
   // ---- Lancer de rayon segment / boîte (méthode des « slabs ») -------------------------

@@ -57,8 +57,9 @@ async def main():
         await pg.wait_for_function("() => window.API.battle().over", timeout=400000); await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=10000)
         res_m = await pg.evaluate("() => window.API.battle().result")
         credits_before = await pg.evaluate("() => window.HQ.profile().credits")
-        await pg.click("#resHq"); await pg.wait_for_timeout(600)
-        await pg.wait_for_timeout(400)
+        await pg.click("#resHq")
+        try: await pg.wait_for_function("() => !document.querySelector('#rewards').classList.contains('hidden')", timeout=8000)
+        except Exception: pass
         check("l'écran de récompenses s'affiche au retour (total et XP de rang)", await pg.is_visible("#rewards") and (await pg.inner_text("#rwTotal")).strip().isdigit())
         await pg.click("#rwContinue"); await pg.wait_for_timeout(100)
         prof = await pg.evaluate("() => window.HQ.profile()")
@@ -82,7 +83,7 @@ async def main():
         # ---- Jouer : campagnes verrouillées, bataille rapide ----
         await pg.click("[data-tab='missions']"); await pg.wait_for_timeout(150)
         st = await pg.evaluate("() => [document.querySelectorAll('#hqMissions .mission').length, document.querySelectorAll('#hqMissions .mission.locked').length, document.querySelectorAll('.campbtn.locked').length, !!document.querySelector('.mission.final, .final')]")
-        check("onglet Jouer : 12 missions de campagne, les suivantes verrouillées, campagnes vétéran/élite verrouillées, finale signalée", st[0] == 12 and 0 < st[1] < 12 and st[2] == 2 and st[3], st)
+        check("onglet Jouer : 14 missions de campagne, les suivantes verrouillées, campagnes vétéran/élite verrouillées, finale signalée", st[0] == 14 and 0 < st[1] < 14 and st[2] == 2 and st[3], st)
         await pg.click(".quickcard"); await pg.wait_for_timeout(100); await pg.click("#launch"); await pg.wait_for_timeout(300)
         qv = await pg.evaluate("() => [!document.querySelector('#vs').classList.contains('hidden'), document.querySelector('#vsObj').textContent]")
         check("la bataille rapide passe par l'écran VS avec un objectif tiré au sort", qv[0] and len(qv[1]) > 3, qv)

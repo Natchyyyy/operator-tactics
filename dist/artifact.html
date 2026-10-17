@@ -324,7 +324,7 @@
     <div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div>
     <div class="group"><label>Alpha</label><select id="order0" title="Ordre d'Alpha — modifiable pendant la bataille"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
     <div class="group"><label>Bravo</label><select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
-    <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option><option value="raffinerie">Raffinerie</option></select></div>
+    <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option><option value="raffinerie">Raffinerie</option><option value="parking">Parking du centre commercial</option></select></div>
     <div class="group"><label>Graine</label><input id="seed" placeholder="aléatoire"></div>
     <button id="newBattle">Nouvelle</button><button id="replay" title="Rejouer la même graine">Rejouer</button>
     <span id="missionLabel" class="muted" hidden></span>
@@ -905,6 +905,8 @@ window.Son = Son;
     { id: 'balise', name: 'Balise de localisation', desc: 'La balise d\'un agent disparu émet depuis l\'allée nord des docks. Quatre hommes du Groupe Karst la cherchent aussi. Prenez la zone et tenez-la jusqu\'à 100 % — inutile de neutraliser tout le monde.', mapId: 'entrepot', enemy: ['k_vipere', 'k_hyene', 'k_chacal', 'k_fauve'], level: 0, order: 'careful', objective: 'capture', enemyTactics: ['drill'], reward: 220, xp: 45, difficulty: 1 },
     { id: 'priseplace', name: 'Prise de la place', desc: 'Le Groupe Karst veut contrôler la place du marché. Occupez-la avant lui et ne la lâchez pas.', mapId: 'place', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 2, order: 'careful', objective: 'capture', enemyTactics: ['retranche', 'soins'], reward: 300, xp: 60, difficulty: 2 },
     { id: 'vannes', name: 'Les vannes', desc: 'L\'aire de pompage nord commande toute la raffinerie. Des assaillants aguerris foncent dessus : prenez-la de vitesse.', mapId: 'raffinerie', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_taipan', 'k_rapace'], level: 7, order: 'assault', objective: 'capture', enemyTactics: ['blitz', 'fumigene'], reward: 420, xp: 80, difficulty: 4 },
+    { id: 'galerie', name: 'Balise de la galerie', desc: 'Les balises de notre agent disparu émettent depuis le parking du centre commercial. Trouvez-les et sécurisez l\'enclos central.', mapId: 'parking', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 3, order: 'assault', objective: 'capture', enemyTactics: ['fumigene', 'soins'], reward: 320, xp: 65, difficulty: 2 },
+    { id: 'parking', name: 'Nettoyage du parking', desc: 'Le Groupe Karst s\'est retranché entre les voitures et les barrières du parking. Délogez-le.', mapId: 'parking', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_hyene'], level: 6, order: 'hold', enemyTactics: ['retranche', 'reco'], reward: 380, xp: 75, difficulty: 3 },
     { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 5, order: 'assault', enemyTactics: ['blitz', 'reco', 'soins'], reward: 480, xp: 90, difficulty: 4 },
   ];
 
@@ -913,14 +915,14 @@ window.Son = Son;
   // prime de participation quand toutes ont été jouées, prime de campagne quand toutes ont été gagnées.
   // Vétéran et Élite rejouent les missions avec un adversaire plus aguerri (niveau +), plus de tactiques, de meilleures primes.
   const CAMPAIGNS = [
-    { id: 'reguliere', name: 'Campagne régulière', desc: 'Douze missions contre le Groupe Karst, des docks à la raffinerie.',
-      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'assaut', 'tenir', 'nuit', 'pompage', 'vannes', 'elite'],
+    { id: 'reguliere', name: 'Campagne régulière', desc: 'Quatorze missions contre le Groupe Karst, des docks à la raffinerie en passant par le centre commercial.',
+      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
       levelBonus: 0, rewardMul: 1, participation: 200, completion: 500, unlock: null },
     { id: 'veteran', name: 'Campagne vétéran', desc: 'Les mêmes théâtres, un adversaire plus aguerri (+4 niveaux, une tactique de plus).',
-      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'assaut', 'tenir', 'nuit', 'pompage', 'vannes', 'elite'],
+      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
       levelBonus: 4, extraTactic: true, rewardMul: 1.5, participation: 350, completion: 900, unlock: { rank: 3 } },
     { id: 'elite', name: 'Campagne élite', desc: 'Pour les escouades d\'exception : adversaire +8 niveaux, deux tactiques de plus.',
-      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'assaut', 'tenir', 'nuit', 'pompage', 'vannes', 'elite'],
+      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
       levelBonus: 8, extraTactic: 2, rewardMul: 2, participation: 600, completion: 1500, unlock: { rating: 60 } },
   ];
   // Bataille rapide : un adversaire à votre mesure (niveau tiré de la puissance d'équipe), carte et objectif au hasard ;
@@ -1105,6 +1107,37 @@ window.Son = Son;
         box(18, 20, 2, 6, 2.6, 'wall', 'conteneur'),
         box(16, 15.5, 3, 1, 1.0, 'cover', 'muret'), box(16, 29.5, 3, 1, 1.0, 'cover', 'muret'),
         box(26, 3, 3, 1.2, 1.1, 'cover', 'caisses'), box(26, 41.8, 3, 1.2, 1.1, 'cover', 'caisses'),
+      ]),
+    },
+    parking: {
+      id: 'parking', name: 'Parking du centre commercial', width: 72, depth: 46,
+      spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
+      capture: { x: 36, z: 26, r: 6 },  // l'enclos central : barrières en béton et deux voitures (comme « Harrabah Mall »)
+      obstacles: mirrored(72, [
+        box(-1, -1, 74, 1, 3.2, 'wall', 'mur nord'), box(-1, 46, 74, 1, 3.2, 'wall', 'mur sud'),
+        box(-1, 0, 1, 46, 3.2, 'wall', 'mur ouest'), box(72, 0, 1, 46, 3.2, 'wall', 'mur est'),
+        // façade du centre commercial au nord, bus garé au sud (pièces centrées : symétriques par elles-mêmes)
+        box(26, 0, 20, 5, 6.0, 'wall', 'centre commercial'), box(30, 41, 12, 3, 3.0, 'wall', 'bus'),
+        // fourgons garés devant les zones de départ : écrans
+        box(11, 13, 2.5, 5.5, 2.4, 'wall', 'fourgon'), box(11, 27.5, 2.5, 5.5, 2.4, 'wall', 'fourgon'),
+        // guérite de parking et palmiers dans leurs bacs
+        box(30, 9, 2, 2, 3.0, 'wall', 'kiosque'),
+        box(15, 21.5, 1.5, 3, 1.0, 'cover', 'bac à fleurs'), box(15.5, 22.5, 0.5, 0.5, 5.0, 'wall', 'palmier'),
+        box(24, 3, 1.5, 1.5, 1.0, 'cover', 'bac à fleurs'), box(24.5, 3.5, 0.5, 0.5, 5.0, 'wall', 'palmier'),
+        // rangées de voitures garées (couvert : cache un homme accroupi)
+        box(17.5, 4, 2, 4.4, 1.4, 'cover', 'voiture'), box(17.5, 37.6, 2, 4.4, 1.4, 'cover', 'voiture'),
+        box(21.5, 8.5, 2, 4.4, 1.4, 'cover', 'voiture'), box(21.5, 33.1, 2, 4.4, 1.4, 'cover', 'voiture'),
+        box(21.5, 15.5, 2, 4.4, 1.4, 'cover', 'voiture'), box(21.5, 26.1, 2, 4.4, 1.4, 'cover', 'voiture'),
+        box(26, 13, 4.4, 2, 1.4, 'cover', 'voiture'), box(26, 31, 4.4, 2, 1.4, 'cover', 'voiture'),
+        // enclos central : barrières en béton avec des passages
+        box(29.5, 19, 0.6, 3.5, 0.95, 'cover', 'barrière'), box(29.5, 29.5, 0.6, 3.5, 0.95, 'cover', 'barrière'),
+        box(31, 18.5, 3, 0.6, 0.95, 'cover', 'barrière'), box(31, 33, 3, 0.6, 0.95, 'cover', 'barrière'),
+        box(32, 25.3, 1, 1.4, 0.95, 'cover', 'sacs de sable'),
+        box(35, 21, 2, 4.4, 1.4, 'cover', 'voiture'), box(35, 29.5, 2, 4.4, 1.4, 'cover', 'voiture'),
+        // divers
+        box(8, 6, 1.5, 1.4, 1.1, 'cover', 'fût'), box(8, 38.6, 1.5, 1.4, 1.1, 'cover', 'fût'),
+        box(16, 11, 1.2, 2.4, 1.0, 'cover', 'sacs de sable'), box(16, 32.6, 1.2, 2.4, 1.0, 'cover', 'sacs de sable'),
+        box(26.5, 38, 3, 1.2, 1.0, 'cover', 'muret'), box(26.5, 7, 3, 1.2, 1.0, 'cover', 'muret'),
       ]),
     },
   };
@@ -2686,7 +2719,7 @@ window.Son = Son;
     const size = rate(0) > target + 4 ? 4 : 5;                     // escouade de recrues face à des vétérans : un adversaire de moins
     const objective = pick(['eliminate', 'eliminate', 'capture', 'capture', 'hold']);
     const tac = Object.keys(TACTICS); const t1 = pick(tac), t2 = pick(tac.filter(t => t !== t1));
-    return { id: 'rapide', name: 'Bataille rapide', quick: true, desc: 'Un adversaire à votre mesure.', mapId: pick(['entrepot', 'place', 'raffinerie']), enemy: karst.slice(0, size), level,
+    return { id: 'rapide', name: 'Bataille rapide', quick: true, desc: 'Un adversaire à votre mesure.', mapId: pick(['entrepot', 'place', 'raffinerie', 'parking']), enemy: karst.slice(0, size), level,
       order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: rng() < 0.5 ? [t1] : [t1, t2], reward: QUICK.reward, xp: QUICK.xp, difficulty: 2 };
   }
   // niveau de l'adversaire de bataille rapide : l'écart de puissance avec une escouade de recrues, converti en niveaux
@@ -3575,7 +3608,58 @@ window.Son = Son;
     pompe: new THREE.MeshStandardMaterial({ color: 0x4a6a4a, roughness: 0.6, metalness: 0.5 }),
     pipe: new THREE.MeshStandardMaterial({ color: 0x9a9ea3, roughness: 0.4, metalness: 0.7 }),
     armoire: new THREE.MeshStandardMaterial({ color: 0x6a7a86, roughness: 0.5, metalness: 0.5 }),
+    carPaint: [0xd9dcdf, 0x8e9aa6, 0x5a2e2a, 0x2f3b4a, 0xe6e2d6, 0x3d4a3a].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.35, metalness: 0.55 })),
+    glass: new THREE.MeshStandardMaterial({ color: 0x1d2a33, roughness: 0.1, metalness: 0.8 }),
+    tyre: new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 }),
+    rim: new THREE.MeshStandardMaterial({ color: 0x9a9ea3, roughness: 0.4, metalness: 0.7 }),
+    light: new THREE.MeshBasicMaterial({ color: 0xfff2c4 }), lightRed: new THREE.MeshBasicMaterial({ color: 0x9a1a14 }),
+    bark: new THREE.MeshStandardMaterial({ color: 0x6b5a44, roughness: 1 }), frond: new THREE.MeshStandardMaterial({ color: 0x3f6b33, roughness: 0.9, side: THREE.DoubleSide }),
+    mall: new THREE.MeshStandardMaterial({ color: 0xd8cbb6, roughness: 0.85, map: texConcrete }), mallGlass: new THREE.MeshStandardMaterial({ color: 0x324a5a, roughness: 0.15, metalness: 0.7 }),
+    sign: new THREE.MeshBasicMaterial({ color: 0xc23b2f }), busPaint: new THREE.MeshStandardMaterial({ color: 0xe0e4e8, roughness: 0.4, metalness: 0.4 }),
   };
+  // ---- modèles de décor (le volume de collision reste la boîte de la carte ; ces modèles s'y inscrivent) ----------------
+  // voiture : caisse basse, habitacle vitré, roues, phares ; orientée selon le grand côté de la boîte
+  function carModel(o, i, kind) {
+    const g = new THREE.Group(), along = o.d >= o.w, L = Math.max(o.w, o.d), Wd = Math.min(o.w, o.d), H = o.h;
+    const paint = kind === 'bus' ? MATERIALS.busPaint : MATERIALS.carPaint[(i * 7 + Math.round(o.x * 3 + o.z)) % MATERIALS.carPaint.length];
+    const add = (geo, mat, x, y, z, rx, ry, rz) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (rx) m.rotation.x = rx; if (ry) m.rotation.y = ry; if (rz) m.rotation.z = rz; g.add(m); return m; };
+    const wheelR = kind === 'car' ? 0.32 : 0.45;
+    if (kind === 'car') {
+      add(new THREE.BoxGeometry(Wd * 0.96, H * 0.42, L * 0.98), paint, 0, -H / 2 + wheelR * 0.8 + H * 0.21, 0);
+      add(new THREE.BoxGeometry(Wd * 0.86, H * 0.36, L * 0.5), MATERIALS.glass, 0, -H / 2 + wheelR * 0.8 + H * 0.42 + H * 0.17, -L * 0.04);
+      add(new THREE.BoxGeometry(Wd * 0.8, 0.05, L * 0.46), paint, 0, -H / 2 + wheelR * 0.8 + H * 0.42 + H * 0.36, -L * 0.04);
+      for (const s of [-1, 1]) { add(new THREE.BoxGeometry(0.22, 0.1, 0.04), MATERIALS.light, s * Wd * 0.32, -H / 2 + wheelR + 0.25, L * 0.49); add(new THREE.BoxGeometry(0.22, 0.1, 0.04), MATERIALS.lightRed, s * Wd * 0.32, -H / 2 + wheelR + 0.25, -L * 0.49); }
+    } else {   // fourgon / bus : caisse haute, vitres latérales en bandeau
+      add(new THREE.BoxGeometry(Wd * 0.98, H - wheelR * 0.8, L * 0.99), paint, 0, wheelR * 0.4, 0);
+      for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.03, H * 0.25, L * (kind === 'bus' ? 0.85 : 0.35)), MATERIALS.glass, s * Wd * 0.5, H * 0.22, kind === 'bus' ? 0 : L * 0.28);
+      add(new THREE.BoxGeometry(Wd * 0.85, H * 0.3, 0.03), MATERIALS.glass, 0, H * 0.2, L * 0.497);
+      if (kind === 'bus') add(new THREE.BoxGeometry(0.03, H * 0.12, L * 0.9), MATERIALS.sign, Wd * 0.5 + 0.01, -H * 0.12, 0);
+    }
+    const wheelGeo = new THREE.CylinderGeometry(wheelR, wheelR, 0.22, 14);
+    for (const s of [-1, 1]) for (const f of [-1, 1]) { const w = add(wheelGeo, MATERIALS.tyre, s * Wd * 0.46, -H / 2 + wheelR, f * L * 0.33, 0, 0, Math.PI / 2); const r = new THREE.Mesh(new THREE.CylinderGeometry(wheelR * 0.55, wheelR * 0.55, 0.23, 10), MATERIALS.rim); w.add(r); }
+    if (!along) g.rotation.y = Math.PI / 2;
+    return g;
+  }
+  function palmModel(o) {
+    const g = new THREE.Group(), H = o.h;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.2, H, 8), MATERIALS.bark); g.add(trunk);
+    for (let k = 0; k < 8; k++) {   // palmes : feuilles longues, retombantes
+      const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 2.4, 1, 4), MATERIALS.frond); const pos = leaf.geometry.attributes.position;
+      for (let v = 0; v < pos.count; v++) { const y = pos.getY(v); pos.setZ(v, -Math.pow((y + 1.2) / 2.4, 2) * 0.9); }
+      pos.needsUpdate = true; leaf.geometry.computeVertexNormals();
+      const pivot = new THREE.Group(); pivot.position.y = H / 2; pivot.rotation.y = k * Math.PI / 4; leaf.position.set(0, 0, 1.15); leaf.rotation.x = -Math.PI / 2 + 0.35; pivot.add(leaf); g.add(pivot);
+    }
+    return g;
+  }
+  function mallModel(o) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(o.w, o.h, o.d), MATERIALS.mall); g.add(body);
+    const n = Math.floor(o.w / 3.2);   // vitrines au rez-de-chaussée, côté parking (+z)
+    for (let k = 0; k < n; k++) { const v = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.4, 0.05), MATERIALS.mallGlass); v.position.set(-o.w / 2 + 1.6 + k * 3.2, -o.h / 2 + 1.5, o.d / 2 + 0.03); g.add(v); }
+    const band = new THREE.Mesh(new THREE.BoxGeometry(o.w * 0.6, 0.8, 0.1), MATERIALS.sign); band.position.set(0, o.h / 2 - 1.2, o.d / 2 + 0.06); g.add(band);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(o.w + 0.4, 0.3, o.d + 0.4), MATERIALS.wall); roof.position.y = o.h / 2; g.add(roof);
+    return g;
+  }
   function materialFor(o, i) {
     const n = o.name || '';
     if (n.startsWith('mur ')) return MATERIALS.wall;
@@ -3626,7 +3710,13 @@ window.Son = Son;
     });
     map.obstacles.forEach((o, i) => {
       let mesh;
-      if ((o.name || '').startsWith('fût')) {
+      if (/^(voiture|fourgon|bus)/.test(o.name || '')) {
+        mesh = carModel(o, i, (o.name || '').startsWith('voiture') ? 'car' : (o.name || '').startsWith('bus') ? 'bus' : 'van');
+      } else if ((o.name || '').startsWith('palmier')) {
+        mesh = palmModel(o);
+      } else if ((o.name || '').startsWith('centre commercial')) {
+        mesh = mallModel(o);
+      } else if ((o.name || '').startsWith('fût')) {
         mesh = new THREE.Mesh(new THREE.CylinderGeometry(Math.min(o.w, o.d) / 2, Math.min(o.w, o.d) / 2, o.h, 16), materialFor(o, i));
       } else if ((o.name || '').startsWith('cuve')) {
         // cuve : cylindre inscrit dans la boîte (la simulation garde la boîte ; l'écart est au plus de 1,2 m dans les coins)
@@ -3652,10 +3742,10 @@ window.Son = Son;
       }
       mesh.position.set(o.x + o.w / 2, o.h / 2, o.z + o.d / 2);
       mesh.castShadow = true; mesh.receiveShadow = true;
-      if (mesh.isGroup) mesh.children.forEach(c => { c.castShadow = true; c.receiveShadow = true; });
+      if (mesh.isGroup) mesh.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
       mapGroup.add(mesh);
       // arêtes pour la lisibilité des couverts hauts
-      if (o.kind === 'wall' && !/^(mur |cuve|tuyauterie)/.test(o.name || '')) {
+      if (o.kind === 'wall' && !/^(mur |cuve|tuyauterie|fourgon|bus|palmier|centre)/.test(o.name || '')) {
         const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(o.w, o.h, o.d)), new THREE.LineBasicMaterial({ color: 0x1a1d20, transparent: true, opacity: 0.5 }));
         edges.position.copy(mesh.position); mapGroup.add(edges);
       }
