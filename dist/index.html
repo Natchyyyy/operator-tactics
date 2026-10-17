@@ -513,6 +513,7 @@
         <li><b>Tactiques</b> (cartes à gauche) : fumigène, drone, soins, mortier… à jouer pendant la bataille, avec un nombre d'emplois et un temps de recharge ; les tactiques passives (exercice, retranchement…) s'appliquent dès le début. L'adversaire joue aussi les siennes (à droite).</li>
         <li><b>Ordres</b> : <i>Assaut</i> (aller au contact), <i>Tenir</i> (se poster, tirer à vue), <i>Prudent</i> (de couvert en couvert). L'ordre d'Alpha se change pendant la bataille.</li>
         <li><b>Caméra</b> : <i>Réalisateur</i> (par défaut) enchaîne les plans comme une retransmission — épaule d'un tireur, vue d'ensemble de l'échange, plan sur chaque explosion ou neutralisation ; <i>Suivre</i> se place derrière un soldat et change de point de vue au gré de l'action ; <i>Sat</i> montre toute la carte ; <i>Libre</i> : glisser pour tourner, molette pour zoomer, clic droit pour déplacer. Espace : pause.</li>
+        <li><b>Décor destructible</b> : les caisses et palettes en bois volent en éclats sous les obus, les frappes et parfois les grenades — le couvert disparaît pour le reste de la bataille.</li>
         <li><b>Moral</b> : voir tomber deux camarades tout près en quelques secondes, face à plusieurs ennemis, peut ébranler un opérateur (test de sang-froid) : il décroche 5 s vers un couvert en arrière. Un Meneur proche et le trait Sang-froid aident ; un Meneur ne flanche jamais.</li>
         <li><b>À terre</b> : un opérateur neutralisé autrement que d'une balle dans la tête reste parfois à terre 20 s ; un allié qui ne voit aucun ennemi peut aller le relever (4 s, 2 s pour un Secouriste), une fois par bataille, avec 30 % de sa vie.</li>
         <li><b>Heure et météo</b> : de <i>nuit</i> on voit deux fois moins loin, sauf un tireur dont l'arme non silencieuse lance des éclairs ; le <i>brouillard</i> réduit encore la vue ; la <i>pluie</i> couvre les bruits et gêne le tir lointain. Les deux camps subissent les mêmes conditions.</li>
@@ -1515,6 +1516,21 @@ window.Son = Son;
     this.dynamic = [];
   }
 
+  // Décor destructible : caisses et palettes en bois (couverts bas) cèdent aux explosions.
+  GameMap.prototype.isDestructible = function (o) { return o.kind === 'cover' && /^(caisses|palettes)/.test(o.name || ''); };
+  // Retire un obstacle de CETTE carte (la définition partagée n'est pas touchée) : cases libérées, points de couverture recalculés.
+  GameMap.prototype.removeObstacle = function (o) {
+    if (this.obstacles === this.def.obstacles) this.obstacles = this.obstacles.slice();
+    const i = this.obstacles.indexOf(o); if (i < 0) return false; this.obstacles.splice(i, 1);
+    const c0 = Math.max(0, Math.floor((o.x - RADIUS) / CELL)), c1 = Math.min(this.cols - 1, Math.floor((o.x + o.w + RADIUS) / CELL));
+    const r0 = Math.max(0, Math.floor((o.z - RADIUS) / CELL)), r1 = Math.min(this.rows - 1, Math.floor((o.z + o.d + RADIUS) / CELL));
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+      const x = (c + 0.5) * CELL, z = (r + 0.5) * CELL; let b = 0;
+      for (const q of this.obstacles) if (pointInBox(x, z, q, RADIUS)) { b = 1; break; }
+      this.blocked[r * this.cols + c] = b;
+    }
+    this.coverPoints = this.computeCoverPoints(); return true;
+  };
   GameMap.prototype.cellOf = function (x, z) {
     return { c: Math.min(this.cols - 1, Math.max(0, Math.floor(x / CELL))), r: Math.min(this.rows - 1, Math.max(0, Math.floor(z / CELL))) };
   };
@@ -1950,6 +1966,7 @@ window.Son = Son;
       L.splice(i, 1);
       const G = GRENADES[g.kind];
       this.emit({ type: 'grenade_blast', kind: g.kind, x: g.x, z: g.z });
+      if (g.kind === 'frag') this.blastDecor(g.x, g.z, 1.6, 0.7);   // une grenade peut faire voler une caisse en éclats
       let hits = 0;
       for (const u of this.units) {
         if (!u.alive) continue;
@@ -2626,7 +2643,7 @@ window.Son = Son;
     if (this.pendingShells && this.pendingShells.length) for (let i = this.pendingShells.length - 1; i >= 0; i--) {
       const sh = this.pendingShells[i]; if (this.t < sh.at) continue;
       this.pendingShells.splice(i, 1);
-      this.emit({ type: 'shell', x: sh.x, z: sh.z });
+      this.emit({ type: 'shell', x: sh.x, z: sh.z }); this.blastDecor(sh.x, sh.z, 2.2, 1);
       for (const u of this.units) {
         if (!u.alive) continue;
         const d = Math.hypot(u.x - sh.x, u.z - sh.z);
@@ -2643,6 +2660,7 @@ window.Son = Son;
       const st = this.pendingStrikes[i]; if (this.t < st.at) continue;
       this.pendingStrikes.splice(i, 1);
       this.emit({ type: 'strike', cx: st.cx, cz: st.cz, dx: st.dx, dz: st.dz, half: st.half, team: st.team });
+      for (let k = -st.half; k <= st.half; k += 2) this.blastDecor(st.cx + st.dx * k, st.cz + st.dz * k, 1.5, 0.5);
       let n = 0;
       for (const u of this.units) {
         if (!u.alive) continue;
@@ -2719,6 +2737,19 @@ window.Son = Son;
     u.shakenUntil = this.t + 5; u.stats.shaken = (u.stats.shaken || 0) + 1;
     this.logEvent('shaken', `${u.callsign} est ébranlé et décroche à couvert.`, { unit: u.id, team: u.team });
     return true;
+  };
+  // ---- Décor destructible : les caisses et palettes proches d'une explosion cèdent (chance p) ; les cases se libèrent,
+  // la vue passe, ceux qui s'y abritaient sont à découvert ----
+  Battle.prototype.blastDecor = function (x, z, reach, p) {
+    for (const o of this.map.obstacles.slice()) {
+      if (!this.map.isDestructible(o)) continue;
+      const d = Math.hypot(Math.max(o.x - x, 0, x - (o.x + o.w)), Math.max(o.z - z, 0, z - (o.z + o.d)));
+      if (d > reach || (p < 1 && !this.rng.chance(p))) continue;
+      this.map.removeObstacle(o);
+      this.logEvent('decor', `Les ${o.name} volent en éclats.`, { silent: false });
+      this.emit({ type: 'destroyed', obstacle: o, x: o.x + o.w / 2, z: o.z + o.d / 2, w: o.w, d: o.d, h: o.h });
+      for (const u of this.units) if (u.post && Math.hypot(u.post.x - (o.x + o.w / 2), u.post.z - (o.z + o.d / 2)) < 2.5) u.post = null;   // poste perdu
+    }
   };
   Battle.prototype.unitById = function (id) { return this.units.find(x => x.id === id); };
   Battle.prototype.downedToRevive = function (u) {
@@ -4378,7 +4409,7 @@ window.Son = Son;
   // ---------------------------------------------------------------------------------------------
   // Construction de la carte
   // ---------------------------------------------------------------------------------------------
-  let mapGroup = null;
+  let mapGroup = null; const obstacleMesh = new Map();
   function groundTexture(w, d) {
     const c = document.createElement('canvas'); c.width = 1024; c.height = Math.round(1024 * d / w); const g = c.getContext('2d');
     g.fillStyle = '#5c6063'; g.fillRect(0, 0, c.width, c.height);
@@ -4522,7 +4553,7 @@ window.Son = Son;
       mapGroup.traverse(o => { if (o.isMesh) { o.geometry.dispose(); if (o.material && o.material.map && o.material.map.isCanvasTexture && o.material.map.__ground) { o.material.map.dispose(); o.material.dispose(); } } });
       scene.remove(mapGroup);
     }
-    mapGroup = new THREE.Group();
+    mapGroup = new THREE.Group(); obstacleMesh.clear();
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(map.width, map.depth), new THREE.MeshStandardMaterial({ map: groundTexture(map.width, map.depth), roughness: 1 }));
     ground.rotation.x = -Math.PI / 2; ground.position.set(map.width / 2, 0, map.depth / 2); ground.receiveShadow = true; mapGroup.add(ground);
     // environnement : asphalte autour de l'enceinte et quelques entrepôts lointains en silhouette
@@ -4574,6 +4605,7 @@ window.Son = Son;
       }
       mesh.position.set(o.x + o.w / 2, o.h / 2, o.z + o.d / 2);
       mesh.castShadow = true; mesh.receiveShadow = true;
+      if (map.isDestructible(o)) { mesh.userData.keep = true; obstacleMesh.set(o, mesh); }   // destructible : gardé à part (pas fusionné)
       if (mesh.isGroup) mesh.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
       mapGroup.add(mesh);
       // arêtes pour la lisibilité des couverts hauts
@@ -4597,7 +4629,7 @@ window.Son = Son;
     const buckets = new Map(), lines = [], drop = [];
     root.traverse(o => {
       if (o.isLineSegments) { lines.push(o); return; }
-      if (!o.isMesh || !o.geometry || !o.geometry.attributes.position || !o.geometry.attributes.normal || Array.isArray(o.material) || o.material.transparent) return;
+      if (!o.isMesh || !o.geometry || !o.geometry.attributes.position || !o.geometry.attributes.normal || Array.isArray(o.material) || o.material.transparent || o.userData.keep) return;
       if (o.matrixWorld.determinant() < 0) return;                                  // miroir : ordre des faces inversé, on laisse tel quel
       const k = o.material.uuid + '|' + o.castShadow + '|' + o.receiveShadow;
       if (!buckets.has(k)) buckets.set(k, []); buckets.get(k).push(o);
@@ -4949,6 +4981,16 @@ window.Son = Son;
   const decals = new THREE.Group(); scene.add(decals);
   const bloodGeo = new THREE.CircleGeometry(1, 14), stainMat = new THREE.MeshBasicMaterial({ color: 0x260504, transparent: true, opacity: 0.62, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
   const scorchMat = new THREE.MeshBasicMaterial({ color: 0x0d0c0b, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  // une caisse qui vole en éclats : le modèle disparaît, des planches volent, quelques débris restent au sol (sans gêner)
+  const plankGeo = new THREE.BoxGeometry(0.5, 0.06, 0.14), plankMat = new THREE.MeshStandardMaterial({ color: 0x6b5236, roughness: 1 });
+  function destroyDecor(ev) {
+    const m = obstacleMesh.get(ev.obstacle); if (m && m.parent) { m.parent.remove(m); m.geometry.dispose(); }
+    for (let i = 0; i < 10; i++) { const p = new THREE.Mesh(plankGeo, plankMat); p.position.set(ev.x + (Math.random() - 0.5) * ev.w, 0.4 + Math.random() * ev.h, ev.z + (Math.random() - 0.5) * ev.d); p.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); p.castShadow = true; scene.add(p);
+      fx.push({ obj: p, until: simTime + 30, start: simTime, vel: new THREE.Vector3((Math.random() - 0.5) * 7, 3 + Math.random() * 4, (Math.random() - 0.5) * 7), gravity: 12 }); }
+    for (let i = 0; i < 6; i++) { const p = new THREE.Mesh(plankGeo, plankMat); p.position.set(ev.x + (Math.random() - 0.5) * (ev.w + 1), 0.04, ev.z + (Math.random() - 0.5) * (ev.d + 1)); p.rotation.y = Math.random() * 3; decals.add(p); }
+    const d = new THREE.Mesh(dustGeo, dustMat); d.position.set(ev.x, 0.4, ev.z); d.scale.setScalar(2.5); scene.add(d); fx.push({ obj: d, until: simTime + 1.4, start: simTime, grow: 2.5 });
+    play('impact_bois', { x: ev.x, y: 0.6, z: ev.z }, { vol: 1.3, vitesse: 0.8 });
+  }
   function addScorch(x, z, r) {   // trace noire d'explosion (grenade, obus, frappe aérienne)
     if (decals.children.length > 160) decals.remove(decals.children[0]);
     const m = new THREE.Mesh(bloodGeo, scorchMat); m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6.28; m.position.set(x, 0.022, z); m.scale.set(r, r * (0.8 + Math.random() * 0.3), 1); decals.add(m);
@@ -4989,6 +5031,7 @@ window.Son = Son;
       if (ev.type === 'barrage_called') addBarrageMarker(ev);
       if (ev.type === 'grenade_throw') addGrenade(ev);
       if (ev.type === 'strike_called') addStrikeMarker(ev);
+      if (ev.type === 'destroyed') destroyDecor(ev);
       if (ev.type === 'strike') { addStrike(ev); for (let k = -ev.half; k <= ev.half; k += 3) addScorch(ev.cx + ev.dx * k + (Math.random() - 0.5) * 1.5, ev.cz + ev.dz * k + (Math.random() - 0.5) * 1.5, 0.9); }
       if (ev.type === 'grenade_blast') { addBlast(ev); if (ev.kind !== 'flash') addScorch(ev.x, ev.z, 1.4); directorEvent('blast', ev.x, ev.z); }
     }

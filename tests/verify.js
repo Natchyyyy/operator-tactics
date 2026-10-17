@@ -494,6 +494,17 @@ function duel(opts) {
 }
 
 {
+  // ---- décor destructible : un obus près d'une caisse la détruit pour CETTE bataille (cases libres, vue dégagée), pas pour la suivante ----
+  const b = new Battle({ seed: 1, mapId: 'entrepot' }); const n0 = MAPS.entrepot.obstacles.length;
+  const crate = b.map.obstacles.find(o => b.map.isDestructible(o)); const cx = crate.x + crate.w / 2, cz = crate.z + crate.d / 2;
+  const cell = b.map.cellOf(cx, cz), blockedBefore = b.map.isBlocked(cell.c, cell.r), losBefore = b.map.hasLOS(crate.x - 2, 0.6, cz, crate.x + crate.w + 2, 0.6, cz);
+  b.blastDecor(cx, cz + crate.d / 2 + 1, 2.2, 1);
+  const gone = !b.map.obstacles.includes(crate), cellFree = !b.map.isBlocked(cell.c, cell.r), losAfter = b.map.hasLOS(crate.x - 2, 0.6, cz, crate.x + crate.w + 2, 0.6, cz);
+  const b2 = new Battle({ seed: 1, mapId: 'entrepot' });
+  check('décor destructible : la caisse disparaît, sa case se libère, la vue passe ; la carte suivante est intacte ; les murs ne cèdent pas', gone && blockedBefore && cellFree && !losBefore && losAfter && b2.map.obstacles.includes(crate) && MAPS.entrepot.obstacles.length === n0 && !b.map.isDestructible(b.map.obstacles.find(o => o.kind === 'wall')), { gone, blockedBefore, cellFree, losBefore, losAfter });
+}
+
+{
   // ---- conditions : la nuit réduit la vue (sauf l'éclair d'un tireur), le brouillard aussi ; la pluie couvre les bruits ----
   const mp = new GameMap(MAPS.place); let row = null; for (let z = 3; z < 42 && row === null; z += 0.5) if (mp.hasLOS(14, 1.6, z, 54, 1.6, z) && !mp.insideObstacle(14, z) && !mp.insideObstacle(54, z)) row = z;
   const sees = (cond, fired) => { let n = 0; for (let sd = 1; sd <= 40; sd++) { const b = new Battle({ seed: sd, mapId: 'place', conditions: cond, teams: [{ operators: ['op_vautour'], tactics: [] }, { operators: ['k_molosse'], tactics: [] }] }); const [u] = b.teams[0].units, [e] = b.teams[1].units; u.x = 14; u.z = row; e.x = 54; e.z = row; u.facing = 0; e.moving = true; b.t = 10; e.lastShotAt = fired ? 9.8 : -99; for (let k = 0; k < 10; k++) { b.perceive(u); if (u.visible.has(e.id)) { n++; break; } } } return n; };

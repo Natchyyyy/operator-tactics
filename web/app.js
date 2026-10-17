@@ -243,7 +243,7 @@
   // ---------------------------------------------------------------------------------------------
   // Construction de la carte
   // ---------------------------------------------------------------------------------------------
-  let mapGroup = null;
+  let mapGroup = null; const obstacleMesh = new Map();
   function groundTexture(w, d) {
     const c = document.createElement('canvas'); c.width = 1024; c.height = Math.round(1024 * d / w); const g = c.getContext('2d');
     g.fillStyle = '#5c6063'; g.fillRect(0, 0, c.width, c.height);
@@ -387,7 +387,7 @@
       mapGroup.traverse(o => { if (o.isMesh) { o.geometry.dispose(); if (o.material && o.material.map && o.material.map.isCanvasTexture && o.material.map.__ground) { o.material.map.dispose(); o.material.dispose(); } } });
       scene.remove(mapGroup);
     }
-    mapGroup = new THREE.Group();
+    mapGroup = new THREE.Group(); obstacleMesh.clear();
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(map.width, map.depth), new THREE.MeshStandardMaterial({ map: groundTexture(map.width, map.depth), roughness: 1 }));
     ground.rotation.x = -Math.PI / 2; ground.position.set(map.width / 2, 0, map.depth / 2); ground.receiveShadow = true; mapGroup.add(ground);
     // environnement : asphalte autour de l'enceinte et quelques entrepôts lointains en silhouette
@@ -439,6 +439,7 @@
       }
       mesh.position.set(o.x + o.w / 2, o.h / 2, o.z + o.d / 2);
       mesh.castShadow = true; mesh.receiveShadow = true;
+      if (map.isDestructible(o)) { mesh.userData.keep = true; obstacleMesh.set(o, mesh); }   // destructible : gardé à part (pas fusionné)
       if (mesh.isGroup) mesh.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
       mapGroup.add(mesh);
       // arêtes pour la lisibilité des couverts hauts
@@ -462,7 +463,7 @@
     const buckets = new Map(), lines = [], drop = [];
     root.traverse(o => {
       if (o.isLineSegments) { lines.push(o); return; }
-      if (!o.isMesh || !o.geometry || !o.geometry.attributes.position || !o.geometry.attributes.normal || Array.isArray(o.material) || o.material.transparent) return;
+      if (!o.isMesh || !o.geometry || !o.geometry.attributes.position || !o.geometry.attributes.normal || Array.isArray(o.material) || o.material.transparent || o.userData.keep) return;
       if (o.matrixWorld.determinant() < 0) return;                                  // miroir : ordre des faces inversé, on laisse tel quel
       const k = o.material.uuid + '|' + o.castShadow + '|' + o.receiveShadow;
       if (!buckets.has(k)) buckets.set(k, []); buckets.get(k).push(o);
@@ -814,6 +815,16 @@
   const decals = new THREE.Group(); scene.add(decals);
   const bloodGeo = new THREE.CircleGeometry(1, 14), stainMat = new THREE.MeshBasicMaterial({ color: 0x260504, transparent: true, opacity: 0.62, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
   const scorchMat = new THREE.MeshBasicMaterial({ color: 0x0d0c0b, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  // une caisse qui vole en éclats : le modèle disparaît, des planches volent, quelques débris restent au sol (sans gêner)
+  const plankGeo = new THREE.BoxGeometry(0.5, 0.06, 0.14), plankMat = new THREE.MeshStandardMaterial({ color: 0x6b5236, roughness: 1 });
+  function destroyDecor(ev) {
+    const m = obstacleMesh.get(ev.obstacle); if (m && m.parent) { m.parent.remove(m); m.geometry.dispose(); }
+    for (let i = 0; i < 10; i++) { const p = new THREE.Mesh(plankGeo, plankMat); p.position.set(ev.x + (Math.random() - 0.5) * ev.w, 0.4 + Math.random() * ev.h, ev.z + (Math.random() - 0.5) * ev.d); p.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); p.castShadow = true; scene.add(p);
+      fx.push({ obj: p, until: simTime + 30, start: simTime, vel: new THREE.Vector3((Math.random() - 0.5) * 7, 3 + Math.random() * 4, (Math.random() - 0.5) * 7), gravity: 12 }); }
+    for (let i = 0; i < 6; i++) { const p = new THREE.Mesh(plankGeo, plankMat); p.position.set(ev.x + (Math.random() - 0.5) * (ev.w + 1), 0.04, ev.z + (Math.random() - 0.5) * (ev.d + 1)); p.rotation.y = Math.random() * 3; decals.add(p); }
+    const d = new THREE.Mesh(dustGeo, dustMat); d.position.set(ev.x, 0.4, ev.z); d.scale.setScalar(2.5); scene.add(d); fx.push({ obj: d, until: simTime + 1.4, start: simTime, grow: 2.5 });
+    play('impact_bois', { x: ev.x, y: 0.6, z: ev.z }, { vol: 1.3, vitesse: 0.8 });
+  }
   function addScorch(x, z, r) {   // trace noire d'explosion (grenade, obus, frappe aérienne)
     if (decals.children.length > 160) decals.remove(decals.children[0]);
     const m = new THREE.Mesh(bloodGeo, scorchMat); m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6.28; m.position.set(x, 0.022, z); m.scale.set(r, r * (0.8 + Math.random() * 0.3), 1); decals.add(m);
@@ -854,6 +865,7 @@
       if (ev.type === 'barrage_called') addBarrageMarker(ev);
       if (ev.type === 'grenade_throw') addGrenade(ev);
       if (ev.type === 'strike_called') addStrikeMarker(ev);
+      if (ev.type === 'destroyed') destroyDecor(ev);
       if (ev.type === 'strike') { addStrike(ev); for (let k = -ev.half; k <= ev.half; k += 3) addScorch(ev.cx + ev.dx * k + (Math.random() - 0.5) * 1.5, ev.cz + ev.dz * k + (Math.random() - 0.5) * 1.5, 0.9); }
       if (ev.type === 'grenade_blast') { addBlast(ev); if (ev.kind !== 'flash') addScorch(ev.x, ev.z, 1.4); directorEvent('blast', ev.x, ev.z); }
     }

@@ -269,6 +269,7 @@
       L.splice(i, 1);
       const G = GRENADES[g.kind];
       this.emit({ type: 'grenade_blast', kind: g.kind, x: g.x, z: g.z });
+      if (g.kind === 'frag') this.blastDecor(g.x, g.z, 1.6, 0.7);   // une grenade peut faire voler une caisse en éclats
       let hits = 0;
       for (const u of this.units) {
         if (!u.alive) continue;
@@ -945,7 +946,7 @@
     if (this.pendingShells && this.pendingShells.length) for (let i = this.pendingShells.length - 1; i >= 0; i--) {
       const sh = this.pendingShells[i]; if (this.t < sh.at) continue;
       this.pendingShells.splice(i, 1);
-      this.emit({ type: 'shell', x: sh.x, z: sh.z });
+      this.emit({ type: 'shell', x: sh.x, z: sh.z }); this.blastDecor(sh.x, sh.z, 2.2, 1);
       for (const u of this.units) {
         if (!u.alive) continue;
         const d = Math.hypot(u.x - sh.x, u.z - sh.z);
@@ -962,6 +963,7 @@
       const st = this.pendingStrikes[i]; if (this.t < st.at) continue;
       this.pendingStrikes.splice(i, 1);
       this.emit({ type: 'strike', cx: st.cx, cz: st.cz, dx: st.dx, dz: st.dz, half: st.half, team: st.team });
+      for (let k = -st.half; k <= st.half; k += 2) this.blastDecor(st.cx + st.dx * k, st.cz + st.dz * k, 1.5, 0.5);
       let n = 0;
       for (const u of this.units) {
         if (!u.alive) continue;
@@ -1038,6 +1040,19 @@
     u.shakenUntil = this.t + 5; u.stats.shaken = (u.stats.shaken || 0) + 1;
     this.logEvent('shaken', `${u.callsign} est ébranlé et décroche à couvert.`, { unit: u.id, team: u.team });
     return true;
+  };
+  // ---- Décor destructible : les caisses et palettes proches d'une explosion cèdent (chance p) ; les cases se libèrent,
+  // la vue passe, ceux qui s'y abritaient sont à découvert ----
+  Battle.prototype.blastDecor = function (x, z, reach, p) {
+    for (const o of this.map.obstacles.slice()) {
+      if (!this.map.isDestructible(o)) continue;
+      const d = Math.hypot(Math.max(o.x - x, 0, x - (o.x + o.w)), Math.max(o.z - z, 0, z - (o.z + o.d)));
+      if (d > reach || (p < 1 && !this.rng.chance(p))) continue;
+      this.map.removeObstacle(o);
+      this.logEvent('decor', `Les ${o.name} volent en éclats.`, { silent: false });
+      this.emit({ type: 'destroyed', obstacle: o, x: o.x + o.w / 2, z: o.z + o.d / 2, w: o.w, d: o.d, h: o.h });
+      for (const u of this.units) if (u.post && Math.hypot(u.post.x - (o.x + o.w / 2), u.post.z - (o.z + o.d / 2)) < 2.5) u.post = null;   // poste perdu
+    }
   };
   Battle.prototype.unitById = function (id) { return this.units.find(x => x.id === id); };
   Battle.prototype.downedToRevive = function (u) {

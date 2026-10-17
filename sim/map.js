@@ -163,6 +163,21 @@
     this.dynamic = [];
   }
 
+  // Décor destructible : caisses et palettes en bois (couverts bas) cèdent aux explosions.
+  GameMap.prototype.isDestructible = function (o) { return o.kind === 'cover' && /^(caisses|palettes)/.test(o.name || ''); };
+  // Retire un obstacle de CETTE carte (la définition partagée n'est pas touchée) : cases libérées, points de couverture recalculés.
+  GameMap.prototype.removeObstacle = function (o) {
+    if (this.obstacles === this.def.obstacles) this.obstacles = this.obstacles.slice();
+    const i = this.obstacles.indexOf(o); if (i < 0) return false; this.obstacles.splice(i, 1);
+    const c0 = Math.max(0, Math.floor((o.x - RADIUS) / CELL)), c1 = Math.min(this.cols - 1, Math.floor((o.x + o.w + RADIUS) / CELL));
+    const r0 = Math.max(0, Math.floor((o.z - RADIUS) / CELL)), r1 = Math.min(this.rows - 1, Math.floor((o.z + o.d + RADIUS) / CELL));
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+      const x = (c + 0.5) * CELL, z = (r + 0.5) * CELL; let b = 0;
+      for (const q of this.obstacles) if (pointInBox(x, z, q, RADIUS)) { b = 1; break; }
+      this.blocked[r * this.cols + c] = b;
+    }
+    this.coverPoints = this.computeCoverPoints(); return true;
+  };
   GameMap.prototype.cellOf = function (x, z) {
     return { c: Math.min(this.cols - 1, Math.max(0, Math.floor(x / CELL))), r: Math.min(this.rows - 1, Math.max(0, Math.floor(z / CELL))) };
   };
