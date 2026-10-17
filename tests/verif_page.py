@@ -30,7 +30,11 @@ async def main():
         # cartes : ouvrir un paquet (crédits ajoutés pour le test), équiper une tactique
         await pg.click("[data-tab='cartes']"); await pg.evaluate("() => { window.HQ.profile().credits = 1000; }"); await pg.click("[data-tab='cartes']")
         await pg.evaluate("() => document.querySelector('.tabs [data-tab=cartes]').click()"); await pg.evaluate("() => document.querySelector('[data-pack=standard]').click()"); await pg.wait_for_timeout(300)
-        n_cards = await pg.evaluate("() => document.querySelectorAll('#hqOpened .ccard').length"); check("un paquet standard ouvert montre 3 cartes", n_cards == 3, n_cards)
+        n_cards = await pg.evaluate("() => document.querySelectorAll('#packOpen .pcard').length"); check("un paquet standard ouvert montre 3 cartes", n_cards == 3, n_cards)
+        await pg.evaluate("() => document.querySelector('#poAll').click()"); await pg.wait_for_timeout(900)
+        check("« Tout révéler » retourne les 3 cartes", await pg.evaluate("() => document.querySelectorAll('#packOpen .pcard.flipped').length") == 3)
+        await pg.evaluate("() => document.querySelector('#poClose').click()")
+        check("« Continuer » ferme l'écran d'ouverture et résume le paquet", await pg.evaluate("() => document.querySelector('#packOpen').classList.contains('hidden') && document.querySelectorAll('#hqOpened .mini').length === 3"))
         check("le paquet a coûté 150 crédits (hors crédits gagnés par une carte)", await pg.evaluate("() => window.HQ.profile().packsOpened") == 1)
         # équipe : équiper Lynx d'un fusil à pompe depuis la fiche
         await pg.click("[data-tab='equipe']"); await pg.wait_for_timeout(100)

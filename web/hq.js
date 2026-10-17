@@ -98,21 +98,61 @@
     const mission = Object.assign({}, Game.LEAGUE_MISSION, { name: `Ligue — ${opp.name}`, mapId: opts.mapId, order: opp.order, enemyTactics: opp.tactics, league: opp.id, level: teams[1].operators[0].level });
     showVs(opts, mission);
   });
+  // ---- Cartes v2 : paquets dessinés (probabilités par type), ouverture plein écran carte par carte, couleurs de rareté -----
+  const CARD_TYPE_FR = { operator: 'Recrue', dupe: 'Doublon', tactic: 'Tactique', perk: 'Perk', xp: 'Expérience', credits: 'Crédits', cosmetic: 'Cosmétique' };
+  const TYPE_GLYPH = { credits: '¤', cosmetic: '✦', xp: '▲', perk: '✚' };
+  const tacArt = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'cart')) || `<span class="cglyph">${TACTIC_ICON[id] || '◆'}</span>`;
+  function cardArt(c) {
+    const o = c.id && OPERATORS.find(x => x.id === c.id);
+    if (c.type === 'tactic') return tacArt(c.id);
+    if (o && (c.type === 'operator' || c.type === 'dupe')) return portraitOf(o, true);
+    if (o && (c.type === 'perk' || c.type === 'xp')) return `${portraitOf(o, true)}<span class="cbadge">${c.type === 'perk' ? '+2' : 'XP'}</span>`;
+    return `<span class="cglyph">${TYPE_GLYPH[c.type] || '◆'}</span>`;
+  }
+  function cardHTML(c, i) {
+    const r = c.rarity || 1;
+    return `<div class="pcard r${r} t-${c.type}" data-i="${i}" style="--d:${i}"><div class="in"><div class="face back"><span>◆</span><small>OPERATOR TACTICS</small></div>`
+      + `<div class="face front"><div class="ctop"><span>${CARD_TYPE_FR[c.type] || c.type}</span><span>${RARITY_FR[r] || ''}</span></div><div class="cart">${cardArt(c)}</div>`
+      + `<b>${esc(c.title)}</b><p>${esc(c.text)}</p></div></div></div>`;
+  }
+  function packOdds(pk) {
+    const t = Object.values(pk.weights).reduce((s, v) => s + v, 0);
+    return Object.entries(pk.weights).map(([k, v]) => `<div class="odd"><span>${CARD_TYPE_FR[k]}</span><i style="width:${Math.round(v / t * 100)}%"></i><em>${Math.round(v / t * 100)} %</em></div>`).join('');
+  }
   function renderPacks() {
-    $('#hqPacks').innerHTML = Object.values(PACKS).map(pk => `<div class="pack"><b>${esc(pk.name)}</b><div class="muted">${pk.cards} cartes · recrues, tactiques, perks, XP, crédits, cosmétiques${pk.id === 'elite' ? ' — meilleures chances' : ''}</div>${(profile.freePacks && profile.freePacks[pk.id]) ? `<button class="on" data-pack="${pk.id}">Ouvrir — offert (${profile.freePacks[pk.id]})</button>` : `<button data-pack="${pk.id}" ${profile.credits >= pk.price ? '' : 'disabled'}>Ouvrir — ${pk.price} cr.</button>`}</div>`).join('');
+    $('#hqPacks').innerHTML = Object.values(PACKS).map(pk => { const free = profile.freePacks && profile.freePacks[pk.id];
+      return `<div class="pack2 p-${pk.id}"><div class="foil"><span class="pemb">${pk.id === 'elite' ? '✪' : '◆'}</span><b>${esc(pk.name.replace('Paquet ', ''))}</b><small>${pk.cards} cartes</small></div>`
+      + `<div class="odds">${packOdds(pk)}</div>`
+      + (free ? `<button class="on" data-pack="${pk.id}">Ouvrir — offert (${free})</button>` : `<button data-pack="${pk.id}" ${profile.credits >= pk.price ? '' : 'disabled'}>Ouvrir — ${pk.price} cr.</button>`) + `</div>`; }).join('');
     $('#hqPacks').querySelectorAll('button[data-pack]').forEach(b => b.addEventListener('click', () => {
       const cards = Game.openPack(profile, b.dataset.pack);
       if (!cards) { flash('Crédits insuffisants.'); return; }
-      saveNow(); render();
-      $('#hqOpened').innerHTML = cards.map((c, i) => `<div class="ccard t-${c.type}" data-i="${i}"><div class="in"><div class="face back">◆</div><div class="face front"><span class="ctype">${{ operator: 'Recrue', tactic: 'Tactique', perk: 'Perk', xp: 'Expérience', credits: 'Crédits', cosmetic: 'Cosmétique' }[c.type]}</span><b>${esc(c.title)}</b><span>${esc(c.text)}</span></div></div></div>`).join('') + `<div class="muted" style="width:100%;font-size:11px">Cliquez sur les cartes pour les retourner (${cards.length}).</div>`;
-      $('#hqOpened').querySelectorAll('.ccard').forEach(cc => cc.addEventListener('click', () => cc.classList.add('flipped')));
-      setTimeout(() => $('#hqOpened').querySelectorAll('.ccard').forEach((cc, i) => setTimeout(() => cc.classList.add('flipped'), 400 + i * 350)), 300);
+      saveNow(); render(); openPackScreen(b.dataset.pack, cards);
     }));
+  }
+  // écran d'ouverture : le paquet se déchire, les cartes sont posées face cachée ; clic = retourner, « Tout révéler », « Continuer »
+  function openPackScreen(packId, cards) {
+    const ov = $('#packOpen'), pk = PACKS[packId];
+    ov.className = 'packopen p-' + packId; ov.classList.remove('hidden');
+    ov.innerHTML = `<div class="potitle">${esc(pk.name)}</div><div class="potear"><div class="foil"><span class="pemb">${packId === 'elite' ? '✪' : '◆'}</span><b>${esc(pk.name.replace('Paquet ', ''))}</b></div></div>`
+      + `<div class="porow">${cards.map(cardHTML).join('')}</div>`
+      + `<div class="pobar"><span id="poCount" class="muted"></span><button id="poAll">Tout révéler</button><button id="poClose" class="on">Continuer</button></div>`;
+    const flips = [...ov.querySelectorAll('.pcard')];
+    const count = () => { const n = flips.filter(f => f.classList.contains('flipped')).length; $('#poCount').textContent = `${n} / ${flips.length} révélée${n > 1 ? 's' : ''}`; };
+    const flip = (f) => { if (f.classList.contains('flipped')) return; f.classList.add('flipped'); count(); };
+    flips.forEach(f => f.addEventListener('click', () => flip(f)));
+    $('#poAll').addEventListener('click', () => flips.forEach((f, i) => setTimeout(() => flip(f), i * 180)));
+    $('#poClose').addEventListener('click', () => { ov.classList.add('hidden'); ov.innerHTML = '';
+      $('#hqOpened').innerHTML = `<div class="muted" style="width:100%;font-size:11px">Dernier paquet :</div>` + cards.map(c => `<span class="mini r${c.rarity || 1}">${esc(c.title)}</span>`).join(''); });
+    count();
+    if (document.documentElement.classList.contains('manual')) { ov.classList.add('torn'); return; }
+    setTimeout(() => ov.classList.add('torn'), 650);
   }
   function renderTactics() {
     const eq = profile.tactics.equipped;
-    $('#hqTactics').innerHTML = Object.values(TACTICS).map(t => { const owned = !!profile.tactics.owned[t.id]; return `<div class="tcardq ${eq.includes(t.id) ? 'eq' : ''} ${owned ? '' : 'locked'}" data-t="${t.id}" title="${esc(t.desc)}"><span class="ticon">${TACTIC_ICON[t.id]}</span><b>${esc(t.name)}</b><span class="muted">${t.active ? `active · ${t.uses} emploi${t.uses > 1 ? 's' : ''}${t.cooldown ? ', recharge ' + t.cooldown + ' s' : ''}` : 'passive'}</span><span>${esc(t.desc)}</span><span class="muted">${owned ? (eq.includes(t.id) ? 'Emportée' : 'Possédée') : 'À trouver dans un paquet'}</span></div>`; }).join('');
-    $('#hqTactics').querySelectorAll('.tcardq').forEach(c => c.addEventListener('click', () => { const id = c.dataset.t; if (!profile.tactics.owned[id]) return; if (!Game.equipTactic(profile, id)) flash('Trois tactiques au maximum : retirez-en une d\u2019abord.'); saveNow(); render(); }));
+    $('#hqTactics').innerHTML = Object.values(TACTICS).map(t => { const owned = !!profile.tactics.owned[t.id];
+      return `<div class="tcardq ${eq.includes(t.id) ? 'eq' : ''} ${owned ? '' : 'locked'}" data-t="${t.id}" title="${esc(t.desc)}"><div class="tart">${tacArt(t.id)}<span class="tkind ${t.active ? 'act' : ''}">${t.active ? 'Active' : 'Passive'}</span>${eq.includes(t.id) ? '<span class="teq">Emportée</span>' : ''}</div><b>${esc(t.name)}</b><span class="muted">${t.active ? `${t.uses} emploi${t.uses > 1 ? 's' : ''}${t.cooldown ? ' · recharge ' + t.cooldown + ' s' : ''}` : 'effet permanent'}</span><span class="tdesc">${esc(t.desc)}</span>${owned ? '' : '<span class="tlock">À trouver dans un paquet</span>'}</div>`; }).join('');
+    $('#hqTactics').querySelectorAll('.tcardq').forEach(c => c.addEventListener('click', () => { const id = c.dataset.t; if (!profile.tactics.owned[id]) return; if (!Game.equipTactic(profile, id)) flash('Trois tactiques au maximum : retirez-en une d’abord.'); saveNow(); render(); }));
   }
   function renderPerks() {
     const rows = Object.entries(profile.perks || {}).filter(([, p]) => Object.keys(p).length).map(([id, p]) => `${OPERATORS.find(o => o.id === id).callsign} : ${Object.entries(p).map(([k, v]) => `${Game.STAT_FR[k]} +${v}`).join(', ')}`);

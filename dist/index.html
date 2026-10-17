@@ -182,9 +182,65 @@
   .custom { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 6px; } .custom label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); } .custom input { width: 100%; text-transform: none; letter-spacing: 0; }
   .pick { display: flex; gap: 6px; flex-wrap: wrap; } .pick button { width: 40px; height: 40px; font-size: 20px; padding: 0; display: inline-flex; align-items: center; justify-content: center; } .pick button.locked { opacity: .35; cursor: default; } .pick .sw { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #0b0e11; }
   .homeBtns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; } .homeBtns button { padding: 18px 12px; font-size: 16px; font-weight: 700; display: flex; flex-direction: column; gap: 4px; align-items: center; } .homeBtns button small { font-size: 11px; font-weight: 400; color: var(--muted); } .homeBtns button.on small { color: #333; }
-  .packs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .pack { background: linear-gradient(160deg, #26322a, #141a16); border: 1px solid #3a4a3c; border-radius: 10px; padding: 12px; text-align: center; } .pack b { display: block; font-size: 14px; } .pack .muted { font-size: 11px; margin: 4px 0 8px; }
-  .opened { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; } .ccard { width: 150px; min-height: 120px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); padding: 8px; cursor: pointer; perspective: 600px; } .ccard .in { transition: transform .5s; transform-style: preserve-3d; position: relative; min-height: 104px; } .ccard.flipped .in { transform: rotateY(180deg); } .ccard .face { position: absolute; inset: 0; backface-visibility: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 4px; font-size: 11px; } .ccard .back { background: repeating-linear-gradient(45deg, #2a3a2e 0 6px, #22302a 6px 12px); border-radius: 8px; font-size: 24px; color: var(--accent); } .ccard .front { transform: rotateY(180deg); } .ccard .front b { font-size: 12px; } .ccard .ctype { font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); } .ccard.t-operator .front b { color: var(--a0); } .ccard.t-tactic .front b { color: #a9d8ff; } .ccard.t-perk .front b { color: var(--ok); } .ccard.t-cosmetic .front b { color: var(--accent); }
-  .tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; } .tcardq { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; font-size: 11px; display: flex; flex-direction: column; gap: 4px; } .tcardq .ticon { font-size: 24px; } .tcardq b { font-size: 12px; } .tcardq.eq { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; } .tcardq.locked { opacity: .4; cursor: default; }
+  /* Cartes v2 */
+  .packs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pack2 { background: #141a16; border: 1px solid #2c3a2e; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+  .foil { position: relative; height: 170px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; overflow: hidden; background: linear-gradient(155deg, #3c5a40 0%, #1d2a1f 55%, #2f4733 100%); border: 1px solid #5d7c5f; box-shadow: inset 0 0 0 4px rgba(0,0,0,.25), 0 6px 18px rgba(0,0,0,.45); }
+  .foil::after { content: ''; position: absolute; inset: -40%; background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,.18) 50%, transparent 60%); animation: shine 3.6s infinite; }
+  html.manual .foil::after { animation: none; display: none; }
+  @keyframes shine { 0% { transform: translateX(-60%); } 60%, 100% { transform: translateX(60%); } }
+  .foil .pemb { font-size: 46px; color: #d9e8c8; text-shadow: 0 2px 6px rgba(0,0,0,.6); }
+  .foil b { font-size: 18px; letter-spacing: .14em; text-transform: uppercase; color: #eef4e6; }
+  .foil small { font-size: 11px; color: #b8c7b0; letter-spacing: .1em; text-transform: uppercase; }
+  .p-elite .foil { background: linear-gradient(155deg, #6a5420 0%, #2a2210 55%, #5a4618 100%); border-color: #c9a64a; }
+  .p-elite .foil .pemb { color: #ffd76a; } .p-elite .foil b { color: #ffe9a8; }
+  .odds { display: flex; flex-direction: column; gap: 2px; font-size: 10px; }
+  .odd { display: grid; grid-template-columns: 70px 1fr 34px; align-items: center; gap: 6px; color: var(--muted); }
+  .odd i { display: block; height: 5px; border-radius: 3px; background: var(--accent); opacity: .75; }
+  .odd em { font-style: normal; text-align: right; }
+  .opened { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; } .opened .mini { font-size: 10px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line); }
+  .mini.r2 { border-color: #4f9cf0; color: #a9d0ff; } .mini.r3 { border-color: #d9b44a; color: #ffe08a; }
+  .packopen { position: fixed; inset: 0; z-index: 60; background: radial-gradient(ellipse at center, rgba(30,40,32,.985), rgba(6,8,7,.995)); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
+  .packopen.p-elite { background: radial-gradient(ellipse at center, rgba(52,42,18,.985), rgba(8,7,4,.995)); }
+  .potitle { font-size: 22px; letter-spacing: .2em; text-transform: uppercase; color: #e8efe0; }
+  .potear { position: absolute; top: 50%; left: 50%; width: 220px; transform: translate(-50%, -50%); transition: transform .5s, opacity .5s; animation: shake .5s 2; }
+  .potear .foil { height: 300px; }
+  @keyframes shake { 0%,100% { transform: translate(-50%,-50%) rotate(0); } 25% { transform: translate(-50%,-50%) rotate(-3deg); } 75% { transform: translate(-50%,-50%) rotate(3deg); } }
+  .packopen.torn .potear { transform: translate(-50%, -120%) scale(1.15); opacity: 0; pointer-events: none; animation: none; }
+  .porow { display: flex; gap: 16px; opacity: 0; transform: translateY(30px); transition: opacity .4s .2s, transform .4s .2s; }
+  .packopen.torn .porow { opacity: 1; transform: none; }
+  .pcard { width: 200px; height: 290px; perspective: 900px; cursor: pointer; }
+  .pcard .in { position: relative; width: 100%; height: 100%; transition: transform .6s; transform-style: preserve-3d; }
+  .pcard.flipped .in { transform: rotateY(180deg); }
+  .pcard .face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 12px; overflow: hidden; }
+  .pcard .back { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: repeating-linear-gradient(45deg, #253428 0 8px, #1c271f 8px 16px); border: 2px solid #4c6650; color: var(--accent); font-size: 38px; }
+  .pcard .back small { font-size: 9px; letter-spacing: .2em; color: #8fa38c; }
+  .pcard .front { transform: rotateY(180deg); background: linear-gradient(180deg, #1e2620, #121714); border: 2px solid #6d7c6b; display: flex; flex-direction: column; padding: 8px; gap: 5px; text-align: center; }
+  .pcard.r2 .front { border-color: #4f9cf0; box-shadow: 0 0 22px rgba(79,156,240,.45); }
+  .pcard.r3 .front { border-color: #e2bb4c; box-shadow: 0 0 28px rgba(226,187,76,.6); background: linear-gradient(180deg, #2c2614, #15130b); }
+  .pcard.r2.flipped, .pcard.r3.flipped { animation: pop .5s .35s; }
+  @keyframes pop { 50% { transform: scale(1.07); } }
+  .pcard .ctop { display: flex; justify-content: space-between; font-size: 9px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+  .pcard.r2 .ctop span:last-child { color: #8cc2ff; } .pcard.r3 .ctop span:last-child { color: #ffd76a; }
+  .pcard .cart { position: relative; height: 150px; border-radius: 8px; background: radial-gradient(circle at 50% 40%, #33433a, #161d18); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .pcard .cart .portrait { width: 100%; height: 100%; object-fit: cover; object-position: top; border: 0; border-radius: 0; }
+  .pcard .cart .portrait.full { object-fit: contain; }
+  .pcard .cart .cart, .pcard .cart img.cart { width: 110px; height: 110px; }
+  .pcard .cglyph { font-size: 60px; color: var(--accent); }
+  .pcard .cbadge { position: absolute; right: 6px; bottom: 6px; background: var(--accent); color: #111; font-weight: 700; border-radius: 6px; padding: 2px 6px; font-size: 12px; }
+  .pcard .front b { font-size: 14px; color: #eef3ea; } .pcard.t-operator .front b { color: var(--a0); } .pcard.t-tactic .front b { color: #a9d8ff; }
+  .pcard .front p { margin: 0; font-size: 11px; color: #b9c4b5; line-height: 1.3; }
+  .pobar { display: flex; gap: 10px; align-items: center; }
+  .pobar button { padding: 8px 18px; }
+  .tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .tcardq { background: linear-gradient(180deg, #1c2420, #131815); border: 1px solid var(--line); border-radius: 10px; padding: 8px; cursor: pointer; font-size: 11px; display: flex; flex-direction: column; gap: 4px; }
+  .tcardq .tart { position: relative; height: 92px; border-radius: 7px; background: radial-gradient(circle at 50% 45%, #2e3d33, #141b16); display: flex; align-items: center; justify-content: center; }
+  .tcardq .tart img { width: 76px; height: 76px; } .tcardq .tart .cglyph { font-size: 40px; }
+  .tcardq .tkind { position: absolute; left: 5px; top: 5px; font-size: 9px; text-transform: uppercase; letter-spacing: .1em; padding: 1px 5px; border-radius: 4px; background: rgba(0,0,0,.45); color: #b9c4b5; } .tcardq .tkind.act { color: #ffb36b; }
+  .tcardq .teq { position: absolute; right: 5px; top: 5px; font-size: 9px; padding: 1px 5px; border-radius: 4px; background: var(--accent); color: #111; font-weight: 700; }
+  .tcardq b { font-size: 13px; } .tcardq .tdesc { color: #b9c4b5; line-height: 1.3; } .tcardq .tlock { color: var(--muted); font-style: italic; }
+  .tcardq.eq { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset, 0 0 14px rgba(0,0,0,.4); }
+  .tcardq.locked { opacity: .45; cursor: default; filter: grayscale(.7); }
   table.lg { width: 100%; border-collapse: collapse; font-size: 12px; } table.lg th { text-align: left; color: var(--muted); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; padding: 4px 6px; border-bottom: 1px solid var(--line); } table.lg td { padding: 5px 6px; border-bottom: 1px solid #1d242b; font-variant-numeric: tabular-nums; } table.lg tr.me td { background: #1d2a34; font-weight: 700; } table.lg tr.podium td:first-child { color: var(--accent); } table.lg .ins.small { width: 22px; height: 22px; font-size: 12px; margin-right: 6px; } table.lg tr.nq td { opacity: .55; }
   .deploy { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
 
@@ -292,7 +348,7 @@
   <!-- Cartes : paquets, tactiques, armurerie, perks -->
   <div class="hqpanel hidden" data-panel="cartes">
     <div class="hqgrid two">
-      <section class="hqcol"><h3>Paquets de cartes</h3><div id="hqPacks" class="packs"></div><div id="hqOpened" class="opened"></div>
+      <section class="hqcol"><h3>Paquets de cartes</h3><div id="hqPacks" class="packs"></div><div id="hqOpened" class="opened"></div><div id="packOpen" class="packopen hidden"></div>
         <h3 style="margin-top:8px">Armurerie</h3><div id="hqArmory" style="display:flex;flex-direction:column;gap:6px"></div></section>
       <section class="hqcol"><h3>Tactiques <small class="muted">(3 emportées en mission)</small></h3><div id="hqTactics" class="tgrid"></div>
         <h3 style="margin-top:8px">Perks acquis</h3><div id="hqPerks" class="muted" style="font-size:12px"></div></section>
@@ -3305,21 +3361,61 @@ window.Son = Son;
     const mission = Object.assign({}, Game.LEAGUE_MISSION, { name: `Ligue — ${opp.name}`, mapId: opts.mapId, order: opp.order, enemyTactics: opp.tactics, league: opp.id, level: teams[1].operators[0].level });
     showVs(opts, mission);
   });
+  // ---- Cartes v2 : paquets dessinés (probabilités par type), ouverture plein écran carte par carte, couleurs de rareté -----
+  const CARD_TYPE_FR = { operator: 'Recrue', dupe: 'Doublon', tactic: 'Tactique', perk: 'Perk', xp: 'Expérience', credits: 'Crédits', cosmetic: 'Cosmétique' };
+  const TYPE_GLYPH = { credits: '¤', cosmetic: '✦', xp: '▲', perk: '✚' };
+  const tacArt = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'cart')) || `<span class="cglyph">${TACTIC_ICON[id] || '◆'}</span>`;
+  function cardArt(c) {
+    const o = c.id && OPERATORS.find(x => x.id === c.id);
+    if (c.type === 'tactic') return tacArt(c.id);
+    if (o && (c.type === 'operator' || c.type === 'dupe')) return portraitOf(o, true);
+    if (o && (c.type === 'perk' || c.type === 'xp')) return `${portraitOf(o, true)}<span class="cbadge">${c.type === 'perk' ? '+2' : 'XP'}</span>`;
+    return `<span class="cglyph">${TYPE_GLYPH[c.type] || '◆'}</span>`;
+  }
+  function cardHTML(c, i) {
+    const r = c.rarity || 1;
+    return `<div class="pcard r${r} t-${c.type}" data-i="${i}" style="--d:${i}"><div class="in"><div class="face back"><span>◆</span><small>OPERATOR TACTICS</small></div>`
+      + `<div class="face front"><div class="ctop"><span>${CARD_TYPE_FR[c.type] || c.type}</span><span>${RARITY_FR[r] || ''}</span></div><div class="cart">${cardArt(c)}</div>`
+      + `<b>${esc(c.title)}</b><p>${esc(c.text)}</p></div></div></div>`;
+  }
+  function packOdds(pk) {
+    const t = Object.values(pk.weights).reduce((s, v) => s + v, 0);
+    return Object.entries(pk.weights).map(([k, v]) => `<div class="odd"><span>${CARD_TYPE_FR[k]}</span><i style="width:${Math.round(v / t * 100)}%"></i><em>${Math.round(v / t * 100)} %</em></div>`).join('');
+  }
   function renderPacks() {
-    $('#hqPacks').innerHTML = Object.values(PACKS).map(pk => `<div class="pack"><b>${esc(pk.name)}</b><div class="muted">${pk.cards} cartes · recrues, tactiques, perks, XP, crédits, cosmétiques${pk.id === 'elite' ? ' — meilleures chances' : ''}</div>${(profile.freePacks && profile.freePacks[pk.id]) ? `<button class="on" data-pack="${pk.id}">Ouvrir — offert (${profile.freePacks[pk.id]})</button>` : `<button data-pack="${pk.id}" ${profile.credits >= pk.price ? '' : 'disabled'}>Ouvrir — ${pk.price} cr.</button>`}</div>`).join('');
+    $('#hqPacks').innerHTML = Object.values(PACKS).map(pk => { const free = profile.freePacks && profile.freePacks[pk.id];
+      return `<div class="pack2 p-${pk.id}"><div class="foil"><span class="pemb">${pk.id === 'elite' ? '✪' : '◆'}</span><b>${esc(pk.name.replace('Paquet ', ''))}</b><small>${pk.cards} cartes</small></div>`
+      + `<div class="odds">${packOdds(pk)}</div>`
+      + (free ? `<button class="on" data-pack="${pk.id}">Ouvrir — offert (${free})</button>` : `<button data-pack="${pk.id}" ${profile.credits >= pk.price ? '' : 'disabled'}>Ouvrir — ${pk.price} cr.</button>`) + `</div>`; }).join('');
     $('#hqPacks').querySelectorAll('button[data-pack]').forEach(b => b.addEventListener('click', () => {
       const cards = Game.openPack(profile, b.dataset.pack);
       if (!cards) { flash('Crédits insuffisants.'); return; }
-      saveNow(); render();
-      $('#hqOpened').innerHTML = cards.map((c, i) => `<div class="ccard t-${c.type}" data-i="${i}"><div class="in"><div class="face back">◆</div><div class="face front"><span class="ctype">${{ operator: 'Recrue', tactic: 'Tactique', perk: 'Perk', xp: 'Expérience', credits: 'Crédits', cosmetic: 'Cosmétique' }[c.type]}</span><b>${esc(c.title)}</b><span>${esc(c.text)}</span></div></div></div>`).join('') + `<div class="muted" style="width:100%;font-size:11px">Cliquez sur les cartes pour les retourner (${cards.length}).</div>`;
-      $('#hqOpened').querySelectorAll('.ccard').forEach(cc => cc.addEventListener('click', () => cc.classList.add('flipped')));
-      setTimeout(() => $('#hqOpened').querySelectorAll('.ccard').forEach((cc, i) => setTimeout(() => cc.classList.add('flipped'), 400 + i * 350)), 300);
+      saveNow(); render(); openPackScreen(b.dataset.pack, cards);
     }));
+  }
+  // écran d'ouverture : le paquet se déchire, les cartes sont posées face cachée ; clic = retourner, « Tout révéler », « Continuer »
+  function openPackScreen(packId, cards) {
+    const ov = $('#packOpen'), pk = PACKS[packId];
+    ov.className = 'packopen p-' + packId; ov.classList.remove('hidden');
+    ov.innerHTML = `<div class="potitle">${esc(pk.name)}</div><div class="potear"><div class="foil"><span class="pemb">${packId === 'elite' ? '✪' : '◆'}</span><b>${esc(pk.name.replace('Paquet ', ''))}</b></div></div>`
+      + `<div class="porow">${cards.map(cardHTML).join('')}</div>`
+      + `<div class="pobar"><span id="poCount" class="muted"></span><button id="poAll">Tout révéler</button><button id="poClose" class="on">Continuer</button></div>`;
+    const flips = [...ov.querySelectorAll('.pcard')];
+    const count = () => { const n = flips.filter(f => f.classList.contains('flipped')).length; $('#poCount').textContent = `${n} / ${flips.length} révélée${n > 1 ? 's' : ''}`; };
+    const flip = (f) => { if (f.classList.contains('flipped')) return; f.classList.add('flipped'); count(); };
+    flips.forEach(f => f.addEventListener('click', () => flip(f)));
+    $('#poAll').addEventListener('click', () => flips.forEach((f, i) => setTimeout(() => flip(f), i * 180)));
+    $('#poClose').addEventListener('click', () => { ov.classList.add('hidden'); ov.innerHTML = '';
+      $('#hqOpened').innerHTML = `<div class="muted" style="width:100%;font-size:11px">Dernier paquet :</div>` + cards.map(c => `<span class="mini r${c.rarity || 1}">${esc(c.title)}</span>`).join(''); });
+    count();
+    if (document.documentElement.classList.contains('manual')) { ov.classList.add('torn'); return; }
+    setTimeout(() => ov.classList.add('torn'), 650);
   }
   function renderTactics() {
     const eq = profile.tactics.equipped;
-    $('#hqTactics').innerHTML = Object.values(TACTICS).map(t => { const owned = !!profile.tactics.owned[t.id]; return `<div class="tcardq ${eq.includes(t.id) ? 'eq' : ''} ${owned ? '' : 'locked'}" data-t="${t.id}" title="${esc(t.desc)}"><span class="ticon">${TACTIC_ICON[t.id]}</span><b>${esc(t.name)}</b><span class="muted">${t.active ? `active · ${t.uses} emploi${t.uses > 1 ? 's' : ''}${t.cooldown ? ', recharge ' + t.cooldown + ' s' : ''}` : 'passive'}</span><span>${esc(t.desc)}</span><span class="muted">${owned ? (eq.includes(t.id) ? 'Emportée' : 'Possédée') : 'À trouver dans un paquet'}</span></div>`; }).join('');
-    $('#hqTactics').querySelectorAll('.tcardq').forEach(c => c.addEventListener('click', () => { const id = c.dataset.t; if (!profile.tactics.owned[id]) return; if (!Game.equipTactic(profile, id)) flash('Trois tactiques au maximum : retirez-en une d\u2019abord.'); saveNow(); render(); }));
+    $('#hqTactics').innerHTML = Object.values(TACTICS).map(t => { const owned = !!profile.tactics.owned[t.id];
+      return `<div class="tcardq ${eq.includes(t.id) ? 'eq' : ''} ${owned ? '' : 'locked'}" data-t="${t.id}" title="${esc(t.desc)}"><div class="tart">${tacArt(t.id)}<span class="tkind ${t.active ? 'act' : ''}">${t.active ? 'Active' : 'Passive'}</span>${eq.includes(t.id) ? '<span class="teq">Emportée</span>' : ''}</div><b>${esc(t.name)}</b><span class="muted">${t.active ? `${t.uses} emploi${t.uses > 1 ? 's' : ''}${t.cooldown ? ' · recharge ' + t.cooldown + ' s' : ''}` : 'effet permanent'}</span><span class="tdesc">${esc(t.desc)}</span>${owned ? '' : '<span class="tlock">À trouver dans un paquet</span>'}</div>`; }).join('');
+    $('#hqTactics').querySelectorAll('.tcardq').forEach(c => c.addEventListener('click', () => { const id = c.dataset.t; if (!profile.tactics.owned[id]) return; if (!Game.equipTactic(profile, id)) flash('Trois tactiques au maximum : retirez-en une d’abord.'); saveNow(); render(); }));
   }
   function renderPerks() {
     const rows = Object.entries(profile.perks || {}).filter(([, p]) => Object.keys(p).length).map(([id, p]) => `${OPERATORS.find(o => o.id === id).callsign} : ${Object.entries(p).map(([k, v]) => `${Game.STAT_FR[k]} +${v}`).join(', ')}`);
