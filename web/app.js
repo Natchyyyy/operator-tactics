@@ -849,7 +849,7 @@
   // ---------------------------------------------------------------------------------------------
   const roleIcon = { assault: 'AS', pointman: 'PT', marksman: 'TE', support: 'AP', breacher: 'BR' };
   function insigniaGlyph(team) {
-    if (team.insignia === 'karst' || (team.units[0] && team.units[0].def.faction === 'karst')) return '⚑';
+    const fac = DATA.FACTIONS[team.insignia] || (team.units[0] && DATA.FACTIONS[team.units[0].def.faction]); if (fac && fac.glyph) return fac.glyph;
     const ins = DATA.INSIGNIAS.find(i => i.id === team.insignia); return ins ? ins.glyph : (team.index === 0 ? '✶' : '⚑');
   }
   function buildRosters() {
@@ -1059,7 +1059,7 @@
     const D = DATA, cond = mis.conditions && mis.conditions !== 'jour' ? D.CONDITIONS[mis.conditions].name : 'Jour';
     $('#brObj').textContent = OT.Game.objectiveLabel(mis).toUpperCase(); $('#brMap').textContent = OT.MAPS[mis.mapId].name;
     $('#brName').textContent = mis.name; $('#brDesc').textContent = mis.desc || '';
-    $('#brIntel').innerHTML = `<div><span>Conditions</span><b>${cond}</b></div><div><span>Adversaire</span><b>Groupe Karst · ${opts.teams[1].operators.length} opérateurs · niveau ${mis.level}</b></div><div><span>Comportement</span><b>${D.ORDERS[mis.order].name}</b></div><div><span>Récompense</span><b>${mis.reward} cr. · ${mis.xp} XP</b></div>`;
+    $('#brIntel').innerHTML = `<div><span>Conditions</span><b>${cond}</b></div><div><span>Adversaire</span><b>${opts.teams[1].name} · ${opts.teams[1].operators.length} opérateurs · niveau ${mis.level}</b></div><div><span>Comportement</span><b>${D.ORDERS[mis.order].name}</b></div><div><span>Récompense</span><b>${mis.reward} cr. · ${mis.xp} XP</b></div>`;
     briefing = { t0: performance.now() / 1000, a0: Math.random() * 6.28 }; $('#briefing').classList.remove('hidden');
   }
   function hideBriefing(start) { if (!briefing) return; briefing = null; $('#briefing').classList.add('hidden'); cam.init = false; if (start) { paused = false; updatePlayButton(); } }

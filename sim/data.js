@@ -168,11 +168,23 @@
     { id: 'k_fauve',   callsign: 'Fauve',   unit: 'Groupe Karst — section d\'assaut', faction: 'karst', role: 'assault',  armor: 'medium', trait: 'runner',      rarity: 2, marksmanship: 72, reflexes: 76, mobility: 78, perception: 66, composure: 66, endurance: 70 },
     { id: 'k_taipan',  callsign: 'Taïpan',  unit: 'Groupe Karst — tireurs',           faction: 'karst', role: 'marksman', armor: 'medium', trait: 'ambusher',    rarity: 3, marksmanship: 86, reflexes: 62, mobility: 60, perception: 84, composure: 84, endurance: 66 },
     { id: 'k_bison',   callsign: 'Bison',   unit: 'Groupe Karst — appui feu',         faction: 'karst', role: 'support',  armor: 'heavy',  trait: 'colossus',    rarity: 2, marksmanship: 56, reflexes: 58, mobility: 56, perception: 60, composure: 88, endurance: 92 },
+
+    // ---- Seconde faction adverse : « Milice du Delta », force irrégulière fictive (non recrutable) : légère, nombreuse au contact,
+    // armes courtes ; son chef, « le Colonel », est un adversaire d'exception (mission finale de l'Opération Delta) ----
+    { id: 'd_scorpion', callsign: 'Scorpion', unit: 'Milice du Delta — choc',      faction: 'delta', role: 'assault',  armor: 'light',  trait: 'runner',   rarity: 2, headgear: 'foulard', marksmanship: 66, reflexes: 76, mobility: 82, perception: 64, composure: 60, endurance: 70 },
+    { id: 'd_fennec',   callsign: 'Fennec',   unit: 'Milice du Delta — éclaireurs', faction: 'delta', role: 'pointman', armor: 'light',  trait: 'eagle',    rarity: 2, headgear: 'casquette', marksmanship: 62, reflexes: 82, mobility: 88, perception: 78, composure: 56, endurance: 62 },
+    { id: 'd_busard',   callsign: 'Busard',   unit: 'Milice du Delta — tireurs',    faction: 'delta', role: 'marksman', armor: 'light',  trait: 'ambusher', rarity: 2, headgear: 'chapeau', marksmanship: 84, reflexes: 58, mobility: 60, perception: 82, composure: 70, endurance: 58 },
+    { id: 'd_rhino',    callsign: 'Rhino',    unit: 'Milice du Delta — appui',      faction: 'delta', role: 'support',  armor: 'medium', trait: 'gunner',   rarity: 2, headgear: 'bonnet', marksmanship: 56, reflexes: 56, mobility: 58, perception: 58, composure: 74, endurance: 86 },
+    { id: 'd_taureau',  callsign: 'Taureau',  unit: 'Milice du Delta — choc',       faction: 'delta', role: 'breacher', armor: 'medium', trait: 'breach',   rarity: 2, headgear: 'foulard', marksmanship: 60, reflexes: 74, mobility: 76, perception: 56, composure: 70, endurance: 82 },
+    { id: 'd_mamba',    callsign: 'Mamba',    unit: 'Milice du Delta — choc',       faction: 'delta', role: 'assault',  armor: 'light',  trait: 'fasthands', rarity: 2, headgear: 'casquette', marksmanship: 70, reflexes: 78, mobility: 76, perception: 62, composure: 62, endurance: 66 },
+    { id: 'd_gecko',    callsign: 'Gecko',    unit: 'Milice du Delta — éclaireurs', faction: 'delta', role: 'pointman', armor: 'light',  trait: 'ghost',    rarity: 2, headgear: 'bonnet', marksmanship: 62, reflexes: 84, mobility: 86, perception: 74, composure: 58, endurance: 60 },
+    { id: 'd_colonel',  callsign: 'Le Colonel', unit: 'Milice du Delta — commandement', faction: 'delta', role: 'assault', armor: 'heavy', trait: 'leader', traits: ['hardened'], rarity: 3, headgear: 'beret_rouge', marksmanship: 86, reflexes: 80, mobility: 64, perception: 84, composure: 92, endurance: 90 },
   ];
   // Factions : couleurs d'uniforme (rendu) et nom
   const FACTIONS = {
     allied: { id: 'allied', name: 'Coalition', uniform: 0x3a4a3c, vest: 0x2b352d },
-    karst:  { id: 'karst',  name: 'Groupe Karst', uniform: 0x3b3a40, vest: 0x5a2628 },
+    karst:  { id: 'karst',  name: 'Groupe Karst', uniform: 0x3b3a40, vest: 0x5a2628, glyph: '⚑' },
+    delta:  { id: 'delta',  name: 'Milice du Delta', uniform: 0x7a6a4a, vest: 0x3d3a2a, glyph: '☠' },
   };
 
   // ---- ORDRES TACTIQUES --------------------------------------------------------------
@@ -201,6 +213,15 @@
     { id: 'galerie', name: 'Balise de la galerie', desc: 'Les balises de notre agent disparu émettent depuis le parking du centre commercial. Trouvez-les et sécurisez l\'enclos central.', mapId: 'parking', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 1, order: 'careful', objective: 'capture', enemyTactics: ['fumigene', 'soins'], reward: 320, xp: 65, difficulty: 2 },
     { id: 'parking', name: 'Nettoyage du parking', desc: 'Le Groupe Karst s\'est retranché entre les voitures et les barrières du parking. Délogez-le.', mapId: 'parking', conditions: 'nuit', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_hyene'], level: 6, order: 'hold', enemyTactics: ['retranche', 'reco'], reward: 380, xp: 75, difficulty: 3 },
     { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 7, order: 'assault', enemyTactics: ['blitz', 'reco', 'soins'], reward: 480, xp: 90, difficulty: 4 },
+    // ---- Opération Delta (seconde campagne) : la Milice du Delta, sur les mêmes terrains, souvent de nuit ou par mauvais temps ----
+    { id: 'd_barrage', faction: 'delta', name: 'Barrage routier', desc: 'La Milice du Delta a bloqué l\'accès au parking du centre commercial. Dégagez la route.', mapId: 'parking', enemy: ['d_scorpion', 'd_fennec', 'd_rhino', 'd_taureau', 'd_mamba'], level: 5, order: 'assault', enemyTactics: ['blitz'], reward: 260, xp: 55, difficulty: 2 },
+    { id: 'd_contrebande', faction: 'delta', name: 'Contrebande', desc: 'Sous la pluie, la milice décharge une cargaison sur les docks. Prenez la zone de transbordement.', mapId: 'entrepot', conditions: 'pluie', enemy: ['d_fennec', 'd_mamba', 'd_busard', 'd_rhino', 'd_gecko'], level: 8, order: 'careful', objective: 'capture', enemyTactics: ['fumigene'], reward: 280, xp: 60, difficulty: 2 },
+    { id: 'd_marchenoir', faction: 'delta', name: 'Marché noir', desc: 'De nuit, la milice tient le marché couvert. Ses tireurs attendent dans l\'ombre.', mapId: 'place', conditions: 'nuit', enemy: ['d_busard', 'd_rhino', 'd_scorpion', 'd_gecko', 'd_taureau'], level: 7, order: 'hold', enemyTactics: ['retranche'], reward: 300, xp: 60, difficulty: 3 },
+    { id: 'd_raid', faction: 'delta', name: 'Raid nocturne', desc: 'La milice attaque la raffinerie en pleine nuit, armes courtes au poing. Repoussez l\'assaut.', mapId: 'raffinerie', conditions: 'nuit', enemy: ['d_scorpion', 'd_mamba', 'd_taureau', 'd_fennec', 'd_gecko'], level: 8, order: 'assault', enemyWeapons: { d_scorpion: 'smg', d_mamba: 'smg' }, enemyTactics: ['blitz', 'fumigene'], reward: 320, xp: 65, difficulty: 3 },
+    { id: 'd_brume', faction: 'delta', name: 'Dans la brume', desc: 'Un brouillard épais sur les docks : on ne voit pas à quinze mètres. L\'ennemi est là, quelque part.', mapId: 'entrepot', conditions: 'brouillard', enemy: ['d_gecko', 'd_fennec', 'd_mamba', 'd_rhino', 'd_busard'], level: 5, order: 'careful', enemyTactics: ['camouflage'], reward: 340, xp: 70, difficulty: 3 },
+    { id: 'd_pointappui', faction: 'delta', name: 'Point d\'appui', desc: 'Tenez le parking deux minutes sous la pluie : la milice jette tout ce qu\'elle a dans la bataille.', mapId: 'parking', conditions: 'pluie', enemy: ['d_scorpion', 'd_taureau', 'd_rhino', 'd_mamba', 'd_fennec'], level: 8, order: 'assault', objective: 'hold', duration: 120, enemyTactics: ['blitz', 'barrage'], reward: 360, xp: 70, difficulty: 4 },
+    { id: 'd_placeforte', faction: 'delta', name: 'La place forte', desc: 'La milice s\'est retranchée au cœur de la place du marché. Arrachez-lui la zone.', mapId: 'place', enemy: ['d_rhino', 'd_busard', 'd_taureau', 'd_scorpion', 'd_gecko'], level: 8, order: 'hold', objective: 'capture', enemyTactics: ['retranche', 'soins'], reward: 380, xp: 75, difficulty: 4 },
+    { id: 'd_colonel', faction: 'delta', name: 'Le Colonel', desc: 'Le chef de la milice en personne, avec sa garde rapprochée, de nuit dans la raffinerie. Il ne recule jamais.', mapId: 'raffinerie', conditions: 'nuit', enemy: ['d_colonel', 'd_mamba', 'd_busard', 'd_rhino', 'd_taureau'], level: 2, order: 'careful', enemyTactics: ['reco', 'soins', 'tete'], reward: 600, xp: 100, difficulty: 4, boss: 'd_colonel' },
   ];
 
   // ---- MODES DE JEU (comme le menu « Jouer » du jeu d'origine) -------------------------------
@@ -217,6 +238,9 @@
     { id: 'elite', name: 'Campagne élite', desc: 'Pour les escouades d\'exception : adversaire de niveau 12 à 14, toujours cinq hommes, deux tactiques de plus.',
       missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
       levelBonus: 8, levelClamp: [4, 6], fullSquad: true, extraTactic: 2, rewardMul: 2, participation: 600, completion: 1500, unlock: { rating: 60 } },
+    { id: 'delta', name: 'Opération Delta', desc: 'Huit missions contre la Milice du Delta — nuit, pluie, brouillard — jusqu\'à son chef, le Colonel.',
+      missions: ['d_barrage', 'd_contrebande', 'd_marchenoir', 'd_raid', 'd_brume', 'd_pointappui', 'd_placeforte', 'd_colonel'],
+      levelBonus: 0, rewardMul: 1, participation: 300, completion: 900, unlock: { rank: 2 } },
   ];
   // Bataille rapide : un adversaire à votre mesure (niveau tiré de la puissance d'équipe), carte et objectif au hasard ;
   // un paquet standard offert toutes les QUICK.prizeEvery victoires.
@@ -297,6 +321,7 @@
     { id: 'sauveteur',  name: 'Sauveteur',          glyph: '✚', desc: 'Relever cinq alliés à terre.', reward: { credits: 300 } },
     { id: 'nocturne',   name: 'Oiseau de nuit',     glyph: '☾', desc: 'Gagner cinq batailles de nuit.', reward: { insignia: 'rose' } },
     { id: 'terrain',    name: 'Maître du terrain',  glyph: '⬢', desc: 'Gagner cinq batailles de capture de zone.', reward: { insignia: 'ancre' } },
+    { id: 'colonel',    name: 'Le Colonel',         glyph: '☠', desc: 'Vaincre le Colonel, chef de la Milice du Delta (Opération Delta).', reward: { headgear: 'beret_bleu' } },
     { id: 'campagne',   name: 'Campagne accomplie', glyph: '⚑', desc: 'Gagner les quatorze missions de la campagne régulière.', reward: { uniform: 'desert' } },
   ];
   // ---- PROMOTIONS : second trait au choix (niveau 5), troisième (niveau 10) ----------------

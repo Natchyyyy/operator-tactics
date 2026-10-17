@@ -37,7 +37,7 @@ async def main():
         check("« Continuer » ferme l'écran d'ouverture et résume le paquet", await pg.evaluate("() => document.querySelector('#packOpen').classList.contains('hidden') && document.querySelectorAll('#hqOpened .mini').length === 3"))
         await pg.evaluate("() => document.querySelector('.tabs [data-tab=carriere]').click()"); await pg.wait_for_timeout(150)
         cr = await pg.evaluate("() => [document.querySelectorAll('#crStats > div').length, document.querySelectorAll('#crAch .a').length, document.querySelectorAll('#crMaps .row').length]")
-        check("onglet Carrière : 16 chiffres de bilan, 14 succès avec récompense, 4 terrains", cr == [16, 14, 4], cr)
+        check("onglet Carrière : 16 chiffres de bilan, 15 succès avec récompense, 4 terrains", cr == [16, 15, 4], cr)
         # réglages : ouverture, vitesse par défaut, export → import (aller-retour de la carrière)
         await pg.evaluate("() => document.querySelector('#hqSettings').click()")
         check("le bouton ⚙ ouvre les réglages", await pg.evaluate("() => !document.querySelector('#settings').classList.contains('hidden')"))
@@ -106,7 +106,7 @@ async def main():
         # ---- Jouer : campagnes verrouillées, bataille rapide ----
         await pg.click("[data-tab='missions']"); await pg.wait_for_timeout(150)
         st = await pg.evaluate("() => [document.querySelectorAll('#hqMissions .mission').length, document.querySelectorAll('#hqMissions .mission.locked').length, document.querySelectorAll('.campbtn.locked').length, !!document.querySelector('.mission.final, .final')]")
-        check("onglet Jouer : 14 missions de campagne, les suivantes verrouillées, campagnes vétéran/élite verrouillées, finale signalée", st[0] == 14 and 0 < st[1] < 14 and st[2] == 2 and st[3], st)
+        check("onglet Jouer : 14 missions de campagne, les suivantes verrouillées, campagnes vétéran, élite et Delta verrouillées, finale signalée", st[0] == 14 and 0 < st[1] < 14 and st[2] == 3 and st[3], st)
         await pg.click(".quickcard"); await pg.wait_for_timeout(100); await pg.click("#launch"); await pg.wait_for_timeout(300)
         qv = await pg.evaluate("() => [!document.querySelector('#vs').classList.contains('hidden'), document.querySelector('#vsObj').textContent]")
         check("la bataille rapide passe par l'écran VS avec un objectif tiré au sort", qv[0] and len(qv[1]) > 3, qv)

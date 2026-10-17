@@ -203,7 +203,7 @@
   .playtop { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px; } .quickcard { border-color: #4a6b8f !important; background: linear-gradient(160deg, #1b2a3a, #121a22) !important; }
   .prizebar { display: flex; gap: 4px; margin: 6px 0; } .prizebar i { flex: 1; height: 8px; border-radius: 3px; background: #0b0e11; border: 1px solid var(--line); } .prizebar i.on { background: var(--accent); border-color: var(--accent); }
   .opsrow { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; margin-bottom: 5px; font-size: 12px; } .opsrow .muted { font-size: 11px; } .opsrow.done { border-color: #4f9d5a; } .opsrow .xpbar.big { height: 6px; margin: 4px 0 0; }
-  .camps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; } .campbtn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; text-align: left; } .campbtn small { font-size: 10.5px; opacity: .8; } .campbtn.locked { opacity: .5; }
+  .camps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; } .campbtn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; text-align: left; } .campbtn small { font-size: 10.5px; opacity: .8; } .campbtn.locked { opacity: .5; }
   .mission.locked { opacity: .45; cursor: not-allowed; } .mission.won { border-left: 3px solid #4f9d5a; } .mnum { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 800; margin-right: 6px; } .final { background: #a3261c; color: #fff; font-size: 9.5px; font-weight: 800; letter-spacing: .1em; padding: 1px 6px; border-radius: 3px; margin-left: 6px; }
   .portrait { width: 44px; height: 52px; border-radius: 6px; background: radial-gradient(ellipse at 50% 30%, #2a3340, #0b0e11); object-fit: cover; flex: none; border: 1px solid var(--line); } .portrait.full { width: 150px; height: 178px; border-radius: 10px; }
   .hgpick { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; max-width: 520px; } .hgpick .locked { opacity: .55; }
@@ -1169,11 +1169,23 @@ window.Son = Son;
     { id: 'k_fauve',   callsign: 'Fauve',   unit: 'Groupe Karst — section d\'assaut', faction: 'karst', role: 'assault',  armor: 'medium', trait: 'runner',      rarity: 2, marksmanship: 72, reflexes: 76, mobility: 78, perception: 66, composure: 66, endurance: 70 },
     { id: 'k_taipan',  callsign: 'Taïpan',  unit: 'Groupe Karst — tireurs',           faction: 'karst', role: 'marksman', armor: 'medium', trait: 'ambusher',    rarity: 3, marksmanship: 86, reflexes: 62, mobility: 60, perception: 84, composure: 84, endurance: 66 },
     { id: 'k_bison',   callsign: 'Bison',   unit: 'Groupe Karst — appui feu',         faction: 'karst', role: 'support',  armor: 'heavy',  trait: 'colossus',    rarity: 2, marksmanship: 56, reflexes: 58, mobility: 56, perception: 60, composure: 88, endurance: 92 },
+
+    // ---- Seconde faction adverse : « Milice du Delta », force irrégulière fictive (non recrutable) : légère, nombreuse au contact,
+    // armes courtes ; son chef, « le Colonel », est un adversaire d'exception (mission finale de l'Opération Delta) ----
+    { id: 'd_scorpion', callsign: 'Scorpion', unit: 'Milice du Delta — choc',      faction: 'delta', role: 'assault',  armor: 'light',  trait: 'runner',   rarity: 2, headgear: 'foulard', marksmanship: 66, reflexes: 76, mobility: 82, perception: 64, composure: 60, endurance: 70 },
+    { id: 'd_fennec',   callsign: 'Fennec',   unit: 'Milice du Delta — éclaireurs', faction: 'delta', role: 'pointman', armor: 'light',  trait: 'eagle',    rarity: 2, headgear: 'casquette', marksmanship: 62, reflexes: 82, mobility: 88, perception: 78, composure: 56, endurance: 62 },
+    { id: 'd_busard',   callsign: 'Busard',   unit: 'Milice du Delta — tireurs',    faction: 'delta', role: 'marksman', armor: 'light',  trait: 'ambusher', rarity: 2, headgear: 'chapeau', marksmanship: 84, reflexes: 58, mobility: 60, perception: 82, composure: 70, endurance: 58 },
+    { id: 'd_rhino',    callsign: 'Rhino',    unit: 'Milice du Delta — appui',      faction: 'delta', role: 'support',  armor: 'medium', trait: 'gunner',   rarity: 2, headgear: 'bonnet', marksmanship: 56, reflexes: 56, mobility: 58, perception: 58, composure: 74, endurance: 86 },
+    { id: 'd_taureau',  callsign: 'Taureau',  unit: 'Milice du Delta — choc',       faction: 'delta', role: 'breacher', armor: 'medium', trait: 'breach',   rarity: 2, headgear: 'foulard', marksmanship: 60, reflexes: 74, mobility: 76, perception: 56, composure: 70, endurance: 82 },
+    { id: 'd_mamba',    callsign: 'Mamba',    unit: 'Milice du Delta — choc',       faction: 'delta', role: 'assault',  armor: 'light',  trait: 'fasthands', rarity: 2, headgear: 'casquette', marksmanship: 70, reflexes: 78, mobility: 76, perception: 62, composure: 62, endurance: 66 },
+    { id: 'd_gecko',    callsign: 'Gecko',    unit: 'Milice du Delta — éclaireurs', faction: 'delta', role: 'pointman', armor: 'light',  trait: 'ghost',    rarity: 2, headgear: 'bonnet', marksmanship: 62, reflexes: 84, mobility: 86, perception: 74, composure: 58, endurance: 60 },
+    { id: 'd_colonel',  callsign: 'Le Colonel', unit: 'Milice du Delta — commandement', faction: 'delta', role: 'assault', armor: 'heavy', trait: 'leader', traits: ['hardened'], rarity: 3, headgear: 'beret_rouge', marksmanship: 86, reflexes: 80, mobility: 64, perception: 84, composure: 92, endurance: 90 },
   ];
   // Factions : couleurs d'uniforme (rendu) et nom
   const FACTIONS = {
     allied: { id: 'allied', name: 'Coalition', uniform: 0x3a4a3c, vest: 0x2b352d },
-    karst:  { id: 'karst',  name: 'Groupe Karst', uniform: 0x3b3a40, vest: 0x5a2628 },
+    karst:  { id: 'karst',  name: 'Groupe Karst', uniform: 0x3b3a40, vest: 0x5a2628, glyph: '⚑' },
+    delta:  { id: 'delta',  name: 'Milice du Delta', uniform: 0x7a6a4a, vest: 0x3d3a2a, glyph: '☠' },
   };
 
   // ---- ORDRES TACTIQUES --------------------------------------------------------------
@@ -1202,6 +1214,15 @@ window.Son = Son;
     { id: 'galerie', name: 'Balise de la galerie', desc: 'Les balises de notre agent disparu émettent depuis le parking du centre commercial. Trouvez-les et sécurisez l\'enclos central.', mapId: 'parking', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 1, order: 'careful', objective: 'capture', enemyTactics: ['fumigene', 'soins'], reward: 320, xp: 65, difficulty: 2 },
     { id: 'parking', name: 'Nettoyage du parking', desc: 'Le Groupe Karst s\'est retranché entre les voitures et les barrières du parking. Délogez-le.', mapId: 'parking', conditions: 'nuit', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_hyene'], level: 6, order: 'hold', enemyTactics: ['retranche', 'reco'], reward: 380, xp: 75, difficulty: 3 },
     { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 7, order: 'assault', enemyTactics: ['blitz', 'reco', 'soins'], reward: 480, xp: 90, difficulty: 4 },
+    // ---- Opération Delta (seconde campagne) : la Milice du Delta, sur les mêmes terrains, souvent de nuit ou par mauvais temps ----
+    { id: 'd_barrage', faction: 'delta', name: 'Barrage routier', desc: 'La Milice du Delta a bloqué l\'accès au parking du centre commercial. Dégagez la route.', mapId: 'parking', enemy: ['d_scorpion', 'd_fennec', 'd_rhino', 'd_taureau', 'd_mamba'], level: 5, order: 'assault', enemyTactics: ['blitz'], reward: 260, xp: 55, difficulty: 2 },
+    { id: 'd_contrebande', faction: 'delta', name: 'Contrebande', desc: 'Sous la pluie, la milice décharge une cargaison sur les docks. Prenez la zone de transbordement.', mapId: 'entrepot', conditions: 'pluie', enemy: ['d_fennec', 'd_mamba', 'd_busard', 'd_rhino', 'd_gecko'], level: 8, order: 'careful', objective: 'capture', enemyTactics: ['fumigene'], reward: 280, xp: 60, difficulty: 2 },
+    { id: 'd_marchenoir', faction: 'delta', name: 'Marché noir', desc: 'De nuit, la milice tient le marché couvert. Ses tireurs attendent dans l\'ombre.', mapId: 'place', conditions: 'nuit', enemy: ['d_busard', 'd_rhino', 'd_scorpion', 'd_gecko', 'd_taureau'], level: 7, order: 'hold', enemyTactics: ['retranche'], reward: 300, xp: 60, difficulty: 3 },
+    { id: 'd_raid', faction: 'delta', name: 'Raid nocturne', desc: 'La milice attaque la raffinerie en pleine nuit, armes courtes au poing. Repoussez l\'assaut.', mapId: 'raffinerie', conditions: 'nuit', enemy: ['d_scorpion', 'd_mamba', 'd_taureau', 'd_fennec', 'd_gecko'], level: 8, order: 'assault', enemyWeapons: { d_scorpion: 'smg', d_mamba: 'smg' }, enemyTactics: ['blitz', 'fumigene'], reward: 320, xp: 65, difficulty: 3 },
+    { id: 'd_brume', faction: 'delta', name: 'Dans la brume', desc: 'Un brouillard épais sur les docks : on ne voit pas à quinze mètres. L\'ennemi est là, quelque part.', mapId: 'entrepot', conditions: 'brouillard', enemy: ['d_gecko', 'd_fennec', 'd_mamba', 'd_rhino', 'd_busard'], level: 5, order: 'careful', enemyTactics: ['camouflage'], reward: 340, xp: 70, difficulty: 3 },
+    { id: 'd_pointappui', faction: 'delta', name: 'Point d\'appui', desc: 'Tenez le parking deux minutes sous la pluie : la milice jette tout ce qu\'elle a dans la bataille.', mapId: 'parking', conditions: 'pluie', enemy: ['d_scorpion', 'd_taureau', 'd_rhino', 'd_mamba', 'd_fennec'], level: 8, order: 'assault', objective: 'hold', duration: 120, enemyTactics: ['blitz', 'barrage'], reward: 360, xp: 70, difficulty: 4 },
+    { id: 'd_placeforte', faction: 'delta', name: 'La place forte', desc: 'La milice s\'est retranchée au cœur de la place du marché. Arrachez-lui la zone.', mapId: 'place', enemy: ['d_rhino', 'd_busard', 'd_taureau', 'd_scorpion', 'd_gecko'], level: 8, order: 'hold', objective: 'capture', enemyTactics: ['retranche', 'soins'], reward: 380, xp: 75, difficulty: 4 },
+    { id: 'd_colonel', faction: 'delta', name: 'Le Colonel', desc: 'Le chef de la milice en personne, avec sa garde rapprochée, de nuit dans la raffinerie. Il ne recule jamais.', mapId: 'raffinerie', conditions: 'nuit', enemy: ['d_colonel', 'd_mamba', 'd_busard', 'd_rhino', 'd_taureau'], level: 2, order: 'careful', enemyTactics: ['reco', 'soins', 'tete'], reward: 600, xp: 100, difficulty: 4, boss: 'd_colonel' },
   ];
 
   // ---- MODES DE JEU (comme le menu « Jouer » du jeu d'origine) -------------------------------
@@ -1218,6 +1239,9 @@ window.Son = Son;
     { id: 'elite', name: 'Campagne élite', desc: 'Pour les escouades d\'exception : adversaire de niveau 12 à 14, toujours cinq hommes, deux tactiques de plus.',
       missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
       levelBonus: 8, levelClamp: [4, 6], fullSquad: true, extraTactic: 2, rewardMul: 2, participation: 600, completion: 1500, unlock: { rating: 60 } },
+    { id: 'delta', name: 'Opération Delta', desc: 'Huit missions contre la Milice du Delta — nuit, pluie, brouillard — jusqu\'à son chef, le Colonel.',
+      missions: ['d_barrage', 'd_contrebande', 'd_marchenoir', 'd_raid', 'd_brume', 'd_pointappui', 'd_placeforte', 'd_colonel'],
+      levelBonus: 0, rewardMul: 1, participation: 300, completion: 900, unlock: { rank: 2 } },
   ];
   // Bataille rapide : un adversaire à votre mesure (niveau tiré de la puissance d'équipe), carte et objectif au hasard ;
   // un paquet standard offert toutes les QUICK.prizeEvery victoires.
@@ -1298,6 +1322,7 @@ window.Son = Son;
     { id: 'sauveteur',  name: 'Sauveteur',          glyph: '✚', desc: 'Relever cinq alliés à terre.', reward: { credits: 300 } },
     { id: 'nocturne',   name: 'Oiseau de nuit',     glyph: '☾', desc: 'Gagner cinq batailles de nuit.', reward: { insignia: 'rose' } },
     { id: 'terrain',    name: 'Maître du terrain',  glyph: '⬢', desc: 'Gagner cinq batailles de capture de zone.', reward: { insignia: 'ancre' } },
+    { id: 'colonel',    name: 'Le Colonel',         glyph: '☠', desc: 'Vaincre le Colonel, chef de la Milice du Delta (Opération Delta).', reward: { headgear: 'beret_bleu' } },
     { id: 'campagne',   name: 'Campagne accomplie', glyph: '⚑', desc: 'Gagner les quatorze missions de la campagne régulière.', reward: { uniform: 'desert' } },
   ];
   // ---- PROMOTIONS : second trait au choix (niveau 5), troisième (niveau 10) ----------------
@@ -2962,7 +2987,7 @@ window.Son = Son;
 // Logique pure (testable en ligne de commande) ; l'interface (web/app.js) ne fait que l'afficher.
 (function (root, deps) {
   const { DATA } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL , SYNERGIES, WOUND , CAMPAIGNS, QUICK, SPECIAL_OPS, DAILY, ATTACHMENTS } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL , SYNERGIES, WOUND , CAMPAIGNS, QUICK, SPECIAL_OPS, DAILY, ATTACHMENTS, FACTIONS } = DATA;
   const STATS = ['marksmanship', 'reflexes', 'mobility', 'perception', 'composure', 'endurance'];
   const SAVE_KEY = 'operator-tactics-save-v1';   // la clé ne change pas : la version est DANS la sauvegarde (migrations ci-dessous)
   const SAVE_VERSION = 2;
@@ -3018,7 +3043,7 @@ window.Son = Son;
     const uni = UNIFORMS.find(u => u.id === profile.uniform) || UNIFORMS[0];
     return [
       { name: profile.teamName || 'Alpha', order: profile.order, operators: profile.squad.map(id => effectiveDef(profile, id)), tactics: (profile.tactics && profile.tactics.equipped) || [], insignia: profile.insignia, uniform: uni.id },
-      { name: 'Groupe Karst', order: mission.order, operators: mission.enemy.map(id => enemyDef(id, mission.level, mission.enemyWeapons && mission.enemyWeapons[id])), tactics: mission.enemyTactics || [], autoTactics: true, insignia: 'karst' },
+      { name: (FACTIONS[mission.faction || 'karst'] || FACTIONS.karst).name, order: mission.order, operators: mission.enemy.map(id => enemyDef(id, mission.level, mission.enemyWeapons && mission.enemyWeapons[id])), tactics: mission.enemyTactics || [], autoTactics: true, insignia: mission.faction || 'karst' },
     ];
   }
   // ---- Rang du joueur, puissance d'équipe (indicatifs) ----------------------------------
@@ -3156,10 +3181,11 @@ window.Son = Son;
     const c = CAMPAIGNS.find(x => x.id === cid), base = MISSIONS.find(m => m.id === mid); if (!c || !base) return null;
     if (c.id === 'reguliere') return Object.assign({}, base, { campaign: cid, final: c.missions[c.missions.length - 1] === mid });
     const extra = Object.keys(TACTICS).filter(t => !(base.enemyTactics || []).includes(t)).slice(0, c.extraTactic === true ? 1 : (c.extraTactic || 0));
+    if (!c.levelBonus && !c.extraTactic && !c.levelClamp) return Object.assign({}, base, { id: `${cid}:${mid}`, campaign: cid, final: c.missions[c.missions.length - 1] === mid });   // campagne à missions propres
     return Object.assign({}, base, { id: `${cid}:${mid}`, name: `${base.name} (${c.id === 'veteran' ? 'vétéran' : 'élite'})`, campaign: cid, final: c.missions[c.missions.length - 1] === mid,
       // élite : niveaux de base resserrés (difficulté plus égale d'une mission à l'autre) et toujours cinq adversaires
       level: (c.levelClamp ? Math.max(c.levelClamp[0], Math.min(c.levelClamp[1], base.level)) : base.level) + c.levelBonus,
-      enemy: c.fullSquad && base.enemy.length < 5 ? base.enemy.concat(OPERATORS.filter(o => o.faction === 'karst' && !base.enemy.includes(o.id)).slice(0, 5 - base.enemy.length).map(o => o.id)) : base.enemy,
+      enemy: c.fullSquad && base.enemy.length < 5 ? base.enemy.concat(OPERATORS.filter(o => o.faction === (base.faction || 'karst') && !base.enemy.includes(o.id)).slice(0, 5 - base.enemy.length).map(o => o.id)) : base.enemy,
       enemyTactics: (base.enemyTactics || []).concat(extra), reward: Math.round(base.reward * c.rewardMul), xp: Math.round(base.xp * (1 + (c.rewardMul - 1) / 2)) });
   }
   // une mission est jouable si c'est la première de la campagne, ou si la précédente a été jouée
@@ -3179,7 +3205,8 @@ window.Son = Son;
   // Bataille rapide : adversaire de la Karst au niveau de votre puissance d'équipe, carte et objectif tirés au sort.
   function quickBattle(profile, rng) {
     rng = rng || Math.random; const pick = (a) => a[Math.floor(rng() * a.length)];
-    const karst = OPERATORS.filter(o => o.faction === 'karst').map(o => o.id);
+    const faction = rng() < 0.3 ? 'delta' : 'karst';   // une fois sur trois, la Milice du Delta (sans son chef)
+    const karst = OPERATORS.filter(o => o.faction === faction && o.id !== 'd_colonel').map(o => o.id);
     for (let i = karst.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [karst[i], karst[j]] = [karst[j], karst[i]]; }
     // niveau : le plus haut dont la note moyenne reste un peu sous la vôtre (vos tactiques et vos ordres font la différence)
     const target = teamRating(profile) - 2, rate = (lv) => karst.slice(0, 5).reduce((s, id) => s + defRating(enemyDef(id, lv)), 0) / 5;
@@ -3187,7 +3214,7 @@ window.Son = Son;
     const size = rate(0) > target + 4 ? 4 : 5;                     // escouade de recrues face à des vétérans : un adversaire de moins
     const objective = pick(['eliminate', 'eliminate', 'capture', 'capture', 'hold']);
     const tac = Object.keys(TACTICS); const t1 = pick(tac), t2 = pick(tac.filter(t => t !== t1));
-    return { id: 'rapide', name: 'Bataille rapide', quick: true, desc: 'Un adversaire à votre mesure.', mapId: pick(['entrepot', 'place', 'raffinerie', 'parking']), enemy: karst.slice(0, size), level,
+    return { id: 'rapide', name: 'Bataille rapide', quick: true, faction, desc: 'Un adversaire à votre mesure.', mapId: pick(['entrepot', 'place', 'raffinerie', 'parking']), enemy: karst.slice(0, size), level,
       order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: rng() < 0.5 ? [t1] : [t1, t2], reward: QUICK.reward, xp: QUICK.xp, difficulty: 2,
       conditions: pick(['jour', 'jour', 'jour', 'jour', 'jour', 'nuit', 'brouillard', 'pluie']) };
   }
@@ -3416,6 +3443,7 @@ window.Son = Son;
     nocturne:   (p) => (p.career.nightWins || 0) >= 5,
     terrain:    (p) => (p.career.captureWins || 0) >= 5,
     campagne:   (p) => campaignProgress(p, 'reguliere').won >= CAMPAIGNS[0].missions.length,
+    colonel:    (p) => !!(p.campaigns && p.campaigns.delta && p.campaigns.delta.won && p.campaigns.delta.won.d_colonel),
   };
   // ---- Contrats du jour ----------------------------------------------------------------------------------------------
   // dailyContracts(profile, date) : les trois contrats de la date (AAAA-MM-JJ), tirés d'une graine dérivée de la date ;
@@ -3449,7 +3477,7 @@ window.Son = Son;
     podium: () => null, tacticien: (p) => [p.tacticsUsed || 0, 20], intact: () => null,
     croise: (p) => [p.career.group || 0, 10], precision: (p) => [p.career.headshots || 0, 25], sauveteur: (p) => [p.career.revives || 0, 5],
     nocturne: (p) => [p.career.nightWins || 0, 5], terrain: (p) => [p.career.captureWins || 0, 5],
-    campagne: (p) => [campaignProgress(p, 'reguliere').won, CAMPAIGNS[0].missions.length],
+    campagne: (p) => [campaignProgress(p, 'reguliere').won, CAMPAIGNS[0].missions.length], colonel: () => null,
   };
   function achievementProgress(profile, id) { const f = ACHIEVEMENT_PROGRESS[id]; const v = f ? f(profile) : null; return v ? [Math.min(v[0], v[1]), v[1]] : null; }
   function checkAchievements(profile, result) {
@@ -3648,6 +3676,7 @@ window.Son = Son;
   // ---- Carrière : bilan chiffré, terrains, dernières batailles, succès avec jauges et récompenses --------------------------
   // Astuces (écran VS), toutes vraies dans la simulation
   const TIPS = [
+    'Deux opérateurs du même pays mettent en joue 10 % plus vite tant que l\'autre est debout (synergie Frères d\'armes).',
     'Un Meneur debout réduit de 10 % les dégâts subis par son radio et ses servants d\'arme d\'appui (synergie Commandement).',
     'Un Radio améliore de 8 % la précision des tireurs d\'élite, des appuis et des brécheurs (synergie Guidage radio).',
     'Un opérateur blessé grave a ses compétences divisées par deux tant qu\'il n\'est pas soigné, ou reposé deux missions.',
@@ -3719,7 +3748,7 @@ window.Son = Son;
     const m = currentMission();
     const squad = profile.squad.map(id => OPERATORS.find(o => o.id === id).callsign).join(', ') || 'aucun';
     const tac = (profile.tactics.equipped || []).map(id => TACTICS[id].name).join(', ') || 'aucune';
-    $('#hqDeploy').innerHTML = `<div class="deploy"><div><b>${esc(m.name)}</b> — ${OT.MAPS[m.mapId].name}</div><div>Escouade (${profile.squad.length}) : ${esc(squad)}</div><div>Ordre : ${ORDERS[profile.order].name} · Tactiques : ${esc(tac)}</div><div>Puissance ${Game.teamRating(profile)} contre niveau ${m.level} du Groupe Karst (${ORDERS[m.order].name}${m.enemyTactics && m.enemyTactics.length ? ', tactiques : ' + m.enemyTactics.map(t => TACTICS[t].name).join(', ') : ''})</div></div>`;
+    $('#hqDeploy').innerHTML = `<div class="deploy"><div><b>${esc(m.name)}</b> — ${OT.MAPS[m.mapId].name}</div><div>Escouade (${profile.squad.length}) : ${esc(squad)}</div><div>Ordre : ${ORDERS[profile.order].name} · Tactiques : ${esc(tac)}</div><div>Puissance ${Game.teamRating(profile)} contre niveau ${m.level} — ${esc((DATA.FACTIONS[m.faction || "karst"] || DATA.FACTIONS.karst).name)} (${ORDERS[m.order].name}${m.enemyTactics && m.enemyTactics.length ? ', tactiques : ' + m.enemyTactics.map(t => TACTICS[t].name).join(', ') : ''})</div></div>`;
   }
   function renderLeague() {
     if (!profile.league) { profile.league = League.newSeason(Math.floor(Math.random() * 1e9)); saveNow(); }
@@ -3901,7 +3930,7 @@ window.Son = Son;
     // bataille rapide + opérations spéciales
     const q = profile.quick || { wins: 0 }, prize = DATA.QUICK.prizeEvery, k = q.wins % prize;
     $('#hqQuick').innerHTML = `<div class="mission quickcard ${selectedMission === 'rapide' ? 'sel' : ''}" data-id="rapide"><div class="crow"><b>Bataille rapide</b><span class="diff">${k}/${prize}</span></div>
-      <div class="mdesc">Un adversaire du Groupe Karst à votre mesure ; carte, objectif, heure et météo au hasard. ${PACKS[DATA.QUICK.prizePack].name} offert toutes les ${prize} victoires.</div>
+      <div class="mdesc">Un adversaire à votre mesure (Groupe Karst ou Milice du Delta) ; carte, objectif, heure et météo au hasard. ${PACKS[DATA.QUICK.prizePack].name} offert toutes les ${prize} victoires.</div>
       <div class="prizebar">${Array.from({ length: prize }, (_, i) => `<i class="${i < k ? 'on' : ''}"></i>`).join('')}</div>
       <div class="crow small"><span>${q.wins || 0} victoire${q.wins > 1 ? 's' : ''} en bataille rapide</span><span>${DATA.QUICK.reward} cr. de base</span></div></div>`;
     const ops = profile.ops || { done: {} };
@@ -3920,7 +3949,7 @@ window.Son = Son;
       return `<div class="mission ${selectedMission === m.id ? 'sel' : ''} ${unlocked ? '' : 'locked'} ${won ? 'won' : ''}" data-id="${m.id}">
         <div class="crow"><span class="mnum">${String(i + 1).padStart(2, '0')}</span><b>${esc(m.name)}</b>${m.final ? '<span class="final">FINALE</span>' : ''}${won ? '<span class="good">✓</span>' : ''}<span class="spacer"></span><span class="diff">${'◆'.repeat(m.difficulty)}${'◇'.repeat(4 - m.difficulty)}</span></div>
         ${unlocked ? `<div class="mdesc">${esc(m.desc)}</div>
-        <div class="crow small"><span>${OT.MAPS[m.mapId].name} · ${Game.objectiveLabel(m)}${m.conditions && m.conditions !== 'jour' ? ' · <b class="cond">' + DATA.CONDITIONS[m.conditions].name + '</b>' : ''}</span><span>Karst niv. ${m.level}, ${ORDERS[m.order].name}${m.enemyWeapons ? ', armes silencieuses' : ''}</span></div>
+        <div class="crow small"><span>${OT.MAPS[m.mapId].name} · ${Game.objectiveLabel(m)}${m.conditions && m.conditions !== 'jour' ? ' · <b class="cond">' + DATA.CONDITIONS[m.conditions].name + '</b>' : ''}</span><span>${esc((DATA.FACTIONS[m.faction || 'karst'] || DATA.FACTIONS.karst).name.replace('Groupe ', '').replace('Milice du ', ''))} niv. ${m.level}, ${ORDERS[m.order].name}${m.enemyWeapons ? ', armes silencieuses' : ''}</span></div>
         <div class="crow small"><span>Récompense : ${m.reward} cr. · ${m.xp} XP de base</span><span>${done ? `${done.wins}/${done.attempts} réussie${done.wins > 1 ? 's' : ''}` : 'Jamais tentée'}</span></div>` : '<div class="crow small"><span>🔒 Jouez la mission précédente pour l’ouvrir.</span></div>'}
       </div>`;
     }).join('');
@@ -3984,7 +4013,7 @@ window.Son = Son;
     const enemyRating = Math.round(enemyDefs.reduce((s, d) => s + Game.defRating(d), 0) / enemyDefs.length);
     const km = profile.missions[mission.id] || { attempts: 0, wins: 0 };
     const lt = mission.league ? League.AI_TEAMS.find(t => t.id === mission.league) : null; const ls = lt && profile.league ? profile.league.standings[lt.id] : null;
-    $('#vsName1').textContent = lt ? lt.name : 'Groupe Karst'; $('#vsRank1').textContent = `Niveau ${mission.level} · ${ORDERS[mission.order].name}`; $('#vsIns1').textContent = lt ? lt.insignia : '⚑';
+    $('#vsName1').textContent = lt ? lt.name : (DATA.FACTIONS[mission.faction || 'karst'] || DATA.FACTIONS.karst).name; $('#vsRank1').textContent = `Niveau ${mission.level} · ${ORDERS[mission.order].name}`; $('#vsIns1').textContent = lt ? lt.insignia : ((DATA.FACTIONS[mission.faction || 'karst'] || {}).glyph || '⚑');
     $('#vsRating1').innerHTML = `${enemyRating}<small>Puissance</small>`; $('#vsRec1').innerHTML = ls ? `Victoires <b>${ls.wins}</b><br>Défaites <b>${ls.losses}</b>` : `Contre vous : <b>${km.attempts - km.wins}</b> victoires<br><b>${km.wins}</b> défaites`;
     $('#vsTac1').innerHTML = tacs(mission.enemyTactics || []);
     $('#vsTip').innerHTML = '<b>ASTUCE</b>' + esc(TIPS[Math.floor(Math.random() * TIPS.length)]);
@@ -4928,7 +4957,7 @@ window.Son = Son;
   // ---------------------------------------------------------------------------------------------
   const roleIcon = { assault: 'AS', pointman: 'PT', marksman: 'TE', support: 'AP', breacher: 'BR' };
   function insigniaGlyph(team) {
-    if (team.insignia === 'karst' || (team.units[0] && team.units[0].def.faction === 'karst')) return '⚑';
+    const fac = DATA.FACTIONS[team.insignia] || (team.units[0] && DATA.FACTIONS[team.units[0].def.faction]); if (fac && fac.glyph) return fac.glyph;
     const ins = DATA.INSIGNIAS.find(i => i.id === team.insignia); return ins ? ins.glyph : (team.index === 0 ? '✶' : '⚑');
   }
   function buildRosters() {
@@ -5138,7 +5167,7 @@ window.Son = Son;
     const D = DATA, cond = mis.conditions && mis.conditions !== 'jour' ? D.CONDITIONS[mis.conditions].name : 'Jour';
     $('#brObj').textContent = OT.Game.objectiveLabel(mis).toUpperCase(); $('#brMap').textContent = OT.MAPS[mis.mapId].name;
     $('#brName').textContent = mis.name; $('#brDesc').textContent = mis.desc || '';
-    $('#brIntel').innerHTML = `<div><span>Conditions</span><b>${cond}</b></div><div><span>Adversaire</span><b>Groupe Karst · ${opts.teams[1].operators.length} opérateurs · niveau ${mis.level}</b></div><div><span>Comportement</span><b>${D.ORDERS[mis.order].name}</b></div><div><span>Récompense</span><b>${mis.reward} cr. · ${mis.xp} XP</b></div>`;
+    $('#brIntel').innerHTML = `<div><span>Conditions</span><b>${cond}</b></div><div><span>Adversaire</span><b>${opts.teams[1].name} · ${opts.teams[1].operators.length} opérateurs · niveau ${mis.level}</b></div><div><span>Comportement</span><b>${D.ORDERS[mis.order].name}</b></div><div><span>Récompense</span><b>${mis.reward} cr. · ${mis.xp} XP</b></div>`;
     briefing = { t0: performance.now() / 1000, a0: Math.random() * 6.28 }; $('#briefing').classList.remove('hidden');
   }
   function hideBriefing(start) { if (!briefing) return; briefing = null; $('#briefing').classList.add('hidden'); cam.init = false; if (start) { paused = false; updatePlayButton(); } }

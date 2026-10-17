@@ -283,4 +283,15 @@ check('réinitialisation : profil neuf et stockage vidé', Game.reset(storage).c
   const future = Game.newProfile(); future.version = Game.SAVE_VERSION + 1;
   check('sauvegarde d\'une version plus récente : refusée (le QG la met de côté au lieu de l\'écraser)', Game.load({ getItem: () => JSON.stringify(future) }) === null);
 }
+{
+  // ---- seconde faction : Milice du Delta, campagne « Opération Delta » (rang 2), le Colonel ----
+  const q = Game.newProfile();
+  const lockedAt0 = !Game.campaignUnlocked(q, 'delta'); q.xp = DATA.RANKS[2].xp; const openAt2 = Game.campaignUnlocked(q, 'delta');
+  const m = Game.campaignMission('delta', 'd_colonel'), t = Game.buildTeams(q, m);
+  check('Opération Delta : verrouillée puis ouverte au rang 2 ; adversaire « Milice du Delta » mené par le Colonel', lockedAt0 && openAt2 && t[1].name === 'Milice du Delta' && t[1].insignia === 'delta' && t[1].operators[0].id === 'd_colonel' && m.final === true && DATA.CAMPAIGNS.find(c => c.id === 'delta').missions.every(id => DATA.MISSIONS.some(x => x.id === id && x.faction === 'delta')));
+  let fac = { karst: 0, delta: 0 }, colonel = 0; for (let k = 0; k < 200; k++) { const qb = Game.quickBattle(q); fac[qb.faction]++; if (qb.enemy.includes('d_colonel')) colonel++; }
+  check('bataille rapide : Karst ou Delta (environ un tiers), jamais le Colonel', fac.delta > 30 && fac.delta < 100 && colonel === 0, fac);
+  const b = new Battle(Game.battleOptions(q, m, 1)); b.run(); const r = Game.applyRewards(q, m, b.result);
+  check('le Colonel vaincu donne le succès « Le Colonel » (sinon non)', (b.result.winner === 0) === !!q.achievements.colonel, { won: b.result.winner === 0, ach: q.achievements.colonel });
+}
 console.log(`\n${pass}/${pass + fail} vérifications réussies`); process.exit(fail ? 1 : 0);
