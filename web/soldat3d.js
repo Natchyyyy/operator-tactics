@@ -15,6 +15,15 @@
   // vitesse « naturelle » de chaque cycle de locomotion (m/s), pour caler les pas sur le déplacement réel
   const LOCO = { Walking: 1.35, Walk_Fight_Forward: 1.1, Running: 3.4, RunFast: 5.2, Run_and_Shoot: 3.2, Cautious_Crouch_Walk_Forward: 0.9, Crawl_Backward: 0.5 };
   const ONCE = { Shot_and_Fall_Forward: 1, Shot_in_the_Back_and_Fall: 1, Over_Shoulder_Throw: 1 };
+  // Fusil épaulé : dans ces animations la crosse doit reposer dans le creux de l'épaule droite. Les animations Mixamo ne l'y
+  // mettent pas exactement (le fusil du jeu n'est pas celui de l'animation) : à chaque image, le fusil garde son orientation
+  // mais est glissé pour que sa crosse touche le creux de l'épaule, puis les deux bras sont recalés par IK (épaule → coude →
+  // poignet, coude dans son plan d'origine, mains gardant leur orientation) pour que les paumes restent sur la poignée et
+  // le garde-main. CREUX : position du creux par rapport à l'articulation de l'épaule droite (m) : vers le centre du
+  // corps, vers l'avant, vers le bas.
+  const EPAULE = { Rifle_Aim_Turn_Right: 1, Walk_Aim: 1, Run_and_Shoot: 1, Gunshot_Reaction: 1 };
+  const CREUX = { dedans: 0.06, avant: 0.08, bas: 0.03 };
+  S.CREUX = CREUX;
   function b64ToBuf(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
   // Repère de paume : un point fixe dans chaque main, à la base des doigts (le squelette du GIGN n'a pas d'os de doigts).
   // La paume = 60 % du poignet vers ce point.
@@ -218,8 +227,25 @@
     group.add(weapon);
     const mixer = new THREE.AnimationMixer(body), actions = {};
     const act = (name) => { if (!M.clips[name]) return null; if (!actions[name]) { const a = mixer.clipAction(M.clips[name]); if (ONCE[name]) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; } actions[name] = a; } return actions[name]; };
+    // IK à deux os, dans le monde : déplace le poignet de « delta » (bras arm → avant-bras fore → main hand), coude gardé
+    // dans son plan, orientation de la main conservée
+    const WP = (o) => o.getWorldPosition(V()), WQ = (o) => o.getWorldQuaternion(new THREE.Quaternion());
+    const turn = (bone, from, to) => {
+      const dq = new THREE.Quaternion().setFromUnitVectors(from.normalize(), to.normalize());
+      bone.quaternion.copy(WQ(bone.parent).invert().multiply(dq.multiply(WQ(bone)))); bone.updateMatrixWorld(true);
+    };
+    function ik(arm, fore, hand, delta) {
+      const qH = WQ(hand), S0 = WP(arm), E0 = WP(fore), H0 = WP(hand), T = H0.clone().add(delta);
+      const a = S0.distanceTo(E0), b = E0.distanceTo(H0); let c = S0.distanceTo(T); c = Math.min(Math.max(c, Math.abs(a - b) + 1e-4), (a + b) * 0.999);
+      const dir = T.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - b * b) / (2 * a * c)));
+      const p = E0.clone().sub(S0); p.addScaledVector(dir, -p.dot(dir)); if (p.lengthSq() < 1e-8) p.set(0, -1, 0); p.normalize();
+      const E1 = S0.clone().addScaledVector(dir, a * cosA).addScaledVector(p, a * Math.sqrt(1 - cosA * cosA));
+      turn(arm, E0.clone().sub(S0), E1.sub(S0)); const E2 = WP(fore); turn(fore, WP(hand).sub(E2), T.sub(E2));
+      hand.quaternion.copy(WQ(hand.parent).invert().multiply(qH)); hand.updateMatrixWorld(true);
+    }
     const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true, modele: M.nom, clips: M.clips, yawFix: M.yawFix,
-      bones: { rh: bone('RightHand'), lh: bone('LeftHand'), rm: body.getObjectByName('PalmeD'), lm: body.getObjectByName('PalmeG'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips') },
+      bones: { rh: bone('RightHand'), lh: bone('LeftHand'), rm: body.getObjectByName('PalmeD'), lm: body.getObjectByName('PalmeG'),
+        ra: bone('RightArm'), rf: bone('RightForeArm'), la: bone('LeftArm'), lf: bone('LeftForeArm'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips') },
       // joue (en fondu) l'animation demandée ; time : figer à un instant (pose fixe) ; speed : vitesse du cycle
       play(name, opts = {}) {
         const a = act(name); if (!a) return;
@@ -235,6 +261,7 @@
       // keepYaw : garder la correction actuelle (chute : on ne fait pas pivoter un corps qui tombe)
       update(dt, keepYaw) {
         mixer.update(dt);
+        this.epK = (this.epK || 0) + ((EPAULE[this.clip] ? 1 : 0) - (this.epK || 0)) * (dt > 0 ? Math.min(1, dt * 8) : 1);
         if (!keepYaw) { const tgt = M.yawFix[this.clip] || 0; let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 10); }
       },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
@@ -260,7 +287,22 @@
         const R = Mb.multiply(Ma.transpose());   // rotation qui envoie a sur b (et le haut de l'arme vers le haut)
         weapon.quaternion.setFromRotationMatrix(R);
         const g = grip.clone().applyQuaternion(weapon.quaternion), barrel = new THREE.Vector3(0, 0, 1).applyQuaternion(weapon.quaternion);
-        weapon.position.copy(pR).sub(g).addScaledVector(barrel, -(recoil || 0) * 0.04);
+        let pos = pR.clone().sub(g);
+        // crosse dans le creux de l'épaule (voir EPAULE) : on glisse le fusil, puis les bras suivent
+        const k = two && weapon.buttPt && B.ra && B.la ? (this.epK || 0) : 0;
+        if (k > 0.01) {
+          const sR = loc(B.ra), sL = loc(B.la), up = new THREE.Vector3(0, 1, 0);
+          const lat = sL.clone().sub(sR).setY(0).normalize(), fwd = new THREE.Vector3().crossVectors(lat, up).normalize();
+          const creux = sR.clone().addScaledVector(lat, CREUX.dedans).addScaledVector(fwd, CREUX.avant).addScaledVector(up, -CREUX.bas);
+          const butt = pos.clone().add(weapon.buttPt.clone().applyQuaternion(weapon.quaternion));
+          const dl = creux.sub(butt).multiplyScalar(k);
+          if (dl.lengthSq() > 1e-8) {
+            const gw = group.matrixWorld, dW = dl.clone().transformDirection(gw).multiplyScalar(dl.length() * group.getWorldScale(V()).x);
+            ik(B.ra, B.rf, rh, dW); if (lh) ik(B.la, B.lf, lh, dW);
+            pos = palm(rh, B.rm).sub(g);   // la paume droite a suivi (à la précision de l'IK près)
+          }
+        }
+        weapon.position.copy(pos).addScaledVector(barrel, -(recoil || 0) * 0.04);
       },
     };
     return f;

@@ -2,7 +2,8 @@
 <script src="../../web/three.min.js"></script><script src="../../web/figure.js"></script><script src="../../web/gltf.js"></script><script src="../../web/modeles/soldat.js"></script><script src="../../web/modeles/gign.js"></script><script src="../../web/modeles/decor.js"></script><script src="../../web/modeles3d.js"></script><script src="../../web/soldat3d.js"></script>
 <script>
 // Gros plan sur la prise de l'arme : un soldat, une animation figée, vu de quatre côtés (3/4 avant, profil droit, dessus, 3/4 arrière).
-// ?a=Clip&t=0.0 (fraction de l'animation). Repères : sphère rouge = paume droite, bleue = paume gauche, jaune = bouche du canon.
+// ?a=Clip&t=0.0 (fraction de l'animation) ; ?m=gign|soldat ; ?droite=1 : 4e vue = profil droit (crosse contre l'épaule).
+// Repères : rouge = paume droite, bleue = paume gauche, jaune = bouche du canon, verte = bout de la crosse.
 const q = new URLSearchParams(location.search), clip = q.get('a') || 'Rifle_Aim_Turn_Right', tt = +(q.get('t') || 0);
 OT.Soldat3D.whenReady(() => {
   const W = 1600, H = 520, r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; r.autoClear = false; document.body.appendChild(r.domElement);
@@ -12,9 +13,9 @@ OT.Soldat3D.whenReady(() => {
   f.play(clip, { time: tt }); f.update(0); f.body.rotation.y = f.yawFix[clip] || 0; f.body.updateMatrixWorld(true); f.placeWeapon(true, 0); sc.add(f.group);
   const dot = (c, p) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 8), new THREE.MeshBasicMaterial({ color: c, depthTest: false })); m.renderOrder = 9; m.position.copy(p); sc.add(m); };
   const B = f.bones, wp = (o) => o.getWorldPosition(new THREE.Vector3());
-  dot(0xff3030, wp(B.rh).lerp(wp(B.rm), 0.6)); dot(0x3080ff, wp(B.lh).lerp(wp(B.lm), 0.6)); dot(0xffe040, f.weapon.localToWorld(f.weapon.muzzle.clone()));
+  dot(0xff3030, wp(B.rh).lerp(wp(B.rm), 0.6)); dot(0x3080ff, wp(B.lh).lerp(wp(B.lm), 0.6)); dot(0xffe040, f.weapon.localToWorld(f.weapon.muzzle.clone())); if (f.weapon.buttPt) dot(0x30ff60, f.weapon.localToWorld(f.weapon.buttPt.clone()));
   const views = [[0.0, 1.4, 2.6], [2.0, 1.45, 0.05], [0.05, 3.2, 0.3], [-1.4, 1.6, -1.4]], w = W / 4;
-  views.forEach((p, i) => { const cam = new THREE.PerspectiveCamera(30, w / H, 0.05, 50); cam.position.set(p[0], p[1], p[2]); cam.lookAt(0, 1.2, 0.2); r.setViewport(i * w, 0, w, H); r.setScissor(i * w, 0, w, H); r.setScissorTest(true); r.render(sc, cam); });
+  views.forEach((p, i) => { const cam = new THREE.PerspectiveCamera(30, w / H, 0.05, 50); cam.position.set(p[0], p[1], p[2]); cam.lookAt(0, 1.2, 0.2); if (i === 3 && q.get('droite')) { cam.position.set(-2.0, 1.45, 0.2); cam.lookAt(0, 1.3, 0.2); } r.setViewport(i * w, 0, w, H); r.setScissor(i * w, 0, w, H); r.setScissorTest(true); r.render(sc, cam); });
   document.getElementById('t').textContent = JSON.stringify((OT.Soldat3D.modeles[q.get('m') || 'gign'] || {}).gbErr || {}) + ' ' + clip +' à ' + tt + ' — 3/4 avant · profil · dessus · 3/4 arrière';
   window.PRET = true;
 });

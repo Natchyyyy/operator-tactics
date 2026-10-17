@@ -53,9 +53,10 @@
     const k = new THREE.Group(); k.add(c); k.scale.setScalar(s); k.rotation.y = Math.PI / 2; w.add(k);
     c.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; } });
     // points de prise mesurés sur le modèle (repère du modèle centré, avant échelle) : poignée (x 0,33 ; y −0,13),
-    // garde-main (x −0,45 ; y 0,02), bouche (x −0,95), puits de chargeur (x 0,1 ; y −0,1)
+    // garde-main (x −0,45 ; y 0,02), bouche (x −0,95), puits de chargeur (x 0,1 ; y −0,1), crosse (x 0,95 ; y −0,03)
     const P = (x, y) => new THREE.Vector3(0, (y - ctr.y) * s, -(x - ctr.x) * s);
     w.gripPt = P(0.33, -0.13); w.forePt = P(-0.42, 0.0); w.muzzle = P(b.min.x, 0.075); w.magPt = P(0.1, -0.1);
+    w.buttPt = P(b.max.x, -0.03);   // centre de la plaque de couche (bout de la crosse), mesuré sur le modèle
     w.isMeshy = true; return w;
   }
   S.load = load; S.has = has; S.copie = copie; S.fit = fit; S.arme = arme;
