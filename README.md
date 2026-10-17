@@ -23,6 +23,7 @@ l'issue dépend uniquement des événements simulés (perception, déplacements,
 | `tests/league.js` | 10 vérifications de la ligue |
 | `tests/game.js` | 89 vérifications de la boucle de jeu |
 | `tests/verif_page.py` | 60 vérifications de la page dans un navigateur (Playwright, WebGL logiciel) ; `tests/tout.sh` lance tout |
+| `tests/visuel.py` | non-régression visuelle : 7 écrans clés comparés à `tests/ref/*.png` (`--maj` pour accepter un changement voulu) |
 | `outils/equilibrage_campagne.js` | taux de victoire par mission avec une progression normale de l'escouade |
 | `sons/sons_ot.py` | les bruitages et musiques (impacts selon la matière : béton, métal, bois, sol) (synthèse hors ligne avec la boîte à outils ; `fabriquer.py` → `sons/out`, `integrer.py` → page) |
 | `tests/run.js`, `tests/trace.js`, `tests/stats.js` | une bataille en console, trace seconde par seconde, statistiques d'équilibrage |
