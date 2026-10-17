@@ -73,8 +73,8 @@ check('Bélier revient dans l\'escouade', Game.toggleSquad(p, 'op_belier') && Ga
 // blessures graves, soins, repos
 {
   const q = Game.newProfile(); const m = DATA.MISSIONS[0];
-  const b = new Battle({ seed: 7, teams: Game.buildTeams(q, m) }); b.run();
-  const downs = b.result.teams[0].units.filter(u => !u.alive).map(u => u.id.split(':')[1]);
+  let b, downs = [];   // une bataille où au moins un opérateur tombe (graine cherchée, pas supposée)
+  for (let sd = 7; sd < 40 && !downs.length; sd++) { b = new Battle({ seed: sd, teams: Game.buildTeams(q, m) }); b.run(); downs = b.result.teams[0].units.filter(u => !u.alive).map(u => u.id.split(':')[1]); }
   const r = Game.applyRewards(q, m, b.result);
   check('les opérateurs neutralisés reviennent gravement blessés (et restent déployables)', downs.length > 0 && downs.every(id => q.operators[id].wounded && Game.isAvailable(q, id) && q.squad.includes(id)) && r.injured.length === downs.length, { downs, squad: q.squad });
   const id0 = downs[0], healthy = Game.effectiveDef(q, id0); q.operators[id0].wounded = false; const full = Game.effectiveDef(q, id0); q.operators[id0].wounded = true;

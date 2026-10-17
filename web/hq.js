@@ -41,13 +41,13 @@
   }
   window.addEventListener('resize', fitStage); OT.fitStage = fitStage;
   function showTab(t, noHist) { if (!noHist && t !== tab) { tabHistory.push(tab); if (tabHistory.length > 20) tabHistory.shift(); } tab = t;
-    $('#hq').dataset.tab = t; $('#hqHomeBtn').innerHTML = OT.Ico ? OT.Ico(t === 'accueil' ? 'gear' : 'home') : ''; $('#hqHomeBtn').title = t === 'accueil' ? 'Réglages' : 'Accueil'; document.querySelectorAll('.hqpanel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== t)); document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); render(); }
+    $('#hq').dataset.tab = t; $('#hqHomeBtn').innerHTML = OT.Ico ? OT.Ico('home') : ''; $('#hqHomeBtn').title = 'Accueil'; $('#hqHomeBtn').style.visibility = $('#hqBack').style.visibility = t === 'accueil' ? 'hidden' : ''; document.querySelectorAll('.hqpanel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== t)); document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); render(); }
   document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
   document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => { if (b.dataset.go === 'missions' && window.OT.resetPlay) window.OT.resetPlay(); showTab(b.dataset.go); }));
   $('#hqHomeBtn').addEventListener('click', () => { if (tab === 'accueil') { const b = $('#openSettings'); if (b) b.click(); } else showTab('accueil'); });
   $('#hqBack').addEventListener('click', () => { if (OT.playBack && OT.playBack()) return; const t = tabHistory.pop(); showTab(t || 'accueil', true); });
   $('#customBtn').addEventListener('click', () => { const d = $('#custom2'); d.open = !d.open; });
-  $('#hqBack').innerHTML = OT.Ico ? OT.Ico('back') : ''; $('#hqHelp').innerHTML = OT.Ico ? OT.Ico('help') : ''; $('#hqSettings').innerHTML = OT.Ico ? OT.Ico('plus') : '';
+  $('#hqBack').innerHTML = OT.Ico ? OT.Ico('back') : ''; $('#hqHelp').innerHTML = OT.Ico ? OT.Ico('help') : ''; $('#hqSettings').innerHTML = OT.Ico ? OT.Ico('gear') : '';
   $('#hq').classList.add('stage1080'); fitStage(); fillIcons();
 
   function render() {
@@ -125,7 +125,7 @@
   function renderHome() {
     renderAchievements();
     const ins = INSIGNIAS.find(i => i.id === profile.insignia) || INSIGNIAS[0];
-    $('#hqIns').textContent = ins.glyph; $('#hqTeamName').textContent = profile.teamName;
+    $('#hqIns').textContent = ins.glyph; $('#hqTeamName').textContent = profile.teamName; { const ht = $('#homeTeamTitle'); if (ht) ht.textContent = profile.teamName; }
     $('#homeIns').innerHTML = OT.Embleme ? OT.Embleme.svg(ins.glyph, '#e8eaeb') : ins.glyph;
     { const rr = Game.rankFor(profile.xp || 0), nx = Game.xpToNextRank(profile.xp || 0); $('#hqRankN').textContent = rr; }
     { const sn = profile.league, n = (League && League.SEASON_BATTLES) || 9, done = sn ? sn.round : 0; $('#hqSeason').innerHTML = Array.from({ length: n }, (_, k) => `<i class="${k < done ? 'on' : ''}"></i>`).join(''); $('#hqSeasonTxt').textContent = sn && sn.finished ? 'Terminée' : `Journée ${Math.min(n, done + 1)} / ${n}`; }
@@ -137,7 +137,8 @@
     $('#hqXpBar').style.width = next === null ? '100%' : (100 * ((profile.xp || 0) - RANKS[r].xp) / (RANKS[r + 1].xp - RANKS[r].xp)).toFixed(0) + '%';
     $('#hqRating').textContent = Game.teamRating(profile);
     $('#homeRank').textContent = `Rang ${r} · ${RANKS[r].name}${next === null ? '' : ' — ' + next + ' XP avant le suivant'}`;
-    $('#homeSquad').innerHTML = profile.squad.map(id => { const o = OPERATORS.find(x => x.id === id), st = profile.operators[id]; return `<div class="hsq ${st.wounded ? 'wounded' : ''}" data-op="${id}"><span class="rt">${Math.round(Game.operatorRating(profile, id))}</span><b>${esc(o.callsign)}</b><small>${ROLES[o.role].name} · niv. ${Game.levelFor(st.xp)}${st.wounded ? ' · blessé' : ''}</small></div>`; }).join('');
+    $('#homeSquad').innerHTML = profile.squad.map(id => { const o = OPERATORS.find(x => x.id === id), st = profile.operators[id];
+      return `<button class="hsq ${st.wounded ? 'wounded' : ''}" data-op="${id}"><span class="hsqp">${portraitOf(o)}</span><span class="hsqt"><b>${esc(o.callsign)}</b><small>${ROLES[o.role].name} · niv. ${Game.levelFor(st.xp)}${st.wounded ? ' · blessé' : ''}</small></span><span class="rt">${Math.round(Game.operatorRating(profile, id))}</span></button>`; }).join('');
     $('#homeSquad').querySelectorAll('.hsq').forEach(e => e.addEventListener('click', () => { selected = e.dataset.op; showTab('equipe'); }));
     const fp = profile.freePacks || {}, nfree = Object.values(fp).reduce((a, b) => a + b, 0); $('#homeFree').textContent = nfree ? `${nfree} paquet${nfree > 1 ? 's' : ''} offert${nfree > 1 ? 's' : ''} à ouvrir` : '';
     if (profile.league) { const sn = profile.league, me = League.table(sn).find(x => x.id === 'player'); $('#homeLeague').textContent = `saison ${(profile.leagueSeasons || 0) + 1} · ${sn.round}/${League.SEASON_BATTLES} batailles · ${me.rank}${me.rank === 1 ? 'er' : 'e'} au classement`; }

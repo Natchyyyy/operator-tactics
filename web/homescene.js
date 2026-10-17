@@ -35,7 +35,7 @@
     size();
     if (fig && !fig.isSkinned) { fig.torso.rotation.z = Math.sin(t * 0.9) * 0.012; fig.headG.rotation.y = -0.35 + Math.sin(t * 0.37) * 0.08; fig.group.position.y = Math.sin(t * 1.8) * 0.004; }
     else if (fig) { fig.group.rotation.y = -0.5 + Math.sin(t * 0.3) * 0.06; }
-    if (fig && fig.isSkinned) { camera.position.set(0.1, 0.98, 6.0); camera.lookAt(0.1, 0.92, 0); } else { camera.position.set(0.25, 1.0, 5.5); camera.lookAt(0.05, 0.9, 0); }
+    if (fig && fig.isSkinned) { camera.position.set(0.05, 0.95, 6.2); camera.lookAt(0.05, 0.92, 0); }   // soldat entier dans la capsule (pieds compris) else { camera.position.set(0.25, 1.0, 5.5); camera.lookAt(0.05, 0.9, 0); }
     renderer.render(scene, camera);
   }
   function frame(now) { if (!running) return; requestAnimationFrame(frame); draw((now - t0) / 1000); }

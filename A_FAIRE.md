@@ -26,6 +26,15 @@ Principe : moins de contenu, mais chaque chose refaite proprement, une à la foi
   plus fin, caméra « Réalisateur » plus proche.
 - Son : déverrouillage à chaque geste tant que le navigateur bloque l'audio, état visible dans Réglages (Son : Activé /
   Coupé / Tester).
+- Corps qui « tournaient sur eux-mêmes » (vrai coupable trouvé en suivant les soldats pas à pas) : le premier point de
+  chaque nouveau chemin était souvent le centre de la case, DERRIÈRE le soldat → demi-pas en arrière puis demi-tour
+  (126 demi-tours en une bataille, 17 après correction, tous de vrais virages). Le regard suit désormais le point de passage.
+  Outils de diagnostic : `/tmp`-style scripts décrits ici — suivre une unité avec `API.step(1)` + `API.meshes()` et relever
+  l'orientation du bassin, du buste et de l'arme à chaque pas.
+- Mis de côté pour l'instant (cachés, le code reste) : saison, succès, crédits, cartes, contrats du jour, ligue, carrière,
+  tenue, couvre-chef. On se concentre sur l'équipe, les modèles, l'IA, le HUD et le gameplay.
+- Accueil v3 : soldat entier dans sa capsule, deux actions (Jouer, Mon équipe) en style plat, note d'équipe compacte,
+  statistiques lisibles, escouade à droite (portraits cliquables).
 - Suite possible : planter (bac à fleurs) en Meshy, autres armes une par une, autres agents, cartes une par une.
 
 ## Fait pendant la nuit du 16 au 17/10 (tout est testé, poussé sur main, et publié dans l'artifact)

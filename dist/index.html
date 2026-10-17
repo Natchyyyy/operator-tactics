@@ -882,6 +882,53 @@
   #briefing h2 { font-size: 46px; margin-top: 16px; } #briefing .brsub { font-size: 20px; border-bottom-width: 2px; padding-bottom: 10px; margin-bottom: 14px; }
   #briefing p { font-size: 20px; min-height: 80px; } #briefing #briefGo { font-family: var(--ui); font-weight: 700; letter-spacing: .12em; font-size: 15px; padding: 12px 26px; border-radius: 22px; border: 0; }
   #briefing .brloc { font-size: 22px; top: 80px; }
+
+  /* ===================== Accueil v3 (PC) : capsule nette, deux actions, statistiques lisibles, escouade à droite ===================== */
+  /* mis de côté pour l'instant : saison, succès, crédits, cartes, contrats du jour, ligue, carrière, tenue, couvre-chef */
+  .rb-season, .rb-ach, .rb-money, .rawfoot .pill[data-go=cartes], .rawfoot .pill[data-daily], #hqOps, .dailies3, #tmHead, .legacy { display: none !important; }
+  .home3 .pod { left: 70px; top: 36px; width: 470px; height: 880px; overflow: hidden; border-radius: 22px; border: 1px solid rgba(110,220,232,.35);
+    background: radial-gradient(ellipse at 50% 92%, rgba(80,220,240,.22), transparent 55%), linear-gradient(180deg, rgba(14,40,46,.55), rgba(4,12,14,.75));
+    box-shadow: inset 0 0 40px rgba(60,200,220,.12), 0 20px 50px rgba(0,0,0,.45); }
+  .home3 .podframe, .home3 .podglass { display: none; }
+  .home3 .pod canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 2; }
+  .home3 .podbase { position: absolute; left: 12%; right: 12%; bottom: 34px; height: 40px; border-radius: 50%; z-index: 1; background: radial-gradient(ellipse, rgba(110,235,250,.45), transparent 70%); }
+  .hmain { position: absolute; left: 600px; top: 46px; width: 730px; display: flex; flex-direction: column; gap: 26px; }
+  .hhead { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; align-items: end; column-gap: 20px; }
+  .hkick { grid-column: 1; font-size: 13px; font-weight: 700; letter-spacing: .24em; text-transform: uppercase; color: #7fd8c8; }
+  .htitle { grid-column: 1; font-family: var(--raw); font-weight: 400; font-size: 54px; line-height: 1.05; color: #fff; text-transform: uppercase; }
+  .hrate { grid-column: 2; grid-row: 1 / span 2; display: flex; align-items: center; gap: 14px; padding: 10px 18px; border-radius: 14px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); }
+  .hrate span { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #a9bab3; max-width: 90px; line-height: 1.25; }
+  .hrate b { font-family: var(--ui); font-weight: 800; font-variant-numeric: tabular-nums; font-size: 44px; line-height: 1; color: #fff; }
+  .hactions { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .hact { position: relative; height: 200px; padding: 26px 28px !important; border-radius: 18px !important; text-align: left; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px;
+    background: rgba(255,255,255,.045) !important; border: 1px solid rgba(255,255,255,.12) !important; box-shadow: none !important; color: #eef5f1 !important; transition: background .15s, border-color .15s, transform .12s; }
+  .hact:hover { background: rgba(255,255,255,.08) !important; border-color: rgba(78,224,137,.7) !important; transform: translateY(-2px); }
+  .hact .hicon { position: absolute; left: 28px; top: 26px; } .hact .hicon .ico { width: 54px; height: 54px; color: #4ee089; }
+  .hact b { font-family: var(--ui); font-size: 28px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .hact small { font-size: 15px; color: #a9bab3; letter-spacing: .02em; }
+  .hact.primary { background: #3ccf7a !important; border-color: #3ccf7a !important; color: #07140c !important; }
+  .hact.primary:hover { background: #4fe08b !important; } .hact.primary small { color: #12391f; } .hact.primary .hicon .ico { color: #07140c; }
+  .hstats.homeInfo { position: static; width: auto; padding: 24px 28px; border-radius: 18px; background: rgba(8,12,14,.66); border: 1px solid rgba(255,255,255,.1); gap: 14px; text-shadow: none; }
+  .hstats .rankline { font-size: 17px; font-weight: 600; color: #d9ccff; }
+  .hstats .record2 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; font-size: inherit; }
+  .hstats .record2 span { display: flex; flex-direction: column; gap: 4px; padding: 12px 16px; border-radius: 12px; background: rgba(255,255,255,.04); }
+  .hstats .record2 b { font-family: var(--ui); font-weight: 800; font-variant-numeric: tabular-nums; font-size: 42px; line-height: 1; color: #fff; margin: 0; }
+  .hstats .record2 i { font-style: normal; font-size: 13px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #9fb3aa; }
+  .hstats .muted { font-family: var(--ui); font-size: 15px; color: #b9c8c1; }
+  .hsquad { position: absolute; left: 1380px; top: 46px; width: 480px; display: flex; flex-direction: column; gap: 12px; }
+  .hsqhead { display: flex; align-items: baseline; justify-content: space-between; padding: 0 4px; }
+  .hsqhead b { font-size: 14px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; color: #eef5f1; } .hsqhead small { font-size: 12px; color: #8ea39a; }
+  .home3 .homeSquad { position: static; display: flex !important; flex-direction: column; gap: 10px; padding: 0; background: none; }
+  .hsq { flex: none; border-top-width: 1px !important; display: grid !important; grid-template-columns: 96px 1fr auto; align-items: center; gap: 16px; height: 112px; padding: 8px 18px 8px 8px !important; text-align: left; border-radius: 16px !important;
+    background: rgba(8,12,14,.66) !important; border: 1px solid rgba(255,255,255,.1) !important; color: #eef5f1 !important; transition: border-color .15s, background .15s; }
+  .hsq:hover { border-color: rgba(78,224,137,.7) !important; background: rgba(20,32,26,.8) !important; }
+  .hsq .hsqp { width: 96px; height: 96px; border-radius: 12px; overflow: hidden; position: relative; background: linear-gradient(180deg, #2a3e38, #0f1a17); }
+  .hsq .hsqp img { position: absolute; left: 50%; bottom: 0; height: 100%; transform: translateX(-50%); width: auto; max-width: none; background: none !important; border: 0 !important; }
+  .hsq .hsqt { display: flex; flex-direction: column; gap: 4px; min-width: 0; } .hsq .hsqt b { font-family: var(--ui); font-weight: 800; font-size: 22px; letter-spacing: .08em; text-transform: uppercase; }
+  .hsq .hsqt small { font-size: 14px; color: #a9bab3; } .hsq .rt { font-family: var(--ui); font-weight: 800; font-variant-numeric: tabular-nums; font-size: 32px; color: #fff; } .hsq.wounded .rt { color: #ff5a4a; }
+  /* Jouer : les deux modes au centre de l'écran (opérations spéciales et contrats mis de côté) */
+  #playHome .medals { left: 0; right: 0; top: 190px; justify-content: center; gap: 70px; }
+  #playHome::before { content: 'Jouer'; position: absolute; left: 0; right: 0; top: 70px; text-align: center; font-size: 15px; font-weight: 800; letter-spacing: .3em; text-transform: uppercase; color: #7fd8c8; }
 </style>
 </head>
 <body>
@@ -913,25 +960,25 @@
   <!-- Accueil : soldat dans sa capsule, puissance d'équipe, trois grandes tuiles (comme le jeu d'origine) -->
   <div class="hqpanel" data-panel="accueil">
     <div class="home3">
-      <div class="pod"><div class="podframe"></div><canvas id="homeScene"></canvas><div class="podglass"></div></div>
-      <div class="trpanel ratingCard"><div class="trnum"><b id="hqRating">0</b><span>Note d'équipe</span></div><div class="tricons"><span data-ico="flag"></span><span data-ico="scale"></span></div><div class="tremb" id="homeIns"></div></div>
-      <div class="homeTiles">
-        <button class="tile" data-go="cartes"><span class="tart tart-cards" id="tileCards"></span><b>Mes cartes</b><em id="homeFree"></em></button>
-        <button class="tile" data-go="equipe"><span class="tart tart-team" id="tileTeam"></span><b>Mon équipe</b></button>
-        <button class="tile play" data-go="missions"><span class="tart tart-play" data-ico="arrows"></span><b>Jouer</b></button>
+      <div class="pod"><div class="podframe"></div><canvas id="homeScene"></canvas><div class="podglass"></div><div class="podbase"></div></div>
+      <div class="hmain">
+        <div class="hhead"><span class="hkick">Quartier général</span><b class="htitle" id="homeTeamTitle">Alpha</b>
+          <div class="hrate ratingCard" title="Note d'équipe : moyenne des notes des opérateurs engagés"><span>Note d'équipe</span><b id="hqRating">0</b></div></div>
+        <div class="hactions">
+          <button class="hact primary" data-go="missions"><span class="hicon" data-ico="arrows"></span><b>Jouer</b><small>Campagne et bataille rapide sur le parking</small></button>
+          <button class="hact" data-go="equipe"><span class="hicon" data-ico="soldier"></span><b>Mon équipe</b><small>Opérateurs, ordre et formation</small></button>
+        </div>
+        <div class="hstats homeInfo">
+          <div class="rankline" id="homeRank"></div>
+          <div class="record2"><span><b id="hqWins">0</b><i>victoires</i></span><span><b id="hqLosses">0</b><i>défaites</i></span><span><b id="hqDraws">0</b><i>égalités</i></span></div>
+          <div class="muted" id="career"></div>
+        </div>
       </div>
-      <div class="homeRight">
-        <button class="sqtile" data-go="ligue" title="Ligue : saison contre 9 équipes classées"><span data-ico="trophy"></span><small>Ligue</small></button>
-        <button class="sqtile" data-go="carriere" title="Carrière : bilan et succès"><span data-ico="chart"></span><small>Carrière</small></button>
-        <button class="sqtile" id="customBtn" title="Personnaliser l'équipe"><span data-ico="paint"></span><small>Tenue</small></button>
-      </div>
-      <div class="homeInfo">
-        <div class="rankline" id="homeRank"></div>
-        <div class="record2"><span><b id="hqWins">0</b> victoires</span><span><b id="hqLosses">0</b> défaites</span><span><b id="hqDraws">0</b> égalités</span></div>
-        <div class="muted" id="career"></div>
-        <div class="muted" id="homeLeague"></div>
-        <div id="hqRewards" class="hidden"></div>
-        <div class="homeSquad" id="homeSquad"></div>
+      <div class="hsquad"><div class="hsqhead"><b>Escouade</b><small>cliquer pour voir la fiche</small></div><div class="homeSquad" id="homeSquad"></div></div>
+      <!-- éléments mis de côté pour l'instant (cartes, ligue, carrière, tenue) : gardés hors de vue pour le code existant -->
+      <div class="legacy" hidden>
+        <div class="tremb" id="homeIns"></div><span id="tileCards"></span><span id="tileTeam"></span><em id="homeFree"></em><div id="homeLeague"></div><div id="hqRewards" class="hidden"></div>
+        <button class="sqtile" id="customBtn"></button>
       </div>
       <details class="custom2" id="custom2"><summary>Personnaliser l'équipe</summary>
         <label>Nom d'équipe <input id="teamName" maxlength="18"></label>
@@ -8346,7 +8393,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     size();
     if (fig && !fig.isSkinned) { fig.torso.rotation.z = Math.sin(t * 0.9) * 0.012; fig.headG.rotation.y = -0.35 + Math.sin(t * 0.37) * 0.08; fig.group.position.y = Math.sin(t * 1.8) * 0.004; }
     else if (fig) { fig.group.rotation.y = -0.5 + Math.sin(t * 0.3) * 0.06; }
-    if (fig && fig.isSkinned) { camera.position.set(0.1, 0.98, 6.0); camera.lookAt(0.1, 0.92, 0); } else { camera.position.set(0.25, 1.0, 5.5); camera.lookAt(0.05, 0.9, 0); }
+    if (fig && fig.isSkinned) { camera.position.set(0.05, 0.95, 6.2); camera.lookAt(0.05, 0.92, 0); }   // soldat entier dans la capsule (pieds compris) else { camera.position.set(0.25, 1.0, 5.5); camera.lookAt(0.05, 0.9, 0); }
     renderer.render(scene, camera);
   }
   function frame(now) { if (!running) return; requestAnimationFrame(frame); draw((now - t0) / 1000); }
@@ -9445,7 +9492,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (u.goal && Math.hypot(u.goal.x - x, u.goal.z - z) < 0.6 && u.path) { u.goalKind = kind; return true; }
     const path = this.map.findPath(u.x, u.z, x, z);
     if (!path) { u.path = null; u.goal = null; return false; }
-    u.path = path; u.pathIdx = 0; u.goal = { x, z }; u.goalKind = kind; u.repathAt = this.t;
+    // le premier point du chemin est souvent le centre de la case où l'on se trouve déjà, parfois DERRIÈRE soi :
+    // on le saute (sinon un demi-pas en arrière, puis demi-tour — le corps « tournait sur lui-même » à chaque nouveau chemin)
+    let i0 = 0; while (i0 < path.length - 1 && (Math.hypot(path[i0].x - u.x, path[i0].z - u.z) < 0.9
+      || ((path[i0].x - u.x) * (path[i0 + 1].x - path[i0].x) + (path[i0].z - u.z) * (path[i0 + 1].z - path[i0].z) < 0 && this.map.walkableSegment(u.x, u.z, path[i0 + 1].x, path[i0 + 1].z)))) i0++;
+    u.path = path; u.pathIdx = i0; u.goal = { x, z }; u.goalKind = kind; u.repathAt = this.t;
     u.commitAt = this.t; u.commitUntil = this.t + (COMMIT[kind] || 2);
     return true;
   };
@@ -9825,7 +9876,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       }
     }
     u.stats.distance += Math.hypot(nx - u.x, nz - u.z);
-    if (!u.target) u.facing = Math.atan2(nz - u.z, nx - u.x);
+    // regard : vers le point de passage visé (pas vers le petit pas de côté de la séparation entre alliés)
+    if (!u.target && d > 0.05) u.facing = Math.atan2(wp.z - u.z, wp.x - u.x);
     u.x = nx; u.z = nz; u.moving = true;
     if (d <= stepLen) { u.pathIdx++; if (u.pathIdx >= u.path.length) { this.arrive(u); return; } }
     // détection de blocage : pas de progrès depuis 2,5 s → nouveau chemin
@@ -10969,13 +11021,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }
   window.addEventListener('resize', fitStage); OT.fitStage = fitStage;
   function showTab(t, noHist) { if (!noHist && t !== tab) { tabHistory.push(tab); if (tabHistory.length > 20) tabHistory.shift(); } tab = t;
-    $('#hq').dataset.tab = t; $('#hqHomeBtn').innerHTML = OT.Ico ? OT.Ico(t === 'accueil' ? 'gear' : 'home') : ''; $('#hqHomeBtn').title = t === 'accueil' ? 'Réglages' : 'Accueil'; document.querySelectorAll('.hqpanel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== t)); document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); render(); }
+    $('#hq').dataset.tab = t; $('#hqHomeBtn').innerHTML = OT.Ico ? OT.Ico('home') : ''; $('#hqHomeBtn').title = 'Accueil'; $('#hqHomeBtn').style.visibility = $('#hqBack').style.visibility = t === 'accueil' ? 'hidden' : ''; document.querySelectorAll('.hqpanel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== t)); document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); render(); }
   document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
   document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => { if (b.dataset.go === 'missions' && window.OT.resetPlay) window.OT.resetPlay(); showTab(b.dataset.go); }));
   $('#hqHomeBtn').addEventListener('click', () => { if (tab === 'accueil') { const b = $('#openSettings'); if (b) b.click(); } else showTab('accueil'); });
   $('#hqBack').addEventListener('click', () => { if (OT.playBack && OT.playBack()) return; const t = tabHistory.pop(); showTab(t || 'accueil', true); });
   $('#customBtn').addEventListener('click', () => { const d = $('#custom2'); d.open = !d.open; });
-  $('#hqBack').innerHTML = OT.Ico ? OT.Ico('back') : ''; $('#hqHelp').innerHTML = OT.Ico ? OT.Ico('help') : ''; $('#hqSettings').innerHTML = OT.Ico ? OT.Ico('plus') : '';
+  $('#hqBack').innerHTML = OT.Ico ? OT.Ico('back') : ''; $('#hqHelp').innerHTML = OT.Ico ? OT.Ico('help') : ''; $('#hqSettings').innerHTML = OT.Ico ? OT.Ico('gear') : '';
   $('#hq').classList.add('stage1080'); fitStage(); fillIcons();
 
   function render() {
@@ -11053,7 +11105,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function renderHome() {
     renderAchievements();
     const ins = INSIGNIAS.find(i => i.id === profile.insignia) || INSIGNIAS[0];
-    $('#hqIns').textContent = ins.glyph; $('#hqTeamName').textContent = profile.teamName;
+    $('#hqIns').textContent = ins.glyph; $('#hqTeamName').textContent = profile.teamName; { const ht = $('#homeTeamTitle'); if (ht) ht.textContent = profile.teamName; }
     $('#homeIns').innerHTML = OT.Embleme ? OT.Embleme.svg(ins.glyph, '#e8eaeb') : ins.glyph;
     { const rr = Game.rankFor(profile.xp || 0), nx = Game.xpToNextRank(profile.xp || 0); $('#hqRankN').textContent = rr; }
     { const sn = profile.league, n = (League && League.SEASON_BATTLES) || 9, done = sn ? sn.round : 0; $('#hqSeason').innerHTML = Array.from({ length: n }, (_, k) => `<i class="${k < done ? 'on' : ''}"></i>`).join(''); $('#hqSeasonTxt').textContent = sn && sn.finished ? 'Terminée' : `Journée ${Math.min(n, done + 1)} / ${n}`; }
@@ -11065,7 +11117,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     $('#hqXpBar').style.width = next === null ? '100%' : (100 * ((profile.xp || 0) - RANKS[r].xp) / (RANKS[r + 1].xp - RANKS[r].xp)).toFixed(0) + '%';
     $('#hqRating').textContent = Game.teamRating(profile);
     $('#homeRank').textContent = `Rang ${r} · ${RANKS[r].name}${next === null ? '' : ' — ' + next + ' XP avant le suivant'}`;
-    $('#homeSquad').innerHTML = profile.squad.map(id => { const o = OPERATORS.find(x => x.id === id), st = profile.operators[id]; return `<div class="hsq ${st.wounded ? 'wounded' : ''}" data-op="${id}"><span class="rt">${Math.round(Game.operatorRating(profile, id))}</span><b>${esc(o.callsign)}</b><small>${ROLES[o.role].name} · niv. ${Game.levelFor(st.xp)}${st.wounded ? ' · blessé' : ''}</small></div>`; }).join('');
+    $('#homeSquad').innerHTML = profile.squad.map(id => { const o = OPERATORS.find(x => x.id === id), st = profile.operators[id];
+      return `<button class="hsq ${st.wounded ? 'wounded' : ''}" data-op="${id}"><span class="hsqp">${portraitOf(o)}</span><span class="hsqt"><b>${esc(o.callsign)}</b><small>${ROLES[o.role].name} · niv. ${Game.levelFor(st.xp)}${st.wounded ? ' · blessé' : ''}</small></span><span class="rt">${Math.round(Game.operatorRating(profile, id))}</span></button>`; }).join('');
     $('#homeSquad').querySelectorAll('.hsq').forEach(e => e.addEventListener('click', () => { selected = e.dataset.op; showTab('equipe'); }));
     const fp = profile.freePacks || {}, nfree = Object.values(fp).reduce((a, b) => a + b, 0); $('#homeFree').textContent = nfree ? `${nfree} paquet${nfree > 1 ? 's' : ''} offert${nfree > 1 ? 's' : ''} à ouvrir` : '';
     if (profile.league) { const sn = profile.league, me = League.table(sn).find(x => x.id === 'player'); $('#homeLeague').textContent = `saison ${(profile.leagueSeasons || 0) + 1} · ${sn.round}/${League.SEASON_BATTLES} batailles · ${me.rank}${me.rank === 1 ? 'er' : 'e'} au classement`; }

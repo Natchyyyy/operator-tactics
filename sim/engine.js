@@ -502,7 +502,11 @@
     if (u.goal && Math.hypot(u.goal.x - x, u.goal.z - z) < 0.6 && u.path) { u.goalKind = kind; return true; }
     const path = this.map.findPath(u.x, u.z, x, z);
     if (!path) { u.path = null; u.goal = null; return false; }
-    u.path = path; u.pathIdx = 0; u.goal = { x, z }; u.goalKind = kind; u.repathAt = this.t;
+    // le premier point du chemin est souvent le centre de la case où l'on se trouve déjà, parfois DERRIÈRE soi :
+    // on le saute (sinon un demi-pas en arrière, puis demi-tour — le corps « tournait sur lui-même » à chaque nouveau chemin)
+    let i0 = 0; while (i0 < path.length - 1 && (Math.hypot(path[i0].x - u.x, path[i0].z - u.z) < 0.9
+      || ((path[i0].x - u.x) * (path[i0 + 1].x - path[i0].x) + (path[i0].z - u.z) * (path[i0 + 1].z - path[i0].z) < 0 && this.map.walkableSegment(u.x, u.z, path[i0 + 1].x, path[i0 + 1].z)))) i0++;
+    u.path = path; u.pathIdx = i0; u.goal = { x, z }; u.goalKind = kind; u.repathAt = this.t;
     u.commitAt = this.t; u.commitUntil = this.t + (COMMIT[kind] || 2);
     return true;
   };
@@ -882,7 +886,8 @@
       }
     }
     u.stats.distance += Math.hypot(nx - u.x, nz - u.z);
-    if (!u.target) u.facing = Math.atan2(nz - u.z, nx - u.x);
+    // regard : vers le point de passage visé (pas vers le petit pas de côté de la séparation entre alliés)
+    if (!u.target && d > 0.05) u.facing = Math.atan2(wp.z - u.z, wp.x - u.x);
     u.x = nx; u.z = nz; u.moving = true;
     if (d <= stepLen) { u.pathIdx++; if (u.pathIdx >= u.path.length) { this.arrive(u); return; } }
     // détection de blocage : pas de progrès depuis 2,5 s → nouveau chemin

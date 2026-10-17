@@ -232,9 +232,10 @@ function duel(opts) {
   while (b.t < 26 && !b.over) b.step();
   let far = 0, walked = 0; b.teams[0].units.forEach((u, i) => { far = Math.max(far, Math.hypot(u.x - before[i].x, u.z - before[i].z)); walked += u.stats.distance - before[i].d; });
   check('après « Tenir » en cours de route, l\'escouade reste près de là où elle était (< 22 m en 20 s)', far < 22, far);
-  const c = new Battle({ seed: 4, teams: Battle.defaultTeams() }); while (c.t < 6) c.step(); const d0 = c.teams[0].units.map(u => u.stats.distance); while (c.t < 26 && !c.over) c.step();
-  let walkedA = 0; c.teams[0].units.forEach((u, i) => { walkedA += u.stats.distance - d0[i]; });
-  check('… alors qu\'en restant en « Assaut » elle marche davantage sur la même période', walkedA > walked, { walked, walkedA });
+  // comparaison sur plusieurs graines (une seule bataille est trop sensible au hasard des postes choisis)
+  const walk = (hold) => { let w = 0; for (let sd = 4; sd <= 8; sd++) { const c = new Battle({ seed: sd, teams: Battle.defaultTeams() }); while (c.t < 6) c.step(); if (hold) c.setOrder(0, 'hold'); const d0 = c.teams[0].units.map(u => u.stats.distance); while (c.t < 26 && !c.over) c.step(); c.teams[0].units.forEach((u, i) => { w += u.stats.distance - d0[i]; }); } return w; };
+  const walkedH = walk(true), walkedA = walk(false);
+  check('… alors qu\'en restant en « Assaut » elle marche davantage sur la même période (5 batailles)', walkedA > walkedH, { walkedH, walkedA });
   check('un ordre inconnu ou identique est refusé', !b.setOrder(0, 'hold') && !b.setOrder(0, 'xyz'));
 }
 
