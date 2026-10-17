@@ -33,4 +33,9 @@ check('la saison est déterministe (graine)', JSON.stringify(s2.standings) === J
 let sumStrong = 0, sumWeak = 0;
 for (let sd = 1; sd <= 4; sd++) { const sx = League.newSeason(sd); for (let i = 0; i < League.SEASON_BATTLES; i++) { const opp = League.nextOpponent(sx); const teams = [Game.buildTeams(p, OT.DATA.MISSIONS[0])[0], League.aiTeamDef(opp, sx.seed, sx.round)]; const b = new Battle({ seed: 2000 + sd * 10 + i, mapId: League.nextMap(sx), teams }); b.run(); League.applyPlayerResult(sx, opp.id, b.result); } const tb = League.table(sx); sumStrong += tb.find(r => r.id === 'wolf').points + tb.find(r => r.id === 'punya').points; sumWeak += tb.find(r => r.id === 'iker').points + tb.find(r => r.id === 'force1').points; }
 check('sur 4 saisons, les deux équipes fortes totalisent plus de points que les deux faibles', sumStrong > sumWeak, { sumStrong, sumWeak });
+{ const sx = League.newSeason(7); for (let i = 0; i < 6; i++) { const opp = League.nextOpponent(sx); const b = new Battle({ seed: 300 + i, mapId: League.nextMap(sx), teams: [Game.buildTeams(p, OT.DATA.MISSIONS[0])[0], League.aiTeamDef(opp, sx.seed, sx.round)] }); b.run(); League.applyPlayerResult(sx, opp.id, b.result); }
+  const tb = League.table(sx), me = tb.find(r => r.id === 'player');
+  const formOk = tb.every(r => (r.form || []).length === Math.min(5, r.played) && (r.form || []).every(x => 'vnd'.includes(x))) && me.form.filter(x => x === 'v').length <= me.wins;
+  const rt = League.aiRating(League.AI_TEAMS[0], sx, Game.defRating);
+  check('forme : les cinq derniers résultats de chaque équipe (v/n/d) ; puissance des équipes IA calculée comme au QG', formOk && rt > 20 && rt < 100, { me: me.form, rt }); }
 console.log(`\n${pass}/${pass + fail} vérifications réussies`); process.exit(fail ? 1 : 0);
