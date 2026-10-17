@@ -39,6 +39,9 @@
     light:  { id: 'light',  name: 'Gilet léger (IIIA)',   torso: 0.20, head: 0.15, mobility: 1.00 },
     medium: { id: 'medium', name: 'Plaques moyennes (III)', torso: 0.40, head: 0.20, mobility: 0.90 },
     heavy:  { id: 'heavy',  name: 'Plaques lourdes (IV)', torso: 0.58, head: 0.25, mobility: 0.78 },
+    // à acheter à l'armurerie
+    assaultv: { id: 'assaultv', name: 'Gilet d\'assaut (IIIA+)', torso: 0.28, head: 0.18, mobility: 1.00 },
+    composite: { id: 'composite', name: 'Plaques composites (III+)', torso: 0.48, head: 0.22, mobility: 0.92 },
   };
 
   // ---- RÔLES -------------------------------------------------------------------------
@@ -340,7 +343,7 @@
   const PRICES = {
     operator: { 1: 250, 2: 450, 3: 700 },           // recrutement selon la rareté
     weapon:   { carbine: 0, smg: 0, dmr: 0, lmg: 0, shotgun: 0, battle: 320, smgsil: 260 },
-    armor:    { light: 0, medium: 150, heavy: 320 },
+    armor:    { light: 0, medium: 150, heavy: 320, assaultv: 220, composite: 420 },
   };
   // Expérience nécessaire pour atteindre chaque niveau (niveau 0 → 1 : 100, etc.) ; +2 à chaque statistique par niveau (max 10).
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];

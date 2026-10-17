@@ -336,6 +336,11 @@
     if (profile.credits < price) return false;
     profile.credits -= price; st.unlocked = true; st.tours = CONTRACT.tours[base.rarity]; return true;
   }
+  function buyArmor(profile, armorId) {
+    if (!ARMORS[armorId] || profile.inventory.armors[armorId]) return false;
+    const price = PRICES.armor[armorId]; if (price === undefined || profile.credits < price) return false;
+    profile.credits -= price; profile.inventory.armors[armorId] = true; return true;
+  }
   function buyWeapon(profile, weaponId) {
     if (!WEAPONS[weaponId] || profile.inventory.weapons[weaponId]) return false;
     const price = PRICES.weapon[weaponId]; if (price === undefined || profile.credits < price) return false;
@@ -539,6 +544,6 @@
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { SAVE_VERSION, migrate, buyAttachment, setAttachment, attachmentFits, dailyContracts, applyDaily, achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { buyArmor, SAVE_VERSION, migrate, buyAttachment, setAttachment, attachmentFits, dailyContracts, applyDaily, achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));

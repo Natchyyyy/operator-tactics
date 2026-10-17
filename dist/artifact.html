@@ -1053,6 +1053,9 @@ window.Son = Son;
     light:  { id: 'light',  name: 'Gilet léger (IIIA)',   torso: 0.20, head: 0.15, mobility: 1.00 },
     medium: { id: 'medium', name: 'Plaques moyennes (III)', torso: 0.40, head: 0.20, mobility: 0.90 },
     heavy:  { id: 'heavy',  name: 'Plaques lourdes (IV)', torso: 0.58, head: 0.25, mobility: 0.78 },
+    // à acheter à l'armurerie
+    assaultv: { id: 'assaultv', name: 'Gilet d\'assaut (IIIA+)', torso: 0.28, head: 0.18, mobility: 1.00 },
+    composite: { id: 'composite', name: 'Plaques composites (III+)', torso: 0.48, head: 0.22, mobility: 0.92 },
   };
 
   // ---- RÔLES -------------------------------------------------------------------------
@@ -1354,7 +1357,7 @@ window.Son = Son;
   const PRICES = {
     operator: { 1: 250, 2: 450, 3: 700 },           // recrutement selon la rareté
     weapon:   { carbine: 0, smg: 0, dmr: 0, lmg: 0, shotgun: 0, battle: 320, smgsil: 260 },
-    armor:    { light: 0, medium: 150, heavy: 320 },
+    armor:    { light: 0, medium: 150, heavy: 320, assaultv: 220, composite: 420 },
   };
   // Expérience nécessaire pour atteindre chaque niveau (niveau 0 → 1 : 100, etc.) ; +2 à chaque statistique par niveau (max 10).
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
@@ -3419,6 +3422,11 @@ window.Son = Son;
     if (profile.credits < price) return false;
     profile.credits -= price; st.unlocked = true; st.tours = CONTRACT.tours[base.rarity]; return true;
   }
+  function buyArmor(profile, armorId) {
+    if (!ARMORS[armorId] || profile.inventory.armors[armorId]) return false;
+    const price = PRICES.armor[armorId]; if (price === undefined || profile.credits < price) return false;
+    profile.credits -= price; profile.inventory.armors[armorId] = true; return true;
+  }
   function buyWeapon(profile, weaponId) {
     if (!WEAPONS[weaponId] || profile.inventory.weapons[weaponId]) return false;
     const price = PRICES.weapon[weaponId]; if (price === undefined || profile.credits < price) return false;
@@ -3622,7 +3630,7 @@ window.Son = Son;
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { SAVE_VERSION, migrate, buyAttachment, setAttachment, attachmentFits, dailyContracts, applyDaily, achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { buyArmor, SAVE_VERSION, migrate, buyAttachment, setAttachment, attachmentFits, dailyContracts, applyDaily, achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));
 
@@ -4082,10 +4090,12 @@ window.Son = Son;
     const el = $('#hqArmory');
     const items = Object.values(WEAPONS).filter(w => !profile.inventory.weapons[w.id]);
     const owned = profile.inventory.attachments || {};
+    const armHTML = Object.values(ARMORS).filter(a => !profile.inventory.armors[a.id]).map(a => `<div class="armo"><div><b>${esc(a.name)}</b><div class="wspec">Absorbe ${Math.round(a.torso * 100)} % au torse, ${Math.round(a.head * 100)} % à la tête · vitesse × ${a.mobility}</div></div><button class="mini" data-arm="${a.id}" ${profile.credits >= PRICES.armor[a.id] ? '' : 'disabled'}>${PRICES.armor[a.id]} cr.</button></div>`).join('');
     const accHTML = '<div class="lbl" style="margin-top:6px">Accessoires</div>' + Object.values(DATA.ATTACHMENTS).map(a => `<div class="armo ${owned[a.id] ? 'owned' : ''}"><div><b>${esc(a.name)}</b> <small class="muted">${{ optique: 'optique', bouche: 'bouche', poignee: 'poignée', chargeur: 'chargeur' }[a.slot]}</small><div class="wspec">${esc(a.desc)}</div></div>${owned[a.id] ? '<span class="muted" style="font-size:11px">acquis</span>' : `<button class="mini" data-acc="${a.id}" ${profile.credits >= a.price ? '' : 'disabled'}>${a.price} cr.</button>`}</div>`).join('');
-    const bindAcc = () => el.querySelectorAll('button[data-acc]').forEach(b => b.addEventListener('click', () => { if (Game.buyAttachment(profile, b.dataset.acc)) { flash(`${DATA.ATTACHMENTS[b.dataset.acc].name} acquis : à monter sur la fiche d’un opérateur.`); saveNow(); render(); } }));
-    if (!items.length) { el.innerHTML = '<div class="muted" style="font-size:12px">Toutes les armes sont disponibles.</div>' + accHTML; bindAcc(); return; }
-    el.innerHTML = items.map(w => `<div class="armo"><div><b>${esc(w.name)}</b><div class="wspec">Dégâts ${w.damage} · portée ${w.range} m · ${w.rpm} c/min · chargeur ${w.mag}${w.silenced ? ' · silencieux : presque inaudible au-delà de 18 m' : ''}</div></div><button class="mini" data-w="${w.id}" ${profile.credits >= PRICES.weapon[w.id] ? '' : 'disabled'}>${PRICES.weapon[w.id]} cr.</button></div>`).join('') + accHTML; bindAcc();
+    const bindArm = () => el.querySelectorAll('button[data-arm]').forEach(b => b.addEventListener('click', () => { if (Game.buyArmor(profile, b.dataset.arm)) { flash(`${ARMORS[b.dataset.arm].name} ajoutées à l’armurerie.`); saveNow(); render(); } }));
+    const bindAcc = () => (bindArm(), 0) || el.querySelectorAll('button[data-acc]').forEach(b => b.addEventListener('click', () => { if (Game.buyAttachment(profile, b.dataset.acc)) { flash(`${DATA.ATTACHMENTS[b.dataset.acc].name} acquis : à monter sur la fiche d’un opérateur.`); saveNow(); render(); } }));
+    if (!items.length) { el.innerHTML = '<div class="muted" style="font-size:12px">Toutes les armes sont disponibles.</div>' + armHTML + accHTML; bindAcc(); return; }
+    el.innerHTML = items.map(w => `<div class="armo"><div><b>${esc(w.name)}</b><div class="wspec">Dégâts ${w.damage} · portée ${w.range} m · ${w.rpm} c/min · chargeur ${w.mag}${w.silenced ? ' · silencieux : presque inaudible au-delà de 18 m' : ''}</div></div><button class="mini" data-w="${w.id}" ${profile.credits >= PRICES.weapon[w.id] ? '' : 'disabled'}>${PRICES.weapon[w.id]} cr.</button></div>`).join('') + armHTML + accHTML; bindAcc();
     el.querySelectorAll('button[data-w]').forEach(b => b.addEventListener('click', () => { if (Game.buyWeapon(profile, b.dataset.w)) { flash(`${WEAPONS[b.dataset.w].name} ajouté à l’armurerie.`); saveNow(); render(); } }));
   }
   function renderChallenges() {

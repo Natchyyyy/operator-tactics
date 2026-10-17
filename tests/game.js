@@ -294,4 +294,8 @@ check('réinitialisation : profil neuf et stockage vidé', Game.reset(storage).c
   const b = new Battle(Game.battleOptions(q, m, 1)); b.run(); const r = Game.applyRewards(q, m, b.result);
   check('le Colonel vaincu donne le succès « Le Colonel » (sinon non)', (b.result.winner === 0) === !!q.achievements.colonel, { won: b.result.winner === 0, ach: q.achievements.colonel });
 }
+{ const q = Game.newProfile(); q.credits = 500;
+  const refused = !Game.setArmor(q, 'op_vautour', 'composite'), bought = Game.buyArmor(q, 'composite'), again = !Game.buyArmor(q, 'composite'), set = Game.setArmor(q, 'op_vautour', 'composite');
+  const b = new Battle({ seed: 1, teams: [{ operators: [Game.effectiveDef(q, 'op_vautour')] }, { operators: ['k_molosse'] }] });
+  check('protections à acheter : refusées avant achat, achetées une fois, portées en bataille', refused && bought && again && set && q.credits === 500 - DATA.PRICES.armor.composite && b.teams[0].units[0].armor.id === 'composite'); }
 console.log(`\n${pass}/${pass + fail} vérifications réussies`); process.exit(fail ? 1 : 0);
