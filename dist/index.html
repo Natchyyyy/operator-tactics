@@ -5029,6 +5029,15 @@ window.Son = Son;
   function applyShake() { if (!cam.shake || cam.shake < 0.01) return; const k = cam.shake * 0.25; camera.position.x += (Math.random() - 0.5) * k; camera.position.y += (Math.random() - 0.5) * k; camera.position.z += (Math.random() - 0.5) * k; cam.shake *= 0.86; }
   function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); if (battle.zone) updateZone(); renderer.render(scene, camera); updateLabels(); updateRosters(); }
 
+  // musique dynamique : plus présente quand les échanges de tirs s'intensifient, en retrait pendant la progression
+  let lastMusicAdj = 0, musicLevel = 0.7;
+  function musicIntensity(now) {
+    if (now - lastMusicAdj < 800 || !window.Son || muted || paused || battle.over || $('#app').classList.contains('hidden')) return;
+    lastMusicAdj = now;
+    const firing = battle.units.filter(u => u.alive && battle.t - u.lastShotAt < 2).length;
+    const target = 0.45 + Math.min(1, firing / 5) * 0.45;
+    if (Math.abs(target - musicLevel) > 0.04) { musicLevel = target; Son.volumeBoucle('musique', musicLevel * musicVol, 1.2); }
+  }
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.1, (now - lastFrame) / 1000 || 0); lastFrame = now;
@@ -5038,6 +5047,7 @@ window.Son = Son;
       while (acc >= DT && n < 40) { stepSim(); acc -= DT; n++; }
       if (battle.over) acc = 0;
     }
+    musicIntensity(now);
     render();
   }
 
