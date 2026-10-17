@@ -52,6 +52,6 @@ l'issue dépend uniquement des événements simulés (perception, déplacements,
 
 ## Limites connues
 - Modèles d'opérateurs construits par programme (pas de modèles externes : les modèles Meshy sont prévus) ; bruitages, ambiances et musiques synthétisés.
-- Cinq cartes (dont la gare de triage), 20 opérateurs recrutables (17 traits, dont Grenadier, Vigie, Secouriste) + 8 ennemis du Groupe Karst, 7 armes, 3 protections, 14 missions × 3 campagnes, 12 tactiques, 6 accessoires, 14 succès, 7 défis, 3 opérations spéciales, contrats du jour ; réglages et export / import de la carrière.
+- Cinq cartes (dont la gare de triage), 24 opérateurs recrutables (17 traits, dont Grenadier, Vigie, Secouriste) + 16 adversaires (Groupe Karst, Milice du Delta), 7 armes, 5 protections, 4 tenues camouflées, 14 missions × 3 campagnes, 12 tactiques, 6 accessoires, 14 succès, 7 défis, 3 opérations spéciales, contrats du jour ; réglages et export / import de la carrière.
 - Pas de multijoueur : la ligue oppose le joueur à des équipes IA (leurs matchs entre elles sont simulés par le même moteur).
 - La sauvegarde est locale au navigateur (localStorage) : pas de synchronisation entre appareils.
