@@ -373,6 +373,14 @@
     profile.career.battles++; if (r.won) profile.career.wins++; else if (r.draw) profile.career.draws++; else profile.career.losses++;
     profile.career.kills += result.teams[0].units.reduce((s, u) => s + u.stats.kills, 0);
     profile.career.losses_units += result.teams[0].units.filter(u => !u.alive).length;
+    // statistiques de carrière détaillées (onglet Carrière) : spéciaux, précision, cartes, conditions, dernières batailles
+    const c = profile.career, us = result.teams[0].units, sum = (k) => us.reduce((s, u) => s + (u.stats[k] || 0), 0);
+    for (const k of ['headshots', 'streaks', 'group', 'revenge', 'veteran', 'revives', 'shots', 'hits']) c[k] = (c[k] || 0) + sum(k);
+    c.damage = Math.round((c.damage || 0) + sum('damageDealt'));
+    const mapId = mission.mapId || 'entrepot'; c.maps = c.maps || {}; c.maps[mapId] = c.maps[mapId] || { b: 0, w: 0 }; c.maps[mapId].b++; if (r.won) c.maps[mapId].w++;
+    if (r.won && mission.conditions === 'nuit') c.nightWins = (c.nightWins || 0) + 1;
+    if (r.won && mission.objective === 'capture') c.captureWins = (c.captureWins || 0) + 1;
+    c.recent = (c.recent || []).concat([{ n: c.battles, m: mission.name, map: mapId, cond: mission.conditions || 'jour', res: r.won ? 'v' : r.draw ? 'n' : 'd', k: result.teams[0].kills || 0, l: us.filter(u => !u.alive).length, t: Math.round(result.duration || 0) }]).slice(-12);
     if (mission.id !== 'ligue' && mission.id !== 'rapide') { profile.missions[mission.id] = profile.missions[mission.id] || { attempts: 0, wins: 0 }; profile.missions[mission.id].attempts++; if (r.won) profile.missions[mission.id].wins++; }
     applyModes(profile, mission, result, r);
     r.achievements = checkAchievements(profile, result);
@@ -404,7 +412,24 @@
     podium:     (p) => !!p.podium,
     tacticien:  (p) => (p.tacticsUsed || 0) >= 20,
     intact:     (p, r) => !!r && r.winner === 0 && r.teams[0].units.length === 5 && r.teams[0].units.every(u => u.alive && u.hp / u.maxHp > 0.9),
+    croise:     (p) => (p.career.group || 0) >= 10,
+    precision:  (p) => (p.career.headshots || 0) >= 25,
+    sauveteur:  (p) => (p.career.revives || 0) >= 5,
+    nocturne:   (p) => (p.career.nightWins || 0) >= 5,
+    terrain:    (p) => (p.career.captureWins || 0) >= 5,
+    campagne:   (p) => campaignProgress(p, 'reguliere').won >= CAMPAIGNS[0].missions.length,
   };
+  // progression vers chaque succès (onglet Carrière) : [valeur, objectif] ; null = succès d'un seul coup (pas de jauge)
+  const ACHIEVEMENT_PROGRESS = {
+    premiere: (p) => [p.career.wins, 1], dix: (p) => [p.career.wins, 10], chasseur: (p) => [p.career.kills, 50],
+    collection: (p) => [Object.values(p.operators).filter(o => o.unlocked).length, 10],
+    veteran: (p) => [Math.max(...Object.values(p.operators).filter(o => o.unlocked).map(o => levelFor(o.xp))), 5],
+    podium: () => null, tacticien: (p) => [p.tacticsUsed || 0, 20], intact: () => null,
+    croise: (p) => [p.career.group || 0, 10], precision: (p) => [p.career.headshots || 0, 25], sauveteur: (p) => [p.career.revives || 0, 5],
+    nocturne: (p) => [p.career.nightWins || 0, 5], terrain: (p) => [p.career.captureWins || 0, 5],
+    campagne: (p) => [campaignProgress(p, 'reguliere').won, CAMPAIGNS[0].missions.length],
+  };
+  function achievementProgress(profile, id) { const f = ACHIEVEMENT_PROGRESS[id]; const v = f ? f(profile) : null; return v ? [Math.min(v[0], v[1]), v[1]] : null; }
   function checkAchievements(profile, result) {
     const got = []; profile.achievements = profile.achievements || {};
     for (const a of ACHIEVEMENTS) { if (profile.achievements[a.id]) continue; if (ACHIEVEMENT_CHECKS[a.id](profile, result)) { profile.achievements[a.id] = true; got.push(Object.assign({}, a, { rewardText: grantAchievementReward(profile, a.reward) })); } }
@@ -442,6 +467,6 @@
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));

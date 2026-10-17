@@ -64,6 +64,10 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   check('les crédits gagnés dépendent de l\'issue, des neutralisations et des spéciaux (plus les défis)', p.credits - before === r.credits + challengeCredits && r.base === Math.round(m.reward * (r.won ? 1 : r.draw ? 0.5 : 0.3)) && r.credits === r.base + r.kills * 8 + r.specials * 6 && r.kills === b.result.teams[0].kills, r);
   const xpOk = p.squad.every(id => { const u = b.result.teams[0].units.find(x => x.id === '0:' + id); const exp = Math.round((m.xp + Math.round(u.stats.damageDealt * 0.25) + u.stats.kills * 25 + (r.won ? 20 : 0)) * (u.alive ? 1 : 0.7)); return p.operators[id].xp - xpBefore[id] === exp; });
   check('l\'expérience de chacun découle de ses actions réelles (dégâts, neutralisations, survie)', xpOk);
+  const c = p.career, hs = b.result.teams[0].units.reduce((t, u) => t + u.stats.headshots, 0);
+  check('carrière détaillée : tirs à la tête, terrain, dernière bataille enregistrés', c.headshots === hs && c.maps[m.mapId].b === 1 && c.recent.length === 1 && c.recent[0].m === m.name && c.recent[0].k === r.kills, { hs: c.headshots, maps: c.maps, recent: c.recent });
+  const pr = Game.achievementProgress(p, 'chasseur');
+  check('progression des succès : [valeur, objectif] bornée ; null pour les succès d\'un seul coup', pr[1] === 50 && pr[0] === Math.min(50, p.career.kills) && Game.achievementProgress(p, 'intact') === null && DATA.ACHIEVEMENTS.every(a => a.id in Game.ACHIEVEMENT_PROGRESS && a.id in Game.ACHIEVEMENT_CHECKS));
   check('la carrière est mise à jour', p.career.battles === 1 && (p.career.wins + p.career.losses + p.career.draws) === 1 && p.missions[m.id].attempts === 1);
 }
 // blessures graves, soins, repos

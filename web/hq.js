@@ -36,7 +36,32 @@
     $('#credits').textContent = profile.credits;
     const c = profile.career;
     $('#career').textContent = `${c.battles} bataille${c.battles > 1 ? 's' : ''} · ${c.kills} neutralisation${c.kills > 1 ? 's' : ''} · ${c.losses_units} opérateur${c.losses_units > 1 ? 's' : ''} mis hors de combat`;
-    renderHome(); renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderDeploy(); renderArmory(); renderPacks(); renderTactics(); renderPerks(); renderChallenges(); renderLeague(); renderRewards();
+    renderHome(); renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderDeploy(); renderArmory(); renderPacks(); renderTactics(); renderPerks(); renderChallenges(); renderLeague(); renderRewards(); renderCareer();
+  }
+  // ---- Carrière : bilan chiffré, terrains, dernières batailles, succès avec jauges et récompenses --------------------------
+  const COND_FR = { jour: 'Jour', nuit: 'Nuit', brouillard: 'Brouillard', pluie: 'Pluie' };
+  function rewardLabel(rw) {
+    if (!rw) return ''; if (rw.credits) return rw.credits + ' crédits';
+    if (rw.headgear) return 'Couvre-chef : ' + ((OT.Figure && OT.Figure.HEADGEAR[rw.headgear] && OT.Figure.HEADGEAR[rw.headgear].name) || rw.headgear);
+    if (rw.insignia) { const i = INSIGNIAS.find(x => x.id === rw.insignia); return 'Insigne : ' + (i ? i.glyph + ' ' + i.name : rw.insignia); }
+    if (rw.uniform) { const u = UNIFORMS.find(x => x.id === rw.uniform); return 'Uniforme : ' + (u ? u.name : rw.uniform); }
+    return '';
+  }
+  function renderCareer() {
+    if (!$('#crStats')) return;
+    const c = profile.career, pct = (a, b) => b ? Math.round(100 * a / b) + ' %' : '—';
+    const cells = [[c.battles, 'batailles'], [`${c.wins} / ${c.losses} / ${c.draws}`, 'V / D / N'], [pct(c.wins, c.battles), 'victoires'], [c.kills, 'neutralisations'],
+      [c.losses_units, 'opérateurs perdus'], [c.losses_units ? (c.kills / c.losses_units).toFixed(2) : (c.kills ? '∞' : '—'), 'ratio N / P'], [pct(c.hits || 0, c.shots || 0), 'balles au but'], [c.damage || 0, 'dégâts infligés'],
+      [c.headshots || 0, 'tirs à la tête'], [c.streaks || 0, 'séries'], [c.group || 0, 'de groupe'], [c.revenge || 0, 'revanches'], [c.veteran || 0, 'vétérans abattus'], [c.revives || 0, 'alliés relevés'], [c.nightWins || 0, 'victoires de nuit'], [c.captureWins || 0, 'zones prises']];
+    $('#crStats').innerHTML = cells.map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join('');
+    const maps = c.maps || {};
+    $('#crMaps').innerHTML = Object.keys(OT.MAPS).map(id => { const m = maps[id] || { b: 0, w: 0 }, w = m.b ? Math.round(100 * m.w / m.b) : 0; return `<div class="row"><span>${esc(OT.MAPS[id].name)}</span><i style="--w:${m.b ? w : 0}%;${m.b ? '' : 'opacity:.3'}"></i><span class="muted">${m.b ? `${m.w}/${m.b} · ${w} %` : 'jamais joué'}</span></div>`; }).join('');
+    const rec = (c.recent || []).slice().reverse();
+    $('#crRecent').innerHTML = rec.length ? rec.map(b => `<div class="row"><span class="muted">#${b.n}</span><span>${esc(b.m)}</span><span class="muted">${esc((OT.MAPS[b.map] || {}).name || b.map)} · ${COND_FR[b.cond] || b.cond}</span><span class="${b.res}">${{ v: 'Victoire', d: 'Défaite', n: 'Égalité' }[b.res]}</span><span class="muted">${b.k} N · ${b.l} P · ${Math.floor(b.t / 60)}:${String(b.t % 60).padStart(2, '0')}</span></div>`).join('') : '<div class="muted">Aucune bataille de mission encore.</div>';
+    const got = profile.achievements || {};
+    $('#crAchCount').textContent = `(${ACHIEVEMENTS.filter(a => got[a.id]).length} / ${ACHIEVEMENTS.length})`;
+    $('#crAch').innerHTML = ACHIEVEMENTS.map(a => { const pr = Game.achievementProgress(profile, a.id), done = !!got[a.id];
+      return `<div class="a ${done ? 'got' : ''}" data-ach="${a.id}"><span class="g">${a.glyph}</span><div><b>${esc(a.name)}</b><small>${esc(a.desc)}</small>${!done && pr ? `<div class="pb"><i style="width:${Math.round(100 * pr[0] / pr[1])}%"></i></div><small>${pr[0]} / ${pr[1]}</small>` : ''}<div class="rw">${done ? '✓ obtenu — ' : 'Récompense : '}${esc(rewardLabel(a.reward))}</div></div></div>`; }).join('');
   }
   function renderAchievements() {
     const el = $('#hqAch'); if (!el) return;

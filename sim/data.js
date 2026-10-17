@@ -266,6 +266,12 @@
     { id: 'podium',     name: 'Sur le podium',      glyph: '♛', desc: 'Finir une saison de ligue dans les trois premiers.', reward: { uniform: 'nuit' } },
     { id: 'tacticien',  name: 'Tacticien',          glyph: '◆', desc: 'Jouer vingt tactiques actives.', reward: { credits: 250 } },
     { id: 'intact',     name: 'Sans une égratignure', glyph: '❖', desc: 'Gagner avec cinq opérateurs à plus de 90 % de vie.', reward: { headgear: 'foulard_rouge' } },
+    { id: 'croise',     name: 'Tir croisé',         glyph: '✛', desc: 'Dix neutralisations de groupe en carrière.', reward: { insignia: 'eclair' } },
+    { id: 'precision',  name: 'Tête froide',        glyph: '⊕', desc: 'Vingt-cinq tirs à la tête en carrière.', reward: { headgear: 'lunettes_soleil' } },
+    { id: 'sauveteur',  name: 'Sauveteur',          glyph: '✚', desc: 'Relever cinq alliés à terre.', reward: { credits: 300 } },
+    { id: 'nocturne',   name: 'Oiseau de nuit',     glyph: '☾', desc: 'Gagner cinq batailles de nuit.', reward: { insignia: 'rose' } },
+    { id: 'terrain',    name: 'Maître du terrain',  glyph: '⬢', desc: 'Gagner cinq batailles de capture de zone.', reward: { insignia: 'ancre' } },
+    { id: 'campagne',   name: 'Campagne accomplie', glyph: '⚑', desc: 'Gagner les quatorze missions de la campagne régulière.', reward: { uniform: 'desert' } },
   ];
   // ---- PROMOTIONS : second trait au choix (niveau 5), troisième (niveau 10) ----------------
   // Deux propositions par palier, tirées parmi les traits que l'opérateur n'a pas.

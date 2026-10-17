@@ -81,6 +81,18 @@
   #resSpecials { display: grid; grid-template-columns: 1fr auto 1fr; gap: 4px 14px; font-size: 13px; margin: 6px auto 12px; max-width: 520px; } #resSpecials .l { text-align: right; font-weight: 700; color: var(--a0); } #resSpecials .r { font-weight: 700; color: var(--a1); } #resSpecials .m { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 11px; text-align: center; }
   .overlay { position: absolute; inset: 0; background: rgba(8,10,13,.82); display: flex; align-items: center; justify-content: center; z-index: 10; }
   .overlay.hidden { display: none; }
+  /* Carrière */
+  .hqgrid.two.play.career { grid-template-columns: 1.1fr 1fr; } .career .hqcol { overflow: auto; }
+  .crstats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; } .crstats div { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .crstats b { display: block; font-size: 22px; color: #eef3ea; } .crstats span { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  .crmaps { display: flex; flex-direction: column; gap: 6px; font-size: 12px; } .crmaps .row { display: grid; grid-template-columns: 200px 1fr 90px; gap: 10px; align-items: center; }
+  .crmaps i { display: block; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--a0) var(--w), #3a2422 var(--w)); }
+  .crrecent { display: flex; flex-direction: column; gap: 3px; font-size: 12px; } .crrecent .row { display: grid; grid-template-columns: 34px 1fr 200px 80px 130px; gap: 8px; padding: 4px 6px; border-radius: 5px; background: var(--panel2); }
+  .crrecent .v { color: var(--ok); font-weight: 700; } .crrecent .d { color: var(--bad); font-weight: 700; } .crrecent .n { color: var(--warn); font-weight: 700; }
+  .crach { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .crach .a { display: grid; grid-template-columns: 44px 1fr; gap: 10px; align-items: center; background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 9px; }
+  .crach .a.got { border-color: #8a7a3a; background: linear-gradient(135deg, #2a2616, #171a16); } .crach .g { font-size: 26px; text-align: center; color: var(--muted); } .crach .a.got .g { color: #ffd76a; text-shadow: 0 0 10px rgba(255,215,106,.4); }
+  .crach b { font-size: 13px; } .crach small { display: block; color: var(--muted); font-size: 11px; } .crach .pb { height: 5px; border-radius: 3px; background: #262e37; margin-top: 5px; overflow: hidden; } .crach .pb i { display: block; height: 100%; background: var(--accent); }
+  .crach .rw { font-size: 10.5px; color: #c9b67a; margin-top: 3px; }
   /* Briefing de campagne */
   #briefing { position: absolute; inset: 0; z-index: 9; display: flex; align-items: flex-end; justify-content: flex-start; padding: 0 0 150px 40px; background: linear-gradient(90deg, rgba(6,9,12,.78), rgba(6,9,12,0) 55%); pointer-events: none; }
   #briefing.hidden { display: none; }
@@ -332,7 +344,7 @@
     <div class="hqteam"><span class="ins team0" id="hqIns">✶</span><div><div class="hqname" id="hqTeamName">Alpha</div><div class="hqrank"><span id="hqRank">Recrue</span> · <span id="hqXp"></span><div class="xpbar"><i id="hqXpBar"></i></div></div></div></div>
     <span class="cred"><span id="credits">0</span> crédits</span>
     <div class="achs" id="hqAch" title="Succès"></div>
-    <nav class="tabs"><button data-tab="accueil" class="on">Accueil</button><button data-tab="equipe">Équipe</button><button data-tab="cartes">Cartes</button><button data-tab="missions">Jouer</button><button data-tab="ligue">Ligue</button></nav>
+    <nav class="tabs"><button data-tab="accueil" class="on">Accueil</button><button data-tab="equipe">Équipe</button><button data-tab="cartes">Cartes</button><button data-tab="missions">Jouer</button><button data-tab="ligue">Ligue</button><button data-tab="carriere">Carrière</button></nav>
     <div class="spacer"></div>
     <button id="freeBattle" title="Bataille d'entraînement sans récompense, avec graine et ordres libres">Bataille libre</button>
     <button id="resetSave">Réinitialiser</button>
@@ -382,6 +394,15 @@
         <h3 style="margin-top:8px">Armurerie</h3><div id="hqArmory" style="display:flex;flex-direction:column;gap:6px"></div></section>
       <section class="hqcol"><h3>Tactiques <small class="muted">(3 emportées en mission)</small></h3><div id="hqTactics" class="tgrid"></div>
         <h3 style="margin-top:8px">Perks acquis</h3><div id="hqPerks" class="muted" style="font-size:12px"></div></section>
+    </div>
+  </div>
+  <!-- Carrière : statistiques, cartes, dernières batailles, succès avec progression -->
+  <div class="hqpanel hidden" data-panel="carriere">
+    <div class="hqgrid two play career">
+      <section class="hqcol"><h3>Bilan</h3><div id="crStats" class="crstats"></div>
+        <h3 style="margin-top:10px">Par terrain</h3><div id="crMaps" class="crmaps"></div>
+        <h3 style="margin-top:10px">Dernières batailles</h3><div id="crRecent" class="crrecent"></div></section>
+      <section class="hqcol"><h3>Succès <span id="crAchCount" class="muted"></span></h3><div id="crAch" class="crach"></div></section>
     </div>
   </div>
   <!-- Ligue -->

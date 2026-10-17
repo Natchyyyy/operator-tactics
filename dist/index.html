@@ -81,6 +81,18 @@
   #resSpecials { display: grid; grid-template-columns: 1fr auto 1fr; gap: 4px 14px; font-size: 13px; margin: 6px auto 12px; max-width: 520px; } #resSpecials .l { text-align: right; font-weight: 700; color: var(--a0); } #resSpecials .r { font-weight: 700; color: var(--a1); } #resSpecials .m { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 11px; text-align: center; }
   .overlay { position: absolute; inset: 0; background: rgba(8,10,13,.82); display: flex; align-items: center; justify-content: center; z-index: 10; }
   .overlay.hidden { display: none; }
+  /* Carrière */
+  .hqgrid.two.play.career { grid-template-columns: 1.1fr 1fr; } .career .hqcol { overflow: auto; }
+  .crstats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; } .crstats div { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .crstats b { display: block; font-size: 22px; color: #eef3ea; } .crstats span { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  .crmaps { display: flex; flex-direction: column; gap: 6px; font-size: 12px; } .crmaps .row { display: grid; grid-template-columns: 200px 1fr 90px; gap: 10px; align-items: center; }
+  .crmaps i { display: block; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--a0) var(--w), #3a2422 var(--w)); }
+  .crrecent { display: flex; flex-direction: column; gap: 3px; font-size: 12px; } .crrecent .row { display: grid; grid-template-columns: 34px 1fr 200px 80px 130px; gap: 8px; padding: 4px 6px; border-radius: 5px; background: var(--panel2); }
+  .crrecent .v { color: var(--ok); font-weight: 700; } .crrecent .d { color: var(--bad); font-weight: 700; } .crrecent .n { color: var(--warn); font-weight: 700; }
+  .crach { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .crach .a { display: grid; grid-template-columns: 44px 1fr; gap: 10px; align-items: center; background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 9px; }
+  .crach .a.got { border-color: #8a7a3a; background: linear-gradient(135deg, #2a2616, #171a16); } .crach .g { font-size: 26px; text-align: center; color: var(--muted); } .crach .a.got .g { color: #ffd76a; text-shadow: 0 0 10px rgba(255,215,106,.4); }
+  .crach b { font-size: 13px; } .crach small { display: block; color: var(--muted); font-size: 11px; } .crach .pb { height: 5px; border-radius: 3px; background: #262e37; margin-top: 5px; overflow: hidden; } .crach .pb i { display: block; height: 100%; background: var(--accent); }
+  .crach .rw { font-size: 10.5px; color: #c9b67a; margin-top: 3px; }
   /* Briefing de campagne */
   #briefing { position: absolute; inset: 0; z-index: 9; display: flex; align-items: flex-end; justify-content: flex-start; padding: 0 0 150px 40px; background: linear-gradient(90deg, rgba(6,9,12,.78), rgba(6,9,12,0) 55%); pointer-events: none; }
   #briefing.hidden { display: none; }
@@ -332,7 +344,7 @@
     <div class="hqteam"><span class="ins team0" id="hqIns">✶</span><div><div class="hqname" id="hqTeamName">Alpha</div><div class="hqrank"><span id="hqRank">Recrue</span> · <span id="hqXp"></span><div class="xpbar"><i id="hqXpBar"></i></div></div></div></div>
     <span class="cred"><span id="credits">0</span> crédits</span>
     <div class="achs" id="hqAch" title="Succès"></div>
-    <nav class="tabs"><button data-tab="accueil" class="on">Accueil</button><button data-tab="equipe">Équipe</button><button data-tab="cartes">Cartes</button><button data-tab="missions">Jouer</button><button data-tab="ligue">Ligue</button></nav>
+    <nav class="tabs"><button data-tab="accueil" class="on">Accueil</button><button data-tab="equipe">Équipe</button><button data-tab="cartes">Cartes</button><button data-tab="missions">Jouer</button><button data-tab="ligue">Ligue</button><button data-tab="carriere">Carrière</button></nav>
     <div class="spacer"></div>
     <button id="freeBattle" title="Bataille d'entraînement sans récompense, avec graine et ordres libres">Bataille libre</button>
     <button id="resetSave">Réinitialiser</button>
@@ -382,6 +394,15 @@
         <h3 style="margin-top:8px">Armurerie</h3><div id="hqArmory" style="display:flex;flex-direction:column;gap:6px"></div></section>
       <section class="hqcol"><h3>Tactiques <small class="muted">(3 emportées en mission)</small></h3><div id="hqTactics" class="tgrid"></div>
         <h3 style="margin-top:8px">Perks acquis</h3><div id="hqPerks" class="muted" style="font-size:12px"></div></section>
+    </div>
+  </div>
+  <!-- Carrière : statistiques, cartes, dernières batailles, succès avec progression -->
+  <div class="hqpanel hidden" data-panel="carriere">
+    <div class="hqgrid two play career">
+      <section class="hqcol"><h3>Bilan</h3><div id="crStats" class="crstats"></div>
+        <h3 style="margin-top:10px">Par terrain</h3><div id="crMaps" class="crmaps"></div>
+        <h3 style="margin-top:10px">Dernières batailles</h3><div id="crRecent" class="crrecent"></div></section>
+      <section class="hqcol"><h3>Succès <span id="crAchCount" class="muted"></span></h3><div id="crAch" class="crach"></div></section>
     </div>
   </div>
   <!-- Ligue -->
@@ -1224,6 +1245,12 @@ window.Son = Son;
     { id: 'podium',     name: 'Sur le podium',      glyph: '♛', desc: 'Finir une saison de ligue dans les trois premiers.', reward: { uniform: 'nuit' } },
     { id: 'tacticien',  name: 'Tacticien',          glyph: '◆', desc: 'Jouer vingt tactiques actives.', reward: { credits: 250 } },
     { id: 'intact',     name: 'Sans une égratignure', glyph: '❖', desc: 'Gagner avec cinq opérateurs à plus de 90 % de vie.', reward: { headgear: 'foulard_rouge' } },
+    { id: 'croise',     name: 'Tir croisé',         glyph: '✛', desc: 'Dix neutralisations de groupe en carrière.', reward: { insignia: 'eclair' } },
+    { id: 'precision',  name: 'Tête froide',        glyph: '⊕', desc: 'Vingt-cinq tirs à la tête en carrière.', reward: { headgear: 'lunettes_soleil' } },
+    { id: 'sauveteur',  name: 'Sauveteur',          glyph: '✚', desc: 'Relever cinq alliés à terre.', reward: { credits: 300 } },
+    { id: 'nocturne',   name: 'Oiseau de nuit',     glyph: '☾', desc: 'Gagner cinq batailles de nuit.', reward: { insignia: 'rose' } },
+    { id: 'terrain',    name: 'Maître du terrain',  glyph: '⬢', desc: 'Gagner cinq batailles de capture de zone.', reward: { insignia: 'ancre' } },
+    { id: 'campagne',   name: 'Campagne accomplie', glyph: '⚑', desc: 'Gagner les quatorze missions de la campagne régulière.', reward: { uniform: 'desert' } },
   ];
   // ---- PROMOTIONS : second trait au choix (niveau 5), troisième (niveau 10) ----------------
   // Deux propositions par palier, tirées parmi les traits que l'opérateur n'a pas.
@@ -3243,6 +3270,14 @@ window.Son = Son;
     profile.career.battles++; if (r.won) profile.career.wins++; else if (r.draw) profile.career.draws++; else profile.career.losses++;
     profile.career.kills += result.teams[0].units.reduce((s, u) => s + u.stats.kills, 0);
     profile.career.losses_units += result.teams[0].units.filter(u => !u.alive).length;
+    // statistiques de carrière détaillées (onglet Carrière) : spéciaux, précision, cartes, conditions, dernières batailles
+    const c = profile.career, us = result.teams[0].units, sum = (k) => us.reduce((s, u) => s + (u.stats[k] || 0), 0);
+    for (const k of ['headshots', 'streaks', 'group', 'revenge', 'veteran', 'revives', 'shots', 'hits']) c[k] = (c[k] || 0) + sum(k);
+    c.damage = Math.round((c.damage || 0) + sum('damageDealt'));
+    const mapId = mission.mapId || 'entrepot'; c.maps = c.maps || {}; c.maps[mapId] = c.maps[mapId] || { b: 0, w: 0 }; c.maps[mapId].b++; if (r.won) c.maps[mapId].w++;
+    if (r.won && mission.conditions === 'nuit') c.nightWins = (c.nightWins || 0) + 1;
+    if (r.won && mission.objective === 'capture') c.captureWins = (c.captureWins || 0) + 1;
+    c.recent = (c.recent || []).concat([{ n: c.battles, m: mission.name, map: mapId, cond: mission.conditions || 'jour', res: r.won ? 'v' : r.draw ? 'n' : 'd', k: result.teams[0].kills || 0, l: us.filter(u => !u.alive).length, t: Math.round(result.duration || 0) }]).slice(-12);
     if (mission.id !== 'ligue' && mission.id !== 'rapide') { profile.missions[mission.id] = profile.missions[mission.id] || { attempts: 0, wins: 0 }; profile.missions[mission.id].attempts++; if (r.won) profile.missions[mission.id].wins++; }
     applyModes(profile, mission, result, r);
     r.achievements = checkAchievements(profile, result);
@@ -3274,7 +3309,24 @@ window.Son = Son;
     podium:     (p) => !!p.podium,
     tacticien:  (p) => (p.tacticsUsed || 0) >= 20,
     intact:     (p, r) => !!r && r.winner === 0 && r.teams[0].units.length === 5 && r.teams[0].units.every(u => u.alive && u.hp / u.maxHp > 0.9),
+    croise:     (p) => (p.career.group || 0) >= 10,
+    precision:  (p) => (p.career.headshots || 0) >= 25,
+    sauveteur:  (p) => (p.career.revives || 0) >= 5,
+    nocturne:   (p) => (p.career.nightWins || 0) >= 5,
+    terrain:    (p) => (p.career.captureWins || 0) >= 5,
+    campagne:   (p) => campaignProgress(p, 'reguliere').won >= CAMPAIGNS[0].missions.length,
   };
+  // progression vers chaque succès (onglet Carrière) : [valeur, objectif] ; null = succès d'un seul coup (pas de jauge)
+  const ACHIEVEMENT_PROGRESS = {
+    premiere: (p) => [p.career.wins, 1], dix: (p) => [p.career.wins, 10], chasseur: (p) => [p.career.kills, 50],
+    collection: (p) => [Object.values(p.operators).filter(o => o.unlocked).length, 10],
+    veteran: (p) => [Math.max(...Object.values(p.operators).filter(o => o.unlocked).map(o => levelFor(o.xp))), 5],
+    podium: () => null, tacticien: (p) => [p.tacticsUsed || 0, 20], intact: () => null,
+    croise: (p) => [p.career.group || 0, 10], precision: (p) => [p.career.headshots || 0, 25], sauveteur: (p) => [p.career.revives || 0, 5],
+    nocturne: (p) => [p.career.nightWins || 0, 5], terrain: (p) => [p.career.captureWins || 0, 5],
+    campagne: (p) => [campaignProgress(p, 'reguliere').won, CAMPAIGNS[0].missions.length],
+  };
+  function achievementProgress(profile, id) { const f = ACHIEVEMENT_PROGRESS[id]; const v = f ? f(profile) : null; return v ? [Math.min(v[0], v[1]), v[1]] : null; }
   function checkAchievements(profile, result) {
     const got = []; profile.achievements = profile.achievements || {};
     for (const a of ACHIEVEMENTS) { if (profile.achievements[a.id]) continue; if (ACHIEVEMENT_CHECKS[a.id](profile, result)) { profile.achievements[a.id] = true; got.push(Object.assign({}, a, { rewardText: grantAchievementReward(profile, a.reward) })); } }
@@ -3312,7 +3364,7 @@ window.Son = Son;
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));
 
@@ -3461,7 +3513,32 @@ window.Son = Son;
     $('#credits').textContent = profile.credits;
     const c = profile.career;
     $('#career').textContent = `${c.battles} bataille${c.battles > 1 ? 's' : ''} · ${c.kills} neutralisation${c.kills > 1 ? 's' : ''} · ${c.losses_units} opérateur${c.losses_units > 1 ? 's' : ''} mis hors de combat`;
-    renderHome(); renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderDeploy(); renderArmory(); renderPacks(); renderTactics(); renderPerks(); renderChallenges(); renderLeague(); renderRewards();
+    renderHome(); renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderDeploy(); renderArmory(); renderPacks(); renderTactics(); renderPerks(); renderChallenges(); renderLeague(); renderRewards(); renderCareer();
+  }
+  // ---- Carrière : bilan chiffré, terrains, dernières batailles, succès avec jauges et récompenses --------------------------
+  const COND_FR = { jour: 'Jour', nuit: 'Nuit', brouillard: 'Brouillard', pluie: 'Pluie' };
+  function rewardLabel(rw) {
+    if (!rw) return ''; if (rw.credits) return rw.credits + ' crédits';
+    if (rw.headgear) return 'Couvre-chef : ' + ((OT.Figure && OT.Figure.HEADGEAR[rw.headgear] && OT.Figure.HEADGEAR[rw.headgear].name) || rw.headgear);
+    if (rw.insignia) { const i = INSIGNIAS.find(x => x.id === rw.insignia); return 'Insigne : ' + (i ? i.glyph + ' ' + i.name : rw.insignia); }
+    if (rw.uniform) { const u = UNIFORMS.find(x => x.id === rw.uniform); return 'Uniforme : ' + (u ? u.name : rw.uniform); }
+    return '';
+  }
+  function renderCareer() {
+    if (!$('#crStats')) return;
+    const c = profile.career, pct = (a, b) => b ? Math.round(100 * a / b) + ' %' : '—';
+    const cells = [[c.battles, 'batailles'], [`${c.wins} / ${c.losses} / ${c.draws}`, 'V / D / N'], [pct(c.wins, c.battles), 'victoires'], [c.kills, 'neutralisations'],
+      [c.losses_units, 'opérateurs perdus'], [c.losses_units ? (c.kills / c.losses_units).toFixed(2) : (c.kills ? '∞' : '—'), 'ratio N / P'], [pct(c.hits || 0, c.shots || 0), 'balles au but'], [c.damage || 0, 'dégâts infligés'],
+      [c.headshots || 0, 'tirs à la tête'], [c.streaks || 0, 'séries'], [c.group || 0, 'de groupe'], [c.revenge || 0, 'revanches'], [c.veteran || 0, 'vétérans abattus'], [c.revives || 0, 'alliés relevés'], [c.nightWins || 0, 'victoires de nuit'], [c.captureWins || 0, 'zones prises']];
+    $('#crStats').innerHTML = cells.map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join('');
+    const maps = c.maps || {};
+    $('#crMaps').innerHTML = Object.keys(OT.MAPS).map(id => { const m = maps[id] || { b: 0, w: 0 }, w = m.b ? Math.round(100 * m.w / m.b) : 0; return `<div class="row"><span>${esc(OT.MAPS[id].name)}</span><i style="--w:${m.b ? w : 0}%;${m.b ? '' : 'opacity:.3'}"></i><span class="muted">${m.b ? `${m.w}/${m.b} · ${w} %` : 'jamais joué'}</span></div>`; }).join('');
+    const rec = (c.recent || []).slice().reverse();
+    $('#crRecent').innerHTML = rec.length ? rec.map(b => `<div class="row"><span class="muted">#${b.n}</span><span>${esc(b.m)}</span><span class="muted">${esc((OT.MAPS[b.map] || {}).name || b.map)} · ${COND_FR[b.cond] || b.cond}</span><span class="${b.res}">${{ v: 'Victoire', d: 'Défaite', n: 'Égalité' }[b.res]}</span><span class="muted">${b.k} N · ${b.l} P · ${Math.floor(b.t / 60)}:${String(b.t % 60).padStart(2, '0')}</span></div>`).join('') : '<div class="muted">Aucune bataille de mission encore.</div>';
+    const got = profile.achievements || {};
+    $('#crAchCount').textContent = `(${ACHIEVEMENTS.filter(a => got[a.id]).length} / ${ACHIEVEMENTS.length})`;
+    $('#crAch').innerHTML = ACHIEVEMENTS.map(a => { const pr = Game.achievementProgress(profile, a.id), done = !!got[a.id];
+      return `<div class="a ${done ? 'got' : ''}" data-ach="${a.id}"><span class="g">${a.glyph}</span><div><b>${esc(a.name)}</b><small>${esc(a.desc)}</small>${!done && pr ? `<div class="pb"><i style="width:${Math.round(100 * pr[0] / pr[1])}%"></i></div><small>${pr[0]} / ${pr[1]}</small>` : ''}<div class="rw">${done ? '✓ obtenu — ' : 'Récompense : '}${esc(rewardLabel(a.reward))}</div></div></div>`; }).join('');
   }
   function renderAchievements() {
     const el = $('#hqAch'); if (!el) return;
