@@ -1015,6 +1015,15 @@
     return best;
   };
   Battle.prototype.updateRevives = function () {
+    // un blessé à terre rampe (0,35 m/s) vers l'allié debout le plus proche, pour qu'on puisse le relever ; il s'arrête à 1 m
+    for (const a of this.units) {
+      a.crawling = false;
+      if (a.alive || !(a.bleedUntil > this.t)) continue;
+      let best = null, bd = 25; for (const f of this.teams[a.team].units) { if (!f.alive) continue; const d = dist2(a, f); if (d < bd) { bd = d; best = f; } }
+      if (!best || bd < 1.0) continue;
+      const step = 0.35 * DT, nx = a.x + (best.x - a.x) / bd * step, nz = a.z + (best.z - a.z) / bd * step;
+      if (!this.map.insideObstacle(nx, nz) && this.map.inBounds(nx, nz)) { a.x = nx; a.z = nz; a.facing = Math.atan2(best.z - a.z, best.x - a.x); a.crawling = true; }
+    }
     for (const u of this.units) {
       if (!u.reviving) continue;
       const a = this.unitById(u.reviving.id);

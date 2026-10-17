@@ -33,7 +33,7 @@ Battle.prototype.step = function () {
   for (const u of this.units) {
     if (this.map.insideObstacle(u.x, u.z)) violations.push(`${u.callsign} est à l'intérieur d'un obstacle en (${u.x.toFixed(1)}, ${u.z.toFixed(1)})`);
     if (u.ammo < 0 || u.mags < 0) violations.push(`${u.callsign} munitions négatives`);
-    if (!u.alive) { if (u._downPos && (Math.abs(u._downPos.x - u.x) > 1e-9 || Math.abs(u._downPos.z - u.z) > 1e-9)) violations.push(`${u.callsign} bouge après neutralisation`); u._downPos = u._downPos || { x: u.x, z: u.z }; } else u._downPos = null;   // relevé : il peut de nouveau bouger
+    if (!u.alive && !(u.bleedUntil > this.t) && !u.crawling) { if (u._downPos && (Math.abs(u._downPos.x - u.x) > 1e-9 || Math.abs(u._downPos.z - u.z) > 1e-9)) violations.push(`${u.callsign} bouge après neutralisation`); u._downPos = u._downPos || { x: u.x, z: u.z }; } else u._downPos = null;   // relevé : il peut de nouveau bouger
   }
 };
 
