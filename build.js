@@ -5,8 +5,17 @@ require('./outils/images_js.js');   // régénère web/images.js à partir de we
 let html = fs.readFileSync(path.join(root, 'web/index.html'), 'utf8');
 const inline = (src) => () => `<script>\n${fs.readFileSync(path.join(root, src), 'utf8')}\n</script>`; // fonction : évite les motifs $& de String.replace
 html = html.replace('<script src="three.min.js"></script>', inline('web/three.min.js'))
+  .replace('<script src="police.js"></script>', inline('web/police.js'))
+  .replace('<script src="fond.js"></script>', inline('web/fond.js'))
+  .replace('<script src="emblemes.js"></script>', inline('web/emblemes.js'))
+  .replace('<script src="icones.js"></script>', inline('web/icones.js'))
+  .replace('<script src="medailles.js"></script>', inline('web/medailles.js'))
   .replace('<script src="lecteur.js"></script>', inline('web/lecteur.js'))
   .replace('<script src="figure.js"></script>', inline('web/figure.js'))
+  .replace('<script src="gltf.js"></script>', inline('web/gltf.js'))
+  .replace('<script src="modeles/soldat.js"></script>', inline('web/modeles/soldat.js'))
+  .replace('<script src="soldat3d.js"></script>', inline('web/soldat3d.js'))
+  .replace('<script src="decor.js"></script>', inline('web/decor.js'))
   .replace('<script src="portrait.js"></script>', inline('web/portrait.js'))
   .replace('<script src="images.js"></script>', inline('web/images.js'))
   .replace('<script src="homescene.js"></script>', inline('web/homescene.js'))

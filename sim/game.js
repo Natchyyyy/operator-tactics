@@ -307,6 +307,12 @@
     if (!isAvailable(profile, id) || profile.squad.length >= 5) return false;
     profile.squad.push(id); return true;
   }
+  // Remplacer un membre de l'escouade par un opérateur disponible, à la même place (l'ordre compte : le premier mène).
+  function swapSquad(profile, outId, inId) {
+    const i = profile.squad.indexOf(outId);
+    if (i < 0 || profile.squad.includes(inId) || !isAvailable(profile, inId)) return false;
+    profile.squad[i] = inId; return true;
+  }
   // Une escouade part avec 3 à 5 opérateurs disponibles (débloqués et sous contrat ; un blessé grave peut partir, à demi-capacité).
   // Disponible = débloqué et sous contrat. Un blessé grave reste déployable (à demi-capacité) : c'est au joueur de choisir.
   const isAvailable = (profile, id) => { const st = profile.operators[id]; return !!st && st.unlocked && (st.tours === undefined || st.tours > 0); };
@@ -544,6 +550,6 @@
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { buyArmor, SAVE_VERSION, migrate, buyAttachment, setAttachment, attachmentFits, dailyContracts, applyDaily, achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { buyArmor, SAVE_VERSION, migrate, buyAttachment, setAttachment, attachmentFits, dailyContracts, applyDaily, achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, swapSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));

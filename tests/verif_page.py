@@ -12,6 +12,14 @@ async def main():
         br = await p.chromium.launch(args=GL); pg = await br.new_page(viewport={"width": 1400, "height": 860}); errs = []
         pg.on("pageerror", lambda e: errs.append("erreur: " + str(e)))
         pg.on("console", lambda m: errs.append(f"console.{m.type}: {m.text}") if m.type == "error" else None)
+        async def tab(t):   # les onglets du QG sont des tuiles (barre d'onglets cachée, comme le jeu d'origine)
+            if t == "missions": await pg.evaluate("() => { OT.resetPlay && OT.resetPlay(); document.querySelector('.tabs [data-tab=missions]').click(); }")
+            else: await pg.evaluate(f"() => document.querySelector('.tabs [data-tab={t}]').click()")
+            await pg.wait_for_timeout(120)
+        async def cont():   # « Continuer » fait défiler les panneaux de récompenses puis ferme l'écran
+            for _ in range(6):
+                if not await pg.is_visible("#rewards"): break
+                await pg.click("#rwContinue"); await pg.wait_for_timeout(150)
         url = sys.argv[1] + ("&" if "?" in sys.argv[1] else "?") + "seed=3"
         await pg.goto(url, timeout=120000); await pg.wait_for_function("window.PRET", timeout=60000)
         # ---- Écran titre puis quartier général ----
@@ -26,13 +34,13 @@ async def main():
         check("300 crédits et 5 opérateurs débloqués au départ", (await pg.inner_text("#credits")) == "300" and await pg.evaluate("() => document.querySelectorAll('.opcard:not(.locked)').length") == 5)
         # accueil : puissance, rang, personnalisation
         rating = await pg.inner_text("#hqRating"); check("la puissance d'équipe est affichée (nombre)", rating.strip().isdigit(), rating)
-        await pg.click(".custom2 summary"); await pg.wait_for_timeout(100)   # personnalisation repliée sur l'accueil
+        await pg.click("#customBtn"); await pg.wait_for_timeout(100)   # personnalisation : bouton « Tenue » de l'accueil
         await pg.fill("#teamName", "Les Faucons"); await pg.press("#teamName", "Tab"); await pg.wait_for_timeout(100)
         check("le nom d'équipe est enregistré", await pg.evaluate("() => window.HQ.profile().teamName") == "Les Faucons")
         await pg.click("#insPick button[data-ins='bouclier']"); await pg.wait_for_timeout(100)
         check("l'insigne débloqué est sélectionnable, un verrouillé non", await pg.evaluate("() => window.HQ.profile().insignia") == "bouclier" and await pg.evaluate("() => { const b = document.querySelector('#insPick button[data-ins=ancre]'); b.click(); return window.HQ.profile().insignia; }") == "bouclier")
         # cartes : ouvrir un paquet (crédits ajoutés pour le test), équiper une tactique
-        await pg.click("[data-tab='cartes']"); await pg.evaluate("() => { window.HQ.profile().credits = 1000; }"); await pg.click("[data-tab='cartes']")
+        await tab("cartes"); await pg.evaluate("() => { window.HQ.profile().credits = 1000; }"); await tab("cartes")
         await pg.evaluate("() => document.querySelector('.tabs [data-tab=cartes]').click()"); await pg.evaluate("() => document.querySelector('[data-pack=standard]').click()"); await pg.wait_for_timeout(300)
         n_cards = await pg.evaluate("() => document.querySelectorAll('#packOpen .pcard').length"); check("un paquet standard ouvert montre 3 cartes", n_cards == 3, n_cards)
         await pg.evaluate("() => document.querySelector('#poAll').click()"); await pg.wait_for_timeout(900)
@@ -53,16 +61,17 @@ async def main():
         await pg.evaluate("() => document.querySelector('#setClose').click()")
         check("le paquet a coûté 150 crédits (hors crédits gagnés par une carte)", await pg.evaluate("() => window.HQ.profile().packsOpened") == 1)
         # équipe : équiper Lynx d'un fusil à pompe depuis la fiche
-        await pg.click("[data-tab='equipe']"); await pg.wait_for_timeout(100)
-        await pg.click(".opcard[data-id='op_lynx']"); await pg.select_option("#selWeapon", "shotgun"); await pg.wait_for_timeout(100)
+        await tab("equipe")
+        await pg.click("#tmChange"); await pg.click(".opcard[data-id='op_lynx']"); await pg.click("#trView"); await pg.click(".tmtabs [data-tt=equip]")
+        await pg.select_option("#selWeapon", "shotgun"); await pg.wait_for_timeout(100)
         check("le changement d'arme est enregistré dans le profil", await pg.evaluate("() => window.HQ.profile().operators.op_lynx.weaponId") == "shotgun")
         await pg.select_option("#selFormation", "nord"); await pg.wait_for_timeout(100)
         check("la formation « nord » assigne la voie nord", await pg.evaluate("() => window.HQ.profile().squad.every(id => window.HQ.profile().operators[id].lane === -1)"))
         saved = await pg.evaluate("() => { try { return !!localStorage.getItem('operator-tactics-save-v1'); } catch (e) { return 'indispo'; } }")
         check("la progression est sauvegardée dans le navigateur", saved is True, saved)
         # lancer la première mission
-        await pg.click("[data-tab='missions']"); await pg.wait_for_timeout(100)
-        await pg.click(".mission[data-id='patrouille']"); await pg.click("#launch"); await pg.wait_for_timeout(300)
+        await tab("missions")
+        await pg.click(".medtile[data-camp=reguliere]"); await pg.click(".mission[data-id='patrouille']"); await pg.click("#toPrep"); await pg.click("#launch"); await pg.wait_for_timeout(300)
         vs_info = await pg.evaluate("() => [!document.querySelector('#vs').classList.contains('hidden'), document.querySelector('#vsName1').textContent, document.querySelector('#vsRating0').textContent, document.querySelectorAll('#vsSquad1 span').length]")
         check("l'écran « VS » présente les deux équipes avant la bataille", vs_info[0] and vs_info[1] == "Groupe Karst" and vs_info[3] == 4, vs_info)
         await pg.click("#vsGo"); await pg.wait_for_timeout(600)
@@ -81,14 +90,15 @@ async def main():
         used = await pg.evaluate("() => { const b = window.API.battle(); const r = b.useTactic(0, 'fumigene'); return [r.ok, r.reason, b.map.dynamic.length, b.teams[0].tactics.fumigene.uses]; }")
         check("le fumigène peut être joué (ou refusé pour une raison explicite) pendant la mission", (used[0] is True and used[2] == 1 and used[3] == 1) or (used[0] is False and used[1] == 'aucune position adverse connue'), used)
         check("l'ordre d'Alpha changé en cours de bataille est appliqué et journalisé", await pg.evaluate("() => window.API.battle().teams[0].order === 'hold' && window.API.battle().log.some(e => e.kind === 'order')"))
-        await pg.wait_for_function("() => window.API.battle().over", timeout=400000); await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=10000)
+        await pg.evaluate("() => { API.pause(true); API.runToEnd(); }")   # fin de mission simulée d'un coup (le rendu logiciel des soldats 3D est lent)
+        await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=60000)
         res_m = await pg.evaluate("() => window.API.battle().result")
         credits_before = await pg.evaluate("() => window.HQ.profile().credits")
         await pg.click("#resHq")
         try: await pg.wait_for_function("() => !document.querySelector('#rewards').classList.contains('hidden')", timeout=8000)
         except Exception: pass
         check("l'écran de récompenses s'affiche au retour (total et XP de rang)", await pg.is_visible("#rewards") and (await pg.inner_text("#rwTotal")).strip().isdigit())
-        await pg.click("#rwContinue"); await pg.wait_for_timeout(100)
+        await cont(); await pg.wait_for_timeout(100)
         prof = await pg.evaluate("() => window.HQ.profile()")
         exp_gain = round(180 * (1 if res_m["winner"] == 0 else 0.5 if res_m["winner"] == -1 else 0.3))
         check("retour au QG : crédits de mission ajoutés selon l'issue réelle (plus défis éventuels)", prof["credits"] - credits_before >= exp_gain, (prof["credits"], credits_before, exp_gain, res_m["winner"]))
@@ -99,24 +109,24 @@ async def main():
         await pg.reload(); await pg.wait_for_function("window.PRET", timeout=60000); await pg.click("#titleStart"); await pg.wait_for_timeout(600)
         check("après rechargement, la progression est conservée", (await pg.inner_text("#credits")) == str(prof["credits"]))
         # ---- Ligue : un match, classement mis à jour ----
-        await pg.click("[data-tab='ligue']"); await pg.wait_for_timeout(100)
+        await tab("ligue")
         rows = await pg.evaluate("() => document.querySelectorAll('#lgTable tr').length - 1"); check("le classement de ligue affiche 10 équipes", rows == 10, rows)
         await pg.evaluate("() => { const p = window.HQ.profile(); for (const id in p.operators) if (p.operators[id].unlocked) p.operators[id].wounded = false; p.squad = ['op_vautour','op_lynx','op_granit','op_bastion','op_belier']; }")
-        await pg.click("[data-tab='ligue']"); await pg.wait_for_timeout(100); await pg.click("#lgPlay"); await pg.wait_for_timeout(300)
+        await tab("ligue"); await pg.click("#lgPlay"); await pg.wait_for_timeout(300)
         check("le match de ligue passe par l'écran VS avec l'équipe adverse nommée", await pg.evaluate("() => !document.querySelector('#vs').classList.contains('hidden') && document.querySelector('#vsName1').textContent !== 'Groupe Karst'"))
-        await pg.click("#vsGo"); await pg.wait_for_timeout(600); await pg.evaluate("() => { API.pause(true); API.runToEnd(); }"); await pg.click("#resHq"); await pg.wait_for_timeout(1200); await pg.click("#rwContinue"); await pg.wait_for_timeout(200)
+        await pg.click("#vsGo"); await pg.wait_for_timeout(600); await pg.evaluate("() => { API.pause(true); API.runToEnd(); }"); await pg.click("#resHq"); await pg.wait_for_timeout(1200); await cont(); await pg.wait_for_timeout(200)
         lg = await pg.evaluate("() => { const s = window.HQ.profile().league; return [s.round, s.history.length, s.standings.player.played, Object.values(s.standings).reduce((a, x) => a + x.played, 0)]; }")
         check("après le match : journée jouée, résultat enregistré, les autres équipes ont joué entre elles", lg[0] == 1 and lg[1] == 1 and lg[2] == 1 and lg[3] >= 9, lg)
         # ---- Jouer : campagnes verrouillées, bataille rapide ----
-        await pg.click("[data-tab='missions']"); await pg.wait_for_timeout(150)
+        await tab("missions")
         st = await pg.evaluate("() => [document.querySelectorAll('#hqMissions .mission').length, document.querySelectorAll('#hqMissions .mission.locked').length, document.querySelectorAll('.campbtn.locked').length, !!document.querySelector('.mission.final, .final')]")
         check("onglet Jouer : 14 missions de campagne, les suivantes verrouillées, campagnes vétéran, élite et Delta verrouillées, finale signalée", st[0] == 14 and 0 < st[1] < 14 and st[2] == 3 and st[3], st)
         await pg.click(".quickcard"); await pg.wait_for_timeout(100); await pg.click("#launch"); await pg.wait_for_timeout(300)
         qv = await pg.evaluate("() => [!document.querySelector('#vs').classList.contains('hidden'), document.querySelector('#vsObj').textContent]")
         check("la bataille rapide passe par l'écran VS avec un objectif tiré au sort", qv[0] and len(qv[1]) > 3, qv)
         await pg.click("#vsGo"); await pg.wait_for_timeout(600); await pg.evaluate("() => { API.pause(true); API.runToEnd(); }")
-        await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=10000)
-        await pg.click("#resHq"); await pg.wait_for_timeout(1200); await pg.click("#rwContinue"); await pg.wait_for_timeout(200)
+        await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=60000)
+        await pg.click("#resHq"); await pg.wait_for_timeout(1200); await cont(); await pg.wait_for_timeout(200)
         qp = await pg.evaluate("() => window.HQ.profile().quick.played")
         check("après une bataille rapide, le compteur de batailles rapides avance", qp == 1, qp)
         # ---- Bataille libre (graine fixée) ----
@@ -130,6 +140,9 @@ async def main():
         # lancer à 4x et attendre la fin
         await pg.click("[data-speed='4']"); await pg.click("#play")
         t0 = time.time()
+        await pg.wait_for_function("() => window.API.battle().t > 1", timeout=120000)   # la bataille avance en temps réel…
+        # …puis on saute (simulation seule) jusqu'à 1,5 s de la fin connue, et la fin se joue en temps réel (bannière, résultat)
+        await pg.evaluate("() => { const b = API.battle(); const D = new OT.Battle(b.opts).run().duration; while (!b.over && b.t < D - 1.5) b.step(); b.drainEvents(); }")
         await pg.wait_for_function("() => window.API.battle().over", timeout=400000)
         dt = time.time() - t0
         res = await pg.evaluate("() => window.API.battle().result")
@@ -138,10 +151,10 @@ async def main():
         bn = await pg.evaluate("() => [document.querySelector('#banner').className, document.querySelector('#bannerText').textContent]")
         exp_b = "ÉGALITÉ" if res["winner"] == -1 else ("L'EMPORTE" if True else "")
         check("la bannière de fin apparaît d'abord, au nom du vainqueur", 'show' in bn[0] and exp_b in bn[1] and (res["winner"] == -1 or ("ALPHA" in bn[1]) == (res["winner"] == 0)), bn)
-        await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=10000)
+        await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=60000)
         shown = await pg.evaluate("() => !document.querySelector('#result').classList.contains('hidden')"); check("l'écran de résultat s'affiche", shown)
-        title = await pg.inner_text("#resTitle"); exp = "Égalité" if res["winner"] == -1 else ("Victoire" if res["winner"] == 0 else "Défaite")
-        check("le titre du résultat correspond au vainqueur calculé", title.strip() == exp, (title, exp))
+        title = await pg.inner_text("#resTitle"); exp = "Égalité" if res["winner"] == -1 else ("Vous avez gagné" if res["winner"] == 0 else "Vous avez perdu")
+        check("le titre du résultat correspond au vainqueur calculé", title.strip().lower() == exp.lower(), (title, exp))
         check("le nom d'équipe personnalisé est utilisé en bataille", await pg.inner_text("#resName0") == "Les Faucons" or True)
         pct0 = await pg.inner_text("#resPct0"); check("l'état d'équipe affiché (%) est celui du résultat", pct0.strip() == str(res["teams"][0]["hpPct"]) + "%", (pct0, res["teams"][0]["hpPct"]))
         sp = await pg.evaluate("() => [document.querySelectorAll('#resSpecials .l').length, document.querySelector('#resSpecials').textContent]"); check("neutralisations + 5 spéciaux affichés (tête, séries, groupe, revanches, vétérans)", sp[0] == 6 and 'De groupe' in sp[1], sp)

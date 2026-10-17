@@ -34,9 +34,9 @@
     const c = document.createElement('canvas'); c.width = 4; c.height = 256; const g = c.getContext('2d');
     const grd = g.createLinearGradient(0, 0, 0, 256); grd.addColorStop(0, '#0c1016'); grd.addColorStop(0.45, '#1d2733'); grd.addColorStop(0.62, '#4b4a4e'); grd.addColorStop(0.7, '#8a6a4a'); grd.addColorStop(1, '#2a2622');
     g.fillStyle = grd; g.fillRect(0, 0, 4, 256);
-    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    const tex = (OT.Decor && OT.Decor.skyTexture()) || new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
     const dome = new THREE.Mesh(new THREE.SphereGeometry(300, 24, 16), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false }));
-    dome.position.set(32, -40, 20); scene.add(dome); scene.userData.dome = dome;
+    dome.position.set(32, -30, 20); scene.add(dome); scene.userData.dome = dome;
   })();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 400);
 
@@ -182,7 +182,7 @@
 
   // ---- Conditions (jour, nuit, brouillard, pluie) : lumière, brouillard de distance, pluie ; effets de jeu dans engine.js ----
   const LOOK = {
-    jour:       { hemi: [0xb8c8d8, 0x3a3630, 1.15], sun: [0xffe9c4, 2.2], fog: [0x1a2028, 110, 200], bg: 0x0e1114, dome: true },
+    jour:       { hemi: [0xdce6ee, 0x6a6052, 1.3], sun: [0xfff0d4, 2.7], fog: [0xc9d1d5, 80, 280], bg: 0xbfcad2, dome: true },
     nuit:       { hemi: [0x40507a, 0x14161c, 0.42], sun: [0x8fa6ff, 0.7], fog: [0x06080d, 35, 120], bg: 0x05070b, dome: false },
     brouillard: { hemi: [0xc0c6cc, 0x4a4844, 1.0], sun: [0xe8ecf0, 0.9], fog: [0x8b9198, 22, 95], bg: 0x8b9198, dome: false },
     pluie:      { hemi: [0x9aa6b4, 0x2e3034, 0.8], sun: [0xc8d0dc, 0.9], fog: [0x3a4149, 40, 140], bg: 0x2a3036, dome: false },
@@ -397,17 +397,20 @@
       scene.remove(mapGroup);
     }
     mapGroup = new THREE.Group(); obstacleMesh.clear();
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(map.width, map.depth), new THREE.MeshStandardMaterial({ map: groundTexture(map.width, map.depth), roughness: 1 }));
-    ground.rotation.x = -Math.PI / 2; ground.position.set(map.width / 2, 0, map.depth / 2); ground.receiveShadow = true; mapGroup.add(ground);
+    const D3 = OT.Decor, style = { parking: 'parking', place: 'place', raffinerie: 'raffinerie', gare: 'gare' }[map.id] || 'entrepot';
+    if (D3) for (const gm of D3.ground(map, style)) mapGroup.add(gm);
+    else { const ground = new THREE.Mesh(new THREE.PlaneGeometry(map.width, map.depth), new THREE.MeshStandardMaterial({ map: groundTexture(map.width, map.depth), roughness: 1 }));
+      ground.rotation.x = -Math.PI / 2; ground.position.set(map.width / 2, 0, map.depth / 2); ground.receiveShadow = true; mapGroup.add(ground); }
     // environnement : asphalte autour de l'enceinte et quelques entrepôts lointains en silhouette
-    const outer = new THREE.Mesh(new THREE.PlaneGeometry(320, 320), new THREE.MeshStandardMaterial({ color: 0x2a2d31, roughness: 1 }));
+    const outer = new THREE.Mesh(new THREE.PlaneGeometry(320, 320), D3 ? new THREE.MeshStandardMaterial({ map: (() => { const t = D3.TEX.asphalte().clone(); t.needsUpdate = true; t.repeat.set(80, 80); return t; })(), color: 0x9a9894, roughness: 1 }) : new THREE.MeshStandardMaterial({ color: 0x2a2d31, roughness: 1 }));
     outer.rotation.x = -Math.PI / 2; outer.position.set(map.width / 2, -0.02, map.depth / 2); outer.receiveShadow = true; mapGroup.add(outer);
+    if (D3) mapGroup.add(D3.skyline(map, style === 'parking' || style === 'place' ? 'ville' : style === 'entrepot' ? 'port' : 'industrie'));
     const farMat = new THREE.MeshStandardMaterial({ color: 0x3a3f46, roughness: 1 });
-    [[-30, -25, 30, 9, 14], [20, -40, 50, 11, 18], [95, -30, 28, 8, 16], [110, 20, 20, 10, 30], [100, 60, 40, 9, 14], [20, 70, 60, 8, 12], [-40, 30, 24, 12, 20], [-35, 65, 30, 7, 16]].forEach(([x, z, w, h, d]) => {
+    if (!D3) [[-30, -25, 30, 9, 14], [20, -40, 50, 11, 18], [95, -30, 28, 8, 16], [110, 20, 20, 10, 30], [100, 60, 40, 9, 14], [20, 70, 60, 8, 12], [-40, 30, 24, 12, 20], [-35, 65, 30, 7, 16]].forEach(([x, z, w, h, d]) => {
       const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), farMat); b.position.set(x, h / 2, z); mapGroup.add(b);
     });
     // grues portuaires stylisées
-    [[-20, 75], [85, -45]].forEach(([x, z]) => {
+    (map.id === 'entrepot' || !D3 ? [[-20, 75], [85, -45]] : []).forEach(([x, z]) => {
       const g = new THREE.Group(); const legMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2a, roughness: 0.8 });
       for (const [dx, dz] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.8, 28, 0.8), legMat); l.position.set(dx, 14, dz); g.add(l); }
       const beam = new THREE.Mesh(new THREE.BoxGeometry(44, 1.2, 1.6), legMat); beam.position.set(8, 28, 0); g.add(beam);
@@ -416,9 +419,24 @@
     });
     map.obstacles.forEach((o, i) => {
       let mesh;
-      if (/^(voiture|fourgon|bus)/.test(o.name || '')) {
-        mesh = carModel(o, i, (o.name || '').startsWith('voiture') ? 'car' : (o.name || '').startsWith('bus') ? 'bus' : 'van');
-      } else if ((o.name || '').startsWith('palmier')) {
+      const nm = o.name || '';
+      if (D3 && /^(voiture|fourgon|bus)/.test(nm)) {
+        mesh = D3.car(o, i, nm.startsWith('voiture') ? 'car' : nm.startsWith('bus') ? 'bus' : 'van');
+      } else if (D3 && nm.startsWith('palmier')) {
+        mesh = D3.palm(o, i);
+      } else if (D3 && nm.startsWith('barrière')) {
+        mesh = D3.jersey(o);
+      } else if (D3 && nm.startsWith('sacs')) {
+        mesh = D3.sandbags(o);
+      } else if (D3 && nm.startsWith('fût')) {
+        mesh = D3.barrel(o, i);
+      } else if (D3 && /^(caisses|mur |muret|pilier|bâtiment|immeuble|conteneur|quai|poste|halle|abri|kiosque)/.test(nm)) {
+        const D = D3.M, k = nm.split(' ')[0];
+        const matFor = { caisses: [D.caisse(), 1.2], mur: [D.beton(), 3], muret: [D.beton(), 3], pilier: [D.beton(), 3], quai: [D.beton(), 3], 'bâtiment': [D.facade(i % 2 ? 'gris' : ''), 6], immeuble: [D.facade(['', 'rose', 'gris'][i % 3]), 6], conteneur: [D.tole([0xb05a3e, 0x3e6a8e, 0x6e8a4a, 0xc8a040][i % 4]), 2.4], poste: [D.facade('gris'), 6], halle: [D.tole(0x9aa0a4), 2.4], abri: [D.tole(0xc8c8c0), 2.4], kiosque: [D.facade('rose'), 6] }[k] || [D.beton(), 3];
+        mesh = new THREE.Mesh(D3.box(o.w, o.h, o.d, matFor[1]), matFor[0]);
+      } else if (/^(voiture|fourgon|bus)/.test(nm)) {
+        mesh = carModel(o, i, nm.startsWith('voiture') ? 'car' : nm.startsWith('bus') ? 'bus' : 'van');
+      } else if (nm.startsWith('palmier')) {
         mesh = palmModel(o);
       } else if ((o.name || '').startsWith('centre commercial')) {
         mesh = mallModel(o);
@@ -462,7 +480,7 @@
       if (mesh.isGroup) mesh.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
       mapGroup.add(mesh);
       // arêtes pour la lisibilité des couverts hauts
-      if (o.kind === 'wall' && !/^(mur |cuve|tuyauterie|fourgon|bus|palmier|centre)/.test(o.name || '')) {
+      if (!D3 && o.kind === 'wall' && !/^(mur |cuve|tuyauterie|fourgon|bus|palmier|centre)/.test(o.name || '')) {
         const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(o.w, o.h, o.d)), new THREE.LineBasicMaterial({ color: 0x1a1d20, transparent: true, opacity: 0.5 }));
         edges.position.copy(mesh.position); mapGroup.add(edges);
       }
@@ -525,20 +543,49 @@
     const t = TEAM[u.team];
     let fac = DATA.FACTIONS[u.def.faction || 'allied'] || DATA.FACTIONS.allied;   // uniforme selon la faction, marqueurs selon l'équipe
     const teamDef = battle.teams[u.team]; if (!u.def.faction && teamDef.uniform) { const uni = DATA.UNIFORMS.find(x => x.id === teamDef.uniform); if (uni) fac = uni; }
-    const f = Figure.build({ id: u.def.id, weapon: u.weapon.id, uniform: fac.uniform, vest: fac.vest, teamColor: t.color, headgear: u.def.headgear || (u.def.faction ? 'casque_lunettes' : 'casque'), attachments: u.att });
+    // soldat Meshy (modèle 3D animé) s'il est chargé, sinon personnage dessiné par programme
+    const f = (OT.Soldat3D && OT.Soldat3D.ready && !OT.SETTINGS_LOWMODEL && OT.Soldat3D.create({ uniform: fac.uniform, weapon: u.weapon.id, attachments: u.att }))
+      || Figure.build({ id: u.def.id, weapon: u.weapon.id, uniform: fac.uniform, vest: fac.vest, teamColor: t.color, headgear: u.def.headgear || (u.def.faction ? 'casque_lunettes' : 'casque'), attachments: u.att });
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.42, 24), new THREE.MeshBasicMaterial({ color: t.color, transparent: true, opacity: 0.8, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; f.group.add(ring);
     scene.add(f.group);
     const label = document.createElement('div'); label.className = 'label team' + u.team;
-    label.innerHTML = `<div class="lbar"><i></i></div><div class="lplate">${roleImg(u.role.id)}<span class="lname">${u.callsign}</span></div>`;
+    label.innerHTML = `<div class="lplate"><span class="lname">${u.callsign}</span></div><div class="lbar"><i></i></div><div class="lshield">${OT.Ico ? OT.Ico(u.def.trait === 'leader' ? 'r_leader' : u.def.trait === 'radio' ? 'radio' : ({ assault: 'r_assault', pointman: 'r_pointman', marksman: 'r_marksman', support: 'r_support', breacher: 'r_breacher' })[u.role.id]) : ''}</div>`;
     $('#labels').appendChild(label);
     meshes[u.id] = Object.assign(f, { ring, label, prev: { x: u.x, z: u.z, facing: u.facing }, cur: { x: u.x, z: u.z, facing: u.facing },
       anim: { crouch: 0, fall: 0, fallDir: 0, recoil: 0, flinch: 0, aim: 0, phase: Math.random() * 6.28 } });
   }
+  // le modèle 3D arrive après le début d'une bataille : on remplace les personnages sans toucher à la simulation
+  if (OT.Soldat3D) OT.Soldat3D.whenReady(() => { if (!battle) return; for (const u of battle.units) { const old = meshes[u.id]; if (!old || old.isSkinned) continue; scene.remove(old.group); old.label.remove(); makeOperator(u); Object.assign(meshes[u.id], { prev: old.prev, cur: old.cur }); } render(); });
   function clearOperators() { for (const id in meshes) { scene.remove(meshes[id].group); meshes[id].label.remove(); delete meshes[id]; } }
 
   // Pose d'un opérateur selon son état (appelée à chaque image) — toutes les valeurs sont lissées.
   const lerp = (a, b, k) => a + (b - a) * k;
+  function animateSkinned(u, m, dt) {
+    const a = m.anim, clipSpeed = (n) => (OT.Soldat3D.clips[n] || {}).duration || 1;
+    a.recoil = Math.max(0, a.recoil - dt * 10); a.flinch = Math.max(0, a.flinch - dt * 4);
+    const crouch = u.alive && u.stance === 'crouch', aiming = u.alive && (u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture');
+    const v = Math.hypot(m.cur.x - m.prev.x, m.cur.z - m.prev.z) / DT;
+    const running = u.alive && u.moving && (u.state === 'closing' || u.state === 'retreat' || u.state === 'evade' || u.state === 'tozone' || v > 2.4);
+    const loco = (n) => m.play(n, { speed: Math.max(0.55, Math.min(1.8, (v || 1) / ({ Walking: 1.35, Walk_Fight_Forward: 1.1, Running: 3.4, RunFast: 5.2, Run_and_Shoot: 3.2, Cautious_Crouch_Walk_Forward: 0.9 }[n] || 1))) });
+    let two = true;
+    if (!u.alive) {
+      two = false;
+      if (u.crawling) m.play('Crawl_Backward', { speed: 0.8 });
+      else m.play(u.id.charCodeAt(u.id.length - 1) % 2 ? 'Shot_and_Fall_Forward' : 'Shot_in_the_Back_and_Fall', { speed: 1.25, fade: 0.08 });
+      m.ring.material.opacity = Math.max(0.15, m.ring.material.opacity - dt);
+    } else if (battle.over && battle.result && battle.result.winner === u.team) { m.play('victory'); two = false; }
+    else if (u.throwing) { m.play('Over_Shoulder_Throw', { speed: 1.6, fade: 0.1 }); two = false; }
+    else if (u.reloading > 0) { const n = crouch ? 'Kneeling_Reload' : 'Standing_Reload'; m.play(n, { speed: Math.min(2.4, clipSpeed(n) / Math.max(1, u.weapon.reload || 2.5)) }); }
+    else if (u.moving && v > 0.15) { if (crouch) loco('Cautious_Crouch_Walk_Forward'); else if (running) loco(aiming ? 'Run_and_Shoot' : (v > 4.2 ? 'RunFast' : 'Running')); else loco(aiming ? 'Walk_Fight_Forward' : 'Walking'); }
+    else if (crouch) m.play('Kneeling_Reload', { time: 0.06 });
+    else m.play('Rifle_Aim_Turn_Right', { time: 0.02 });
+    if (u.alive) m.ring.material.opacity = 0.8;
+    m.update(dt);
+    if (m.bones.spine && (a.recoil > 0 || a.flinch > 0)) { m.bones.spine.rotation.x -= a.recoil * 0.05; m.bones.spine.rotation.z += a.flinch * 0.12 * Math.sin(simTime * 30); }
+    m.placeWeapon(two, a.recoil);
+  }
   function animateOperator(u, m, dt) {
+    if (m.isSkinned) return animateSkinned(u, m, dt);
     const a = m.anim;
     a.crouch = lerp(a.crouch, u.alive && u.stance === 'crouch' ? 1 : 0, Math.min(1, dt * 8));
     a.aim = lerp(a.aim, u.alive && (u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture') ? 1 : 0, Math.min(1, dt * 6));
@@ -944,11 +991,11 @@
   }
   function buildRosters() {
     battle.teams.forEach((team, ti) => {
-      $('#tname' + ti).textContent = team.name; $('#ins' + ti).textContent = insigniaGlyph(team);
+      $('#tname' + ti).textContent = team.name; { const g = insigniaGlyph(team); $('#ins' + ti).innerHTML = OT.Embleme ? OT.Embleme.svg(g, ti ? '#e8241a' : '#2b86f0') : g; }
       const el = $('#roster' + ti);
       el.innerHTML = team.units.map(u => `
         <div class="card" data-id="${u.id}" title="${u.def.unit} — ${u.weapon.name}">
-          <div class="crow"><span class="role">${roleIcon[u.role.id]}</span><span class="cs">${u.callsign}</span><span class="st"></span></div>
+          <div class="crow"><span class="role">${OT.Ico ? OT.Ico(u.def.trait === 'leader' ? 'r_leader' : u.def.trait === 'radio' ? 'radio' : ({ assault: 'r_assault', pointman: 'r_pointman', marksman: 'r_marksman', support: 'r_support', breacher: 'r_breacher' })[u.role.id]) : roleIcon[u.role.id]}</span><span class="cs">${u.callsign}</span><span class="st"></span></div>
           <div class="bars"><div class="hp"><i></i></div><div class="sup"><i></i></div></div>
           <div class="crow small"><span class="ammo"></span><span class="status"></span></div>
         </div>`).join('');
@@ -1079,13 +1126,13 @@
 
   function showResult() {
     const r = battle.result;
-    const title = r.winner === -1 ? 'Égalité' : (r.winner === 0 ? 'Victoire' : 'Défaite');
+    const title = r.winner === -1 ? 'Égalité' : (r.winner === 0 ? 'Vous avez gagné' : 'Vous avez perdu');
     $('#resTitle').textContent = title; $('#resTitle').className = r.winner === -1 ? '' : 'team' + r.winner;
-    r.teams.forEach((t, ti) => { $('#resName' + ti).textContent = t.name; $('#resPct' + ti).textContent = t.hpPct + '%'; $('#resPct' + ti).title = 'Vie restante de l\u2019équipe'; $('#resIns' + ti).textContent = insigniaGlyph(battle.teams[ti]); });
+    r.teams.forEach((t, ti) => { $('#resName' + ti).textContent = t.name; $('#resPct' + ti).textContent = t.hpPct + '%'; $('#resPct' + ti).title = 'Vie restante de l\u2019équipe'; const g = insigniaGlyph(battle.teams[ti]); $('#resIns' + ti).innerHTML = OT.Embleme ? OT.Embleme.svg(g, ti ? '#a01a10' : '#c0281c') : g; $('#resRate' + ti).textContent = Math.round(t.units.reduce((s, u) => s + OT.Game.defRating(battle.units.find(x => x.id === u.id).def), 0) / Math.max(1, t.units.length)); });
     const row = (label, v0, v1) => `<span class="l">${v0}</span><span class="m">${label}</span><span class="r">${v1}</span>`;
     let html = '';
     if (battle.zone) html += row('Zone capturée', r.teams[0].capture + ' %', r.teams[1].capture + ' %');
-    html += row('Neutralisations', r.teams[0].kills, r.teams[1].kills) + '<span class="head">SPÉCIAUX</span>';
+    html += row('Neutralisations', r.teams[0].kills, r.teams[1].kills) + '<span class="head">Spéciaux</span>';
     for (const [label, k] of [['Tirs à la tête', 'headshots'], ['Séries', 'streaks'], ['De groupe', 'group'], ['Revanches', 'revenge'], ['Vétérans abattus', 'veteran']]) html += row(label, r.teams[0].specials[k] || 0, r.teams[1].specials[k] || 0);
     $('#resSpecials').innerHTML = html;
     // figures : le meilleur opérateur de chaque équipe, en pied (le perdant baisse son arme)
@@ -1107,6 +1154,8 @@
         <tr><th>Opérateur</th><th>État</th><th>PV</th><th>Tirs</th><th>Au but</th><th>Neutr.</th><th>Dégâts inf. / subis</th></tr></thead>
         <tbody>${t.units.map(u => `<tr class="${u.alive ? '' : 'dead'}"><td>${u.callsign} <small>${u.role}</small></td><td>${STATUS_FR[u.status]}</td><td>${u.hp}/${u.maxHp}</td><td>${u.stats.shots}</td><td>${u.stats.hits} (${u.accuracy} %)</td><td>${u.stats.kills}</td><td>${u.stats.damageDealt} / ${u.stats.damageTaken}</td></tr>`).join('')}</tbody>
       </table>`).join('');
+    if (window.OT.fitStage) window.OT.fitStage(); $('#result').classList.add('stage1080'); if (window.OT.fitStage) window.OT.fitStage();
+    $('#result').querySelectorAll('[data-ico]').forEach(e => { if (!e.dataset.icoDone && OT.Ico) { e.innerHTML = OT.Ico(e.dataset.ico); e.dataset.icoDone = e.dataset.ico; } });
     $('#result').classList.remove('hidden');
   }
 
@@ -1123,7 +1172,7 @@
     document.querySelectorAll('header .group').forEach(g => { if (g.querySelector('#order1, #seed, #mapSel')) g.hidden = !free; });
     $('#missionLabel').hidden = free; if (!free) $('#missionLabel').textContent = `Mission : ${mis.name}${mis.conditions && mis.conditions !== 'jour' ? ' · ' + DATA.CONDITIONS[mis.conditions].name : ''}`;
     $('#toHq').textContent = free ? 'QG' : 'Abandonner';
-    $('#resHq').textContent = free ? 'Quartier général' : 'Retour au QG';
+    $('#resHq').querySelector('b').textContent = free ? 'Quartier général' : 'Continuer'; $('#app').classList.toggle('mode-mission', !free);
   }
   function updatePlayButton() { $('#play').textContent = paused ? '▶ Lancer' : '❚❚ Pause'; $('#play').classList.toggle('on', !paused); }
   function optsFromForm() {
@@ -1177,14 +1226,37 @@
     $('#brObj').textContent = OT.Game.objectiveLabel(mis).toUpperCase(); $('#brMap').textContent = OT.MAPS[mis.mapId].name;
     $('#brName').textContent = mis.name; $('#brDesc').textContent = mis.desc || '';
     $('#brIntel').innerHTML = `<div><span>Conditions</span><b>${cond}</b></div><div><span>Adversaire</span><b>${opts.teams[1].name} · ${opts.teams[1].operators.length} opérateurs · niveau ${mis.level}</b></div><div><span>Comportement</span><b>${D.ORDERS[mis.order].name}</b></div><div><span>Récompense</span><b>${mis.reward} cr. · ${mis.xp} XP</b></div>`;
+    // soldat (le chef de l'escouade), nom d'équipe, lieu, texte qui se tape lettre à lettre comme dans le jeu d'origine
+    const lead = battle.teams[0].units[0]; let fac = DATA.UNIFORMS.find(x => x.id === battle.teams[0].uniform) || DATA.FACTIONS.allied;
+    $('#brFig').src = (lead && OT.Portrait && OT.Portrait.render({ id: lead.def.id, weapon: lead.weapon.id, uniform: fac.uniform, vest: fac.vest, headgear: lead.def.headgear || 'casque', full: true, w: 420, h: 640, aiming: true })) || '';
+    $('#brTeam').textContent = battle.teams[0].name; $('#brSub').textContent = OT.MAPS[mis.mapId].name; $('#brLoc').textContent = `${String(8 + Math.floor(Math.random() * 10)).padStart(2, '0')}00 — ${OT.MAPS[mis.mapId].name}`;
+    const full = mis.desc || ''; $('#brDesc').textContent = MANUAL ? full : ''; let ci = 0; clearInterval(showBriefing.tw);
+    if (!MANUAL) showBriefing.tw = setInterval(() => { ci += 2; $('#brDesc').textContent = full.slice(0, ci) + (ci < full.length ? ' |' : ''); if (ci >= full.length) clearInterval(showBriefing.tw); }, 30);
     briefing = { t0: performance.now() / 1000, a0: Math.random() * 6.28 }; $('#briefing').classList.remove('hidden');
   }
   function hideBriefing(start) { if (!briefing) return; briefing = null; $('#briefing').classList.add('hidden'); cam.init = false; if (start) { paused = false; updatePlayButton(); } }
   $('#briefGo').addEventListener('click', () => hideBriefing(true));
-  window.HQ.onLaunch = (opts, mis) => {
-    setMode('mission', mis); window.HQ.hide(); $('#order0').value = opts.teams[0].order; newBattle(opts); ambience(true);
+  // Préparation (écran VS) : la bataille est construite tout de suite (en pause) et une vue d'ensemble du terrain sert d'aperçu.
+  let prepared = null;
+  window.HQ.onPrepare = (opts, mis) => {
+    setMode('mission', mis); $('#order0').value = opts.teams[0].order; newBattle(opts); paused = true; updatePlayButton(); prepared = opts;
+    try {
+      const W = 1018, H = 336, m = battle.map, size = renderer.getSize(new THREE.Vector2()), asp = camera.aspect;
+      renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix();
+      const cx = m.width / 2, cz = m.depth / 2, r = Math.max(m.width, m.depth);
+      camera.position.set(cx - r * 0.34, r * 0.2, cz + r * 0.46); camera.lookAt(cx + r * 0.04, 0, cz - r * 0.08);
+      syncMeshes(1); renderer.render(scene, camera); const url = renderer.domElement.toDataURL('image/jpeg', 0.85);
+      renderer.setSize(size.x || 1, size.y || 1, false); camera.aspect = asp; camera.updateProjectionMatrix(); cam.init = false;
+      return url;
+    } catch (e) { return null; }
+  };
+  window.HQ.onStart = (opts, mis, skip) => {
+    if (prepared !== opts) window.HQ.onPrepare(opts, mis);
+    prepared = null; window.HQ.hide(); ambience(true);
+    if (skip) { paused = false; updatePlayButton(); setTimeout(skipToEnd, 260); return; }
     if (mis.campaign && !MANUAL) { paused = true; updatePlayButton(); showBriefing(mis, opts); } else { paused = false; updatePlayButton(); }
   };
+  window.HQ.onLaunch = (opts, mis) => { window.HQ.onPrepare(opts, mis); window.HQ.onStart(opts, mis); };
   $('#toggleHelp').addEventListener('click', () => $('#help').classList.toggle('hidden'));
   $('#toggleJournal').addEventListener('click', () => { $('#journalWrap').classList.toggle('hidden'); $('#journal').scrollTop = $('#journal').scrollHeight; });
   $('#closeJournal').addEventListener('click', () => $('#journalWrap').classList.add('hidden'));
@@ -1259,6 +1331,7 @@
     settle: () => { for (let i = 0; i < 80; i++) applyCamera(); render(); },
     useTactic: (id) => battle.command('tactic', 0, id),
     review: () => { review(); return battle.replayQueue.length; },
+    meshes: () => meshes, scene: () => scene,
   };
   if (MANUAL) render(); else requestAnimationFrame((t) => { lastFrame = t; frame(t); });
   window.PRET = true;

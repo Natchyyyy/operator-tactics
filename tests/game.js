@@ -52,6 +52,8 @@ check('recrutement refusé sans crédits', !Game.recruit(p, 'op_harfang') && !p.
 p.credits = 1000;
 check('recrutement : débit du prix, déblocage', Game.recruit(p, 'op_cobra') && p.operators.op_cobra.unlocked && p.credits === 1000 - DATA.PRICES.operator[2]);
 check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') && Game.squadReady(p));
+{ const q = JSON.parse(JSON.stringify(p)); const i = q.squad.indexOf('op_cobra'); const out = q.squad[0]; Game.toggleSquad(q, 'op_cobra');
+  check('échanger un membre de l\'escouade le remplace à la même place (et refuse un verrouillé ou un déjà présent)', Game.swapSquad(q, out, 'op_cobra') && q.squad[0] === 'op_cobra' && !q.squad.includes(out) && !Game.swapSquad(q, 'op_cobra', q.squad[1]) && !Game.swapSquad(q, q.squad[1], 'op_kodiak')); }
 // mission complète : bataille → récompenses
 {
   const m = DATA.MISSIONS[1];

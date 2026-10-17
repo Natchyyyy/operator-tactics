@@ -20,8 +20,25 @@
   et mise de côté d'une sauvegarde illisible, tests de non-régression visuelle (`tests/visuel.py`), copie `docs/` pour
   GitHub Pages. Tests : moteur 99, jeu 96, ligue 11, page 63, visuel 7.
 
+## Refonte graphique « comme le jeu d'origine » (17/10, après-midi)
+- Références : 26 images du jeu d'origine dans `art/ref/` (vidéo de gameplay et bande-annonce officielle), comparées côte à côte
+  avec `python3 outils/comparer.py original.png remake.png planche.png`.
+- Menus refaits d'après l'original, sur une scène fixe 1920×1080 mise à l'échelle de la fenêtre : police Audiowide (OFL, incluse),
+  fond vert lumineux dessiné (`web/fond.js`), barre du haut (saison, nom, rang violet, succès, crédits), accueil (soldat dans
+  sa capsule, note d'équipe, emblème, tuiles Mes cartes / Mon équipe / Jouer), Équipe (grande carte, onglets, compétences,
+  escouade en bas, « Changer de soldat » avec comparaison), Jouer (opérations spéciales, médailles des modes, missions,
+  préparation avec 3 emplacements de tactiques), VS, briefing, résultat « VOUS AVEZ GAGNÉ / PERDU », récompenses en
+  panneaux successifs, HUD de bataille (bandeau, plaques des soldats, VUE SAT). Emblèmes, icônes, drapeaux, médailles : vectoriels.
+- Soldat 3D Meshy (texturé, riggé Mixamo, 17 animations) : `art/meshy/soldat_brut.glb` → `outils/compacter_glb.py` (2,6 Mo)
+  → `outils/modele_en_js.py` → `web/modeles/soldat.js` ; `web/soldat3d.js` (teinte d'uniforme, animations selon l'état, arme
+  tenue entre les mains). Utilisé en bataille, dans la capsule de l'accueil et pour tous les portraits. Secours : figure.js.
+- Cartes : `web/decor.js` (asphalte et places de parking, béton taché, façades à fenêtres grillagées et affiches, barrières
+  jersey, sacs de sable, berlines et pick-up surtout blancs, palmiers, immeubles crème et roses autour, ciel clair).
+- Musiques refaites (orchestre militaire synthétisé) : QG (marche), bataille (taïkos), titre, fanfares de victoire et de défaite.
+- À faire ensuite : une version plus légère du soldat (10 000 triangles) pour les machines modestes ; d'autres modèles Meshy
+  (ennemis en tenue grise, véhicules) si le joueur le souhaite ; images 2D des médailles avec Gemini ; écran titre.
+
 ## Pistes suivantes
-- Modèles 3D Meshy (voir plus bas) : c'est ce qui changera le plus l'aspect du jeu.
 - Arbre de compétences plus riche que les promotions ; prestige au rang maximal.
 - Application de bureau (Electron, .exe) si le jeu doit tourner hors navigateur.
 
