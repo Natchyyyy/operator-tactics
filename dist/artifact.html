@@ -4786,9 +4786,14 @@ window.Son = Son;
   $('#setCam').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('cam', v); sync(); } });
   $('#setQuality').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('quality', v); sync(); } });
   $('#setShadows').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('shadows', v === '1'); sync(); } });
+  // export : dans une page publiée sur claude.ai, la capacité « downloads » (le visiteur confirme) ; ailleurs, un lien de téléchargement
+  let dl = null; if (window.claude && window.claude.use) window.claude.use('downloads').then(d => { dl = d; }).catch(() => {});
   $('#setExport').addEventListener('click', () => {
-    const txt = window.HQ.exportSave(), a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' })); a.download = 'operator-tactics-carriere.json'; a.click();
+    const txt = window.HQ.exportSave(), name = 'operator-tactics-carriere.json';
+    $('#setMsg').style.color = '';
+    if (dl) { dl.save({ filename: name, data: txt }).then(() => { $('#setMsg').textContent = 'Carrière exportée.'; }, (e) => { $('#setMsg').textContent = e && e.code === 'declined' ? 'Export annulé.' : 'Export impossible ici.'; }); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' })); a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000); $('#setMsg').textContent = 'Carrière exportée.';
   });
   $('#setImport').addEventListener('click', () => $('#setFile').click());
