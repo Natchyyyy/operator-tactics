@@ -595,7 +595,7 @@
     const crouch = u.alive && u.stance === 'crouch', aiming = u.alive && (u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture');
     const v = Math.hypot(m.cur.x - m.prev.x, m.cur.z - m.prev.z) / DT;
     const running = u.alive && u.moving && (u.state === 'closing' || u.state === 'retreat' || u.state === 'evade' || u.state === 'tozone' || v > 2.4);
-    const loco = (n) => m.play(n, { speed: Math.max(0.6, Math.min(1.6, (v || 1) / ({ Walk_Fight_Forward: 1.25, Run_and_Shoot: 3.0 }[n] || 1))), fade: 0.2 });
+    const loco = (n) => m.play(n, { speed: Math.max(0.6, Math.min(1.6, (v || 1) / ({ Walk_Aim: 1.25, Walk_Fight_Forward: 1.25, Run_and_Shoot: 3.0 }[n] || 1))), fade: 0.2 });
     // Seulement des animations « arme en main » (sinon le fusil flotte au bout d'un bras qui se balance) ; chaque animation a
     // sa correction d'orientation (Soldat3D.yawFix) pour que l'arme vise droit devant, là où le moteur fait regarder le soldat.
     let two = true;
@@ -608,7 +608,7 @@
     else if (u.reloading > 0) { const n = crouch ? 'Kneeling_Reload' : 'Standing_Reload'; m.play(n, { speed: Math.min(2.4, clipSpeed(n) / Math.max(1, u.weapon.reload || 2.5)) }); }
     else if (u.moving && v > 0.15) {
       // marche arme à la poitrine ; course ou marche en visant : arme épaulée, canon devant
-      if ((running || aiming || v > 2.1) && !crouch) loco('Run_and_Shoot'); else loco('Walk_Fight_Forward');
+      if ((running || aiming || v > 2.1) && !crouch) loco('Run_and_Shoot'); else loco(OT.Soldat3D.clips.Walk_Aim ? 'Walk_Aim' : 'Walk_Fight_Forward');
     }
     else if (crouch) m.play('Kneeling_Reload', { time: 0.06, fade: 0.25 });
     else m.play('Rifle_Aim_Turn_Right', { time: 0, fade: 0.25 });

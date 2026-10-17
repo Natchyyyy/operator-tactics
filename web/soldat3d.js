@@ -22,7 +22,7 @@
         }
         g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false; } });
         S.gltf = g;
-        try { straighten(g); measure(g); } catch (e) { console.warn('soldat 3D (mesure) :', e); }
+        try { straighten(g); composite(); measure(g); } catch (e) { console.warn('soldat 3D (mesure) :', e); }
         delete root.MODELES.soldat;
         // le fusil Meshy (modeles3d.js) est attendu : les soldats naissent directement avec
         const go = () => { S.ready = true; for (const f of S.onReady.splice(0)) try { f(); } catch (e) { console.warn(e); } };
@@ -51,11 +51,25 @@
       }
     }
   }
+  // Marche en visant : les jambes (et le bassin) de « Walk_Fight_Forward », le haut du corps figé dans la visée de
+  // « Rifle_Aim_Turn_Right » (première image). Dans la marche d'origine le fusil est porté en travers, canon vers le bas :
+  // il ne se tenait pas de façon crédible une fois l'arme du jeu mise dans les mains.
+  const JAMBES = /(Hips|UpLeg|Leg|Foot|ToeBase|Toe_End)\.(quaternion|position)$/;
+  function composite() {
+    const walk = S.clips.Walk_Fight_Forward, aim = S.clips.Rifle_Aim_Turn_Right; if (!walk || !aim) return;
+    const tracks = walk.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone());
+    for (const t of aim.tracks) {
+      if (JAMBES.test(t.name)) continue;
+      const n = t.getValueSize(), v0 = Array.from(t.values.slice(0, n));
+      tracks.push(new t.constructor(t.name, [0, walk.duration], v0.concat(v0)));
+    }
+    S.clips.Walk_Aim = new THREE.AnimationClip('Walk_Aim', walk.duration, tracks);
+  }
   // Correction d'orientation par animation : de quel angle faut-il tourner le corps pour que l'ARME (main droite → main gauche)
   // pointe droit devant (+Z, la direction « face » du jeu) ? Mesurée une fois au chargement.
   // AIM : animations où l'arme doit viser droit devant, et l'instant (fraction) où la mesurer ; null = moyenne sur la boucle.
-  const AIM = { Rifle_Aim_Turn_Right: 0.0, Standing_Reload: 0.0, Kneeling_Reload: 0.06, Run_and_Shoot: null, Walk_Fight_Forward: null, Cautious_Crouch_Walk_Forward: null, Gunshot_Reaction: 0.0 };
-  const AIM_PART = { Walk_Fight_Forward: 0, Cautious_Crouch_Walk_Forward: 0, Run_and_Shoot: 0.6 };   // locomotion : on corrige moins (les jambes marchent droit)
+  const AIM = { Rifle_Aim_Turn_Right: 0.0, Standing_Reload: 0.0, Kneeling_Reload: 0.06, Run_and_Shoot: null, Walk_Fight_Forward: null, Walk_Aim: null, Cautious_Crouch_Walk_Forward: null, Gunshot_Reaction: 0.0 };
+  const AIM_PART = { Walk_Fight_Forward: 0, Cautious_Crouch_Walk_Forward: 0, Run_and_Shoot: 0.6, Walk_Aim: 0.8 };   // locomotion : on corrige moins (les jambes marchent droit)
   S.yawFix = {};
   function measure(g) {
     const sc = g.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
@@ -111,7 +125,7 @@
     const mixer = new THREE.AnimationMixer(body), actions = {};
     const act = (name) => { if (!S.clips[name]) return null; if (!actions[name]) { const a = mixer.clipAction(S.clips[name]); if (ONCE[name]) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; } actions[name] = a; } return actions[name]; };
     const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true,
-      bones: { rh: bone('RightHand'), lh: bone('LeftHand'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips') },
+      bones: { rh: bone('RightHand'), lh: bone('LeftHand'), rm: bone('RightHandMiddle1'), lm: bone('LeftHandMiddle1'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips') },
       // joue (en fondu) l'animation demandée ; time : figer à un instant (pose fixe) ; speed : vitesse du cycle
       play(name, opts = {}) {
         const a = act(name); if (!a) return;
@@ -130,20 +144,29 @@
         if (!keepYaw) { const tgt = S.yawFix[this.clip] || 0; let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 10); }
       },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
+      // L'arme est tenue par les PAUMES (entre le poignet et la base des doigts), pas par les poignets : la poignée dans la paume
+      // droite, le garde-main dans la paume gauche. L'orientation aligne le segment poignée → garde-main de l'arme (qui n'est
+      // pas parallèle au canon : la poignée est sous l'axe) sur le segment paume droite → paume gauche ; le dessus de l'arme
+      // reste vers le haut. Une seule main (lancer, victoire) : l'arme suit l'axe de la main droite.
       placeWeapon(twoHands, recoil) {
-        const rh = this.bones.rh, lh = this.bones.lh; if (!rh) return;
+        const B = this.bones, rh = B.rh, lh = B.lh; if (!rh) return;
         group.updateMatrixWorld(true);
-        const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
-        const pR = rh.getWorldPosition(V()).applyMatrix4(inv), pL = lh.getWorldPosition(V()).applyMatrix4(inv);
-        const q = rh.getWorldQuaternion(new THREE.Quaternion()), qg = group.getWorldQuaternion(new THREE.Quaternion()).invert(); q.premultiply(qg);
-        const handUp = new THREE.Vector3(0, 1, 0).applyQuaternion(q);   // axe de la main (vers les doigts)
-        let fwd = pL.clone().sub(pR); const dist = fwd.length();
-        if (!twoHands || dist < 0.12 || dist > 0.75) fwd = handUp.clone(); else fwd.normalize();
-        const up = new THREE.Vector3(0, 1, 0); if (Math.abs(fwd.dot(up)) > 0.95) up.set(0, 0, 1);
-        const m = new THREE.Matrix4().lookAt(new THREE.Vector3(), fwd.clone().negate(), up);   // +Z de l'arme le long de fwd
-        weapon.quaternion.setFromRotationMatrix(m);
-        const grip = weapon.gripPt ? weapon.gripPt.clone().applyQuaternion(weapon.quaternion) : V();
-        weapon.position.copy(pR).sub(grip).addScaledVector(fwd, -0.02 - (recoil || 0) * 0.04);
+        const inv = new THREE.Matrix4().copy(group.matrixWorld).invert(), loc = (o) => o.getWorldPosition(V()).applyMatrix4(inv);
+        const palm = (hand, mid) => mid ? loc(hand).lerp(loc(mid), 0.6) : loc(hand);
+        const pR = palm(rh, B.rm), pL = lh ? palm(lh, B.lm) : null;
+        const qh = rh.getWorldQuaternion(new THREE.Quaternion()).premultiply(group.getWorldQuaternion(new THREE.Quaternion()).invert());
+        const grip = weapon.gripPt || V(), fore = weapon.forePt || new THREE.Vector3(0, 0, 0.3);
+        let b = pL ? pL.clone().sub(pR) : null; const dist = b ? b.length() : 0;
+        const two = twoHands && pL && dist > 0.12 && dist < 0.8;
+        // repère de l'arme : a = poignée → garde-main ; repère du monde : b = paume droite → paume gauche (ou axe de la main)
+        const a = fore.clone().sub(grip).normalize();
+        if (two) b.normalize(); else b = new THREE.Vector3(0, 1, 0).applyQuaternion(qh).normalize();
+        const basis = (d, upHint) => { const u = upHint.clone().addScaledVector(d, -upHint.dot(d)); if (u.lengthSq() < 1e-4) u.set(0, 0, 1).addScaledVector(d, -d.z); u.normalize(); const w = new THREE.Vector3().crossVectors(d, u); return new THREE.Matrix4().makeBasis(d, u, w); };
+        const Ma = basis(a, new THREE.Vector3(0, 1, 0)), Mb = basis(b, new THREE.Vector3(0, 1, 0));
+        const R = Mb.multiply(Ma.transpose());   // rotation qui envoie a sur b (et le haut de l'arme vers le haut)
+        weapon.quaternion.setFromRotationMatrix(R);
+        const g = grip.clone().applyQuaternion(weapon.quaternion), barrel = new THREE.Vector3(0, 0, 1).applyQuaternion(weapon.quaternion);
+        weapon.position.copy(pR).sub(g).addScaledVector(barrel, -(recoil || 0) * 0.04);
       },
     };
     return f;

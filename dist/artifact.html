@@ -7840,7 +7840,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         }
         g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false; } });
         S.gltf = g;
-        try { straighten(g); measure(g); } catch (e) { console.warn('soldat 3D (mesure) :', e); }
+        try { straighten(g); composite(); measure(g); } catch (e) { console.warn('soldat 3D (mesure) :', e); }
         delete root.MODELES.soldat;
         // le fusil Meshy (modeles3d.js) est attendu : les soldats naissent directement avec
         const go = () => { S.ready = true; for (const f of S.onReady.splice(0)) try { f(); } catch (e) { console.warn(e); } };
@@ -7869,11 +7869,25 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       }
     }
   }
+  // Marche en visant : les jambes (et le bassin) de « Walk_Fight_Forward », le haut du corps figé dans la visée de
+  // « Rifle_Aim_Turn_Right » (première image). Dans la marche d'origine le fusil est porté en travers, canon vers le bas :
+  // il ne se tenait pas de façon crédible une fois l'arme du jeu mise dans les mains.
+  const JAMBES = /(Hips|UpLeg|Leg|Foot|ToeBase|Toe_End)\.(quaternion|position)$/;
+  function composite() {
+    const walk = S.clips.Walk_Fight_Forward, aim = S.clips.Rifle_Aim_Turn_Right; if (!walk || !aim) return;
+    const tracks = walk.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone());
+    for (const t of aim.tracks) {
+      if (JAMBES.test(t.name)) continue;
+      const n = t.getValueSize(), v0 = Array.from(t.values.slice(0, n));
+      tracks.push(new t.constructor(t.name, [0, walk.duration], v0.concat(v0)));
+    }
+    S.clips.Walk_Aim = new THREE.AnimationClip('Walk_Aim', walk.duration, tracks);
+  }
   // Correction d'orientation par animation : de quel angle faut-il tourner le corps pour que l'ARME (main droite → main gauche)
   // pointe droit devant (+Z, la direction « face » du jeu) ? Mesurée une fois au chargement.
   // AIM : animations où l'arme doit viser droit devant, et l'instant (fraction) où la mesurer ; null = moyenne sur la boucle.
-  const AIM = { Rifle_Aim_Turn_Right: 0.0, Standing_Reload: 0.0, Kneeling_Reload: 0.06, Run_and_Shoot: null, Walk_Fight_Forward: null, Cautious_Crouch_Walk_Forward: null, Gunshot_Reaction: 0.0 };
-  const AIM_PART = { Walk_Fight_Forward: 0, Cautious_Crouch_Walk_Forward: 0, Run_and_Shoot: 0.6 };   // locomotion : on corrige moins (les jambes marchent droit)
+  const AIM = { Rifle_Aim_Turn_Right: 0.0, Standing_Reload: 0.0, Kneeling_Reload: 0.06, Run_and_Shoot: null, Walk_Fight_Forward: null, Walk_Aim: null, Cautious_Crouch_Walk_Forward: null, Gunshot_Reaction: 0.0 };
+  const AIM_PART = { Walk_Fight_Forward: 0, Cautious_Crouch_Walk_Forward: 0, Run_and_Shoot: 0.6, Walk_Aim: 0.8 };   // locomotion : on corrige moins (les jambes marchent droit)
   S.yawFix = {};
   function measure(g) {
     const sc = g.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
@@ -7929,7 +7943,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const mixer = new THREE.AnimationMixer(body), actions = {};
     const act = (name) => { if (!S.clips[name]) return null; if (!actions[name]) { const a = mixer.clipAction(S.clips[name]); if (ONCE[name]) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; } actions[name] = a; } return actions[name]; };
     const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true,
-      bones: { rh: bone('RightHand'), lh: bone('LeftHand'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips') },
+      bones: { rh: bone('RightHand'), lh: bone('LeftHand'), rm: bone('RightHandMiddle1'), lm: bone('LeftHandMiddle1'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips') },
       // joue (en fondu) l'animation demandée ; time : figer à un instant (pose fixe) ; speed : vitesse du cycle
       play(name, opts = {}) {
         const a = act(name); if (!a) return;
@@ -7948,20 +7962,29 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         if (!keepYaw) { const tgt = S.yawFix[this.clip] || 0; let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 10); }
       },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
+      // L'arme est tenue par les PAUMES (entre le poignet et la base des doigts), pas par les poignets : la poignée dans la paume
+      // droite, le garde-main dans la paume gauche. L'orientation aligne le segment poignée → garde-main de l'arme (qui n'est
+      // pas parallèle au canon : la poignée est sous l'axe) sur le segment paume droite → paume gauche ; le dessus de l'arme
+      // reste vers le haut. Une seule main (lancer, victoire) : l'arme suit l'axe de la main droite.
       placeWeapon(twoHands, recoil) {
-        const rh = this.bones.rh, lh = this.bones.lh; if (!rh) return;
+        const B = this.bones, rh = B.rh, lh = B.lh; if (!rh) return;
         group.updateMatrixWorld(true);
-        const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
-        const pR = rh.getWorldPosition(V()).applyMatrix4(inv), pL = lh.getWorldPosition(V()).applyMatrix4(inv);
-        const q = rh.getWorldQuaternion(new THREE.Quaternion()), qg = group.getWorldQuaternion(new THREE.Quaternion()).invert(); q.premultiply(qg);
-        const handUp = new THREE.Vector3(0, 1, 0).applyQuaternion(q);   // axe de la main (vers les doigts)
-        let fwd = pL.clone().sub(pR); const dist = fwd.length();
-        if (!twoHands || dist < 0.12 || dist > 0.75) fwd = handUp.clone(); else fwd.normalize();
-        const up = new THREE.Vector3(0, 1, 0); if (Math.abs(fwd.dot(up)) > 0.95) up.set(0, 0, 1);
-        const m = new THREE.Matrix4().lookAt(new THREE.Vector3(), fwd.clone().negate(), up);   // +Z de l'arme le long de fwd
-        weapon.quaternion.setFromRotationMatrix(m);
-        const grip = weapon.gripPt ? weapon.gripPt.clone().applyQuaternion(weapon.quaternion) : V();
-        weapon.position.copy(pR).sub(grip).addScaledVector(fwd, -0.02 - (recoil || 0) * 0.04);
+        const inv = new THREE.Matrix4().copy(group.matrixWorld).invert(), loc = (o) => o.getWorldPosition(V()).applyMatrix4(inv);
+        const palm = (hand, mid) => mid ? loc(hand).lerp(loc(mid), 0.6) : loc(hand);
+        const pR = palm(rh, B.rm), pL = lh ? palm(lh, B.lm) : null;
+        const qh = rh.getWorldQuaternion(new THREE.Quaternion()).premultiply(group.getWorldQuaternion(new THREE.Quaternion()).invert());
+        const grip = weapon.gripPt || V(), fore = weapon.forePt || new THREE.Vector3(0, 0, 0.3);
+        let b = pL ? pL.clone().sub(pR) : null; const dist = b ? b.length() : 0;
+        const two = twoHands && pL && dist > 0.12 && dist < 0.8;
+        // repère de l'arme : a = poignée → garde-main ; repère du monde : b = paume droite → paume gauche (ou axe de la main)
+        const a = fore.clone().sub(grip).normalize();
+        if (two) b.normalize(); else b = new THREE.Vector3(0, 1, 0).applyQuaternion(qh).normalize();
+        const basis = (d, upHint) => { const u = upHint.clone().addScaledVector(d, -upHint.dot(d)); if (u.lengthSq() < 1e-4) u.set(0, 0, 1).addScaledVector(d, -d.z); u.normalize(); const w = new THREE.Vector3().crossVectors(d, u); return new THREE.Matrix4().makeBasis(d, u, w); };
+        const Ma = basis(a, new THREE.Vector3(0, 1, 0)), Mb = basis(b, new THREE.Vector3(0, 1, 0));
+        const R = Mb.multiply(Ma.transpose());   // rotation qui envoie a sur b (et le haut de l'arme vers le haut)
+        weapon.quaternion.setFromRotationMatrix(R);
+        const g = grip.clone().applyQuaternion(weapon.quaternion), barrel = new THREE.Vector3(0, 0, 1).applyQuaternion(weapon.quaternion);
+        weapon.position.copy(pR).sub(g).addScaledVector(barrel, -(recoil || 0) * 0.04);
       },
     };
     return f;
@@ -8322,10 +8345,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const W = opts.w || 220, H = opts.h || 260;                       // grande taille pour les écrans de fin (figure en pied)
     renderer.setSize(W, H); camera.aspect = W / H; camera.updateProjectionMatrix();
     // soldat Meshy s'il est chargé (pose figée d'une animation), sinon personnage dessiné par programme
-    const S3 = root.Soldat3D && root.Soldat3D.ready && root.Soldat3D.posed({ uniform: opts.uniform, weapon: opts.weapon }, opts.aiming ? 'Rifle_Aim_Turn_Right' : 'Walk_Fight_Forward', opts.aiming ? 0.02 : 0.12);
+    const S3 = root.Soldat3D && root.Soldat3D.ready && root.Soldat3D.posed({ uniform: opts.uniform, weapon: opts.weapon }, 'Rifle_Aim_Turn_Right', 0);   // toujours la posture de garde (fusil épaulé, tenu des deux mains)
     const f = S3 || root.Figure.build({ id: opts.id, weapon: opts.weapon, uniform: opts.uniform, vest: opts.vest, headgear: opts.headgear });
     if (!S3) root.Figure.poseStatic(f, !!opts.aiming);
-    f.group.rotation.y = -0.45;
+    f.group.rotation.y = S3 ? 1.15 : -0.45;   // soldat Meshy : il vise vers la droite de l'image, le visage reste visible
     scene.add(f.group);
     if (opts.full && opts.h) { camera.position.set(0.9, 1.05, 4.4); camera.lookAt(0, 0.92, 0); }   // en pied, cadrage complet (tête aux pieds)
     else if (opts.full) { camera.position.set(0.9, 1.1, 3.6); camera.lookAt(0, 0.95, 0); }
@@ -8364,7 +8387,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   const key = new THREE.DirectionalLight(0xfff0d8, 3.2); key.position.set(2.5, 3.5, 4.5); scene.add(key);
   const rim = new THREE.DirectionalLight(0x6fe6ff, 2.6); rim.position.set(-3, 2.5, -3); scene.add(rim);
   const rim2 = new THREE.DirectionalLight(0x9ff0d0, 1.2); rim2.position.set(3, 1, -3); scene.add(rim2);
-  const POSE = { clip: 'Rifle_Aim_Turn_Right', t: 0, yaw: 0.6 };
+  const POSE = { clip: 'Rifle_Aim_Turn_Right', t: 0, yaw: 1.15, cx: -0.02 };
   let fig = null, key0 = '';
   function build(profile) {
     const id = profile.squad[0]; if (!id) { if (fig) scene.remove(fig.group); fig = null; key0 = ''; return; }
@@ -8389,7 +8412,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     size();
     if (fig && !fig.isSkinned) { fig.torso.rotation.z = Math.sin(t * 0.9) * 0.012; fig.headG.rotation.y = -0.35 + Math.sin(t * 0.37) * 0.08; fig.group.position.y = Math.sin(t * 1.8) * 0.004; }
     else if (fig) { fig.group.rotation.y = fig.pose0.yaw + Math.sin(t * 0.3) * 0.03; }
-    if (fig && fig.isSkinned) { camera.position.set(0.05, 0.95, 6.2); camera.lookAt(0.05, 0.92, 0); }   // soldat entier dans la capsule (pieds compris) else { camera.position.set(0.25, 1.0, 5.5); camera.lookAt(0.05, 0.9, 0); }
+    // soldat Meshy : entier dans la capsule (pieds compris), décalé pour que le fusil tenu de profil reste dans le cadre
+    if (fig && fig.isSkinned) { const cx = fig.pose0 && fig.pose0.cx !== undefined ? fig.pose0.cx : 0.05; camera.position.set(cx, 0.95, 6.2); camera.lookAt(cx, 0.92, 0); } else { camera.position.set(0.25, 1.0, 5.5); camera.lookAt(0.05, 0.9, 0); }
     renderer.render(scene, camera);
   }
   function frame(now) { if (!running) return; requestAnimationFrame(frame); draw((now - t0) / 1000); }
@@ -12216,7 +12240,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const crouch = u.alive && u.stance === 'crouch', aiming = u.alive && (u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture');
     const v = Math.hypot(m.cur.x - m.prev.x, m.cur.z - m.prev.z) / DT;
     const running = u.alive && u.moving && (u.state === 'closing' || u.state === 'retreat' || u.state === 'evade' || u.state === 'tozone' || v > 2.4);
-    const loco = (n) => m.play(n, { speed: Math.max(0.6, Math.min(1.6, (v || 1) / ({ Walk_Fight_Forward: 1.25, Run_and_Shoot: 3.0 }[n] || 1))), fade: 0.2 });
+    const loco = (n) => m.play(n, { speed: Math.max(0.6, Math.min(1.6, (v || 1) / ({ Walk_Aim: 1.25, Walk_Fight_Forward: 1.25, Run_and_Shoot: 3.0 }[n] || 1))), fade: 0.2 });
     // Seulement des animations « arme en main » (sinon le fusil flotte au bout d'un bras qui se balance) ; chaque animation a
     // sa correction d'orientation (Soldat3D.yawFix) pour que l'arme vise droit devant, là où le moteur fait regarder le soldat.
     let two = true;
@@ -12229,7 +12253,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     else if (u.reloading > 0) { const n = crouch ? 'Kneeling_Reload' : 'Standing_Reload'; m.play(n, { speed: Math.min(2.4, clipSpeed(n) / Math.max(1, u.weapon.reload || 2.5)) }); }
     else if (u.moving && v > 0.15) {
       // marche arme à la poitrine ; course ou marche en visant : arme épaulée, canon devant
-      if ((running || aiming || v > 2.1) && !crouch) loco('Run_and_Shoot'); else loco('Walk_Fight_Forward');
+      if ((running || aiming || v > 2.1) && !crouch) loco('Run_and_Shoot'); else loco(OT.Soldat3D.clips.Walk_Aim ? 'Walk_Aim' : 'Walk_Fight_Forward');
     }
     else if (crouch) m.play('Kneeling_Reload', { time: 0.06, fade: 0.25 });
     else m.play('Rifle_Aim_Turn_Right', { time: 0, fade: 0.25 });

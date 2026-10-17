@@ -13,7 +13,7 @@
   const key = new THREE.DirectionalLight(0xfff0d8, 3.2); key.position.set(2.5, 3.5, 4.5); scene.add(key);
   const rim = new THREE.DirectionalLight(0x6fe6ff, 2.6); rim.position.set(-3, 2.5, -3); scene.add(rim);
   const rim2 = new THREE.DirectionalLight(0x9ff0d0, 1.2); rim2.position.set(3, 1, -3); scene.add(rim2);
-  const POSE = { clip: 'Rifle_Aim_Turn_Right', t: 0, yaw: 0.6 };
+  const POSE = { clip: 'Rifle_Aim_Turn_Right', t: 0, yaw: 1.15, cx: -0.02 };
   let fig = null, key0 = '';
   function build(profile) {
     const id = profile.squad[0]; if (!id) { if (fig) scene.remove(fig.group); fig = null; key0 = ''; return; }
@@ -38,7 +38,8 @@
     size();
     if (fig && !fig.isSkinned) { fig.torso.rotation.z = Math.sin(t * 0.9) * 0.012; fig.headG.rotation.y = -0.35 + Math.sin(t * 0.37) * 0.08; fig.group.position.y = Math.sin(t * 1.8) * 0.004; }
     else if (fig) { fig.group.rotation.y = fig.pose0.yaw + Math.sin(t * 0.3) * 0.03; }
-    if (fig && fig.isSkinned) { camera.position.set(0.05, 0.95, 6.2); camera.lookAt(0.05, 0.92, 0); }   // soldat entier dans la capsule (pieds compris) else { camera.position.set(0.25, 1.0, 5.5); camera.lookAt(0.05, 0.9, 0); }
+    // soldat Meshy : entier dans la capsule (pieds compris), décalé pour que le fusil tenu de profil reste dans le cadre
+    if (fig && fig.isSkinned) { const cx = fig.pose0 && fig.pose0.cx !== undefined ? fig.pose0.cx : 0.05; camera.position.set(cx, 0.95, 6.2); camera.lookAt(cx, 0.92, 0); } else { camera.position.set(0.25, 1.0, 5.5); camera.lookAt(0.05, 0.9, 0); }
     renderer.render(scene, camera);
   }
   function frame(now) { if (!running) return; requestAnimationFrame(frame); draw((now - t0) / 1000); }
