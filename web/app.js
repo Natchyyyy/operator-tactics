@@ -383,7 +383,43 @@
       const ring = new THREE.Mesh(new THREE.RingGeometry(sp.r - 0.15, sp.r, 48), new THREE.MeshBasicMaterial({ color: TEAM[i].color, transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
       ring.rotation.x = -Math.PI / 2; ring.position.set(sp.x, 0.02, sp.z); mapGroup.add(ring);
     });
+    mergeStatic(mapGroup);
     scene.add(mapGroup);
+  }
+  // Performance : le décor est immobile → ses maillages sont fusionnés par matériau (et par ombres portées / reçues).
+  // ~350 appels de dessin de moins par image (et autant pour la carte d'ombres). Les arêtes sont fusionnées en un seul tracé.
+  function mergeStatic(root) {
+    root.updateMatrixWorld(true);
+    const buckets = new Map(), lines = [], drop = [];
+    root.traverse(o => {
+      if (o.isLineSegments) { lines.push(o); return; }
+      if (!o.isMesh || !o.geometry || !o.geometry.attributes.position || !o.geometry.attributes.normal || Array.isArray(o.material) || o.material.transparent) return;
+      if (o.matrixWorld.determinant() < 0) return;                                  // miroir : ordre des faces inversé, on laisse tel quel
+      const k = o.material.uuid + '|' + o.castShadow + '|' + o.receiveShadow;
+      if (!buckets.has(k)) buckets.set(k, []); buckets.get(k).push(o);
+    });
+    const merge = (list, withNormal) => {
+      const useUv = list.every(m => m.geometry.attributes.uv);
+      const parts = list.map(m => { const g = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()); g.applyMatrix4(m.matrixWorld); return g; });
+      const n = parts.reduce((s, g) => s + g.attributes.position.count, 0), out = new THREE.BufferGeometry();
+      const pos = new Float32Array(n * 3), nor = withNormal ? new Float32Array(n * 3) : null, uv = useUv && withNormal ? new Float32Array(n * 2) : null;
+      let o3 = 0, o2 = 0;
+      for (const g of parts) { pos.set(g.attributes.position.array, o3); if (nor) nor.set(g.attributes.normal.array, o3); if (uv) uv.set(g.attributes.uv.array, o2); o3 += g.attributes.position.count * 3; o2 += g.attributes.position.count * 2; g.dispose(); }
+      out.setAttribute('position', new THREE.BufferAttribute(pos, 3)); if (nor) out.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); if (uv) out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      out.computeBoundingSphere(); return out;
+    };
+    for (const list of buckets.values()) {
+      if (list.length < 2) continue;
+      const m = new THREE.Mesh(merge(list, true), list[0].material); m.castShadow = list[0].castShadow; m.receiveShadow = list[0].receiveShadow; m.matrixAutoUpdate = false;
+      root.add(m); drop.push(...list);
+    }
+    if (lines.length > 1) {
+      const ls = new THREE.LineSegments(merge(lines, false), new THREE.LineBasicMaterial({ color: 0x1a1d20, transparent: true, opacity: 0.5 })); ls.matrixAutoUpdate = false;
+      root.add(ls); drop.push(...lines);
+    }
+    for (const o of drop) { o.parent.remove(o); o.geometry.dispose(); if (o.isLineSegments) o.material.dispose(); }
+    // groupes vidés (voitures, cuves…) : retirés
+    const empty = []; root.traverse(o => { if (o !== root && o.isGroup && !o.children.length) empty.push(o); }); for (const g of empty) g.parent.remove(g);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -963,6 +999,7 @@
   if (!MANUAL && params.get('mode') !== 'free') { if (params.get('skipTitle') === '1') window.HQ.show(); else { $('#hq').classList.add('hidden'); $('#app').classList.add('hidden'); } } else window.HQ.hide();
   // API de test (identique dans les deux modes ; en mode manuel il n'y a pas de boucle d'animation)
   window.API = {
+    stats: () => { render(); const i = renderer.info.render; let meshes = 0, mats = new Set(), geos = new Set(); scene.traverse(o => { if (o.isMesh) { meshes++; mats.add(o.material); geos.add(o.geometry); } }); return { calls: i.calls, triangles: i.triangles, meshes, materials: mats.size, geometries: geos.size, shadows: renderer.shadowMap.enabled }; },
     step: (n, dt) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; render(); return battle.t; },
     runToEnd: () => { instantResult = true; while (!battle.over) stepSim(); instantResult = false; acc = DT; render(); return battle.result; },
     start: (opts) => { newBattle(opts); render(); return battle.zone || true; },

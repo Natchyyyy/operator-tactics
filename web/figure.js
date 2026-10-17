@@ -192,7 +192,34 @@
     const f = { group, pose, hips, hipsY: HIPS_Y, legs, torso, headG, weapon, arms,
       shoulderR: arms.R.shoulder, elbowR: arms.R.elbow, shoulderL: arms.L.shoulder, elbowL: arms.L.elbow };
     armPose(f, 0);
+    if (o.merge !== false) compact(group);
     return f;
+  }
+  // Performance : sous chaque articulation, les pièces immobiles les unes par rapport aux autres et de même matériau
+  // sont fusionnées en un seul maillage (≈ 3 fois moins d'appels de dessin par personnage). Les articulations restent.
+  function compact(root) {
+    const nodes = []; root.traverse(o => { if (!o.isMesh) nodes.push(o); });
+    for (const node of nodes) {
+      const by = new Map();
+      for (const c of node.children) {
+        if (!c.isMesh || c.children.length || Array.isArray(c.material) || c.material.transparent || !c.geometry.attributes.normal) continue;
+        c.updateMatrix(); if (c.matrix.determinant() < 0) continue;
+        const k = c.material.uuid + '|' + c.castShadow; if (!by.has(k)) by.set(k, []); by.get(k).push(c);
+      }
+      for (const list of by.values()) {
+        if (list.length < 2) continue;
+        const useUv = list.every(m => m.geometry.attributes.uv);
+        const parts = list.map(m => { const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone(); g.applyMatrix4(m.matrix); return g; });
+        const n = parts.reduce((t, g) => t + g.attributes.position.count, 0), out = new THREE.BufferGeometry();
+        const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uv = useUv ? new Float32Array(n * 2) : null; let o3 = 0, o2 = 0;
+        for (const g of parts) { pos.set(g.attributes.position.array, o3); nor.set(g.attributes.normal.array, o3); if (uv) uv.set(g.attributes.uv.array, o2); o3 += g.attributes.position.count * 3; o2 += g.attributes.position.count * 2; g.dispose(); }
+        out.setAttribute('position', new THREE.BufferAttribute(pos, 3)); out.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); if (uv) out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+        out.computeBoundingSphere();
+        const m = new THREE.Mesh(out, list[0].material); m.castShadow = list[0].castShadow; m.receiveShadow = list[0].receiveShadow;
+        for (const c of list) node.remove(c);
+        node.add(m);
+      }
+    }
   }
 
   // ---- cinématique inverse à deux segments ---------------------------------------------------------------------------
