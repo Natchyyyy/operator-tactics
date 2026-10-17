@@ -2957,18 +2957,28 @@ window.Son = Son;
   const { DATA } = deps;
   const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL , SYNERGIES, WOUND , CAMPAIGNS, QUICK, SPECIAL_OPS, DAILY, ATTACHMENTS } = DATA;
   const STATS = ['marksmanship', 'reflexes', 'mobility', 'perception', 'composure', 'endurance'];
-  const SAVE_KEY = 'operator-tactics-save-v1';
+  const SAVE_KEY = 'operator-tactics-save-v1';   // la clé ne change pas : la version est DANS la sauvegarde (migrations ci-dessous)
+  const SAVE_VERSION = 2;
+  // migrations successives : MIGRATIONS[v] transforme une sauvegarde de version v en version v + 1
+  const MIGRATIONS = {
+    1: (p) => {   // v1 → v2 : accessoires, contrats du jour, carrière détaillée (champs ajoutés vides)
+      p.inventory = p.inventory || {}; p.inventory.attachments = p.inventory.attachments || {};
+      for (const id in (p.operators || {})) p.operators[id].attachments = p.operators[id].attachments || {};
+      p.career = Object.assign({ headshots: 0, streaks: 0, group: 0, revenge: 0, veteran: 0, revives: 0, shots: 0, hits: 0, damage: 0, maps: {}, recent: [] }, p.career || {});
+    },
+  };
+  function migrate(p) { if (!p.version) p.version = 1; while (p.version < SAVE_VERSION) { MIGRATIONS[p.version](p); p.version++; } return p; }
   const STARTING = ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
 
   // ---- Profil ---------------------------------------------------------------------------
   function newProfile() {
     const operators = {};
     for (const o of OPERATORS) if (!o.faction) operators[o.id] = { unlocked: STARTING.includes(o.id), xp: 0, weaponId: ROLES[o.role].weapon, armorId: o.armor, battles: 0, kills: 0, lane: null,
-      tours: STARTING.includes(o.id) ? CONTRACT.startingTours : CONTRACT.tours[o.rarity], traits: [], pendingPromotions: [], history: [], dupes: 0, headgear: 'casque' };
+      tours: STARTING.includes(o.id) ? CONTRACT.startingTours : CONTRACT.tours[o.rarity], traits: [], pendingPromotions: [], history: [], dupes: 0, headgear: 'casque', attachments: {} };
     return {
-      version: 1, credits: 300, operators, squad: STARTING.slice(), order: 'assault',
-      inventory: { weapons: { carbine: true, smg: true, dmr: true, lmg: true, shotgun: true }, armors: { light: true, medium: true, heavy: true } }, // battle, smgsil : à acheter
-      career: { battles: 0, wins: 0, losses: 0, draws: 0, kills: 0, losses_units: 0 }, missions: {}, challenges: {}, lastSeed: null,
+      version: SAVE_VERSION, credits: 300, operators, squad: STARTING.slice(), order: 'assault',
+      inventory: { weapons: { carbine: true, smg: true, dmr: true, lmg: true, shotgun: true }, armors: { light: true, medium: true, heavy: true }, attachments: {} }, // battle, smgsil : à acheter
+      career: { battles: 0, wins: 0, losses: 0, draws: 0, kills: 0, losses_units: 0, headshots: 0, streaks: 0, group: 0, revenge: 0, veteran: 0, revives: 0, shots: 0, hits: 0, damage: 0, maps: {}, recent: [] }, missions: {}, challenges: {}, lastSeed: null,
       // méta à la manière des jeux de cartes : nom et insigne d'équipe, uniforme, rang du joueur, tactiques, perks par opérateur
       teamName: 'Alpha', insignia: 'etoile', uniform: 'olive', unlocked: { insignias: ['etoile', 'bouclier'], uniforms: ['olive'] },
       xp: 0, tactics: { owned: { fumigene: true, drill: true }, equipped: ['fumigene', 'drill'] }, perks: {}, packsOpened: 0,
@@ -3451,7 +3461,8 @@ window.Son = Son;
   function load(storage) {
     try {
       const raw = storage.getItem(SAVE_KEY); if (!raw) return null;
-      const p = JSON.parse(raw); if (!p || p.version !== 1 || !p.operators || !p.squad) return null;
+      const p = JSON.parse(raw); if (!p || !p.operators || !p.squad || (p.version || 1) > SAVE_VERSION) return null;   // plus récente que ce jeu : refusée
+      migrate(p);
       // tolérance : opérateurs ajoutés depuis la sauvegarde
       const fresh = newProfile();
       for (const id in fresh.operators) { if (!p.operators[id]) p.operators[id] = fresh.operators[id]; else for (const k of ['tours', 'traits', 'pendingPromotions', 'history', 'dupes', 'headgear']) if (p.operators[id][k] === undefined) p.operators[id][k] = fresh.operators[id][k]; }
@@ -3459,14 +3470,14 @@ window.Son = Son;
       for (const id in p.operators) { const st = p.operators[id]; if (st.recovery > 0) { st.wounded = true; st.woundRest = 0; } delete st.recovery; }
       if (p.achievements === undefined) p.achievements = {}; if (p.tacticsUsed === undefined) p.tacticsUsed = 0;
       for (const k of ['teamName', 'insignia', 'uniform', 'unlocked', 'xp', 'tactics', 'perks', 'packsOpened', 'league', 'leagueSeasons', 'headgear', 'campaigns', 'quick', 'freePacks', 'ops']) if (p[k] === undefined) p[k] = fresh[k];
-      p.inventory = p.inventory || fresh.inventory; p.inventory.weapons = Object.assign({}, fresh.inventory.weapons, p.inventory.weapons); p.inventory.armors = Object.assign({}, fresh.inventory.armors, p.inventory.armors);
+      p.inventory = p.inventory || fresh.inventory; p.inventory.attachments = p.inventory.attachments || {}; p.inventory.weapons = Object.assign({}, fresh.inventory.weapons, p.inventory.weapons); p.inventory.armors = Object.assign({}, fresh.inventory.armors, p.inventory.armors);
       p.squad = p.squad.filter(id => p.operators[id] && p.operators[id].unlocked);
       return p;
     } catch (e) { return null; }
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { buyAttachment, setAttachment, attachmentFits, dailyContracts, applyDaily, achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { SAVE_VERSION, migrate, buyAttachment, setAttachment, attachmentFits, dailyContracts, applyDaily, achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));
 
@@ -3590,7 +3601,11 @@ window.Son = Son;
   const roleIcon = { assault: 'AS', pointman: 'PT', marksman: 'TE', support: 'AP', breacher: 'BR' };
 
   let storage = null; try { storage = window.localStorage; storage.getItem('x'); } catch (e) { storage = null; }
-  let profile = (storage && Game.load(storage)) || Game.newProfile();
+  let profile = (storage && Game.load(storage)) || null;
+  if (!profile) {   // sauvegarde illisible (ou d'une version plus récente) : on la met de côté au lieu de l'écraser
+    try { const raw = storage && storage.getItem(Game.SAVE_KEY); if (raw) storage.setItem(Game.SAVE_KEY + '-ecartee-' + Date.now(), raw); } catch (e) { /* stockage indisponible */ }
+    profile = Game.newProfile();
+  }
   let selected = profile.squad[0] || OPERATORS[0].id;
   let selectedMission = MISSIONS[0].id, selectedCampaign = 'reguliere', quickPending = null;
   // la mission sélectionnée, telle qu'elle sera jouée (campagne : adversaire ajusté ; bataille rapide : tirée au sort une fois)

@@ -269,4 +269,13 @@ check('réinitialisation : profil neuf et stockage vidé', Game.reset(storage).c
   const r0 = Game.defRating(Object.assign({}, Game.effectiveDef(q, vt), { attachments: {} })), r1 = Game.defRating(Game.effectiveDef(q, vt));
   check('accessoires : +1,5 de note par accessoire monté', Math.abs(r1 - r0 - 1.5 * Object.keys(q.operators[vt].attachments).length) < 1e-9, { r0, r1 });
 }
+{
+  // ---- versions de sauvegarde : une sauvegarde v1 est migrée, une sauvegarde plus récente est refusée ----
+  const v1 = Game.newProfile(); v1.version = 1; delete v1.inventory.attachments; v1.career = { battles: 3, wins: 2, losses: 1, draws: 0, kills: 9, losses_units: 4 };
+  for (const id in v1.operators) delete v1.operators[id].attachments;
+  const st = { getItem: () => JSON.stringify(v1) }, p2 = Game.load(st);
+  check('sauvegarde v1 migrée : version à jour, accessoires et carrière détaillée ajoutés, données conservées', p2 && p2.version === Game.SAVE_VERSION && p2.inventory.attachments && p2.career.kills === 9 && p2.career.headshots === 0 && Array.isArray(p2.career.recent) && p2.operators.op_vautour.attachments, p2 && { v: p2.version, c: p2.career });
+  const future = Game.newProfile(); future.version = Game.SAVE_VERSION + 1;
+  check('sauvegarde d\'une version plus récente : refusée (le QG la met de côté au lieu de l\'écraser)', Game.load({ getItem: () => JSON.stringify(future) }) === null);
+}
 console.log(`\n${pass}/${pass + fail} vérifications réussies`); process.exit(fail ? 1 : 0);

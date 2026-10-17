@@ -11,7 +11,11 @@
   const roleIcon = { assault: 'AS', pointman: 'PT', marksman: 'TE', support: 'AP', breacher: 'BR' };
 
   let storage = null; try { storage = window.localStorage; storage.getItem('x'); } catch (e) { storage = null; }
-  let profile = (storage && Game.load(storage)) || Game.newProfile();
+  let profile = (storage && Game.load(storage)) || null;
+  if (!profile) {   // sauvegarde illisible (ou d'une version plus récente) : on la met de côté au lieu de l'écraser
+    try { const raw = storage && storage.getItem(Game.SAVE_KEY); if (raw) storage.setItem(Game.SAVE_KEY + '-ecartee-' + Date.now(), raw); } catch (e) { /* stockage indisponible */ }
+    profile = Game.newProfile();
+  }
   let selected = profile.squad[0] || OPERATORS[0].id;
   let selectedMission = MISSIONS[0].id, selectedCampaign = 'reguliere', quickPending = null;
   // la mission sélectionnée, telle qu'elle sera jouée (campagne : adversaire ajusté ; bataille rapide : tirée au sort une fois)
