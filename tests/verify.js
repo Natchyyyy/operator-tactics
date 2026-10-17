@@ -479,6 +479,14 @@ function duel(opts) {
 }
 
 {
+  // ---- accessoires : la lunette aide de loin, le holographique de près, la poignée en mouvement, le compensateur en rafale ----
+  const hc = (att, d, moving, burst) => { const def = Object.assign({}, OT.DATA.OPERATORS.find(o => o.id === 'op_vautour'), { attachments: att }); const b = new Battle({ seed: 1, mapId: 'entrepot', teams: [{ operators: [def], tactics: [] }, { operators: ['k_molosse'], tactics: [] }] }); const [u] = b.teams[0].units, [e] = b.teams[1].units; u.x = 5; u.z = 5; e.x = 5 + d; e.z = 5; u.moving = !!moving; u.burst = burst || 0; return b.hitChance(u, e, d, false).p; };
+  const far0 = hc({}, 40), far1 = hc({ optique: 'lunette' }, 40), near1 = hc({ optique: 'lunette' }, 10), near0 = hc({}, 10), holo = hc({ optique: 'holo' }, 10);
+  const mv0 = hc({}, 15, true), mv1 = hc({ poignee: 'poignee' }, 15, true), bu0 = hc({}, 15, false, 4), bu1 = hc({ bouche: 'compensateur' }, 15, false, 4);
+  check('accessoires : lunette +12 % au-delà de 25 m (rien de près), holographique +6 % de près, poignée et compensateur', Math.abs(far1 / far0 - 1.12) < 1e-9 && near1 === near0 && Math.abs(holo / near0 - 1.06) < 1e-9 && Math.abs(mv1 / mv0 - 0.66 / 0.55) < 1e-9 && bu1 > bu0, { far0, far1, near0, holo, mv0, mv1, bu0, bu1 });
+}
+
+{
   // ---- conditions : la nuit réduit la vue (sauf l'éclair d'un tireur), le brouillard aussi ; la pluie couvre les bruits ----
   const mp = new GameMap(MAPS.place); let row = null; for (let z = 3; z < 42 && row === null; z += 0.5) if (mp.hasLOS(14, 1.6, z, 54, 1.6, z) && !mp.insideObstacle(14, z) && !mp.insideObstacle(54, z)) row = z;
   const sees = (cond, fired) => { let n = 0; for (let sd = 1; sd <= 40; sd++) { const b = new Battle({ seed: sd, mapId: 'place', conditions: cond, teams: [{ operators: ['op_vautour'], tactics: [] }, { operators: ['k_molosse'], tactics: [] }] }); const [u] = b.teams[0].units, [e] = b.teams[1].units; u.x = 14; u.z = row; e.x = 54; e.z = row; u.facing = 0; e.moving = true; b.t = 10; e.lastShotAt = fired ? 9.8 : -99; for (let k = 0; k < 10; k++) { b.perceive(u); if (u.visible.has(e.id)) { n++; break; } } } return n; };

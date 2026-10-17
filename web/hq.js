@@ -250,6 +250,8 @@
         <div class="wspec">Dégâts ${w.damage} · portée ${w.range} m · ${w.rpm} c/min · chargeur ${w.mag} · rechargement ${w.reload} s · précision ${Math.round(w.accuracy * 100)} %${w.minRange ? ` · pénalisé sous ${w.minRange} m` : ''}</div>
         <label>Protection <select id="selArmor">${Object.values(ARMORS).map(ar => `<option value="${ar.id}" ${ar.id === st.armorId ? 'selected' : ''} ${profile.inventory.armors[ar.id] ? '' : 'disabled'}>${ar.name}</option>`).join('')}</select></label>
         <div class="wspec">Absorbe ${Math.round(a.torso * 100)} % au torse, ${Math.round(a.head * 100)} % à la tête · vitesse × ${a.mobility}</div>
+        <label>Accessoires <span class="accsel">${['optique', 'bouche', 'poignee', 'chargeur'].map(slot => { const opts = Object.values(DATA.ATTACHMENTS).filter(a => a.slot === slot && (profile.inventory.attachments || {})[a.id] && Game.attachmentFits(a.id, st.weaponId)); const cur = (st.attachments || {})[slot] || ''; return `<select data-slot="${slot}" title="${slot}"><option value="">${{ optique: 'Optique', bouche: 'Bouche', poignee: 'Poignée', chargeur: 'Chargeur' }[slot]} : aucun</option>${opts.map(a => `<option value="${a.id}" ${cur === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>`; }).join('')}</span></label>
+        <div class="wspec">${Object.values(st.attachments || {}).filter(id => DATA.ATTACHMENTS[id]).map(id => `<b>${esc(DATA.ATTACHMENTS[id].name)}</b> : ${esc(DATA.ATTACHMENTS[id].desc)}`).join('<br>') || 'Achetez des accessoires à l’armurerie (onglet Cartes), puis montez-les ici.'}</div>
         <label>Voie d’approche <select id="selLane">${[null, -1, 0, 1].map(l => `<option value="${l}" ${String(st.lane) === String(l) ? 'selected' : ''}>${LANE_FR[String(l)]}</option>`).join('')}</select></label>
         <div class="wspec">Nord et Sud contournent le bâtiment central ; Centre laisse l’opérateur choisir le chemin le plus court.</div>
       </div>
@@ -260,6 +262,7 @@
     if (st.unlocked) {
       $('#selWeapon').addEventListener('change', (e) => { Game.setWeapon(profile, o.id, e.target.value); saveNow(); render(); });
       $('#selArmor').addEventListener('change', (e) => { Game.setArmor(profile, o.id, e.target.value); saveNow(); render(); });
+      $('#hqDetail').querySelectorAll('.accsel select').forEach(sel => sel.addEventListener('change', (e) => { Game.setAttachment(profile, o.id, sel.dataset.slot, e.target.value || null); saveNow(); render(); }));
       $('#selLane').addEventListener('change', (e) => { Game.setLane(profile, o.id, e.target.value === 'null' ? null : parseInt(e.target.value, 10)); saveNow(); render(); });
     }
   }
@@ -325,8 +328,11 @@
   function renderArmory() {
     const el = $('#hqArmory');
     const items = Object.values(WEAPONS).filter(w => !profile.inventory.weapons[w.id]);
-    if (!items.length) { el.innerHTML = '<div class="muted" style="font-size:12px">Toutes les armes sont disponibles.</div>'; return; }
-    el.innerHTML = items.map(w => `<div class="armo"><div><b>${esc(w.name)}</b><div class="wspec">Dégâts ${w.damage} · portée ${w.range} m · ${w.rpm} c/min · chargeur ${w.mag}${w.silenced ? ' · silencieux : presque inaudible au-delà de 18 m' : ''}</div></div><button class="mini" data-w="${w.id}" ${profile.credits >= PRICES.weapon[w.id] ? '' : 'disabled'}>${PRICES.weapon[w.id]} cr.</button></div>`).join('');
+    const owned = profile.inventory.attachments || {};
+    const accHTML = '<div class="lbl" style="margin-top:6px">Accessoires</div>' + Object.values(DATA.ATTACHMENTS).map(a => `<div class="armo ${owned[a.id] ? 'owned' : ''}"><div><b>${esc(a.name)}</b> <small class="muted">${{ optique: 'optique', bouche: 'bouche', poignee: 'poignée', chargeur: 'chargeur' }[a.slot]}</small><div class="wspec">${esc(a.desc)}</div></div>${owned[a.id] ? '<span class="muted" style="font-size:11px">acquis</span>' : `<button class="mini" data-acc="${a.id}" ${profile.credits >= a.price ? '' : 'disabled'}>${a.price} cr.</button>`}</div>`).join('');
+    const bindAcc = () => el.querySelectorAll('button[data-acc]').forEach(b => b.addEventListener('click', () => { if (Game.buyAttachment(profile, b.dataset.acc)) { flash(`${DATA.ATTACHMENTS[b.dataset.acc].name} acquis : à monter sur la fiche d’un opérateur.`); saveNow(); render(); } }));
+    if (!items.length) { el.innerHTML = '<div class="muted" style="font-size:12px">Toutes les armes sont disponibles.</div>' + accHTML; bindAcc(); return; }
+    el.innerHTML = items.map(w => `<div class="armo"><div><b>${esc(w.name)}</b><div class="wspec">Dégâts ${w.damage} · portée ${w.range} m · ${w.rpm} c/min · chargeur ${w.mag}${w.silenced ? ' · silencieux : presque inaudible au-delà de 18 m' : ''}</div></div><button class="mini" data-w="${w.id}" ${profile.credits >= PRICES.weapon[w.id] ? '' : 'disabled'}>${PRICES.weapon[w.id]} cr.</button></div>`).join('') + accHTML; bindAcc();
     el.querySelectorAll('button[data-w]').forEach(b => b.addEventListener('click', () => { if (Game.buyWeapon(profile, b.dataset.w)) { flash(`${WEAPONS[b.dataset.w].name} ajouté à l’armurerie.`); saveNow(); render(); } }));
   }
   function renderChallenges() {

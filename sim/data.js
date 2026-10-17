@@ -22,6 +22,16 @@
     battle:   { id: 'battle',   name: 'Fusil de combat 7,62', cls: 'fusil',    accuracy: 0.52, damage: 46, range: 60, minRange: 0,  rpm: 75,  mag: 20,  reload: 2.9, aim: 0.7,  falloff: 0.85, suppress: 0.2,  kit: 5 },
     smgsil:   { id: 'smgsil',   name: 'PM 9 mm silencieux', cls: 'pm',    accuracy: 0.64, damage: 23, range: 20, minRange: 0,  rpm: 150, mag: 30,  reload: 2.0, aim: 0.3,  falloff: 0.5,  suppress: 0.07, kit: 7, silenced: true },
   };
+  // ---- ACCESSOIRES D'ARME : un par emplacement (optique, bouche, poignée, chargeur), achetés une fois, montés sur un opérateur.
+  // Effets réels dans engine.js (recherche « accessoire ») ; not : classes d'arme qui ne l'acceptent pas.
+  const ATTACHMENTS = {
+    lunette:      { id: 'lunette',      slot: 'optique',  name: 'Lunette ×3',                price: 180, not: ['brèche', 'pm'],   desc: 'Précision +12 % au-delà de 25 m ; mise en joue 15 % plus lente.' },
+    holo:         { id: 'holo',         slot: 'optique',  name: 'Viseur holographique',      price: 120, not: ['tireur'],         desc: 'Précision +6 % sous 25 m ; mise en joue 10 % plus rapide.' },
+    silencieux:   { id: 'silencieux',   slot: 'bouche',   name: 'Silencieux',                price: 200, not: ['brèche', 'appui'], desc: 'Tirs entendus à 18 m au lieu de 70, pas d\'éclair de nuit ; dégâts −8 %.' },
+    compensateur: { id: 'compensateur', slot: 'bouche',   name: 'Compensateur',              price: 120, not: ['brèche'],         desc: 'Perte de précision en rafale réduite de 40 %.' },
+    poignee:      { id: 'poignee',      slot: 'poignee',  name: 'Poignée verticale',         price: 100, not: [],                 desc: 'Tir en mouvement : précision ×0,66 au lieu de ×0,55.' },
+    chargeur:     { id: 'chargeur',     slot: 'chargeur', name: 'Chargeur grande capacité',  price: 150, not: ['brèche', 'tireur'], desc: '+50 % de cartouches par chargeur ; rechargement 20 % plus long.' },
+  };
 
   // ---- PROTECTIONS -------------------------------------------------------------------
   // torso : fraction des dégâts au torse absorbée ; head : au casque ; mobility : multiplicateur de vitesse
@@ -305,5 +315,5 @@
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
   const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL, SYNERGIES, WOUND, CAMPAIGNS, QUICK, SPECIAL_OPS, GRENADES, CONDITIONS, DAILY };
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL, SYNERGIES, WOUND, CAMPAIGNS, QUICK, SPECIAL_OPS, GRENADES, CONDITIONS, DAILY, ATTACHMENTS };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));

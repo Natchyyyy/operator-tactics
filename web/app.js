@@ -783,8 +783,8 @@
     for (const ev of battle.drainEvents()) {
       if (ev.type === 'shot') {
         addShot(ev, unitById[ev.shooter].team);
-        const w = unitById[ev.shooter].weapon.id;
-        play(SHOT_SOUND[w] || 'tir_fusil', ev.from, { vol: ev.suppressive ? 0.8 : 1 });
+        const sw = unitById[ev.shooter].weapon, w = sw.id;
+        play(sw.silenced ? 'tir_silencieux' : (SHOT_SOUND[w] || 'tir_fusil'), ev.from, { vol: ev.suppressive ? 0.8 : 1 });
         const d = Math.hypot(ev.to.x - ev.from.x, ev.to.z - ev.from.z);
         const imp = ev.hit ? 'impact_corps' : impactSound(ev.to);
         pendingSounds.push({ at: simTime + d / 110, name: imp, pos: ev.to, vol: ev.hit ? 1 : imp === 'impact_sol' ? 0.6 : 0.9 });

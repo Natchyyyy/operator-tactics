@@ -2,7 +2,7 @@
 // Logique pure (testable en ligne de commande) ; l'interface (web/app.js) ne fait que l'afficher.
 (function (root, deps) {
   const { DATA } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL , SYNERGIES, WOUND , CAMPAIGNS, QUICK, SPECIAL_OPS, DAILY } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL , SYNERGIES, WOUND , CAMPAIGNS, QUICK, SPECIAL_OPS, DAILY, ATTACHMENTS } = DATA;
   const STATS = ['marksmanship', 'reflexes', 'mobility', 'perception', 'composure', 'endurance'];
   const SAVE_KEY = 'operator-tactics-save-v1';
   const STARTING = ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
@@ -31,7 +31,7 @@
   function effectiveDef(profile, id) {
     const base = OPERATORS.find(o => o.id === id); const st = profile.operators[id];
     const level = levelFor(st.xp);
-    const def = Object.assign({}, base, { level, weaponId: st.weaponId, armor: st.armorId, lane: st.lane, traits: st.traits || [], headgear: st.headgear });
+    const def = Object.assign({}, base, { level, weaponId: st.weaponId, armor: st.armorId, lane: st.lane, traits: st.traits || [], headgear: st.headgear, attachments: Object.assign({}, st.attachments || {}) });
     const perks = (profile.perks && profile.perks[id]) || {};
     for (const k of STATS) def[k] = Math.min(100, base[k] + level * LEVEL_STAT_BONUS + (perks[k] || 0));
     if (st.wounded) { def.wounded = true; for (const k of STATS) def[k] = Math.round(def[k] * WOUND.statFactor); }   // blessure grave : compétences ÷2
@@ -62,7 +62,8 @@
     const stats = STATS.reduce((s, k) => s + d[k], 0) / STATS.length;
     const w = WEAPONS[d.weaponId || ROLES[d.role].weapon], a = ARMORS[d.armor];
     const wv = (w.damage * w.rpm / 60) * Math.min(1, w.range / 40) / 8 + w.accuracy * 10;
-    return Math.max(1, (stats - 50) * 1.2 + wv + a.torso * 20);
+    const acc = Object.values(d.attachments || {}).filter(id => ATTACHMENTS[id] && !ATTACHMENTS[id].not.includes(w.cls)).length * 1.5;   // accessoires montés
+    return Math.max(1, (stats - 50) * 1.2 + wv + a.torso * 20 + acc);
   }
   function operatorRating(profile, id) { return defRating(effectiveDef(profile, id)); }
   const RATING_PER_LEVEL = LEVEL_STAT_BONUS * 1.2;
@@ -254,7 +255,24 @@
     const base = OPERATORS.find(o => o.id === id);
     return !!profile.inventory.weapons[weaponId] && ROLES[base.role].weapons.includes(weaponId);
   }
-  function setWeapon(profile, id, weaponId) { if (!canEquipWeapon(profile, id, weaponId)) return false; profile.operators[id].weaponId = weaponId; return true; }
+  function setWeapon(profile, id, weaponId) {
+    if (!canEquipWeapon(profile, id, weaponId)) return false; const st = profile.operators[id]; st.weaponId = weaponId;
+    for (const slot in (st.attachments || {})) if (!attachmentFits(st.attachments[slot], weaponId)) delete st.attachments[slot];   // accessoires incompatibles : démontés
+    return true;
+  }
+  // accessoires : achat (une fois, pour toute l'unité) ; montage sur un opérateur (un par emplacement, si l'arme l'accepte)
+  function buyAttachment(profile, aid) {
+    const a = ATTACHMENTS[aid]; profile.inventory.attachments = profile.inventory.attachments || {};
+    if (!a || profile.inventory.attachments[aid] || profile.credits < a.price) return false;
+    profile.credits -= a.price; profile.inventory.attachments[aid] = true; return true;
+  }
+  function attachmentFits(aid, weaponId) { const a = ATTACHMENTS[aid]; return !!a && !a.not.includes(WEAPONS[weaponId].cls); }
+  function setAttachment(profile, id, slot, aid) {
+    const st = profile.operators[id]; st.attachments = st.attachments || {};
+    if (!aid) { delete st.attachments[slot]; return true; }
+    const a = ATTACHMENTS[aid]; if (!a || a.slot !== slot || !(profile.inventory.attachments || {})[aid] || !attachmentFits(aid, st.weaponId)) return false;
+    st.attachments[slot] = aid; return true;
+  }
   function setArmor(profile, id, armorId) { if (!profile.inventory.armors[armorId]) return false; profile.operators[id].armorId = armorId; return true; }
   function setLane(profile, id, lane) { profile.operators[id].lane = lane === null ? null : Math.max(-1, Math.min(1, lane)); return true; }
   function toggleSquad(profile, id) {
@@ -492,6 +510,6 @@
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { dailyContracts, applyDaily, achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { buyAttachment, setAttachment, attachmentFits, dailyContracts, applyDaily, achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));

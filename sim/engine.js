@@ -2,7 +2,7 @@
 // Chaque opérateur perçoit, décide et agit individuellement. Le résultat découle des événements simulés.
 (function (root, deps) {
   const { RNG, DATA, GameMap, MAPS } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS, SYNERGIES, WOUND, GRENADES, CONDITIONS } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS, SYNERGIES, WOUND, GRENADES, CONDITIONS, ATTACHMENTS } = DATA;
   const SYNERGY_BY_ID = Object.fromEntries(SYNERGIES.map(s => [s.id, s]));
 
   const DT = 0.1;                 // pas de simulation (s)
@@ -26,6 +26,15 @@
     this.battle = battle; this.def = def; this.team = team; this.idx = idx;
     this.id = `${team}:${def.id}`; this.callsign = def.callsign;
     this.role = ROLES[def.role]; this.weapon = WEAPONS[def.weaponId || this.role.weapon]; this.armor = ARMORS[def.armor];
+    // accessoires montés (ignorés si l'arme ne les accepte pas) : l'arme de CE soldat est une copie modifiée
+    this.att = {};
+    for (const id of Object.values(def.attachments || {})) { const a = ATTACHMENTS[id]; if (a && !a.not.includes(this.weapon.cls)) this.att[a.id] = true; }
+    if (this.att.chargeur || this.att.silencieux) {
+      const w = Object.assign({}, this.weapon);
+      if (this.att.chargeur) { w.mag = Math.round(w.mag * 1.5); w.reload = Math.round(w.reload * 1.2 * 100) / 100; }
+      if (this.att.silencieux) { w.silenced = true; w.damage = Math.round(w.damage * 0.92 * 10) / 10; w.suppress *= 0.6; }
+      this.weapon = w;
+    }
     this.maxHp = 80 + def.endurance / 5 + (def.trait === 'colossus' || (Array.isArray(def.traits) && def.traits.includes('colossus')) ? 10 : 0);
     if (def.wounded) this.maxHp = Math.round(this.maxHp * WOUND.hpFactor);     // blessure grave non soignée
     this.hp = this.maxHp;
@@ -487,6 +496,7 @@
   Battle.prototype.aimAt = function (u, target) {
     u.target = target; u.burst = 0;
     let t = u.weapon.aim * (1.3 - (u.def.reflexes / 100) * 0.6) * (has(u, 'fasthands') ? 0.8 : 1);  // Mains sûres
+    if (u.att.lunette) t *= 1.15; else if (u.att.holo) t *= 0.9;                                       // accessoire : optique
     const last = u.aimHistory[target.id];
     const quick = last !== undefined && this.t - last < 5;
     if (quick) t *= 0.35;
@@ -1121,7 +1131,8 @@
     p *= f;
     if (d < w.minRange) p *= 0.5;
     if (d > 15) p *= this.cond.acc;                                                   // nuit, brouillard, pluie : tir lointain moins sûr
-    if (u.moving && !asIfStill) p *= 0.55;
+    if (u.moving && !asIfStill) p *= u.att.poignee ? 0.66 : 0.55;                        // accessoire : poignée
+    if (u.att.lunette && d > 25) p *= 1.12; else if (u.att.holo && d < 25) p *= 1.06;    // accessoire : optique
     if (u.stance === 'crouch') p *= 1.1;
     p *= 1 - 0.6 * u.suppression * (1 - u.def.composure / 150);
     const hard = has(u, 'hardened') ? 0.5 : 1;                                       // Endurci
@@ -1138,7 +1149,7 @@
     if (this.isBraced(e)) p *= 0.9;           // un défenseur installé expose moins de silhouette
     const cv = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
     if (cv) p *= cv.level === 'partial' ? (this.hasTactic(this.teams[e.team], 'retranche') ? 0.5 : 0.55) : 0.3; // couvert partiel (Retranchement : ×0,5)
-    if (w.rpm > 100) p *= 1 - (has(u, 'gunner') ? 0.03 : 0.06) * Math.min(u.burst, 5);   // Tir soutenu : perte en rafale divisée par deux
+    if (w.rpm > 100) p *= 1 - (has(u, 'gunner') ? 0.03 : 0.06) * (u.att.compensateur ? 0.6 : 1) * Math.min(u.burst, 5);   // Tir soutenu, compensateur
     return { p: clamp(p, 0.03, 0.95), cover: cv };
   };
   Battle.prototype.fireAt = function (u, e) {

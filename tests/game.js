@@ -255,4 +255,18 @@ check('réinitialisation : profil neuf et stockage vidé', Game.reset(storage).c
   const c0 = q.credits; const p1 = Game.applyDaily(q, { id: 'x' }, fake(true, 2), { won: true }, '2026-10-17'); const p2 = Game.applyDaily(q, { id: 'x' }, fake(true, 2), { won: true }, '2026-10-17'); const p3 = Game.applyDaily(q, { id: 'x' }, fake(true, 5), { won: true }, '2026-10-17');
   check('contrats du jour : progression cumulée, payés une seule fois quand l\'objectif est atteint', p1.length === 0 && p2.length === 2 && p3.length === 0 && q.credits === c0 + 270 && q.daily.list[2].done === false, { p1, p2, p3, credits: q.credits - c0 });
 }
+{
+  // ---- accessoires : achat, montage selon l'arme, effets réels dans la bataille ----
+  const q = Game.newProfile(); q.credits = 2000;
+  const ok = Game.buyAttachment(q, 'chargeur') && Game.buyAttachment(q, 'silencieux') && !Game.buyAttachment(q, 'chargeur');
+  const vt = 'op_vautour', bel = 'op_belier';
+  const m1 = Game.setAttachment(q, vt, 'chargeur', 'chargeur') && Game.setAttachment(q, vt, 'bouche', 'silencieux') && !Game.setAttachment(q, vt, 'optique', 'lunette') && !Game.setAttachment(q, bel, 'chargeur', 'chargeur');
+  const b = new Battle({ seed: 3, teams: [{ operators: [Game.effectiveDef(q, vt)], tactics: [] }, { operators: ['k_molosse'], tactics: [] }] });
+  const u = b.teams[0].units[0], base = DATA.WEAPONS[q.operators[vt].weaponId];
+  check('accessoires : achat unique, montage seulement sur une arme compatible, effets dans la bataille (chargeur +50 %, silencieux)', ok && m1 && u.weapon.mag === Math.round(base.mag * 1.5) && u.weapon.silenced === true && u.weapon.damage < base.damage && DATA.WEAPONS[base.id].mag === base.mag, { ok, m1, mag: u.weapon.mag, sil: u.weapon.silenced });
+  q.inventory.weapons.smgsil = true; Game.setWeapon(q, vt, 'smg');
+  check('accessoires : changer d\'arme démonte ceux qui ne vont plus ; la note de combat les compte', !q.operators[vt].attachments.chargeur || Game.attachmentFits('chargeur', 'smg'), q.operators[vt].attachments);
+  const r0 = Game.defRating(Object.assign({}, Game.effectiveDef(q, vt), { attachments: {} })), r1 = Game.defRating(Game.effectiveDef(q, vt));
+  check('accessoires : +1,5 de note par accessoire monté', Math.abs(r1 - r0 - 1.5 * Object.keys(q.operators[vt].attachments).length) < 1e-9, { r0, r1 });
+}
 console.log(`\n${pass}/${pass + fail} vérifications réussies`); process.exit(fail ? 1 : 0);
