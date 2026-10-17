@@ -525,7 +525,7 @@ function duel(opts) {
     const w = [0, 0];
     for (const id of Object.keys(MAPS)) for (let sd = 1; sd <= 15; sd++) { const b = new Battle({ seed: 500 + sd, mapId: id, objective: { type: obj }, teams: [{ name: 'A', operators: ops }, { name: 'B', operators: ops }] }); const r = b.run(); if (r.winner >= 0) w[r.winner]++; }
     const share = w[0] / (w[0] + w[1]);
-    check(`équité (${obj}) : escouades identiques sur les 4 cartes, ni l'ouest ni l'est favorisé (35–65 %)`, share > 0.35 && share < 0.65, { w, share });
+    check(`équité (${obj}) : escouades identiques sur les ${Object.keys(MAPS).length} cartes, ni l'ouest ni l'est favorisé (35–65 %)`, share > 0.35 && share < 0.65, { w, share });
   }
 }
 

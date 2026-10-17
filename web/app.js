@@ -286,6 +286,11 @@
     for (let y = 24; y < h - 20; y += 64) for (let x = 20; x < w - 20; x += 48) { g.fillStyle = Math.random() < 0.3 ? '#f0d8a0' : '#2b3340'; g.fillRect(x, y, 26, 36); g.fillStyle = '#d8d2c4'; g.fillRect(x - 3, y + 36, 32, 4); }
   }, 2, 1);
   const MATERIALS = {
+    wagon: new THREE.MeshStandardMaterial({ color: 0x6e3a2a, roughness: 0.75, metalness: 0.3, map: texCorrugated }),
+    flat: new THREE.MeshStandardMaterial({ color: 0x3f3a36, roughness: 0.8, metalness: 0.4 }),
+    tank: new THREE.MeshStandardMaterial({ color: 0x2e3338, roughness: 0.5, metalness: 0.6 }),
+    signal: new THREE.MeshStandardMaterial({ color: 0x9c8a6a, roughness: 0.9, map: texConcrete }),
+    rail: new THREE.MeshStandardMaterial({ color: 0x55504a, roughness: 0.5, metalness: 0.7 }), sleeper: new THREE.MeshStandardMaterial({ color: 0x3a2e24, roughness: 1 }),
     wall: new THREE.MeshStandardMaterial({ color: 0x8a8f94, roughness: 0.9, map: texConcrete }),
     building: new THREE.MeshStandardMaterial({ color: 0x7a7e83, roughness: 0.95, map: texConcrete }),
     pillar: new THREE.MeshStandardMaterial({ color: 0x5a5e63, roughness: 0.9, map: texConcrete }),
@@ -380,6 +385,10 @@
     if (n.startsWith('pompe')) return MATERIALS.pompe;
     if (n.startsWith('tuyauterie')) return MATERIALS.pipe;
     if (n.startsWith('armoire')) return MATERIALS.armoire;
+    if (n === 'wagon') return MATERIALS.wagon;
+    if (n.startsWith('wagon plat') || n.startsWith('butoir')) return MATERIALS.flat;
+    if (n.startsWith('poste') || n.startsWith('halle')) return MATERIALS.signal;
+    if (n.startsWith('quai')) return MATERIALS.lowwall;
     return MATERIALS.wall;
   }
   function buildMap(map) {
@@ -430,6 +439,16 @@
         mesh = new THREE.Group(); const along = o.w > o.d; const L = Math.max(o.w, o.d);
         for (let k = 0; k < 3; k++) { const rr = 0.14 - k * 0.02; const c = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, L, 12), MATERIALS.pipe); c.rotation.z = along ? Math.PI / 2 : 0; c.rotation.x = along ? 0 : Math.PI / 2; c.position.y = -o.h / 2 + 0.25 + k * 0.33; mesh.add(c); }
         for (let k = -1; k <= 1; k++) { const sup = new THREE.Mesh(new THREE.BoxGeometry(along ? 0.15 : Math.min(o.w, o.d) * 0.9, o.h, along ? Math.min(o.w, o.d) * 0.9 : 0.15), MATERIALS.armoire); sup.position.set(along ? k * L * 0.45 : 0, 0, along ? 0 : k * L * 0.45); mesh.add(sup); }
+      } else if ((o.name || '').startsWith('wagon-citerne')) {
+        mesh = new THREE.Group(); const R = Math.min(o.d, o.h - 0.8) / 2;
+        const c = new THREE.Mesh(new THREE.CylinderGeometry(R, R, o.w - 0.4, 20), MATERIALS.tank); c.rotation.z = Math.PI / 2; c.position.y = o.h / 2 - R - 0.05; mesh.add(c);
+        const ch = new THREE.Mesh(new THREE.BoxGeometry(o.w, 0.35, o.d * 0.8), MATERIALS.flat); ch.position.y = -o.h / 2 + 0.75; mesh.add(ch);
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.15, 12), MATERIALS.flat); wh.rotation.x = Math.PI / 2; wh.position.set(sx * (o.w / 2 - 1.2), -o.h / 2 + 0.4, sz * o.d * 0.38); mesh.add(wh); }
+      } else if ((o.name || '').startsWith('wagon')) {   // wagon couvert ou plat : caisse + châssis + roues
+        mesh = new THREE.Group(); const flat = (o.name || '').startsWith('wagon plat'), bodyH = o.h - 0.75;
+        const body = new THREE.Mesh(new THREE.BoxGeometry(o.w, flat ? 0.35 : bodyH, o.d), materialFor(o, i)); body.position.y = flat ? -o.h / 2 + 0.9 : o.h / 2 - bodyH / 2; mesh.add(body);
+        if (flat) { const load = new THREE.Mesh(new THREE.BoxGeometry(o.w * 0.55, o.h - 1.05, o.d * 0.8), MATERIALS.container[i % 3]); load.position.set(-o.w * 0.18, (1.05 - o.h) / 2 + (o.h - 1.05) / 2 + 0.43 - 0.0, 0); load.position.y = -o.h / 2 + 1.07 + (o.h - 1.07) / 2; mesh.add(load); }
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.15, 12), MATERIALS.flat); wh.rotation.x = Math.PI / 2; wh.position.set(sx * (o.w / 2 - 1.2), -o.h / 2 + 0.4, sz * o.d * 0.38); mesh.add(wh); }
       } else if ((o.name || '').startsWith('sacs')) {
         // un empilement de sacs : 3 rangées légèrement décalées
         mesh = new THREE.Group();
@@ -453,6 +472,10 @@
       const ring = new THREE.Mesh(new THREE.RingGeometry(sp.r - 0.15, sp.r, 48), new THREE.MeshBasicMaterial({ color: TEAM[i].color, transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
       ring.rotation.x = -Math.PI / 2; ring.position.set(sp.x, 0.02, sp.z); mapGroup.add(ring);
     });
+    if (map.id === 'gare') for (const zc of [7.3, 13.2, 32.2, 38.3]) {   // voies ferrées (décor) : deux rails et des traverses
+      for (const dz of [-0.72, 0.72]) { const r = new THREE.Mesh(new THREE.BoxGeometry(map.width - 2, 0.12, 0.08), MATERIALS.rail); r.position.set(map.width / 2, 0.08, zc + dz); r.receiveShadow = true; mapGroup.add(r); }
+      for (let x = 1.5; x < map.width - 1; x += 1.2) { const sl = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.06, 2.2), MATERIALS.sleeper); sl.position.set(x, 0.03, zc); sl.receiveShadow = true; mapGroup.add(sl); }
+    }
     mergeStatic(mapGroup);
     scene.add(mapGroup);
   }
@@ -696,7 +719,7 @@
     if (pos) { const sp = spatial(pos.x, pos.y || 1, pos.z); opt.vol = (opt.vol == null ? 1 : opt.vol) * sp.vol; opt.pan = sp.pan; }
     Son.jouer(name, opt);
   }
-  const AMBIENCE = { entrepot: 'ambiance_port', raffinerie: 'ambiance_port', place: 'ambiance_ville' };
+  const AMBIENCE = { entrepot: 'ambiance_port', raffinerie: 'ambiance_port', place: 'ambiance_ville', parking: 'ambiance_ville', gare: 'ambiance_port' };
   let musicVol = SETTINGS.music;
   // ambiance + musique : la musique de bataille remplace celle du QG ; tout s'arrête en sourdine
   function ambience(on) {

@@ -465,7 +465,7 @@
     <div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button><button id="skip" title="Résultat immédiat : la bataille est simulée jusqu'au bout sans être affichée (même résultat qu'en la regardant)">⏭ Résultat</button></div>
     <div class="group"><label>Alpha</label><select id="order0" title="Ordre d'Alpha — modifiable pendant la bataille"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
     <div class="group"><label>Bravo</label><select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
-    <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option><option value="raffinerie">Raffinerie</option><option value="parking">Parking du centre commercial</option></select><select id="condSel" title="Heure et météo : vue, ouïe et précision changent réellement"><option value="jour">Jour</option><option value="nuit">Nuit</option><option value="brouillard">Brouillard</option><option value="pluie">Pluie</option></select></div>
+    <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option><option value="raffinerie">Raffinerie</option><option value="parking">Parking du centre commercial</option><option value="gare">Gare de triage</option></select><select id="condSel" title="Heure et météo : vue, ouïe et précision changent réellement"><option value="jour">Jour</option><option value="nuit">Nuit</option><option value="brouillard">Brouillard</option><option value="pluie">Pluie</option></select></div>
     <div class="group"><label>Graine</label><input id="seed" placeholder="aléatoire"></div>
     <button id="newBattle">Nouvelle</button><button id="replay" title="Rejouer la même graine">Rejouer</button>
     <span id="missionLabel" class="muted" hidden></span>
@@ -1217,6 +1217,7 @@ window.Son = Son;
     { id: 'd_raid', faction: 'delta', name: 'Raid nocturne', desc: 'La milice attaque la raffinerie en pleine nuit, armes courtes au poing. Repoussez l\'assaut.', mapId: 'raffinerie', conditions: 'nuit', enemy: ['d_scorpion', 'd_mamba', 'd_taureau', 'd_fennec', 'd_gecko'], level: 8, order: 'assault', enemyWeapons: { d_scorpion: 'smg', d_mamba: 'smg' }, enemyTactics: ['blitz', 'fumigene'], reward: 320, xp: 65, difficulty: 3 },
     { id: 'd_brume', faction: 'delta', name: 'Dans la brume', desc: 'Un brouillard épais sur les docks : on ne voit pas à quinze mètres. L\'ennemi est là, quelque part.', mapId: 'entrepot', conditions: 'brouillard', enemy: ['d_gecko', 'd_fennec', 'd_mamba', 'd_rhino', 'd_busard'], level: 5, order: 'careful', enemyTactics: ['camouflage'], reward: 340, xp: 70, difficulty: 3 },
     { id: 'd_pointappui', faction: 'delta', name: 'Point d\'appui', desc: 'Tenez le parking deux minutes sous la pluie : la milice jette tout ce qu\'elle a dans la bataille.', mapId: 'parking', conditions: 'pluie', enemy: ['d_scorpion', 'd_taureau', 'd_rhino', 'd_mamba', 'd_fennec'], level: 8, order: 'assault', objective: 'hold', duration: 120, enemyTactics: ['blitz', 'barrage'], reward: 360, xp: 70, difficulty: 4 },
+    { id: 'd_convoi', faction: 'delta', name: 'Le convoi', desc: 'Un convoi d\'armes attend sur les voies de la gare de triage. Prenez le quai sud avant que la milice ne l\'évacue.', mapId: 'gare', enemy: ['d_mamba', 'd_busard', 'd_rhino', 'd_fennec', 'd_taureau'], level: 9, order: 'careful', objective: 'capture', enemyTactics: ['fumigene', 'soins'], reward: 370, xp: 75, difficulty: 4 },
     { id: 'd_placeforte', faction: 'delta', name: 'La place forte', desc: 'La milice s\'est retranchée au cœur de la place du marché. Arrachez-lui la zone.', mapId: 'place', enemy: ['d_rhino', 'd_busard', 'd_taureau', 'd_scorpion', 'd_gecko'], level: 8, order: 'hold', objective: 'capture', enemyTactics: ['retranche', 'soins'], reward: 380, xp: 75, difficulty: 4 },
     { id: 'd_colonel', faction: 'delta', name: 'Le Colonel', desc: 'Le chef de la milice en personne, avec sa garde rapprochée, de nuit dans la raffinerie. Il ne recule jamais.', mapId: 'raffinerie', conditions: 'nuit', enemy: ['d_colonel', 'd_mamba', 'd_busard', 'd_rhino', 'd_taureau'], level: 2, order: 'careful', enemyTactics: ['reco', 'soins', 'tete'], reward: 600, xp: 100, difficulty: 4, boss: 'd_colonel' },
   ];
@@ -1235,8 +1236,8 @@ window.Son = Son;
     { id: 'elite', name: 'Campagne élite', desc: 'Pour les escouades d\'exception : adversaire de niveau 12 à 14, toujours cinq hommes, deux tactiques de plus.',
       missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
       levelBonus: 8, levelClamp: [4, 6], fullSquad: true, extraTactic: 2, rewardMul: 2, participation: 600, completion: 1500, unlock: { rating: 60 } },
-    { id: 'delta', name: 'Opération Delta', desc: 'Huit missions contre la Milice du Delta — nuit, pluie, brouillard — jusqu\'à son chef, le Colonel.',
-      missions: ['d_barrage', 'd_contrebande', 'd_marchenoir', 'd_raid', 'd_brume', 'd_pointappui', 'd_placeforte', 'd_colonel'],
+    { id: 'delta', name: 'Opération Delta', desc: 'Neuf missions contre la Milice du Delta — nuit, pluie, brouillard — jusqu\'à son chef, le Colonel.',
+      missions: ['d_barrage', 'd_contrebande', 'd_marchenoir', 'd_raid', 'd_brume', 'd_pointappui', 'd_convoi', 'd_placeforte', 'd_colonel'],
       levelBonus: 0, rewardMul: 1, participation: 300, completion: 900, unlock: { rank: 2 } },
   ];
   // Bataille rapide : un adversaire à votre mesure (niveau tiré de la puissance d'équipe), carte et objectif au hasard ;
@@ -1466,6 +1467,32 @@ window.Son = Son;
         box(8, 6, 1.5, 1.4, 1.1, 'cover', 'fût'), box(8, 38.6, 1.5, 1.4, 1.1, 'cover', 'fût'),
         box(16, 11, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'), box(16, 32.6, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'),
         box(26.5, 38, 3, 1.2, 1.0, 'cover', 'muret'), box(26.5, 7, 3, 1.2, 1.0, 'cover', 'muret'),
+      ]),
+    },
+    // ---- Gare de triage : voies est-ouest, wagons couverts (murs) et wagons plats (couverts bas), poste d'aiguillage au centre ----
+    gare: {
+      id: 'gare', name: 'Gare de triage', width: 72, depth: 46,
+      spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
+      capture: { x: 36, z: 37, r: 6 },   // le quai sud, devant la halle aux marchandises
+      obstacles: mirrored(72, [
+        box(-1, -1, 74, 1, 3.2, 'wall', 'mur nord'), box(-1, 46, 74, 1, 3.2, 'wall', 'mur sud'),
+        box(-1, 0, 1, 46, 3.2, 'wall', 'mur ouest'), box(72, 0, 1, 46, 3.2, 'wall', 'mur est'),
+        // au centre : le poste d'aiguillage (coupe la vue d'un départ à l'autre) et la halle aux marchandises au sud
+        box(33, 17, 6, 11, 5.5, 'wall', 'poste d\'aiguillage'), box(30, 43, 12, 3, 4.0, 'wall', 'halle'),
+        // conteneurs empilés devant les zones de départ
+        box(11, 15, 2.5, 6, 2.6, 'wall', 'conteneur'), box(11, 26, 2.5, 6, 2.6, 'wall', 'conteneur'),
+        // voie 1 (nord) : wagons couverts ; voie 2 : wagons plats ; voie 3 (sud) : wagon-citerne et wagon couvert
+        box(15, 6, 12, 2.6, 3.2, 'wall', 'wagon'), box(29.5, 6, 2, 2.6, 1.0, 'cover', 'butoir'),
+        box(17, 12, 9, 2.4, 1.3, 'cover', 'wagon plat'),
+        box(16, 31, 9, 2.4, 1.3, 'cover', 'wagon plat'),
+        box(15, 37, 11, 2.6, 3.0, 'wall', 'wagon-citerne'),
+        // quai central bas (couvert) et abri de quai
+        box(20, 21.5, 8, 1.2, 1.0, 'cover', 'quai'), box(26.5, 24, 1.5, 1.5, 2.8, 'wall', 'pilier'),
+        // matériel de voie : caisses, traverses empilées (palettes), fûts, sacs de sable
+        box(8, 4, 2, 2, 1.1, 'cover', 'caisses'), box(8, 40, 2, 2, 1.1, 'cover', 'caisses'),
+        box(28, 13, 3, 1.4, 1.1, 'cover', 'palettes'), box(28, 31.5, 3, 1.4, 1.1, 'cover', 'palettes'),
+        box(30, 26, 1.4, 1.4, 1.1, 'cover', 'fût'), box(24, 17, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'),
+        box(23, 27, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'), box(31, 36, 2.5, 1.0, 1.0, 'cover', 'sacs de sable'),
       ]),
     },
   };
@@ -3264,7 +3291,7 @@ window.Son = Son;
     const size = rate(0) > target + 4 ? 4 : 5;                     // escouade de recrues face à des vétérans : un adversaire de moins
     const objective = pick(['eliminate', 'eliminate', 'capture', 'capture', 'hold']);
     const tac = Object.keys(TACTICS); const t1 = pick(tac), t2 = pick(tac.filter(t => t !== t1));
-    return { id: 'rapide', name: 'Bataille rapide', quick: true, faction, desc: 'Un adversaire à votre mesure.', mapId: pick(['entrepot', 'place', 'raffinerie', 'parking']), enemy: karst.slice(0, size), level,
+    return { id: 'rapide', name: 'Bataille rapide', quick: true, faction, desc: 'Un adversaire à votre mesure.', mapId: pick(['entrepot', 'place', 'raffinerie', 'parking', 'gare']), enemy: karst.slice(0, size), level,
       order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: rng() < 0.5 ? [t1] : [t1, t2], reward: QUICK.reward, xp: QUICK.xp, difficulty: 2,
       conditions: pick(['jour', 'jour', 'jour', 'jour', 'jour', 'nuit', 'brouillard', 'pluie']) };
   }
@@ -4445,6 +4472,11 @@ window.Son = Son;
     for (let y = 24; y < h - 20; y += 64) for (let x = 20; x < w - 20; x += 48) { g.fillStyle = Math.random() < 0.3 ? '#f0d8a0' : '#2b3340'; g.fillRect(x, y, 26, 36); g.fillStyle = '#d8d2c4'; g.fillRect(x - 3, y + 36, 32, 4); }
   }, 2, 1);
   const MATERIALS = {
+    wagon: new THREE.MeshStandardMaterial({ color: 0x6e3a2a, roughness: 0.75, metalness: 0.3, map: texCorrugated }),
+    flat: new THREE.MeshStandardMaterial({ color: 0x3f3a36, roughness: 0.8, metalness: 0.4 }),
+    tank: new THREE.MeshStandardMaterial({ color: 0x2e3338, roughness: 0.5, metalness: 0.6 }),
+    signal: new THREE.MeshStandardMaterial({ color: 0x9c8a6a, roughness: 0.9, map: texConcrete }),
+    rail: new THREE.MeshStandardMaterial({ color: 0x55504a, roughness: 0.5, metalness: 0.7 }), sleeper: new THREE.MeshStandardMaterial({ color: 0x3a2e24, roughness: 1 }),
     wall: new THREE.MeshStandardMaterial({ color: 0x8a8f94, roughness: 0.9, map: texConcrete }),
     building: new THREE.MeshStandardMaterial({ color: 0x7a7e83, roughness: 0.95, map: texConcrete }),
     pillar: new THREE.MeshStandardMaterial({ color: 0x5a5e63, roughness: 0.9, map: texConcrete }),
@@ -4539,6 +4571,10 @@ window.Son = Son;
     if (n.startsWith('pompe')) return MATERIALS.pompe;
     if (n.startsWith('tuyauterie')) return MATERIALS.pipe;
     if (n.startsWith('armoire')) return MATERIALS.armoire;
+    if (n === 'wagon') return MATERIALS.wagon;
+    if (n.startsWith('wagon plat') || n.startsWith('butoir')) return MATERIALS.flat;
+    if (n.startsWith('poste') || n.startsWith('halle')) return MATERIALS.signal;
+    if (n.startsWith('quai')) return MATERIALS.lowwall;
     return MATERIALS.wall;
   }
   function buildMap(map) {
@@ -4589,6 +4625,16 @@ window.Son = Son;
         mesh = new THREE.Group(); const along = o.w > o.d; const L = Math.max(o.w, o.d);
         for (let k = 0; k < 3; k++) { const rr = 0.14 - k * 0.02; const c = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, L, 12), MATERIALS.pipe); c.rotation.z = along ? Math.PI / 2 : 0; c.rotation.x = along ? 0 : Math.PI / 2; c.position.y = -o.h / 2 + 0.25 + k * 0.33; mesh.add(c); }
         for (let k = -1; k <= 1; k++) { const sup = new THREE.Mesh(new THREE.BoxGeometry(along ? 0.15 : Math.min(o.w, o.d) * 0.9, o.h, along ? Math.min(o.w, o.d) * 0.9 : 0.15), MATERIALS.armoire); sup.position.set(along ? k * L * 0.45 : 0, 0, along ? 0 : k * L * 0.45); mesh.add(sup); }
+      } else if ((o.name || '').startsWith('wagon-citerne')) {
+        mesh = new THREE.Group(); const R = Math.min(o.d, o.h - 0.8) / 2;
+        const c = new THREE.Mesh(new THREE.CylinderGeometry(R, R, o.w - 0.4, 20), MATERIALS.tank); c.rotation.z = Math.PI / 2; c.position.y = o.h / 2 - R - 0.05; mesh.add(c);
+        const ch = new THREE.Mesh(new THREE.BoxGeometry(o.w, 0.35, o.d * 0.8), MATERIALS.flat); ch.position.y = -o.h / 2 + 0.75; mesh.add(ch);
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.15, 12), MATERIALS.flat); wh.rotation.x = Math.PI / 2; wh.position.set(sx * (o.w / 2 - 1.2), -o.h / 2 + 0.4, sz * o.d * 0.38); mesh.add(wh); }
+      } else if ((o.name || '').startsWith('wagon')) {   // wagon couvert ou plat : caisse + châssis + roues
+        mesh = new THREE.Group(); const flat = (o.name || '').startsWith('wagon plat'), bodyH = o.h - 0.75;
+        const body = new THREE.Mesh(new THREE.BoxGeometry(o.w, flat ? 0.35 : bodyH, o.d), materialFor(o, i)); body.position.y = flat ? -o.h / 2 + 0.9 : o.h / 2 - bodyH / 2; mesh.add(body);
+        if (flat) { const load = new THREE.Mesh(new THREE.BoxGeometry(o.w * 0.55, o.h - 1.05, o.d * 0.8), MATERIALS.container[i % 3]); load.position.set(-o.w * 0.18, (1.05 - o.h) / 2 + (o.h - 1.05) / 2 + 0.43 - 0.0, 0); load.position.y = -o.h / 2 + 1.07 + (o.h - 1.07) / 2; mesh.add(load); }
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.15, 12), MATERIALS.flat); wh.rotation.x = Math.PI / 2; wh.position.set(sx * (o.w / 2 - 1.2), -o.h / 2 + 0.4, sz * o.d * 0.38); mesh.add(wh); }
       } else if ((o.name || '').startsWith('sacs')) {
         // un empilement de sacs : 3 rangées légèrement décalées
         mesh = new THREE.Group();
@@ -4612,6 +4658,10 @@ window.Son = Son;
       const ring = new THREE.Mesh(new THREE.RingGeometry(sp.r - 0.15, sp.r, 48), new THREE.MeshBasicMaterial({ color: TEAM[i].color, transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
       ring.rotation.x = -Math.PI / 2; ring.position.set(sp.x, 0.02, sp.z); mapGroup.add(ring);
     });
+    if (map.id === 'gare') for (const zc of [7.3, 13.2, 32.2, 38.3]) {   // voies ferrées (décor) : deux rails et des traverses
+      for (const dz of [-0.72, 0.72]) { const r = new THREE.Mesh(new THREE.BoxGeometry(map.width - 2, 0.12, 0.08), MATERIALS.rail); r.position.set(map.width / 2, 0.08, zc + dz); r.receiveShadow = true; mapGroup.add(r); }
+      for (let x = 1.5; x < map.width - 1; x += 1.2) { const sl = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.06, 2.2), MATERIALS.sleeper); sl.position.set(x, 0.03, zc); sl.receiveShadow = true; mapGroup.add(sl); }
+    }
     mergeStatic(mapGroup);
     scene.add(mapGroup);
   }
@@ -4855,7 +4905,7 @@ window.Son = Son;
     if (pos) { const sp = spatial(pos.x, pos.y || 1, pos.z); opt.vol = (opt.vol == null ? 1 : opt.vol) * sp.vol; opt.pan = sp.pan; }
     Son.jouer(name, opt);
   }
-  const AMBIENCE = { entrepot: 'ambiance_port', raffinerie: 'ambiance_port', place: 'ambiance_ville' };
+  const AMBIENCE = { entrepot: 'ambiance_port', raffinerie: 'ambiance_port', place: 'ambiance_ville', parking: 'ambiance_ville', gare: 'ambiance_port' };
   let musicVol = SETTINGS.music;
   // ambiance + musique : la musique de bataille remplace celle du QG ; tout s'arrête en sourdine
   function ambience(on) {

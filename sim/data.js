@@ -220,6 +220,7 @@
     { id: 'd_raid', faction: 'delta', name: 'Raid nocturne', desc: 'La milice attaque la raffinerie en pleine nuit, armes courtes au poing. Repoussez l\'assaut.', mapId: 'raffinerie', conditions: 'nuit', enemy: ['d_scorpion', 'd_mamba', 'd_taureau', 'd_fennec', 'd_gecko'], level: 8, order: 'assault', enemyWeapons: { d_scorpion: 'smg', d_mamba: 'smg' }, enemyTactics: ['blitz', 'fumigene'], reward: 320, xp: 65, difficulty: 3 },
     { id: 'd_brume', faction: 'delta', name: 'Dans la brume', desc: 'Un brouillard épais sur les docks : on ne voit pas à quinze mètres. L\'ennemi est là, quelque part.', mapId: 'entrepot', conditions: 'brouillard', enemy: ['d_gecko', 'd_fennec', 'd_mamba', 'd_rhino', 'd_busard'], level: 5, order: 'careful', enemyTactics: ['camouflage'], reward: 340, xp: 70, difficulty: 3 },
     { id: 'd_pointappui', faction: 'delta', name: 'Point d\'appui', desc: 'Tenez le parking deux minutes sous la pluie : la milice jette tout ce qu\'elle a dans la bataille.', mapId: 'parking', conditions: 'pluie', enemy: ['d_scorpion', 'd_taureau', 'd_rhino', 'd_mamba', 'd_fennec'], level: 8, order: 'assault', objective: 'hold', duration: 120, enemyTactics: ['blitz', 'barrage'], reward: 360, xp: 70, difficulty: 4 },
+    { id: 'd_convoi', faction: 'delta', name: 'Le convoi', desc: 'Un convoi d\'armes attend sur les voies de la gare de triage. Prenez le quai sud avant que la milice ne l\'évacue.', mapId: 'gare', enemy: ['d_mamba', 'd_busard', 'd_rhino', 'd_fennec', 'd_taureau'], level: 9, order: 'careful', objective: 'capture', enemyTactics: ['fumigene', 'soins'], reward: 370, xp: 75, difficulty: 4 },
     { id: 'd_placeforte', faction: 'delta', name: 'La place forte', desc: 'La milice s\'est retranchée au cœur de la place du marché. Arrachez-lui la zone.', mapId: 'place', enemy: ['d_rhino', 'd_busard', 'd_taureau', 'd_scorpion', 'd_gecko'], level: 8, order: 'hold', objective: 'capture', enemyTactics: ['retranche', 'soins'], reward: 380, xp: 75, difficulty: 4 },
     { id: 'd_colonel', faction: 'delta', name: 'Le Colonel', desc: 'Le chef de la milice en personne, avec sa garde rapprochée, de nuit dans la raffinerie. Il ne recule jamais.', mapId: 'raffinerie', conditions: 'nuit', enemy: ['d_colonel', 'd_mamba', 'd_busard', 'd_rhino', 'd_taureau'], level: 2, order: 'careful', enemyTactics: ['reco', 'soins', 'tete'], reward: 600, xp: 100, difficulty: 4, boss: 'd_colonel' },
   ];
@@ -238,8 +239,8 @@
     { id: 'elite', name: 'Campagne élite', desc: 'Pour les escouades d\'exception : adversaire de niveau 12 à 14, toujours cinq hommes, deux tactiques de plus.',
       missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
       levelBonus: 8, levelClamp: [4, 6], fullSquad: true, extraTactic: 2, rewardMul: 2, participation: 600, completion: 1500, unlock: { rating: 60 } },
-    { id: 'delta', name: 'Opération Delta', desc: 'Huit missions contre la Milice du Delta — nuit, pluie, brouillard — jusqu\'à son chef, le Colonel.',
-      missions: ['d_barrage', 'd_contrebande', 'd_marchenoir', 'd_raid', 'd_brume', 'd_pointappui', 'd_placeforte', 'd_colonel'],
+    { id: 'delta', name: 'Opération Delta', desc: 'Neuf missions contre la Milice du Delta — nuit, pluie, brouillard — jusqu\'à son chef, le Colonel.',
+      missions: ['d_barrage', 'd_contrebande', 'd_marchenoir', 'd_raid', 'd_brume', 'd_pointappui', 'd_convoi', 'd_placeforte', 'd_colonel'],
       levelBonus: 0, rewardMul: 1, participation: 300, completion: 900, unlock: { rank: 2 } },
   ];
   // Bataille rapide : un adversaire à votre mesure (niveau tiré de la puissance d'équipe), carte et objectif au hasard ;

@@ -37,7 +37,7 @@ async def main():
         check("« Continuer » ferme l'écran d'ouverture et résume le paquet", await pg.evaluate("() => document.querySelector('#packOpen').classList.contains('hidden') && document.querySelectorAll('#hqOpened .mini').length === 3"))
         await pg.evaluate("() => document.querySelector('.tabs [data-tab=carriere]').click()"); await pg.wait_for_timeout(150)
         cr = await pg.evaluate("() => [document.querySelectorAll('#crStats > div').length, document.querySelectorAll('#crAch .a').length, document.querySelectorAll('#crMaps .row').length]")
-        check("onglet Carrière : 16 chiffres de bilan, 15 succès avec récompense, 4 terrains", cr == [16, 15, 4], cr)
+        check("onglet Carrière : 16 chiffres de bilan, 15 succès avec récompense, 5 terrains", cr == [16, 15, 5], cr)
         # réglages : ouverture, vitesse par défaut, export → import (aller-retour de la carrière)
         await pg.evaluate("() => document.querySelector('#hqSettings').click()")
         check("le bouton ⚙ ouvre les réglages", await pg.evaluate("() => !document.querySelector('#settings').classList.contains('hidden')"))

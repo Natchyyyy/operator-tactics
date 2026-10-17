@@ -122,6 +122,32 @@
         box(26.5, 38, 3, 1.2, 1.0, 'cover', 'muret'), box(26.5, 7, 3, 1.2, 1.0, 'cover', 'muret'),
       ]),
     },
+    // ---- Gare de triage : voies est-ouest, wagons couverts (murs) et wagons plats (couverts bas), poste d'aiguillage au centre ----
+    gare: {
+      id: 'gare', name: 'Gare de triage', width: 72, depth: 46,
+      spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
+      capture: { x: 36, z: 37, r: 6 },   // le quai sud, devant la halle aux marchandises
+      obstacles: mirrored(72, [
+        box(-1, -1, 74, 1, 3.2, 'wall', 'mur nord'), box(-1, 46, 74, 1, 3.2, 'wall', 'mur sud'),
+        box(-1, 0, 1, 46, 3.2, 'wall', 'mur ouest'), box(72, 0, 1, 46, 3.2, 'wall', 'mur est'),
+        // au centre : le poste d'aiguillage (coupe la vue d'un départ à l'autre) et la halle aux marchandises au sud
+        box(33, 17, 6, 11, 5.5, 'wall', 'poste d\'aiguillage'), box(30, 43, 12, 3, 4.0, 'wall', 'halle'),
+        // conteneurs empilés devant les zones de départ
+        box(11, 15, 2.5, 6, 2.6, 'wall', 'conteneur'), box(11, 26, 2.5, 6, 2.6, 'wall', 'conteneur'),
+        // voie 1 (nord) : wagons couverts ; voie 2 : wagons plats ; voie 3 (sud) : wagon-citerne et wagon couvert
+        box(15, 6, 12, 2.6, 3.2, 'wall', 'wagon'), box(29.5, 6, 2, 2.6, 1.0, 'cover', 'butoir'),
+        box(17, 12, 9, 2.4, 1.3, 'cover', 'wagon plat'),
+        box(16, 31, 9, 2.4, 1.3, 'cover', 'wagon plat'),
+        box(15, 37, 11, 2.6, 3.0, 'wall', 'wagon-citerne'),
+        // quai central bas (couvert) et abri de quai
+        box(20, 21.5, 8, 1.2, 1.0, 'cover', 'quai'), box(26.5, 24, 1.5, 1.5, 2.8, 'wall', 'pilier'),
+        // matériel de voie : caisses, traverses empilées (palettes), fûts, sacs de sable
+        box(8, 4, 2, 2, 1.1, 'cover', 'caisses'), box(8, 40, 2, 2, 1.1, 'cover', 'caisses'),
+        box(28, 13, 3, 1.4, 1.1, 'cover', 'palettes'), box(28, 31.5, 3, 1.4, 1.1, 'cover', 'palettes'),
+        box(30, 26, 1.4, 1.4, 1.1, 'cover', 'fût'), box(24, 17, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'),
+        box(23, 27, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'), box(31, 36, 2.5, 1.0, 1.0, 'cover', 'sacs de sable'),
+      ]),
+    },
   };
 
   // ---- Lancer de rayon segment / boîte (méthode des « slabs ») -------------------------
