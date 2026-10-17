@@ -47,5 +47,5 @@
   $('#titleFree').addEventListener('click', () => { hide(); $('#freeBattle').click(); });
   window.TITLE = { show, hide };
   const params = new URLSearchParams(location.search);
-  if (params.get('manual') === '1' || params.get('mode') === 'free' || params.get('skipTitle') === '1') hide(); else { if (window.OT_MUSIC) $('#titleMusic').checked = window.OT_MUSIC.get() === 1; show(); }
+  if (params.get('manual') === '1' || params.get('mode') === 'free' || params.get('skipTitle') === '1') hide(); else { if (window.OT_MUSIC) $('#titleMusic').checked = window.OT_MUSIC.get() > 0; show(); }
 })();

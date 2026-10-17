@@ -549,6 +549,25 @@
   // ---------------------------------------------------------------------------------------------
   const SHOT_SOUND = { carbine: 'tir_fusil', battle: 'tir_fusil', smg: 'tir_pm', smgsil: 'tir_silencieux', dmr: 'tir_precision', lmg: 'tir_mitrailleuse', shotgun: 'tir_pompe' };
   let muted = false; try { muted = localStorage.getItem('ot-mute') === '1'; } catch (e) { /* stockage indisponible */ }
+  // ---- Réglages (volume général, musique, vitesse et caméra par défaut, qualité, ombres) : gardés dans ce navigateur ----
+  const SETTINGS = Object.assign({ vol: 0.9, music: 1, speed: 1, cam: 'director', quality: 'haute', shadows: true }, (() => { try { return JSON.parse(localStorage.getItem('ot-settings') || '{}'); } catch (e) { return {}; } })());
+  try { const m = localStorage.getItem('ot-music'); if (m !== null && localStorage.getItem('ot-settings') === null) SETTINGS.music = parseFloat(m) || 0; } catch (e) { /* rien */ }
+  function applyQuality() {
+    const dpr = window.devicePixelRatio || 1;
+    renderer.setPixelRatio(SETTINGS.quality === 'haute' ? Math.min(dpr, 2) : SETTINGS.quality === 'moyenne' ? 1 : 0.7);
+    if (renderer.shadowMap.enabled !== !!SETTINGS.shadows) { renderer.shadowMap.enabled = !!SETTINGS.shadows; scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.needsUpdate = true; }); }); }
+    resize();
+  }
+  window.OT_SETTINGS = {
+    get: (k) => k ? SETTINGS[k] : Object.assign({}, SETTINGS),
+    set(k, v) {
+      SETTINGS[k] = v; try { localStorage.setItem('ot-settings', JSON.stringify(SETTINGS)); } catch (e) { /* rien */ }
+      if (k === 'vol' && window.Son) Son.volume(v);
+      if (k === 'music') window.OT_MUSIC.set(v);
+      if (k === 'speed') { speed = v; document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', parseFloat(b.dataset.speed) === v)); }
+      if (k === 'quality' || k === 'shadows') applyQuality();
+    },
+  };
   const recent = {};
   function spatial(x, y, z) {
     // volume selon la distance à la caméra, panoramique selon la position à l'écran
@@ -560,6 +579,7 @@
   }
   function play(name, pos, o) {
     if (muted || !window.Son) return;
+    Son.volume(SETTINGS.vol);
     const now = performance.now();
     const minGap = { pas: 60, tir_fusil: 35, tir_pm: 25, tir_mitrailleuse: 30, impact_beton: 50, impact_corps: 50 }[name] || 0;
     if (minGap && recent[name] && now - recent[name] < minGap / Math.min(2, speed)) return;
@@ -569,14 +589,14 @@
     Son.jouer(name, opt);
   }
   const AMBIENCE = { entrepot: 'ambiance_port', raffinerie: 'ambiance_port', place: 'ambiance_ville' };
-  let musicVol = 1; try { musicVol = localStorage.getItem('ot-music') === '0' ? 0 : 1; } catch (e) { /* rien */ }
+  let musicVol = SETTINGS.music;
   // ambiance + musique : la musique de bataille remplace celle du QG ; tout s'arrête en sourdine
   function ambience(on) {
     if (!window.Son) return;
     if (!on || muted) { Son.arreterBoucle(0.8, 'ambiance'); if (!on && !muted) Son.boucle('musique_qg', { voie: 'musique', vol: 0.8 * musicVol, fondu: 2 }); if (muted) Son.arreterBoucle(0.6, 'musique'); return; }
     if (battle) { Son.boucle(AMBIENCE[battle.map.id] || 'ambiance_port', { voie: 'ambiance', vol: 0.9 }); Son.boucle('musique_bataille', { voie: 'musique', vol: 0.7 * musicVol, fondu: 1.5 }); }
   }
-  window.OT_MUSIC = { set(v) { musicVol = v; try { localStorage.setItem('ot-music', v ? '1' : '0'); } catch (e) { /* rien */ } if (window.Son) Son.volumeBoucle('musique', (battle && !$('#app').classList.contains('hidden') ? 0.7 : 0.8) * v); }, get: () => musicVol };
+  window.OT_MUSIC = { set(v) { musicVol = v; SETTINGS.music = v; try { localStorage.setItem('ot-music', String(v)); localStorage.setItem('ot-settings', JSON.stringify(SETTINGS)); } catch (e) { /* rien */ } if (window.Son) Son.volumeBoucle('musique', (battle && !$('#app').classList.contains('hidden') ? 0.7 : 0.8) * v); }, get: () => musicVol };
   function setMuted(m) { muted = m; try { localStorage.setItem('ot-mute', m ? '1' : '0'); } catch (e) { /* rien */ } $('#mute').textContent = m ? '🔇' : '🔊'; $('#mute').classList.toggle('on', !m); ambience(!m && !$('#app').classList.contains('hidden')); }
   $('#mute').addEventListener('click', () => setMuted(!muted));
   document.addEventListener('click', (e) => { if (e.target.closest('button') && !e.target.closest('#mute')) play('clic', null, { vol: 0.8, varie: 0.05 }); }, true);
@@ -661,6 +681,7 @@
     for (const u of battle.units) { makeOperator(u); unitById[u.id] = u; }
     $('#journal').innerHTML = ''; $('#ticker').innerHTML = '';
     $('#result').classList.add('hidden');
+    if (!opts.replayInputs && !MANUAL && cam.mode !== SETTINGS.cam && ['director', 'follow', 'sat', 'free'].includes(SETTINGS.cam)) { cam.mode = SETTINGS.cam; document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === cam.mode)); }
     cam.init = false; cam.autoFollow = null; cam.follow = null; cam.shot = null; DIRECTOR.eventShot = null; if (cam.mode === 'free') { cam.target.set(battle.map.width / 2, 0, battle.map.depth / 2); }
     buildRosters();
     syncMeshes(1);
@@ -936,6 +957,7 @@
   // ---------------------------------------------------------------------------------------------
   $('#seed').value = params.get('seed') || '';
   setMuted(muted);
+  if (!MANUAL) { speed = SETTINGS.speed; document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', parseFloat(b.dataset.speed) === speed)); if (SETTINGS.quality !== 'haute' || !SETTINGS.shadows) applyQuality(); }
   setMode('free');
   newBattle(optsFromForm());
   if (!MANUAL && params.get('mode') !== 'free') { if (params.get('skipTitle') === '1') window.HQ.show(); else { $('#hq').classList.add('hidden'); $('#app').classList.add('hidden'); } } else window.HQ.hide();
