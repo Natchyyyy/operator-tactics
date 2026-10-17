@@ -460,7 +460,7 @@
     // export / import de la carrière (réglages) : texte JSON ; l'import passe par Game.load (mêmes vérifications et migrations)
     exportSave() { return JSON.stringify(profile); },
     importSave(txt) { const p = Game.load({ getItem: () => txt }); if (!p) return false; profile = p; selected = profile.squad[0] || OPERATORS[0].id; lastRewards = null; saveNow(); render(); return true; },
-    show() { switchTo(true); showTab(lastRewards && lastRewards.mission && lastRewards.mission.startsWith('Ligue') ? 'ligue' : 'accueil'); },
+    show() { switchTo(true); showTab(lastRewards && lastRewards.mission && lastRewards.mission.startsWith('Ligue') ? 'ligue' : 'accueil'); if (window.OT_GUIDE) window.OT_GUIDE.maybe(); },
     hide() { if (window.HOMESCENE) window.HOMESCENE.hide(); switchTo(false); },
     // appelé par app.js à la fin d'une bataille de mission : applique les récompenses au profil et sauvegarde
     finishMission(mission, result) {

@@ -17,6 +17,10 @@ async def main():
         # ---- Écran titre puis quartier général ----
         check("la page s'ouvre sur l'écran titre (scène 3D)", await pg.is_visible("#title") and await pg.evaluate("() => !!document.querySelector('#titleScene')"))
         await pg.click("#titleStart"); await pg.wait_for_timeout(600)
+        gd = await pg.evaluate("() => !document.querySelector('#guide').classList.contains('hidden')")
+        check("première visite : le guide s'ouvre au QG", gd)
+        for _ in range(5): await pg.click("#gNext")
+        check("le guide se referme à la dernière page et ne revient plus", await pg.evaluate("() => document.querySelector('#guide').classList.contains('hidden') && localStorage.getItem('ot-guide') === '1'"))
         check("« Entrer au quartier général » ouvre le QG", await pg.is_visible("#hq") and not await pg.is_visible("#app") and not await pg.is_visible("#title"))
         nport = await pg.evaluate("() => document.querySelectorAll('#hqRoster img.portrait').length"); check("les portraits 3D des opérateurs sont rendus", nport >= 10, nport)
         check("300 crédits et 5 opérateurs débloqués au départ", (await pg.inner_text("#credits")) == "300" and await pg.evaluate("() => document.querySelectorAll('.opcard:not(.locked)').length") == 5)

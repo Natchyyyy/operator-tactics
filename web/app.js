@@ -1152,6 +1152,7 @@
   $('#toHq').addEventListener('click', goHq);
   $('#resHq').addEventListener('click', goHq);
   $('#freeBattle').addEventListener('click', () => { setMode('free'); window.HQ.hide(); newBattle(optsFromForm()); ambience(true); });
+  document.body.appendChild($('#help'));   // l'aide s'ouvre aussi depuis le QG (la bataille est alors masquée)
   $('#hqHelp').addEventListener('click', () => { $('#help').classList.toggle('hidden'); });
   // Briefing (missions de campagne, comme dans le jeu d'origine) : survol de la carte, fiche de mission, puis « Commencer »
   let briefing = null;
