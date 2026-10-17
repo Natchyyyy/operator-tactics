@@ -285,6 +285,9 @@
   }
 
   function renderMissions() {
+    // contrats du jour
+    const dly = Game.dailyContracts(profile);
+    $('#hqDaily').innerHTML = dly.list.map(c => `<div class="daily ${c.done ? 'done' : ''}"><div class="crow"><b>${esc(c.text)}</b><span class="spacer"></span><span>${c.done ? '✓ payé' : c.progress + '/' + c.goal}</span></div><div class="xpbar big"><i style="width:${100 * c.progress / c.goal}%"></i></div><small class="muted">${c.reward} crédits</small></div>`).join('');
     // bataille rapide + opérations spéciales
     const q = profile.quick || { wins: 0 }, prize = DATA.QUICK.prizeEvery, k = q.wins % prize;
     $('#hqQuick').innerHTML = `<div class="mission quickcard ${selectedMission === 'rapide' ? 'sel' : ''}" data-id="rapide"><div class="crow"><b>Bataille rapide</b><span class="diff">${k}/${prize}</span></div>
@@ -415,6 +418,7 @@
     if (r.promotions && r.promotions.length) extra.push('Promotion à choisir (fiche de l’opérateur) : ' + r.promotions.map(p => `${p.callsign} (niveau ${p.level})`).join(', '));
     if (r.expired && r.expired.length) extra.push('Contrat expiré, à renouveler : ' + r.expired.join(', '));
     for (const l of (r.modeLines || [])) extra.push(l);
+    for (const c of (r.daily || [])) extra.push(`Contrat du jour rempli : ${c.text} (+${c.reward} cr.)`);
     $('#rwExtra').innerHTML = extra.map(esc).join('<br>');
     // figure : le meilleur opérateur de la mission (le plus de neutralisations, puis de dégâts)
     const best = result.teams[0].units.slice().sort((a, b) => (b.stats.kills - a.stats.kills) || (b.stats.damageDealt - a.stats.damageDealt))[0];

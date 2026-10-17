@@ -86,6 +86,8 @@
   .label .bark { position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%) scale(.85); opacity: 0; white-space: nowrap; background: rgba(240,242,236,.95); color: #14181c; font: 700 11.5px system-ui, sans-serif; padding: 3px 8px; border-radius: 8px; transition: opacity .15s, transform .15s; pointer-events: none; }
   .label .bark::after { content: ''; position: absolute; left: 50%; top: 100%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: rgba(240,242,236,.95); }
   .label .bark.on { opacity: 1; transform: translateX(-50%) scale(1); } .label.team1 .bark { background: rgba(255,226,220,.95); } .label.team1 .bark::after { border-top-color: rgba(255,226,220,.95); }
+  .dailies { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; } .daily { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+  .daily.done { border-color: #4f9d5a; background: linear-gradient(135deg, #18261b, #141a16); } .daily.done b { color: var(--ok); }
   /* Carrière */
   .hqgrid.two.play.career { grid-template-columns: 1.1fr 1fr; } .career .hqcol { overflow: auto; }
   .crstats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; } .crstats div { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
@@ -422,6 +424,7 @@
   <div class="hqpanel hidden" data-panel="missions">
     <div class="hqgrid two play">
       <section class="hqcol playcol"><div class="playtop"><div><h3>Bataille rapide</h3><div id="hqQuick"></div></div><div><h3>Opérations spéciales</h3><div id="hqOps"></div></div></div>
+        <h3>Contrats du jour <small class="muted">(nouveaux chaque jour)</small></h3><div id="hqDaily" class="dailies"></div>
         <h3>Campagnes</h3><div id="hqCampaigns" class="camps"></div><div id="hqCampInfo" class="muted" style="font-size:11.5px;margin:4px 0 6px"></div>
         <div id="hqMissions" style="display:flex;flex-direction:column;gap:6px"></div></section>
       <section class="hqcol"><h3>Déploiement</h3><div id="hqDeploy"></div>

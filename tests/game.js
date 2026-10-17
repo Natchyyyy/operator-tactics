@@ -60,7 +60,7 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   const b = new Battle({ seed: 5, teams }); b.run();
   const before = p.credits, xpBefore = Object.fromEntries(p.squad.map(id => [id, p.operators[id].xp]));
   const r = Game.applyRewards(p, m, b.result);
-  const challengeCredits = r.challenges.reduce((s, c) => s + c.reward, 0) + (r.achievements || []).reduce((s, a) => s + ((a.reward && a.reward.credits) || 0), 0);   // défis et succès payés en crédits
+  const challengeCredits = r.challenges.reduce((s, c) => s + c.reward, 0) + (r.achievements || []).reduce((s, a) => s + ((a.reward && a.reward.credits) || 0), 0) + (r.daily || []).reduce((s, c) => s + c.reward, 0);   // défis et succès payés en crédits
   check('les crédits gagnés dépendent de l\'issue, des neutralisations et des spéciaux (plus les défis)', p.credits - before === r.credits + challengeCredits && r.base === Math.round(m.reward * (r.won ? 1 : r.draw ? 0.5 : 0.3)) && r.credits === r.base + r.kills * 8 + r.specials * 6 && r.kills === b.result.teams[0].kills, r);
   const xpOk = p.squad.every(id => { const u = b.result.teams[0].units.find(x => x.id === '0:' + id); const exp = Math.round((m.xp + Math.round(u.stats.damageDealt * 0.25) + u.stats.kills * 25 + (r.won ? 20 : 0)) * (u.alive ? 1 : 0.7)); return p.operators[id].xp - xpBefore[id] === exp; });
   check('l\'expérience de chacun découle de ses actions réelles (dégâts, neutralisations, survie)', xpOk);
@@ -244,4 +244,15 @@ check('sauvegarde corrompue : null, sans planter', Game.load({ getItem: () => '{
 }
 check('stockage indisponible : la sauvegarde échoue proprement', Game.save(p, { setItem: () => { throw new Error('quota'); } }) === false);
 check('réinitialisation : profil neuf et stockage vidé', Game.reset(storage).credits === 300 && storage.getItem(Game.SAVE_KEY) === null);
+{
+  // ---- contrats du jour : tirage stable pour une date, différent un autre jour, progression et paiement une seule fois ----
+  const q = Game.newProfile(); const a = JSON.stringify(Game.dailyContracts(q, '2026-10-17').list.map(c => c.id)); q.daily = null;
+  const a2 = JSON.stringify(Game.dailyContracts(q, '2026-10-17').list.map(c => c.id)); q.daily = null;
+  const days = new Set(); for (let k = 1; k <= 9; k++) { q.daily = null; days.add(JSON.stringify(Game.dailyContracts(q, '2026-10-0' + k).list.map(c => c.id))); }
+  check('contrats du jour : trois contrats distincts, même tirage pour une même date, tirages variés selon les jours', a === a2 && JSON.parse(a).length === 3 && new Set(JSON.parse(a)).size === 3 && days.size >= 5, { a, days: days.size });
+  q.daily = { date: '2026-10-17', list: [{ id: 'wins', text: 'Gagner 2 batailles', goal: 2, progress: 0, done: false, reward: 150 }, { id: 'kills', text: 'x', goal: 3, progress: 0, done: false, reward: 120 }, { id: 'revives', text: 'y', goal: 1, progress: 0, done: false, reward: 120 }] };
+  const fake = (won, kills) => ({ teams: [{ kills, units: [{ alive: true, stats: { headshots: 0, revives: 0 } }], tactics: [] }, { units: [] }] });
+  const c0 = q.credits; const p1 = Game.applyDaily(q, { id: 'x' }, fake(true, 2), { won: true }, '2026-10-17'); const p2 = Game.applyDaily(q, { id: 'x' }, fake(true, 2), { won: true }, '2026-10-17'); const p3 = Game.applyDaily(q, { id: 'x' }, fake(true, 5), { won: true }, '2026-10-17');
+  check('contrats du jour : progression cumulée, payés une seule fois quand l\'objectif est atteint', p1.length === 0 && p2.length === 2 && p3.length === 0 && q.credits === c0 + 270 && q.daily.list[2].done === false, { p1, p2, p3, credits: q.credits - c0 });
+}
 console.log(`\n${pass}/${pass + fail} vérifications réussies`); process.exit(fail ? 1 : 0);

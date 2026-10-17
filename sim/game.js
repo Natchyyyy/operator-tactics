@@ -2,7 +2,7 @@
 // Logique pure (testable en ligne de commande) ; l'interface (web/app.js) ne fait que l'afficher.
 (function (root, deps) {
   const { DATA } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL , SYNERGIES, WOUND , CAMPAIGNS, QUICK, SPECIAL_OPS } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL , SYNERGIES, WOUND , CAMPAIGNS, QUICK, SPECIAL_OPS, DAILY } = DATA;
   const STATS = ['marksmanship', 'reflexes', 'mobility', 'perception', 'composure', 'endurance'];
   const SAVE_KEY = 'operator-tactics-save-v1';
   const STARTING = ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
@@ -383,6 +383,7 @@
     c.recent = (c.recent || []).concat([{ n: c.battles, m: mission.name, map: mapId, cond: mission.conditions || 'jour', res: r.won ? 'v' : r.draw ? 'n' : 'd', k: result.teams[0].kills || 0, l: us.filter(u => !u.alive).length, t: Math.round(result.duration || 0) }]).slice(-12);
     if (mission.id !== 'ligue' && mission.id !== 'rapide') { profile.missions[mission.id] = profile.missions[mission.id] || { attempts: 0, wins: 0 }; profile.missions[mission.id].attempts++; if (r.won) profile.missions[mission.id].wins++; }
     applyModes(profile, mission, result, r);
+    r.daily = applyDaily(profile, mission, result, r);
     r.achievements = checkAchievements(profile, result);
     return r;
   }
@@ -419,6 +420,30 @@
     terrain:    (p) => (p.career.captureWins || 0) >= 5,
     campagne:   (p) => campaignProgress(p, 'reguliere').won >= CAMPAIGNS[0].missions.length,
   };
+  // ---- Contrats du jour ----------------------------------------------------------------------------------------------
+  // dailyContracts(profile, date) : les trois contrats de la date (AAAA-MM-JJ), tirés d'une graine dérivée de la date ;
+  // la progression est gardée pour cette date seulement (un nouveau jour = trois nouveaux contrats).
+  const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  function dailyContracts(profile, date) {
+    date = date || todayStr();
+    if (profile.daily && profile.daily.date === date) return profile.daily;
+    let h = 2166136261; for (const ch of date) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+    const rng = mulberry(h), pool = DAILY.slice(), list = [];
+    for (let i = 0; i < 3; i++) { const k = Math.floor(rng() * pool.length), c = pool.splice(k, 1)[0]; const n = c.goal[0] + Math.floor(rng() * (c.goal[1] - c.goal[0] + 1)); list.push({ id: c.id, text: c.text.replace('{n}', n), goal: n, progress: 0, done: false, reward: c.reward }); }
+    profile.daily = { date, list }; return profile.daily;
+  }
+  function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function applyDaily(profile, mission, result, r, date) {
+    const d = dailyContracts(profile, date), us = result.teams[0].units, sum = (k) => us.reduce((s, u) => s + (u.stats[k] || 0), 0);
+    const inc = {
+      wins: r.won ? 1 : 0, kills: result.teams[0].kills || 0, headshots: sum('headshots'), capture: r.won && mission.objective === 'capture' ? 1 : 0,
+      tactics: (result.teams[0].tactics || []).reduce((s, t) => s + (t.used || 0), 0), weather: r.won && mission.conditions && mission.conditions !== 'jour' ? 1 : 0,
+      revives: sum('revives'), quick: r.won && mission.id === 'rapide' ? 1 : 0, clean: r.won && us.filter(u => !u.alive).length <= 1 ? 1 : 0,
+    };
+    const paid = [];
+    for (const c of d.list) { if (c.done) continue; c.progress = Math.min(c.goal, c.progress + (inc[c.id] || 0)); if (c.progress >= c.goal) { c.done = true; profile.credits += c.reward; paid.push({ text: c.text, reward: c.reward }); } }
+    return paid;
+  }
   // progression vers chaque succès (onglet Carrière) : [valeur, objectif] ; null = succès d'un seul coup (pas de jauge)
   const ACHIEVEMENT_PROGRESS = {
     premiere: (p) => [p.career.wins, 1], dix: (p) => [p.career.wins, 10], chasseur: (p) => [p.career.kills, 50],
@@ -467,6 +492,6 @@
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { dailyContracts, applyDaily, achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));

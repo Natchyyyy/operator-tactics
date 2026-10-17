@@ -74,6 +74,20 @@
     pluie:      { id: 'pluie',      name: 'Pluie',      vis: 0.8,  spot: 0.85, hear: 0.65, acc: 0.94, flash: 1 },
   };
 
+  // ---- CONTRATS DU JOUR : trois objectifs tirés chaque jour (même tirage pour une même date), payés une fois atteints ----
+  // goal : [min, max] tiré au sort ; tous se mesurent sur les batailles réellement jouées (missions, bataille rapide, ligue).
+  const DAILY = [
+    { id: 'wins',      text: 'Gagner {n} batailles',                              goal: [2, 3],  reward: 150 },
+    { id: 'kills',     text: 'Neutraliser {n} adversaires',                       goal: [12, 20], reward: 120 },
+    { id: 'headshots', text: 'Réussir {n} tirs à la tête',                        goal: [3, 5],  reward: 120 },
+    { id: 'capture',   text: 'Gagner {n} bataille de capture de zone',            goal: [1, 1],  reward: 150 },
+    { id: 'tactics',   text: 'Jouer {n} tactiques actives',                       goal: [3, 5],  reward: 100 },
+    { id: 'weather',   text: 'Gagner {n} bataille de nuit ou par mauvais temps',  goal: [1, 1],  reward: 160 },
+    { id: 'revives',   text: 'Relever {n} allié à terre',                         goal: [1, 1],  reward: 120 },
+    { id: 'quick',     text: 'Gagner {n} batailles rapides',                      goal: [2, 2],  reward: 150 },
+    { id: 'clean',     text: 'Gagner {n} bataille en perdant au plus un opérateur', goal: [1, 1], reward: 180 },
+  ];
+
   // ---- GRENADES (lancées par l'IA ; dotation par rôle ci-dessus) ---------------------------------------------
   // frag : dégâts décroissants jusqu'à radius (bloqués par les murs), suppression jusqu'à 9 m, tir ami possible.
   // flash : aveugle (aucun nouveau repérage, précision ×0,25) ceux qui voient l'éclair dans radius.
@@ -291,5 +305,5 @@
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
   const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL, SYNERGIES, WOUND, CAMPAIGNS, QUICK, SPECIAL_OPS, GRENADES, CONDITIONS };
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL, SYNERGIES, WOUND, CAMPAIGNS, QUICK, SPECIAL_OPS, GRENADES, CONDITIONS, DAILY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));
