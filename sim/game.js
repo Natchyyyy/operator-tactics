@@ -181,7 +181,10 @@
     if (c.id === 'reguliere') return Object.assign({}, base, { campaign: cid, final: c.missions[c.missions.length - 1] === mid });
     const extra = Object.keys(TACTICS).filter(t => !(base.enemyTactics || []).includes(t)).slice(0, c.extraTactic === true ? 1 : (c.extraTactic || 0));
     return Object.assign({}, base, { id: `${cid}:${mid}`, name: `${base.name} (${c.id === 'veteran' ? 'vétéran' : 'élite'})`, campaign: cid, final: c.missions[c.missions.length - 1] === mid,
-      level: base.level + c.levelBonus, enemyTactics: (base.enemyTactics || []).concat(extra), reward: Math.round(base.reward * c.rewardMul), xp: Math.round(base.xp * (1 + (c.rewardMul - 1) / 2)) });
+      // élite : niveaux de base resserrés (difficulté plus égale d'une mission à l'autre) et toujours cinq adversaires
+      level: (c.levelClamp ? Math.max(c.levelClamp[0], Math.min(c.levelClamp[1], base.level)) : base.level) + c.levelBonus,
+      enemy: c.fullSquad && base.enemy.length < 5 ? base.enemy.concat(OPERATORS.filter(o => o.faction === 'karst' && !base.enemy.includes(o.id)).slice(0, 5 - base.enemy.length).map(o => o.id)) : base.enemy,
+      enemyTactics: (base.enemyTactics || []).concat(extra), reward: Math.round(base.reward * c.rewardMul), xp: Math.round(base.xp * (1 + (c.rewardMul - 1) / 2)) });
   }
   // une mission est jouable si c'est la première de la campagne, ou si la précédente a été jouée
   function missionUnlocked(profile, cid, mid) {

@@ -212,9 +212,9 @@
     { id: 'veteran', name: 'Campagne vétéran', desc: 'Les mêmes théâtres, un adversaire plus aguerri (+4 niveaux, une tactique de plus).',
       missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
       levelBonus: 4, extraTactic: true, rewardMul: 1.5, participation: 350, completion: 900, unlock: { rank: 3 } },
-    { id: 'elite', name: 'Campagne élite', desc: 'Pour les escouades d\'exception : adversaire +8 niveaux, deux tactiques de plus.',
+    { id: 'elite', name: 'Campagne élite', desc: 'Pour les escouades d\'exception : adversaire de niveau 12 à 14, toujours cinq hommes, deux tactiques de plus.',
       missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
-      levelBonus: 8, extraTactic: 2, rewardMul: 2, participation: 600, completion: 1500, unlock: { rating: 60 } },
+      levelBonus: 8, levelClamp: [4, 6], fullSquad: true, extraTactic: 2, rewardMul: 2, participation: 600, completion: 1500, unlock: { rating: 60 } },
   ];
   // Bataille rapide : un adversaire à votre mesure (niveau tiré de la puissance d'équipe), carte et objectif au hasard ;
   // un paquet standard offert toutes les QUICK.prizeEvery victoires.
