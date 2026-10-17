@@ -150,6 +150,7 @@
   // Options complètes de bataille pour une mission (carte, objectif, équipes)
   function battleOptions(profile, mission, seed) {
     const opts = { seed, teams: buildTeams(profile, mission), mapId: mission.mapId };
+    if (mission.conditions && mission.conditions !== 'jour') opts.conditions = mission.conditions;
     if (mission.objective === 'hold') opts.objective = { type: 'hold', team: 0, duration: mission.duration || 90 };
     if (mission.objective === 'capture') opts.objective = { type: 'capture' };
     return opts;
@@ -207,7 +208,8 @@
     const objective = pick(['eliminate', 'eliminate', 'capture', 'capture', 'hold']);
     const tac = Object.keys(TACTICS); const t1 = pick(tac), t2 = pick(tac.filter(t => t !== t1));
     return { id: 'rapide', name: 'Bataille rapide', quick: true, desc: 'Un adversaire à votre mesure.', mapId: pick(['entrepot', 'place', 'raffinerie', 'parking']), enemy: karst.slice(0, size), level,
-      order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: rng() < 0.5 ? [t1] : [t1, t2], reward: QUICK.reward, xp: QUICK.xp, difficulty: 2 };
+      order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: rng() < 0.5 ? [t1] : [t1, t2], reward: QUICK.reward, xp: QUICK.xp, difficulty: 2,
+      conditions: pick(['jour', 'jour', 'jour', 'jour', 'jour', 'nuit', 'brouillard', 'pluie']) };
   }
   // niveau de l'adversaire de bataille rapide : l'écart de puissance avec une escouade de recrues, converti en niveaux
   let baseRating = null;

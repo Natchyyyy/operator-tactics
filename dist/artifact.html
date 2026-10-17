@@ -164,7 +164,8 @@
   .opcard .orate { font-weight: 800; font-size: 15px; color: #ffe08a; min-width: 26px; text-align: right; } .opcard.locked .orate { color: var(--muted); }
   .opcard.r2 { border-left: 3px solid #3d6fa8; } .opcard.r3 { border-left: 3px solid #b8933a; }
   .dname .drate { display: inline-block; margin-left: 8px; font-size: 16px; font-weight: 800; color: #ffe08a; border: 1px solid #c9a64a; border-radius: 6px; padding: 0 6px; vertical-align: 2px; }
-  .slot.wounded { border-color: #a3261c; } .stat.wounded .sbar i { background: #c0392b; } .stat.wounded .val { color: #ff8a7a; } .vssyn span { background: #17241a !important; border-color: #4f9d5a !important; } .vssyn span.empty { background: transparent !important; border-color: var(--line) !important; opacity: .6; }
+  .slot.wounded { border-color: #a3261c; }
+  b.cond { color: #9fb4ff; font-weight: 600; } .stat.wounded .sbar i { background: #c0392b; } .stat.wounded .val { color: #ff8a7a; } .vssyn span { background: #17241a !important; border-color: #4f9d5a !important; } .vssyn span.empty { background: transparent !important; border-color: var(--line) !important; opacity: .6; }
   .playtop { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px; } .quickcard { border-color: #4a6b8f !important; background: linear-gradient(160deg, #1b2a3a, #121a22) !important; }
   .prizebar { display: flex; gap: 4px; margin: 6px 0; } .prizebar i { flex: 1; height: 8px; border-radius: 3px; background: #0b0e11; border: 1px solid var(--line); } .prizebar i.on { background: var(--accent); border-color: var(--accent); }
   .opsrow { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; margin-bottom: 5px; font-size: 12px; } .opsrow .muted { font-size: 11px; } .opsrow.done { border-color: #4f9d5a; } .opsrow .xpbar.big { height: 6px; margin: 4px 0 0; }
@@ -422,7 +423,7 @@
     <div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div>
     <div class="group"><label>Alpha</label><select id="order0" title="Ordre d'Alpha — modifiable pendant la bataille"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
     <div class="group"><label>Bravo</label><select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
-    <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option><option value="raffinerie">Raffinerie</option><option value="parking">Parking du centre commercial</option></select></div>
+    <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option><option value="raffinerie">Raffinerie</option><option value="parking">Parking du centre commercial</option></select><select id="condSel" title="Heure et météo : vue, ouïe et précision changent réellement"><option value="jour">Jour</option><option value="nuit">Nuit</option><option value="brouillard">Brouillard</option><option value="pluie">Pluie</option></select></div>
     <div class="group"><label>Graine</label><input id="seed" placeholder="aléatoire"></div>
     <button id="newBattle">Nouvelle</button><button id="replay" title="Rejouer la même graine">Rejouer</button>
     <span id="missionLabel" class="muted" hidden></span>
@@ -457,6 +458,7 @@
         <li><b>Tactiques</b> (cartes à gauche) : fumigène, drone, soins, mortier… à jouer pendant la bataille, avec un nombre d'emplois et un temps de recharge ; les tactiques passives (exercice, retranchement…) s'appliquent dès le début. L'adversaire joue aussi les siennes (à droite).</li>
         <li><b>Ordres</b> : <i>Assaut</i> (aller au contact), <i>Tenir</i> (se poster, tirer à vue), <i>Prudent</i> (de couvert en couvert). L'ordre d'Alpha se change pendant la bataille.</li>
         <li><b>Caméra</b> : <i>Réalisateur</i> (par défaut) enchaîne les plans comme une retransmission — épaule d'un tireur, vue d'ensemble de l'échange, plan sur chaque explosion ou neutralisation ; <i>Suivre</i> se place derrière un soldat et change de point de vue au gré de l'action ; <i>Sat</i> montre toute la carte ; <i>Libre</i> : glisser pour tourner, molette pour zoomer, clic droit pour déplacer. Espace : pause.</li>
+        <li><b>Heure et météo</b> : de <i>nuit</i> on voit deux fois moins loin, sauf un tireur dont l'arme non silencieuse lance des éclairs ; le <i>brouillard</i> réduit encore la vue ; la <i>pluie</i> couvre les bruits et gêne le tir lointain. Les deux camps subissent les mêmes conditions.</li>
         <li><b>Compétences</b> : chaque opérateur a un trait aux effets réels (vitesse, visée, rechargement, repérage, suppression…), décrit sur sa fiche au QG.</li>
         <li><b>Quartier général</b> : 3 à 5 opérateurs, arme, protection, voie d'approche, ordre, 3 tactiques, puis une mission. Victoire → crédits, expérience, rang ; paquets de cartes (recrues, tactiques, perks, cosmétiques). Un opérateur neutralisé est indisponible une mission (ou soigné). Tout est sauvegardé dans ce navigateur.</li>
       </ul>
@@ -998,6 +1000,16 @@ window.Son = Son;
     ghost:       { id: 'ghost',       name: 'Fantôme',           desc: 'Plus difficile à repérer (−40 %) ; ses tirs s\'entendent moins loin.' },
   };
 
+  // ---- CONDITIONS (heure, météo) : effets réels sur la perception, l'ouïe et la précision (engine.js : this.cond) ----
+  // vis : portée de vue ; spot : chance de repérer ; hear : portée d'ouïe ; acc : précision au-delà de 15 m ;
+  // flash : de nuit, un tireur non silencieux se trahit (repéré à pleine portée, chance ×flash).
+  const CONDITIONS = {
+    jour:       { id: 'jour',       name: 'Jour',       vis: 1,    spot: 1,    hear: 1,   acc: 1,    flash: 1 },
+    nuit:       { id: 'nuit',       name: 'Nuit',       vis: 0.5,  spot: 0.65, hear: 1.1, acc: 0.9,  flash: 1.8 },
+    brouillard: { id: 'brouillard', name: 'Brouillard', vis: 0.45, spot: 0.8,  hear: 1,   acc: 0.92, flash: 1 },
+    pluie:      { id: 'pluie',      name: 'Pluie',      vis: 0.8,  spot: 0.85, hear: 0.65, acc: 0.94, flash: 1 },
+  };
+
   // ---- GRENADES (lancées par l'IA ; dotation par rôle ci-dessus) ---------------------------------------------
   // frag : dégâts décroissants jusqu'à radius (bloqués par les murs), suppression jusqu'à 9 m, tir ami possible.
   // flash : aveugle (aucun nouveau repérage, précision ×0,25) ceux qui voient l'éclair dans radius.
@@ -1090,14 +1102,14 @@ window.Son = Son;
     { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact par les deux couloirs. Tenez ou contre-attaquez.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_fauve'], level: 2, order: 'assault', enemyTactics: ['blitz', 'fumigene'], reward: 340, xp: 70, difficulty: 3 },
     { id: 'marche', name: 'Marché sous le feu', desc: 'Une équipe adverse ratisse la place du marché. Reprenez-la rue par rue.', mapId: 'place', enemy: ['k_fauve', 'k_vipere', 'k_chacal', 'k_molosse'], level: 3, order: 'careful', enemyTactics: ['soins'], reward: 240, xp: 50, difficulty: 2 },
     { id: 'tenir', name: 'Tenir la place', desc: 'Tenez la place 140 secondes face à un assaut : il suffit qu\'un seul opérateur soit encore en état à l\'échéance.', mapId: 'place', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_vipere'], level: 0, order: 'assault', objective: 'hold', duration: 140, enemyTactics: ['fumigene', 'barrage'], reward: 360, xp: 70, difficulty: 3 },
-    { id: 'nuit', name: 'Infiltration adverse', desc: 'Des opérateurs équipés d\'armes silencieuses s\'infiltrent prudemment : vous les entendrez à peine.', mapId: 'place', enemy: ['k_vipere', 'k_fauve', 'k_molosse', 'k_taipan', 'k_chacal'], enemyWeapons: { k_vipere: 'smgsil', k_fauve: 'smgsil', k_molosse: 'smgsil' }, level: 9, order: 'careful', enemyTactics: ['reco', 'discipline'], reward: 420, xp: 85, difficulty: 4 },
-    { id: 'cuves', name: 'Entre les cuves', desc: 'Le Groupe Karst s\'est installé dans la raffinerie. Il progresse prudemment entre les cuves et les tuyauteries : un terrain qui favorise celui qui tient.', mapId: 'raffinerie', enemy: ['k_chacal', 'k_vipere', 'k_fauve', 'k_hyene', 'k_molosse'], level: 1, order: 'careful', enemyTactics: ['retranche', 'soins'], reward: 320, xp: 65, difficulty: 2 },
-    { id: 'pompage', name: 'Station de pompage', desc: 'Tenez la station de pompage deux minutes face à des assaillants aguerris.', mapId: 'raffinerie', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_rapace'], level: 8, order: 'assault', objective: 'hold', duration: 120, enemyTactics: ['blitz', 'barrage', 'fumigene'], reward: 400, xp: 80, difficulty: 4 },
+    { id: 'nuit', name: 'Infiltration adverse', desc: 'Des opérateurs équipés d\'armes silencieuses s\'infiltrent prudemment : vous les entendrez à peine.', mapId: 'place', conditions: 'nuit', enemy: ['k_vipere', 'k_fauve', 'k_molosse', 'k_taipan', 'k_chacal'], enemyWeapons: { k_vipere: 'smgsil', k_fauve: 'smgsil', k_molosse: 'smgsil' }, level: 9, order: 'careful', enemyTactics: ['reco', 'discipline'], reward: 420, xp: 85, difficulty: 4 },
+    { id: 'cuves', name: 'Entre les cuves', desc: 'Le Groupe Karst s\'est installé dans la raffinerie. Il progresse prudemment entre les cuves et les tuyauteries : un terrain qui favorise celui qui tient.', mapId: 'raffinerie', conditions: 'pluie', enemy: ['k_chacal', 'k_vipere', 'k_fauve', 'k_hyene', 'k_molosse'], level: 2, order: 'careful', enemyTactics: ['retranche', 'soins'], reward: 320, xp: 65, difficulty: 2 },
+    { id: 'pompage', name: 'Station de pompage', desc: 'Tenez la station de pompage deux minutes face à des assaillants aguerris.', mapId: 'raffinerie', conditions: 'brouillard', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_rapace'], level: 8, order: 'assault', objective: 'hold', duration: 120, enemyTactics: ['blitz', 'barrage', 'fumigene'], reward: 400, xp: 80, difficulty: 4 },
     { id: 'balise', name: 'Balise de localisation', desc: 'La balise d\'un agent disparu émet depuis l\'allée nord des docks. Quatre hommes du Groupe Karst la cherchent aussi. Prenez la zone et tenez-la jusqu\'à 100 % — inutile de neutraliser tout le monde.', mapId: 'entrepot', enemy: ['k_vipere', 'k_hyene', 'k_chacal', 'k_fauve'], level: 2, order: 'careful', objective: 'capture', enemyTactics: ['drill'], reward: 220, xp: 45, difficulty: 1 },
     { id: 'priseplace', name: 'Prise de la place', desc: 'Le Groupe Karst veut contrôler la place du marché. Occupez-la avant lui et ne la lâchez pas.', mapId: 'place', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: -2, order: 'careful', objective: 'capture', enemyTactics: ['soins'], reward: 300, xp: 60, difficulty: 2 },
     { id: 'vannes', name: 'Les vannes', desc: 'L\'aire de pompage nord commande toute la raffinerie. Des assaillants aguerris foncent dessus : prenez-la de vitesse.', mapId: 'raffinerie', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_taipan', 'k_rapace'], level: 7, order: 'assault', objective: 'capture', enemyTactics: ['blitz', 'fumigene'], reward: 420, xp: 80, difficulty: 4 },
     { id: 'galerie', name: 'Balise de la galerie', desc: 'Les balises de notre agent disparu émettent depuis le parking du centre commercial. Trouvez-les et sécurisez l\'enclos central.', mapId: 'parking', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 1, order: 'careful', objective: 'capture', enemyTactics: ['fumigene', 'soins'], reward: 320, xp: 65, difficulty: 2 },
-    { id: 'parking', name: 'Nettoyage du parking', desc: 'Le Groupe Karst s\'est retranché entre les voitures et les barrières du parking. Délogez-le.', mapId: 'parking', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_hyene'], level: 6, order: 'hold', enemyTactics: ['retranche', 'reco'], reward: 380, xp: 75, difficulty: 3 },
+    { id: 'parking', name: 'Nettoyage du parking', desc: 'Le Groupe Karst s\'est retranché entre les voitures et les barrières du parking. Délogez-le.', mapId: 'parking', conditions: 'nuit', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_hyene'], level: 6, order: 'hold', enemyTactics: ['retranche', 'reco'], reward: 380, xp: 75, difficulty: 3 },
     { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 5, order: 'assault', enemyTactics: ['blitz', 'reco', 'soins'], reward: 480, xp: 90, difficulty: 4 },
   ];
 
@@ -1209,7 +1221,7 @@ window.Son = Son;
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
   const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL, SYNERGIES, WOUND, CAMPAIGNS, QUICK, SPECIAL_OPS, GRENADES };
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL, SYNERGIES, WOUND, CAMPAIGNS, QUICK, SPECIAL_OPS, GRENADES, CONDITIONS };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));
 
 </script>
@@ -1547,7 +1559,7 @@ window.Son = Son;
 // Chaque opérateur perçoit, décide et agit individuellement. Le résultat découle des événements simulés.
 (function (root, deps) {
   const { RNG, DATA, GameMap, MAPS } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS, SYNERGIES, WOUND, GRENADES } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS, SYNERGIES, WOUND, GRENADES, CONDITIONS } = DATA;
   const SYNERGY_BY_ID = Object.fromEntries(SYNERGIES.map(s => [s.id, s]));
 
   const DT = 0.1;                 // pas de simulation (s)
@@ -1630,6 +1642,7 @@ window.Son = Son;
     this.timeLimit = opts.timeLimit || 240;
     // objectif : { type: 'eliminate' } (défaut) ou { type: 'hold', team, duration } : l'équipe team gagne si elle tient jusqu'à duration
     this.objective = opts.objective || { type: 'eliminate' };
+    this.cond = CONDITIONS[opts.conditions] || CONDITIONS.jour;     // heure / météo (vue, ouïe, précision)
     if (this.objective.type === 'hold') this.timeLimit = this.objective.duration;
     // { type: 'capture', x?, z?, r?, rate? } : une zone au centre de la carte ; l'équipe qui l'occupe seule fait monter sa jauge,
     // 100 % = victoire (même sans avoir éliminé l'adversaire). Zone disputée (les deux équipes dedans) : aucune progression.
@@ -1890,21 +1903,24 @@ window.Son = Son;
   };
   Battle.prototype.perceive = function (u) {
     if (this.t < u.blindUntil) { u.visible = new Set(); return; }   // aveuglé par une grenade incapacitante : plus aucun repérage
-    const visRange = (30 + (u.def.perception / 100) * 45) * (has(u, 'eagle') ? 1.2 : 1); // 30..75 m (Œil de lynx : +20 %)
+    const baseRange = (30 + (u.def.perception / 100) * 45) * (has(u, 'eagle') ? 1.2 : 1); // 30..75 m (Œil de lynx : +20 %)
+    const cond = this.cond, visRange = baseRange * cond.vis;                                  // nuit, brouillard, pluie : on voit moins loin
     const fov = Math.PI * 0.62;                          // ~112° de champ visuel
     const newVisible = new Set();
     for (const e of this.enemiesOf(u)) {
       if (!e.alive) { delete u.knowledge[e.id]; continue; }
       const d = dist2(u, e);
-      // 1) la vue
-      if (d <= visRange) {
+      // 1) la vue (de nuit, l'éclair d'une arme non silencieuse se voit à pleine portée)
+      const lit = cond.flash > 1 && this.t - e.lastShotAt < 1.5 && !e.weapon.silenced;
+      const range = lit ? baseRange : visRange;
+      if (d <= range) {
         const ang = Math.atan2(e.z - u.z, e.x - u.x);
         const inFov = d < 7 || angDiff(ang, u.facing) < fov / 2 || u.visible.has(e.id);
         if (inFov && this.canSee(u, e)) {
           let p;
           if (u.visible.has(e.id)) p = 1;                   // on suit une cible déjà repérée
           else {
-            p = 0.35 * (1 - d / visRange) * (0.6 + u.def.perception / 100);
+            p = 0.35 * (1 - d / range) * (0.6 + u.def.perception / 100) * (lit ? cond.flash : cond.spot);
             if (e.moving) p *= 1.6;
             if (this.t - e.lastShotAt < 1.5) p *= e.weapon.silenced ? 1.6 : 3;   // éclair de bouche, bruit
             if (e.stance === 'crouch') p *= 0.6;
@@ -1928,7 +1944,7 @@ window.Son = Son;
       }
       // 2) l'ouïe : un tir ennemi récent et proche donne une position approximative (bien moins loin si l'arme est silencieuse)
       //    Vigie : tirs entendus 40 % plus loin, et les pas d'un ennemi en mouvement à moins de 12 m (sauf Fantôme)
-      const hearR = (e.weapon.silenced ? 18 : 70) * (has(e, 'ghost') ? 0.7 : 1) * (has(u, 'sentinel') ? 1.4 : 1);
+      const hearR = (e.weapon.silenced ? 18 : 70) * (has(e, 'ghost') ? 0.7 : 1) * (has(u, 'sentinel') ? 1.4 : 1) * cond.hear;
       if (!newVisible.has(e.id) && ((this.t - e.lastShotAt < 0.25 && d < hearR) || (has(u, 'sentinel') && e.moving && d < 12 && !has(e, 'ghost')))) {
         const k = u.knowledge[e.id];
         if (!k || this.t - k.t > 1.5) {
@@ -2605,6 +2621,7 @@ window.Son = Son;
     if (r <= 0.5) f = 1; else if (r <= 1) f = 1 - (r - 0.5) * 1.2; else f = Math.max(0.08, 0.4 - (r - 1) * 0.6);
     p *= f;
     if (d < w.minRange) p *= 0.5;
+    if (d > 15) p *= this.cond.acc;                                                   // nuit, brouillard, pluie : tir lointain moins sûr
     if (u.moving && !asIfStill) p *= 0.55;
     if (u.stance === 'crouch') p *= 1.1;
     p *= 1 - 0.6 * u.suppression * (1 - u.def.composure / 150);
@@ -2924,6 +2941,7 @@ window.Son = Son;
   // Options complètes de bataille pour une mission (carte, objectif, équipes)
   function battleOptions(profile, mission, seed) {
     const opts = { seed, teams: buildTeams(profile, mission), mapId: mission.mapId };
+    if (mission.conditions && mission.conditions !== 'jour') opts.conditions = mission.conditions;
     if (mission.objective === 'hold') opts.objective = { type: 'hold', team: 0, duration: mission.duration || 90 };
     if (mission.objective === 'capture') opts.objective = { type: 'capture' };
     return opts;
@@ -2981,7 +2999,8 @@ window.Son = Son;
     const objective = pick(['eliminate', 'eliminate', 'capture', 'capture', 'hold']);
     const tac = Object.keys(TACTICS); const t1 = pick(tac), t2 = pick(tac.filter(t => t !== t1));
     return { id: 'rapide', name: 'Bataille rapide', quick: true, desc: 'Un adversaire à votre mesure.', mapId: pick(['entrepot', 'place', 'raffinerie', 'parking']), enemy: karst.slice(0, size), level,
-      order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: rng() < 0.5 ? [t1] : [t1, t2], reward: QUICK.reward, xp: QUICK.xp, difficulty: 2 };
+      order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: rng() < 0.5 ? [t1] : [t1, t2], reward: QUICK.reward, xp: QUICK.xp, difficulty: 2,
+      conditions: pick(['jour', 'jour', 'jour', 'jour', 'jour', 'nuit', 'brouillard', 'pluie']) };
   }
   // niveau de l'adversaire de bataille rapide : l'écart de puissance avec une escouade de recrues, converti en niveaux
   let baseRating = null;
@@ -3571,7 +3590,7 @@ window.Son = Son;
     // bataille rapide + opérations spéciales
     const q = profile.quick || { wins: 0 }, prize = DATA.QUICK.prizeEvery, k = q.wins % prize;
     $('#hqQuick').innerHTML = `<div class="mission quickcard ${selectedMission === 'rapide' ? 'sel' : ''}" data-id="rapide"><div class="crow"><b>Bataille rapide</b><span class="diff">${k}/${prize}</span></div>
-      <div class="mdesc">Un adversaire du Groupe Karst à votre mesure, carte et objectif au hasard. ${PACKS[DATA.QUICK.prizePack].name} offert toutes les ${prize} victoires.</div>
+      <div class="mdesc">Un adversaire du Groupe Karst à votre mesure ; carte, objectif, heure et météo au hasard. ${PACKS[DATA.QUICK.prizePack].name} offert toutes les ${prize} victoires.</div>
       <div class="prizebar">${Array.from({ length: prize }, (_, i) => `<i class="${i < k ? 'on' : ''}"></i>`).join('')}</div>
       <div class="crow small"><span>${q.wins || 0} victoire${q.wins > 1 ? 's' : ''} en bataille rapide</span><span>${DATA.QUICK.reward} cr. de base</span></div></div>`;
     const ops = profile.ops || { done: {} };
@@ -3590,7 +3609,7 @@ window.Son = Son;
       return `<div class="mission ${selectedMission === m.id ? 'sel' : ''} ${unlocked ? '' : 'locked'} ${won ? 'won' : ''}" data-id="${m.id}">
         <div class="crow"><span class="mnum">${String(i + 1).padStart(2, '0')}</span><b>${esc(m.name)}</b>${m.final ? '<span class="final">FINALE</span>' : ''}${won ? '<span class="good">✓</span>' : ''}<span class="spacer"></span><span class="diff">${'◆'.repeat(m.difficulty)}${'◇'.repeat(4 - m.difficulty)}</span></div>
         ${unlocked ? `<div class="mdesc">${esc(m.desc)}</div>
-        <div class="crow small"><span>${OT.MAPS[m.mapId].name} · ${Game.objectiveLabel(m)}</span><span>Karst niv. ${m.level}, ${ORDERS[m.order].name}${m.enemyWeapons ? ', armes silencieuses' : ''}</span></div>
+        <div class="crow small"><span>${OT.MAPS[m.mapId].name} · ${Game.objectiveLabel(m)}${m.conditions && m.conditions !== 'jour' ? ' · <b class="cond">' + DATA.CONDITIONS[m.conditions].name + '</b>' : ''}</span><span>Karst niv. ${m.level}, ${ORDERS[m.order].name}${m.enemyWeapons ? ', armes silencieuses' : ''}</span></div>
         <div class="crow small"><span>Récompense : ${m.reward} cr. · ${m.xp} XP de base</span><span>${done ? `${done.wins}/${done.attempts} réussie${done.wins > 1 ? 's' : ''}` : 'Jamais tentée'}</span></div>` : '<div class="crow small"><span>🔒 Jouez la mission précédente pour l’ouvrir.</span></div>'}
       </div>`;
     }).join('');
@@ -3654,7 +3673,7 @@ window.Son = Son;
     $('#vsName1').textContent = lt ? lt.name : 'Groupe Karst'; $('#vsRank1').textContent = `Niveau ${mission.level} · ${ORDERS[mission.order].name}`; $('#vsIns1').textContent = lt ? lt.insignia : '⚑';
     $('#vsRating1').innerHTML = `${enemyRating}<small>Puissance</small>`; $('#vsRec1').innerHTML = ls ? `Victoires <b>${ls.wins}</b><br>Défaites <b>${ls.losses}</b>` : `Contre vous : <b>${km.attempts - km.wins}</b> victoires<br><b>${km.wins}</b> défaites`;
     $('#vsTac1').innerHTML = tacs(mission.enemyTactics || []);
-    $('#vsLoc').textContent = OT.MAPS[mission.mapId].name; $('#vsObj').textContent = '— ' + Game.objectiveLabel(mission);
+    $('#vsLoc').textContent = OT.MAPS[mission.mapId].name + (mission.conditions && mission.conditions !== 'jour' ? ' · ' + DATA.CONDITIONS[mission.conditions].name : ''); $('#vsObj').textContent = '— ' + Game.objectiveLabel(mission);
     $('#vsSquad0').innerHTML = opts.teams[0].operators.map(d => `<span class="${d.wounded ? 'bad' : ''}">${esc(d.callsign)} · ${ROLES[d.role].name}${d.wounded ? ' ✚' : ''}</span>`).join('');
     const synTxt = (defs) => Game.squadSynergies(defs).map(s => `<span title="${esc(s.desc)}">${esc(s.name)}</span>`).join('') || '<span class="empty">aucune synergie</span>';
     $('#vsSyn0').innerHTML = synTxt(opts.teams[0].operators); $('#vsSyn1').innerHTML = synTxt(opts.teams[1].operators);
@@ -3779,7 +3798,7 @@ window.Son = Son;
     g.fillStyle = grd; g.fillRect(0, 0, 4, 256);
     const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
     const dome = new THREE.Mesh(new THREE.SphereGeometry(300, 24, 16), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false }));
-    dome.position.set(32, -40, 20); scene.add(dome);
+    dome.position.set(32, -40, 20); scene.add(dome); scene.userData.dome = dome;
   })();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 400);
 
@@ -3909,11 +3928,40 @@ window.Son = Son;
   })();
 
   // lumières
-  scene.add(new THREE.HemisphereLight(0xb8c8d8, 0x3a3630, 1.15));
+  const hemi = new THREE.HemisphereLight(0xb8c8d8, 0x3a3630, 1.15); scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffe9c4, 2.2);
   sun.position.set(40, 60, 10); sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.left = -45; sun.shadow.camera.right = 45; sun.shadow.camera.top = 35; sun.shadow.camera.bottom = -35; sun.shadow.camera.far = 160; sun.shadow.bias = -0.0008;
   scene.add(sun); scene.add(sun.target);
+
+  // ---- Conditions (jour, nuit, brouillard, pluie) : lumière, brouillard de distance, pluie ; effets de jeu dans engine.js ----
+  const LOOK = {
+    jour:       { hemi: [0xb8c8d8, 0x3a3630, 1.15], sun: [0xffe9c4, 2.2], fog: [0x1a2028, 110, 200], bg: 0x0e1114, dome: true },
+    nuit:       { hemi: [0x40507a, 0x14161c, 0.42], sun: [0x8fa6ff, 0.7], fog: [0x06080d, 35, 120], bg: 0x05070b, dome: false },
+    brouillard: { hemi: [0xc0c6cc, 0x4a4844, 1.0], sun: [0xe8ecf0, 0.9], fog: [0x8b9198, 22, 95], bg: 0x8b9198, dome: false },
+    pluie:      { hemi: [0x9aa6b4, 0x2e3034, 0.8], sun: [0xc8d0dc, 0.9], fog: [0x3a4149, 40, 140], bg: 0x2a3036, dome: false },
+  };
+  let rain = null;
+  function applyConditions(id) {
+    const L = LOOK[id] || LOOK.jour;
+    hemi.color.setHex(L.hemi[0]); hemi.groundColor.setHex(L.hemi[1]); hemi.intensity = L.hemi[2];
+    sun.color.setHex(L.sun[0]); sun.intensity = L.sun[1];
+    scene.fog.color.setHex(L.fog[0]); scene.fog.near = L.fog[1]; scene.fog.far = L.fog[2]; scene.background.setHex(L.bg);
+    if (scene.userData.dome) scene.userData.dome.visible = L.dome;
+    if (rain) { scene.remove(rain); rain.geometry.dispose(); rain.material.dispose(); rain = null; }
+    if (id === 'pluie') {   // gouttes en traits (segments) qui tombent dans un volume autour de la caméra
+      const N = 3500, pos = new Float32Array(N * 6);
+      for (let i = 0; i < N; i++) { const x = Math.random() * 90 - 13, y = Math.random() * 30, z = Math.random() * 70 - 15; pos.set([x, y, z, x + 0.05, y + 0.7, z + 0.02], i * 6); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xa8b8c8, transparent: true, opacity: 0.35, depthWrite: false })); rain.frustumCulled = false; scene.add(rain);
+    }
+    $('#app').dataset.cond = id || 'jour';
+  }
+  function updateRain(dt) {
+    if (!rain) return; const a = rain.geometry.attributes.position.array, v = 26 * dt;
+    for (let i = 0; i < a.length; i += 6) { a[i + 1] -= v; a[i + 4] -= v; if (a[i + 1] < 0) { a[i + 1] += 30; a[i + 4] += 30; } }
+    rain.geometry.attributes.position.needsUpdate = true;
+  }
 
   // ---------------------------------------------------------------------------------------------
   // Construction de la carte
@@ -4454,7 +4502,7 @@ window.Son = Son;
     if (!opts.replayInputs) { reviewing = false; $('#app').classList.remove('reviewing'); }
     battle = new Battle(opts); simTime = 0; acc = 0; logIndex = 0; ended = false; fxLast = 0; lastAnimTime = 0; contactPlayed = false; pendingSounds.length = 0;
     for (const k in unitById) delete unitById[k];
-    buildMap(battle.map);
+    buildMap(battle.map); applyConditions(opts.conditions);
     buildZone(); buildSpawnEmblems();
     $('#app').classList.toggle('capture', !!battle.zone);
     hideBanner();
@@ -4666,7 +4714,7 @@ window.Son = Son;
     // en mission, l'ordre d'Alpha reste modifiable en direct ; celui de Bravo et les réglages de graine/carte sont réservés à la bataille libre
     for (const id of ['order1', 'seed', 'mapSel', 'newBattle', 'replay', 'resReplay', 'resNew']) $('#' + id).hidden = !free;
     document.querySelectorAll('header .group').forEach(g => { if (g.querySelector('#order1, #seed, #mapSel')) g.hidden = !free; });
-    $('#missionLabel').hidden = free; if (!free) $('#missionLabel').textContent = `Mission : ${mis.name}`;
+    $('#missionLabel').hidden = free; if (!free) $('#missionLabel').textContent = `Mission : ${mis.name}${mis.conditions && mis.conditions !== 'jour' ? ' · ' + DATA.CONDITIONS[mis.conditions].name : ''}`;
     $('#toHq').textContent = free ? 'QG' : 'Abandonner';
     $('#resHq').textContent = free ? 'Quartier général' : 'Retour au QG';
   }
@@ -4676,7 +4724,7 @@ window.Son = Son;
     teams[0].order = $('#order0').value; teams[1].order = $('#order1').value;
     const seedTxt = $('#seed').value.trim();
     const seed = seedTxt === '' ? Math.floor(Math.random() * 100000) : (parseInt(seedTxt, 10) || 1);
-    return { seed, teams, mapId: $('#mapSel').value };
+    return { seed, teams, mapId: $('#mapSel').value, conditions: $('#condSel').value === 'jour' ? undefined : $('#condSel').value };
   }
   $('#play').addEventListener('click', () => { if (battle.over) return; paused = !paused; updatePlayButton(); ambience(true); });
   // ordres en cours de bataille : appliqués immédiatement à la simulation (Alpha toujours ; Bravo en bataille libre)
@@ -4718,7 +4766,7 @@ window.Son = Son;
   }
   // secousse de caméra (explosions) : décalage aléatoire qui s'amortit
   function applyShake() { if (!cam.shake || cam.shake < 0.01) return; const k = cam.shake * 0.25; camera.position.x += (Math.random() - 0.5) * k; camera.position.y += (Math.random() - 0.5) * k; camera.position.z += (Math.random() - 0.5) * k; cam.shake *= 0.86; }
-  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); if (battle.zone) updateZone(); renderer.render(scene, camera); updateLabels(); updateRosters(); }
+  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); if (battle.zone) updateZone(); renderer.render(scene, camera); updateLabels(); updateRosters(); }
 
   function frame(now) {
     requestAnimationFrame(frame);

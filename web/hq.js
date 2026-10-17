@@ -244,7 +244,7 @@
     // bataille rapide + opérations spéciales
     const q = profile.quick || { wins: 0 }, prize = DATA.QUICK.prizeEvery, k = q.wins % prize;
     $('#hqQuick').innerHTML = `<div class="mission quickcard ${selectedMission === 'rapide' ? 'sel' : ''}" data-id="rapide"><div class="crow"><b>Bataille rapide</b><span class="diff">${k}/${prize}</span></div>
-      <div class="mdesc">Un adversaire du Groupe Karst à votre mesure, carte et objectif au hasard. ${PACKS[DATA.QUICK.prizePack].name} offert toutes les ${prize} victoires.</div>
+      <div class="mdesc">Un adversaire du Groupe Karst à votre mesure ; carte, objectif, heure et météo au hasard. ${PACKS[DATA.QUICK.prizePack].name} offert toutes les ${prize} victoires.</div>
       <div class="prizebar">${Array.from({ length: prize }, (_, i) => `<i class="${i < k ? 'on' : ''}"></i>`).join('')}</div>
       <div class="crow small"><span>${q.wins || 0} victoire${q.wins > 1 ? 's' : ''} en bataille rapide</span><span>${DATA.QUICK.reward} cr. de base</span></div></div>`;
     const ops = profile.ops || { done: {} };
@@ -263,7 +263,7 @@
       return `<div class="mission ${selectedMission === m.id ? 'sel' : ''} ${unlocked ? '' : 'locked'} ${won ? 'won' : ''}" data-id="${m.id}">
         <div class="crow"><span class="mnum">${String(i + 1).padStart(2, '0')}</span><b>${esc(m.name)}</b>${m.final ? '<span class="final">FINALE</span>' : ''}${won ? '<span class="good">✓</span>' : ''}<span class="spacer"></span><span class="diff">${'◆'.repeat(m.difficulty)}${'◇'.repeat(4 - m.difficulty)}</span></div>
         ${unlocked ? `<div class="mdesc">${esc(m.desc)}</div>
-        <div class="crow small"><span>${OT.MAPS[m.mapId].name} · ${Game.objectiveLabel(m)}</span><span>Karst niv. ${m.level}, ${ORDERS[m.order].name}${m.enemyWeapons ? ', armes silencieuses' : ''}</span></div>
+        <div class="crow small"><span>${OT.MAPS[m.mapId].name} · ${Game.objectiveLabel(m)}${m.conditions && m.conditions !== 'jour' ? ' · <b class="cond">' + DATA.CONDITIONS[m.conditions].name + '</b>' : ''}</span><span>Karst niv. ${m.level}, ${ORDERS[m.order].name}${m.enemyWeapons ? ', armes silencieuses' : ''}</span></div>
         <div class="crow small"><span>Récompense : ${m.reward} cr. · ${m.xp} XP de base</span><span>${done ? `${done.wins}/${done.attempts} réussie${done.wins > 1 ? 's' : ''}` : 'Jamais tentée'}</span></div>` : '<div class="crow small"><span>🔒 Jouez la mission précédente pour l’ouvrir.</span></div>'}
       </div>`;
     }).join('');
@@ -327,7 +327,7 @@
     $('#vsName1').textContent = lt ? lt.name : 'Groupe Karst'; $('#vsRank1').textContent = `Niveau ${mission.level} · ${ORDERS[mission.order].name}`; $('#vsIns1').textContent = lt ? lt.insignia : '⚑';
     $('#vsRating1').innerHTML = `${enemyRating}<small>Puissance</small>`; $('#vsRec1').innerHTML = ls ? `Victoires <b>${ls.wins}</b><br>Défaites <b>${ls.losses}</b>` : `Contre vous : <b>${km.attempts - km.wins}</b> victoires<br><b>${km.wins}</b> défaites`;
     $('#vsTac1').innerHTML = tacs(mission.enemyTactics || []);
-    $('#vsLoc').textContent = OT.MAPS[mission.mapId].name; $('#vsObj').textContent = '— ' + Game.objectiveLabel(mission);
+    $('#vsLoc').textContent = OT.MAPS[mission.mapId].name + (mission.conditions && mission.conditions !== 'jour' ? ' · ' + DATA.CONDITIONS[mission.conditions].name : ''); $('#vsObj').textContent = '— ' + Game.objectiveLabel(mission);
     $('#vsSquad0').innerHTML = opts.teams[0].operators.map(d => `<span class="${d.wounded ? 'bad' : ''}">${esc(d.callsign)} · ${ROLES[d.role].name}${d.wounded ? ' ✚' : ''}</span>`).join('');
     const synTxt = (defs) => Game.squadSynergies(defs).map(s => `<span title="${esc(s.desc)}">${esc(s.name)}</span>`).join('') || '<span class="empty">aucune synergie</span>';
     $('#vsSyn0').innerHTML = synTxt(opts.teams[0].operators); $('#vsSyn1').innerHTML = synTxt(opts.teams[1].operators);

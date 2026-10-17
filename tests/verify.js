@@ -461,6 +461,16 @@ function duel(opts) {
 }
 
 {
+  // ---- conditions : la nuit réduit la vue (sauf l'éclair d'un tireur), le brouillard aussi ; la pluie couvre les bruits ----
+  const mp = new GameMap(MAPS.place); let row = null; for (let z = 3; z < 42 && row === null; z += 0.5) if (mp.hasLOS(14, 1.6, z, 54, 1.6, z) && !mp.insideObstacle(14, z) && !mp.insideObstacle(54, z)) row = z;
+  const sees = (cond, fired) => { let n = 0; for (let sd = 1; sd <= 40; sd++) { const b = new Battle({ seed: sd, mapId: 'place', conditions: cond, teams: [{ operators: ['op_vautour'], tactics: [] }, { operators: ['k_molosse'], tactics: [] }] }); const [u] = b.teams[0].units, [e] = b.teams[1].units; u.x = 14; u.z = row; e.x = 54; e.z = row; u.facing = 0; e.moving = true; b.t = 10; e.lastShotAt = fired ? 9.8 : -99; for (let k = 0; k < 10; k++) { b.perceive(u); if (u.visible.has(e.id)) { n++; break; } } } return n; };
+  const dj = sees(undefined, false), dn = sees('nuit', false), dnf = sees('nuit', true), db = sees('brouillard', false);
+  check('conditions : à 40 m, repéré de jour, invisible de nuit et dans le brouillard, trahi de nuit par l\'éclair de son arme', row !== null && dj > 20 && dn === 0 && db === 0 && dnf > 20, { row, dj, dn, dnf, db });
+  const r1 = new Battle({ seed: 77, conditions: 'pluie' }).run(), r2 = new Battle({ seed: 77, conditions: 'pluie' }).run(), r3 = new Battle({ seed: 77 }).run();
+  check('conditions : déterministes, et elles changent réellement la bataille', JSON.stringify(r1.teams) === JSON.stringify(r2.teams) && (r1.duration !== r3.duration || JSON.stringify(r1.teams) !== JSON.stringify(r3.teams)));
+}
+
+{
   // ---- équité entre les camps : deux escouades identiques, cartes symétriques → aucun camp ne doit être favorisé ----
   const mp = new GameMap(MAPS.parking); const key = (x, z) => x.toFixed(2) + ',' + z.toFixed(2);
   let asymCover = 0; for (const id of Object.keys(MAPS)) { const m = new GameMap(MAPS[id]); const S = new Set(m.coverPoints.map(p => key(p.x, p.z))); for (const p of m.coverPoints) if (!S.has(key(m.width - p.x, p.z))) asymCover++; }

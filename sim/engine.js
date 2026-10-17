@@ -2,7 +2,7 @@
 // Chaque opérateur perçoit, décide et agit individuellement. Le résultat découle des événements simulés.
 (function (root, deps) {
   const { RNG, DATA, GameMap, MAPS } = deps;
-  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS, SYNERGIES, WOUND, GRENADES } = DATA;
+  const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS, SYNERGIES, WOUND, GRENADES, CONDITIONS } = DATA;
   const SYNERGY_BY_ID = Object.fromEntries(SYNERGIES.map(s => [s.id, s]));
 
   const DT = 0.1;                 // pas de simulation (s)
@@ -85,6 +85,7 @@
     this.timeLimit = opts.timeLimit || 240;
     // objectif : { type: 'eliminate' } (défaut) ou { type: 'hold', team, duration } : l'équipe team gagne si elle tient jusqu'à duration
     this.objective = opts.objective || { type: 'eliminate' };
+    this.cond = CONDITIONS[opts.conditions] || CONDITIONS.jour;     // heure / météo (vue, ouïe, précision)
     if (this.objective.type === 'hold') this.timeLimit = this.objective.duration;
     // { type: 'capture', x?, z?, r?, rate? } : une zone au centre de la carte ; l'équipe qui l'occupe seule fait monter sa jauge,
     // 100 % = victoire (même sans avoir éliminé l'adversaire). Zone disputée (les deux équipes dedans) : aucune progression.
@@ -345,21 +346,24 @@
   };
   Battle.prototype.perceive = function (u) {
     if (this.t < u.blindUntil) { u.visible = new Set(); return; }   // aveuglé par une grenade incapacitante : plus aucun repérage
-    const visRange = (30 + (u.def.perception / 100) * 45) * (has(u, 'eagle') ? 1.2 : 1); // 30..75 m (Œil de lynx : +20 %)
+    const baseRange = (30 + (u.def.perception / 100) * 45) * (has(u, 'eagle') ? 1.2 : 1); // 30..75 m (Œil de lynx : +20 %)
+    const cond = this.cond, visRange = baseRange * cond.vis;                                  // nuit, brouillard, pluie : on voit moins loin
     const fov = Math.PI * 0.62;                          // ~112° de champ visuel
     const newVisible = new Set();
     for (const e of this.enemiesOf(u)) {
       if (!e.alive) { delete u.knowledge[e.id]; continue; }
       const d = dist2(u, e);
-      // 1) la vue
-      if (d <= visRange) {
+      // 1) la vue (de nuit, l'éclair d'une arme non silencieuse se voit à pleine portée)
+      const lit = cond.flash > 1 && this.t - e.lastShotAt < 1.5 && !e.weapon.silenced;
+      const range = lit ? baseRange : visRange;
+      if (d <= range) {
         const ang = Math.atan2(e.z - u.z, e.x - u.x);
         const inFov = d < 7 || angDiff(ang, u.facing) < fov / 2 || u.visible.has(e.id);
         if (inFov && this.canSee(u, e)) {
           let p;
           if (u.visible.has(e.id)) p = 1;                   // on suit une cible déjà repérée
           else {
-            p = 0.35 * (1 - d / visRange) * (0.6 + u.def.perception / 100);
+            p = 0.35 * (1 - d / range) * (0.6 + u.def.perception / 100) * (lit ? cond.flash : cond.spot);
             if (e.moving) p *= 1.6;
             if (this.t - e.lastShotAt < 1.5) p *= e.weapon.silenced ? 1.6 : 3;   // éclair de bouche, bruit
             if (e.stance === 'crouch') p *= 0.6;
@@ -383,7 +387,7 @@
       }
       // 2) l'ouïe : un tir ennemi récent et proche donne une position approximative (bien moins loin si l'arme est silencieuse)
       //    Vigie : tirs entendus 40 % plus loin, et les pas d'un ennemi en mouvement à moins de 12 m (sauf Fantôme)
-      const hearR = (e.weapon.silenced ? 18 : 70) * (has(e, 'ghost') ? 0.7 : 1) * (has(u, 'sentinel') ? 1.4 : 1);
+      const hearR = (e.weapon.silenced ? 18 : 70) * (has(e, 'ghost') ? 0.7 : 1) * (has(u, 'sentinel') ? 1.4 : 1) * cond.hear;
       if (!newVisible.has(e.id) && ((this.t - e.lastShotAt < 0.25 && d < hearR) || (has(u, 'sentinel') && e.moving && d < 12 && !has(e, 'ghost')))) {
         const k = u.knowledge[e.id];
         if (!k || this.t - k.t > 1.5) {
@@ -1060,6 +1064,7 @@
     if (r <= 0.5) f = 1; else if (r <= 1) f = 1 - (r - 0.5) * 1.2; else f = Math.max(0.08, 0.4 - (r - 1) * 0.6);
     p *= f;
     if (d < w.minRange) p *= 0.5;
+    if (d > 15) p *= this.cond.acc;                                                   // nuit, brouillard, pluie : tir lointain moins sûr
     if (u.moving && !asIfStill) p *= 0.55;
     if (u.stance === 'crouch') p *= 1.1;
     p *= 1 - 0.6 * u.suppression * (1 - u.def.composure / 150);

@@ -64,6 +64,16 @@
     ghost:       { id: 'ghost',       name: 'Fantôme',           desc: 'Plus difficile à repérer (−40 %) ; ses tirs s\'entendent moins loin.' },
   };
 
+  // ---- CONDITIONS (heure, météo) : effets réels sur la perception, l'ouïe et la précision (engine.js : this.cond) ----
+  // vis : portée de vue ; spot : chance de repérer ; hear : portée d'ouïe ; acc : précision au-delà de 15 m ;
+  // flash : de nuit, un tireur non silencieux se trahit (repéré à pleine portée, chance ×flash).
+  const CONDITIONS = {
+    jour:       { id: 'jour',       name: 'Jour',       vis: 1,    spot: 1,    hear: 1,   acc: 1,    flash: 1 },
+    nuit:       { id: 'nuit',       name: 'Nuit',       vis: 0.5,  spot: 0.65, hear: 1.1, acc: 0.9,  flash: 1.8 },
+    brouillard: { id: 'brouillard', name: 'Brouillard', vis: 0.45, spot: 0.8,  hear: 1,   acc: 0.92, flash: 1 },
+    pluie:      { id: 'pluie',      name: 'Pluie',      vis: 0.8,  spot: 0.85, hear: 0.65, acc: 0.94, flash: 1 },
+  };
+
   // ---- GRENADES (lancées par l'IA ; dotation par rôle ci-dessus) ---------------------------------------------
   // frag : dégâts décroissants jusqu'à radius (bloqués par les murs), suppression jusqu'à 9 m, tir ami possible.
   // flash : aveugle (aucun nouveau repérage, précision ×0,25) ceux qui voient l'éclair dans radius.
@@ -156,14 +166,14 @@
     { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact par les deux couloirs. Tenez ou contre-attaquez.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_fauve'], level: 2, order: 'assault', enemyTactics: ['blitz', 'fumigene'], reward: 340, xp: 70, difficulty: 3 },
     { id: 'marche', name: 'Marché sous le feu', desc: 'Une équipe adverse ratisse la place du marché. Reprenez-la rue par rue.', mapId: 'place', enemy: ['k_fauve', 'k_vipere', 'k_chacal', 'k_molosse'], level: 3, order: 'careful', enemyTactics: ['soins'], reward: 240, xp: 50, difficulty: 2 },
     { id: 'tenir', name: 'Tenir la place', desc: 'Tenez la place 140 secondes face à un assaut : il suffit qu\'un seul opérateur soit encore en état à l\'échéance.', mapId: 'place', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_vipere'], level: 0, order: 'assault', objective: 'hold', duration: 140, enemyTactics: ['fumigene', 'barrage'], reward: 360, xp: 70, difficulty: 3 },
-    { id: 'nuit', name: 'Infiltration adverse', desc: 'Des opérateurs équipés d\'armes silencieuses s\'infiltrent prudemment : vous les entendrez à peine.', mapId: 'place', enemy: ['k_vipere', 'k_fauve', 'k_molosse', 'k_taipan', 'k_chacal'], enemyWeapons: { k_vipere: 'smgsil', k_fauve: 'smgsil', k_molosse: 'smgsil' }, level: 9, order: 'careful', enemyTactics: ['reco', 'discipline'], reward: 420, xp: 85, difficulty: 4 },
-    { id: 'cuves', name: 'Entre les cuves', desc: 'Le Groupe Karst s\'est installé dans la raffinerie. Il progresse prudemment entre les cuves et les tuyauteries : un terrain qui favorise celui qui tient.', mapId: 'raffinerie', enemy: ['k_chacal', 'k_vipere', 'k_fauve', 'k_hyene', 'k_molosse'], level: 1, order: 'careful', enemyTactics: ['retranche', 'soins'], reward: 320, xp: 65, difficulty: 2 },
-    { id: 'pompage', name: 'Station de pompage', desc: 'Tenez la station de pompage deux minutes face à des assaillants aguerris.', mapId: 'raffinerie', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_rapace'], level: 8, order: 'assault', objective: 'hold', duration: 120, enemyTactics: ['blitz', 'barrage', 'fumigene'], reward: 400, xp: 80, difficulty: 4 },
+    { id: 'nuit', name: 'Infiltration adverse', desc: 'Des opérateurs équipés d\'armes silencieuses s\'infiltrent prudemment : vous les entendrez à peine.', mapId: 'place', conditions: 'nuit', enemy: ['k_vipere', 'k_fauve', 'k_molosse', 'k_taipan', 'k_chacal'], enemyWeapons: { k_vipere: 'smgsil', k_fauve: 'smgsil', k_molosse: 'smgsil' }, level: 9, order: 'careful', enemyTactics: ['reco', 'discipline'], reward: 420, xp: 85, difficulty: 4 },
+    { id: 'cuves', name: 'Entre les cuves', desc: 'Le Groupe Karst s\'est installé dans la raffinerie. Il progresse prudemment entre les cuves et les tuyauteries : un terrain qui favorise celui qui tient.', mapId: 'raffinerie', conditions: 'pluie', enemy: ['k_chacal', 'k_vipere', 'k_fauve', 'k_hyene', 'k_molosse'], level: 2, order: 'careful', enemyTactics: ['retranche', 'soins'], reward: 320, xp: 65, difficulty: 2 },
+    { id: 'pompage', name: 'Station de pompage', desc: 'Tenez la station de pompage deux minutes face à des assaillants aguerris.', mapId: 'raffinerie', conditions: 'brouillard', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_rapace'], level: 8, order: 'assault', objective: 'hold', duration: 120, enemyTactics: ['blitz', 'barrage', 'fumigene'], reward: 400, xp: 80, difficulty: 4 },
     { id: 'balise', name: 'Balise de localisation', desc: 'La balise d\'un agent disparu émet depuis l\'allée nord des docks. Quatre hommes du Groupe Karst la cherchent aussi. Prenez la zone et tenez-la jusqu\'à 100 % — inutile de neutraliser tout le monde.', mapId: 'entrepot', enemy: ['k_vipere', 'k_hyene', 'k_chacal', 'k_fauve'], level: 2, order: 'careful', objective: 'capture', enemyTactics: ['drill'], reward: 220, xp: 45, difficulty: 1 },
     { id: 'priseplace', name: 'Prise de la place', desc: 'Le Groupe Karst veut contrôler la place du marché. Occupez-la avant lui et ne la lâchez pas.', mapId: 'place', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: -2, order: 'careful', objective: 'capture', enemyTactics: ['soins'], reward: 300, xp: 60, difficulty: 2 },
     { id: 'vannes', name: 'Les vannes', desc: 'L\'aire de pompage nord commande toute la raffinerie. Des assaillants aguerris foncent dessus : prenez-la de vitesse.', mapId: 'raffinerie', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_taipan', 'k_rapace'], level: 7, order: 'assault', objective: 'capture', enemyTactics: ['blitz', 'fumigene'], reward: 420, xp: 80, difficulty: 4 },
     { id: 'galerie', name: 'Balise de la galerie', desc: 'Les balises de notre agent disparu émettent depuis le parking du centre commercial. Trouvez-les et sécurisez l\'enclos central.', mapId: 'parking', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 1, order: 'careful', objective: 'capture', enemyTactics: ['fumigene', 'soins'], reward: 320, xp: 65, difficulty: 2 },
-    { id: 'parking', name: 'Nettoyage du parking', desc: 'Le Groupe Karst s\'est retranché entre les voitures et les barrières du parking. Délogez-le.', mapId: 'parking', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_hyene'], level: 6, order: 'hold', enemyTactics: ['retranche', 'reco'], reward: 380, xp: 75, difficulty: 3 },
+    { id: 'parking', name: 'Nettoyage du parking', desc: 'Le Groupe Karst s\'est retranché entre les voitures et les barrières du parking. Délogez-le.', mapId: 'parking', conditions: 'nuit', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_hyene'], level: 6, order: 'hold', enemyTactics: ['retranche', 'reco'], reward: 380, xp: 75, difficulty: 3 },
     { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 5, order: 'assault', enemyTactics: ['blitz', 'reco', 'soins'], reward: 480, xp: 90, difficulty: 4 },
   ];
 
@@ -275,5 +285,5 @@
   const XP_TABLE = [0, 100, 230, 400, 620, 900, 1250, 1700, 2250, 2900, 3650];
   const LEVEL_STAT_BONUS = 2, MAX_LEVEL = 10;
 
-  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL, SYNERGIES, WOUND, CAMPAIGNS, QUICK, SPECIAL_OPS, GRENADES };
+  root.DATA = { WEAPONS, ARMORS, ROLES, OPERATORS, FACTIONS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL, SYNERGIES, WOUND, CAMPAIGNS, QUICK, SPECIAL_OPS, GRENADES, CONDITIONS };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}));

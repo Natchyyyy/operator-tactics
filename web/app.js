@@ -35,7 +35,7 @@
     g.fillStyle = grd; g.fillRect(0, 0, 4, 256);
     const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
     const dome = new THREE.Mesh(new THREE.SphereGeometry(300, 24, 16), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false }));
-    dome.position.set(32, -40, 20); scene.add(dome);
+    dome.position.set(32, -40, 20); scene.add(dome); scene.userData.dome = dome;
   })();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 400);
 
@@ -165,11 +165,40 @@
   })();
 
   // lumières
-  scene.add(new THREE.HemisphereLight(0xb8c8d8, 0x3a3630, 1.15));
+  const hemi = new THREE.HemisphereLight(0xb8c8d8, 0x3a3630, 1.15); scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffe9c4, 2.2);
   sun.position.set(40, 60, 10); sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.left = -45; sun.shadow.camera.right = 45; sun.shadow.camera.top = 35; sun.shadow.camera.bottom = -35; sun.shadow.camera.far = 160; sun.shadow.bias = -0.0008;
   scene.add(sun); scene.add(sun.target);
+
+  // ---- Conditions (jour, nuit, brouillard, pluie) : lumière, brouillard de distance, pluie ; effets de jeu dans engine.js ----
+  const LOOK = {
+    jour:       { hemi: [0xb8c8d8, 0x3a3630, 1.15], sun: [0xffe9c4, 2.2], fog: [0x1a2028, 110, 200], bg: 0x0e1114, dome: true },
+    nuit:       { hemi: [0x40507a, 0x14161c, 0.42], sun: [0x8fa6ff, 0.7], fog: [0x06080d, 35, 120], bg: 0x05070b, dome: false },
+    brouillard: { hemi: [0xc0c6cc, 0x4a4844, 1.0], sun: [0xe8ecf0, 0.9], fog: [0x8b9198, 22, 95], bg: 0x8b9198, dome: false },
+    pluie:      { hemi: [0x9aa6b4, 0x2e3034, 0.8], sun: [0xc8d0dc, 0.9], fog: [0x3a4149, 40, 140], bg: 0x2a3036, dome: false },
+  };
+  let rain = null;
+  function applyConditions(id) {
+    const L = LOOK[id] || LOOK.jour;
+    hemi.color.setHex(L.hemi[0]); hemi.groundColor.setHex(L.hemi[1]); hemi.intensity = L.hemi[2];
+    sun.color.setHex(L.sun[0]); sun.intensity = L.sun[1];
+    scene.fog.color.setHex(L.fog[0]); scene.fog.near = L.fog[1]; scene.fog.far = L.fog[2]; scene.background.setHex(L.bg);
+    if (scene.userData.dome) scene.userData.dome.visible = L.dome;
+    if (rain) { scene.remove(rain); rain.geometry.dispose(); rain.material.dispose(); rain = null; }
+    if (id === 'pluie') {   // gouttes en traits (segments) qui tombent dans un volume autour de la caméra
+      const N = 3500, pos = new Float32Array(N * 6);
+      for (let i = 0; i < N; i++) { const x = Math.random() * 90 - 13, y = Math.random() * 30, z = Math.random() * 70 - 15; pos.set([x, y, z, x + 0.05, y + 0.7, z + 0.02], i * 6); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xa8b8c8, transparent: true, opacity: 0.35, depthWrite: false })); rain.frustumCulled = false; scene.add(rain);
+    }
+    $('#app').dataset.cond = id || 'jour';
+  }
+  function updateRain(dt) {
+    if (!rain) return; const a = rain.geometry.attributes.position.array, v = 26 * dt;
+    for (let i = 0; i < a.length; i += 6) { a[i + 1] -= v; a[i + 4] -= v; if (a[i + 1] < 0) { a[i + 1] += 30; a[i + 4] += 30; } }
+    rain.geometry.attributes.position.needsUpdate = true;
+  }
 
   // ---------------------------------------------------------------------------------------------
   // Construction de la carte
@@ -710,7 +739,7 @@
     if (!opts.replayInputs) { reviewing = false; $('#app').classList.remove('reviewing'); }
     battle = new Battle(opts); simTime = 0; acc = 0; logIndex = 0; ended = false; fxLast = 0; lastAnimTime = 0; contactPlayed = false; pendingSounds.length = 0;
     for (const k in unitById) delete unitById[k];
-    buildMap(battle.map);
+    buildMap(battle.map); applyConditions(opts.conditions);
     buildZone(); buildSpawnEmblems();
     $('#app').classList.toggle('capture', !!battle.zone);
     hideBanner();
@@ -922,7 +951,7 @@
     // en mission, l'ordre d'Alpha reste modifiable en direct ; celui de Bravo et les réglages de graine/carte sont réservés à la bataille libre
     for (const id of ['order1', 'seed', 'mapSel', 'newBattle', 'replay', 'resReplay', 'resNew']) $('#' + id).hidden = !free;
     document.querySelectorAll('header .group').forEach(g => { if (g.querySelector('#order1, #seed, #mapSel')) g.hidden = !free; });
-    $('#missionLabel').hidden = free; if (!free) $('#missionLabel').textContent = `Mission : ${mis.name}`;
+    $('#missionLabel').hidden = free; if (!free) $('#missionLabel').textContent = `Mission : ${mis.name}${mis.conditions && mis.conditions !== 'jour' ? ' · ' + DATA.CONDITIONS[mis.conditions].name : ''}`;
     $('#toHq').textContent = free ? 'QG' : 'Abandonner';
     $('#resHq').textContent = free ? 'Quartier général' : 'Retour au QG';
   }
@@ -932,7 +961,7 @@
     teams[0].order = $('#order0').value; teams[1].order = $('#order1').value;
     const seedTxt = $('#seed').value.trim();
     const seed = seedTxt === '' ? Math.floor(Math.random() * 100000) : (parseInt(seedTxt, 10) || 1);
-    return { seed, teams, mapId: $('#mapSel').value };
+    return { seed, teams, mapId: $('#mapSel').value, conditions: $('#condSel').value === 'jour' ? undefined : $('#condSel').value };
   }
   $('#play').addEventListener('click', () => { if (battle.over) return; paused = !paused; updatePlayButton(); ambience(true); });
   // ordres en cours de bataille : appliqués immédiatement à la simulation (Alpha toujours ; Bravo en bataille libre)
@@ -974,7 +1003,7 @@
   }
   // secousse de caméra (explosions) : décalage aléatoire qui s'amortit
   function applyShake() { if (!cam.shake || cam.shake < 0.01) return; const k = cam.shake * 0.25; camera.position.x += (Math.random() - 0.5) * k; camera.position.y += (Math.random() - 0.5) * k; camera.position.z += (Math.random() - 0.5) * k; cam.shake *= 0.86; }
-  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); if (battle.zone) updateZone(); renderer.render(scene, camera); updateLabels(); updateRosters(); }
+  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); if (battle.zone) updateZone(); renderer.render(scene, camera); updateLabels(); updateRosters(); }
 
   function frame(now) {
     requestAnimationFrame(frame);

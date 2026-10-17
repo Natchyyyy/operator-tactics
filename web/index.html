@@ -169,7 +169,8 @@
   .opcard .orate { font-weight: 800; font-size: 15px; color: #ffe08a; min-width: 26px; text-align: right; } .opcard.locked .orate { color: var(--muted); }
   .opcard.r2 { border-left: 3px solid #3d6fa8; } .opcard.r3 { border-left: 3px solid #b8933a; }
   .dname .drate { display: inline-block; margin-left: 8px; font-size: 16px; font-weight: 800; color: #ffe08a; border: 1px solid #c9a64a; border-radius: 6px; padding: 0 6px; vertical-align: 2px; }
-  .slot.wounded { border-color: #a3261c; } .stat.wounded .sbar i { background: #c0392b; } .stat.wounded .val { color: #ff8a7a; } .vssyn span { background: #17241a !important; border-color: #4f9d5a !important; } .vssyn span.empty { background: transparent !important; border-color: var(--line) !important; opacity: .6; }
+  .slot.wounded { border-color: #a3261c; }
+  b.cond { color: #9fb4ff; font-weight: 600; } .stat.wounded .sbar i { background: #c0392b; } .stat.wounded .val { color: #ff8a7a; } .vssyn span { background: #17241a !important; border-color: #4f9d5a !important; } .vssyn span.empty { background: transparent !important; border-color: var(--line) !important; opacity: .6; }
   .playtop { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px; } .quickcard { border-color: #4a6b8f !important; background: linear-gradient(160deg, #1b2a3a, #121a22) !important; }
   .prizebar { display: flex; gap: 4px; margin: 6px 0; } .prizebar i { flex: 1; height: 8px; border-radius: 3px; background: #0b0e11; border: 1px solid var(--line); } .prizebar i.on { background: var(--accent); border-color: var(--accent); }
   .opsrow { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; margin-bottom: 5px; font-size: 12px; } .opsrow .muted { font-size: 11px; } .opsrow.done { border-color: #4f9d5a; } .opsrow .xpbar.big { height: 6px; margin: 4px 0 0; }
@@ -429,7 +430,7 @@
     <div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div>
     <div class="group"><label>Alpha</label><select id="order0" title="Ordre d'Alpha — modifiable pendant la bataille"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
     <div class="group"><label>Bravo</label><select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
-    <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option><option value="raffinerie">Raffinerie</option><option value="parking">Parking du centre commercial</option></select></div>
+    <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option><option value="raffinerie">Raffinerie</option><option value="parking">Parking du centre commercial</option></select><select id="condSel" title="Heure et météo : vue, ouïe et précision changent réellement"><option value="jour">Jour</option><option value="nuit">Nuit</option><option value="brouillard">Brouillard</option><option value="pluie">Pluie</option></select></div>
     <div class="group"><label>Graine</label><input id="seed" placeholder="aléatoire"></div>
     <button id="newBattle">Nouvelle</button><button id="replay" title="Rejouer la même graine">Rejouer</button>
     <span id="missionLabel" class="muted" hidden></span>
@@ -464,6 +465,7 @@
         <li><b>Tactiques</b> (cartes à gauche) : fumigène, drone, soins, mortier… à jouer pendant la bataille, avec un nombre d'emplois et un temps de recharge ; les tactiques passives (exercice, retranchement…) s'appliquent dès le début. L'adversaire joue aussi les siennes (à droite).</li>
         <li><b>Ordres</b> : <i>Assaut</i> (aller au contact), <i>Tenir</i> (se poster, tirer à vue), <i>Prudent</i> (de couvert en couvert). L'ordre d'Alpha se change pendant la bataille.</li>
         <li><b>Caméra</b> : <i>Réalisateur</i> (par défaut) enchaîne les plans comme une retransmission — épaule d'un tireur, vue d'ensemble de l'échange, plan sur chaque explosion ou neutralisation ; <i>Suivre</i> se place derrière un soldat et change de point de vue au gré de l'action ; <i>Sat</i> montre toute la carte ; <i>Libre</i> : glisser pour tourner, molette pour zoomer, clic droit pour déplacer. Espace : pause.</li>
+        <li><b>Heure et météo</b> : de <i>nuit</i> on voit deux fois moins loin, sauf un tireur dont l'arme non silencieuse lance des éclairs ; le <i>brouillard</i> réduit encore la vue ; la <i>pluie</i> couvre les bruits et gêne le tir lointain. Les deux camps subissent les mêmes conditions.</li>
         <li><b>Compétences</b> : chaque opérateur a un trait aux effets réels (vitesse, visée, rechargement, repérage, suppression…), décrit sur sa fiche au QG.</li>
         <li><b>Quartier général</b> : 3 à 5 opérateurs, arme, protection, voie d'approche, ordre, 3 tactiques, puis une mission. Victoire → crédits, expérience, rang ; paquets de cartes (recrues, tactiques, perks, cosmétiques). Un opérateur neutralisé est indisponible une mission (ou soigné). Tout est sauvegardé dans ce navigateur.</li>
       </ul>
