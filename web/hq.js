@@ -45,6 +45,7 @@
   // ---- Carrière : bilan chiffré, terrains, dernières batailles, succès avec jauges et récompenses --------------------------
   // Astuces (écran VS), toutes vraies dans la simulation
   const TIPS = [
+    'Deux opérateurs du même pays mettent en joue 10 % plus vite tant que l\'autre est debout (synergie Frères d\'armes).',
     'Un Meneur debout réduit de 10 % les dégâts subis par son radio et ses servants d\'arme d\'appui (synergie Commandement).',
     'Un Radio améliore de 8 % la précision des tireurs d\'élite, des appuis et des brécheurs (synergie Guidage radio).',
     'Un opérateur blessé grave a ses compétences divisées par deux tant qu\'il n\'est pas soigné, ou reposé deux missions.',
