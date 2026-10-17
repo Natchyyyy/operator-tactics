@@ -22,6 +22,7 @@ async def main():
         check("300 crédits et 5 opérateurs débloqués au départ", (await pg.inner_text("#credits")) == "300" and await pg.evaluate("() => document.querySelectorAll('.opcard:not(.locked)').length") == 5)
         # accueil : puissance, rang, personnalisation
         rating = await pg.inner_text("#hqRating"); check("la puissance d'équipe est affichée (nombre)", rating.strip().isdigit(), rating)
+        await pg.click(".custom2 summary"); await pg.wait_for_timeout(100)   # personnalisation repliée sur l'accueil
         await pg.fill("#teamName", "Les Faucons"); await pg.press("#teamName", "Tab"); await pg.wait_for_timeout(100)
         check("le nom d'équipe est enregistré", await pg.evaluate("() => window.HQ.profile().teamName") == "Les Faucons")
         await pg.click("#insPick button[data-ins='bouclier']"); await pg.wait_for_timeout(100)
