@@ -394,6 +394,7 @@
     for (const u of result.teams[0].units) {
       const id = u.id.split(':')[1]; const st = profile.operators[id];
       const before = levelFor(st.xp); st.xp += r.xp[id]; st.battles++; st.kills += u.stats.kills;
+      st.downs = (st.downs || 0) + (u.alive ? 0 : 1); st.headshots = (st.headshots || 0) + (u.stats.headshots || 0); st.revives = (st.revives || 0) + (u.stats.revives || 0);   // fiche : historique
       const after = levelFor(st.xp); if (after > before) r.levelUps.push({ id, callsign: u.callsign, level: after });
       for (const lv of PROMOTION_LEVELS) if (before < lv && after >= lv) { const o = offerPromotion(profile, id, lv); if (o) r.promotions.push({ id, callsign: u.callsign, level: lv }); }
       // contrat : une mission consommée ; historique par opérateur (20 dernières)
