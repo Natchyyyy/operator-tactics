@@ -18,11 +18,12 @@ l'issue dépend uniquement des événements simulés (perception, déplacements,
 | `sim/game.js` | boucle de jeu : profil, collection, équipement, voies, missions, récompenses, blessures graves, synergies, défis, paquets de cartes, perks, rang, tactiques équipées, personnalisation, sauvegarde locale |
 | `sim/league.js` | ligue solo : saison de 8 matchs contre 9 équipes IA, matchs IA réellement simulés, classement, prix |
 | `web/app.js` | rendu three.js, animations, effets, interface de bataille, résultat |
-| `web/hq.js` | quartier général à onglets (accueil, équipe, cartes, jouer, ligue), écran VS, écran de récompenses en panneaux |
-| `tests/verify.js` | 69 vérifications du moteur (`node tests/verify.js 40`) |
+| `web/hq.js` | quartier général à onglets (accueil, équipe, cartes, jouer, ligue, carrière), écran VS avec astuces, écran de récompenses en panneaux, ouverture des paquets |
+| `tests/verify.js` | 95 vérifications du moteur (`node tests/verify.js 40`) |
 | `tests/league.js` | 10 vérifications de la ligue |
-| `tests/game.js` | 82 vérifications de la boucle de jeu |
-| `tests/verif_page.py` | 50 vérifications de la page dans un navigateur (Playwright, WebGL logiciel) |
+| `tests/game.js` | 89 vérifications de la boucle de jeu |
+| `tests/verif_page.py` | 60 vérifications de la page dans un navigateur (Playwright, WebGL logiciel) ; `tests/tout.sh` lance tout |
+| `outils/equilibrage_campagne.js` | taux de victoire par mission avec une progression normale de l'escouade |
 | `sons/sons_ot.py` | les bruitages et musiques (impacts selon la matière : béton, métal, bois, sol) (synthèse hors ligne avec la boîte à outils ; `fabriquer.py` → `sons/out`, `integrer.py` → page) |
 | `tests/run.js`, `tests/trace.js`, `tests/stats.js` | une bataille en console, trace seconde par seconde, statistiques d'équilibrage |
 
@@ -42,10 +43,14 @@ l'issue dépend uniquement des événements simulés (perception, déplacements,
 - Blessure grave : un neutralisé revient avec ses compétences ÷2 et −25 % de PV jusqu'aux soins (crédits) ou à 2 missions de repos.
 - Spéciaux : tête, séries, de groupe (cible déjà touchée par un allié < 5 s), revanches, vétérans.
 - Modes : bataille rapide (adversaire à votre mesure, paquet offert toutes les 5 victoires), campagnes régulière / vétéran / élite, opérations spéciales, ligue.
-- Fin : équipe neutralisée, objectif atteint, ou limite de temps (décision aux effectifs puis à l'état).
+- À terre : un neutralisé (hors balle dans la tête) reste parfois à terre 20 s, rampe vers un allié, qui peut le relever (4 s, Secouriste 2 s) une fois par bataille.
+- Heure et météo (`DATA.CONDITIONS`) : nuit (vue ÷2, éclair des armes non silencieuses), brouillard, pluie (ouïe réduite) ; précision lointaine réduite.
+- Accessoires d'arme (`DATA.ATTACHMENTS`) : lunette, holographique, silencieux, compensateur, poignée, grand chargeur — effets réels, visibles sur l'arme.
+- Contrats du jour (`DATA.DAILY`) : trois objectifs tirés selon la date, payés une fois.
+- Fin : équipe neutralisée, objectif atteint, ou limite de temps (décision aux effectifs puis à l'état). « ⏭ Résultat » simule la fin sans rendu (même résultat).
 
 ## Limites connues
-- Modèles d'opérateurs construits par programme (pas de modèles externes) ; bruitages et ambiances synthétisés, pas de musique.
-- Quatre cartes, 20 opérateurs recrutables (17 traits, dont Grenadier, Vigie, Secouriste) + 8 ennemis du Groupe Karst, 7 armes, 3 protections, 14 missions × 3 campagnes, 12 tactiques, 7 défis, 3 opérations spéciales ; réglages et export / import de la carrière.
+- Modèles d'opérateurs construits par programme (pas de modèles externes : les modèles Meshy sont prévus) ; bruitages, ambiances et musiques synthétisés.
+- Quatre cartes, 20 opérateurs recrutables (17 traits, dont Grenadier, Vigie, Secouriste) + 8 ennemis du Groupe Karst, 7 armes, 3 protections, 14 missions × 3 campagnes, 12 tactiques, 6 accessoires, 14 succès, 7 défis, 3 opérations spéciales, contrats du jour ; réglages et export / import de la carrière.
 - Pas de multijoueur : la ligue oppose le joueur à des équipes IA (leurs matchs entre elles sont simulés par le même moteur).
 - La sauvegarde est locale au navigateur (localStorage) : pas de synchronisation entre appareils.
