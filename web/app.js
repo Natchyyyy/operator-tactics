@@ -965,6 +965,16 @@
     const seed = seedTxt === '' ? Math.floor(Math.random() * 100000) : (parseInt(seedTxt, 10) || 1);
     return { seed, teams, mapId: $('#mapSel').value, conditions: $('#condSel').value === 'jour' ? undefined : $('#condSel').value };
   }
+  // résultat immédiat (comme « passer » dans le jeu d'origine) : même simulation, sans rendu ; puis l'écran de résultat
+  function skipToEnd() {
+    if (!battle || battle.over || reviewing) return;
+    while (!battle.over) battle.step();
+    battle.drainEvents(); pendingSounds.length = 0;
+    for (const f of fx) scene.remove(f.obj); fx.length = 0;
+    for (const u of battle.units) { const m = meshes[u.id]; m.prev = m.cur = { x: u.x, z: u.z, facing: u.facing }; m.label.classList.toggle('down', !u.alive); }
+    instantResult = true; stepSim(); instantResult = false; acc = DT; render();
+  }
+  $('#skip').addEventListener('click', skipToEnd);
   $('#play').addEventListener('click', () => { if (battle.over) return; paused = !paused; updatePlayButton(); ambience(true); });
   // ordres en cours de bataille : appliqués immédiatement à la simulation (Alpha toujours ; Bravo en bataille libre)
   $('#order0').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0 && !reviewing) { battle.command('order', 0, e.target.value); pumpLog(); buildRosters(); } });
@@ -1032,6 +1042,7 @@
   window.API = {
     stats: () => { render(); const i = renderer.info.render; let meshes = 0, mats = new Set(), geos = new Set(); scene.traverse(o => { if (o.isMesh) { meshes++; mats.add(o.material); geos.add(o.geometry); } }); return { calls: i.calls, triangles: i.triangles, meshes, materials: mats.size, geometries: geos.size, shadows: renderer.shadowMap.enabled }; },
     step: (n, dt) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; render(); return battle.t; },
+    skip: () => { skipToEnd(); return battle.result; },
     runToEnd: () => { instantResult = true; while (!battle.over) stepSim(); instantResult = false; acc = DT; render(); return battle.result; },
     start: (opts) => { newBattle(opts); render(); return battle.zone || true; },
     banner: () => { $('#result').classList.add('hidden'); showBanner(() => showResult()); },
