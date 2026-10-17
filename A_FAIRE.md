@@ -5,7 +5,8 @@
   Réglages ⚙ (volumes, vitesse et caméra par défaut, qualité, ombres, export / import de la carrière), onglet Carrière
   (bilan, terrains, dernières batailles, succès avec jauges), Ligue v2 (prochain match, forme, puissance, podium),
   contrats du jour, briefing des missions de campagne, astuces sur l'écran VS, écran titre v2 (« Reprendre la carrière »),
-  bouton « ⏭ Résultat », fil des neutralisations, guide de première visite, aide accessible depuis le QG.
+  bouton « ⏭ Résultat », fil des neutralisations, guide de première visite, aide accessible depuis le QG,
+  raccourcis clavier en bataille, escouade montrée en pied, 4 insignes et 3 tenues de plus.
 - Simulation : à terre / relevé (et blessés qui rampent), moral (ébranlé → décroche), heure et météo (nuit, brouillard,
   pluie) aux effets réels, décor destructible (caisses et palettes), accessoires d'arme (6), deux protections à acheter,
   camouflage des tenues selon le terrain, trois nouveaux traits (Grenadier, Vigie, Secouriste), synergie Frères d'armes.
@@ -17,7 +18,7 @@
   (3 nouveaux sons), musique dynamique, accessoires visibles sur les armes, voix radio (synthèse vocale du navigateur, désactivable).
 - Technique : décor et personnages fusionnés (≈ 2× moins d'appels de dessin), sauvegarde versionnée (v2) avec migrations
   et mise de côté d'une sauvegarde illisible, tests de non-régression visuelle (`tests/visuel.py`), copie `docs/` pour
-  GitHub Pages. Tests : moteur 99, jeu 96, ligue 11, page 62, visuel 7.
+  GitHub Pages. Tests : moteur 99, jeu 96, ligue 11, page 63, visuel 7.
 
 ## Pistes suivantes
 - Modèles 3D Meshy (voir plus bas) : c'est ce qui changera le plus l'aspect du jeu.
