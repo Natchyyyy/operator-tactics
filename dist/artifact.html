@@ -4895,6 +4895,11 @@ window.Son = Son;
   // ---- traces au sol (sang) : persistent jusqu'à la fin de la bataille, nombre limité ----
   const decals = new THREE.Group(); scene.add(decals);
   const bloodGeo = new THREE.CircleGeometry(1, 14), stainMat = new THREE.MeshBasicMaterial({ color: 0x260504, transparent: true, opacity: 0.62, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  const scorchMat = new THREE.MeshBasicMaterial({ color: 0x0d0c0b, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  function addScorch(x, z, r) {   // trace noire d'explosion (grenade, obus, frappe aérienne)
+    if (decals.children.length > 160) decals.remove(decals.children[0]);
+    const m = new THREE.Mesh(bloodGeo, scorchMat); m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6.28; m.position.set(x, 0.022, z); m.scale.set(r, r * (0.8 + Math.random() * 0.3), 1); decals.add(m);
+  }
   function addBlood(x, z, r) {
     if (decals.children.length > 160) decals.remove(decals.children[0]);
     const m = new THREE.Mesh(bloodGeo, stainMat); m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6.28; m.position.set(x + (Math.random() - 0.5) * 0.3, 0.025, z + (Math.random() - 0.5) * 0.3);
@@ -4925,14 +4930,14 @@ window.Son = Son;
       if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); }
       if (ev.type === 'down') { { const u = unitById[ev.unit]; if (u) addBlood(u.x, u.z, 0.6); } const m = meshes[ev.unit]; if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; } const u = unitById[ev.unit]; if (u) directorEvent('down', u.x, u.z); }
       if (ev.type === 'smoke') addSmoke(ev);
-      if (ev.type === 'shell') { addShell(ev); play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2 }); cam.shake = Math.max(cam.shake || 0, 0.35); }
+      if (ev.type === 'shell') { addShell(ev); addScorch(ev.x, ev.z, 1.8); play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2 }); cam.shake = Math.max(cam.shake || 0, 0.35); }
       if (ev.type === 'heal') addHeal(ev);
       if (ev.type === 'reco') addReco(ev);
       if (ev.type === 'barrage_called') addBarrageMarker(ev);
       if (ev.type === 'grenade_throw') addGrenade(ev);
       if (ev.type === 'strike_called') addStrikeMarker(ev);
-      if (ev.type === 'strike') addStrike(ev);
-      if (ev.type === 'grenade_blast') { addBlast(ev); directorEvent('blast', ev.x, ev.z); }
+      if (ev.type === 'strike') { addStrike(ev); for (let k = -ev.half; k <= ev.half; k += 3) addScorch(ev.cx + ev.dx * k + (Math.random() - 0.5) * 1.5, ev.cz + ev.dz * k + (Math.random() - 0.5) * 1.5, 0.9); }
+      if (ev.type === 'grenade_blast') { addBlast(ev); if (ev.kind !== 'flash') addScorch(ev.x, ev.z, 1.4); directorEvent('blast', ev.x, ev.z); }
     }
     for (const u of battle.units) if (u.crawling && Math.random() < 0.08) addBlood(u.x, u.z, 0.22);   // traînée du blessé qui rampe
     updateTacticCards();
