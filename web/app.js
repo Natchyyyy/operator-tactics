@@ -7,7 +7,7 @@
   const MANUAL = params.get('manual') === '1';
   if (MANUAL) document.documentElement.classList.add('manual');   // captures reproductibles : pas de transitions CSS (aucune image n'est dessinée entre deux étapes)
 
-  const STATE_FR = { throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié' };
+  const STATE_FR = { throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié', shaken: 'Ébranlé' };
   const STATUS_FR = { ok: 'Indemne', wounded: 'Blessé', critical: 'Grave', down: 'Neutralisé' };
   const TEAM = [
     { name: 'Alpha', color: 0x4f9cf0, css: '#4f9cf0', uniform: 0x3a4a3c, vest: 0x2b352d },
@@ -977,7 +977,7 @@
     spot: ['Contact !', 'Contact, droit devant !', 'Ennemi en vue !'], reload: ['Je recharge !', 'Rechargement !', 'Couvrez-moi, je recharge !'],
     grenade: ['Grenade !'], throw: ['Grenade, à couvert !', 'Je lance !'], flank: ['Je contourne !', 'Je le prends par le flanc !'],
     noammo: ['Plus de munitions !'], revive_start: ['Je m\u2019occupe de lui !', 'J\u2019arrive, tiens bon !'], revive: ['Debout, on y retourne !', 'Je te tiens !'],
-    flash: ['Je ne vois plus rien !', 'Aveuglé !'], suppress: ['Feu de suppression !', 'Je les cloue !'], down: ['Homme à terre !', 'On a un blessé !', 'Il est touché !'],
+    flash: ['Je ne vois plus rien !', 'Aveuglé !'], shaken: ['Repli !', 'Je décroche !', 'Ça chauffe trop !'], suppress: ['Feu de suppression !', 'Je les cloue !'], down: ['Homme à terre !', 'On a un blessé !', 'Il est touché !'],
   };
   function bark(u, kind) {
     const m = u && meshes[u.id]; if (!m || !u.alive || ended || (m.barkUntil && simTime < m.barkUntil - 1.2)) return;
@@ -990,7 +990,7 @@
     if (e.kind === 'spot' && /contact/.test(e.text)) bark(u, 'spot');
     else if (e.kind === 'reload' && Math.random() < 0.35) bark(u, 'reload');
     else if (e.kind === 'grenade' && u) bark(u, /lance une/.test(e.text) ? 'throw' : 'grenade');
-    else if (e.kind === 'flank' || e.kind === 'noammo' || e.kind === 'revive_start' || e.kind === 'revive' || e.kind === 'flash') bark(u, e.kind);
+    else if (e.kind === 'flank' || e.kind === 'noammo' || e.kind === 'revive_start' || e.kind === 'revive' || e.kind === 'flash' || e.kind === 'shaken') bark(u, e.kind);
     else if (e.kind === 'suppress' && Math.random() < 0.5) bark(u, 'suppress');
     else if (e.kind === 'down' && e.enemy && unitById[e.enemy]) {   // le coéquipier debout le plus proche du blessé
       const d = unitById[e.enemy]; let best = null, bd = 25; for (const a of battle.units) { if (!a.alive || a.team !== d.team) continue; const k = Math.hypot(a.x - d.x, a.z - d.z); if (k < bd) { bd = k; best = a; } }

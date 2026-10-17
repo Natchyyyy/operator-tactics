@@ -513,6 +513,7 @@
         <li><b>Tactiques</b> (cartes à gauche) : fumigène, drone, soins, mortier… à jouer pendant la bataille, avec un nombre d'emplois et un temps de recharge ; les tactiques passives (exercice, retranchement…) s'appliquent dès le début. L'adversaire joue aussi les siennes (à droite).</li>
         <li><b>Ordres</b> : <i>Assaut</i> (aller au contact), <i>Tenir</i> (se poster, tirer à vue), <i>Prudent</i> (de couvert en couvert). L'ordre d'Alpha se change pendant la bataille.</li>
         <li><b>Caméra</b> : <i>Réalisateur</i> (par défaut) enchaîne les plans comme une retransmission — épaule d'un tireur, vue d'ensemble de l'échange, plan sur chaque explosion ou neutralisation ; <i>Suivre</i> se place derrière un soldat et change de point de vue au gré de l'action ; <i>Sat</i> montre toute la carte ; <i>Libre</i> : glisser pour tourner, molette pour zoomer, clic droit pour déplacer. Espace : pause.</li>
+        <li><b>Moral</b> : voir tomber deux camarades tout près en quelques secondes, face à plusieurs ennemis, peut ébranler un opérateur (test de sang-froid) : il décroche 5 s vers un couvert en arrière. Un Meneur proche et le trait Sang-froid aident ; un Meneur ne flanche jamais.</li>
         <li><b>À terre</b> : un opérateur neutralisé autrement que d'une balle dans la tête reste parfois à terre 20 s ; un allié qui ne voit aucun ennemi peut aller le relever (4 s, 2 s pour un Secouriste), une fois par bataille, avec 30 % de sa vie.</li>
         <li><b>Heure et météo</b> : de <i>nuit</i> on voit deux fois moins loin, sauf un tireur dont l'arme non silencieuse lance des éclairs ; le <i>brouillard</i> réduit encore la vue ; la <i>pluie</i> couvre les bruits et gêne le tir lointain. Les deux camps subissent les mêmes conditions.</li>
         <li><b>Compétences</b> : chaque opérateur a un trait aux effets réels (vitesse, visée, rechargement, repérage, suppression…), décrit sur sa fiche au QG.</li>
@@ -2284,6 +2285,15 @@ window.Son = Son;
         if (this.setGoal(u, a.x, a.z, 'revive')) { u.state = 'torevive'; u.stance = 'stand'; return; }
       }
     }
+    // moral : ébranlé → décrocher vers un couvert en arrière, accroupi
+    if (this.t < (u.shakenUntil || 0) || (threats.length && this.moraleCheck(u, threats))) {
+      if (!u.throwing && !(u.evade && this.t < u.evade.until)) {
+        const threat = threats[0] || (u.lastShotBy && u.lastShotBy.alive ? u.lastShotBy : null);
+        const cover = threat && this.map.coverFrom(u.x, u.z, threat.x, threat.z, true);
+        if (threat && !cover) { const cp = this.findCover(u, threat, 12, { towards: home }); if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'shaken'; u.stance = 'stand'; return; } }
+        this.stop(u); u.stance = 'crouch'; u.state = 'shaken'; return;
+      }
+    }
     // grenade : en train de lancer, ou d'esquiver une grenade adverse → rien d'autre
     if (u.throwing || (u.evade && this.t < u.evade.until)) return;
     if (this.tryGrenade(u)) return;
@@ -2695,6 +2705,21 @@ window.Son = Son;
     if (cause === 'tête' || e.revived || !this.rng.chance(0.55)) { e.bleedUntil = 0; return false; }
     e.bleedUntil = this.t + 20; e.rescue = null; return true;
   };
+  // ---- Moral : voir tomber deux camarades proches en peu de temps, face à plusieurs ennemis, peut ébranler un opérateur ----
+  // (test de sang-froid, au plus une fois toutes les 20 s ; Meneur proche et Sang-froid protègent). Ébranlé 5 s : il se met
+  // à couvert vers l'arrière et ne tire que s'il voit sa cible ; il ne lance pas de grenade.
+  Battle.prototype.noteLoss = function (e) { const t = this.teams[e.team]; t.losses = (t.losses || []).concat([{ t: this.t, x: e.x, z: e.z }]).slice(-8); };
+  Battle.prototype.moraleCheck = function (u, threats) {
+    if (this.t < (u.nextMorale || 0) || threats.length < 2) return false;
+    const losses = (this.teams[u.team].losses || []).filter(l => this.t - l.t < 10 && Math.hypot(l.x - u.x, l.z - u.z) < 20).length;
+    if (losses < 2 && !(losses >= 1 && u.hp < u.maxHp * 0.5 && threats.length >= 3)) return false;   // deux camarades tombés, ou un seul quand on est blessé face à trois
+    u.nextMorale = this.t + 20;
+    let p = 0.5 * (1 - u.def.composure / 110); if (this.nearLeader(u)) p *= 0.4; if (has(u, 'steady')) p *= 0.5; if (has(u, 'leader')) p = 0;
+    if (!this.rng.chance(p)) return false;
+    u.shakenUntil = this.t + 5; u.stats.shaken = (u.stats.shaken || 0) + 1;
+    this.logEvent('shaken', `${u.callsign} est ébranlé et décroche à couvert.`, { unit: u.id, team: u.team });
+    return true;
+  };
   Battle.prototype.unitById = function (id) { return this.units.find(x => x.id === id); };
   Battle.prototype.downedToRevive = function (u) {
     const reach = has(u, 'medic') ? 30 : 16; let best = null, bd = reach;
@@ -2734,7 +2759,7 @@ window.Son = Son;
     if (shooter && !friendly) { shooter.stats.damageDealt += dmg; e.hitBy[shooter.id] = this.t; }
     if (e.hp <= 0) {
       e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
-      const bleeding = this.maybeBleed(e, cause);
+      const bleeding = this.maybeBleed(e, cause); this.noteLoss(e);
       this.logEvent('down', `${e.callsign} est ${bleeding ? 'à terre' : 'hors de combat'} (${cause}${shooter ? ' — ' + shooter.callsign : ''}).`, { team: teamIndex, enemy: e.id, dmg, loc: cause, unit: shooter && !friendly ? shooter.id : null });
       this.emit({ type: 'down', unit: e.id });
       if (shooter && !friendly) { shooter.stats.kills++; if (this.t - shooter.lastKillAt < 10) shooter.stats.streaks++; shooter.lastKillAt = this.t; e.downedBy = shooter; }
@@ -2896,7 +2921,7 @@ window.Son = Son;
     const prevStatus = e.status;
     if (e.hp <= 0) {
       e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
-      const bleeding = this.maybeBleed(e, loc);
+      const bleeding = this.maybeBleed(e, loc); this.noteLoss(e);
       u.stats.kills++;
       // « spéciaux » : série (deux neutralisations à moins de 10 s), revanche (celui qui a mis un allié hors de combat), vétéran (niveau supérieur)
       if (this.t - u.lastKillAt < 10) u.stats.streaks++;
@@ -4117,7 +4142,7 @@ window.Son = Son;
   const MANUAL = params.get('manual') === '1';
   if (MANUAL) document.documentElement.classList.add('manual');   // captures reproductibles : pas de transitions CSS (aucune image n'est dessinée entre deux étapes)
 
-  const STATE_FR = { throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié' };
+  const STATE_FR = { throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié', shaken: 'Ébranlé' };
   const STATUS_FR = { ok: 'Indemne', wounded: 'Blessé', critical: 'Grave', down: 'Neutralisé' };
   const TEAM = [
     { name: 'Alpha', color: 0x4f9cf0, css: '#4f9cf0', uniform: 0x3a4a3c, vest: 0x2b352d },
@@ -5087,7 +5112,7 @@ window.Son = Son;
     spot: ['Contact !', 'Contact, droit devant !', 'Ennemi en vue !'], reload: ['Je recharge !', 'Rechargement !', 'Couvrez-moi, je recharge !'],
     grenade: ['Grenade !'], throw: ['Grenade, à couvert !', 'Je lance !'], flank: ['Je contourne !', 'Je le prends par le flanc !'],
     noammo: ['Plus de munitions !'], revive_start: ['Je m\u2019occupe de lui !', 'J\u2019arrive, tiens bon !'], revive: ['Debout, on y retourne !', 'Je te tiens !'],
-    flash: ['Je ne vois plus rien !', 'Aveuglé !'], suppress: ['Feu de suppression !', 'Je les cloue !'], down: ['Homme à terre !', 'On a un blessé !', 'Il est touché !'],
+    flash: ['Je ne vois plus rien !', 'Aveuglé !'], shaken: ['Repli !', 'Je décroche !', 'Ça chauffe trop !'], suppress: ['Feu de suppression !', 'Je les cloue !'], down: ['Homme à terre !', 'On a un blessé !', 'Il est touché !'],
   };
   function bark(u, kind) {
     const m = u && meshes[u.id]; if (!m || !u.alive || ended || (m.barkUntil && simTime < m.barkUntil - 1.2)) return;
@@ -5100,7 +5125,7 @@ window.Son = Son;
     if (e.kind === 'spot' && /contact/.test(e.text)) bark(u, 'spot');
     else if (e.kind === 'reload' && Math.random() < 0.35) bark(u, 'reload');
     else if (e.kind === 'grenade' && u) bark(u, /lance une/.test(e.text) ? 'throw' : 'grenade');
-    else if (e.kind === 'flank' || e.kind === 'noammo' || e.kind === 'revive_start' || e.kind === 'revive' || e.kind === 'flash') bark(u, e.kind);
+    else if (e.kind === 'flank' || e.kind === 'noammo' || e.kind === 'revive_start' || e.kind === 'revive' || e.kind === 'flash' || e.kind === 'shaken') bark(u, e.kind);
     else if (e.kind === 'suppress' && Math.random() < 0.5) bark(u, 'suppress');
     else if (e.kind === 'down' && e.enemy && unitById[e.enemy]) {   // le coéquipier debout le plus proche du blessé
       const d = unitById[e.enemy]; let best = null, bd = 25; for (const a of battle.units) { if (!a.alive || a.team !== d.team) continue; const k = Math.hypot(a.x - d.x, a.z - d.z); if (k < bd) { bd = k; best = a; } }

@@ -604,6 +604,15 @@
         if (this.setGoal(u, a.x, a.z, 'revive')) { u.state = 'torevive'; u.stance = 'stand'; return; }
       }
     }
+    // moral : ébranlé → décrocher vers un couvert en arrière, accroupi
+    if (this.t < (u.shakenUntil || 0) || (threats.length && this.moraleCheck(u, threats))) {
+      if (!u.throwing && !(u.evade && this.t < u.evade.until)) {
+        const threat = threats[0] || (u.lastShotBy && u.lastShotBy.alive ? u.lastShotBy : null);
+        const cover = threat && this.map.coverFrom(u.x, u.z, threat.x, threat.z, true);
+        if (threat && !cover) { const cp = this.findCover(u, threat, 12, { towards: home }); if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'shaken'; u.stance = 'stand'; return; } }
+        this.stop(u); u.stance = 'crouch'; u.state = 'shaken'; return;
+      }
+    }
     // grenade : en train de lancer, ou d'esquiver une grenade adverse → rien d'autre
     if (u.throwing || (u.evade && this.t < u.evade.until)) return;
     if (this.tryGrenade(u)) return;
@@ -1015,6 +1024,21 @@
     if (cause === 'tête' || e.revived || !this.rng.chance(0.55)) { e.bleedUntil = 0; return false; }
     e.bleedUntil = this.t + 20; e.rescue = null; return true;
   };
+  // ---- Moral : voir tomber deux camarades proches en peu de temps, face à plusieurs ennemis, peut ébranler un opérateur ----
+  // (test de sang-froid, au plus une fois toutes les 20 s ; Meneur proche et Sang-froid protègent). Ébranlé 5 s : il se met
+  // à couvert vers l'arrière et ne tire que s'il voit sa cible ; il ne lance pas de grenade.
+  Battle.prototype.noteLoss = function (e) { const t = this.teams[e.team]; t.losses = (t.losses || []).concat([{ t: this.t, x: e.x, z: e.z }]).slice(-8); };
+  Battle.prototype.moraleCheck = function (u, threats) {
+    if (this.t < (u.nextMorale || 0) || threats.length < 2) return false;
+    const losses = (this.teams[u.team].losses || []).filter(l => this.t - l.t < 10 && Math.hypot(l.x - u.x, l.z - u.z) < 20).length;
+    if (losses < 2 && !(losses >= 1 && u.hp < u.maxHp * 0.5 && threats.length >= 3)) return false;   // deux camarades tombés, ou un seul quand on est blessé face à trois
+    u.nextMorale = this.t + 20;
+    let p = 0.5 * (1 - u.def.composure / 110); if (this.nearLeader(u)) p *= 0.4; if (has(u, 'steady')) p *= 0.5; if (has(u, 'leader')) p = 0;
+    if (!this.rng.chance(p)) return false;
+    u.shakenUntil = this.t + 5; u.stats.shaken = (u.stats.shaken || 0) + 1;
+    this.logEvent('shaken', `${u.callsign} est ébranlé et décroche à couvert.`, { unit: u.id, team: u.team });
+    return true;
+  };
   Battle.prototype.unitById = function (id) { return this.units.find(x => x.id === id); };
   Battle.prototype.downedToRevive = function (u) {
     const reach = has(u, 'medic') ? 30 : 16; let best = null, bd = reach;
@@ -1054,7 +1078,7 @@
     if (shooter && !friendly) { shooter.stats.damageDealt += dmg; e.hitBy[shooter.id] = this.t; }
     if (e.hp <= 0) {
       e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
-      const bleeding = this.maybeBleed(e, cause);
+      const bleeding = this.maybeBleed(e, cause); this.noteLoss(e);
       this.logEvent('down', `${e.callsign} est ${bleeding ? 'à terre' : 'hors de combat'} (${cause}${shooter ? ' — ' + shooter.callsign : ''}).`, { team: teamIndex, enemy: e.id, dmg, loc: cause, unit: shooter && !friendly ? shooter.id : null });
       this.emit({ type: 'down', unit: e.id });
       if (shooter && !friendly) { shooter.stats.kills++; if (this.t - shooter.lastKillAt < 10) shooter.stats.streaks++; shooter.lastKillAt = this.t; e.downedBy = shooter; }
@@ -1216,7 +1240,7 @@
     const prevStatus = e.status;
     if (e.hp <= 0) {
       e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
-      const bleeding = this.maybeBleed(e, loc);
+      const bleeding = this.maybeBleed(e, loc); this.noteLoss(e);
       u.stats.kills++;
       // « spéciaux » : série (deux neutralisations à moins de 10 s), revanche (celui qui a mis un allié hors de combat), vétéran (niveau supérieur)
       if (this.t - u.lastKillAt < 10) u.stats.streaks++;

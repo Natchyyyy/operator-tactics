@@ -487,6 +487,13 @@ function duel(opts) {
 }
 
 {
+  // ---- moral : deux camarades tombés tout près et plusieurs ennemis en vue → test de sang-froid ; le Meneur ne flanche jamais ----
+  const rate = (id, extra) => { let k = 0; for (let sd = 1; sd <= 300; sd++) { const b = new Battle({ seed: sd, teams: [{ operators: [id, 'op_lynx'], tactics: [] }, { operators: ['k_molosse', 'k_fauve'], tactics: [] }] }); const u = b.teams[0].units[0]; u.x = 10; u.z = 10; b.teams[0].units[1].x = 40; b.teams[0].units[1].z = 30; b.t = 30; b.teams[0].losses = [{ t: 25, x: 12, z: 10 }, { t: 27, x: 9, z: 12 }]; if (extra) extra(b, u); if (b.moraleCheck(u, b.teams[1].units)) k++; } return k; };
+  const rLow = rate('op_furet'), rSteady = rate('op_bastion'), rLeader = rate('op_cobra'), rNoLoss = rate('op_furet', (b) => { b.teams[0].losses = [{ t: 2, x: 12, z: 10 }]; });
+  check('moral : un opérateur peu sang-froid flanche plus souvent qu\'un appui Sang-froid ; le Meneur jamais ; rien sans pertes récentes', rLow > rSteady && rSteady >= 0 && rLeader === 0 && rNoLoss === 0 && rLow > 20, { rLow, rSteady, rLeader, rNoLoss });
+}
+
+{
   // ---- conditions : la nuit réduit la vue (sauf l'éclair d'un tireur), le brouillard aussi ; la pluie couvre les bruits ----
   const mp = new GameMap(MAPS.place); let row = null; for (let z = 3; z < 42 && row === null; z += 0.5) if (mp.hasLOS(14, 1.6, z, 54, 1.6, z) && !mp.insideObstacle(14, z) && !mp.insideObstacle(54, z)) row = z;
   const sees = (cond, fired) => { let n = 0; for (let sd = 1; sd <= 40; sd++) { const b = new Battle({ seed: sd, mapId: 'place', conditions: cond, teams: [{ operators: ['op_vautour'], tactics: [] }, { operators: ['k_molosse'], tactics: [] }] }); const [u] = b.teams[0].units, [e] = b.teams[1].units; u.x = 14; u.z = row; e.x = 54; e.z = row; u.facing = 0; e.moving = true; b.t = 10; e.lastShotAt = fired ? 9.8 : -99; for (let k = 0; k < 10; k++) { b.perceive(u); if (u.visible.has(e.id)) { n++; break; } } } return n; };
