@@ -3137,7 +3137,12 @@ window.Son = Son;
     const acc = Object.values(d.attachments || {}).filter(id => ATTACHMENTS[id] && !ATTACHMENTS[id].not.includes(w.cls)).length * 1.5;   // accessoires montés
     return Math.max(1, (stats - 50) * 1.2 + wv + a.torso * 20 + acc);
   }
-  function operatorRating(profile, id) { return defRating(effectiveDef(profile, id)); }
+  // note d'un opérateur ; blessé grave : la moitié de sa note valide (comme dans le jeu d'origine : 32 → 16), et non la note
+  // de compétences divisées par deux (qui tomberait presque à zéro, la note partant de 50 en compétences)
+  function operatorRating(profile, id) {
+    const st = profile.operators[id]; if (!st || !st.wounded) return defRating(effectiveDef(profile, id));
+    st.wounded = false; const r = defRating(effectiveDef(profile, id)); st.wounded = true; return r * WOUND.statFactor;
+  }
   const RATING_PER_LEVEL = LEVEL_STAT_BONUS * 1.2;
   const teamRating = (profile) => profile.squad.length ? Math.round(profile.squad.reduce((s, id) => s + operatorRating(profile, id), 0) / profile.squad.length) : 0;
   // ---- Tactiques équipées (3 emplacements) -----------------------------------------------
