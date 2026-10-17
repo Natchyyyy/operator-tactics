@@ -150,6 +150,19 @@
   .hist { margin-top: 8px; font-size: 12px; } .hist summary { cursor: pointer; color: var(--muted); } .histt { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; } .histt th { text-align: left; color: var(--muted); font-weight: 600; padding: 3px 6px; border-bottom: 1px solid var(--line); } .histt td { padding: 3px 6px; border-bottom: 1px solid #1d242b; } .histt tr.dead td { color: var(--muted); }
   .syns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; } .syn { background: var(--panel2); border: 1px dashed var(--line); border-radius: 8px; padding: 6px 8px; font-size: 11px; display: flex; flex-direction: column; gap: 2px; opacity: .55; } .syn.on { opacity: 1; border-style: solid; border-color: #4f9d5a; background: #17241a; } .syn b { font-size: 12px; } .syn small { color: var(--muted); }
   .wound { background: linear-gradient(90deg, #6b1712, #a3261c); color: #fff; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; border-radius: 5px; padding: 3px 7px; margin: 4px 0; cursor: pointer; } .wound u { cursor: pointer; }
+  /* Équipe v2 : escouade en pied avec la note de chaque opérateur, note de l'escouade, notes dans la liste */
+  .squad2 { grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .squad2 .slot { position: relative; padding: 0; overflow: hidden; background: linear-gradient(180deg, #1f2924, #121714); border-width: 2px; gap: 0; }
+  .squad2 .slot .portrait.full { width: 100%; height: 170px; object-fit: cover; object-position: 50% 10%; border: 0; border-radius: 0; background: radial-gradient(circle at 50% 35%, #34463b, #151c17); }
+  .squad2 .slot .sinfo { padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; }
+  .squad2 .slot .sinfo b { font-size: 13px; } .squad2 .slot .role { position: absolute; left: 6px; top: 6px; }
+  .squad2 .slot .srat { position: absolute; right: 6px; top: 6px; min-width: 34px; text-align: center; font-weight: 800; font-size: 17px; padding: 2px 6px; border-radius: 6px; background: rgba(0,0,0,.6); color: #ffe08a; border: 1px solid #c9a64a; }
+  .squad2 .slot.r2 { border-color: #3d6fa8; } .squad2 .slot.r3 { border-color: #b8933a; } .squad2 .slot.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .squad2 .slot.empty { min-height: 220px; }
+  .srate { font-size: 11px; letter-spacing: .08em; color: #ffe08a; margin-left: 8px; } .srate b { font-size: 15px; }
+  .opcard .orate { font-weight: 800; font-size: 15px; color: #ffe08a; min-width: 26px; text-align: right; } .opcard.locked .orate { color: var(--muted); }
+  .opcard.r2 { border-left: 3px solid #3d6fa8; } .opcard.r3 { border-left: 3px solid #b8933a; }
+  .dname .drate { display: inline-block; margin-left: 8px; font-size: 16px; font-weight: 800; color: #ffe08a; border: 1px solid #c9a64a; border-radius: 6px; padding: 0 6px; vertical-align: 2px; }
   .slot.wounded { border-color: #a3261c; } .stat.wounded .sbar i { background: #c0392b; } .stat.wounded .val { color: #ff8a7a; } .vssyn span { background: #17241a !important; border-color: #4f9d5a !important; } .vssyn span.empty { background: transparent !important; border-color: var(--line) !important; opacity: .6; }
   .playtop { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px; } .quickcard { border-color: #4a6b8f !important; background: linear-gradient(160deg, #1b2a3a, #121a22) !important; }
   .prizebar { display: flex; gap: 4px; margin: 6px 0; } .prizebar i { flex: 1; height: 8px; border-radius: 3px; background: #0b0e11; border: 1px solid var(--line); } .prizebar i.on { background: var(--accent); border-color: var(--accent); }
@@ -336,12 +349,12 @@
   <div class="hqpanel hidden" data-panel="equipe">
     <div class="hqgrid two">
       <section class="hqcol"><h3>Opérateurs</h3><div id="hqRoster" style="display:flex;flex-direction:column;gap:6px"></div></section>
-      <section class="hqcol detail"><h3>Fiche</h3><div id="hqDetail"></div>
-        <h3 style="margin-top:8px">Escouade</h3><div class="squad" id="hqSquad"></div><div class="syns" id="hqSynergies"></div>
+      <section class="hqcol detail"><h3>Escouade <span id="squadRating" class="srate"></span></h3><div class="squad squad2" id="hqSquad"></div><div class="syns" id="hqSynergies"></div>
         <div class="prep">
           <label>Ordre <select id="selOrder"><option value="assault">Assaut — aller au contact</option><option value="hold">Tenir — se poster, tirer à vue</option><option value="careful">Prudent — de couvert en couvert</option></select></label>
           <label>Formation (voies) <select id="selFormation"><option value="">Appliquer…</option><option value="ligne">Ligne (nord, centre, sud, nord, sud)</option><option value="nord">Tout par le nord</option><option value="sud">Tout par le sud</option><option value="coin">Coin (centre renforcé)</option><option value="tenailles">Tenailles (deux par flanc)</option><option value="auto">Automatique</option></select></label>
         </div>
+        <h3 style="margin-top:10px">Fiche</h3><div id="hqDetail"></div>
       </section>
     </div>
   </div>
