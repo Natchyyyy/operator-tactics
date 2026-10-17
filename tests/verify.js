@@ -33,7 +33,7 @@ Battle.prototype.step = function () {
   for (const u of this.units) {
     if (this.map.insideObstacle(u.x, u.z)) violations.push(`${u.callsign} est à l'intérieur d'un obstacle en (${u.x.toFixed(1)}, ${u.z.toFixed(1)})`);
     if (u.ammo < 0 || u.mags < 0) violations.push(`${u.callsign} munitions négatives`);
-    if (!u.alive) { if (u._downPos && (Math.abs(u._downPos.x - u.x) > 1e-9 || Math.abs(u._downPos.z - u.z) > 1e-9)) violations.push(`${u.callsign} bouge après neutralisation`); u._downPos = u._downPos || { x: u.x, z: u.z }; }
+    if (!u.alive) { if (u._downPos && (Math.abs(u._downPos.x - u.x) > 1e-9 || Math.abs(u._downPos.z - u.z) > 1e-9)) violations.push(`${u.callsign} bouge après neutralisation`); u._downPos = u._downPos || { x: u.x, z: u.z }; } else u._downPos = null;   // relevé : il peut de nouveau bouger
   }
 };
 
@@ -61,7 +61,7 @@ for (const { b, r } of results) {
   const bullet = (e) => ['tête', 'torse', 'membre'].includes(e.loc);   // tirs ; les éclats de grenade sont journalisés à part
   const hitEntries = b.log.filter(e => (e.kind === 'hit' || e.kind === 'down') && bullet(e)).length;
   const hits = b.units.reduce((s, u) => s + u.stats.hits, 0);
-  const downs = b.log.filter(e => e.kind === 'down').length, dead = b.units.filter(u => !u.alive).length;
+  const downs = b.log.filter(e => e.kind === 'down').length - b.log.filter(e => e.kind === 'revive').length, dead = b.units.filter(u => !u.alive).length;
   const reloads = b.log.filter(e => e.kind === 'reload').length, reloadStats = b.units.reduce((s, u) => s + u.stats.reloads, 0);
   const friendly = (e) => e.enemy && b.units.find(u => u.id === e.enemy).team === e.team && !bullet(e);   // éclats sur son propre camp : non crédités
   const dmgLogged = b.log.filter(e => (e.kind === 'hit' || e.kind === 'down') && !friendly(e)).reduce((s, e) => s + e.dmg, 0);
@@ -458,6 +458,24 @@ function duel(opts) {
   const heal = (dist) => { const b = new Battle({ seed: 7, mapId: 'place', teams: [{ operators: ['op_toubib', 'op_vautour'], tactics: [] }, { operators: ['k_molosse'], tactics: [] }] }); const [m, a] = b.teams[0].units; b.teams[1].units[0].alive = false; m.x = 20; m.z = 20; a.x = 20 + dist; a.z = 20; a.hp = a.maxHp * 0.3; a.lastHitAt = 0; b.t = 5; for (let i = 0; i < 400; i++) { b.updateTactics(); b.t += OT.DT; b.tick++; } return a.hp / a.maxHp; };
   const h3 = heal(3), h9 = heal(9);
   check('Secouriste : soigne un allié proche jusqu\'à 70 %, pas un allié à 9 m', Math.abs(h3 - 0.7) < 0.01 && Math.abs(h9 - 0.3) < 1e-9, { h3, h9 });
+}
+
+{
+  // ---- à terre / relevé : un allié sans ennemi en vue rejoint le blessé et le relève (Secouriste : deux fois plus vite) ----
+  const rescueTime = (rescuer, headshot) => {
+    const b = new Battle({ seed: 5, mapId: 'entrepot', teams: [{ operators: [rescuer, 'op_lynx'], tactics: [] }, { operators: ['k_molosse'], tactics: [] }] });
+    const [u, a] = b.teams[0].units; const p = b.map.nearestFree(14, 20), c = b.map.centerOf(p.c, p.r); u.x = c.x; u.z = c.z; a.x = c.x + 3; a.z = c.z;
+    if (b.map.insideObstacle(a.x, a.z)) { a.x = c.x - 3; }
+    a.hp = 0; a.alive = false; a.status = 'down'; b.maybeBleed = Battle.prototype.maybeBleed; a.bleedUntil = headshot ? 0 : b.t + 20;
+    for (let i = 0; i < 150 && !a.alive; i++) { b.t = Math.round((b.t + OT.DT) * 1000) / 1000; b.tick++; if (i % 3 === 0) b.decide(u); b.act(u); b.updateRevives(); }
+    return a.alive ? { t: b.t, hp: a.hp / a.maxHp, revived: a.revived, revives: u.stats.revives } : null;
+  };
+  const r0 = rescueTime('op_vautour'), r1 = rescueTime('op_toubib'), r2 = rescueTime('op_vautour', true);
+  check('à terre : un allié rejoint le blessé et le relève avec 30 % de sa vie ; Secouriste plus rapide ; pas de relève sans saignement', !!r0 && !!r1 && r1.t < r0.t && Math.abs(r0.hp - 0.3) < 0.02 && r0.revived && r0.revives === 1 && r2 === null, { r0, r1, r2 });
+  // une balle dans la tête ne laisse jamais à terre ; sinon environ une fois sur deux
+  const bb = new Battle({ seed: 1 }); let k = 0; for (let i = 0; i < 400; i++) { const e = bb.units[i % 10]; e.revived = false; if (bb.maybeBleed(e, 'torse')) k++; }
+  let hk = 0; for (let i = 0; i < 100; i++) if (bb.maybeBleed(bb.units[0], 'tête')) hk++;
+  check('à terre : jamais après une balle dans la tête, environ une fois sur deux sinon', hk === 0 && k > 170 && k < 270, { k, hk });
 }
 
 {

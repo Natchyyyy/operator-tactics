@@ -7,7 +7,7 @@
   const MANUAL = params.get('manual') === '1';
   if (MANUAL) document.documentElement.classList.add('manual');   // captures reproductibles : pas de transitions CSS (aucune image n'est dessinée entre deux étapes)
 
-  const STATE_FR = { throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache' };
+  const STATE_FR = { throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié' };
   const STATUS_FR = { ok: 'Indemne', wounded: 'Blessé', critical: 'Grave', down: 'Neutralisé' };
   const TEAM = [
     { name: 'Alpha', color: 0x4f9cf0, css: '#4f9cf0', uniform: 0x3a4a3c, vest: 0x2b352d },
@@ -500,6 +500,7 @@
     if (a.reload > 0.05) m.headG.rotation.x += a.reload * 0.3;
     if (blind) m.headG.rotation.x += 0.25;
     // chute
+    if (u.alive && a.fall > 0) { a.fall = Math.max(0, a.fall - dt * 1.4); if (a.fall === 0) { m.pose.rotation.set(0, 0, 0); m.pose.position.y = 0; m.ring.material.opacity = 0.8; } }   // relevé par un allié
     if (a.fall > 0) { const f = a.fall < 0.5 ? 2 * a.fall * a.fall : 1 - Math.pow(-2 * a.fall + 2, 2) / 2; m.pose.rotation.x = -Math.PI / 2 * f * 0.95; m.pose.rotation.z = a.fallDir * 0.4 * f; m.pose.position.y = 0.22 * f; m.ring.material.opacity = 0.8 - 0.6 * f; }
   }
 
@@ -765,6 +766,7 @@
         const d = Math.hypot(ev.to.x - ev.from.x, ev.to.z - ev.from.z);
         pendingSounds.push({ at: simTime + d / 110, name: ev.hit ? 'impact_corps' : 'impact_beton', pos: ev.to, vol: ev.hit ? 1 : (ev.to.y < 0.15 ? 0.5 : 0.9) });
       }
+      if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); }
       if (ev.type === 'down') { const m = meshes[ev.unit]; if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; } const u = unitById[ev.unit]; if (u) directorEvent('down', u.x, u.z); }
       if (ev.type === 'smoke') addSmoke(ev);
       if (ev.type === 'shell') { addShell(ev); play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2 }); cam.shake = Math.max(cam.shake || 0, 0.35); }
@@ -844,7 +846,7 @@
       c.classList.toggle('dead', !u.alive);
       c.querySelector('.hp i').style.width = (100 * u.hp / u.maxHp).toFixed(0) + '%';
       c.querySelector('.sup i').style.width = (100 * u.suppression).toFixed(0) + '%';
-      c.querySelector('.st').textContent = u.alive ? (u.reloading > 0 ? 'Recharge' : STATE_FR[u.state] || u.state) : 'Hors de combat';
+      c.querySelector('.st').textContent = u.alive ? (u.reloading > 0 ? 'Recharge' : STATE_FR[u.state] || u.state) : (u.bleedUntil > battle.t ? 'À terre' : 'Hors de combat');
       c.querySelector('.ammo').textContent = `${u.ammo}/${u.weapon.mag} · ${u.mags} ch.`;
       c.querySelector('.status').textContent = `${Math.round(u.hp)} PV · ${STATUS_FR[u.status]}`;
     }

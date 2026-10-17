@@ -49,7 +49,7 @@
     this.aimTarget = null; this.aimHistory = {};   // visée en cours / dernière visée par ennemi (reprise plus rapide)
     this.commitUntil = 0; this.commitAt = 0;        // engagement sur un déplacement (évite d'hésiter à chaque décision)
     this.targetLostAt = 0;
-    this.stats = { shots: 0, hits: 0, kills: 0, damageDealt: 0, damageTaken: 0, reloads: 0, headshots: 0, timeSuppressed: 0, distance: 0, streaks: 0, revenge: 0, veteran: 0, group: 0, healed: 0 };
+    this.stats = { shots: 0, hits: 0, kills: 0, damageDealt: 0, damageTaken: 0, reloads: 0, headshots: 0, timeSuppressed: 0, distance: 0, streaks: 0, revenge: 0, veteran: 0, group: 0, healed: 0, revives: 0 };
     this.hitBy = {};                 // unitId → dernier instant où cet adversaire m'a touché (neutralisations de groupe)
     this.lastKillAt = -99;
     this.decideOffset = (idx * 0.07) % DECIDE_EVERY;
@@ -177,6 +177,7 @@
       this.act(u);
     }
     this.updateGrenades();
+    this.updateRevives();
     this.updateCapture();
     this.checkEnd();
   };
@@ -578,6 +579,20 @@
       u.burst = 0;
     }
 
+    // relever un allié à terre : en cours (interrompu si un ennemi est en vue ou si l'on est pris pour cible), ou y aller
+    if (u.reviving) {
+      if (threats.length || beingShot) { u.reviving = null; u.state = 'idle'; }
+      else { const a = this.unitById(u.reviving.id); if (a) a.rescue = { by: u, t: this.t }; return; }
+    }
+    if (!threats.length && !beingShot && u.suppression < 0.4 && !u.throwing && u.state !== 'noammo') {
+      const a = this.downedToRevive(u);
+      if (a) {
+        a.rescue = { by: u, t: this.t };
+        const d = dist2(u, a);
+        if (d <= 1.1) { this.stop(u); u.stance = 'crouch'; u.state = 'reviving'; u.target = null; u.reviving = { id: a.id, until: this.t + (has(u, 'medic') ? 2 : 4) }; this.logEvent('revive_start', `${u.callsign} se porte au secours de ${a.callsign}.`, { unit: u.id, team: u.team }); return; }
+        if (this.setGoal(u, a.x, a.z, 'revive')) { u.state = 'torevive'; u.stance = 'stand'; return; }
+      }
+    }
     // grenade : en train de lancer, ou d'esquiver une grenade adverse → rien d'autre
     if (u.throwing || (u.evade && this.t < u.evade.until)) return;
     if (this.tryGrenade(u)) return;
@@ -981,6 +996,37 @@
     }
   };
   // Dégâts hors tir direct (obus) : même comptabilité que les tirs, attribués à l'équipe
+  // ---- À terre / relevé -----------------------------------------------------------------------------------------
+  // Un opérateur mis hors de combat autrement que d'une balle dans la tête a 55 % de chances d'être seulement « à terre » :
+  // pendant 20 s, un allié qui ne voit aucun ennemi peut le rejoindre et le relever (4 s ; Secouriste : 2 s, et de plus loin).
+  // Relevé une seule fois par bataille, avec 30 % de sa vie, accroupi et encore secoué. Les neutralisations restent comptées.
+  Battle.prototype.maybeBleed = function (e, cause) {
+    if (cause === 'tête' || e.revived || !this.rng.chance(0.55)) { e.bleedUntil = 0; return false; }
+    e.bleedUntil = this.t + 20; e.rescue = null; return true;
+  };
+  Battle.prototype.unitById = function (id) { return this.units.find(x => x.id === id); };
+  Battle.prototype.downedToRevive = function (u) {
+    const reach = has(u, 'medic') ? 30 : 16; let best = null, bd = reach;
+    for (const a of this.teams[u.team].units) {
+      if (a.alive || a === u || !(a.bleedUntil > this.t + 3)) continue;
+      if (a.rescue && a.rescue.by !== u && a.rescue.by.alive && this.t - a.rescue.t < 1) continue;   // un autre y va déjà
+      const d = dist2(u, a); if (d < bd) { bd = d; best = a; }
+    }
+    return best;
+  };
+  Battle.prototype.updateRevives = function () {
+    for (const u of this.units) {
+      if (!u.reviving) continue;
+      const a = this.unitById(u.reviving.id);
+      if (!u.alive || !a || a.alive || this.t > a.bleedUntil || dist2(u, a) > 1.6) { u.reviving = null; if (u.alive) u.state = 'idle'; continue; }
+      if (this.t < u.reviving.until) continue;
+      u.reviving = null; u.state = 'idle'; u.stats.revives++;
+      a.alive = true; a.revived = true; a.bleedUntil = 0; a.rescue = null; a.hp = Math.round(a.maxHp * 0.3); a.status = 'critical';
+      a.stance = 'crouch'; a.suppression = 0.5; a.state = 'idle'; a.target = null; a.visible = new Set(); a.lastHitAt = this.t;
+      this.logEvent('revive', `${u.callsign} relève ${a.callsign} (${Math.round(a.hp)} PV).`, { unit: u.id, team: u.team });
+      this.emit({ type: 'revive', unit: a.id, by: u.id });
+    }
+  };
   Battle.prototype.applyDamage = function (shooter, e, dmg, cause, teamIndex) {
     e.hp = Math.max(0, e.hp - dmg); e.lastHitAt = this.t; e.stats.damageTaken += dmg;
     const team = this.teams[teamIndex];
@@ -988,7 +1034,8 @@
     if (shooter && !friendly) { shooter.stats.damageDealt += dmg; e.hitBy[shooter.id] = this.t; }
     if (e.hp <= 0) {
       e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
-      this.logEvent('down', `${e.callsign} est hors de combat (${cause}${shooter ? ' — ' + shooter.callsign : ''}).`, { team: teamIndex, enemy: e.id, dmg, loc: cause, unit: shooter && !friendly ? shooter.id : null });
+      const bleeding = this.maybeBleed(e, cause);
+      this.logEvent('down', `${e.callsign} est ${bleeding ? 'à terre' : 'hors de combat'} (${cause}${shooter ? ' — ' + shooter.callsign : ''}).`, { team: teamIndex, enemy: e.id, dmg, loc: cause, unit: shooter && !friendly ? shooter.id : null });
       this.emit({ type: 'down', unit: e.id });
       if (shooter && !friendly) { shooter.stats.kills++; if (this.t - shooter.lastKillAt < 10) shooter.stats.streaks++; shooter.lastKillAt = this.t; e.downedBy = shooter; }
       else if (!friendly) team.indirectKills = (team.indirectKills || 0) + 1;
@@ -1145,6 +1192,7 @@
     const prevStatus = e.status;
     if (e.hp <= 0) {
       e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
+      const bleeding = this.maybeBleed(e, loc);
       u.stats.kills++;
       // « spéciaux » : série (deux neutralisations à moins de 10 s), revanche (celui qui a mis un allié hors de combat), vétéran (niveau supérieur)
       if (this.t - u.lastKillAt < 10) u.stats.streaks++;
@@ -1154,7 +1202,7 @@
       if (this.alliesOf(u).some(a => !a.alive && a.downedBy === e)) u.stats.revenge++;
       if ((e.def.level || 0) > (u.def.level || 0)) u.stats.veteran++;
       e.downedBy = u;
-      text += ` — ${e.callsign} est hors de combat.`;
+      text += bleeding ? ` — ${e.callsign} est à terre (un allié peut le relever).` : ` — ${e.callsign} est hors de combat.`;
       this.logEvent('down', text, { unit: u.id, enemy: e.id, team: u.team, dmg, loc });
       this.emit({ type: 'down', unit: e.id });
       return;

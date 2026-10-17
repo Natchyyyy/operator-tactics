@@ -458,6 +458,7 @@
         <li><b>Tactiques</b> (cartes à gauche) : fumigène, drone, soins, mortier… à jouer pendant la bataille, avec un nombre d'emplois et un temps de recharge ; les tactiques passives (exercice, retranchement…) s'appliquent dès le début. L'adversaire joue aussi les siennes (à droite).</li>
         <li><b>Ordres</b> : <i>Assaut</i> (aller au contact), <i>Tenir</i> (se poster, tirer à vue), <i>Prudent</i> (de couvert en couvert). L'ordre d'Alpha se change pendant la bataille.</li>
         <li><b>Caméra</b> : <i>Réalisateur</i> (par défaut) enchaîne les plans comme une retransmission — épaule d'un tireur, vue d'ensemble de l'échange, plan sur chaque explosion ou neutralisation ; <i>Suivre</i> se place derrière un soldat et change de point de vue au gré de l'action ; <i>Sat</i> montre toute la carte ; <i>Libre</i> : glisser pour tourner, molette pour zoomer, clic droit pour déplacer. Espace : pause.</li>
+        <li><b>À terre</b> : un opérateur neutralisé autrement que d'une balle dans la tête reste parfois à terre 20 s ; un allié qui ne voit aucun ennemi peut aller le relever (4 s, 2 s pour un Secouriste), une fois par bataille, avec 30 % de sa vie.</li>
         <li><b>Heure et météo</b> : de <i>nuit</i> on voit deux fois moins loin, sauf un tireur dont l'arme non silencieuse lance des éclairs ; le <i>brouillard</i> réduit encore la vue ; la <i>pluie</i> couvre les bruits et gêne le tir lointain. Les deux camps subissent les mêmes conditions.</li>
         <li><b>Compétences</b> : chaque opérateur a un trait aux effets réels (vitesse, visée, rechargement, repérage, suppression…), décrit sur sa fiche au QG.</li>
         <li><b>Quartier général</b> : 3 à 5 opérateurs, arme, protection, voie d'approche, ordre, 3 tactiques, puis une mission. Victoire → crédits, expérience, rang ; paquets de cartes (recrues, tactiques, perks, cosmétiques). Un opérateur neutralisé est indisponible une mission (ou soigné). Tout est sauvegardé dans ce navigateur.</li>
@@ -1099,7 +1100,7 @@ window.Son = Son;
   const MISSIONS = [
     { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille adverse de quatre hommes progresse prudemment sur les docks. Interceptez-la.', mapId: 'entrepot', enemy: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal'], level: 6, order: 'careful', enemyTactics: [], reward: 180, xp: 40, difficulty: 1 },
     { id: 'embuscade', name: 'Position retranchée', desc: 'L\'adversaire tient l\'entrepôt derrière ses conteneurs. Il faudra aller le chercher.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_hyene', 'k_chacal', 'k_vipere'], level: 8, order: 'hold', enemyTactics: ['retranche'], reward: 260, xp: 55, difficulty: 2 },
-    { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact par les deux couloirs. Tenez ou contre-attaquez.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_fauve'], level: 2, order: 'assault', enemyTactics: ['blitz', 'fumigene'], reward: 340, xp: 70, difficulty: 3 },
+    { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact par les deux couloirs. Tenez ou contre-attaquez.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_fauve'], level: 1, order: 'assault', enemyTactics: ['blitz', 'fumigene'], reward: 340, xp: 70, difficulty: 3 },
     { id: 'marche', name: 'Marché sous le feu', desc: 'Une équipe adverse ratisse la place du marché. Reprenez-la rue par rue.', mapId: 'place', enemy: ['k_fauve', 'k_vipere', 'k_chacal', 'k_molosse'], level: 3, order: 'careful', enemyTactics: ['soins'], reward: 240, xp: 50, difficulty: 2 },
     { id: 'tenir', name: 'Tenir la place', desc: 'Tenez la place 140 secondes face à un assaut : il suffit qu\'un seul opérateur soit encore en état à l\'échéance.', mapId: 'place', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_vipere'], level: 0, order: 'assault', objective: 'hold', duration: 140, enemyTactics: ['fumigene', 'barrage'], reward: 360, xp: 70, difficulty: 3 },
     { id: 'nuit', name: 'Infiltration adverse', desc: 'Des opérateurs équipés d\'armes silencieuses s\'infiltrent prudemment : vous les entendrez à peine.', mapId: 'place', conditions: 'nuit', enemy: ['k_vipere', 'k_fauve', 'k_molosse', 'k_taipan', 'k_chacal'], enemyWeapons: { k_vipere: 'smgsil', k_fauve: 'smgsil', k_molosse: 'smgsil' }, level: 9, order: 'careful', enemyTactics: ['reco', 'discipline'], reward: 420, xp: 85, difficulty: 4 },
@@ -1110,7 +1111,7 @@ window.Son = Son;
     { id: 'vannes', name: 'Les vannes', desc: 'L\'aire de pompage nord commande toute la raffinerie. Des assaillants aguerris foncent dessus : prenez-la de vitesse.', mapId: 'raffinerie', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_taipan', 'k_rapace'], level: 7, order: 'assault', objective: 'capture', enemyTactics: ['blitz', 'fumigene'], reward: 420, xp: 80, difficulty: 4 },
     { id: 'galerie', name: 'Balise de la galerie', desc: 'Les balises de notre agent disparu émettent depuis le parking du centre commercial. Trouvez-les et sécurisez l\'enclos central.', mapId: 'parking', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 1, order: 'careful', objective: 'capture', enemyTactics: ['fumigene', 'soins'], reward: 320, xp: 65, difficulty: 2 },
     { id: 'parking', name: 'Nettoyage du parking', desc: 'Le Groupe Karst s\'est retranché entre les voitures et les barrières du parking. Délogez-le.', mapId: 'parking', conditions: 'nuit', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_hyene'], level: 6, order: 'hold', enemyTactics: ['retranche', 'reco'], reward: 380, xp: 75, difficulty: 3 },
-    { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 5, order: 'assault', enemyTactics: ['blitz', 'reco', 'soins'], reward: 480, xp: 90, difficulty: 4 },
+    { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 7, order: 'assault', enemyTactics: ['blitz', 'reco', 'soins'], reward: 480, xp: 90, difficulty: 4 },
   ];
 
   // ---- MODES DE JEU (comme le menu « Jouer » du jeu d'origine) -------------------------------
@@ -1606,7 +1607,7 @@ window.Son = Son;
     this.aimTarget = null; this.aimHistory = {};   // visée en cours / dernière visée par ennemi (reprise plus rapide)
     this.commitUntil = 0; this.commitAt = 0;        // engagement sur un déplacement (évite d'hésiter à chaque décision)
     this.targetLostAt = 0;
-    this.stats = { shots: 0, hits: 0, kills: 0, damageDealt: 0, damageTaken: 0, reloads: 0, headshots: 0, timeSuppressed: 0, distance: 0, streaks: 0, revenge: 0, veteran: 0, group: 0, healed: 0 };
+    this.stats = { shots: 0, hits: 0, kills: 0, damageDealt: 0, damageTaken: 0, reloads: 0, headshots: 0, timeSuppressed: 0, distance: 0, streaks: 0, revenge: 0, veteran: 0, group: 0, healed: 0, revives: 0 };
     this.hitBy = {};                 // unitId → dernier instant où cet adversaire m'a touché (neutralisations de groupe)
     this.lastKillAt = -99;
     this.decideOffset = (idx * 0.07) % DECIDE_EVERY;
@@ -1734,6 +1735,7 @@ window.Son = Son;
       this.act(u);
     }
     this.updateGrenades();
+    this.updateRevives();
     this.updateCapture();
     this.checkEnd();
   };
@@ -2135,6 +2137,20 @@ window.Son = Son;
       u.burst = 0;
     }
 
+    // relever un allié à terre : en cours (interrompu si un ennemi est en vue ou si l'on est pris pour cible), ou y aller
+    if (u.reviving) {
+      if (threats.length || beingShot) { u.reviving = null; u.state = 'idle'; }
+      else { const a = this.unitById(u.reviving.id); if (a) a.rescue = { by: u, t: this.t }; return; }
+    }
+    if (!threats.length && !beingShot && u.suppression < 0.4 && !u.throwing && u.state !== 'noammo') {
+      const a = this.downedToRevive(u);
+      if (a) {
+        a.rescue = { by: u, t: this.t };
+        const d = dist2(u, a);
+        if (d <= 1.1) { this.stop(u); u.stance = 'crouch'; u.state = 'reviving'; u.target = null; u.reviving = { id: a.id, until: this.t + (has(u, 'medic') ? 2 : 4) }; this.logEvent('revive_start', `${u.callsign} se porte au secours de ${a.callsign}.`, { unit: u.id, team: u.team }); return; }
+        if (this.setGoal(u, a.x, a.z, 'revive')) { u.state = 'torevive'; u.stance = 'stand'; return; }
+      }
+    }
     // grenade : en train de lancer, ou d'esquiver une grenade adverse → rien d'autre
     if (u.throwing || (u.evade && this.t < u.evade.until)) return;
     if (this.tryGrenade(u)) return;
@@ -2538,6 +2554,37 @@ window.Son = Son;
     }
   };
   // Dégâts hors tir direct (obus) : même comptabilité que les tirs, attribués à l'équipe
+  // ---- À terre / relevé -----------------------------------------------------------------------------------------
+  // Un opérateur mis hors de combat autrement que d'une balle dans la tête a 55 % de chances d'être seulement « à terre » :
+  // pendant 20 s, un allié qui ne voit aucun ennemi peut le rejoindre et le relever (4 s ; Secouriste : 2 s, et de plus loin).
+  // Relevé une seule fois par bataille, avec 30 % de sa vie, accroupi et encore secoué. Les neutralisations restent comptées.
+  Battle.prototype.maybeBleed = function (e, cause) {
+    if (cause === 'tête' || e.revived || !this.rng.chance(0.55)) { e.bleedUntil = 0; return false; }
+    e.bleedUntil = this.t + 20; e.rescue = null; return true;
+  };
+  Battle.prototype.unitById = function (id) { return this.units.find(x => x.id === id); };
+  Battle.prototype.downedToRevive = function (u) {
+    const reach = has(u, 'medic') ? 30 : 16; let best = null, bd = reach;
+    for (const a of this.teams[u.team].units) {
+      if (a.alive || a === u || !(a.bleedUntil > this.t + 3)) continue;
+      if (a.rescue && a.rescue.by !== u && a.rescue.by.alive && this.t - a.rescue.t < 1) continue;   // un autre y va déjà
+      const d = dist2(u, a); if (d < bd) { bd = d; best = a; }
+    }
+    return best;
+  };
+  Battle.prototype.updateRevives = function () {
+    for (const u of this.units) {
+      if (!u.reviving) continue;
+      const a = this.unitById(u.reviving.id);
+      if (!u.alive || !a || a.alive || this.t > a.bleedUntil || dist2(u, a) > 1.6) { u.reviving = null; if (u.alive) u.state = 'idle'; continue; }
+      if (this.t < u.reviving.until) continue;
+      u.reviving = null; u.state = 'idle'; u.stats.revives++;
+      a.alive = true; a.revived = true; a.bleedUntil = 0; a.rescue = null; a.hp = Math.round(a.maxHp * 0.3); a.status = 'critical';
+      a.stance = 'crouch'; a.suppression = 0.5; a.state = 'idle'; a.target = null; a.visible = new Set(); a.lastHitAt = this.t;
+      this.logEvent('revive', `${u.callsign} relève ${a.callsign} (${Math.round(a.hp)} PV).`, { unit: u.id, team: u.team });
+      this.emit({ type: 'revive', unit: a.id, by: u.id });
+    }
+  };
   Battle.prototype.applyDamage = function (shooter, e, dmg, cause, teamIndex) {
     e.hp = Math.max(0, e.hp - dmg); e.lastHitAt = this.t; e.stats.damageTaken += dmg;
     const team = this.teams[teamIndex];
@@ -2545,7 +2592,8 @@ window.Son = Son;
     if (shooter && !friendly) { shooter.stats.damageDealt += dmg; e.hitBy[shooter.id] = this.t; }
     if (e.hp <= 0) {
       e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
-      this.logEvent('down', `${e.callsign} est hors de combat (${cause}${shooter ? ' — ' + shooter.callsign : ''}).`, { team: teamIndex, enemy: e.id, dmg, loc: cause, unit: shooter && !friendly ? shooter.id : null });
+      const bleeding = this.maybeBleed(e, cause);
+      this.logEvent('down', `${e.callsign} est ${bleeding ? 'à terre' : 'hors de combat'} (${cause}${shooter ? ' — ' + shooter.callsign : ''}).`, { team: teamIndex, enemy: e.id, dmg, loc: cause, unit: shooter && !friendly ? shooter.id : null });
       this.emit({ type: 'down', unit: e.id });
       if (shooter && !friendly) { shooter.stats.kills++; if (this.t - shooter.lastKillAt < 10) shooter.stats.streaks++; shooter.lastKillAt = this.t; e.downedBy = shooter; }
       else if (!friendly) team.indirectKills = (team.indirectKills || 0) + 1;
@@ -2702,6 +2750,7 @@ window.Son = Son;
     const prevStatus = e.status;
     if (e.hp <= 0) {
       e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
+      const bleeding = this.maybeBleed(e, loc);
       u.stats.kills++;
       // « spéciaux » : série (deux neutralisations à moins de 10 s), revanche (celui qui a mis un allié hors de combat), vétéran (niveau supérieur)
       if (this.t - u.lastKillAt < 10) u.stats.streaks++;
@@ -2711,7 +2760,7 @@ window.Son = Son;
       if (this.alliesOf(u).some(a => !a.alive && a.downedBy === e)) u.stats.revenge++;
       if ((e.def.level || 0) > (u.def.level || 0)) u.stats.veteran++;
       e.downedBy = u;
-      text += ` — ${e.callsign} est hors de combat.`;
+      text += bleeding ? ` — ${e.callsign} est à terre (un allié peut le relever).` : ` — ${e.callsign} est hors de combat.`;
       this.logEvent('down', text, { unit: u.id, enemy: e.id, team: u.team, dmg, loc });
       this.emit({ type: 'down', unit: e.id });
       return;
@@ -3770,7 +3819,7 @@ window.Son = Son;
   const MANUAL = params.get('manual') === '1';
   if (MANUAL) document.documentElement.classList.add('manual');   // captures reproductibles : pas de transitions CSS (aucune image n'est dessinée entre deux étapes)
 
-  const STATE_FR = { throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache' };
+  const STATE_FR = { throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié' };
   const STATUS_FR = { ok: 'Indemne', wounded: 'Blessé', critical: 'Grave', down: 'Neutralisé' };
   const TEAM = [
     { name: 'Alpha', color: 0x4f9cf0, css: '#4f9cf0', uniform: 0x3a4a3c, vest: 0x2b352d },
@@ -4263,6 +4312,7 @@ window.Son = Son;
     if (a.reload > 0.05) m.headG.rotation.x += a.reload * 0.3;
     if (blind) m.headG.rotation.x += 0.25;
     // chute
+    if (u.alive && a.fall > 0) { a.fall = Math.max(0, a.fall - dt * 1.4); if (a.fall === 0) { m.pose.rotation.set(0, 0, 0); m.pose.position.y = 0; m.ring.material.opacity = 0.8; } }   // relevé par un allié
     if (a.fall > 0) { const f = a.fall < 0.5 ? 2 * a.fall * a.fall : 1 - Math.pow(-2 * a.fall + 2, 2) / 2; m.pose.rotation.x = -Math.PI / 2 * f * 0.95; m.pose.rotation.z = a.fallDir * 0.4 * f; m.pose.position.y = 0.22 * f; m.ring.material.opacity = 0.8 - 0.6 * f; }
   }
 
@@ -4528,6 +4578,7 @@ window.Son = Son;
         const d = Math.hypot(ev.to.x - ev.from.x, ev.to.z - ev.from.z);
         pendingSounds.push({ at: simTime + d / 110, name: ev.hit ? 'impact_corps' : 'impact_beton', pos: ev.to, vol: ev.hit ? 1 : (ev.to.y < 0.15 ? 0.5 : 0.9) });
       }
+      if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); }
       if (ev.type === 'down') { const m = meshes[ev.unit]; if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; } const u = unitById[ev.unit]; if (u) directorEvent('down', u.x, u.z); }
       if (ev.type === 'smoke') addSmoke(ev);
       if (ev.type === 'shell') { addShell(ev); play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2 }); cam.shake = Math.max(cam.shake || 0, 0.35); }
@@ -4607,7 +4658,7 @@ window.Son = Son;
       c.classList.toggle('dead', !u.alive);
       c.querySelector('.hp i').style.width = (100 * u.hp / u.maxHp).toFixed(0) + '%';
       c.querySelector('.sup i').style.width = (100 * u.suppression).toFixed(0) + '%';
-      c.querySelector('.st').textContent = u.alive ? (u.reloading > 0 ? 'Recharge' : STATE_FR[u.state] || u.state) : 'Hors de combat';
+      c.querySelector('.st').textContent = u.alive ? (u.reloading > 0 ? 'Recharge' : STATE_FR[u.state] || u.state) : (u.bleedUntil > battle.t ? 'À terre' : 'Hors de combat');
       c.querySelector('.ammo').textContent = `${u.ammo}/${u.weapon.mag} · ${u.mags} ch.`;
       c.querySelector('.status').textContent = `${Math.round(u.hp)} PV · ${STATUS_FR[u.status]}`;
     }
