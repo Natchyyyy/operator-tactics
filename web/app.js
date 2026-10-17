@@ -41,7 +41,7 @@
 
   // caméra orbitale maison (glisser : tourner ; molette : zoom ; clic droit / Maj : déplacer)
   // Trois modes : « follow » (derrière un soldat, choisi ou automatique), « sat » (vue d'ensemble), « free » (orbite libre)
-  const cam = { mode: 'follow', target: new THREE.Vector3(32, 0, 20), yaw: Math.PI / 2 + 0.28, pitch: 0.95, dist: 60, follow: null, autoFollow: null, autoUntil: 0, pos: new THREE.Vector3(), look: new THREE.Vector3(), init: false };
+  const cam = { mode: 'director', shot: null, target: new THREE.Vector3(32, 0, 20), yaw: Math.PI / 2 + 0.28, pitch: 0.95, dist: 60, follow: null, autoFollow: null, autoUntil: 0, pos: new THREE.Vector3(), look: new THREE.Vector3(), init: false };
   function pickAutoFollow() {
     if (!battle) return null;
     // le soldat le plus « engagé » : vient de tirer ou d'être pris pour cible ; priorité à l'équipe du joueur
@@ -53,7 +53,68 @@
     }
     return best ? best.id : null;
   }
+  // ---- Réalisateur : enchaîne des plans comme une retransmission (épaule d'un tireur, vue d'ensemble de l'échange,
+  // plan rapproché sur un événement — explosion, neutralisation —, suivi de l'escouade pendant la progression). --------
+  const DIRECTOR = { eventShot: null };
+  function directorEvent(kind, x, z) {   // appelée sur une explosion ou une neutralisation : coupe vers l'événement
+    if (cam.mode !== 'director') return;
+    if (DIRECTOR.eventShot && simTime < DIRECTOR.eventShot.until - 1) return;   // on ne coupe pas un plan d'événement trop tôt
+    DIRECTOR.eventShot = { kind, x, z, until: simTime + 2.6, yaw: Math.random() * Math.PI * 2 };
+    cam.shot = null;
+  }
+  function engagedUnits() { return battle.units.filter(u => u.alive && (battle.t - u.lastShotAt < 2.5 || battle.t - u.lastShotByAt < 2.5)); }
+  function pickShot() {
+    const eng = engagedUnits();
+    const shooters = eng.filter(u => u.target && u.visible.has(u.target.id));
+    const r = Math.random();
+    if (shooters.length && r < 0.5) {   // épaule d'un tireur (de préférence de notre équipe)
+      const own = shooters.filter(u => u.team === 0), pick = (own.length && Math.random() < 0.7 ? own : shooters)[Math.floor(Math.random() * (own.length && Math.random() < 0.7 ? own.length : shooters.length))];
+      return { kind: 'shoulder', id: (pick || shooters[0]).id, until: simTime + 4 + Math.random() * 2 };
+    }
+    if (eng.length >= 2) return { kind: 'overview', until: simTime + 5 + Math.random() * 2, yaw: (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.6) };
+    // progression : suivi en hauteur de notre escouade, ou épaule d'un éclaireur
+    const own = battle.teams[0].units.filter(u => u.alive);
+    if (own.length && r < 0.75) return { kind: 'squad', until: simTime + 6, yaw: 0.35 + Math.random() * 0.5 };
+    const lead = own.slice().sort((a, b) => b.x * (battle.map.spawns[1].x > battle.map.spawns[0].x ? 1 : -1) - a.x * (battle.map.spawns[1].x > battle.map.spawns[0].x ? 1 : -1))[0];
+    return lead ? { kind: 'shoulder', id: lead.id, until: simTime + 5 } : { kind: 'squad', until: simTime + 5, yaw: 0.5 };
+  }
+  function centroid(list) { const n = list.length || 1; return { x: list.reduce((s, u) => s + u.x, 0) / n, z: list.reduce((s, u) => s + u.z, 0) / n }; }
+  function placeCam(want, look, k) {
+    if (!cam.init || k >= 1) { cam.pos.copy(want); cam.look.copy(look); cam.init = true; }
+    else { cam.pos.lerp(want, k); cam.look.lerp(look, k * 1.4); }
+    camera.position.copy(cam.pos); camera.lookAt(cam.look);
+  }
+  function directorCamera() {
+    const ev = DIRECTOR.eventShot;
+    if (ev && simTime < ev.until) {   // plan d'événement : en hauteur, tourne lentement autour du point
+      const a = ev.yaw + (simTime - (ev.until - 2.6)) * 0.25, d = 11;
+      placeCam(new THREE.Vector3(ev.x + Math.cos(a) * d, 7, ev.z + Math.sin(a) * d), new THREE.Vector3(ev.x, 0.8, ev.z), cam.shot === 'ev' ? 0.12 : 1);
+      cam.shot = 'ev'; cam.target.set(ev.x, 0, ev.z); return;
+    }
+    DIRECTOR.eventShot = null;
+    let s = cam.shot && typeof cam.shot === 'object' ? cam.shot : null;
+    const fresh = !s || simTime > s.until || (s.kind === 'shoulder' && (!unitById[s.id] || !unitById[s.id].alive));
+    if (fresh) { s = pickShot(); cam.shot = s; cam.cutAt = simTime; }
+    const k = simTime - (cam.cutAt || 0) < 0.05 ? 1 : 0.08;   // coupe franche au changement de plan, puis suivi doux
+    if (s.kind === 'shoulder') {
+      const m = meshes[s.id]; if (!m) { cam.shot = null; return; }
+      const yaw = m.group.rotation.y, fx = Math.cos(-(yaw - Math.PI / 2)), fz = Math.sin(-(yaw - Math.PI / 2)), px = m.group.position.x, pz = m.group.position.z;
+      // un peu à droite de l'épaule, au-dessus, regard loin devant
+      const rx = -fz * 0.9, rz = fx * 0.9;
+      placeCam(new THREE.Vector3(px - fx * 3.4 + rx, 2.3, pz - fz * 3.4 + rz), new THREE.Vector3(px + fx * 9, 1.2, pz + fz * 9), k);
+      cam.target.set(px, 0, pz); return;
+    }
+    const list = s.kind === 'overview' ? engagedUnits() : battle.teams[0].units.filter(u => u.alive);
+    if (!list.length) { cam.shot = null; return; }
+    const c = centroid(list); let spread = 0; for (const u of list) spread = Math.max(spread, Math.hypot(u.x - c.x, u.z - c.z));
+    const d = Math.max(12, Math.min(34, spread * 1.6 + 8)), h = s.kind === 'overview' ? d * 0.75 : d * 0.6;
+    const toEnemy = Math.sign(battle.map.spawns[1].x - battle.map.spawns[0].x) || 1;   // on regarde vers l'adversaire
+    const a = Math.PI + (toEnemy > 0 ? 0 : Math.PI) + s.yaw;
+    placeCam(new THREE.Vector3(c.x + Math.cos(a) * d, h, c.z + Math.sin(a) * d), new THREE.Vector3(c.x + toEnemy * 3, 0.5, c.z), k);
+    cam.target.set(c.x, 0, c.z);
+  }
   function applyCamera() {
+    if (cam.mode === 'director') { directorCamera(); return; }
     if (cam.mode === 'follow') {
       let id = cam.follow;
       if (!id || !unitById[id] || !unitById[id].alive) { if (!cam.autoFollow || simTime > cam.autoUntil || !unitById[cam.autoFollow] || !unitById[cam.autoFollow].alive) { cam.autoFollow = pickAutoFollow(); cam.autoUntil = simTime + 6; } id = cam.autoFollow; }
@@ -82,7 +143,7 @@
     cam.pos.lerp(want, 0.2); cam.look.lerp(cam.target, 0.2);
     camera.position.copy(cam.pos); camera.lookAt(cam.look);
   }
-  function setCamMode(mode) { cam.mode = mode; document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === mode)); if (mode === 'free') { cam.target.set(battle.map.width / 2, 0, battle.map.depth / 2); cam.dist = 60; } }
+  function setCamMode(mode) { cam.mode = mode; cam.shot = null; cam.init = false; document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === mode)); if (mode === 'free') { cam.target.set(battle.map.width / 2, 0, battle.map.depth / 2); cam.dist = 60; } }
   (function cameraControls() {
     let drag = null;
     canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, b: e.button, shift: e.shiftKey }; canvas.setPointerCapture(e.pointerId); });
@@ -600,7 +661,7 @@
     for (const u of battle.units) { makeOperator(u); unitById[u.id] = u; }
     $('#journal').innerHTML = ''; $('#ticker').innerHTML = '';
     $('#result').classList.add('hidden');
-    cam.init = false; cam.autoFollow = null; cam.follow = null; if (cam.mode === 'free') { cam.target.set(battle.map.width / 2, 0, battle.map.depth / 2); }
+    cam.init = false; cam.autoFollow = null; cam.follow = null; cam.shot = null; DIRECTOR.eventShot = null; if (cam.mode === 'free') { cam.target.set(battle.map.width / 2, 0, battle.map.depth / 2); }
     buildRosters();
     syncMeshes(1);
     pumpLog();
@@ -618,7 +679,7 @@
         const d = Math.hypot(ev.to.x - ev.from.x, ev.to.z - ev.from.z);
         pendingSounds.push({ at: simTime + d / 110, name: ev.hit ? 'impact_corps' : 'impact_beton', pos: ev.to, vol: ev.hit ? 1 : (ev.to.y < 0.15 ? 0.5 : 0.9) });
       }
-      if (ev.type === 'down') { const m = meshes[ev.unit]; if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; } }
+      if (ev.type === 'down') { const m = meshes[ev.unit]; if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; } const u = unitById[ev.unit]; if (u) directorEvent('down', u.x, u.z); }
       if (ev.type === 'smoke') addSmoke(ev);
       if (ev.type === 'shell') { addShell(ev); play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2 }); cam.shake = Math.max(cam.shake || 0, 0.35); }
       if (ev.type === 'heal') addHeal(ev);
@@ -627,7 +688,7 @@
       if (ev.type === 'grenade_throw') addGrenade(ev);
       if (ev.type === 'strike_called') addStrikeMarker(ev);
       if (ev.type === 'strike') addStrike(ev);
-      if (ev.type === 'grenade_blast') addBlast(ev);
+      if (ev.type === 'grenade_blast') { addBlast(ev); directorEvent('blast', ev.x, ev.z); }
     }
     updateTacticCards();
     // sons différés (impacts à l'arrivée de la balle), pas, rechargements, contact
