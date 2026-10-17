@@ -1189,7 +1189,19 @@
   $('#toggleJournal').addEventListener('click', () => { $('#journalWrap').classList.toggle('hidden'); $('#journal').scrollTop = $('#journal').scrollHeight; });
   $('#closeJournal').addEventListener('click', () => $('#journalWrap').classList.add('hidden'));
   document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => { setCamMode(b.dataset.cam); if (b.dataset.cam !== 'follow') cam.follow = null; }));
-  window.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.target.matches('input,select')) { e.preventDefault(); $('#play').click(); } });
+  // raccourcis clavier en bataille (positions physiques des touches : valables en AZERTY comme en QWERTY)
+  // Espace : lancer / pause · 1, 2, 3 : vitesse ×1, ×2, ×4 · A, Z, E : tactiques actives 1 à 3 · C : caméra suivante · J : journal
+  const CAMS = ['director', 'follow', 'sat', 'free'];
+  window.addEventListener('keydown', (e) => {
+    if (e.target.matches('input,select,textarea') || $('#app').classList.contains('hidden') || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.code === 'Space') { e.preventDefault(); $('#play').click(); return; }
+    const sp = { Digit1: '1', Digit2: '2', Digit3: '4', Numpad1: '1', Numpad2: '2', Numpad3: '4' }[e.code];
+    if (sp) { const b = document.querySelector(`[data-speed="${sp}"]`); if (b) b.click(); return; }
+    const ti = { KeyQ: 0, KeyW: 1, KeyE: 2 }[e.code];
+    if (ti !== undefined) { const cards = [...document.querySelectorAll('#tactics0 .tcard')].filter(c => !c.classList.contains('passive')); if (cards[ti]) cards[ti].click(); return; }
+    if (e.code === 'KeyC') { const i = CAMS.indexOf(cam.mode); const b = document.querySelector(`[data-cam="${CAMS[(i + 1) % CAMS.length]}"]`); if (b) b.click(); return; }
+    if (e.code === 'KeyJ') { $('#toggleJournal').click(); }
+  });
 
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;

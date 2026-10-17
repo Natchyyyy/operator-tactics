@@ -167,6 +167,11 @@ async def main():
         # changer l'ordre d'Alpha en Tenir et relancer : l'ordre est bien transmis à la simulation
         await pg.select_option("#order0", "hold"); await pg.click("#newBattle"); await pg.wait_for_timeout(200)
         order = await pg.evaluate("() => window.API.battle().teams[0].order"); check("le sélecteur d'ordre modifie la simulation", order == "hold", order)
+        await pg.evaluate("() => document.activeElement && document.activeElement.blur()")
+        await pg.keyboard.press("3"); cam0 = await pg.evaluate("() => document.querySelector('[data-cam].on').dataset.cam"); await pg.keyboard.press("c")
+        kb = await pg.evaluate("() => [document.querySelector('[data-speed=\"4\"]').classList.contains('on'), document.querySelector('[data-cam].on').dataset.cam]")
+        check("raccourcis clavier : 3 → vitesse ×4, C → caméra suivante", kb[0] and kb[1] != cam0, (cam0, kb))
+        await pg.keyboard.press("1")
         # « Résultat immédiat » : même résultat que la simulation complète de la même graine
         sk = await pg.evaluate("() => { const b = window.API.battle(); const ref = new OT.Battle(b.opts).run(); document.querySelector('#skip').click(); const r = window.API.battle().result; return [!!r, r && r.winner === ref.winner && r.duration === ref.duration, !document.querySelector('#result').classList.contains('hidden')]; }")
         check("« Résultat immédiat » donne le même résultat que la simulation complète et ouvre l'écran de résultat", sk == [True, True, True], sk)
