@@ -681,7 +681,7 @@
   const SHOT_SOUND = { carbine: 'tir_fusil', battle: 'tir_fusil', smg: 'tir_pm', smgsil: 'tir_silencieux', dmr: 'tir_precision', lmg: 'tir_mitrailleuse', shotgun: 'tir_pompe' };
   let muted = false; try { muted = localStorage.getItem('ot-mute') === '1'; } catch (e) { /* stockage indisponible */ }
   // ---- Réglages (volume général, musique, vitesse et caméra par défaut, qualité, ombres) : gardés dans ce navigateur ----
-  const SETTINGS = Object.assign({ vol: 0.9, music: 1, speed: 1, cam: 'director', quality: 'haute', shadows: true }, (() => { try { return JSON.parse(localStorage.getItem('ot-settings') || '{}'); } catch (e) { return {}; } })());
+  const SETTINGS = Object.assign({ vol: 0.9, music: 1, speed: 1, cam: 'director', quality: 'haute', shadows: true, voice: true }, (() => { try { return JSON.parse(localStorage.getItem('ot-settings') || '{}'); } catch (e) { return {}; } })());
   try { const m = localStorage.getItem('ot-music'); if (m !== null && localStorage.getItem('ot-settings') === null) SETTINGS.music = parseFloat(m) || 0; } catch (e) { /* rien */ }
   function applyQuality() {
     const dpr = window.devicePixelRatio || 1;
@@ -1019,6 +1019,22 @@
     const list = BARKS[kind]; if (!list) return;
     let b = m.label.querySelector('.bark'); if (!b) { b = document.createElement('div'); b.className = 'bark'; m.label.prepend(b); }
     b.textContent = list[Math.floor(Math.random() * list.length)]; b.classList.add('on'); m.barkUntil = simTime + 1.8;
+    speak(u, b.textContent, kind);
+  }
+  // voix radio : synthèse vocale du navigateur (si disponible), seulement pour les moments forts, une à la fois,
+  // timbre propre à chaque opérateur (hauteur), volume lié au réglage général ; désactivable dans les réglages
+  const VOICE_KINDS = new Set(['spot', 'grenade', 'throw', 'down', 'shaken', 'revive_start', 'noammo']);
+  let lastVoice = 0;
+  function speak(u, text, kind) {
+    if (!SETTINGS.voice || muted || MANUAL || !window.speechSynthesis || !VOICE_KINDS.has(kind) || paused) return;
+    const now = performance.now(); if (now - lastVoice < 2200 / Math.min(2, speed)) return; lastVoice = now;
+    try {
+      const ut = new SpeechSynthesisUtterance(text.replace(/[!…]/g, '')); ut.lang = 'fr-FR';
+      let h = 0; for (const ch of u.callsign) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      ut.pitch = 0.6 + (h % 7) * 0.1; ut.rate = 1.15 + (speed > 1 ? 0.25 : 0); ut.volume = Math.min(1, SETTINGS.vol * (u.team === 0 ? 0.9 : 0.6));
+      const fr = speechSynthesis.getVoices().filter(v => /^fr/i.test(v.lang)); if (fr.length) ut.voice = fr[h % fr.length];
+      speechSynthesis.cancel(); speechSynthesis.speak(ut);
+    } catch (e) { /* synthèse vocale indisponible */ }
   }
   // fil des neutralisations (en haut à droite) : tireur, arme (silhouette du rôle), victime ; tête, éclats, frappe signalés
   function killFeed(e) {

@@ -4928,7 +4928,7 @@ window.Son = Son;
   const SHOT_SOUND = { carbine: 'tir_fusil', battle: 'tir_fusil', smg: 'tir_pm', smgsil: 'tir_silencieux', dmr: 'tir_precision', lmg: 'tir_mitrailleuse', shotgun: 'tir_pompe' };
   let muted = false; try { muted = localStorage.getItem('ot-mute') === '1'; } catch (e) { /* stockage indisponible */ }
   // ---- Réglages (volume général, musique, vitesse et caméra par défaut, qualité, ombres) : gardés dans ce navigateur ----
-  const SETTINGS = Object.assign({ vol: 0.9, music: 1, speed: 1, cam: 'director', quality: 'haute', shadows: true }, (() => { try { return JSON.parse(localStorage.getItem('ot-settings') || '{}'); } catch (e) { return {}; } })());
+  const SETTINGS = Object.assign({ vol: 0.9, music: 1, speed: 1, cam: 'director', quality: 'haute', shadows: true, voice: true }, (() => { try { return JSON.parse(localStorage.getItem('ot-settings') || '{}'); } catch (e) { return {}; } })());
   try { const m = localStorage.getItem('ot-music'); if (m !== null && localStorage.getItem('ot-settings') === null) SETTINGS.music = parseFloat(m) || 0; } catch (e) { /* rien */ }
   function applyQuality() {
     const dpr = window.devicePixelRatio || 1;
@@ -5266,6 +5266,22 @@ window.Son = Son;
     const list = BARKS[kind]; if (!list) return;
     let b = m.label.querySelector('.bark'); if (!b) { b = document.createElement('div'); b.className = 'bark'; m.label.prepend(b); }
     b.textContent = list[Math.floor(Math.random() * list.length)]; b.classList.add('on'); m.barkUntil = simTime + 1.8;
+    speak(u, b.textContent, kind);
+  }
+  // voix radio : synthèse vocale du navigateur (si disponible), seulement pour les moments forts, une à la fois,
+  // timbre propre à chaque opérateur (hauteur), volume lié au réglage général ; désactivable dans les réglages
+  const VOICE_KINDS = new Set(['spot', 'grenade', 'throw', 'down', 'shaken', 'revive_start', 'noammo']);
+  let lastVoice = 0;
+  function speak(u, text, kind) {
+    if (!SETTINGS.voice || muted || MANUAL || !window.speechSynthesis || !VOICE_KINDS.has(kind) || paused) return;
+    const now = performance.now(); if (now - lastVoice < 2200 / Math.min(2, speed)) return; lastVoice = now;
+    try {
+      const ut = new SpeechSynthesisUtterance(text.replace(/[!…]/g, '')); ut.lang = 'fr-FR';
+      let h = 0; for (const ch of u.callsign) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      ut.pitch = 0.6 + (h % 7) * 0.1; ut.rate = 1.15 + (speed > 1 ? 0.25 : 0); ut.volume = Math.min(1, SETTINGS.vol * (u.team === 0 ? 0.9 : 0.6));
+      const fr = speechSynthesis.getVoices().filter(v => /^fr/i.test(v.lang)); if (fr.length) ut.voice = fr[h % fr.length];
+      speechSynthesis.cancel(); speechSynthesis.speak(ut);
+    } catch (e) { /* synthèse vocale indisponible */ }
   }
   // fil des neutralisations (en haut à droite) : tireur, arme (silhouette du rôle), victime ; tête, éclats, frappe signalés
   function killFeed(e) {
@@ -5589,6 +5605,7 @@ window.Son = Son;
   <div class="setrow"><span>Vitesse de bataille par défaut</span><div class="seg" id="setSpeed"><button data-v="1">1×</button><button data-v="2">2×</button><button data-v="4">4×</button></div><span></span></div>
   <div class="setrow"><span>Caméra par défaut</span><div class="seg" id="setCam"><button data-v="director">Réalisateur</button><button data-v="follow">Suivre</button><button data-v="sat">Sat</button><button data-v="free">Libre</button></div><span></span></div>
   <div class="setrow"><span>Qualité d'affichage</span><div class="seg" id="setQuality"><button data-v="haute">Haute</button><button data-v="moyenne">Moyenne</button><button data-v="basse">Basse</button></div><span></span></div>
+  <div class="setrow"><span>Voix radio (synthèse vocale)</span><div class="seg" id="setVoice"><button data-v="1">Oui</button><button data-v="0">Non</button></div><span></span></div>
   <div class="setrow"><span>Ombres</span><div class="seg" id="setShadows"><button data-v="1">Oui</button><button data-v="0">Non</button></div><span></span></div>
   <div class="setrow save"><span>Sauvegarde de la carrière</span><div class="seg"><button id="setExport" title="Télécharge un fichier .json avec toute la carrière">Exporter</button><button id="setImport" title="Recharge une carrière depuis un fichier .json exporté">Importer</button><input type="file" id="setFile" accept=".json,application/json" hidden></div></div>
   <div id="setMsg"></div>
@@ -5603,7 +5620,7 @@ window.Son = Son;
     $('#setVol').value = Math.round(g.vol * 100); $('#setVolV').textContent = Math.round(g.vol * 100) + ' %';
     $('#setMusic').value = Math.round(g.music * 100); $('#setMusicV').textContent = Math.round(g.music * 100) + ' %';
     const seg = (id, v) => $(id).querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(v)));
-    seg('#setSpeed', g.speed); seg('#setCam', g.cam); seg('#setQuality', g.quality); seg('#setShadows', g.shadows ? 1 : 0);
+    seg('#setSpeed', g.speed); seg('#setCam', g.cam); seg('#setQuality', g.quality); seg('#setShadows', g.shadows ? 1 : 0); seg('#setVoice', g.voice ? 1 : 0);
   }
   function open() { if (!S()) return; $('#setMsg').textContent = ''; sync(); $('#settings').classList.remove('hidden'); }
   window.OT_OPEN_SETTINGS = open;
@@ -5616,6 +5633,7 @@ window.Son = Son;
   $('#setCam').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('cam', v); sync(); } });
   $('#setQuality').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('quality', v); sync(); } });
   $('#setShadows').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('shadows', v === '1'); sync(); } });
+  $('#setVoice').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('voice', v === '1'); sync(); } });
   // export : dans une page publiée sur claude.ai, la capacité « downloads » (le visiteur confirme) ; ailleurs, un lien de téléchargement
   let dl = null; if (window.claude && window.claude.use) window.claude.use('downloads').then(d => { dl = d; }).catch(() => {});
   $('#setExport').addEventListener('click', () => {
