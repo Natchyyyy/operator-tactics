@@ -954,6 +954,11 @@ window.Son = Son;
     blitz:       { id: 'blitz',       name: 'Éclair',            active: false, desc: 'Cadence de tir +20 % pendant 30 s au début de la bataille, précision −10 % pendant ce temps.' },
     retranche:   { id: 'retranche',   name: 'Retranchement',     active: false, desc: 'Position préparée atteinte en 1,5 s au lieu de 3 ; les couverts partiels protègent un peu mieux (×0,5 au lieu de ×0,55).' },
     discipline:  { id: 'discipline',  name: 'Discipline de feu', active: false, desc: 'Pas de tir sous 12 % de chances de toucher (économie de munitions) ; +12 % de précision à l\'arrêt.' },
+    // cartes reprises du jeu d'origine (Air strike, Headshot, Camouflage, Triage)
+    frappe:      { id: 'frappe',      name: 'Frappe aérienne',   active: true, uses: 1, cooldown: 0, desc: 'Après 5 s, un passage d\'avion mitraille une bande de 4 m sur 30 m à travers la position adverse connue la plus proche : 30 à 60 PV à découvert, moitié derrière un couvert bas, rien sous un toit ou derrière un mur.' },
+    tete:        { id: 'tete',        name: 'Tir à la tête',     active: false, desc: 'Chance de toucher à la tête portée de 8 % à 14 % pour toute l\'escouade.' },
+    camouflage:  { id: 'camouflage',  name: 'Camouflage',        active: false, desc: 'Les 40 premières secondes, l\'adversaire a 35 % de chances en moins de vous repérer (puis 15 %).' },
+    triage:      { id: 'triage',      name: 'Triage',            active: false, desc: 'Un opérateur blessé qui n\'est plus touché depuis 6 s récupère 2 PV par seconde, jusqu\'à 60 % de sa vie.' },
   };
 
   // ---- DÉFIS -------------------------------------------------------------------------
@@ -1140,10 +1145,12 @@ window.Son = Son;
         box(29.5, 19, 0.6, 3.5, 0.95, 'cover', 'barrière'), box(29.5, 29.5, 0.6, 3.5, 0.95, 'cover', 'barrière'),
         box(31, 18.5, 3, 0.6, 0.95, 'cover', 'barrière'), box(31, 33, 3, 0.6, 0.95, 'cover', 'barrière'),
         box(32, 25.3, 1, 1.4, 0.95, 'cover', 'sacs de sable'),
-        box(35, 21, 2, 4.4, 1.4, 'cover', 'voiture'), box(35, 29.5, 2, 4.4, 1.4, 'cover', 'voiture'),
+        // au centre de l'enclos, l'abri des caisses de paiement : coupe la vue d'une zone de départ à l'autre et partage la zone en deux
+        box(35, 19.5, 2, 13, 2.8, 'wall', 'abri'),
+        box(31.5, 23.5, 2, 4.4, 1.4, 'cover', 'voiture'),
         // divers
         box(8, 6, 1.5, 1.4, 1.1, 'cover', 'fût'), box(8, 38.6, 1.5, 1.4, 1.1, 'cover', 'fût'),
-        box(16, 11, 1.2, 2.4, 1.0, 'cover', 'sacs de sable'), box(16, 32.6, 1.2, 2.4, 1.0, 'cover', 'sacs de sable'),
+        box(16, 11, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'), box(16, 32.6, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'),
         box(26.5, 38, 3, 1.2, 1.0, 'cover', 'muret'), box(26.5, 7, 3, 1.2, 1.0, 'cover', 'muret'),
       ]),
     },
@@ -1216,11 +1223,16 @@ window.Son = Son;
   GameMap.prototype.nearestFree = function (x, z) {
     const { c, r } = this.cellOf(x, z);
     if (!this.isBlocked(c, r)) return { c, r };
+    // anneau par anneau, la case libre la plus PROCHE du point (et non la première trouvée en balayant d'ouest en est :
+    // ce balayage favorisait un côté, donc un camp, sur une carte symétrique)
     for (let ring = 1; ring < 8; ring++) {
+      let best = null, bd = Infinity;
       for (let dc = -ring; dc <= ring; dc++) for (let dr = -ring; dr <= ring; dr++) {
-        if (Math.max(Math.abs(dc), Math.abs(dr)) !== ring) continue;
-        if (!this.isBlocked(c + dc, r + dr)) return { c: c + dc, r: r + dr };
+        if (Math.max(Math.abs(dc), Math.abs(dr)) !== ring || this.isBlocked(c + dc, r + dr)) continue;
+        const p = this.centerOf(c + dc, r + dr), d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z);
+        if (d < bd - 1e-9) { bd = d; best = { c: c + dc, r: r + dr }; }
       }
+      if (best) return best;
     }
     return null;
   };
@@ -1576,11 +1588,13 @@ window.Son = Son;
     const ev = u.evade; ev.started = true;
     if (!u.alive) return;
     const R = GRENADES[ev.kind].radius, dx = u.x - ev.x, dz = u.z - ev.z, L = Math.hypot(dx, dz) || 1;
-    let best = null;
-    for (const a of [0, 0.6, -0.6, 1.2, -1.2]) {          // fuir à l'opposé ; sinon de biais
+    // fuir à l'opposé, ou de biais : la direction qui éloigne le plus (aucune préférence gauche/droite : symétrie entre les camps)
+    let best = null, bd = R * 0.8;
+    for (const a of [0, 0.6, -0.6, 1.2, -1.2]) {
       const ang = Math.atan2(dz / L, dx / L) + a, px = ev.x + Math.cos(ang) * (R + 2), pz = ev.z + Math.sin(ang) * (R + 2);
       const f = this.map.nearestFree(px, pz); if (!f) continue; const c = this.map.centerOf(f.c, f.r);
-      if (Math.hypot(c.x - ev.x, c.z - ev.z) > R * 0.8) { best = c; break; }
+      const d = Math.hypot(c.x - ev.x, c.z - ev.z) - Math.abs(a) * 0.5;
+      if (d > bd) { bd = d; best = c; }
     }
     if (best && this.setGoal(u, best.x, best.z, 'close')) { u.state = 'evade'; u.stance = 'stand'; u.commitUntil = ev.until; u.commitAt = this.t; }
   };
@@ -1652,6 +1666,12 @@ window.Son = Son;
       for (const m of [25, 50, 75]) if (before < m && t.capture >= m) this.logEvent('zone', `${t.name} : zone capturée à ${m} %.`, { team: z.holder });
     }
   };
+  // Point d'approche de la zone : le centre décalé de 1,5 m vers le camp de l'opérateur (le centre exact peut tomber dans
+  // un obstacle, et la case libre la plus proche d'un point de l'axe de symétrie avantagerait un camp)
+  Battle.prototype.zoneApproach = function (u) {
+    const z = this.zone, side = Math.sign(this.teams[u.team].spawn.x - z.x) || (u.team === 0 ? -1 : 1);
+    return { x: z.x + side * 1.5, z: z.z };
+  };
   // Prendre position dans la zone : un couvert à l'intérieur (face à la menace) ou, à défaut, un point libre réparti autour du centre.
   Battle.prototype.occupyZone = function (u, facePos) {
     const z = this.zone;
@@ -1667,11 +1687,11 @@ window.Son = Son;
         const side = Math.sign(this.teams[u.team].spawn.x - z.x) || 1;
         for (let k = 0; k < 12 && !best; k++) {
           const a = (u.idx / 5) * Math.PI * 2 + this.rng.range(-0.5, 0.5), rr = z.r * this.rng.range(0.25, 0.7);
-          const f = this.map.nearestFree(z.x + side * Math.abs(Math.cos(a)) * rr * 0.6 + Math.cos(a) * rr * 0.4, z.z + Math.sin(a) * rr);
+          const f = this.map.nearestFree(z.x + side * Math.abs(Math.cos(a)) * rr * 0.6 - side * Math.cos(a) * rr * 0.4, z.z + Math.sin(a) * rr);   // miroir exact entre les deux camps
           if (f) { const c = this.map.centerOf(f.c, f.r); if (this.inZone(c, -0.4)) best = c; }
         }
       }
-      u.zoneSpot = best ? { x: best.x, z: best.z } : { x: z.x, z: z.z };
+      u.zoneSpot = best ? { x: best.x, z: best.z } : this.zoneApproach(u);
     }
     if (Math.hypot(u.zoneSpot.x - u.x, u.zoneSpot.z - u.z) > 1.0 && this.setGoal(u, u.zoneSpot.x, u.zoneSpot.z, 'advance')) { u.state = 'tozone'; u.stance = 'stand'; return; }
     this.stop(u); u.state = 'capture'; u.facing = Math.atan2(facePos.z - u.z, facePos.x - u.x);
@@ -1705,6 +1725,7 @@ window.Son = Son;
             if (e.stance === 'crouch') p *= 0.6;
             if (has(u, 'eagle')) p *= 1.3;                      // Œil de lynx
             if (has(e, 'ghost')) p *= 0.6;                      // Fantôme
+            if (this.hasTactic(this.teams[e.team], 'camouflage')) p *= this.t < 40 ? 0.65 : 0.85;   // Camouflage
             p = clamp(p, 0.02, 1);
           }
           if (p >= 1 || this.rng.chance(p)) {
@@ -1935,7 +1956,8 @@ window.Son = Son;
         const dz = Math.hypot(u.x - this.zone.x, u.z - this.zone.z);
         const cp = this.findCover(u, threat, 14, { towards: this.zone });
         if (cp && Math.hypot(cp.x - this.zone.x, cp.z - this.zone.z) < dz - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
-        if (order === 'assault' && this.setGoal(u, this.zone.x, this.zone.z, 'advance')) { u.state = 'advancing'; u.stance = 'stand'; return; }
+        const near = this.zoneApproach(u);
+        if (order === 'assault' && this.setGoal(u, near.x, near.z, 'advance')) { u.state = 'advancing'; u.stance = 'stand'; return; }
       }
       // tireur d'élite trop près : reculer vers un couvert plus lointain
       if (u.role.id === 'marksman' && d < u.weapon.minRange && order !== 'hold') {
@@ -2183,7 +2205,7 @@ window.Son = Son;
     if (this.t < st.cooldownUntil) return { ok: false, reason: `recharge (${(st.cooldownUntil - this.t).toFixed(0)} s)` };
     if (this.over) return { ok: false, reason: 'bataille terminée' };
     const alive = team.units.filter(u => u.alive); if (!alive.length) return { ok: false, reason: 'aucun opérateur' };
-    if (id === 'fumigene' || id === 'barrage') { if (!this.teamKnownEnemies(team).length) return { ok: false, reason: 'aucune position adverse connue' }; }
+    if (id === 'fumigene' || id === 'barrage' || id === 'frappe') { if (!this.teamKnownEnemies(team).length) return { ok: false, reason: 'aucune position adverse connue' }; }
     if (id === 'soins' && !alive.some(u => u.hp < u.maxHp - 5)) return { ok: false, reason: 'personne à soigner' };
     return { ok: true };
   };
@@ -2218,6 +2240,14 @@ window.Son = Son;
       target.healing = { remaining: 35, rate: 7, by: id }; // 35 PV en 5 s
       this.logEvent('tactic', `${team.name} : trousse de soins pour ${target.callsign}.`, { team: teamIndex, tactic: id, unit: target.id });
       this.emit({ type: 'heal', unit: target.id });
+    } else if (id === 'frappe') {
+      // passage d'avion : une bande traversant la position adverse connue la plus proche, perpendiculaire à l'axe escouade → menace
+      const ks = this.teamKnownEnemies(team); let k = ks[0], kd = Infinity; for (const q of ks) { const d = Math.hypot(q.x - c.x, q.z - c.z); if (d < kd) { kd = d; k = q; } }
+      const ax = k.x - c.x, az = k.z - c.z, L = Math.hypot(ax, az) || 1, px = -az / L, pz = ax / L;
+      this.pendingStrikes = this.pendingStrikes || [];
+      this.pendingStrikes.push({ at: this.t + 5, cx: k.x, cz: k.z, dx: px, dz: pz, half: 15, width: 4, team: teamIndex });
+      this.logEvent('tactic', `${team.name} appelle une frappe aérienne : passage dans 5 s.`, { team: teamIndex, tactic: id });
+      this.emit({ type: 'strike_called', x: k.x, z: k.z, dx: px, dz: pz, half: 15, team: teamIndex, at: this.t + 5 });
     } else if (id === 'barrage') {
       const ks = this.teamKnownEnemies(team); let k = ks[0], kd = Infinity; for (const q of ks) { const d = Math.hypot(q.x - c.x, q.z - c.z); if (d < kd) { kd = d; k = q; } }
       this.pendingShells = this.pendingShells || [];
@@ -2246,6 +2276,32 @@ window.Son = Son;
       }
       this.logEvent('shell', `Obus de mortier en (${sh.x.toFixed(0)}, ${sh.z.toFixed(0)}).`, { team: sh.team, silent: true });
     }
+    // frappe aérienne : chaque opérateur dans la bande est touché (moins derrière un couvert bas, pas du tout sous un mur haut)
+    if (this.pendingStrikes && this.pendingStrikes.length) for (let i = this.pendingStrikes.length - 1; i >= 0; i--) {
+      const st = this.pendingStrikes[i]; if (this.t < st.at) continue;
+      this.pendingStrikes.splice(i, 1);
+      this.emit({ type: 'strike', cx: st.cx, cz: st.cz, dx: st.dx, dz: st.dz, half: st.half, team: st.team });
+      let n = 0;
+      for (const u of this.units) {
+        if (!u.alive) continue;
+        const rx = u.x - st.cx, rz = u.z - st.cz, along = rx * st.dx + rz * st.dz, across = Math.abs(rx * st.dz - rz * st.dx);
+        if (Math.abs(along) > st.half || across > st.width / 2) { if (across < 9 && Math.abs(along) < st.half + 3) u.suppression = clamp(u.suppression + 0.4, 0, 1); continue; }
+        // l'avion tire en piqué depuis l'axe : un obstacle haut juste à côté protège ; un couvert bas protège à moitié
+        let shelter = 1;
+        for (const o of this.map.obstacles) { if (o.h >= 2.5 && u.x > o.x - 0.8 && u.x < o.x + o.w + 0.8 && u.z > o.z - 0.8 && u.z < o.z + o.d + 0.8) { shelter = 0; break; } if (o.h < 2.5 && u.x > o.x - 0.9 && u.x < o.x + o.w + 0.9 && u.z > o.z - 0.9 && u.z < o.z + o.d + 0.9 && u.stance === 'crouch') shelter = Math.min(shelter, 0.5); }
+        u.suppression = clamp(u.suppression + 0.8, 0, 1);
+        if (!shelter) continue;
+        const dmg = Math.round(this.rng.range(30, 60) * shelter * (1 - u.armor.torso * 0.3) * 10) / 10;
+        if (dmg >= 1) { n++; this.applyDamage(null, u, dmg, 'frappe aérienne', st.team); }
+      }
+      this.logEvent('strike', `Passage de l'avion : ${n} opérateur${n > 1 ? 's' : ''} touché${n > 1 ? 's' : ''}.`, { team: st.team });
+    }
+    // Triage : régénération lente des blessés qui ne sont plus pris à partie (6 s), jusqu'à 60 %
+    if (this.tick % 5 === 0) for (const team of this.teams) if (this.hasTactic(team, 'triage')) for (const u of team.units) {
+      if (!u.alive || this.t - u.lastHitAt < 6 || u.hp >= u.maxHp * 0.6) continue;
+      const h = Math.min(2 * DT * 5, u.maxHp * 0.6 - u.hp); u.hp += h; u.stats.healed += h;
+      u.status = u.hp <= u.maxHp * 0.2 ? 'critical' : (u.hp <= u.maxHp * 0.5 ? 'wounded' : 'ok');
+    }
     // soins : régénération progressive
     for (const u of this.units) if (u.alive && u.healing) {
       const h = Math.min(u.healing.remaining, u.healing.rate * DT, u.maxHp - u.hp);
@@ -2266,6 +2322,7 @@ window.Son = Son;
       else if (id === 'reco' && this.t > 10 && !this.teamKnownEnemies(team).length && this.rng.chance(0.3)) this.useTactic(team.index, id);
       else if (id === 'soins' && alive.some(u => u.hp < u.maxHp * 0.45) && this.rng.chance(0.6)) this.useTactic(team.index, id);
       else if (id === 'barrage' && this.t > 15 && this.teamKnownEnemies(team).length >= 2 && this.rng.chance(0.4)) this.useTactic(team.index, id);
+      else if (id === 'frappe' && this.t > 20 && this.teamKnownEnemies(team).length >= 2 && this.rng.chance(0.35)) this.useTactic(team.index, id);
     }
   };
   // Dégâts hors tir direct (obus) : même comptabilité que les tirs, attribués à l'équipe
@@ -2412,7 +2469,8 @@ window.Son = Son;
     let fall = r <= 0.3 ? 1 : (r <= 1 ? 1 - (r - 0.3) / 0.7 * (1 - w.falloff) : Math.max(0.3 * w.falloff, w.falloff - (r - 1) * 0.7 * w.falloff));
     const roll = this.rng.next();
     let loc, mult, prot;
-    if (roll < 0.08) { loc = 'tête'; mult = 2.2; prot = e.armor.head; }
+    const headP = this.hasTactic(this.teams[u.team], 'tete') ? 0.14 : 0.08;   // Tir à la tête
+    if (roll < headP) { loc = 'tête'; mult = 2.2; prot = e.armor.head; }
     else if (roll < 0.60) { loc = 'torse'; mult = 1.0; prot = e.armor.torso; }
     else { loc = 'membre'; mult = 0.55; prot = 0; }
     let dmg = w.damage * fall * mult * (1 - prot) * this.rng.range(0.85, 1.15);
@@ -3076,7 +3134,7 @@ window.Son = Son;
 (function () {
   const OT = window.OT; const { Game, DATA, League } = OT;
   const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, MISSIONS, PRICES, TRAITS, CHALLENGES, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, CONTRACT } = DATA;
-  const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯' };
+  const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯', frappe: '✈', tete: '☠', camouflage: '🌿', triage: '⛑' };
   const $ = (s) => document.querySelector(s);
   const STAT_FR = { marksmanship: 'Tir', reflexes: 'Réflexes', mobility: 'Mobilité', perception: 'Perception', composure: 'Sang-froid', endurance: 'Endurance' };
   const LANE_FR = { '-1': 'Nord', '0': 'Centre', '1': 'Sud', 'null': 'Auto' };
@@ -3453,7 +3511,7 @@ window.Son = Son;
     { name: 'Alpha', color: 0x4f9cf0, css: '#4f9cf0', uniform: 0x3a4a3c, vest: 0x2b352d },
     { name: 'Bravo', color: 0xe85a4f, css: '#e85a4f', uniform: 0x6b5a3e, vest: 0x4e4230 },
   ];
-  const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯' };
+  const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯', frappe: '✈', tete: '☠', camouflage: '🌿', triage: '⛑' };
   const tacIcon = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'timg')) || TACTIC_ICON[id] || '◆';      // icône dessinée si disponible
   const roleImg = (role) => (OT.imgTag && OT.imgTag('role_' + role, 'rimg')) || '';
   const $ = (s) => document.querySelector(s);
@@ -3883,6 +3941,20 @@ window.Son = Son;
       cam.shake = Math.max(cam.shake || 0, 0.5);
     }
   }
+  // frappe aérienne : marquage de la bande, puis l'avion qui passe et les impacts en ligne
+  function addStrikeMarker(ev) {
+    const len = ev.half * 2, m = new THREE.Mesh(new THREE.PlaneGeometry(4, len), new THREE.MeshBasicMaterial({ color: 0xff7a3a, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.rotation.z = -Math.atan2(ev.dx, ev.dz); m.position.set(ev.x, 0.05, ev.z); scene.add(m); fx.push({ obj: m, until: ev.at, kind: 'marker' });
+  }
+  function addStrike(ev) {
+    const plane = new THREE.Group(); const body = new THREE.Mesh(new THREE.ConeGeometry(0.9, 7, 8), new THREE.MeshStandardMaterial({ color: 0x4a5058, metalness: 0.6, roughness: 0.4 })); body.rotation.x = Math.PI / 2; plane.add(body);
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(9, 0.15, 1.6), body.material); wing.position.z = -0.8; plane.add(wing);
+    plane.rotation.y = Math.atan2(ev.dx, ev.dz); scene.add(plane);
+    fx.push({ obj: plane, kind: 'plane', start: simTime, until: simTime + 2.2, ax: ev.cx - ev.dx * 60, az: ev.cz - ev.dz * 60, bx: ev.cx + ev.dx * 60, bz: ev.cz + ev.dz * 60 });
+    for (let k = -ev.half; k <= ev.half; k += 2.5) { const x = ev.cx + ev.dx * k + (Math.random() - 0.5) * 2, z = ev.cz + ev.dz * k + (Math.random() - 0.5) * 2; const d = new THREE.Mesh(dustGeo, dustMat); d.position.set(x, 0.2, z); d.scale.setScalar(2); scene.add(d); const t0 = simTime + 0.9 + (k + ev.half) / (ev.half * 2) * 0.5; fx.push({ obj: d, until: t0 + 1.2, start: t0, vel: new THREE.Vector3(0, 3 + Math.random() * 3, 0), gravity: 6 }); }
+    play('tir_mitrailleuse', { x: ev.cx, y: 2, z: ev.cz }, { vol: 1.4, vitesse: 0.7 }); setTimeout(() => play('explosion', { x: ev.cx, y: 1, z: ev.cz }, { vol: 1 }), 200);
+    cam.shake = Math.max(cam.shake || 0, 0.6);
+  }
   function updateFx() {
     const dt = Math.max(0, simTime - fxLast); fxLast = simTime;
     for (let i = fx.length - 1; i >= 0; i--) {
@@ -3901,6 +3973,7 @@ window.Son = Son;
         if (k < 1) { f.obj.position.set(f.from.x + (f.to.x - f.from.x) * k, f.from.y + (f.to.y - f.from.y) * k + Math.sin(Math.PI * k) * (1.2 + f.flight * 1.5), f.from.z + (f.to.z - f.from.z) * k); f.obj.rotation.x += dt * 12; }
         else { f.obj.position.set(f.to.x, 0.07, f.to.z); if (!f.bounced) { f.bounced = true; play('grenade_rebond', { x: f.to.x, y: 0.2, z: f.to.z }, { vol: 1 }); } }
       }
+      else if (f.kind === 'plane') { const k = (simTime - f.start) / 2.2; f.obj.position.set(f.ax + (f.bx - f.ax) * k, 18 - Math.sin(Math.PI * k) * 8, f.az + (f.bz - f.az) * k); }
       else if (f.kind === 'flashlight') { f.obj.intensity *= Math.max(0, 1 - dt * 12); }
       else if (f.kind === 'marker') { f.obj.material.opacity = 0.5 + 0.5 * Math.sin(simTime * 8); }
       else if (f.kind === 'heal') { f.obj.rotation.z = simTime * 2; f.obj.material.opacity = 0.5 + 0.4 * Math.sin(simTime * 6); }
@@ -4050,6 +4123,8 @@ window.Son = Son;
       if (ev.type === 'reco') addReco(ev);
       if (ev.type === 'barrage_called') addBarrageMarker(ev);
       if (ev.type === 'grenade_throw') addGrenade(ev);
+      if (ev.type === 'strike_called') addStrikeMarker(ev);
+      if (ev.type === 'strike') addStrike(ev);
       if (ev.type === 'grenade_blast') addBlast(ev);
     }
     updateTacticCards();

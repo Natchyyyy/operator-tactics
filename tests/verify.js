@@ -415,5 +415,49 @@ function duel(opts) {
   check('revoir : les commandes sont refusées pendant la revue', !b.command('tactic', 0, 'reco').ok || b.over);
 }
 
+{
+  // ---- tactiques reprises du jeu d'origine ----
+  const mkT = (tac, extra) => new Battle(Object.assign({ seed: 4, mapId: 'place', teams: [{ name: 'A', operators: ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'], tactics: tac }, { name: 'B', operators: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal', 'k_fauve'] }] }, extra || {}));
+  // Tir à la tête : la proportion de tirs à la tête mesurée sur beaucoup de touches
+  const headRate = (tac) => { const b = mkT(tac); const u = b.teams[0].units[0], e = b.teams[1].units[0]; e.armor = { torso: 0, head: 0, name: 'aucune' }; let h = 0; for (let i = 0; i < 4000; i++) { e.hp = 1e9; e.alive = true; const before = u.stats.headshots; b.applyHit(u, e, 10); if (u.stats.headshots > before) h++; } return h / 4000; };
+  const r0 = headRate([]), r1 = headRate(['tete']);
+  check('Tir à la tête : 8 % → 14 % de tirs à la tête (mesuré sur 4 000 touches)', Math.abs(r0 - 0.08) < 0.015 && Math.abs(r1 - 0.14) < 0.02, { r0, r1 });
+  // Camouflage : chance de repérage réduite (mesurée par Monte-Carlo sur la même situation)
+  // une ligne de vue dégagée de 20 m sur la place (cherchée, pas supposée)
+  const mp = new GameMap(MAPS.place); let row = null; for (let z = 3; z < 42 && row === null; z += 0.5) if (mp.hasLOS(20, 1.6, z, 40, 1.25, z) && !mp.insideObstacle(20, z) && !mp.insideObstacle(40, z)) row = z;
+  const spotRate = (tac, t) => { let n = 0; for (let s = 1; s <= 300; s++) { const b = new Battle({ seed: s, mapId: 'place', teams: [{ operators: ['op_vautour'], tactics: [] }, { operators: ['k_vipere'], tactics: tac }] }); const u = b.teams[0].units[0], e = b.teams[1].units[0]; u.x = 20; u.z = row; e.x = 40; e.z = row; u.facing = 0; e.moving = false; e.stance = 'stand'; b.t = t; b.perceive(u); if (u.visible.has(e.id)) n++; } return n / 300; };
+  const s0 = spotRate([], 5), s1 = spotRate(['camouflage'], 5), s2 = spotRate(['camouflage'], 60);
+  check('Camouflage : repérage −35 % les 40 premières secondes, −15 % ensuite', s1 < s0 * 0.8 && s2 > s1 && s2 < s0 * 1.0, { s0, s1, s2 });
+  // Triage : un blessé non touché depuis 6 s remonte jusqu'à 60 %, pas au-delà
+  let b = mkT(['triage']); let u = b.teams[0].units[0]; for (const x of b.units) if (x !== u) x.alive = false; u.hp = u.maxHp * 0.3; u.lastHitAt = 0;
+  for (let i = 0; i < 400; i++) b.updateTactics(), b.t += OT.DT, b.tick++;
+  check('Triage : remonte jusqu\'à 60 % de la vie (2 PV/s), pas au-delà', Math.abs(u.hp - u.maxHp * 0.6) < 0.5, { hp: u.hp, max: u.maxHp });
+  // Frappe aérienne : touche à découvert dans la bande, pas à côté d'un mur haut, pas hors de la bande
+  b = mkT(['frappe']); const A = b.teams[0].units, B = b.teams[1].units;
+  for (const x of B) { x.x = 5; x.z = 40; } const [open, nearWall, out] = B;
+  const im = b.map.obstacles.find(o => o.name === 'immeuble' && o.x > 50 && o.z < 5);    // immeuble nord-est (x 52..60)
+  open.x = im.x - 1.0; open.z = 9; nearWall.x = im.x - 0.3; nearWall.z = 5; out.x = im.x - 0.5; out.z = 20;
+  const hp0 = [open.hp, nearWall.hp, out.hp];
+  b.pendingStrikes = [{ at: 0, cx: im.x - 0.5, cz: 7, dx: 0, dz: 1, half: 6, width: 4, team: 0 }];
+  b.updateTactics();
+  check('Frappe aérienne : touche à découvert, épargne l\'homme collé à un mur haut et celui hors de la bande', open.hp < hp0[0] - 20 && nearWall.hp === hp0[1] && out.hp === hp0[2], { open: hp0[0] - open.hp, wall: hp0[1] - nearWall.hp, out: hp0[2] - out.hp, im });
+  check('Frappe aérienne : refusée sans position adverse connue', !mkT(['frappe']).useTactic(0, 'frappe').ok);
+}
+
+{
+  // ---- équité entre les camps : deux escouades identiques, cartes symétriques → aucun camp ne doit être favorisé ----
+  const mp = new GameMap(MAPS.parking); const key = (x, z) => x.toFixed(2) + ',' + z.toFixed(2);
+  let asymCover = 0; for (const id of Object.keys(MAPS)) { const m = new GameMap(MAPS[id]); const S = new Set(m.coverPoints.map(p => key(p.x, p.z))); for (const p of m.coverPoints) if (!S.has(key(m.width - p.x, p.z))) asymCover++; }
+  const f1 = mp.nearestFree(36.0 - 3, 26), f2 = mp.nearestFree(36.0 + 3, 26), c1 = mp.centerOf(f1.c, f1.r), c2 = mp.centerOf(f2.c, f2.r);
+  check('symétrie : points de couverture en miroir sur toutes les cartes, case libre la plus proche en miroir', asymCover === 0 && Math.abs((c1.x + c2.x) - 72) < 1e-9 && c1.z === c2.z, { asymCover, c1, c2 });
+  const ops = ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
+  for (const obj of ['eliminate', 'capture']) {
+    const w = [0, 0];
+    for (const id of Object.keys(MAPS)) for (let sd = 1; sd <= 15; sd++) { const b = new Battle({ seed: 500 + sd, mapId: id, objective: { type: obj }, teams: [{ name: 'A', operators: ops }, { name: 'B', operators: ops }] }); const r = b.run(); if (r.winner >= 0) w[r.winner]++; }
+    const share = w[0] / (w[0] + w[1]);
+    check(`équité (${obj}) : escouades identiques sur les 4 cartes, ni l'ouest ni l'est favorisé (35–65 %)`, share > 0.35 && share < 0.65, { w, share });
+  }
+}
+
 console.log(`\n${pass}/${pass + fail} vérifications réussies${fail ? '  — ÉCHECS : ' + fail : ''}`);
 process.exit(fail ? 1 : 0);

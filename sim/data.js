@@ -193,6 +193,11 @@
     blitz:       { id: 'blitz',       name: 'Éclair',            active: false, desc: 'Cadence de tir +20 % pendant 30 s au début de la bataille, précision −10 % pendant ce temps.' },
     retranche:   { id: 'retranche',   name: 'Retranchement',     active: false, desc: 'Position préparée atteinte en 1,5 s au lieu de 3 ; les couverts partiels protègent un peu mieux (×0,5 au lieu de ×0,55).' },
     discipline:  { id: 'discipline',  name: 'Discipline de feu', active: false, desc: 'Pas de tir sous 12 % de chances de toucher (économie de munitions) ; +12 % de précision à l\'arrêt.' },
+    // cartes reprises du jeu d'origine (Air strike, Headshot, Camouflage, Triage)
+    frappe:      { id: 'frappe',      name: 'Frappe aérienne',   active: true, uses: 1, cooldown: 0, desc: 'Après 5 s, un passage d\'avion mitraille une bande de 4 m sur 30 m à travers la position adverse connue la plus proche : 30 à 60 PV à découvert, moitié derrière un couvert bas, rien sous un toit ou derrière un mur.' },
+    tete:        { id: 'tete',        name: 'Tir à la tête',     active: false, desc: 'Chance de toucher à la tête portée de 8 % à 14 % pour toute l\'escouade.' },
+    camouflage:  { id: 'camouflage',  name: 'Camouflage',        active: false, desc: 'Les 40 premières secondes, l\'adversaire a 35 % de chances en moins de vous repérer (puis 15 %).' },
+    triage:      { id: 'triage',      name: 'Triage',            active: false, desc: 'Un opérateur blessé qui n\'est plus touché depuis 6 s récupère 2 PV par seconde, jusqu\'à 60 % de sa vie.' },
   };
 
   // ---- DÉFIS -------------------------------------------------------------------------

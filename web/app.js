@@ -13,7 +13,7 @@
     { name: 'Alpha', color: 0x4f9cf0, css: '#4f9cf0', uniform: 0x3a4a3c, vest: 0x2b352d },
     { name: 'Bravo', color: 0xe85a4f, css: '#e85a4f', uniform: 0x6b5a3e, vest: 0x4e4230 },
   ];
-  const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯' };
+  const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯', frappe: '✈', tete: '☠', camouflage: '🌿', triage: '⛑' };
   const tacIcon = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'timg')) || TACTIC_ICON[id] || '◆';      // icône dessinée si disponible
   const roleImg = (role) => (OT.imgTag && OT.imgTag('role_' + role, 'rimg')) || '';
   const $ = (s) => document.querySelector(s);
@@ -443,6 +443,20 @@
       cam.shake = Math.max(cam.shake || 0, 0.5);
     }
   }
+  // frappe aérienne : marquage de la bande, puis l'avion qui passe et les impacts en ligne
+  function addStrikeMarker(ev) {
+    const len = ev.half * 2, m = new THREE.Mesh(new THREE.PlaneGeometry(4, len), new THREE.MeshBasicMaterial({ color: 0xff7a3a, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.rotation.z = -Math.atan2(ev.dx, ev.dz); m.position.set(ev.x, 0.05, ev.z); scene.add(m); fx.push({ obj: m, until: ev.at, kind: 'marker' });
+  }
+  function addStrike(ev) {
+    const plane = new THREE.Group(); const body = new THREE.Mesh(new THREE.ConeGeometry(0.9, 7, 8), new THREE.MeshStandardMaterial({ color: 0x4a5058, metalness: 0.6, roughness: 0.4 })); body.rotation.x = Math.PI / 2; plane.add(body);
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(9, 0.15, 1.6), body.material); wing.position.z = -0.8; plane.add(wing);
+    plane.rotation.y = Math.atan2(ev.dx, ev.dz); scene.add(plane);
+    fx.push({ obj: plane, kind: 'plane', start: simTime, until: simTime + 2.2, ax: ev.cx - ev.dx * 60, az: ev.cz - ev.dz * 60, bx: ev.cx + ev.dx * 60, bz: ev.cz + ev.dz * 60 });
+    for (let k = -ev.half; k <= ev.half; k += 2.5) { const x = ev.cx + ev.dx * k + (Math.random() - 0.5) * 2, z = ev.cz + ev.dz * k + (Math.random() - 0.5) * 2; const d = new THREE.Mesh(dustGeo, dustMat); d.position.set(x, 0.2, z); d.scale.setScalar(2); scene.add(d); const t0 = simTime + 0.9 + (k + ev.half) / (ev.half * 2) * 0.5; fx.push({ obj: d, until: t0 + 1.2, start: t0, vel: new THREE.Vector3(0, 3 + Math.random() * 3, 0), gravity: 6 }); }
+    play('tir_mitrailleuse', { x: ev.cx, y: 2, z: ev.cz }, { vol: 1.4, vitesse: 0.7 }); setTimeout(() => play('explosion', { x: ev.cx, y: 1, z: ev.cz }, { vol: 1 }), 200);
+    cam.shake = Math.max(cam.shake || 0, 0.6);
+  }
   function updateFx() {
     const dt = Math.max(0, simTime - fxLast); fxLast = simTime;
     for (let i = fx.length - 1; i >= 0; i--) {
@@ -461,6 +475,7 @@
         if (k < 1) { f.obj.position.set(f.from.x + (f.to.x - f.from.x) * k, f.from.y + (f.to.y - f.from.y) * k + Math.sin(Math.PI * k) * (1.2 + f.flight * 1.5), f.from.z + (f.to.z - f.from.z) * k); f.obj.rotation.x += dt * 12; }
         else { f.obj.position.set(f.to.x, 0.07, f.to.z); if (!f.bounced) { f.bounced = true; play('grenade_rebond', { x: f.to.x, y: 0.2, z: f.to.z }, { vol: 1 }); } }
       }
+      else if (f.kind === 'plane') { const k = (simTime - f.start) / 2.2; f.obj.position.set(f.ax + (f.bx - f.ax) * k, 18 - Math.sin(Math.PI * k) * 8, f.az + (f.bz - f.az) * k); }
       else if (f.kind === 'flashlight') { f.obj.intensity *= Math.max(0, 1 - dt * 12); }
       else if (f.kind === 'marker') { f.obj.material.opacity = 0.5 + 0.5 * Math.sin(simTime * 8); }
       else if (f.kind === 'heal') { f.obj.rotation.z = simTime * 2; f.obj.material.opacity = 0.5 + 0.4 * Math.sin(simTime * 6); }
@@ -610,6 +625,8 @@
       if (ev.type === 'reco') addReco(ev);
       if (ev.type === 'barrage_called') addBarrageMarker(ev);
       if (ev.type === 'grenade_throw') addGrenade(ev);
+      if (ev.type === 'strike_called') addStrikeMarker(ev);
+      if (ev.type === 'strike') addStrike(ev);
       if (ev.type === 'grenade_blast') addBlast(ev);
     }
     updateTacticCards();

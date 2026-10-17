@@ -227,11 +227,13 @@
     const ev = u.evade; ev.started = true;
     if (!u.alive) return;
     const R = GRENADES[ev.kind].radius, dx = u.x - ev.x, dz = u.z - ev.z, L = Math.hypot(dx, dz) || 1;
-    let best = null;
-    for (const a of [0, 0.6, -0.6, 1.2, -1.2]) {          // fuir à l'opposé ; sinon de biais
+    // fuir à l'opposé, ou de biais : la direction qui éloigne le plus (aucune préférence gauche/droite : symétrie entre les camps)
+    let best = null, bd = R * 0.8;
+    for (const a of [0, 0.6, -0.6, 1.2, -1.2]) {
       const ang = Math.atan2(dz / L, dx / L) + a, px = ev.x + Math.cos(ang) * (R + 2), pz = ev.z + Math.sin(ang) * (R + 2);
       const f = this.map.nearestFree(px, pz); if (!f) continue; const c = this.map.centerOf(f.c, f.r);
-      if (Math.hypot(c.x - ev.x, c.z - ev.z) > R * 0.8) { best = c; break; }
+      const d = Math.hypot(c.x - ev.x, c.z - ev.z) - Math.abs(a) * 0.5;
+      if (d > bd) { bd = d; best = c; }
     }
     if (best && this.setGoal(u, best.x, best.z, 'close')) { u.state = 'evade'; u.stance = 'stand'; u.commitUntil = ev.until; u.commitAt = this.t; }
   };
@@ -303,6 +305,12 @@
       for (const m of [25, 50, 75]) if (before < m && t.capture >= m) this.logEvent('zone', `${t.name} : zone capturée à ${m} %.`, { team: z.holder });
     }
   };
+  // Point d'approche de la zone : le centre décalé de 1,5 m vers le camp de l'opérateur (le centre exact peut tomber dans
+  // un obstacle, et la case libre la plus proche d'un point de l'axe de symétrie avantagerait un camp)
+  Battle.prototype.zoneApproach = function (u) {
+    const z = this.zone, side = Math.sign(this.teams[u.team].spawn.x - z.x) || (u.team === 0 ? -1 : 1);
+    return { x: z.x + side * 1.5, z: z.z };
+  };
   // Prendre position dans la zone : un couvert à l'intérieur (face à la menace) ou, à défaut, un point libre réparti autour du centre.
   Battle.prototype.occupyZone = function (u, facePos) {
     const z = this.zone;
@@ -318,11 +326,11 @@
         const side = Math.sign(this.teams[u.team].spawn.x - z.x) || 1;
         for (let k = 0; k < 12 && !best; k++) {
           const a = (u.idx / 5) * Math.PI * 2 + this.rng.range(-0.5, 0.5), rr = z.r * this.rng.range(0.25, 0.7);
-          const f = this.map.nearestFree(z.x + side * Math.abs(Math.cos(a)) * rr * 0.6 + Math.cos(a) * rr * 0.4, z.z + Math.sin(a) * rr);
+          const f = this.map.nearestFree(z.x + side * Math.abs(Math.cos(a)) * rr * 0.6 - side * Math.cos(a) * rr * 0.4, z.z + Math.sin(a) * rr);   // miroir exact entre les deux camps
           if (f) { const c = this.map.centerOf(f.c, f.r); if (this.inZone(c, -0.4)) best = c; }
         }
       }
-      u.zoneSpot = best ? { x: best.x, z: best.z } : { x: z.x, z: z.z };
+      u.zoneSpot = best ? { x: best.x, z: best.z } : this.zoneApproach(u);
     }
     if (Math.hypot(u.zoneSpot.x - u.x, u.zoneSpot.z - u.z) > 1.0 && this.setGoal(u, u.zoneSpot.x, u.zoneSpot.z, 'advance')) { u.state = 'tozone'; u.stance = 'stand'; return; }
     this.stop(u); u.state = 'capture'; u.facing = Math.atan2(facePos.z - u.z, facePos.x - u.x);
@@ -356,6 +364,7 @@
             if (e.stance === 'crouch') p *= 0.6;
             if (has(u, 'eagle')) p *= 1.3;                      // Œil de lynx
             if (has(e, 'ghost')) p *= 0.6;                      // Fantôme
+            if (this.hasTactic(this.teams[e.team], 'camouflage')) p *= this.t < 40 ? 0.65 : 0.85;   // Camouflage
             p = clamp(p, 0.02, 1);
           }
           if (p >= 1 || this.rng.chance(p)) {
@@ -586,7 +595,8 @@
         const dz = Math.hypot(u.x - this.zone.x, u.z - this.zone.z);
         const cp = this.findCover(u, threat, 14, { towards: this.zone });
         if (cp && Math.hypot(cp.x - this.zone.x, cp.z - this.zone.z) < dz - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
-        if (order === 'assault' && this.setGoal(u, this.zone.x, this.zone.z, 'advance')) { u.state = 'advancing'; u.stance = 'stand'; return; }
+        const near = this.zoneApproach(u);
+        if (order === 'assault' && this.setGoal(u, near.x, near.z, 'advance')) { u.state = 'advancing'; u.stance = 'stand'; return; }
       }
       // tireur d'élite trop près : reculer vers un couvert plus lointain
       if (u.role.id === 'marksman' && d < u.weapon.minRange && order !== 'hold') {
@@ -834,7 +844,7 @@
     if (this.t < st.cooldownUntil) return { ok: false, reason: `recharge (${(st.cooldownUntil - this.t).toFixed(0)} s)` };
     if (this.over) return { ok: false, reason: 'bataille terminée' };
     const alive = team.units.filter(u => u.alive); if (!alive.length) return { ok: false, reason: 'aucun opérateur' };
-    if (id === 'fumigene' || id === 'barrage') { if (!this.teamKnownEnemies(team).length) return { ok: false, reason: 'aucune position adverse connue' }; }
+    if (id === 'fumigene' || id === 'barrage' || id === 'frappe') { if (!this.teamKnownEnemies(team).length) return { ok: false, reason: 'aucune position adverse connue' }; }
     if (id === 'soins' && !alive.some(u => u.hp < u.maxHp - 5)) return { ok: false, reason: 'personne à soigner' };
     return { ok: true };
   };
@@ -869,6 +879,14 @@
       target.healing = { remaining: 35, rate: 7, by: id }; // 35 PV en 5 s
       this.logEvent('tactic', `${team.name} : trousse de soins pour ${target.callsign}.`, { team: teamIndex, tactic: id, unit: target.id });
       this.emit({ type: 'heal', unit: target.id });
+    } else if (id === 'frappe') {
+      // passage d'avion : une bande traversant la position adverse connue la plus proche, perpendiculaire à l'axe escouade → menace
+      const ks = this.teamKnownEnemies(team); let k = ks[0], kd = Infinity; for (const q of ks) { const d = Math.hypot(q.x - c.x, q.z - c.z); if (d < kd) { kd = d; k = q; } }
+      const ax = k.x - c.x, az = k.z - c.z, L = Math.hypot(ax, az) || 1, px = -az / L, pz = ax / L;
+      this.pendingStrikes = this.pendingStrikes || [];
+      this.pendingStrikes.push({ at: this.t + 5, cx: k.x, cz: k.z, dx: px, dz: pz, half: 15, width: 4, team: teamIndex });
+      this.logEvent('tactic', `${team.name} appelle une frappe aérienne : passage dans 5 s.`, { team: teamIndex, tactic: id });
+      this.emit({ type: 'strike_called', x: k.x, z: k.z, dx: px, dz: pz, half: 15, team: teamIndex, at: this.t + 5 });
     } else if (id === 'barrage') {
       const ks = this.teamKnownEnemies(team); let k = ks[0], kd = Infinity; for (const q of ks) { const d = Math.hypot(q.x - c.x, q.z - c.z); if (d < kd) { kd = d; k = q; } }
       this.pendingShells = this.pendingShells || [];
@@ -897,6 +915,32 @@
       }
       this.logEvent('shell', `Obus de mortier en (${sh.x.toFixed(0)}, ${sh.z.toFixed(0)}).`, { team: sh.team, silent: true });
     }
+    // frappe aérienne : chaque opérateur dans la bande est touché (moins derrière un couvert bas, pas du tout sous un mur haut)
+    if (this.pendingStrikes && this.pendingStrikes.length) for (let i = this.pendingStrikes.length - 1; i >= 0; i--) {
+      const st = this.pendingStrikes[i]; if (this.t < st.at) continue;
+      this.pendingStrikes.splice(i, 1);
+      this.emit({ type: 'strike', cx: st.cx, cz: st.cz, dx: st.dx, dz: st.dz, half: st.half, team: st.team });
+      let n = 0;
+      for (const u of this.units) {
+        if (!u.alive) continue;
+        const rx = u.x - st.cx, rz = u.z - st.cz, along = rx * st.dx + rz * st.dz, across = Math.abs(rx * st.dz - rz * st.dx);
+        if (Math.abs(along) > st.half || across > st.width / 2) { if (across < 9 && Math.abs(along) < st.half + 3) u.suppression = clamp(u.suppression + 0.4, 0, 1); continue; }
+        // l'avion tire en piqué depuis l'axe : un obstacle haut juste à côté protège ; un couvert bas protège à moitié
+        let shelter = 1;
+        for (const o of this.map.obstacles) { if (o.h >= 2.5 && u.x > o.x - 0.8 && u.x < o.x + o.w + 0.8 && u.z > o.z - 0.8 && u.z < o.z + o.d + 0.8) { shelter = 0; break; } if (o.h < 2.5 && u.x > o.x - 0.9 && u.x < o.x + o.w + 0.9 && u.z > o.z - 0.9 && u.z < o.z + o.d + 0.9 && u.stance === 'crouch') shelter = Math.min(shelter, 0.5); }
+        u.suppression = clamp(u.suppression + 0.8, 0, 1);
+        if (!shelter) continue;
+        const dmg = Math.round(this.rng.range(30, 60) * shelter * (1 - u.armor.torso * 0.3) * 10) / 10;
+        if (dmg >= 1) { n++; this.applyDamage(null, u, dmg, 'frappe aérienne', st.team); }
+      }
+      this.logEvent('strike', `Passage de l'avion : ${n} opérateur${n > 1 ? 's' : ''} touché${n > 1 ? 's' : ''}.`, { team: st.team });
+    }
+    // Triage : régénération lente des blessés qui ne sont plus pris à partie (6 s), jusqu'à 60 %
+    if (this.tick % 5 === 0) for (const team of this.teams) if (this.hasTactic(team, 'triage')) for (const u of team.units) {
+      if (!u.alive || this.t - u.lastHitAt < 6 || u.hp >= u.maxHp * 0.6) continue;
+      const h = Math.min(2 * DT * 5, u.maxHp * 0.6 - u.hp); u.hp += h; u.stats.healed += h;
+      u.status = u.hp <= u.maxHp * 0.2 ? 'critical' : (u.hp <= u.maxHp * 0.5 ? 'wounded' : 'ok');
+    }
     // soins : régénération progressive
     for (const u of this.units) if (u.alive && u.healing) {
       const h = Math.min(u.healing.remaining, u.healing.rate * DT, u.maxHp - u.hp);
@@ -917,6 +961,7 @@
       else if (id === 'reco' && this.t > 10 && !this.teamKnownEnemies(team).length && this.rng.chance(0.3)) this.useTactic(team.index, id);
       else if (id === 'soins' && alive.some(u => u.hp < u.maxHp * 0.45) && this.rng.chance(0.6)) this.useTactic(team.index, id);
       else if (id === 'barrage' && this.t > 15 && this.teamKnownEnemies(team).length >= 2 && this.rng.chance(0.4)) this.useTactic(team.index, id);
+      else if (id === 'frappe' && this.t > 20 && this.teamKnownEnemies(team).length >= 2 && this.rng.chance(0.35)) this.useTactic(team.index, id);
     }
   };
   // Dégâts hors tir direct (obus) : même comptabilité que les tirs, attribués à l'équipe
@@ -1063,7 +1108,8 @@
     let fall = r <= 0.3 ? 1 : (r <= 1 ? 1 - (r - 0.3) / 0.7 * (1 - w.falloff) : Math.max(0.3 * w.falloff, w.falloff - (r - 1) * 0.7 * w.falloff));
     const roll = this.rng.next();
     let loc, mult, prot;
-    if (roll < 0.08) { loc = 'tête'; mult = 2.2; prot = e.armor.head; }
+    const headP = this.hasTactic(this.teams[u.team], 'tete') ? 0.14 : 0.08;   // Tir à la tête
+    if (roll < headP) { loc = 'tête'; mult = 2.2; prot = e.armor.head; }
     else if (roll < 0.60) { loc = 'torse'; mult = 1.0; prot = e.armor.torso; }
     else { loc = 'membre'; mult = 0.55; prot = 0; }
     let dmg = w.damage * fall * mult * (1 - prot) * this.rng.range(0.85, 1.15);

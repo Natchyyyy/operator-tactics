@@ -113,10 +113,12 @@
         box(29.5, 19, 0.6, 3.5, 0.95, 'cover', 'barrière'), box(29.5, 29.5, 0.6, 3.5, 0.95, 'cover', 'barrière'),
         box(31, 18.5, 3, 0.6, 0.95, 'cover', 'barrière'), box(31, 33, 3, 0.6, 0.95, 'cover', 'barrière'),
         box(32, 25.3, 1, 1.4, 0.95, 'cover', 'sacs de sable'),
-        box(35, 21, 2, 4.4, 1.4, 'cover', 'voiture'), box(35, 29.5, 2, 4.4, 1.4, 'cover', 'voiture'),
+        // au centre de l'enclos, l'abri des caisses de paiement : coupe la vue d'une zone de départ à l'autre et partage la zone en deux
+        box(35, 19.5, 2, 13, 2.8, 'wall', 'abri'),
+        box(31.5, 23.5, 2, 4.4, 1.4, 'cover', 'voiture'),
         // divers
         box(8, 6, 1.5, 1.4, 1.1, 'cover', 'fût'), box(8, 38.6, 1.5, 1.4, 1.1, 'cover', 'fût'),
-        box(16, 11, 1.2, 2.4, 1.0, 'cover', 'sacs de sable'), box(16, 32.6, 1.2, 2.4, 1.0, 'cover', 'sacs de sable'),
+        box(16, 11, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'), box(16, 32.6, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'),
         box(26.5, 38, 3, 1.2, 1.0, 'cover', 'muret'), box(26.5, 7, 3, 1.2, 1.0, 'cover', 'muret'),
       ]),
     },
@@ -189,11 +191,16 @@
   GameMap.prototype.nearestFree = function (x, z) {
     const { c, r } = this.cellOf(x, z);
     if (!this.isBlocked(c, r)) return { c, r };
+    // anneau par anneau, la case libre la plus PROCHE du point (et non la première trouvée en balayant d'ouest en est :
+    // ce balayage favorisait un côté, donc un camp, sur une carte symétrique)
     for (let ring = 1; ring < 8; ring++) {
+      let best = null, bd = Infinity;
       for (let dc = -ring; dc <= ring; dc++) for (let dr = -ring; dr <= ring; dr++) {
-        if (Math.max(Math.abs(dc), Math.abs(dr)) !== ring) continue;
-        if (!this.isBlocked(c + dc, r + dr)) return { c: c + dc, r: r + dr };
+        if (Math.max(Math.abs(dc), Math.abs(dr)) !== ring || this.isBlocked(c + dc, r + dr)) continue;
+        const p = this.centerOf(c + dc, r + dr), d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z);
+        if (d < bd - 1e-9) { bd = d; best = { c: c + dc, r: r + dr }; }
       }
+      if (best) return best;
     }
     return null;
   };
