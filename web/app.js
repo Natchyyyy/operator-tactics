@@ -26,6 +26,7 @@
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.3;   // rendu « film » : hautes lumières douces, contraste plus naturel
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0e1114);
   scene.fog = new THREE.Fog(0x1a2028, 110, 200);
