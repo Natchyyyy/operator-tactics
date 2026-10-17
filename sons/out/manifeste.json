@@ -101,5 +101,23 @@
   "grenade_rebond_0.ogg",
   "grenade_rebond_1.ogg",
   "grenade_rebond_2.ogg"
+ ],
+ "impact_metal": [
+  "impact_metal_0.ogg",
+  "impact_metal_1.ogg",
+  "impact_metal_2.ogg",
+  "impact_metal_3.ogg"
+ ],
+ "impact_bois": [
+  "impact_bois_0.ogg",
+  "impact_bois_1.ogg",
+  "impact_bois_2.ogg",
+  "impact_bois_3.ogg"
+ ],
+ "impact_sol": [
+  "impact_sol_0.ogg",
+  "impact_sol_1.ogg",
+  "impact_sol_2.ogg",
+  "impact_sol_3.ogg"
  ]
 }

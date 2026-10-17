@@ -58,6 +58,29 @@ def impact_beton(i):
         w = sweep_bp(noise(.14), 4200, 1600, 12)*env_ad(int(.14*SR), .005, .08)*.25; place(out, w, .01)
     return reverb(out, "outdoor", .2)
 
+@snd("impact_metal", 4, -27)     # balle dans un conteneur, une voiture, une cuve : tintement métallique résonant
+def impact_metal(i):
+    seed(260 + i); n = int(.45*SR); out = np.zeros(n)
+    c = hp(noise(.012), 2500)*env_ad(int(.012*SR), .0003, .006, 3); place(out, c, 0)
+    f0 = rng.uniform(700, 1100)
+    k = modal(.4, [(f0, .6, .22), (f0*2.76, .35, .12), (f0*5.4, .2, .06), (rng.uniform(3200, 4200), .15, .04)], strike=.6, hard=.9); place(out, k*.7, .001)
+    return reverb(out, "outdoor", .18)
+
+@snd("impact_bois", 4, -27)      # balle dans une caisse, des palettes : craquement sec et creux
+def impact_bois(i):
+    seed(280 + i); n = int(.22*SR); out = np.zeros(n)
+    c = bp(noise(.025), 600, 3500)*env_ad(int(.025*SR), .0005, .012, 3); place(out, c, 0)
+    k = modal(.1, [(rng.uniform(380, 520), .5, .035), (rng.uniform(900, 1300), .3, .02)], strike=.5, hard=.4); place(out, k*.8, .001)
+    sp = bp(noise(.06), 2000, 6000)*env_ad(int(.06*SR), .002, .025)*.3; place(out, sp, .006)   # échardes
+    return reverb(out, "outdoor", .12)
+
+@snd("impact_sol", 4, -30)       # balle dans le sol ou des sacs de sable : coup mat et poussière
+def impact_sol(i):
+    seed(300 + i); n = int(.25*SR); out = np.zeros(n)
+    t = lp(noise(.05), 900)*env_ad(int(.05*SR), .0008, .025); place(out, t, 0)
+    d = bp(noise(.18), 300, 2200)*env_ad(int(.18*SR), .01, .09)*.35; place(out, d, .01)
+    return reverb(out, "outdoor", .15)
+
 @snd("impact_corps", 4, -26)     # balle qui touche : coup sourd, mat
 def impact_corps(i):
     seed(170 + i); n = int(.2*SR); out = np.zeros(n)

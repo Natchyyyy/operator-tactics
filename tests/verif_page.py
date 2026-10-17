@@ -166,7 +166,7 @@ async def main():
         # « Résultat immédiat » : même résultat que la simulation complète de la même graine
         sk = await pg.evaluate("() => { const b = window.API.battle(); const ref = new OT.Battle(b.opts).run(); document.querySelector('#skip').click(); const r = window.API.battle().result; return [!!r, r && r.winner === ref.winner && r.duration === ref.duration, !document.querySelector('#result').classList.contains('hidden')]; }")
         check("« Résultat immédiat » donne le même résultat que la simulation complète et ouvre l'écran de résultat", sk == [True, True, True], sk)
-        son = await pg.evaluate("async () => { if (typeof Son === 'undefined') return 'pas de lecteur'; Son.init(); await Son.charger(); return [Son.jouer('tir_fusil'), Son.jouer('pas'), Son.jouer('recharge'), Son.jouer('victoire'), Son.jouer('musique_titre')].every(Boolean) && await Son.boucle('musique_qg', { voie: 'musique', vol: .5 }); }")
+        son = await pg.evaluate("async () => { if (typeof Son === 'undefined') return 'pas de lecteur'; Son.init(); await Son.charger(); return [Son.jouer('tir_fusil'), Son.jouer('impact_metal'), Son.jouer('impact_bois'), Son.jouer('impact_sol'), Son.jouer('pas'), Son.jouer('recharge'), Son.jouer('victoire'), Son.jouer('musique_titre')].every(Boolean) && await Son.boucle('musique_qg', { voie: 'musique', vol: .5 }); }")
         check("les bruitages et musiques se décodent et se jouent", son is True, son)
         check("aucune erreur JavaScript", not errs, errs[:5])
         print(f"\n{ok}/{tot} vérifications réussies"); await br.close()

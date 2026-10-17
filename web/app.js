@@ -653,7 +653,7 @@
     if (muted || !window.Son) return;
     Son.volume(SETTINGS.vol);
     const now = performance.now();
-    const minGap = { pas: 60, tir_fusil: 35, tir_pm: 25, tir_mitrailleuse: 30, impact_beton: 50, impact_corps: 50 }[name] || 0;
+    const minGap = { pas: 60, tir_fusil: 35, tir_pm: 25, tir_mitrailleuse: 30, impact_beton: 50, impact_corps: 50, impact_metal: 50, impact_bois: 50, impact_sol: 50 }[name] || 0;
     if (minGap && recent[name] && now - recent[name] < minGap / Math.min(2, speed)) return;
     recent[name] = now;
     const opt = Object.assign({ varie: 0.04 }, o || {});
@@ -768,6 +768,14 @@
     const m = new THREE.Mesh(bloodGeo, stainMat); m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6.28; m.position.set(x + (Math.random() - 0.5) * 0.3, 0.025, z + (Math.random() - 0.5) * 0.3);
     m.scale.set(r * (0.8 + Math.random() * 0.5), r * (0.6 + Math.random() * 0.5), 1); decals.add(m);
   }
+  // son d'impact selon la matière la plus proche du point d'arrivée de la balle (métal, bois, béton, sol / sable)
+  const MAT_OF = (n) => /^(conteneur|voiture|fourgon|bus|cuve|tuyauterie|fût|pompe|armoire|barrière|bac|kiosque|abri)/.test(n) ? 'impact_metal' : /^(caisses|palettes|banc|étal)/.test(n) ? 'impact_bois' : /^(sacs|palmier)/.test(n) ? 'impact_sol' : 'impact_beton';
+  function impactSound(p) {
+    if (p.y < 0.15) return 'impact_sol';
+    let best = null, bd = 1.2;
+    for (const o of battle.map.obstacles) { if (p.y > o.h + 0.3) continue; const d = Math.hypot(Math.max(o.x - p.x, 0, p.x - (o.x + o.w)), Math.max(o.z - p.z, 0, p.z - (o.z + o.d))); if (d < bd) { bd = d; best = o; } }
+    return best ? MAT_OF(best.name || '') : 'impact_sol';
+  }
   function stepSim() {
     for (const u of battle.units) { const m = meshes[u.id]; m.prev = m.cur; }
     battle.step(); simTime = battle.t;
@@ -778,7 +786,8 @@
         const w = unitById[ev.shooter].weapon.id;
         play(SHOT_SOUND[w] || 'tir_fusil', ev.from, { vol: ev.suppressive ? 0.8 : 1 });
         const d = Math.hypot(ev.to.x - ev.from.x, ev.to.z - ev.from.z);
-        pendingSounds.push({ at: simTime + d / 110, name: ev.hit ? 'impact_corps' : 'impact_beton', pos: ev.to, vol: ev.hit ? 1 : (ev.to.y < 0.15 ? 0.5 : 0.9) });
+        const imp = ev.hit ? 'impact_corps' : impactSound(ev.to);
+        pendingSounds.push({ at: simTime + d / 110, name: imp, pos: ev.to, vol: ev.hit ? 1 : imp === 'impact_sol' ? 0.6 : 0.9 });
       }
       if (ev.type === 'shot' && ev.hit && Math.random() < 0.25) { const t = unitById[ev.target]; if (t) addBlood(t.x, t.z, 0.22); }
       if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); }

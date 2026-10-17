@@ -23,7 +23,7 @@ l'issue dépend uniquement des événements simulés (perception, déplacements,
 | `tests/league.js` | 10 vérifications de la ligue |
 | `tests/game.js` | 82 vérifications de la boucle de jeu |
 | `tests/verif_page.py` | 50 vérifications de la page dans un navigateur (Playwright, WebGL logiciel) |
-| `sons/sons_ot.py` | les 14 bruitages (synthèse hors ligne avec la boîte à outils ; `fabriquer.py` → `sons/out`, `integrer.py` → page) |
+| `sons/sons_ot.py` | les bruitages et musiques (impacts selon la matière : béton, métal, bois, sol) (synthèse hors ligne avec la boîte à outils ; `fabriquer.py` → `sons/out`, `integrer.py` → page) |
 | `tests/run.js`, `tests/trace.js`, `tests/stats.js` | une bataille en console, trace seconde par seconde, statistiques d'équilibrage |
 
 ## Règles de simulation (résumé)
