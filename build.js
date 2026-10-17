@@ -22,6 +22,8 @@ html = html.replace('<script src="three.min.js"></script>', inline('web/three.mi
 if (/<script src=/.test(html)) throw new Error('un script externe reste dans la page');
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(root, 'dist/index.html'), html);
+// copie pour GitHub Pages (Settings → Pages → branche main, dossier /docs : GitHub ne publie que la racine ou /docs)
+fs.mkdirSync(path.join(root, 'docs'), { recursive: true }); fs.writeFileSync(path.join(root, 'docs/index.html'), html);
 // Variante « artifact » : le contenu sans squelette (doctype/html/head/body), titre et style en tête.
 const m = html.match(/<title>[\s\S]*?<\/style>/), body = html.match(/<body>([\s\S]*)<\/body>/);
 if (!m || !body) throw new Error('structure de page inattendue');

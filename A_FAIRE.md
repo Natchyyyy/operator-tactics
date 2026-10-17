@@ -3,22 +3,26 @@
 ## Fait pendant la nuit du 16 au 17/10 (tout est testé, poussé sur main, et publié dans l'artifact)
 - Interface : écran Cartes v2 (paquets dessinés, ouverture carte par carte, raretés), Équipe v2 (escouade en pied avec notes),
   Réglages ⚙ (volumes, vitesse et caméra par défaut, qualité, ombres, export / import de la carrière), onglet Carrière
-  (bilan, terrains, dernières batailles, succès avec jauges), contrats du jour, briefing des missions de campagne,
-  astuces sur l'écran VS, écran titre v2 (« Reprendre la carrière »), bouton « ⏭ Résultat ».
-- Simulation : à terre / relevé (et blessés qui rampent), heure et météo (nuit, brouillard, pluie) aux effets réels,
-  accessoires d'arme (6), trois nouveaux traits (Grenadier, Vigie, Secouriste), synergie Frères d'armes.
-- Contenu : 6 nouveaux opérateurs (20 recrutables), seconde faction (Milice du Delta) et campagne « Opération Delta »
-  (8 missions, le Colonel), 7 nouveaux succès (15), campagne régulière et élite rééquilibrées (`outils/equilibrage_campagne.js`).
-- Présentation : répliques radio en bulles, traces de sang et d'explosion, lampadaires de nuit, vapeur à la raffinerie,
-  tonalité ACES + vignettage, impacts selon la matière (3 nouveaux sons), musique dynamique.
+  (bilan, terrains, dernières batailles, succès avec jauges), Ligue v2 (prochain match, forme, puissance, podium),
+  contrats du jour, briefing des missions de campagne, astuces sur l'écran VS, écran titre v2 (« Reprendre la carrière »),
+  bouton « ⏭ Résultat », fil des neutralisations, guide de première visite, aide accessible depuis le QG.
+- Simulation : à terre / relevé (et blessés qui rampent), moral (ébranlé → décroche), heure et météo (nuit, brouillard,
+  pluie) aux effets réels, décor destructible (caisses et palettes), accessoires d'arme (6), deux protections à acheter,
+  camouflage des tenues selon le terrain, trois nouveaux traits (Grenadier, Vigie, Secouriste), synergie Frères d'armes.
+- Contenu : 10 nouveaux opérateurs (24 recrutables), seconde faction (Milice du Delta) et campagne « Opération Delta »
+  (9 missions, le Colonel), cinquième carte (gare de triage), 7 nouveaux succès (15), campagnes régulière et élite
+  rééquilibrées (`outils/equilibrage_campagne.js`).
+- Présentation : plan final ralenti sur la dernière neutralisation, répliques radio en bulles, traces de sang et
+  d'explosion, lampadaires de nuit, vapeur à la raffinerie, tonalité ACES + vignettage, impacts selon la matière
+  (3 nouveaux sons), musique dynamique, accessoires visibles sur les armes.
 - Technique : décor et personnages fusionnés (≈ 2× moins d'appels de dessin), sauvegarde versionnée (v2) avec migrations
-  et mise de côté d'une sauvegarde illisible, tests de non-régression visuelle (`tests/visuel.py`).
+  et mise de côté d'une sauvegarde illisible, tests de non-régression visuelle (`tests/visuel.py`), copie `docs/` pour
+  GitHub Pages. Tests : moteur 99, jeu 96, ligue 11, page 62, visuel 7.
 
 ## Pistes suivantes
-- Moral / repli quand l'escouade est décimée (à équilibrer avec soin : change beaucoup l'issue des batailles).
-- Plan final ralenti sur la dernière neutralisation (kill-cam) pendant la bannière de fin.
-- Dégâts de décor (caisses qui cèdent sous les explosions) : touche la carte de la simulation (LOS, A*).
-- Une cinquième carte ; arbre de compétences plus riche que les promotions ; prestige au rang maximal.
+- Modèles 3D Meshy (voir plus bas) : c'est ce qui changera le plus l'aspect du jeu.
+- Arbre de compétences plus riche que les promotions ; prestige au rang maximal.
+- Répliques radio parlées (voix synthétisées) en plus des bulles.
 - Application de bureau (Electron, .exe) si le jeu doit tourner hors navigateur.
 
 ## Images 2D (en pause — décision du 17/10)
@@ -35,4 +39,4 @@
 - Ordre conseillé : soldat_base, carabine, conteneur, caisses, sacs_sable, voiture, puis le reste.
 
 ## GitHub Pages
-- Activer Settings → Pages → branche main, dossier /dist pour avoir le jeu jouable en ligne.
+- Activer Settings → Pages → « Deploy from a branch » → branche main, dossier **/docs** (copie de `dist/index.html` faite par `node build.js`) pour avoir le jeu jouable en ligne à l'adresse https://natchyyyy.github.io/operator-tactics/.
