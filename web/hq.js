@@ -39,6 +39,25 @@
     renderHome(); renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderDeploy(); renderArmory(); renderPacks(); renderTactics(); renderPerks(); renderChallenges(); renderLeague(); renderRewards(); renderCareer();
   }
   // ---- Carrière : bilan chiffré, terrains, dernières batailles, succès avec jauges et récompenses --------------------------
+  // Astuces (écran VS), toutes vraies dans la simulation
+  const TIPS = [
+    'Un Meneur debout réduit de 10 % les dégâts subis par son radio et ses servants d\'arme d\'appui (synergie Commandement).',
+    'Un Radio améliore de 8 % la précision des tireurs d\'élite, des appuis et des brécheurs (synergie Guidage radio).',
+    'Un opérateur blessé grave a ses compétences divisées par deux tant qu\'il n\'est pas soigné, ou reposé deux missions.',
+    'De nuit, on voit deux fois moins loin — mais une arme non silencieuse qui tire trahit son porteur à pleine portée.',
+    'La pluie couvre les bruits : les tirs s\'entendent de moins loin.',
+    'Un soldat accroupi derrière un couvert bas n\'offre presque rien à toucher ; contournez-le.',
+    'Gagnez cinq batailles rapides pour recevoir un paquet de cartes offert.',
+    'Jouez toutes les missions d\'une campagne pour toucher la prime de participation, gagnez-les toutes pour la prime de campagne.',
+    'Un allié à terre peut être relevé si personne ne voit d\'ennemi : gardez un Secouriste près du groupe.',
+    'Le Grenadier emporte une grenade de plus et lance jusqu\'à 30 m.',
+    'La Vigie entend les pas d\'un ennemi en mouvement à moins de 12 m, même derrière un mur.',
+    'En capture de zone, une zone disputée ne progresse plus pour personne : il faut en chasser l\'adversaire.',
+    'Une grenade incapacitante aveugle 3,5 s : plus aucun repérage, précision divisée par quatre.',
+    'Le bouton ⏭ Résultat donne exactement le même résultat que la bataille regardée jusqu\'au bout.',
+    '« Revoir la bataille » rejoue tout à l\'identique : mêmes décisions, mêmes tirs, mêmes tactiques jouées.',
+    'Les doublons de recrues renforcent l\'opérateur (+2 à une compétence) et prolongent son contrat.',
+  ];
   const COND_FR = { jour: 'Jour', nuit: 'Nuit', brouillard: 'Brouillard', pluie: 'Pluie' };
   function rewardLabel(rw) {
     if (!rw) return ''; if (rw.credits) return rw.credits + ' crédits';
@@ -352,6 +371,7 @@
     $('#vsName1').textContent = lt ? lt.name : 'Groupe Karst'; $('#vsRank1').textContent = `Niveau ${mission.level} · ${ORDERS[mission.order].name}`; $('#vsIns1').textContent = lt ? lt.insignia : '⚑';
     $('#vsRating1').innerHTML = `${enemyRating}<small>Puissance</small>`; $('#vsRec1').innerHTML = ls ? `Victoires <b>${ls.wins}</b><br>Défaites <b>${ls.losses}</b>` : `Contre vous : <b>${km.attempts - km.wins}</b> victoires<br><b>${km.wins}</b> défaites`;
     $('#vsTac1').innerHTML = tacs(mission.enemyTactics || []);
+    $('#vsTip').innerHTML = '<b>ASTUCE</b>' + esc(TIPS[Math.floor(Math.random() * TIPS.length)]);
     $('#vsLoc').textContent = OT.MAPS[mission.mapId].name + (mission.conditions && mission.conditions !== 'jour' ? ' · ' + DATA.CONDITIONS[mission.conditions].name : ''); $('#vsObj').textContent = '— ' + Game.objectiveLabel(mission);
     $('#vsSquad0').innerHTML = opts.teams[0].operators.map(d => `<span class="${d.wounded ? 'bad' : ''}">${esc(d.callsign)} · ${ROLES[d.role].name}${d.wounded ? ' ✚' : ''}</span>`).join('');
     const synTxt = (defs) => Game.squadSynergies(defs).map(s => `<span title="${esc(s.desc)}">${esc(s.name)}</span>`).join('') || '<span class="empty">aucune synergie</span>';
