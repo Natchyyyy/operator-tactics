@@ -10,7 +10,9 @@ OT.Soldat3D.whenReady(() => {
   const sc = new THREE.Scene(); sc.background = new THREE.Color(0x3a4248);
   sc.add(new THREE.HemisphereLight(0xffffff, 0x404040, 1.6)); const d = new THREE.DirectionalLight(0xfff0d8, 2.4); d.position.set(3, 5, 4); sc.add(d);
   const f = OT.Soldat3D.create({ modele: q.get('m') || 'gign', uniform: 0x4a4e55, weapon: 'carbine' });
-  f.play(clip, { time: tt }); f.update(0); f.body.rotation.y = f.yawFix[clip] || 0; f.body.updateMatrixWorld(true); f.placeWeapon(true, 0); sc.add(f.group);
+  const mode = q.get('mode');   // ?mode=droite|gauche|bandouliere|sol : prise à une main, mémorisée depuis la visée à deux mains
+  if (mode) { f.play('Rifle_Aim_Turn_Right', { time: 0 }); f.update(0); f.body.updateMatrixWorld(true); f.placeWeapon(true, 0); }
+  f.play(clip, { time: tt, fade: 0 }); f.update(0); f.body.rotation.y = f.yawFix[clip] || 0; f.body.updateMatrixWorld(true); f.placeWeapon(!mode, 0, mode || 'deux'); sc.add(f.group);
   const dot = (c, p) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 8), new THREE.MeshBasicMaterial({ color: c, depthTest: false })); m.renderOrder = 9; m.position.copy(p); sc.add(m); };
   const B = f.bones, wp = (o) => o.getWorldPosition(new THREE.Vector3());
   dot(0xff3030, wp(B.rh).lerp(wp(B.rm), 0.6)); dot(0x3080ff, wp(B.lh).lerp(wp(B.lm), 0.6)); dot(0xffe040, f.weapon.localToWorld(f.weapon.muzzle.clone())); if (f.weapon.buttPt) dot(0x30ff60, f.weapon.localToWorld(f.weapon.buttPt.clone()));

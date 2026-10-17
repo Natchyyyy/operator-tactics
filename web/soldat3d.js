@@ -37,7 +37,10 @@
       const def = S.modeles[NOMS.find(n => S.modeles[n])]; if (!def) return;
       S.gltf = def.gltf; S.clips = def.clips; S.yawFix = def.yawFix; S.gbErr = def.gbErr; S.defaut = def.nom;
       // le fusil Meshy (modeles3d.js) est attendu : les soldats naissent directement avec
-      const go = () => { S.ready = true; for (const f of S.onReady.splice(0)) try { f(); } catch (e) { console.warn(e); } };
+      // la garde basse dépend de la géométrie de l'arme (poignée → garde-main) : construite une fois le fusil chargé aussi
+      const go = () => {
+        for (const n in S.modeles) { const M = S.modeles[n]; try { gardeBasse(M); compositeBas(M); mesureLoco(M); } catch (e) { console.warn('soldat 3D (garde basse) :', e); } }
+        S.ready = true; for (const f of S.onReady.splice(0)) try { f(); } catch (e) { console.warn(e); } };
       if (root.Modeles3D) root.Modeles3D.whenReady(go); else go();
     };
     for (const nom of todo) {
@@ -54,9 +57,7 @@
             const hb = g.scene.getObjectByName('mixamorig' + h) || g.scene.getObjectByName('mixamorig:' + h);
             if (hb) { const r = new THREE.Object3D(); r.name = n; r.position.fromArray(PALME); hb.add(r); }
           }
-          try { straighten(M); composite(M); } catch (e) { console.warn('soldat 3D (mesure) :', e); }
-          try { gardeBasse(M); } catch (e) { console.warn('soldat 3D (garde basse) :', e); }
-          try { measure(M); } catch (e) { console.warn('soldat 3D (mesure) :', e); }
+          try { straighten(M); composite(M); measure(M); } catch (e) { console.warn('soldat 3D (composite) :', e); }
           S.modeles[nom] = M; delete MOD[nom]; finish();
         }, (e) => { console.warn('soldat 3D ' + nom + ' :', e); finish(); });
       } catch (e) { console.warn('soldat 3D ' + nom + ' :', e); finish(); }
@@ -97,6 +98,49 @@
     }
     M.clips.Walk_Aim = new THREE.AnimationClip('Walk_Aim', walk.duration, tracks);
   }
+  // Marche et course « en garde basse » (pas d'ennemi connu) : jambes de la marche / du petit pas de course, haut du corps
+  // de la garde basse (fusil en travers du torse, canon bas).
+  function compositeBas(M) {
+    const gb = M.clips.Garde_Basse; if (!gb) return;
+    for (const [nom, src] of [['Walk_Low', 'Walk_Fight_Forward'], ['Run_Low', 'Run_and_Shoot']]) {
+      const base = M.clips[src]; if (!base) continue;
+      const tracks = base.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone());
+      for (const t of gb.tracks) { if (JAMBES.test(t.name)) continue; const n = t.getValueSize(), v0 = Array.from(t.values.slice(0, n)); tracks.push(new t.constructor(t.name, [0, base.duration], v0.concat(v0))); }
+      M.clips[nom] = new THREE.AnimationClip(nom, base.duration, tracks);
+    }
+    // couches séparées pour recharger en marchant : haut du corps du rechargement seul, jambes seules de la marche / course
+    const sr = M.clips.Standing_Reload; if (sr) M.clips.Standing_Reload_Haut = new THREE.AnimationClip('Standing_Reload_Haut', sr.duration, sr.tracks.filter(t => !JAMBES.test(t.name)).map(t => t.clone()));
+    for (const [nom, src] of [['Walk_Jambes', 'Walk_Fight_Forward'], ['Run_Jambes', 'Run_and_Shoot']]) { const b = M.clips[src]; if (b) M.clips[nom] = new THREE.AnimationClip(nom, b.duration, b.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone())); }
+  }
+  // Vitesse « naturelle » de chaque cycle de locomotion (m/s, pour un soldat de 1,80 m) : pendant l'appui, le pied recule
+  // par rapport au bassin à la vitesse du sol. Le jeu lit l'animation à (vitesse réelle / vitesse naturelle) : plus de pieds
+  // qui glissent. Mesurée sur les pieds, car les animations Meshy n'ont pas de déplacement de racine fiable.
+  const LOCOS = ['Walk_Fight_Forward', 'Walk_Aim', 'Walk_Low', 'Run_and_Shoot', 'Run_Low', 'Cautious_Crouch_Walk_Forward', 'Walking', 'Running'];
+  function mesureLoco(M) {
+    const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
+    const hips = b('Hips'), feet = [b('LeftToeBase'), b('RightToeBase')]; if (!hips || !feet[0] || !feet[1]) return;
+    M.loco = {}; const k = HEIGHT / RAW_H;
+    for (const clip of LOCOS) {
+      const c = M.clips[clip]; if (!c) continue;
+      const mixer = new THREE.AnimationMixer(sc), act = mixer.clipAction(c); act.play(); const N = 60, dur = c.duration;
+      const P = [[], []], H = [];
+      for (let i = 0; i < N; i++) { mixer.setTime(i / N * dur); sc.updateMatrixWorld(true); H.push(hips.getWorldPosition(new THREE.Vector3())); feet.forEach((ft, j) => P[j].push(ft.getWorldPosition(new THREE.Vector3()))); }
+      let sv = 0, n = 0;
+      feet.forEach((ft, j) => { const ymin = Math.min(...P[j].map(p => p.y)); for (let i = 0; i < N; i++) { if (P[j][i].y > ymin + 0.03) continue; const i2 = (i + 1) % N; const v = P[j][i2].clone().sub(H[i2]).sub(P[j][i].clone().sub(H[i])).divideScalar(dur / N); v.y = 0; sv += v.length(); n++; } });
+      M.loco[clip] = n ? sv / n * k : 1; mixer.stopAllAction(); mixer.uncacheRoot(sc);
+    }
+    // chutes : de combien le corps allongé flotte au-dessus du sol à la fin (le jeu le redescend pendant la chute)
+    M.chuteY = {}; const bones = []; sc.traverse(o => { if (o.isBone) bones.push(o); });
+    for (const clip of ['Shot_and_Fall_Forward', 'Shot_in_the_Back_and_Fall']) {
+      const c = M.clips[clip]; if (!c) continue;
+      const mixer = new THREE.AnimationMixer(sc), act = mixer.clipAction(c); act.play(); mixer.setTime(c.duration - 0.02); sc.updateMatrixWorld(true);
+      let ymin = 1e9; for (const o of bones) { if (!/mixamorig/.test(o.name) || /_End$|Top/.test(o.name)) continue; ymin = Math.min(ymin, o.getWorldPosition(new THREE.Vector3()).y); }   // (os parasites Bone_xxx ignorés)
+      // allongé, le bassin est à ~12 cm du sol ; on descend d'autant, sans enfoncer un membre de plus de 3 cm
+      const hy = hips.getWorldPosition(new THREE.Vector3()).y * k;
+      M.chuteY[clip] = Math.max(0, Math.min(hy - 0.12, ymin * k + 0.03)); mixer.stopAllAction(); mixer.uncacheRoot(sc);
+    }
+    sc.updateMatrixWorld(true);
+  }
   // « Garde basse » (pose fixe, Garde_Basse) : debout bien droit, face à l'avant, fusil en travers du torse — crosse
   // vers l'épaule droite, canon vers le bas à gauche et un peu en avant. Aucune animation ne l'a : on la construit.
   //  1. corps : pose de repos du modèle (bassin, jambes, dos, tête droits) ; doigts : ceux de la visée (ils tiennent l'arme) ;
@@ -119,8 +163,8 @@
     const W = (o) => o.getWorldPosition(new THREE.Vector3()), WQ = (o) => o.getWorldQuaternion(new THREE.Quaternion());
     const palm = (h) => W(h.hand).lerp(W(h.mid), 0.6);
     // repère du fusil (+Z bouche, +Y dessus) ; a = poignée → garde-main dans ce repère
-    // (fusil Meshy, modeles3d.js : poignée P(0,33 ; −0,13), garde-main P(−0,42 ; 0) → a ∝ (0 ; 0,13 ; 0,75))
-    const aW = new THREE.Vector3(0, 0.13, 0.75).normalize();
+    const arme = root.Modeles3D && root.Modeles3D.arme && root.Modeles3D.arme();
+    const aW = arme && arme.gripPt ? arme.forePt.clone().sub(arme.gripPt).normalize() : new THREE.Vector3(0, 0.13, 0.75).normalize();
     const fusil = (bvec) => {   // même règle que placeWeapon : a → bvec, le dessus du fusil vers le haut
       const basis = (d) => { const u = new THREE.Vector3(0, 1, 0).addScaledVector(d, -d.y).normalize(); return new THREE.Matrix4().makeBasis(d, u, new THREE.Vector3().crossVectors(d, u)); };
       return new THREE.Quaternion().setFromRotationMatrix(basis(bvec).multiply(basis(aW).transpose()));
@@ -243,7 +287,12 @@
       turn(arm, E0.clone().sub(S0), E1.sub(S0)); const E2 = WP(fore); turn(fore, WP(hand).sub(E2), T.sub(E2));
       hand.quaternion.copy(WQ(hand.parent).invert().multiply(qH)); hand.updateMatrixWorld(true);
     }
-    const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true, modele: M.nom, clips: M.clips, yawFix: M.yawFix,
+    // tourne un os autour de la verticale (le sol est plat : la verticale du monde est celle du groupe), en gardant ses enfants
+    const UP = new THREE.Vector3(0, 1, 0), qT = new THREE.Quaternion(), qP = new THREE.Quaternion();
+    const twist = (bone, ang) => { bone.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(UP, ang); bone.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); bone.updateMatrixWorld(true); };
+    const spine3 = [bone('Spine'), bone('Spine1'), bone('Spine2')].filter(Boolean), hipsB = bone('Hips'), spine1 = bone('Spine1');
+    const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true, modele: M.nom, clips: M.clips, yawFix: M.yawFix, loco: M.loco || {}, chuteY: M.chuteY || {}, legClip: null,
+      jambes: 0, jambesCible: 0, mode: 'deux', handLocal: { droite: null, gauche: null }, t: 0,
       bones: { rh: bone('RightHand'), lh: bone('LeftHand'), rm: body.getObjectByName('PalmeD'), lm: body.getObjectByName('PalmeG'),
         ra: bone('RightArm'), rf: bone('RightForeArm'), la: bone('LeftArm'), lf: bone('LeftForeArm'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips') },
       // joue (en fondu) l'animation demandée ; time : figer à un instant (pose fixe) ; speed : vitesse du cycle
@@ -258,20 +307,61 @@
         }
         if (opts.time !== undefined) { a.time = opts.time * a.getClip().duration; a.timeScale = 0; } else a.timeScale = opts.speed || 1;
       },
+      // couche « jambes » jouée en plus de l'animation principale (qui ne doit alors pas animer les jambes) ; null : l'enlever
+      playLegs(name, opts = {}) {
+        if (!name) { if (this.legClip) { actions[this.legClip].fadeOut(0.2); this.legClip = null; } return; }
+        const a = act(name); if (!a) return;
+        if (this.legClip !== name) { const prev = this.legClip && actions[this.legClip]; a.reset(); a.setEffectiveWeight(1); a.fadeIn(0.15); a.play(); if (prev) prev.fadeOut(0.15); this.legClip = name; }
+        a.timeScale = opts.speed || 1;
+      },
       // keepYaw : garder la correction actuelle (chute : on ne fait pas pivoter un corps qui tombe)
+      // jambes : angle (rad, autour de la verticale) entre la direction du déplacement et celle du corps. Le bassin et les
+      // jambes tournent de cet angle, le dos le rattrape (réparti sur les trois vertèbres) : le torse et l'arme restent vers
+      // la cible pendant que les jambes marchent là où le soldat va (pas de côté, recul). Lissé pour ne pas sauter.
       update(dt, keepYaw) {
-        mixer.update(dt);
+        mixer.update(dt); this.t += dt;
         this.epK = (this.epK || 0) + ((EPAULE[this.clip] ? 1 : 0) - (this.epK || 0)) * (dt > 0 ? Math.min(1, dt * 8) : 1);
         if (!keepYaw) { const tgt = M.yawFix[this.clip] || 0; let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 10); }
+        let dj = this.jambesCible - this.jambes; while (dj > Math.PI) dj -= 2 * Math.PI; while (dj < -Math.PI) dj += 2 * Math.PI;
+        this.jambes += Math.max(-6 * dt, Math.min(6 * dt, dj * Math.min(1, dt * 10)));
+        if (Math.abs(this.jambes) > 0.01 && hipsB && spine3.length) {
+          body.updateMatrixWorld(true); twist(hipsB, this.jambes);
+          for (const sb of spine3) twist(sb, -this.jambes / spine3.length);
+        }
+        // respiration (poses fixes : garde basse, visée) : légère flexion du dos
+        if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
       },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
       // L'arme est tenue par les PAUMES (entre le poignet et la base des doigts), pas par les poignets : la poignée dans la paume
       // droite, le garde-main dans la paume gauche. L'orientation aligne le segment poignée → garde-main de l'arme (qui n'est
       // pas parallèle au canon : la poignée est sous l'axe) sur le segment paume droite → paume gauche ; le dessus de l'arme
       // reste vers le haut. Une seule main (lancer, victoire) : l'arme suit l'axe de la main droite.
-      placeWeapon(twoHands, recoil) {
+      // mode : 'deux' (prise à deux mains, voir ci-dessus) ; 'droite' / 'gauche' : l'arme reste solidaire de cette main, dans
+      // la position relative qu'elle avait à la dernière prise à deux mains (rechargement : la main gauche va au chargeur ;
+      // lancer : l'arme pend à la main gauche) ; 'sol' : posée à plat au sol près de la main droite (soldat à terre) puis figée.
+      placeWeapon(twoHands, recoil, mode) {
         const B = this.bones, rh = B.rh, lh = B.lh; if (!rh) return;
+        mode = mode || (twoHands ? 'deux' : 'droite');
         group.updateMatrixWorld(true);
+        if (mode === 'droite' || mode === 'gauche') {
+          const hand = mode === 'gauche' && lh ? lh : rh, L = this.handLocal[mode === 'gauche' && lh ? 'gauche' : 'droite'];
+          if (L) { const mw = new THREE.Matrix4().multiplyMatrices(hand.matrixWorld, L).premultiply(new THREE.Matrix4().copy(group.matrixWorld).invert());
+            mw.decompose(weapon.position, weapon.quaternion, V()); weapon.scale.set(1, 1, 1); return; }
+          twoHands = false;
+        }
+        if (mode === 'bandouliere' && this.slingLocal && B.spine) {   // arme en travers du torse (lancer de grenade), mains libres
+          const mw = new THREE.Matrix4().multiplyMatrices(B.spine.matrixWorld, this.slingLocal).premultiply(new THREE.Matrix4().copy(group.matrixWorld).invert());
+          mw.decompose(weapon.position, weapon.quaternion, V()); weapon.scale.set(1, 1, 1); return;
+        }
+        if (mode === 'sol') {
+          if (this.auSol) return;
+          const p = rh.getWorldPosition(V()).applyMatrix4(new THREE.Matrix4().copy(group.matrixWorld).invert());
+          const dir = new THREE.Vector3(0, 0, 1).applyQuaternion(weapon.quaternion); dir.y = 0; if (dir.lengthSq() < 1e-4) dir.set(1, 0, 0); dir.normalize();
+          weapon.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir), new THREE.Vector3(0, 1, 0), dir));
+          weapon.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2 * (p.x > 0 ? 1 : -1)));   // couché sur le flanc
+          weapon.position.set(p.x, 0.04, p.z); this.auSol = true; return;
+        }
+        this.auSol = false;
         const inv = new THREE.Matrix4().copy(group.matrixWorld).invert(), loc = (o) => o.getWorldPosition(V()).applyMatrix4(inv);
         const palm = (hand, mid) => mid ? loc(hand).lerp(loc(mid), 0.6) : loc(hand);
         const pR = palm(rh, B.rm), pL = lh ? palm(lh, B.lm) : null;
@@ -303,8 +393,19 @@
           }
         }
         weapon.position.copy(pos).addScaledVector(barrel, -(recoil || 0) * 0.04);
+        if (two) {   // mémoire de la prise pour les modes à une main
+          weapon.updateMatrixWorld(true);
+          this.handLocal.droite = new THREE.Matrix4().copy(rh.matrixWorld).invert().multiply(weapon.matrixWorld);
+          if (lh) this.handLocal.gauche = new THREE.Matrix4().copy(lh.matrixWorld).invert().multiply(weapon.matrixWorld);
+        }
       },
     };
+    // position « en bandoulière » = celle de la garde basse, mémorisée par rapport au torse (Spine2)
+    if (M.clips.Garde_Basse && f.bones.spine) {
+      f.play('Garde_Basse', { time: 0 }); f.update(0); body.updateMatrixWorld(true); f.placeWeapon(true, 0, 'deux'); weapon.updateMatrixWorld(true);
+      f.slingLocal = new THREE.Matrix4().copy(f.bones.spine.matrixWorld).invert().multiply(weapon.matrixWorld);
+      actions.Garde_Basse.stop(); f.clip = null; f.epK = 0;   // la première animation réelle démarre sans fondu depuis celle-ci
+    }
     return f;
   }
   // instantané d'un soldat pour les portraits : anime une copie à un instant d'une animation donnée

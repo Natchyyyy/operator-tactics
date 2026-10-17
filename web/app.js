@@ -585,37 +585,76 @@
   // les objets Meshy arrivent après le début d'une bataille : on redessine le décor (la simulation n'en dépend pas)
   if (OT.Modeles3D) OT.Modeles3D.whenReady(() => { if (battle && mapGroup) { buildMap(battle.map); render(); } });
   if (OT.Soldat3D) OT.Soldat3D.whenReady(() => { if (!battle) return; for (const u of battle.units) { const old = meshes[u.id]; if (!old || old.isSkinned) continue; scene.remove(old.group); old.label.remove(); makeOperator(u); Object.assign(meshes[u.id], { prev: old.prev, cur: old.cur }); } render(); });
+  // Chute : on choisit l'animation de chute et une légère rotation du corps pour que le corps allongé (tête, bassin, pieds)
+  // ne traverse ni un obstacle ni le bord du terrain. Positions finales de la tête et des pieds mesurées sur les animations
+  // (repère du soldat : +Z devant, x vers sa gauche).
+  const FIN_CHUTE = { Shot_and_Fall_Forward: [[-0.39, 0.27], [0.68, -0.57], [0.28, -0.76], [-0.54, -0.11]], Shot_in_the_Back_and_Fall: [[-0.49, 0.12], [0.82, -0.23], [0.64, -0.57], [-0.61, -0.3]] };
+  function chooseFall(u, m) {
+    const base = u.id.charCodeAt(u.id.length - 1) % 2 ? ['Shot_and_Fall_Forward', 'Shot_in_the_Back_and_Fall'] : ['Shot_in_the_Back_and_Fall', 'Shot_and_Fall_Forward'];
+    const libre = (x, z) => battle.map.inBounds(x, z) && !battle.map.insideObstacle(x, z);
+    let best = null;
+    for (const off of [0, 0.5, -0.5, 1.0, -1.0, 1.6, -1.6, Math.PI]) for (const clip of base) {
+      const yaw = m.yaw + off; let score = 0;
+      for (const [lx, lz] of FIN_CHUTE[clip]) { const wx = u.x + lx * Math.cos(yaw) + lz * Math.sin(yaw), wz = u.z - lx * Math.sin(yaw) + lz * Math.cos(yaw); if (!libre(wx, wz)) score++; if (!libre((u.x + wx) / 2, (u.z + wz) / 2)) score++; }
+      score += Math.abs(off) * 0.1;
+      if (!best || score < best.score) best = { clip, yaw, score };
+      if (best.score < 0.05) break;
+    }
+    m.anim.fallClip = best.clip; m.anim.fallYaw = best.yaw;
+  }
   function clearOperators() { for (const id in meshes) { scene.remove(meshes[id].group); meshes[id].label.remove(); delete meshes[id]; } }
 
   // Pose d'un opérateur selon son état (appelée à chaque image) — toutes les valeurs sont lissées.
   const lerp = (a, b, k) => a + (b - a) * k;
   function animateSkinned(u, m, dt) {
-    const a = m.anim, clipSpeed = (n) => (OT.Soldat3D.clips[n] || {}).duration || 1;
+    const a = m.anim, clipSpeed = (n) => (m.clips[n] || {}).duration || 1;
     a.recoil = Math.max(0, a.recoil - dt * 10); a.flinch = Math.max(0, a.flinch - dt * 4);
     const crouch = u.alive && u.stance === 'crouch', aiming = u.alive && (u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture');
-    const v = Math.hypot(m.cur.x - m.prev.x, m.cur.z - m.prev.z) / DT;
-    const running = u.alive && u.moving && (u.state === 'closing' || u.state === 'retreat' || u.state === 'evade' || u.state === 'tozone' || v > 2.4);
-    const loco = (n) => m.play(n, { speed: Math.max(0.6, Math.min(1.6, (v || 1) / ({ Walk_Aim: 1.25, Walk_Fight_Forward: 1.25, Run_and_Shoot: 3.0 }[n] || 1))), fade: 0.2 });
-    // Seulement des animations « arme en main » (sinon le fusil flotte au bout d'un bras qui se balance) ; chaque animation a
-    // sa correction d'orientation (Soldat3D.yawFix) pour que l'arme vise droit devant, là où le moteur fait regarder le soldat.
-    let two = true;
+    const dx = m.cur.x - m.prev.x, dz = m.cur.z - m.prev.z, v = Math.hypot(dx, dz) / DT;
+    // direction du déplacement par rapport au corps affiché : les jambes marchent dans cette direction, le torse reste vers la
+    // cible. Au-delà de ~100°, on recule : jambes vers l'arrière et cycle lu à l'envers (hystérésis pour ne pas osciller).
+    let ecart = 0;
+    if (v > 0.15) { ecart = (-Math.atan2(dz, dx) + Math.PI / 2) - m.yaw; while (ecart > Math.PI) ecart -= 2 * Math.PI; while (ecart < -Math.PI) ecart += 2 * Math.PI; }
+    const seuil = a.recule ? 1.25 : 1.85; a.recule = v > 0.15 && Math.abs(ecart) > seuil;
+    let jambes = a.recule ? ecart + (ecart > 0 ? -Math.PI : Math.PI) : ecart, sens = a.recule ? -1 : 1;
+    if (v > 0.15) a.piedsYaw = m.yaw + jambes;
+    else {   // à l'arrêt, les pieds restent plantés pendant que le torse pivote ; au-delà de ~50°, ils se replacent
+      if (a.piedsYaw === undefined) a.piedsYaw = m.yaw;
+      jambes = a.piedsYaw - m.yaw; while (jambes > Math.PI) jambes -= 2 * Math.PI; while (jambes < -Math.PI) jambes += 2 * Math.PI;
+      if (Math.abs(jambes) > 0.9 || crouch) { a.piedsYaw = m.yaw; jambes = 0; }
+    }
+    m.jambesCible = u.alive ? jambes : 0;
+    const loco = (n) => { const nat = m.loco[n] || 1; m.play(n, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)), fade: 0.2 });
+      const act = m.mixer.existingAction(m.clips[n]); if (act) a.phase = act.time / (m.clips[n].duration || 1) * 2 * Math.PI; };   // phase des pas (sons)
+    let mode = 'deux', legs = false;
     if (!u.alive) {
-      two = false;
-      m.play(u.id.charCodeAt(u.id.length - 1) % 2 ? 'Shot_and_Fall_Forward' : 'Shot_in_the_Back_and_Fall', { speed: 1.25, fade: 0.08 });
+      mode = (a.deadT = (a.deadT || 0) + dt) > 1.6 ? 'sol' : 'droite';
+      const fc = a.fallClip || 'Shot_in_the_Back_and_Fall'; m.play(fc, { speed: 1.25, fade: 0.08 });
+      // le corps allongé de l'animation flotte un peu : on le redescend au sol pendant la chute
+      m.pose.position.y = -(m.chuteY[fc] || 0) * Math.min(1, Math.max(0, (a.deadT - 0.4) / 1.0));
       m.ring.material.opacity = Math.max(0.15, m.ring.material.opacity - dt);
-    } else if (battle.over && battle.result && battle.result.winner === u.team) { m.play('victory', { start: 0.12, fade: 0.35 }); two = false; }
-    else if (u.throwing) { m.play('Over_Shoulder_Throw', { speed: 1.6, fade: 0.12 }); two = false; }
-    else if (u.reloading > 0) { const n = crouch ? 'Kneeling_Reload' : 'Standing_Reload'; m.play(n, { speed: Math.min(2.4, clipSpeed(n) / Math.max(1, u.weapon.reload || 2.5)) }); }
+    } else if (battle.over && battle.result && battle.result.winner === u.team) { m.play('victory', { start: 0.12, fade: 0.35 }); mode = 'droite'; }
+    else if (u.throwing) { m.play('Over_Shoulder_Throw', { speed: 1.6, fade: 0.12 }); mode = 'bandouliere'; }
+    else if (u.reloading > 0) {
+      mode = 'droite'; const rs = Math.min(2.4, clipSpeed('Standing_Reload') / Math.max(1, u.weapon.reload || 2.5));
+      if (!crouch && u.moving && v > 0.15 && m.clips.Standing_Reload_Haut) {   // recharge en marchant : haut du corps seul, jambes en couche séparée
+        m.play('Standing_Reload_Haut', { speed: rs }); const lj = v > 1.4 ? 'Run_Jambes' : 'Walk_Jambes', nat = m.loco[v > 1.4 ? 'Run_and_Shoot' : 'Walk_Fight_Forward'] || 1;
+        m.playLegs(lj, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)) }); legs = true;
+      } else { const n = crouch ? 'Kneeling_Reload' : 'Standing_Reload'; m.play(n, { speed: rs }); }
+    }
     else if (u.moving && v > 0.15) {
-      // marche arme à la poitrine ; course ou marche en visant : arme épaulée, canon devant
-      if ((running || aiming || v > 2.1) && !crouch) loco('Run_and_Shoot'); else loco(OT.Soldat3D.clips.Walk_Aim ? 'Walk_Aim' : 'Walk_Fight_Forward');
+      if (crouch) loco('Cautious_Crouch_Walk_Forward');
+      else if (aiming) loco(v > 1.4 ? 'Run_and_Shoot' : 'Walk_Aim');          // ennemi connu : fusil épaulé
+      else loco(v > 1.4 ? (m.clips.Run_Low ? 'Run_Low' : 'Run_and_Shoot') : (m.clips.Walk_Low ? 'Walk_Low' : 'Walk_Aim'));   // sinon garde basse
     }
     else if (crouch) m.play('Kneeling_Reload', { time: 0.06, fade: 0.25 });
-    else m.play('Rifle_Aim_Turn_Right', { time: 0, fade: 0.25 });
-    if (u.alive) m.ring.material.opacity = 0.8;
+    else if (aiming || !m.clips.Garde_Basse) m.play('Rifle_Aim_Turn_Right', { time: 0, fade: 0.25 });
+    else m.play('Garde_Basse', { time: 0, fade: 0.3 });
+    if (!legs) m.playLegs(null);
+    if (u.alive) { m.ring.material.opacity = 0.8; a.deadT = 0; m.pose.position.y = 0; }
     m.update(dt, !u.alive);
     if (m.bones.spine && (a.recoil > 0 || a.flinch > 0)) { m.bones.spine.rotation.x -= a.recoil * 0.05; m.bones.spine.rotation.z += a.flinch * 0.12 * Math.sin(simTime * 30); }
-    m.placeWeapon(two, a.recoil);
+    m.placeWeapon(mode === 'deux', a.recoil, mode);
   }
   function animateOperator(u, m, dt) {
     if (m.isSkinned) return animateSkinned(u, m, dt);
@@ -960,7 +999,7 @@
       }
       if (ev.type === 'shot' && ev.hit && Math.random() < 0.25) { const t = unitById[ev.target]; if (t) addBlood(t.x, t.z, 0.22); }
       if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); const u = unitById[ev.unit]; if (u) directorEvent('revive', u.x, u.z); }
-      if (ev.type === 'down') { { const u = unitById[ev.unit]; if (u) addBlood(u.x, u.z, 0.6); } const m = meshes[ev.unit]; if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; } const u = unitById[ev.unit]; if (u) directorEvent('down', u.x, u.z); }
+      if (ev.type === 'down') { { const u = unitById[ev.unit]; if (u) addBlood(u.x, u.z, 0.6); } const m = meshes[ev.unit]; if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; if (m.isSkinned) chooseFall(unitById[ev.unit], m); } const u = unitById[ev.unit]; if (u) directorEvent('down', u.x, u.z); }
       if (ev.type === 'smoke') addSmoke(ev);
       if (ev.type === 'shell') { addShell(ev); addScorch(ev.x, ev.z, 1.8); play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2 }); cam.shake = Math.max(cam.shake || 0, 0.35); }
       if (ev.type === 'heal') addHeal(ev);
@@ -998,6 +1037,7 @@
       if (m.yaw === undefined || !isFinite(m.yaw)) m.yaw = want;
       if (u.alive) { let d = want - m.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
         const maxStep = 7 * frameDt; m.yaw += Math.max(-maxStep, Math.min(maxStep, d * Math.min(1, frameDt * 12))); }
+      else if (m.anim.fallYaw !== undefined && (m.anim.deadT || 0) < 1.4) { let d = m.anim.fallYaw - m.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; m.yaw += Math.max(-2.5 * frameDt, Math.min(2.5 * frameDt, d)); }
       m.group.rotation.y = m.yaw;
       animateOperator(u, m, frameDt);
     }
@@ -1373,6 +1413,13 @@
     useTactic: (id) => battle.command('tactic', 0, id),
     review: () => { review(); return battle.replayQueue.length; },
     meshes: () => meshes, scene: () => scene,
+    // diagnostic d'animation : pour chaque soldat, vitesse réelle, direction du déplacement par rapport au corps affiché,
+    // animation jouée et sa vitesse de lecture (pour mesurer glissements et incohérences d'orientation)
+    diag: () => battle.units.map(u => { const m = meshes[u.id]; if (!m || !m.isSkinned) return null;
+      const dx = m.cur.x - m.prev.x, dz = m.cur.z - m.prev.z, v = Math.hypot(dx, dz) / DT, moveYaw = v > 0.05 ? -Math.atan2(dz, dx) + Math.PI / 2 : null;
+      let d = moveYaw === null ? null : moveYaw - m.yaw; if (d !== null) { while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; }
+      const act = m.clip && m.mixer.existingAction(m.clips[m.clip]);
+      return { id: u.callsign, alive: u.alive, state: u.state, stance: u.stance, moving: u.moving, target: !!(u.target && u.target.alive), v: +v.toFixed(2), ecart: d === null ? null : +(d * 180 / Math.PI).toFixed(0), clip: m.clip, ts: act ? +act.timeScale.toFixed(2) : null, jambes: m.jambes === undefined ? null : +(m.jambes * 180 / Math.PI).toFixed(0), x: +u.x.toFixed(1), z: +u.z.toFixed(1), reload: u.reloading > 0, throwing: !!u.throwing }; }),
   };
   if (MANUAL) render(); else requestAnimationFrame((t) => { lastFrame = t; frame(t); });
   window.PRET = true;

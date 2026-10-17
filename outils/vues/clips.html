@@ -3,7 +3,7 @@
 <script>
 // Planche : chaque ligne une animation, chaque colonne un instant ; soldat du jeu (Soldat3D) avec son arme,
 // vu de 3/4 avant et de haut. La flèche rouge au sol = direction « face » du jeu (+Z) ; l'arme doit la suivre.
-// ?a=Clip1,Clip2 (défaut : toutes) ; ?n=5 colonnes ; ?vue=haut
+// ?a=Clip1,Clip2 (défaut : toutes) ; ?n=5 colonnes ; ?vue=haut|cote|dos ; ?m=gign|soldat ; ?j=deg (jambes tournées) ; ?t=0.98 (même instant partout)
 const q = new URLSearchParams(location.search), N = +(q.get('n') || 5), vue = q.get('vue') || 'face', haut = vue === 'haut';
 OT.Soldat3D.whenReady(() => {
   const names = (q.get('a') || Object.keys(OT.Soldat3D.clips).join(',')).split(',');
@@ -20,7 +20,9 @@ OT.Soldat3D.whenReady(() => {
   function for_(n, i) {
     for (let k = 0; k < N; k++) {
       const f = OT.Soldat3D.create({ modele: q.get('m') || 'gign', uniform: 0x4a4e55, weapon: 'carbine' }); if (!f) return;
-      f.play(n, { time: k / N }); f.update(0); f.body.rotation.y = f.yawFix[n] || 0; f.body.updateMatrixWorld(true); f.placeWeapon(true, 0);
+      f.play(n, { time: q.get('t') !== null ? +q.get('t') : k / N }); f.update(0); f.body.rotation.y = f.yawFix[n] || 0;
+      if (q.get('j')) { f.jambesCible = +q.get('j') * Math.PI / 180; for (let i = 0; i < 80; i++) f.update(0.02); }   // ?j=deg : jambes tournées (pas de côté)
+      f.body.updateMatrixWorld(true); f.placeWeapon(true, 0);
       const x = (k - (N - 1) / 2) * S + 0.6, y = -(i - (rows - 1) / 2) * S;
       if (haut) f.group.position.set(x, 0, -y); else if (vue === 'cote') f.group.position.set(0, y - 0.9, -x); else f.group.position.set(vue === 'dos' ? -x : x, y - 0.9, 0);
       const arr = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0.02, 0), 0.9, 0xff3030, 0.2, 0.12); f.group.add(arr);

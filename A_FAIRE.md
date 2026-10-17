@@ -1,5 +1,32 @@
 # À faire (suivi pour reprendre plus tard)
 
+## Polissage « triple A » des animations (17/10, nuit) — demande de l'utilisateur
+Mesuré par `scratchpad/diag.py` (bataille pas à pas, `window.API.diag()`) : avant, 91 % des images en mouvement avaient des
+pieds qui glissaient et 25 % un déplacement de côté avec les jambes de face ; après : 2 % et 3 %.
+- Vitesse naturelle de chaque cycle mesurée sur les PIEDS au chargement (`mesureLoco`) : la course « Run_and_Shoot » n'est
+  qu'un jogging à 1,9 m/s (on la lisait comme 3 m/s), la marche en visée 0,9 m/s. Lecture à (vitesse réelle / naturelle).
+- Jambes vers le déplacement, torse vers la cible : le bassin tourne de l'écart (`f.jambesCible`), les trois vertèbres le
+  rattrapent ; au-delà de ~105° on recule (cycle lu à l'envers). À l'arrêt, les pieds restent plantés pendant que le torse
+  pivote, et se replacent au-delà de 50°.
+- Garde basse quand aucun ennemi n'est connu (pose construite `Garde_Basse` + composites `Walk_Low` / `Run_Low`), fusil
+  épaulé au contact (crosse au creux de l'épaule par IK, `EPAULE`/`CREUX`), respiration sur les poses fixes.
+- Modes de prise de l'arme (`placeWeapon(two, recoil, mode)`) : `deux`, `droite` (rechargement : la gauche va au chargeur),
+  `bandouliere` (lancer de grenade : fusil en travers du torse, position mémorisée depuis la garde basse), `sol` (mort :
+  fusil posé à plat puis figé). La prise à une main garde la position relative de la dernière prise à deux mains.
+- Chutes : animation et légère rotation choisies pour que le corps allongé ne traverse ni mur ni bord (`chooseFall`,
+  positions finales mesurées) ; corps redescendu au sol (le bassin des animations flotte à 27 cm ; `M.chuteY`).
+- Bruits de pas des soldats 3D : phase tirée de l'animation (ils étaient muets).
+- Opérateur GIGN : modèle Meshy (`art/meshy/gign_brut.glb`), auto-rig Meshy avec 25 os parasites rattachés et 17 animations
+  transférées depuis l'ancien soldat (`outils/greffer_animations.py`), doigts refermés dans le maillage
+  (`outils/plier_doigts.py`, pas d'os de doigts), textures réduites (`compacter_glb.py --tailles`). Équipe du joueur : GIGN ;
+  adversaire : ancien soldat teinté.
+- Arme : carabine « type BREN » avec chargeur visible (Gemini → Meshy → `decor_glb.py --tris 6000`), points de prise
+  mesurés sur le nuage de points (`modeles3d.js arme()`), remplace l'ancien fusil (clé `fusil` de `decor.js`).
+- Outils de contrôle : `outils/vues/arme.html?a=Clip&t=&m=gign|soldat&mode=droite|bandouliere&droite=1` (4 vues, repères
+  paumes / bouche / crosse), `clips.html?j=deg&t=` (jambes tournées), `mesure.html` (vitesses, chutes).
+- Reste à faire : gros tests complets la nuit (demande de l'utilisateur) ; pas de côté plus naturels avec de vraies
+  animations de strafe si on en trouve ; rigging Meshy avec doigts (a échoué deux fois : « réessayez plus tard »).
+
 ## Retravailler chaque élément un par un (17/10, soir) — demande de l'utilisateur
 Principe : moins de contenu, mais chaque chose refaite proprement, une à la fois.
 - Contenu réduit : une seule carte (parking du centre commercial), cinq opérateurs du GIGN (Vautour, Lynx, Granit, Bastion,

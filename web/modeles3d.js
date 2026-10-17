@@ -45,18 +45,19 @@
     return outer;
   }
   // Le fusil d'assaut du jeu, dans le repère des armes (figure.js) : +Z vers la bouche, poignée à la main droite.
-  // Le modèle Meshy est allongé sur X, bouche vers −X : rotation de +90° autour de Y. Longueur réelle ≈ 0,84 m.
+  // Modèle Meshy « carabine type BREN » (chargeur courbe, point rouge, crosse télescopique), allongé sur X, bouche vers −X :
+  // rotation de +90° autour de Y. Longueur réelle ≈ 0,86 m.
   function arme() {
     if (!has('fusil')) return null;
     const w = new THREE.Group(), c = S.scenes.fusil.clone(true), b = S.boxes.fusil, ctr = b.getCenter(new THREE.Vector3());
-    const s = 0.84 / (b.max.x - b.min.x); c.position.set(-ctr.x, -ctr.y, -ctr.z);
+    const s = 0.86 / (b.max.x - b.min.x); c.position.set(-ctr.x, -ctr.y, -ctr.z);
     const k = new THREE.Group(); k.add(c); k.scale.setScalar(s); k.rotation.y = Math.PI / 2; w.add(k);
     c.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; } });
-    // points de prise mesurés sur le modèle (repère du modèle centré, avant échelle) : poignée (x 0,33 ; y −0,13),
-    // garde-main (x −0,45 ; y 0,02), bouche (x −0,95), puits de chargeur (x 0,1 ; y −0,1), crosse (x 0,95 ; y −0,03)
+    // points de prise mesurés sur le modèle (repère du modèle centré, avant échelle ; voir outils : projection du nuage de
+    // points) : poignée pistolet (x 0,36 ; y −0,08), garde-main (x −0,40 ; y 0,12), axe du canon y 0,12, bouche (x min),
+    // chargeur (x 0 ; y −0,15), plaque de couche (x max ; y 0,05)
     const P = (x, y) => new THREE.Vector3(0, (y - ctr.y) * s, -(x - ctr.x) * s);
-    w.gripPt = P(0.33, -0.13); w.forePt = P(-0.42, 0.0); w.muzzle = P(b.min.x, 0.075); w.magPt = P(0.1, -0.1);
-    w.buttPt = P(b.max.x, -0.03);   // centre de la plaque de couche (bout de la crosse), mesuré sur le modèle
+    w.gripPt = P(0.36, -0.08); w.forePt = P(-0.40, 0.12); w.muzzle = P(b.min.x, 0.12); w.magPt = P(0.0, -0.15); w.buttPt = P(b.max.x, 0.05);
     w.isMeshy = true; return w;
   }
   S.load = load; S.has = has; S.copie = copie; S.fit = fit; S.arme = arme;
