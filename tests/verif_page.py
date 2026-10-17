@@ -62,7 +62,9 @@ async def main():
         check("la mission ouvre l'écran de bataille", await pg.is_visible("#app") and not await pg.is_visible("#hq"))
         bri = await pg.evaluate("() => [!document.querySelector('#briefing').classList.contains('hidden'), document.querySelector('#brName').textContent, window.API.battle().t]")
         check("mission de campagne : briefing affiché (nom de la mission), bataille en attente", bri[0] and bri[1] == "Patrouille accrochée" and bri[2] == 0, bri)
-        await pg.click("#briefGo"); await pg.wait_for_timeout(300)
+        await pg.click("#briefGo")
+        try: await pg.wait_for_function("() => window.API.battle().t > 0", timeout=15000)
+        except Exception: pass
         check("« Commencer la mission » ferme le briefing et lance la bataille", await pg.evaluate("() => document.querySelector('#briefing').classList.contains('hidden') && window.API.battle().t > 0"))
         tc = await pg.evaluate("() => document.querySelectorAll('#tactics0 .tcard').length"); check("les tactiques équipées d'Alpha sont affichées en bataille", tc == 2, tc)
         check("Lynx porte bien le fusil à pompe dans la bataille", await pg.evaluate("() => window.API.battle().units.find(u => u.callsign === 'Lynx').weapon.id") == "shotgun")
