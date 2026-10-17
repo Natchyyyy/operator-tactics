@@ -171,7 +171,13 @@
     const traitsOf = (d) => [d.trait].concat(d.traits || []);
     const match = (d, spec) => (spec.role !== undefined && [].concat(spec.role).includes(d.role)) || (spec.trait !== undefined && [].concat(spec.trait).some(t => traitsOf(d).includes(t)));
     const out = [];
+    const nat = (d) => { const m = /\(([^)]+)\)/.exec(d.unit || ''); return m ? m[1] : null; };
     for (const sy of SYNERGIES) {
+      if (sy.target.nation) {   // Frères d'armes : au moins deux opérateurs du même pays
+        const targets = defs.filter(d => nat(d) && defs.some(s => s !== d && nat(s) === nat(d)));
+        if (targets.length) out.push({ id: sy.id, name: sy.name, effect: sy.effect, desc: sy.desc, sources: [...new Set(targets.map(nat))], targets: targets.map(d => d.callsign) });
+        continue;
+      }
       const targets = defs.filter(d => match(d, sy.target) && defs.some(s => s !== d && match(s, sy.source)));
       if (targets.length) out.push({ id: sy.id, name: sy.name, effect: sy.effect, desc: sy.desc, sources: defs.filter(s => match(s, sy.source)).map(s => s.callsign), targets: targets.map(d => d.callsign) });
     }

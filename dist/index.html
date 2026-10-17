@@ -183,7 +183,7 @@
   .promobox { background: #2a2416; border: 1px solid var(--accent); border-radius: 8px; padding: 8px 10px; font-size: 12px; margin: 6px 0; } .promochoices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; } .promochoice { text-align: left; display: flex; flex-direction: column; gap: 3px; padding: 8px; } .promochoice b { color: var(--accent); } .promochoice span { font-size: 11px; color: var(--muted); font-weight: 400; }
   .contract { font-size: 12px; color: var(--muted); margin: 4px 0 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .contract.bad { color: var(--bad); }
   .hist { margin-top: 8px; font-size: 12px; } .hist summary { cursor: pointer; color: var(--muted); } .histt { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; } .histt th { text-align: left; color: var(--muted); font-weight: 600; padding: 3px 6px; border-bottom: 1px solid var(--line); } .histt td { padding: 3px 6px; border-bottom: 1px solid #1d242b; } .histt tr.dead td { color: var(--muted); }
-  .syns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; } .syn { background: var(--panel2); border: 1px dashed var(--line); border-radius: 8px; padding: 6px 8px; font-size: 11px; display: flex; flex-direction: column; gap: 2px; opacity: .55; } .syn.on { opacity: 1; border-style: solid; border-color: #4f9d5a; background: #17241a; } .syn b { font-size: 12px; } .syn small { color: var(--muted); }
+  .syns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; } .syn { background: var(--panel2); border: 1px dashed var(--line); border-radius: 8px; padding: 6px 8px; font-size: 11px; display: flex; flex-direction: column; gap: 2px; opacity: .55; } .syn.on { opacity: 1; border-style: solid; border-color: #4f9d5a; background: #17241a; } .syn b { font-size: 12px; } .syn small { color: var(--muted); }
   .wound { background: linear-gradient(90deg, #6b1712, #a3261c); color: #fff; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; border-radius: 5px; padding: 3px 7px; margin: 4px 0; cursor: pointer; } .wound u { cursor: pointer; }
   /* Équipe v2 : escouade en pied avec la note de chaque opérateur, note de l'escouade, notes dans la liste */
   .squad2 { grid-template-columns: repeat(5, 1fr); gap: 8px; }
@@ -1117,6 +1117,8 @@ window.Son = Son;
       desc: 'Un Radio debout transmet les corrections de tir : tireurs d\'élite, appuis et brècheurs gagnent 8 % de précision.' },
     { id: 'appui', name: 'Appui-feu', source: { role: 'support' }, target: { role: ['assault', 'pointman'] }, effect: 'récupération de la suppression +20 %',
       desc: 'Une arme d\'appui qui tient l\'adversaire sous son feu : les assaillants et éclaireurs se remettent 20 % plus vite d\'être cloués.' },
+    { id: 'freres', name: 'Frères d\'armes', source: { nation: true }, target: { nation: true }, effect: 'mise en joue 10 % plus rapide',
+      desc: 'Deux opérateurs du même pays (même école, mêmes procédures) : tant que l\'autre est debout, chacun met en joue 10 % plus vite.' },
   ];
   // Blessure grave : un opérateur neutralisé revient « gravement blessé » ; il peut combattre mais ses compétences sont divisées par deux
   // et ses points de vie réduits d'un quart, jusqu'à ce qu'il soit soigné (crédits) ou qu'il se repose (missions sans lui).
@@ -2149,6 +2151,7 @@ window.Son = Son;
     u.target = target; u.burst = 0;
     let t = u.weapon.aim * (1.3 - (u.def.reflexes / 100) * 0.6) * (has(u, 'fasthands') ? 0.8 : 1);  // Mains sûres
     if (u.att.lunette) t *= 1.15; else if (u.att.holo) t *= 0.9;                                       // accessoire : optique
+    if (this.synergy(u, 'freres')) t *= 0.9;                                                            // synergie Frères d'armes
     const last = u.aimHistory[target.id];
     const quick = last !== undefined && this.t - last < 5;
     if (quick) t *= 0.35;
@@ -2758,8 +2761,11 @@ window.Son = Son;
     const okTrait = spec.trait === undefined ? null : [].concat(spec.trait).some(t => has(u, t));
     return okRole === true || okTrait === true;
   };
+  const nationOf = (def) => { const m = /\(([^)]+)\)/.exec(def.unit || ''); return m ? m[1] : null; };
   Battle.prototype.synergy = function (u, id) {
-    const sy = SYNERGY_BY_ID[id]; if (!sy || !matchSpec(u, sy.target)) return false;
+    const sy = SYNERGY_BY_ID[id]; if (!sy) return false;
+    if (sy.target.nation) { const n = nationOf(u.def); return !!n && this.teams[u.team].units.some(a => a !== u && a.alive && nationOf(a.def) === n); }   // Frères d'armes
+    if (!matchSpec(u, sy.target)) return false;
     for (const a of this.teams[u.team].units) if (a !== u && a.alive && matchSpec(a, sy.source)) return true;
     return false;
   };
@@ -3125,7 +3131,13 @@ window.Son = Son;
     const traitsOf = (d) => [d.trait].concat(d.traits || []);
     const match = (d, spec) => (spec.role !== undefined && [].concat(spec.role).includes(d.role)) || (spec.trait !== undefined && [].concat(spec.trait).some(t => traitsOf(d).includes(t)));
     const out = [];
+    const nat = (d) => { const m = /\(([^)]+)\)/.exec(d.unit || ''); return m ? m[1] : null; };
     for (const sy of SYNERGIES) {
+      if (sy.target.nation) {   // Frères d'armes : au moins deux opérateurs du même pays
+        const targets = defs.filter(d => nat(d) && defs.some(s => s !== d && nat(s) === nat(d)));
+        if (targets.length) out.push({ id: sy.id, name: sy.name, effect: sy.effect, desc: sy.desc, sources: [...new Set(targets.map(nat))], targets: targets.map(d => d.callsign) });
+        continue;
+      }
       const targets = defs.filter(d => match(d, sy.target) && defs.some(s => s !== d && match(s, sy.source)));
       if (targets.length) out.push({ id: sy.id, name: sy.name, effect: sy.effect, desc: sy.desc, sources: defs.filter(s => match(s, sy.source)).map(s => s.callsign), targets: targets.map(d => d.callsign) });
     }

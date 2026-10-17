@@ -497,6 +497,7 @@
     u.target = target; u.burst = 0;
     let t = u.weapon.aim * (1.3 - (u.def.reflexes / 100) * 0.6) * (has(u, 'fasthands') ? 0.8 : 1);  // Mains sûres
     if (u.att.lunette) t *= 1.15; else if (u.att.holo) t *= 0.9;                                       // accessoire : optique
+    if (this.synergy(u, 'freres')) t *= 0.9;                                                            // synergie Frères d'armes
     const last = u.aimHistory[target.id];
     const quick = last !== undefined && this.t - last < 5;
     if (quick) t *= 0.35;
@@ -1106,8 +1107,11 @@
     const okTrait = spec.trait === undefined ? null : [].concat(spec.trait).some(t => has(u, t));
     return okRole === true || okTrait === true;
   };
+  const nationOf = (def) => { const m = /\(([^)]+)\)/.exec(def.unit || ''); return m ? m[1] : null; };
   Battle.prototype.synergy = function (u, id) {
-    const sy = SYNERGY_BY_ID[id]; if (!sy || !matchSpec(u, sy.target)) return false;
+    const sy = SYNERGY_BY_ID[id]; if (!sy) return false;
+    if (sy.target.nation) { const n = nationOf(u.def); return !!n && this.teams[u.team].units.some(a => a !== u && a.alive && nationOf(a.def) === n); }   // Frères d'armes
+    if (!matchSpec(u, sy.target)) return false;
     for (const a of this.teams[u.team].units) if (a !== u && a.alive && matchSpec(a, sy.source)) return true;
     return false;
   };

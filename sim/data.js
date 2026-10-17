@@ -116,6 +116,8 @@
       desc: 'Un Radio debout transmet les corrections de tir : tireurs d\'élite, appuis et brècheurs gagnent 8 % de précision.' },
     { id: 'appui', name: 'Appui-feu', source: { role: 'support' }, target: { role: ['assault', 'pointman'] }, effect: 'récupération de la suppression +20 %',
       desc: 'Une arme d\'appui qui tient l\'adversaire sous son feu : les assaillants et éclaireurs se remettent 20 % plus vite d\'être cloués.' },
+    { id: 'freres', name: 'Frères d\'armes', source: { nation: true }, target: { nation: true }, effect: 'mise en joue 10 % plus rapide',
+      desc: 'Deux opérateurs du même pays (même école, mêmes procédures) : tant que l\'autre est debout, chacun met en joue 10 % plus vite.' },
   ];
   // Blessure grave : un opérateur neutralisé revient « gravement blessé » ; il peut combattre mais ses compétences sont divisées par deux
   // et ses points de vie réduits d'un quart, jusqu'à ce qu'il soit soigné (crédits) ou qu'il se repose (missions sans lui).

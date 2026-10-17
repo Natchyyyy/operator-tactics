@@ -120,7 +120,12 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   const dmgOn = (alive) => { const bb = mk(['op_cobra', 'op_sirocco']); bb.teams[0].units[0].alive = alive; const tg = bb.teams[0].units[1], sh = bb.teams[1].units[0]; tg.armor = { torso: 0, head: 0, name: 'aucune' }; const h0 = tg.hp; bb.applyHit(sh, tg, 5); return h0 - tg.hp; };
   const d1 = dmgOn(true), d0 = dmgOn(false);
   check('Commandement : dégâts subis −10 % tant que le Meneur est debout', Math.abs(d1 / d0 - 0.9) < 0.011, { d0, d1 });
-  check('liste des synergies actives de l\'équipe', b.activeSynergies(0).length === 3 && b.activeSynergies(1).length === 0);
+  const nAct = b.activeSynergies(0).map(x => x.id).sort().join(','); check('liste des synergies actives de l\'équipe', ['appui,commandement,guidage', 'appui,commandement,freres,guidage'].includes(nAct) && b.activeSynergies(1).length === 0, nAct);
+  // Frères d'armes : deux opérateurs du même pays mettent en joue 10 % plus vite ; seul de son pays, rien
+  { const bb = new Battle({ seed: 2, teams: [{ operators: ['op_vautour', 'op_lynx', 'op_granit'], tactics: [] }, { operators: ['k_molosse'], tactics: [] }] }); const [vt, lx, gr] = bb.teams[0].units;
+    const s1 = bb.synergy(vt, 'freres') && bb.synergy(lx, 'freres') && !bb.synergy(gr, 'freres'); lx.alive = false; const s2 = !bb.synergy(vt, 'freres');
+    const sq = Game.squadSynergies(['op_vautour', 'op_lynx', 'op_granit'].map(id => Game.effectiveDef(Game.newProfile(), id))).find(x => x.id === 'freres');
+    check('Frères d\'armes : deux Français liés, le reste non ; perdu quand l\'autre tombe ; affiché au QG', s1 && s2 && sq && sq.targets.length === 2, sq); }
 }
 // défis : vérifiés sur le résultat réel, récompense unique
 {
