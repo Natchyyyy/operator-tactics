@@ -28,6 +28,7 @@
     scene.add(f.group);
     if (opts.full && opts.h) { camera.position.set(0.9, 1.05, 4.4); camera.lookAt(0, 0.92, 0); }   // en pied, cadrage complet (tête aux pieds)
     else if (opts.full) { camera.position.set(0.9, 1.1, 3.6); camera.lookAt(0, 0.95, 0); }
+    else if (S3) { camera.position.set(0.5, 1.5, 1.75); camera.lookAt(0.02, 1.36, 0); }   // buste du soldat Meshy : tête et épaules, arme visible
     else { camera.position.set(0.32, 1.66, 0.95); camera.lookAt(0.03, 1.56, 0); }
     renderer.render(scene, camera);
     const url = renderer.domElement.toDataURL('image/png');

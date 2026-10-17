@@ -1,0 +1,15 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Décor Meshy</title><style>body{margin:0;background:#222}canvas{display:block}</style></head><body>
+<script src="../../web/three.min.js"></script><script src="../../web/gltf.js"></script>
+<script>
+// Planche de contrôle des objets de décor allégés (art/meshy/decor/*.glb) : ?m=fusil,berline,… ; ?vue=haut
+const q = new URLSearchParams(location.search), noms = (q.get('m') || 'fusil,berline,pickup,fourgon,bus,barriere,sacs,fut,abribus,kiosque').split(',');
+const W = 1600, H = 900, r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; document.body.appendChild(r.domElement);
+const sc = new THREE.Scene(); sc.background = new THREE.Color(0x56606a);
+sc.add(new THREE.HemisphereLight(0xdce6ee, 0x6a6052, 1.3)); const d = new THREE.DirectionalLight(0xfff0d4, 2.7); d.position.set(4, 8, 5); sc.add(d);
+const cam = new THREE.PerspectiveCamera(28, W / H, 0.1, 200); cam.position.set(0, 4.5, 11); cam.lookAt(0, 0.3, 0);
+let n = 0; const L = new THREEX.GLTFLoader();
+noms.forEach((nom, i) => L.load('../../art/meshy/decor/' + nom + '.glb', (g) => {
+  const o = g.scene, col = i % 5, row = Math.floor(i / 5); o.position.set((col - 2) * 2.3, 0, (row - 0.5) * 2.6); o.rotation.y = 0.5; sc.add(o);
+  if (++n === noms.length) { r.render(sc, cam); window.PRET = true; }
+}, undefined, (e) => { document.title = 'ERR ' + nom + e; if (++n === noms.length) { r.render(sc, cam); window.PRET = true; } }));
+</script></body></html>

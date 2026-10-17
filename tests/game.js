@@ -9,8 +9,7 @@ const p = Game.newProfile();
 check('profil neuf : 5 opérateurs débloqués, escouade complète, 300 crédits', Object.values(p.operators).filter(o => o.unlocked).length === 5 && Game.squadReady(p) && p.credits === 300);
 check('niveau 0 au départ, 100 XP pour le niveau 1', Game.levelFor(0) === 0 && Game.xpToNext(0) === 100 && Game.levelFor(100) === 1 && Game.levelFor(99999) === DATA.MAX_LEVEL);
 // équipement : règles de rôle et d'inventaire
-check('un tireur d\'élite ne peut pas prendre la mitrailleuse', !Game.setWeapon(p, 'op_granit', 'lmg') && p.operators.op_granit.weaponId === 'dmr');
-check('un assaut peut passer au pistolet-mitrailleur', Game.setWeapon(p, 'op_vautour', 'smg') && p.operators.op_vautour.weaponId === 'smg');
+check('une seule arme : le fusil d\'assaut pour tous, toute autre arme refusée', Object.keys(DATA.WEAPONS).join() === 'carbine' && !Game.setWeapon(p, 'op_granit', 'lmg') && Object.values(p.operators).every(o => o.weaponId === 'carbine') && Game.setWeapon(p, 'op_vautour', 'carbine'));
 check('changer de protection', Game.setArmor(p, 'op_lynx', 'heavy') && p.operators.op_lynx.armorId === 'heavy');
 // l'équipement change réellement la simulation
 {
@@ -18,7 +17,7 @@ check('changer de protection', Game.setArmor(p, 'op_lynx', 'heavy') && p.operato
   p.tactics.equipped = []; // pas de tactique passive pour mesurer l'équipement seul
   const b = new Battle({ seed: 1, teams: Game.buildTeams(p, m) });
   const v = b.teams[0].units.find(u => u.callsign === 'Vautour'), l = b.teams[0].units.find(u => u.callsign === 'Lynx');
-  check('l\'arme et la protection équipées sont celles de la bataille', v.weapon.id === 'smg' && l.armor.id === 'heavy', [v.weapon.id, l.armor.id]);
+  check('l\'arme et la protection équipées sont celles de la bataille', v.weapon.id === 'carbine' && l.armor.id === 'heavy', [v.weapon.id, l.armor.id]);
   check('la protection lourde ralentit réellement Lynx', l.speed() < (1.5 + l.def.mobility / 100 * 1.4) * 0.8);
 }
 // niveau → statistiques → bataille
@@ -37,23 +36,22 @@ check('changer de protection', Game.setArmor(p, 'op_lynx', 'heavy') && p.operato
   Game.applyFormation(p, 'nord');
   const b = new Battle({ seed: 2, teams: Game.buildTeams(p, DATA.MISSIONS[0]) });
   while (b.t < 1.5) b.step();
-  const north = b.teams[0].units.filter(u => u.goal && u.goal.z < 12).length;
-  check('formation « nord » : les objectifs de marche visent le couloir nord', north >= 4, b.teams[0].units.map(u => u.goal && u.goal.z.toFixed(0)));
+  const north = b.teams[0].units.filter(u => u.goal && u.goal.z < 14).length;
+  check('formation « nord » : les objectifs de marche visent le couloir nord', north >= 3, b.teams[0].units.map(u => u.goal && u.goal.z.toFixed(0)));
   Game.applyFormation(p, 'sud');
   const b2 = new Battle({ seed: 2, teams: Game.buildTeams(p, DATA.MISSIONS[0]) });
   while (b2.t < 1.5) b2.step();
-  const south = b2.teams[0].units.filter(u => u.goal && u.goal.z > 28).length;
-  check('formation « sud » : les objectifs de marche visent le couloir sud', south >= 4, b2.teams[0].units.map(u => u.goal && u.goal.z.toFixed(0)));
+  const south = b2.teams[0].units.filter(u => u.goal && u.goal.z > 30).length;
+  check('formation « sud » : les objectifs de marche visent le couloir sud', south >= 3, b2.teams[0].units.map(u => u.goal && u.goal.z.toFixed(0)));
   Game.applyFormation(p, 'auto');
 }
 // escouade
-check('on ne peut pas dépasser 5 ni ajouter un verrouillé ; à 4 l\'escouade peut partir', !Game.toggleSquad(p, 'op_cobra') && Game.toggleSquad(p, 'op_belier') && p.squad.length === 4 && Game.squadReady(p));
-check('recrutement refusé sans crédits', !Game.recruit(p, 'op_harfang') && !p.operators.op_harfang.unlocked);
+check('escouade : retirer un opérateur, à 4 l\'escouade peut partir', Game.toggleSquad(p, 'op_belier') && p.squad.length === 4 && Game.squadReady(p));
+check('recrutement refusé pour un opérateur déjà débloqué', !Game.recruit(p, 'op_vautour'));
 p.credits = 1000;
-check('recrutement : débit du prix, déblocage', Game.recruit(p, 'op_cobra') && p.operators.op_cobra.unlocked && p.credits === 1000 - DATA.PRICES.operator[2]);
-check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') && Game.squadReady(p));
-{ const q = JSON.parse(JSON.stringify(p)); const i = q.squad.indexOf('op_cobra'); const out = q.squad[0]; Game.toggleSquad(q, 'op_cobra');
-  check('échanger un membre de l\'escouade le remplace à la même place (et refuse un verrouillé ou un déjà présent)', Game.swapSquad(q, out, 'op_cobra') && q.squad[0] === 'op_cobra' && !q.squad.includes(out) && !Game.swapSquad(q, 'op_cobra', q.squad[1]) && !Game.swapSquad(q, q.squad[1], 'op_kodiak')); }
+{ const q = JSON.parse(JSON.stringify(p)); const out = q.squad[0];
+  check('échanger un membre de l\'escouade le remplace à la même place (et refuse un déjà présent)', Game.swapSquad(q, out, 'op_belier') && q.squad[0] === 'op_belier' && !q.squad.includes(out) && !Game.swapSquad(q, 'op_belier', q.squad[1])); }
+check('Bélier revient dans l\'escouade', Game.toggleSquad(p, 'op_belier') && Game.squadReady(p) && p.squad.length === 5);
 // mission complète : bataille → récompenses
 {
   const m = DATA.MISSIONS[1];
@@ -84,7 +82,7 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   const bw = new Battle({ seed: 1, teams: Game.buildTeams(q, m) }); const uw = bw.teams[0].units.find(u => u.id === '0:' + id0), uh = new Battle({ seed: 1, teams: [{ operators: [Object.assign({}, healthy, { wounded: false })] }, { operators: ['k_vipere'] }] }).teams[0].units[0];   // même fiche (endurance déjà ÷2), sans la réduction de PV
   check('blessure grave : points de vie réduits d\'un quart en bataille', Math.abs(uw.maxHp - Math.round(uh.maxHp * DATA.WOUND.hpFactor)) < 1e-9, { w: uw.maxHp, h: uh.maxHp });
   check('blessure grave : la note de l\'opérateur baisse', Game.operatorRating(q, id0) < (() => { q.operators[id0].wounded = false; const v = Game.operatorRating(q, id0); q.operators[id0].wounded = true; return v; })());
-  q.credits = 500; q.operators.op_harfang.unlocked = true;  // assez d'opérateurs en bonne santé pour que les soins soient payants
+  q.credits = 500;
   const nHealthy = Object.keys(q.operators).filter(i => Game.isAvailable(q, i) && !Game.isWounded(q, i)).length;
   check('les soins guérissent contre des crédits (gratuits seulement s\'il reste moins de 3 opérateurs valides)', Game.treat(q, id0) && q.credits === 500 - (nHealthy < 3 ? 0 : Game.TREATMENT_PRICE) && !q.operators[id0].wounded, { nHealthy, credits: q.credits });
   check('on ne soigne pas un opérateur en bonne santé', !Game.treat(q, 'op_vautour') || q.operators.op_vautour.wounded === false && false);
@@ -109,7 +107,10 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
 // synergies d'escouade : actives seulement si la source est debout, effets mesurés
 {
   const mk = (ops) => new Battle({ seed: 1, teams: [{ operators: ops }, { operators: ['k_vipere', 'k_fauve'] }] });
-  const b = mk(['op_cobra', 'op_sirocco', 'op_granit', 'op_bastion', 'op_belier']);
+  // fiches d'essai : un Meneur et un Radio d'un autre pays (il n'y a plus que cinq opérateurs du GIGN)
+  const D = (id, o) => Object.assign({}, DATA.OPERATORS.find(x => x.id === id), o);
+  const COBRA = D('op_vautour', { id: 't_cobra', callsign: 'Cobra', unit: 'Essai (A)', trait: 'leader' }), SIROCCO = D('op_lynx', { id: 't_sirocco', callsign: 'Sirocco', unit: 'Essai (B)', role: 'assault', trait: 'radio' });
+  const b = mk([COBRA, SIROCCO, 'op_granit', 'op_bastion', 'op_belier']);
   const [cobra, sirocco, granit, bastion, belier] = b.teams[0].units;
   check('synergies : Commandement (Meneur → Radio, Appui), Guidage (Radio → tireur, appui, brèche), Appui-feu (Appui → Assaut, Pointe)',
     b.synergy(sirocco, 'commandement') && b.synergy(bastion, 'commandement') && !b.synergy(granit, 'commandement') && !b.synergy(cobra, 'commandement')
@@ -119,15 +120,15 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   const p1 = b.hitChance(granit, e, 20).p; sirocco.alive = false; const p0 = b.hitChance(granit, e, 20).p; sirocco.alive = true;
   check('Guidage radio : +8 % de précision, perdu quand le radio tombe', Math.abs(p1 / p0 - 1.08) < 1e-9, { p0, p1 });
   // Commandement : mêmes dégâts à tirage égal, −10 % avec la synergie
-  const dmgOn = (alive) => { const bb = mk(['op_cobra', 'op_sirocco']); bb.teams[0].units[0].alive = alive; const tg = bb.teams[0].units[1], sh = bb.teams[1].units[0]; tg.armor = { torso: 0, head: 0, name: 'aucune' }; const h0 = tg.hp; bb.applyHit(sh, tg, 5); return h0 - tg.hp; };
+  const dmgOn = (alive) => { const bb = mk([COBRA, SIROCCO]); bb.teams[0].units[0].alive = alive; const tg = bb.teams[0].units[1], sh = bb.teams[1].units[0]; tg.armor = { torso: 0, head: 0, name: 'aucune' }; const h0 = tg.hp; bb.applyHit(sh, tg, 5); return h0 - tg.hp; };
   const d1 = dmgOn(true), d0 = dmgOn(false);
   check('Commandement : dégâts subis −10 % tant que le Meneur est debout', Math.abs(d1 / d0 - 0.9) < 0.011, { d0, d1 });
   const nAct = b.activeSynergies(0).map(x => x.id).sort().join(','); check('liste des synergies actives de l\'équipe', ['appui,commandement,guidage', 'appui,commandement,freres,guidage'].includes(nAct) && b.activeSynergies(1).length === 0, nAct);
   // Frères d'armes : deux opérateurs du même pays mettent en joue 10 % plus vite ; seul de son pays, rien
   { const bb = new Battle({ seed: 2, teams: [{ operators: ['op_vautour', 'op_lynx', 'op_granit'], tactics: [] }, { operators: ['k_molosse'], tactics: [] }] }); const [vt, lx, gr] = bb.teams[0].units;
-    const s1 = bb.synergy(vt, 'freres') && bb.synergy(lx, 'freres') && !bb.synergy(gr, 'freres'); lx.alive = false; const s2 = !bb.synergy(vt, 'freres');
+    const s1 = bb.synergy(vt, 'freres') && bb.synergy(lx, 'freres') && bb.synergy(gr, 'freres'); lx.alive = false; gr.alive = false; const s2 = !bb.synergy(vt, 'freres');
     const sq = Game.squadSynergies(['op_vautour', 'op_lynx', 'op_granit'].map(id => Game.effectiveDef(Game.newProfile(), id))).find(x => x.id === 'freres');
-    check('Frères d\'armes : deux Français liés, le reste non ; perdu quand l\'autre tombe ; affiché au QG', s1 && s2 && sq && sq.targets.length === 2, sq); }
+    check('Frères d\'armes : les opérateurs du GIGN sont liés ; perdu quand plus aucun autre n\'est debout ; affiché au QG', s1 && s2 && sq && sq.targets.length === 3, sq); }
 }
 // défis : vérifiés sur le résultat réel, récompense unique
 {
@@ -152,11 +153,9 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   check('rang : Recrue à 0 XP, Opérateur à 150, rang suivant indiqué', Game.rankFor(0) === 0 && Game.rankFor(150) === 1 && Game.xpToNextRank(0) === 150 && Game.xpToNextRank(99999) === null);
   const r0 = Game.teamRating(q); q.operators.op_vautour.xp = 900; q.operators.op_lynx.xp = 900; const r1 = Game.teamRating(q);
   check('la puissance d\'équipe est un nombre lisible qui augmente avec les niveaux', r0 > 20 && r0 < 80 && r1 > r0, [r0, r1]);
-  check('3 tactiques maximum, seulement celles possédées', !Game.equipTactic(q, 'barrage') && Game.equipTactic(q, 'drill') && q.tactics.equipped.length === 1 && Game.equipTactic(q, 'drill') && q.tactics.equipped.length === 2);
-  q.tactics.owned.reco = true; q.tactics.owned.soins = true; Game.equipTactic(q, 'reco');
-  check('la quatrième tactique est refusée', !Game.equipTactic(q, 'soins') && q.tactics.equipped.length === 3);
-  const mt = DATA.MISSIONS.find(m => m.id === 'embuscade'), teams = Game.buildTeams(q, mt);
-  check('les tactiques équipées et celles de la mission adverse partent dans la bataille', teams[0].tactics.length === 3 && teams[1].tactics.length === mt.enemyTactics.length && mt.enemyTactics.length > 0 && teams[1].autoTactics === true);
+  check('une seule tactique : le Tiroir, possédé et équipé d\'office ; une tactique inconnue est refusée', Object.keys(DATA.TACTICS).join() === 'tiroir' && q.tactics.equipped.join() === 'tiroir' && !Game.equipTactic(q, 'barrage'));
+  const mt = DATA.MISSIONS[0], teams = Game.buildTeams(q, mt);
+  check('le Tiroir part dans la bataille des deux côtés', teams[0].tactics.join() === 'tiroir' && teams[1].tactics.join() === 'tiroir');
   // paquets : tirage déterministe
   const seq = [0.05, 0.2, 0.1, 0.9, 0.5, 0.3, 0.6, 0.7, 0.8, 0.2, 0.4, 0.9]; let i = 0; const rng = () => seq[(i++) % seq.length];
   q.credits = 100; check('un paquet trop cher est refusé', Game.openPack(q, 'standard', rng) === null && q.credits === 100);
@@ -174,7 +173,7 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
 // contrats, doublons, promotions, succès, historique
 {
   const q = Game.newProfile(); const m = DATA.MISSIONS[0];
-  check('les opérateurs de départ ont un contrat de 24 missions, une recrue 12–16 selon la rareté', q.operators.op_vautour.tours === 24 && (q.credits = 1000, Game.recruit(q, 'op_harfang')) && q.operators.op_harfang.tours === DATA.CONTRACT.tours[3]);
+  check('les opérateurs de départ ont un contrat de 24 missions', q.operators.op_vautour.tours === 24);
   q.operators.op_lynx.tours = 1;
   const b = new Battle({ seed: 3, teams: Game.buildTeams(q, m) }); b.run(); const r = Game.applyRewards(q, m, b.result);
   check('une mission consomme un tour de contrat ; à zéro l\'opérateur est signalé et indisponible', q.operators.op_lynx.tours === 0 && r.expired.includes('Lynx') && !Game.isAvailable(q, 'op_lynx') && Game.contractExpired(q, 'op_lynx'));
@@ -184,7 +183,7 @@ check('le recruté peut rejoindre l\'escouade', Game.toggleSquad(p, 'op_cobra') 
   const d = Game.newProfile(); for (const id in d.operators) d.operators[id].unlocked = true; d.credits = 1000;
   const seq = [0.0, 0.5, 0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.5]; let i = 0; const cards = Game.openPack(d, 'standard', () => seq[(i++) % seq.length]);
   const dupe = cards.find(c => c.type === 'dupe');
-  check('une carte opérateur en doublon fusionne : perk +2 (ou crédits) et contrat +4', !!dupe && d.operators[dupe.id].dupes >= 1 && (!dupe.stat || (d.perks[dupe.id] && d.perks[dupe.id][dupe.stat] >= 2)) && d.operators[dupe.id].tours === DATA.CONTRACT.tours[DATA.OPERATORS.find(o => o.id === dupe.id).rarity] + 4 * d.operators[dupe.id].dupes, cards.map(c => c.type + ':' + c.id));
+  check('une carte opérateur en doublon fusionne : perk +2 (ou crédits) et contrat +4', !!dupe && d.operators[dupe.id].dupes >= 1 && (!dupe.stat || (d.perks[dupe.id] && d.perks[dupe.id][dupe.stat] >= 2)) && d.operators[dupe.id].tours === DATA.CONTRACT.startingTours + 4 * d.operators[dupe.id].dupes, cards.map(c => c.type + ':' + c.id));
   // promotion : passage au niveau 5 → deux traits proposés, choix appliqué dans la bataille
   const pr = Game.newProfile(); pr.operators.op_vautour.xp = 890; // juste sous le niveau 5 (900)
   const b2 = new Battle({ seed: 4, teams: Game.buildTeams(pr, m) }); b2.run(); const r2 = Game.applyRewards(pr, m, b2.result);
@@ -217,14 +216,11 @@ check('sauvegarde corrompue : null, sans planter', Game.load({ getItem: () => '{
 {
   // ---- modes de jeu ----
   const q = Game.newProfile(); const C = DATA.CAMPAIGNS;
-  check('campagne régulière ouverte, vétéran et élite verrouillées au départ', Game.campaignUnlocked(q, 'reguliere') && !Game.campaignUnlocked(q, 'veteran') && !Game.campaignUnlocked(q, 'elite'));
+  check('une seule campagne, ouverte d\'emblée, toutes ses missions sur le parking', C.length === 1 && Game.campaignUnlocked(q, 'reguliere') && C[0].missions.every(id => DATA.MISSIONS.find(m => m.id === id).mapId === 'parking'));
   check('campagne : seule la première mission est ouverte au départ', Game.missionUnlocked(q, 'reguliere', C[0].missions[0]) && !Game.missionUnlocked(q, 'reguliere', C[0].missions[1]));
   const m0 = Game.campaignMission('reguliere', C[0].missions[0]);
   const b = new Battle({ seed: 3, teams: Game.buildTeams(q, m0) }); b.run(); Game.applyRewards(q, m0, b.result);
   check('campagne : la mission suivante s\'ouvre dès que la précédente a été jouée (gagnée ou non)', Game.missionUnlocked(q, 'reguliere', C[0].missions[1]) && Game.campaignProgress(q, 'reguliere').played === 1);
-  const v = Game.campaignMission('veteran', 'patrouille'), base = DATA.MISSIONS.find(m => m.id === 'patrouille');
-  check('campagne vétéran : adversaire +4 niveaux, une tactique de plus, prime ×1,5, identifiant distinct', v.level === base.level + 4 && v.enemyTactics.length === base.enemyTactics.length + 1 && v.reward === Math.round(base.reward * 1.5) && v.id === 'veteran:patrouille');
-  q.xp = DATA.RANKS[3].xp; check('campagne vétéran ouverte au rang 3', Game.campaignUnlocked(q, 'veteran'));
   // primes de campagne : versées une seule fois, quand toutes les missions sont jouées / gagnées
   const z = Game.newProfile(); const st = z.campaigns.reguliere = { played: {}, won: {}, participationPaid: false, completionPaid: false };
   for (const id of C[0].missions.slice(0, -1)) { st.played[id] = true; st.won[id] = true; }
@@ -267,12 +263,10 @@ check('réinitialisation : profil neuf et stockage vidé', Game.reset(storage).c
   const q = Game.newProfile(); q.credits = 2000;
   const ok = Game.buyAttachment(q, 'chargeur') && Game.buyAttachment(q, 'silencieux') && !Game.buyAttachment(q, 'chargeur');
   const vt = 'op_vautour', bel = 'op_belier';
-  const m1 = Game.setAttachment(q, vt, 'chargeur', 'chargeur') && Game.setAttachment(q, vt, 'bouche', 'silencieux') && !Game.setAttachment(q, vt, 'optique', 'lunette') && !Game.setAttachment(q, bel, 'chargeur', 'chargeur');
+  const m1 = Game.setAttachment(q, vt, 'chargeur', 'chargeur') && Game.setAttachment(q, vt, 'bouche', 'silencieux') && !Game.setAttachment(q, vt, 'optique', 'lunette');
   const b = new Battle({ seed: 3, teams: [{ operators: [Game.effectiveDef(q, vt)], tactics: [] }, { operators: ['k_molosse'], tactics: [] }] });
   const u = b.teams[0].units[0], base = DATA.WEAPONS[q.operators[vt].weaponId];
   check('accessoires : achat unique, montage seulement sur une arme compatible, effets dans la bataille (chargeur +50 %, silencieux)', ok && m1 && u.weapon.mag === Math.round(base.mag * 1.5) && u.weapon.silenced === true && u.weapon.damage < base.damage && DATA.WEAPONS[base.id].mag === base.mag, { ok, m1, mag: u.weapon.mag, sil: u.weapon.silenced });
-  q.inventory.weapons.smgsil = true; Game.setWeapon(q, vt, 'smg');
-  check('accessoires : changer d\'arme démonte ceux qui ne vont plus ; la note de combat les compte', !q.operators[vt].attachments.chargeur || Game.attachmentFits('chargeur', 'smg'), q.operators[vt].attachments);
   const r0 = Game.defRating(Object.assign({}, Game.effectiveDef(q, vt), { attachments: {} })), r1 = Game.defRating(Game.effectiveDef(q, vt));
   check('accessoires : +1,5 de note par accessoire monté', Math.abs(r1 - r0 - 1.5 * Object.keys(q.operators[vt].attachments).length) < 1e-9, { r0, r1 });
 }
@@ -286,15 +280,18 @@ check('réinitialisation : profil neuf et stockage vidé', Game.reset(storage).c
   check('sauvegarde d\'une version plus récente : refusée (le QG la met de côté au lieu de l\'écraser)', Game.load({ getItem: () => JSON.stringify(future) }) === null);
 }
 {
-  // ---- seconde faction : Milice du Delta, campagne « Opération Delta » (rang 2), le Colonel ----
-  const q = Game.newProfile();
-  const lockedAt0 = !Game.campaignUnlocked(q, 'delta'); q.xp = DATA.RANKS[2].xp; const openAt2 = Game.campaignUnlocked(q, 'delta');
-  const m = Game.campaignMission('delta', 'd_colonel'), t = Game.buildTeams(q, m);
-  check('Opération Delta : verrouillée puis ouverte au rang 2 ; adversaire « Milice du Delta » mené par le Colonel', lockedAt0 && openAt2 && t[1].name === 'Milice du Delta' && t[1].insignia === 'delta' && t[1].operators[0].id === 'd_colonel' && m.final === true && DATA.CAMPAIGNS.find(c => c.id === 'delta').missions.every(id => DATA.MISSIONS.some(x => x.id === id && x.faction === 'delta')));
-  let fac = { karst: 0, delta: 0 }, colonel = 0; for (let k = 0; k < 200; k++) { const qb = Game.quickBattle(q); fac[qb.faction]++; if (qb.enemy.includes('d_colonel')) colonel++; }
-  check('bataille rapide : Karst ou Delta (environ un tiers), jamais le Colonel', fac.delta > 30 && fac.delta < 100 && colonel === 0, fac);
-  const b = new Battle(Game.battleOptions(q, m, 1)); b.run(); const r = Game.applyRewards(q, m, b.result);
-  check('le Colonel vaincu donne le succès « Le Colonel » (sinon non)', (b.result.winner === 0) === !!q.achievements.colonel, { won: b.result.winner === 0, ach: q.achievements.colonel });
+  // ---- contenu réduit : 5 opérateurs du GIGN, une carte, une arme, une tactique ; adversaire : le Groupe Karst ----
+  const mine = DATA.OPERATORS.filter(o => !o.faction);
+  check('contenu : 5 opérateurs du GIGN, une seule carte (parking), adversaire Karst seulement', mine.length === 5 && mine.every(o => o.unit === 'GIGN (France)') && Object.keys(OT.MAPS).join() === 'parking' && DATA.OPERATORS.every(o => !o.faction || o.faction === 'karst') && DATA.MISSIONS.every(m => m.mapId === 'parking'));
+  const q = Game.newProfile(); let ok = true; for (let k = 0; k < 50; k++) { const qb = Game.quickBattle(q); ok = ok && qb.faction === 'karst' && qb.mapId === 'parking' && qb.enemyTactics.join() === 'tiroir'; }
+  check('bataille rapide : Karst, parking, Tiroir', ok);
+  // migration v2 → v3 : ce qui n'existe plus disparaît, le reste est gardé
+  const v2 = Game.newProfile(); v2.version = 2; v2.credits = 777; v2.operators.op_cobra = { unlocked: true, xp: 50, weaponId: 'carbine', armorId: 'light' }; v2.squad = ['op_cobra', 'op_vautour', 'op_lynx', 'op_granit', 'op_bastion'];
+  v2.operators.op_vautour.weaponId = 'smg'; v2.operators.op_vautour.xp = 230; v2.inventory.weapons = { carbine: true, smg: true, battle: true }; v2.tactics = { owned: { fumigene: true, reco: true }, equipped: ['fumigene', 'reco'] };
+  v2.campaigns = { delta: { played: {}, won: {} }, reguliere: { played: { patrouille: true }, won: {} } }; v2.achievements = { colonel: true, premiere: true };
+  const p3 = Game.load({ getItem: () => JSON.stringify(v2) });
+  check('sauvegarde v2 migrée : recrues et Delta retirées, une arme, le Tiroir, crédits et progression gardés', p3 && p3.version === Game.SAVE_VERSION && !p3.operators.op_cobra && p3.squad.join() === 'op_vautour,op_lynx,op_granit,op_bastion' && p3.operators.op_vautour.weaponId === 'carbine' && p3.operators.op_vautour.xp === 230
+    && Object.keys(p3.inventory.weapons).join() === 'carbine' && p3.tactics.equipped.join() === 'tiroir' && !p3.campaigns.delta && p3.campaigns.reguliere.played.patrouille && !p3.achievements.colonel && p3.achievements.premiere && p3.credits === 777, p3);
 }
 { const q = Game.newProfile(); q.credits = 500;
   const refused = !Game.setArmor(q, 'op_vautour', 'composite'), bought = Game.buyArmor(q, 'composite'), again = !Game.buyArmor(q, 'composite'), set = Game.setArmor(q, 'op_vautour', 'composite');

@@ -15,80 +15,8 @@
     return out;
   }
 
+  // une seule carte pour l'instant : le parking du centre commercial (on retravaille le contenu un élément après l'autre)
   const MAPS = {
-    entrepot: {
-      id: 'entrepot', name: 'Entrepôt des docks', width: 64, depth: 40,
-      // zones de départ (centre + rayon) ; l'équipe A à l'ouest, B à l'est
-      spawns: [ { x: 5.5, z: 20, r: 3.5 }, { x: 58.5, z: 20, r: 3.5 } ],
-      capture: { x: 32, z: 9, r: 6 },   // zone à capturer : allée nord, devant les caisses (le centre est un bâtiment)
-      obstacles: mirrored(64, [
-        // murs périphériques
-        box(-1, -1, 66, 1, 3.2, 'wall', 'mur nord'), box(-1, 40, 66, 1, 3.2, 'wall', 'mur sud'),
-        box(-1, 0, 1, 40, 3.2, 'wall', 'mur ouest'), box(64, 0, 1, 40, 3.2, 'wall', 'mur est'),
-        // conteneurs devant la zone de départ : écran, avec un passage central et deux couloirs latéraux
-        box(11, 7, 2.5, 9, 2.6, 'wall', 'conteneur'), box(11, 24, 2.5, 9, 2.6, 'wall', 'conteneur'),
-        // bâtiment central plein — coupe la carte en deux couloirs nord et sud, aucune vue directe entre les zones de départ
-        box(27, 15, 10, 10, 3.0, 'wall', 'bâtiment'),
-        // piliers au milieu des couloirs nord et sud : cassent les lignes de vue
-        box(31, 5, 2, 2.2, 3.0, 'wall', 'pilier'), box(31, 32.8, 2, 2.2, 3.0, 'wall', 'pilier'),
-        // couverts bas (caisses, barrières, sacs de sable) : cachent accroupi, protègent le bas du corps debout
-        box(15, 19.3, 3, 1.4, 1.1, 'cover', 'palettes'),
-        box(17, 4, 2, 2, 1.1, 'cover', 'caisses'), box(19, 29, 2, 2, 1.1, 'cover', 'caisses'),
-        box(20, 11, 4, 1.2, 1.0, 'cover', 'muret'), box(16, 34, 3, 1.2, 1.1, 'cover', 'barrière'),
-        box(21, 7, 3, 1.2, 1.1, 'cover', 'barrière'), box(24, 29.5, 2, 2, 1.1, 'cover', 'caisses'),
-        box(22, 13.2, 1, 2.4, 0.95, 'cover', 'sacs de sable'), box(22, 24.4, 1, 2.4, 0.95, 'cover', 'sacs de sable'),
-        box(7, 6, 1.5, 1.4, 1.1, 'cover', 'fût'), box(7, 32.6, 1.5, 1.4, 1.1, 'cover', 'fût'),
-        box(26, 9.2, 2.5, 1.2, 1.0, 'cover', 'muret'), box(26, 29.6, 2.5, 1.2, 1.0, 'cover', 'muret'),
-        box(31, 11.5, 2, 1.2, 1.1, 'cover', 'caisses'), box(31, 27.3, 2, 1.2, 1.1, 'cover', 'caisses'),
-      ]),
-    },
-    place: {
-      id: 'place', name: 'Place du marché', width: 70, depth: 44,
-      spawns: [ { x: 5.5, z: 22, r: 3.5 }, { x: 64.5, z: 22, r: 3.5 } ],
-      capture: { x: 35, z: 22, r: 7 },  // la place elle-même
-      obstacles: mirrored(70, [
-        box(-1, -1, 72, 1, 3.2, 'wall', 'mur nord'), box(-1, 44, 72, 1, 3.2, 'wall', 'mur sud'),
-        box(-1, 0, 1, 44, 3.2, 'wall', 'mur ouest'), box(70, 0, 1, 44, 3.2, 'wall', 'mur est'),
-        // immeubles : deux par côté, puis un bloc central qui ferme la vue entre les zones de départ
-        box(10, 2, 8, 10, 4.5, 'wall', 'immeuble'), box(10, 32, 8, 10, 4.5, 'wall', 'immeuble'),
-        box(22, 16, 6, 12, 4.0, 'wall', 'immeuble'),
-        box(30, 11.5, 2, 2, 3.0, 'wall', 'kiosque'), box(30, 30.5, 2, 2, 3.0, 'wall', 'kiosque'),
-        // rues et place : voitures, murets, bancs, fontaine
-        box(26.5, 6, 2, 4.4, 1.4, 'cover', 'voiture'), box(26.5, 33.6, 2, 4.4, 1.4, 'cover', 'voiture'),
-        box(19, 13, 4, 0.8, 1.0, 'cover', 'muret'), box(19, 30.2, 4, 0.8, 1.0, 'cover', 'muret'),
-        box(14, 20, 0.8, 4, 1.0, 'cover', 'muret'), box(7, 8, 1.5, 1.5, 1.1, 'cover', 'bac à fleurs'), box(7, 34.5, 1.5, 1.5, 1.1, 'cover', 'bac à fleurs'),
-        box(30, 18, 2.5, 0.8, 0.8, 'cover', 'banc'), box(30, 25.2, 2.5, 0.8, 0.8, 'cover', 'banc'),
-        box(33, 20.5, 4, 3, 1.1, 'cover', 'fontaine'),
-        box(21, 4, 2, 2, 1.1, 'cover', 'étal'), box(21, 38, 2, 2, 1.1, 'cover', 'étal'),
-        box(31.5, 2.5, 3, 1.2, 1.1, 'cover', 'étal'), box(31.5, 40.3, 3, 1.2, 1.1, 'cover', 'étal'),
-      ]),
-    },
-    raffinerie: {
-      id: 'raffinerie', name: 'Raffinerie', width: 72, depth: 46,
-      spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
-      capture: { x: 36, z: 10, r: 6 },  // aire de pompage nord (le centre est fermé par les cuves)
-      obstacles: mirrored(72, [
-        box(-1, -1, 74, 1, 3.2, 'wall', 'mur nord'), box(-1, 46, 74, 1, 3.2, 'wall', 'mur sud'),
-        box(-1, 0, 1, 46, 3.2, 'wall', 'mur ouest'), box(72, 0, 1, 46, 3.2, 'wall', 'mur est'),
-        // écrans devant les zones de départ
-        box(9, 15, 2, 5, 2.6, 'wall', 'conteneur'), box(9, 26, 2, 5, 2.6, 'wall', 'conteneur'),
-        // cuves (hautes, rondes au rendu) et station de pompage au centre
-        box(14, 5, 6, 6, 5.0, 'wall', 'cuve'), box(14, 35, 6, 6, 5.0, 'wall', 'cuve'),
-        box(27, 17, 8, 12, 5.0, 'wall', 'cuve'),
-        box(34, 21, 4, 4, 3.0, 'wall', 'pompe'),
-        // passerelles : piliers
-        box(22, 3, 1.5, 1.5, 3.0, 'wall', 'pilier'), box(22, 41.5, 1.5, 1.5, 3.0, 'wall', 'pilier'),
-        // tuyauteries basses, fûts, armoires électriques (couverts)
-        box(8, 20.5, 1, 5, 1.2, 'cover', 'tuyauterie'), box(22, 10, 8, 1, 1.2, 'cover', 'tuyauterie'), box(22, 35, 8, 1, 1.2, 'cover', 'tuyauterie'),
-        box(20, 22.5, 1.5, 1.5, 1.1, 'cover', 'fût'), box(10, 11, 1.5, 1.5, 1.1, 'cover', 'fût'), box(10, 33.5, 1.5, 1.5, 1.1, 'cover', 'fût'),
-        box(30, 8, 2, 1.5, 1.1, 'cover', 'armoire'), box(30, 36.5, 2, 1.5, 1.1, 'cover', 'armoire'),
-        // silos au milieu des couloirs nord et sud : cassent les longues lignes de vue (sinon le défenseur domine)
-        box(29, 2, 3, 3, 4.0, 'wall', 'cuve'), box(29, 41, 3, 3, 4.0, 'wall', 'cuve'),
-        box(18, 20, 2, 6, 2.6, 'wall', 'conteneur'),
-        box(16, 15.5, 3, 1, 1.0, 'cover', 'muret'), box(16, 29.5, 3, 1, 1.0, 'cover', 'muret'),
-        box(26, 3, 3, 1.2, 1.1, 'cover', 'caisses'), box(26, 41.8, 3, 1.2, 1.1, 'cover', 'caisses'),
-      ]),
-    },
     parking: {
       id: 'parking', name: 'Parking du centre commercial', width: 72, depth: 46,
       spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
@@ -120,32 +48,6 @@
         box(8, 6, 1.5, 1.4, 1.1, 'cover', 'fût'), box(8, 38.6, 1.5, 1.4, 1.1, 'cover', 'fût'),
         box(16, 11, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'), box(16, 32.6, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'),
         box(26.5, 38, 3, 1.2, 1.0, 'cover', 'muret'), box(26.5, 7, 3, 1.2, 1.0, 'cover', 'muret'),
-      ]),
-    },
-    // ---- Gare de triage : voies est-ouest, wagons couverts (murs) et wagons plats (couverts bas), poste d'aiguillage au centre ----
-    gare: {
-      id: 'gare', name: 'Gare de triage', width: 72, depth: 46,
-      spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
-      capture: { x: 36, z: 37, r: 6 },   // le quai sud, devant la halle aux marchandises
-      obstacles: mirrored(72, [
-        box(-1, -1, 74, 1, 3.2, 'wall', 'mur nord'), box(-1, 46, 74, 1, 3.2, 'wall', 'mur sud'),
-        box(-1, 0, 1, 46, 3.2, 'wall', 'mur ouest'), box(72, 0, 1, 46, 3.2, 'wall', 'mur est'),
-        // au centre : le poste d'aiguillage (coupe la vue d'un départ à l'autre) et la halle aux marchandises au sud
-        box(33, 17, 6, 11, 5.5, 'wall', 'poste d\'aiguillage'), box(30, 43, 12, 3, 4.0, 'wall', 'halle'),
-        // conteneurs empilés devant les zones de départ
-        box(11, 15, 2.5, 6, 2.6, 'wall', 'conteneur'), box(11, 26, 2.5, 6, 2.6, 'wall', 'conteneur'),
-        // voie 1 (nord) : wagons couverts ; voie 2 : wagons plats ; voie 3 (sud) : wagon-citerne et wagon couvert
-        box(15, 6, 12, 2.6, 3.2, 'wall', 'wagon'), box(29.5, 6, 2, 2.6, 1.0, 'cover', 'butoir'),
-        box(17, 12, 9, 2.4, 1.3, 'cover', 'wagon plat'),
-        box(16, 31, 9, 2.4, 1.3, 'cover', 'wagon plat'),
-        box(15, 37, 11, 2.6, 3.0, 'wall', 'wagon-citerne'),
-        // quai central bas (couvert) et abri de quai
-        box(20, 21.5, 8, 1.2, 1.0, 'cover', 'quai'), box(26.5, 24, 1.5, 1.5, 2.8, 'wall', 'pilier'),
-        // matériel de voie : caisses, traverses empilées (palettes), fûts, sacs de sable
-        box(8, 4, 2, 2, 1.1, 'cover', 'caisses'), box(8, 40, 2, 2, 1.1, 'cover', 'caisses'),
-        box(28, 13, 3, 1.4, 1.1, 'cover', 'palettes'), box(28, 31.5, 3, 1.4, 1.1, 'cover', 'palettes'),
-        box(30, 26, 1.4, 1.4, 1.1, 'cover', 'fût'), box(24, 17, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'),
-        box(23, 27, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'), box(31, 36, 2.5, 1.0, 1.0, 'cover', 'sacs de sable'),
       ]),
     },
   };

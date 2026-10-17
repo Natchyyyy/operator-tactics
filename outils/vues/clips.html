@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Animations du soldat</title><style>body{margin:0;background:#2a3036;font:12px sans-serif;color:#ddd}canvas{display:block}#t{position:absolute;left:0;top:0;z-index:2;width:150px}#t div{white-space:normal!important;width:150px}#t div{position:absolute;white-space:nowrap}</style></head><body><div id="t"></div>
+<script src="../../web/three.min.js"></script><script src="../../web/figure.js"></script><script src="../../web/gltf.js"></script><script src="../../web/modeles/soldat.js"></script><script src="../../web/modeles/decor.js"></script><script src="../../web/modeles3d.js"></script><script src="../../web/soldat3d.js"></script>
+<script>
+// Planche : chaque ligne une animation, chaque colonne un instant ; soldat du jeu (Soldat3D) avec son arme,
+// vu de 3/4 avant et de haut. La flèche rouge au sol = direction « face » du jeu (+Z) ; l'arme doit la suivre.
+// ?a=Clip1,Clip2 (défaut : toutes) ; ?n=5 colonnes ; ?vue=haut
+const q = new URLSearchParams(location.search), N = +(q.get('n') || 5), vue = q.get('vue') || 'face', haut = vue === 'haut';
+OT.Soldat3D.whenReady(() => {
+  const names = (q.get('a') || Object.keys(OT.Soldat3D.clips).join(',')).split(',');
+  const W = 220 * N + 160, H = 220 * names.length + 40, r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; document.body.appendChild(r.domElement);
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(0x3a4248);
+  sc.add(new THREE.HemisphereLight(0xffffff, 0x404040, 1.6)); const d = new THREE.DirectionalLight(0xfff0d8, 2.4); d.position.set(3, 5, 4); sc.add(d);
+  const S = 2.6, cols = N, rows = names.length;
+  const k85 = 220 / S, cam = new THREE.OrthographicCamera(-W / 2 / k85, W / 2 / k85, H / 2 / k85, -H / 2 / k85, 0.1, 400);
+  const P = { face: [0, 30, 100], haut: [0, 100, 0.01], cote: [100, 30, 0], dos: [0, 30, -100] }[vue]; cam.position.set(P[0], P[1], P[2]); if (haut) cam.up.set(0, 0, -1);
+  cam.lookAt(0, 0, 0);
+  const T = document.getElementById('t');
+  names.forEach((n, i) => for_(n, i));
+  function for_(n, i) {
+    for (let k = 0; k < N; k++) {
+      const f = OT.Soldat3D.create({ uniform: 0x4a4e55, weapon: 'carbine' }); if (!f) return;
+      f.play(n, { time: k / N }); f.update(0); f.body.rotation.y = OT.Soldat3D.yawFix[n] || 0; f.body.updateMatrixWorld(true); f.placeWeapon(true, 0);
+      const x = (k - (N - 1) / 2) * S + 0.6, y = -(i - (rows - 1) / 2) * S;
+      if (haut) f.group.position.set(x, 0, -y); else if (vue === 'cote') f.group.position.set(0, y - 0.9, -x); else f.group.position.set(vue === 'dos' ? -x : x, y - 0.9, 0);
+      const arr = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0.02, 0), 0.9, 0xff3030, 0.2, 0.12); f.group.add(arr);
+      sc.add(f.group);
+    }
+    const p = { x: -1 + 150 / W, y: 1 - 2 * (20 + i * 220 + 100) / H };
+    const el = document.createElement('div'); el.textContent = n + ' (' + (OT.Soldat3D.clips[n] ? OT.Soldat3D.clips[n].duration.toFixed(1) : '?') + ' s, corr. ' + ((OT.Soldat3D.yawFix && OT.Soldat3D.yawFix[n] || 0) * 57.3).toFixed(0) + '°)';
+    el.style.left = '4px'; el.style.top = ((1 - p.y) / 2 * H) + 'px'; T.appendChild(el);
+  }
+  r.render(sc, cam); window.PRET = true;
+});
+</script></body></html>

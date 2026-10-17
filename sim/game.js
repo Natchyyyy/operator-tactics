@@ -5,13 +5,27 @@
   const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TRAITS, TACTICS, INSIGNIAS, UNIFORMS, RANKS, PACKS, ACHIEVEMENTS, PROMOTION_LEVELS, CONTRACT, MISSIONS, CHALLENGES, PRICES, XP_TABLE, LEVEL_STAT_BONUS, MAX_LEVEL , SYNERGIES, WOUND , CAMPAIGNS, QUICK, SPECIAL_OPS, DAILY, ATTACHMENTS, FACTIONS } = DATA;
   const STATS = ['marksmanship', 'reflexes', 'mobility', 'perception', 'composure', 'endurance'];
   const SAVE_KEY = 'operator-tactics-save-v1';   // la clé ne change pas : la version est DANS la sauvegarde (migrations ci-dessous)
-  const SAVE_VERSION = 2;
+  const SAVE_VERSION = 3;
   // migrations successives : MIGRATIONS[v] transforme une sauvegarde de version v en version v + 1
   const MIGRATIONS = {
     1: (p) => {   // v1 → v2 : accessoires, contrats du jour, carrière détaillée (champs ajoutés vides)
       p.inventory = p.inventory || {}; p.inventory.attachments = p.inventory.attachments || {};
       for (const id in (p.operators || {})) p.operators[id].attachments = p.operators[id].attachments || {};
       p.career = Object.assign({ headshots: 0, streaks: 0, group: 0, revenge: 0, veteran: 0, revives: 0, shots: 0, hits: 0, damage: 0, maps: {}, recent: [] }, p.career || {});
+    },
+    2: (p) => {   // v2 → v3 : contenu réduit (5 opérateurs du GIGN, une arme, une tactique, une carte) — on enlève ce qui n'existe plus
+      const keep = new Set(OPERATORS.filter(o => !o.faction).map(o => o.id));
+      for (const id in (p.operators || {})) if (!keep.has(id)) { delete p.operators[id]; if (p.perks) delete p.perks[id]; }
+      for (const id of keep) if (p.operators && !p.operators[id]) p.operators[id] = newProfile().operators[id];
+      for (const id in (p.operators || {})) { const st = p.operators[id]; st.weaponId = 'carbine'; for (const sl in (st.attachments || {})) if (!ATTACHMENTS[st.attachments[sl]]) delete st.attachments[sl]; }
+      p.squad = (p.squad || []).filter(id => keep.has(id)); if (p.squad.length < 3) p.squad = STARTING.slice();
+      p.inventory = p.inventory || {}; p.inventory.weapons = { carbine: true };
+      p.tactics = { owned: { tiroir: true }, equipped: ['tiroir'] };
+      if (p.campaigns) for (const k in p.campaigns) if (!CAMPAIGNS.some(c => c.id === k)) delete p.campaigns[k];
+      if (p.achievements) for (const k in p.achievements) if (!ACHIEVEMENTS.some(a => a.id === k)) delete p.achievements[k];
+      if (p.challenges) for (const k in p.challenges) if (!CHALLENGES.some(c => c.id === k)) delete p.challenges[k];
+      if (p.daily) p.daily.list = (p.daily.list || []).filter(c => DAILY.some(d => d.id === c.id));
+      p.league = null;   // la saison en cours se jouait sur les anciennes cartes : on en recommence une
     },
   };
   function migrate(p) { if (!p.version) p.version = 1; while (p.version < SAVE_VERSION) { MIGRATIONS[p.version](p); p.version++; } return p; }
@@ -24,11 +38,11 @@
       tours: STARTING.includes(o.id) ? CONTRACT.startingTours : CONTRACT.tours[o.rarity], traits: [], pendingPromotions: [], history: [], dupes: 0, headgear: 'casque', attachments: {} };
     return {
       version: SAVE_VERSION, credits: 300, operators, squad: STARTING.slice(), order: 'assault',
-      inventory: { weapons: { carbine: true, smg: true, dmr: true, lmg: true, shotgun: true }, armors: { light: true, medium: true, heavy: true }, attachments: {} }, // battle, smgsil : à acheter
+      inventory: { weapons: { carbine: true }, armors: { light: true, medium: true, heavy: true }, attachments: {} },
       career: { battles: 0, wins: 0, losses: 0, draws: 0, kills: 0, losses_units: 0, headshots: 0, streaks: 0, group: 0, revenge: 0, veteran: 0, revives: 0, shots: 0, hits: 0, damage: 0, maps: {}, recent: [] }, missions: {}, challenges: {}, lastSeed: null,
       // méta à la manière des jeux de cartes : nom et insigne d'équipe, uniforme, rang du joueur, tactiques, perks par opérateur
       teamName: 'Alpha', insignia: 'etoile', uniform: 'olive', unlocked: { insignias: ['etoile', 'bouclier'], uniforms: ['olive'] },
-      xp: 0, tactics: { owned: { fumigene: true, drill: true }, equipped: ['fumigene', 'drill'] }, perks: {}, packsOpened: 0,
+      xp: 0, tactics: { owned: { tiroir: true }, equipped: ['tiroir'] }, perks: {}, packsOpened: 0,
       league: null, leagueSeasons: 0, achievements: {}, tacticsUsed: 0,
       headgear: { casque: true, casque_lunettes: true },   // couvre-chefs possédés (communs à tous les opérateurs)
       campaigns: {}, quick: { wins: 0, played: 0 }, freePacks: {}, ops: { wins: 0, captureWins: 0, cleanWins: 0, done: {} },
@@ -225,17 +239,16 @@
   // Bataille rapide : adversaire de la Karst au niveau de votre puissance d'équipe, carte et objectif tirés au sort.
   function quickBattle(profile, rng) {
     rng = rng || Math.random; const pick = (a) => a[Math.floor(rng() * a.length)];
-    const faction = rng() < 0.3 ? 'delta' : 'karst';   // une fois sur trois, la Milice du Delta (sans son chef)
-    const karst = OPERATORS.filter(o => o.faction === faction && o.id !== 'd_colonel').map(o => o.id);
+    const faction = 'karst';
+    const karst = OPERATORS.filter(o => o.faction === faction).map(o => o.id);
     for (let i = karst.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [karst[i], karst[j]] = [karst[j], karst[i]]; }
     // niveau : le plus haut dont la note moyenne reste un peu sous la vôtre (vos tactiques et vos ordres font la différence)
     const target = teamRating(profile) - 2, rate = (lv) => karst.slice(0, 5).reduce((s, id) => s + defRating(enemyDef(id, lv)), 0) / 5;
     let level = 0; while (level < 12 && rate(level + 1) <= target) level++;
     const size = rate(0) > target + 4 ? 4 : 5;                     // escouade de recrues face à des vétérans : un adversaire de moins
     const objective = pick(['eliminate', 'eliminate', 'capture', 'capture', 'hold']);
-    const tac = Object.keys(TACTICS); const t1 = pick(tac), t2 = pick(tac.filter(t => t !== t1));
-    return { id: 'rapide', name: 'Bataille rapide', quick: true, faction, desc: 'Un adversaire à votre mesure.', mapId: pick(['entrepot', 'place', 'raffinerie', 'parking', 'gare']), enemy: karst.slice(0, size), level,
-      order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: rng() < 0.5 ? [t1] : [t1, t2], reward: QUICK.reward, xp: QUICK.xp, difficulty: 2,
+    return { id: 'rapide', name: 'Bataille rapide', quick: true, faction, desc: 'Un adversaire à votre mesure.', mapId: 'parking', enemy: karst.slice(0, size), level,
+      order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: Object.keys(TACTICS), reward: QUICK.reward, xp: QUICK.xp, difficulty: 2,
       conditions: pick(['jour', 'jour', 'jour', 'jour', 'jour', 'nuit', 'brouillard', 'pluie']) };
   }
   // niveau de l'adversaire de bataille rapide : l'écart de puissance avec une escouade de recrues, converti en niveaux
@@ -381,10 +394,8 @@
   const CHALLENGE_CHECKS = {
     sans_perte:   (m, r) => r.winner === 0 && r.teams[0].alive === r.teams[0].units.length,
     a_trois:      (m, r) => r.winner === 0 && r.teams[0].units.length === 3,
-    methodique:   (m, r) => r.winner === 0 && m.id === 'embuscade' && r.teams[0].orderId === 'careful',
     pas_un_pouce: (m, r) => r.winner === 0 && m.id === 'tenir' && r.teams[0].units.length === 5 && r.teams[0].alive === 5,
     tireur:       (m, r) => r.teams[0].units.some(u => u.role === ROLES.marksman.name && u.stats.kills >= 3),
-    silence:      (m, r) => r.winner === 0 && m.id === 'nuit' && r.teams[0].units.every(u => u.stats.timeSuppressed <= 3),
     elite:        (m, r) => r.winner === 0 && m.id === 'elite',
   };
   function checkChallenges(profile, mission, result) {
@@ -433,7 +444,7 @@
     const c = profile.career, us = result.teams[0].units, sum = (k) => us.reduce((s, u) => s + (u.stats[k] || 0), 0);
     for (const k of ['headshots', 'streaks', 'group', 'revenge', 'veteran', 'revives', 'shots', 'hits']) c[k] = (c[k] || 0) + sum(k);
     c.damage = Math.round((c.damage || 0) + sum('damageDealt'));
-    const mapId = mission.mapId || 'entrepot'; c.maps = c.maps || {}; c.maps[mapId] = c.maps[mapId] || { b: 0, w: 0 }; c.maps[mapId].b++; if (r.won) c.maps[mapId].w++;
+    const mapId = mission.mapId || 'parking'; c.maps = c.maps || {}; c.maps[mapId] = c.maps[mapId] || { b: 0, w: 0 }; c.maps[mapId].b++; if (r.won) c.maps[mapId].w++;
     if (r.won && mission.conditions === 'nuit') c.nightWins = (c.nightWins || 0) + 1;
     if (r.won && mission.objective === 'capture') c.captureWins = (c.captureWins || 0) + 1;
     c.recent = (c.recent || []).concat([{ n: c.battles, m: mission.name, map: mapId, cond: mission.conditions || 'jour', res: r.won ? 'v' : r.draw ? 'n' : 'd', k: result.teams[0].kills || 0, l: us.filter(u => !u.alive).length, t: Math.round(result.duration || 0) }]).slice(-12);
@@ -464,10 +475,8 @@
     premiere:   (p) => p.career.wins >= 1,
     dix:        (p) => p.career.wins >= 10,
     chasseur:   (p) => p.career.kills >= 50,
-    collection: (p) => Object.values(p.operators).filter(o => o.unlocked).length >= 10,
     veteran:    (p) => Object.values(p.operators).some(o => levelFor(o.xp) >= 5),
     podium:     (p) => !!p.podium,
-    tacticien:  (p) => (p.tacticsUsed || 0) >= 20,
     intact:     (p, r) => !!r && r.winner === 0 && r.teams[0].units.length === 5 && r.teams[0].units.every(u => u.alive && u.hp / u.maxHp > 0.9),
     croise:     (p) => (p.career.group || 0) >= 10,
     precision:  (p) => (p.career.headshots || 0) >= 25,
@@ -475,7 +484,6 @@
     nocturne:   (p) => (p.career.nightWins || 0) >= 5,
     terrain:    (p) => (p.career.captureWins || 0) >= 5,
     campagne:   (p) => campaignProgress(p, 'reguliere').won >= CAMPAIGNS[0].missions.length,
-    colonel:    (p) => !!(p.campaigns && p.campaigns.delta && p.campaigns.delta.won && p.campaigns.delta.won.d_colonel),
   };
   // ---- Contrats du jour ----------------------------------------------------------------------------------------------
   // dailyContracts(profile, date) : les trois contrats de la date (AAAA-MM-JJ), tirés d'une graine dérivée de la date ;
@@ -504,12 +512,11 @@
   // progression vers chaque succès (onglet Carrière) : [valeur, objectif] ; null = succès d'un seul coup (pas de jauge)
   const ACHIEVEMENT_PROGRESS = {
     premiere: (p) => [p.career.wins, 1], dix: (p) => [p.career.wins, 10], chasseur: (p) => [p.career.kills, 50],
-    collection: (p) => [Object.values(p.operators).filter(o => o.unlocked).length, 10],
     veteran: (p) => [Math.max(...Object.values(p.operators).filter(o => o.unlocked).map(o => levelFor(o.xp))), 5],
-    podium: () => null, tacticien: (p) => [p.tacticsUsed || 0, 20], intact: () => null,
+    podium: () => null, intact: () => null,
     croise: (p) => [p.career.group || 0, 10], precision: (p) => [p.career.headshots || 0, 25], sauveteur: (p) => [p.career.revives || 0, 5],
     nocturne: (p) => [p.career.nightWins || 0, 5], terrain: (p) => [p.career.captureWins || 0, 5],
-    campagne: (p) => [campaignProgress(p, 'reguliere').won, CAMPAIGNS[0].missions.length], colonel: () => null,
+    campagne: (p) => [campaignProgress(p, 'reguliere').won, CAMPAIGNS[0].missions.length],
   };
   function achievementProgress(profile, id) { const f = ACHIEVEMENT_PROGRESS[id]; const v = f ? f(profile) : null; return v ? [Math.min(v[0], v[1]), v[1]] : null; }
   function checkAchievements(profile, result) {

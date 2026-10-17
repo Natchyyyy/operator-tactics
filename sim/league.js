@@ -6,17 +6,17 @@
   const { OPERATORS, ORDERS, TACTICS } = DATA;
 
   const AI_TEAMS = [
-    { id: 'spearhead', name: 'Fer de lance', insignia: '⚔', strength: 1.0, order: 'assault', tactics: ['blitz', 'fumigene'] },
-    { id: 'kopassus', name: 'Garde nocturne', insignia: '☾', strength: 1.1, order: 'hold', tactics: ['reco', 'discipline'] },
-    { id: 'delta', name: 'Delta Nord', insignia: '△', strength: 0.9, order: 'hold', tactics: ['retranche', 'soins'] },
-    { id: 'force1', name: 'Force Un', insignia: '①', strength: 0.8, order: 'careful', tactics: ['drill'] },
-    { id: 'wolf', name: 'Loup Solitaire', insignia: '✦', strength: 1.2, order: 'assault', tactics: ['reco', 'barrage', 'soins'] },
-    { id: 'tf141', name: 'Groupe 141', insignia: '☢', strength: 1.0, order: 'assault', tactics: ['fumigene', 'soins'] },
-    { id: 'squadron', name: 'Escadron', insignia: '✈', strength: 1.1, order: 'hold', tactics: ['retranche', 'barrage'] },
-    { id: 'punya', name: 'Punya Shira', insignia: '✚', strength: 1.3, order: 'assault', tactics: ['discipline', 'reco', 'fumigene'] },
-    { id: 'iker', name: 'Iker Delga', insignia: '◈', strength: 0.7, order: 'careful', tactics: [] },
+    { id: 'spearhead', name: 'Fer de lance', insignia: '⚔', strength: 1.0, order: 'assault', tactics: ['tiroir'] },
+    { id: 'kopassus', name: 'Garde nocturne', insignia: '☾', strength: 1.1, order: 'hold', tactics: ['tiroir'] },
+    { id: 'delta', name: 'Delta Nord', insignia: '△', strength: 0.9, order: 'hold', tactics: ['tiroir'] },
+    { id: 'force1', name: 'Force Un', insignia: '①', strength: 0.8, order: 'careful', tactics: ['tiroir'] },
+    { id: 'wolf', name: 'Loup Solitaire', insignia: '✦', strength: 1.2, order: 'assault', tactics: ['tiroir'] },
+    { id: 'tf141', name: 'Groupe 141', insignia: '☢', strength: 1.0, order: 'assault', tactics: ['tiroir'] },
+    { id: 'squadron', name: 'Escadron', insignia: '✈', strength: 1.1, order: 'hold', tactics: ['tiroir'] },
+    { id: 'punya', name: 'Punya Shira', insignia: '✚', strength: 1.3, order: 'assault', tactics: ['tiroir'] },
+    { id: 'iker', name: 'Iker Delga', insignia: '◈', strength: 0.7, order: 'careful', tactics: ['tiroir'] },
   ];
-  const MAPS_ROT = ['entrepot', 'place', 'raffinerie'];
+  const MAPS_ROT = ['parking'];   // une seule carte pour l'instant
   const SEASON_BATTLES = 8;      // batailles du joueur par saison
   const QUALIFY = 3;             // batailles minimum pour être classé
   const PRIZES = [500, 300, 200];  // crédits des trois premiers ; prime de participation si toutes les batailles jouées
@@ -80,7 +80,7 @@
     for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(rng.next() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
     for (let i = 0; i + 1 < ids.length; i += 2) {
       const ta = AI_TEAMS.find(t => t.id === ids[i]), tb = AI_TEAMS.find(t => t.id === ids[i + 1]);
-      const b = new Battle({ seed: (season.seed + season.round * 101 + i * 7) >>> 0, mapId: MAPS_ROT[(season.round + i) % 3], teams: [aiTeamDef(ta, season.seed, season.round), aiTeamDef(tb, season.seed, season.round)], timeLimit: 180 });
+      const b = new Battle({ seed: (season.seed + season.round * 101 + i * 7) >>> 0, mapId: MAPS_ROT[(season.round + i) % MAPS_ROT.length], teams: [aiTeamDef(ta, season.seed, season.round), aiTeamDef(tb, season.seed, season.round)], timeLimit: 180 });
       b.run();
       const r = b.result; record(season.standings, ta.id, tb.id, r.winner === 0 ? 'a' : r.winner === 1 ? 'b' : null, r.teams[0].hpPct - r.teams[1].hpPct);
     }

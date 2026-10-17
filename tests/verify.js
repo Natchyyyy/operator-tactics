@@ -1,6 +1,7 @@
 // Vérifications automatiques du moteur de combat. usage : node tests/verify.js [nombre de graines]
 // Chaque test vérifie un comportement RÉEL de la simulation (pas une valeur affichée).
 const OT = Object.assign({}, require('../sim/rng.js'), require('../sim/data.js'), require('../sim/map.js'), require('../sim/engine.js'));
+require('./anciens.js')(OT);   // anciens terrains, armes et opérateurs : bancs d'essai des mécanismes du moteur
 const { Battle, GameMap, MAPS, DATA } = OT;
 let pass = 0, fail = 0;
 function check(name, cond, info) { if (cond) pass++; else fail++; console.log((cond ? 'PASS ' : 'FAIL ') + name + (cond ? '' : '  -> ' + (info === undefined ? '' : JSON.stringify(info)))); }
@@ -261,52 +262,6 @@ function duel(opts) {
 }
 
 {
-  // tactiques actives : effets vérifiés dans la simulation
-  const mkT = (tactics, seed) => { const t = Battle.defaultTeams(); t[0].tactics = tactics; t[1].tactics = []; return new Battle({ seed: seed || 3, teams: t }); };
-  // fumigène : coupe une ligne de vue existante dans les deux sens, disparaît après 15 s
-  let b = mkT(['fumigene']); while (b.t < 8) b.step();
-  const u = b.teams[0].units.find(x => x.alive), e = b.teams[1].units.find(x => x.alive);
-  u.x = 10; u.z = 2.5; e.x = 26; e.z = 2.5; u.knowledge = { [e.id]: { x: e.x, z: e.z, t: b.t, seen: true } };
-  for (const o of b.teams[0].units) if (o !== u) { o.x = 10; o.z = 3.5; o.knowledge = {}; }
-  const before = b.canSee(u, e) && b.canSee(e, u);
-  const r = b.useTactic(0, 'fumigene');
-  const after = b.canSee(u, e) || b.canSee(e, u);
-  check('fumigène : la ligne de vue libre est coupée dans les deux sens, et la carte compte un obstacle temporaire', r.ok && before && !after && b.map.dynamic.length === 1, { r, before, after, smoke: b.map.dynamic[0] });
-  check('fumigène : les opérateurs peuvent le traverser (pas un obstacle de marche)', !b.map.insideObstacle(b.map.dynamic[0].x + 4, b.map.dynamic[0].z + 4));
-  const t0 = b.t; while (b.t < t0 + 15.2 && !b.over) b.step();
-  check('fumigène : dissipé après 15 s', b.map.dynamic.length === 0);
-  check('fumigène : un emploi consommé sur deux, recharge de 25 s en cours juste après', b.teams[0].tactics.fumigene.uses === 1 && b.teams[0].tactics.fumigene.cooldownUntil > t0);
-  // reconnaissance : toute l'escouade connaît toutes les positions adverses pendant 8 s
-  b = mkT(['reco']); while (b.t < 3) b.step();
-  for (const o of b.teams[0].units) o.knowledge = {};
-  check('drone : accepté même sans contact', b.useTactic(0, 'reco').ok);
-  b.step(); b.step();
-  const all = b.teams[0].units.filter(x => x.alive).every(o => b.teams[1].units.filter(x => x.alive).every(en => o.knowledge[en.id] && (o.knowledge[en.id].source === 'drone' || o.knowledge[en.id].source === 'vue') && Math.abs(o.knowledge[en.id].x - en.x) < 0.5 && Math.abs(o.knowledge[en.id].z - en.z) < 0.5));
-  check('drone : chaque opérateur connaît la position exacte de chaque adversaire', all);
-  check('drone : un seul emploi', !b.canUseTactic(0, 'reco').ok);
-  // soins : +35 PV en 5 s sur le plus blessé, sans dépasser le maximum
-  b = mkT(['soins']); while (b.t < 2) b.step();
-  const w = b.teams[0].units[1]; w.hp = 20; w.status = 'critical'; const others = b.teams[0].units.filter(x => x !== w); others.forEach(o => { o.hp = o.maxHp; });
-  check('soins : accepté quand quelqu\'un est blessé', b.useTactic(0, 'soins').ok && w.healing);
-  const hp0 = w.hp; for (let i = 0; i < 25; i++) b.updateTactics(), b.t += 0.1; // 2,5 s
-  check('soins : ~17 PV récupérés après 2,5 s, statut recalculé', w.hp - hp0 > 15 && w.hp - hp0 < 19 && w.status !== 'critical', { gain: w.hp - hp0, status: w.status });
-  for (let i = 0; i < 40; i++) b.updateTactics(), b.t += 0.1;
-  check('soins : 35 PV au total, puis arrêt', Math.abs(w.hp - hp0 - 35) < 0.5 && !w.healing, w.hp - hp0);
-  // mortier : 3 obus après 4 s, dégâts et suppression dans la zone, comptés dans le résultat
-  b = mkT(['barrage']); while (b.t < 3) b.step();
-  const tgt = b.teams[1].units[0]; tgt.x = 40; tgt.z = 5; b.teams[0].units[0].knowledge = { [tgt.id]: { x: 40, z: 5, t: b.t, seen: true } };
-  b.rng.gauss = () => 0; // obus au centre pour le test
-  check('mortier : accepté avec une position connue', b.useTactic(0, 'barrage').ok && b.pendingShells.length === 3);
-  const hpT = tgt.hp; const alive0 = tgt.alive; b.rng.gauss = () => 0;
-  for (let i = 0; i < 60; i++) { b.t += 0.1; b.updateTactics(); }
-  check('mortier : la cible au point d\'impact a subi des dégâts (ou est neutralisée) et la suppression', (tgt.hp < hpT || !tgt.alive) && (tgt.suppression > 0 || !tgt.alive) && b.pendingShells.length === 0, { hpT, hp: tgt.hp, alive0, alive: tgt.alive, sup: tgt.suppression });
-  // passives : mesurées
-  b = mkT(['drill']); const v1 = b.teams[0].units[0].speed(); const b0 = mkT([]); const v0 = b0.teams[0].units[0].speed();
-  check('exercice de base : +12 % de vitesse au début', Math.abs(v1 / v0 - 1.12) < 0.01);
-  b = mkT(['discipline']); const bd = mkT([]);
-  check('discipline de feu : seuil de tir ×1,5', Math.abs(b.fireThreshold(b.teams[0].units[0]) / bd.fireThreshold(bd.teams[0].units[0]) - 1.5) < 0.01);
-  // tactiques inconnues / refus
-  check('une tactique non équipée est refusée', !mkT([]).useTactic(0, 'fumigene').ok);
   // spéciaux : les compteurs existent et le résultat les agrège
   const bs = new Battle({ seed: 2 }); bs.run(); const sp = bs.result.teams[0].specials;
   check('résultat : spéciaux agrégés (tête, séries, revanches, vétérans, groupe) et état d\'équipe en %', sp && ['headshots', 'streaks', 'revenge', 'veteran', 'group'].every(k => typeof sp[k] === 'number') && bs.result.teams.every(t => t.hpPct >= 0 && t.hpPct <= 100) && sp.headshots === bs.teams[0].units.reduce((a, x) => a + x.stats.headshots, 0));
@@ -402,46 +357,17 @@ function duel(opts) {
 
 {
   // ---- revoir une bataille : mêmes options + mêmes commandes au même pas → bataille identique ----
-  const mk = (extra) => new Battle(Object.assign({ seed: 11, mapId: 'place', teams: [{ name: 'A', order: 'careful', operators: ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'], tactics: ['fumigene', 'reco', 'soins'] }, { name: 'B', order: 'assault', operators: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal', 'k_fauve'], tactics: ['barrage', 'fumigene'], autoTactics: true }] }, extra || {}));
+  const mk = (extra) => new Battle(Object.assign({ seed: 11, mapId: 'place', teams: [{ name: 'A', order: 'careful', operators: ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'], tactics: ['tiroir'] }, { name: 'B', order: 'assault', operators: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal', 'k_fauve'], tactics: ['tiroir'], autoTactics: true }] }, extra || {}));
   const a = mk(); let used = 0;
   while (!a.over && a.t < 250) {
     if (a.tick === 60) a.command('order', 0, 'assault');
-    if (a.tick % 50 === 25) for (const id of ['reco', 'fumigene', 'soins']) if (a.command('tactic', 0, id).ok) used++;
+    if (a.tick === 300 && a.command('order', 0, 'careful').ok) used++;
     a.step();
   }
   const b = mk({ replayInputs: a.inputs }); b.run(300);
   const sig = (x) => JSON.stringify([x.result.winner, x.t, x.log.length, x.units.map(u => [Math.round(u.hp * 10), u.stats.shots, u.stats.kills, Math.round(u.x * 100)])]);
   check('revoir : la bataille rejouée est identique (vainqueur, durée, journal, chaque opérateur), commandes du joueur comprises', a.inputs.length >= 2 && used >= 1 && sig(a) === sig(b), { inputs: a.inputs.length, used, a: sig(a).slice(0, 120), b: sig(b).slice(0, 120) });
-  check('revoir : les commandes sont refusées pendant la revue', !b.command('tactic', 0, 'reco').ok || b.over);
-}
-
-{
-  // ---- tactiques reprises du jeu d'origine ----
-  const mkT = (tac, extra) => new Battle(Object.assign({ seed: 4, mapId: 'place', teams: [{ name: 'A', operators: ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'], tactics: tac }, { name: 'B', operators: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal', 'k_fauve'] }] }, extra || {}));
-  // Tir à la tête : la proportion de tirs à la tête mesurée sur beaucoup de touches
-  const headRate = (tac) => { const b = mkT(tac); const u = b.teams[0].units[0], e = b.teams[1].units[0]; e.armor = { torso: 0, head: 0, name: 'aucune' }; let h = 0; for (let i = 0; i < 4000; i++) { e.hp = 1e9; e.alive = true; const before = u.stats.headshots; b.applyHit(u, e, 10); if (u.stats.headshots > before) h++; } return h / 4000; };
-  const r0 = headRate([]), r1 = headRate(['tete']);
-  check('Tir à la tête : 8 % → 14 % de tirs à la tête (mesuré sur 4 000 touches)', Math.abs(r0 - 0.08) < 0.015 && Math.abs(r1 - 0.14) < 0.02, { r0, r1 });
-  // Camouflage : chance de repérage réduite (mesurée par Monte-Carlo sur la même situation)
-  // une ligne de vue dégagée de 20 m sur la place (cherchée, pas supposée)
-  const mp = new GameMap(MAPS.place); let row = null; for (let z = 3; z < 42 && row === null; z += 0.5) if (mp.hasLOS(20, 1.6, z, 40, 1.25, z) && !mp.insideObstacle(20, z) && !mp.insideObstacle(40, z)) row = z;
-  const spotRate = (tac, t) => { let n = 0; for (let s = 1; s <= 300; s++) { const b = new Battle({ seed: s, mapId: 'place', teams: [{ operators: ['op_vautour'], tactics: [] }, { operators: ['k_vipere'], tactics: tac }] }); const u = b.teams[0].units[0], e = b.teams[1].units[0]; u.x = 20; u.z = row; e.x = 40; e.z = row; u.facing = 0; e.moving = false; e.stance = 'stand'; b.t = t; b.perceive(u); if (u.visible.has(e.id)) n++; } return n / 300; };
-  const s0 = spotRate([], 5), s1 = spotRate(['camouflage'], 5), s2 = spotRate(['camouflage'], 60);
-  check('Camouflage : repérage −35 % les 40 premières secondes, −15 % ensuite', s1 < s0 * 0.8 && s2 > s1 && s2 < s0 * 1.0, { s0, s1, s2 });
-  // Triage : un blessé non touché depuis 6 s remonte jusqu'à 60 %, pas au-delà
-  let b = mkT(['triage']); let u = b.teams[0].units[0]; for (const x of b.units) if (x !== u) x.alive = false; u.hp = u.maxHp * 0.3; u.lastHitAt = 0;
-  for (let i = 0; i < 400; i++) b.updateTactics(), b.t += OT.DT, b.tick++;
-  check('Triage : remonte jusqu\'à 60 % de la vie (2 PV/s), pas au-delà', Math.abs(u.hp - u.maxHp * 0.6) < 0.5, { hp: u.hp, max: u.maxHp });
-  // Frappe aérienne : touche à découvert dans la bande, pas à côté d'un mur haut, pas hors de la bande
-  b = mkT(['frappe']); const A = b.teams[0].units, B = b.teams[1].units;
-  for (const x of B) { x.x = 5; x.z = 40; } const [open, nearWall, out] = B;
-  const im = b.map.obstacles.find(o => o.name === 'immeuble' && o.x > 50 && o.z < 5);    // immeuble nord-est (x 52..60)
-  open.x = im.x - 1.0; open.z = 9; nearWall.x = im.x - 0.3; nearWall.z = 5; out.x = im.x - 0.5; out.z = 20;
-  const hp0 = [open.hp, nearWall.hp, out.hp];
-  b.pendingStrikes = [{ at: 0, cx: im.x - 0.5, cz: 7, dx: 0, dz: 1, half: 6, width: 4, team: 0 }];
-  b.updateTactics();
-  check('Frappe aérienne : touche à découvert, épargne l\'homme collé à un mur haut et celui hors de la bande', open.hp < hp0[0] - 20 && nearWall.hp === hp0[1] && out.hp === hp0[2], { open: hp0[0] - open.hp, wall: hp0[1] - nearWall.hp, out: hp0[2] - out.hp, im });
-  check('Frappe aérienne : refusée sans position adverse connue', !mkT(['frappe']).useTactic(0, 'frappe').ok);
+  check('revoir : les commandes sont refusées pendant la revue', !b.command('order', 0, 'hold').ok);
 }
 
 {

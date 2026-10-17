@@ -13,6 +13,12 @@
   const CHEST = { stand: 1.25, crouch: 0.75 };
 
   const dist2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+  // distance d'un point p au segment [a, b] (au sol), seulement s'il se trouve ENTRE a et b (sinon Infinity)
+  const segDist = (p, a, b) => {
+    const dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz; if (L2 < 1e-6) return Infinity;
+    const t = ((p.x - a.x) * dx + (p.z - a.z) * dz) / L2; if (t <= 0.04 || t >= 0.96) return Infinity;
+    return Math.hypot(a.x + dx * t - p.x, a.z + dz * t - p.z);
+  };
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return Math.abs(d); };
   const fmtT = (t) => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`; };
@@ -71,7 +77,6 @@
     const armorMob = has(this, 'colossus') ? (1 + this.armor.mobility) / 2 : this.armor.mobility; // Colosse : pénalité des plaques divisée par deux
     let v = (1.5 + (this.def.mobility / 100) * 1.4) * armorMob;
     const team = this.battle.teams[this.team];
-    if (team && team.tactics && team.tactics.drill && this.battle.t < 20) v *= 1.12;                 // Exercice de base : 20 premières secondes
     if (has(this, 'runner')) v *= 1.15;                                                               // Sprinteur
     if (this.stance === 'crouch') v *= 0.55;
     if (this.state === 'closing' || this.state === 'retreat') v *= 1.2;        // sprint
@@ -90,7 +95,7 @@
     this.inputs = [];                 // commandes du joueur (tactiques, ordres) avec leur pas : la bataille est rejouable à l'identique
     this.replayQueue = opts.replayInputs ? opts.replayInputs.slice() : null;
     this.rng = new RNG(this.seed);
-    this.map = new GameMap(MAPS[opts.mapId || 'entrepot']);
+    this.map = new GameMap(MAPS[opts.mapId] || MAPS.parking);   // une seule carte pour l'instant ; un ancien identifiant retombe sur le parking
     this.timeLimit = opts.timeLimit || 240;
     // objectif : { type: 'eliminate' } (défaut) ou { type: 'hold', team, duration } : l'équipe team gagne si elle tient jusqu'à duration
     this.objective = opts.objective || { type: 'eliminate' };
@@ -121,13 +126,15 @@
       this.teams.push({ index: ti, name: td.name || (ti === 0 ? 'Alpha' : 'Bravo'), order, units, camo: (() => { const u = DATA.UNIFORMS.find(x => x.id === td.uniform); const c = u && u.camo; return c && ((c.maps || []).includes(this.map.id) || (c.conditions || []).includes(opts.conditions || 'jour')) ? 0.9 : 1; })(), spawn: this.map.spawns[ti], lastSeen: {}, tactics, tacticIds: (td.tactics || []).filter(id => TACTICS[id]), auto: !!td.autoTactics, capture: 0 });
     });
     this.units = this.teams.flatMap(t => t.units);
+    // Tiroir : deux moitiés d'escouade en alternance (le tireur d'élite reste en appui, hors des bonds)
+    for (const team of this.teams) { let k = 0; for (const u of team.units) u.boundGroup = u.role.id === 'marksman' ? -1 : (k++ % 2); team.bound = { group: 0, since: 0, n: 0 }; }
     this.placeUnits();
     this.logEvent('start', `Début de l'engagement — ${this.map.name} — graine ${this.seed}. ${this.teams.map(t => `${t.name} (${ORDERS[t.order].name})`).join(' contre ')}.`);
   }
   Battle.defaultTeams = function () {
     return [
-      { name: 'Alpha', order: 'assault', operators: OPERATORS.slice(0, 5).map(o => o.id) },
-      { name: 'Bravo', order: 'assault', operators: OPERATORS.slice(5, 10).map(o => o.id) },
+      { name: 'Alpha', order: 'assault', operators: OPERATORS.filter(o => !o.faction).slice(0, 5).map(o => o.id), tactics: ['tiroir'] },
+      { name: 'Bravo', order: 'assault', operators: OPERATORS.filter(o => o.faction === 'karst').slice(0, 5).map(o => o.id), tactics: ['tiroir'] },
     ];
   };
 
@@ -174,6 +181,7 @@
     }
     this.t = Math.round((this.t + DT) * 1000) / 1000; this.tick++;
     this.updateTactics();
+    this.updateTiroir();
     for (const u of this.units) if (u.alive) this.perceive(u);
     if (Math.abs((this.t % COMMS_EVERY)) < DT / 2 || (this.t % COMMS_EVERY) > COMMS_EVERY - DT / 2) this.comms();
     // ordre de traitement mélangé à chaque pas : aucune équipe n'a l'avantage d'agir toujours la première
@@ -381,7 +389,6 @@
             if (has(u, 'eagle')) p *= 1.3;                      // Œil de lynx
             if (has(e, 'ghost')) p *= 0.6;                      // Fantôme
             p *= this.teams[e.team].camo;                        // tenue adaptée au terrain : −10 %
-            if (this.hasTactic(this.teams[e.team], 'camouflage')) p *= this.t < 40 ? 0.65 : 0.85;   // Camouflage
             p = clamp(p, 0.02, 1);
           }
           if (p >= 1 || this.rng.chance(p)) {
@@ -409,7 +416,6 @@
       }
     }
     // drone de reconnaissance actif pour mon équipe : position exacte de tous les adversaires
-    if (this.teams[u.team].recoUntil > this.t) for (const e of this.enemiesOf(u)) if (e.alive && !newVisible.has(e.id)) u.knowledge[e.id] = { x: e.x, z: e.z, t: this.t, seen: false, source: 'drone' };
     u.visible = newVisible;
     // oubli
     const ttl = KNOWLEDGE_TTL * (has(u, 'radio') ? 1.5 : 1);                                       // Radio : positions gardées plus longtemps
@@ -450,6 +456,8 @@
       if (e.hp < e.maxHp * 0.35) s += 2;                          // achever une cible affaiblie
       if (d < u.weapon.minRange) s -= 3;
       if (u.target === e) s += 1.5;                               // ne pas changer de cible sans raison
+      if (e.target && e.target !== u && e.target.team === u.team && this.t - e.lastShotAt < 2) s += 2.5;   // il tire sur un allié : le soutenir
+      let focus = 0; for (const a of this.alliesOf(u)) if (a.alive && a.target === e) focus++; s += Math.min(2, focus * 0.8);   // concentrer le feu
       if (s > bestScore) { bestScore = s; best = e; }
     }
     return best;
@@ -473,11 +481,15 @@
       if (opts.minRange && dt < opts.minRange) continue; // trop près de la menace pour cette arme
       if (opts.towards) s -= Math.hypot(cp.x - opts.towards.x, cp.z - opts.towards.z) * 0.25;
       if (opts.preferDist) s -= Math.abs(dt - opts.preferDist) * 0.08;
-      // ne pas prendre un couvert occupé, visé ou réservé par un allié
+      // ne pas prendre un couvert occupé, visé ou réservé par un allié ; garder ses distances (une grenade, une rafale) ;
+      // ne pas se placer derrière un allié (on ne pourrait pas tirer sans le toucher)
       let occupied = false;
       for (const a of this.alliesOf(u)) {
         if (!a.alive) continue;
-        if (Math.hypot(a.x - cp.x, a.z - cp.z) < 1.2 || (a.goal && Math.hypot(a.goal.x - cp.x, a.goal.z - cp.z) < 1.2) || (a.post && Math.hypot(a.post.x - cp.x, a.post.z - cp.z) < 1.2)) { occupied = true; break; }
+        const da = Math.hypot(a.x - cp.x, a.z - cp.z), dg = a.goal ? Math.hypot(a.goal.x - cp.x, a.goal.z - cp.z) : 99;
+        if (da < 2 || dg < 2 || (a.post && Math.hypot(a.post.x - cp.x, a.post.z - cp.z) < 2)) { occupied = true; break; }
+        const near = Math.min(da, dg); if (near < 4.5) s -= (4.5 - near) * 0.7;
+        if (segDist(a.goal || a, cp, threat) < 0.6) s -= 4;
       }
       if (occupied) continue;
       s += this.rng.next() * 0.05; // départage aléatoire des ex æquo (sinon l'ordre de la liste favoriserait un côté)
@@ -633,9 +645,18 @@
       const wantCover = !cover && (beingShot || u.hp < u.maxHp * 0.7 || u.suppression > 0.35 || order !== 'assault' || u.reloading > 0);
 
       if (pinned && cover) { u.stance = 'crouch'; u.state = 'pinned'; this.stop(u); return; }
+      const covering = this.tiroirOn(u) && u.boundGroup !== this.teams[u.team].bound.group;   // Tiroir : la moitié qui couvre ne bouge pas
+      // un allié est dans la ligne de tir : pas de côté pour dégager l'angle
+      if (this.t - (u.blockedAt || -9) < 0.8 && !u.goal) {
+        const dx = target.x - u.x, dz = target.z - u.z, L = Math.hypot(dx, dz) || 1;
+        for (const sd of [1, -1]) {
+          const px = u.x - dz / L * 1.6 * sd, pz = u.z + dx / L * 1.6 * sd;
+          if (this.map.inBounds(px, pz) && !this.map.insideObstacle(px, pz) && this.setGoal(u, px, pz, 'close')) { u.state = 'sidestep'; u.stance = 'stand'; return; }
+        }
+      }
       // capture : si la zone n'est pas à nous, on ne s'éternise pas dans un échange de tirs à distance — on progresse vers la zone,
       // de couvert en couvert (le tireur d'élite reste en appui)
-      if (this.zone && this.zone.holder !== u.team && u.role.id !== 'marksman' && !pinned && !this.inZone(u, 1) && u.reloading <= 0) {
+      if (this.zone && this.zone.holder !== u.team && u.role.id !== 'marksman' && !covering && !pinned && !this.inZone(u, 1) && u.reloading <= 0) {
         const dz = Math.hypot(u.x - this.zone.x, u.z - this.zone.z);
         const cp = this.findCover(u, threat, 14, { towards: this.zone });
         if (cp && Math.hypot(cp.x - this.zone.x, cp.z - this.zone.z) < dz - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
@@ -661,7 +682,7 @@
         u.state = 'engage'; u.stance = (u.reloading > 0 && cover) ? 'crouch' : 'stand'; return;
       }
       // tir inefficace à cette distance (arme courte, cible trop loin) : se rapprocher de couvert en couvert
-      if (!effective && !pinned) {
+      if (!effective && !pinned && !covering) {
         const cp = this.findCover(u, target, 16, { towards: target });
         let gx, gz;
         if (cp && Math.hypot(cp.x - target.x, cp.z - target.z) < d - 2) { gx = cp.x; gz = cp.z; }
@@ -669,7 +690,7 @@
         if (this.setGoal(u, gx, gz, 'close')) { u.state = 'closing'; u.stance = 'stand'; return; }
       }
       // contournement : la cible est à couvert face à moi et je la touche mal → chercher un angle d'où son couvert ne sert plus
-      if (effective && order !== 'hold' && (u.role.id === 'assault' || u.role.id === 'pointman') && !beingShot && u.suppression < 0.3) {
+      if (effective && order !== 'hold' && !covering && (u.role.id === 'assault' || u.role.id === 'pointman') && !beingShot && u.suppression < 0.3) {
         const tc = this.map.coverFrom(target.x, target.z, u.x, u.z, target.stance === 'stand');
         if (tc && this.hitChance(u, target, d, true).p < 0.16) {
           const cp = this.findCover(u, target, 16, { requireShoot: true, flank: target });
@@ -700,6 +721,7 @@
       // … sauf si l'adversaire est lui-même dans la zone : il faut aller l'en déloger
       if (this.zone && u.role.id !== 'marksman' && !(this.zone.contested && this.inZone(threatPos, 1.5)) && (nd > 10 || this.inZone(u))) { this.occupyZone(u, threatPos); return; }
       if (order === 'hold') { this.holdPost(u, threatPos); return; }
+      if (nd > 6 && u.status !== 'critical' && this.tiroir(u, threatPos, threatPos)) return;   // Tiroir : bonds alternés vers la menace
       if (u.role.id === 'marksman') {
         // un poste de tir à bonne distance AVEC vue sur la position connue
         if (nd < u.weapon.minRange * 1.5) {
@@ -737,6 +759,7 @@
     // 3) aucune information : se déployer / avancer vers l'objectif
     if (this.zone && (u.role.id !== 'marksman' || this.inZone(u))) {
       // capture : tout le monde vers la zone (le tireur d'élite garde son poste de surveillance plus bas)
+      if (!this.inZone(u, 2) && this.tiroir(u, objective, this.zone)) return;   // Tiroir : bonds alternés jusqu'à la zone
       if (order === 'careful' || u.role.id === 'support') {
         if (this.t < u.pauseUntil && !this.inZone(u, 3)) { this.stop(u); u.state = 'pause'; u.stance = 'stand'; return; }
         if (!this.inZone(u, 3)) {
@@ -754,6 +777,8 @@
     const span = Math.abs(objective.x - home.x);
     const stepLen = order === 'careful' ? 12 : 22;
     let gx = home.x + dirx * Math.min(span - 6, progress + stepLen), gz = clamp(home.z + lane, 2, this.map.depth - 2);
+    // Tiroir : bonds alternés le long de sa voie, jusqu'aux abords de la zone adverse
+    if (progress < span - 8 && this.tiroir(u, objective, { x: home.x + dirx * (span - 8), z: gz })) return;
     if (order === 'careful' || u.role.id === 'support') {
       if (this.t < u.pauseUntil) { this.stop(u); u.state = 'pause'; u.stance = 'stand'; return; }
       const cp = this.findCover(u, objective, 18, { towards: { x: gx, z: gz } });
@@ -872,10 +897,58 @@
     const kind = u.goalKind;
     this.stop(u);
     if (kind === 'cover' || kind === 'bound' || kind === 'hide') {
-      if (kind === 'bound') u.pauseUntil = this.t + 1.5 + this.rng.range(0, 1.5);
+      if (kind === 'bound') { u.pauseUntil = this.t + 1.5 + this.rng.range(0, 1.5); if (u.boundGoalN !== undefined) { u.boundDone = u.boundGoalN; u.boundGoalN = undefined; } }
       if (kind === 'hide') u.stance = 'crouch';
       if (kind !== 'hide') this.logEvent('cover', `${u.callsign} se met à couvert.`, { unit: u.id, team: u.team, silent: true });
     }
+  };
+
+  // ---- Alliés ---------------------------------------------------------------------------
+  // un allié debout se trouve-t-il dans la ligne de tir (à moins de 0,55 m de la trajectoire, entre le tireur et la cible) ?
+  Battle.prototype.allyInLine = function (u, e) {
+    for (const a of this.teams[u.team].units) if (a !== u && a.alive && segDist(a, u, e) < 0.55) return true;
+    return false;
+  };
+  // ---- Tiroir : progression par bonds alternés ---------------------------------------------
+  // L'escouade est partagée en deux moitiés (boundGroup 0 / 1). La moitié « qui avance » fait un bond (≤ 11 m) jusqu'au couvert
+  // suivant ; l'autre, arrêtée, couvre (face à la menace, prête à tirer). Quand tous ceux qui avancent sont arrivés (ou engagés),
+  // les rôles s'inversent. Le tireur d'élite reste en appui (sa propre logique).
+  Battle.prototype.tiroirOn = function (u) { const tm = this.teams[u.team]; return this.hasTactic(tm, 'tiroir') && tm.order !== 'hold' && u.boundGroup >= 0; };
+  const BUSY = { engage: 1, pinned: 1, shaken: 1, noammo: 1, reviving: 1, torevive: 1, throw: 1, sidestep: 1, closing: 1, tocover: 1 };
+  Battle.prototype.updateTiroir = function () {
+    for (const team of this.teams) {
+      if (!this.hasTactic(team, 'tiroir') || team.order === 'hold') continue;
+      const b = team.bound, alive = team.units.filter(a => a.alive && a.boundGroup >= 0);
+      const movers = alive.filter(a => a.boundGroup === b.group), others = alive.filter(a => a.boundGroup !== b.group);
+      const el = this.t - b.since;
+      const done = !movers.length || (el > 2.5 && movers.every(a => a.boundDone === b.n || BUSY[a.state])) || el > 10;
+      if (!done) continue;
+      b.since = this.t; b.n++;
+      if (!others.length) continue;                       // une seule moitié encore debout : elle enchaîne les bonds
+      b.group = 1 - b.group;
+      if (movers.length) this.logEvent('tiroir', `${team.name} — tiroir : ${others.map(a => a.callsign).join(', ')} ${others.length > 1 ? 'avancent' : 'avance'}, ${movers.map(a => a.callsign).join(', ')} ${movers.length > 1 ? 'couvrent' : 'couvre'}.`, { team: team.index, silent: true });
+    }
+  };
+  // décision d'un opérateur en tiroir (hors contact) : vrai si la décision est prise
+  Battle.prototype.tiroir = function (u, threatPos, dest) {
+    if (!this.tiroirOn(u)) return false;
+    const b = this.teams[u.team].bound;
+    const face = () => { u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x); };
+    const overwatch = () => {
+      this.stop(u); u.state = 'overwatch'; face();
+      u.stance = this.map.coverFrom(u.x, u.z, threatPos.x, threatPos.z, true) ? 'crouch' : 'stand';
+      return true;
+    };
+    if (u.goal && u.goalKind === 'bound') return true;                       // un bond en cours : on le termine
+    if (u.boundGroup !== b.group || u.boundDone === b.n) return overwatch();  // on couvre (ou bond déjà fait)
+    const dNow = Math.hypot(dest.x - u.x, dest.z - u.z);
+    if (dNow < 3) { u.boundDone = b.n; return overwatch(); }
+    const cp = this.findCover(u, threatPos, 11, { towards: dest });
+    let g;
+    if (cp && Math.hypot(cp.x - dest.x, cp.z - dest.z) < dNow - 2) g = cp;
+    else { const k = Math.min(1, 8 / dNow); g = { x: u.x + (dest.x - u.x) * k, z: u.z + (dest.z - u.z) * k }; }
+    if (this.setGoal(u, g.x, g.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; u.boundGoalN = b.n; return true; }
+    u.boundDone = b.n; return overwatch();
   };
 
   // ---- Tactiques ---------------------------------------------------------------------
@@ -888,8 +961,6 @@
     if (this.t < st.cooldownUntil) return { ok: false, reason: `recharge (${(st.cooldownUntil - this.t).toFixed(0)} s)` };
     if (this.over) return { ok: false, reason: 'bataille terminée' };
     const alive = team.units.filter(u => u.alive); if (!alive.length) return { ok: false, reason: 'aucun opérateur' };
-    if (id === 'fumigene' || id === 'barrage' || id === 'frappe') { if (!this.teamKnownEnemies(team).length) return { ok: false, reason: 'aucune position adverse connue' }; }
-    if (id === 'soins' && !alive.some(u => u.hp < u.maxHp - 5)) return { ok: false, reason: 'personne à soigner' };
     return { ok: true };
   };
   Battle.prototype.teamKnownEnemies = function (team) {
@@ -904,88 +975,12 @@
     const can = this.canUseTactic(teamIndex, id); if (!can.ok) return can;
     const team = this.teams[teamIndex], st = team.tactics[id], def = TACTICS[id];
     st.uses--; st.used++; st.cooldownUntil = this.t + (def.cooldown || 0);
-    const c = this.teamCentroid(team);
-    if (id === 'fumigene') {
-      // le fumigène tombe entre le centre de l'escouade et la position adverse connue la plus proche, à 6 m de l'escouade
-      const ks = this.teamKnownEnemies(team); let k = ks[0], kd = Infinity; for (const q of ks) { const d = Math.hypot(q.x - c.x, q.z - c.z); if (d < kd) { kd = d; k = q; } }
-      const dx = k.x - c.x, dz = k.z - c.z, L = Math.hypot(dx, dz) || 1, dist = Math.min(6, L * 0.5);
-      const sx = c.x + dx / L * dist, sz = c.z + dz / L * dist, R = 4;
-      const smoke = { x: sx - R, z: sz - R, w: 2 * R, d: 2 * R, h: 2.5, kind: 'smoke', name: 'fumée', until: this.t + 15, team: teamIndex };
-      this.map.dynamic.push(smoke);
-      this.logEvent('tactic', `${team.name} déploie un fumigène.`, { team: teamIndex, tactic: id });
-      this.emit({ type: 'smoke', x: sx, z: sz, r: R, until: smoke.until, team: teamIndex });
-    } else if (id === 'reco') {
-      team.recoUntil = this.t + 8;
-      this.logEvent('tactic', `${team.name} lance un drone de reconnaissance : positions adverses révélées pendant 8 s.`, { team: teamIndex, tactic: id });
-      this.emit({ type: 'reco', team: teamIndex, until: team.recoUntil });
-    } else if (id === 'soins') {
-      let target = null; for (const u of team.units) if (u.alive && (!target || u.hp / u.maxHp < target.hp / target.maxHp)) target = u;
-      target.healing = { remaining: 35, rate: 7, by: id }; // 35 PV en 5 s
-      this.logEvent('tactic', `${team.name} : trousse de soins pour ${target.callsign}.`, { team: teamIndex, tactic: id, unit: target.id });
-      this.emit({ type: 'heal', unit: target.id });
-    } else if (id === 'frappe') {
-      // passage d'avion : une bande traversant la position adverse connue la plus proche, perpendiculaire à l'axe escouade → menace
-      const ks = this.teamKnownEnemies(team); let k = ks[0], kd = Infinity; for (const q of ks) { const d = Math.hypot(q.x - c.x, q.z - c.z); if (d < kd) { kd = d; k = q; } }
-      const ax = k.x - c.x, az = k.z - c.z, L = Math.hypot(ax, az) || 1, px = -az / L, pz = ax / L;
-      this.pendingStrikes = this.pendingStrikes || [];
-      this.pendingStrikes.push({ at: this.t + 5, cx: k.x, cz: k.z, dx: px, dz: pz, half: 15, width: 4, team: teamIndex });
-      this.logEvent('tactic', `${team.name} appelle une frappe aérienne : passage dans 5 s.`, { team: teamIndex, tactic: id });
-      this.emit({ type: 'strike_called', x: k.x, z: k.z, dx: px, dz: pz, half: 15, team: teamIndex, at: this.t + 5 });
-    } else if (id === 'barrage') {
-      const ks = this.teamKnownEnemies(team); let k = ks[0], kd = Infinity; for (const q of ks) { const d = Math.hypot(q.x - c.x, q.z - c.z); if (d < kd) { kd = d; k = q; } }
-      this.pendingShells = this.pendingShells || [];
-      for (let i = 0; i < 3; i++) this.pendingShells.push({ at: this.t + 4 + i * 0.7, x: k.x + this.rng.gauss() * 3, z: k.z + this.rng.gauss() * 3, team: teamIndex });
-      this.logEvent('tactic', `${team.name} demande un appui mortier sur une position adverse : impact dans 4 s.`, { team: teamIndex, tactic: id });
-      this.emit({ type: 'barrage_called', x: k.x, z: k.z, team: teamIndex });
-    }
+    this.logEvent('tactic', `${team.name} : ${def.name}.`, { team: teamIndex, tactic: id });
     return { ok: true };
   };
   Battle.prototype.updateTactics = function () {
     // fumées : expiration
     if (this.map.dynamic.length) for (let i = this.map.dynamic.length - 1; i >= 0; i--) if (this.t >= this.map.dynamic[i].until) this.map.dynamic.splice(i, 1);
-    // obus : impact
-    if (this.pendingShells && this.pendingShells.length) for (let i = this.pendingShells.length - 1; i >= 0; i--) {
-      const sh = this.pendingShells[i]; if (this.t < sh.at) continue;
-      this.pendingShells.splice(i, 1);
-      this.emit({ type: 'shell', x: sh.x, z: sh.z }); this.blastDecor(sh.x, sh.z, 2.2, 1);
-      for (const u of this.units) {
-        if (!u.alive) continue;
-        const d = Math.hypot(u.x - sh.x, u.z - sh.z);
-        if (d < 8) u.suppression = clamp(u.suppression + 0.5 * (1 - d / 8), 0, 1);
-        if (d < 3) {
-          const dmg = Math.round(45 * (1 - d / 3) * (1 - u.armor.torso * 0.5) * 10) / 10;
-          if (dmg > 0) this.applyDamage(null, u, dmg, 'obus', sh.team);
-        }
-      }
-      this.logEvent('shell', `Obus de mortier en (${sh.x.toFixed(0)}, ${sh.z.toFixed(0)}).`, { team: sh.team, silent: true });
-    }
-    // frappe aérienne : chaque opérateur dans la bande est touché (moins derrière un couvert bas, pas du tout sous un mur haut)
-    if (this.pendingStrikes && this.pendingStrikes.length) for (let i = this.pendingStrikes.length - 1; i >= 0; i--) {
-      const st = this.pendingStrikes[i]; if (this.t < st.at) continue;
-      this.pendingStrikes.splice(i, 1);
-      this.emit({ type: 'strike', cx: st.cx, cz: st.cz, dx: st.dx, dz: st.dz, half: st.half, team: st.team });
-      for (let k = -st.half; k <= st.half; k += 2) this.blastDecor(st.cx + st.dx * k, st.cz + st.dz * k, 1.5, 0.5);
-      let n = 0;
-      for (const u of this.units) {
-        if (!u.alive) continue;
-        const rx = u.x - st.cx, rz = u.z - st.cz, along = rx * st.dx + rz * st.dz, across = Math.abs(rx * st.dz - rz * st.dx);
-        if (Math.abs(along) > st.half || across > st.width / 2) { if (across < 9 && Math.abs(along) < st.half + 3) u.suppression = clamp(u.suppression + 0.4, 0, 1); continue; }
-        // l'avion tire en piqué depuis l'axe : un obstacle haut juste à côté protège ; un couvert bas protège à moitié
-        let shelter = 1;
-        for (const o of this.map.obstacles) { if (o.h >= 2.5 && u.x > o.x - 0.8 && u.x < o.x + o.w + 0.8 && u.z > o.z - 0.8 && u.z < o.z + o.d + 0.8) { shelter = 0; break; } if (o.h < 2.5 && u.x > o.x - 0.9 && u.x < o.x + o.w + 0.9 && u.z > o.z - 0.9 && u.z < o.z + o.d + 0.9 && u.stance === 'crouch') shelter = Math.min(shelter, 0.5); }
-        u.suppression = clamp(u.suppression + 0.8, 0, 1);
-        if (!shelter) continue;
-        const dmg = Math.round(this.rng.range(30, 60) * shelter * (1 - u.armor.torso * 0.3) * 10) / 10;
-        if (dmg >= 1) { n++; this.applyDamage(null, u, dmg, 'frappe aérienne', st.team); }
-      }
-      this.logEvent('strike', `Passage de l'avion : ${n} opérateur${n > 1 ? 's' : ''} touché${n > 1 ? 's' : ''}.`, { team: st.team });
-    }
-    // Triage : régénération lente des blessés qui ne sont plus pris à partie (6 s), jusqu'à 60 %
-    if (this.tick % 5 === 0) for (const team of this.teams) if (this.hasTactic(team, 'triage')) for (const u of team.units) {
-      if (!u.alive || this.t - u.lastHitAt < 6 || u.hp >= u.maxHp * 0.6) continue;
-      const h = Math.min(2 * DT * 5, u.maxHp * 0.6 - u.hp); u.hp += h; u.stats.healed += h;
-      u.status = u.hp <= u.maxHp * 0.2 ? 'critical' : (u.hp <= u.maxHp * 0.5 ? 'wounded' : 'ok');
-    }
     // Secouriste : soigne les alliés proches qui ne sont plus pris à partie (4 s), jusqu'à 70 %
     if (this.tick % 5 === 0) for (const m of this.units) {
       if (!m.alive || !has(m, 'medic') || m.suppression > 0.6 || this.t < m.blindUntil) continue;
@@ -995,29 +990,9 @@
         a.status = a.hp <= a.maxHp * 0.2 ? 'critical' : (a.hp <= a.maxHp * 0.5 ? 'wounded' : 'ok');
       }
     }
-    // soins : régénération progressive
-    for (const u of this.units) if (u.alive && u.healing) {
-      const h = Math.min(u.healing.remaining, u.healing.rate * DT, u.maxHp - u.hp);
-      u.hp += h; u.healing.remaining -= h; u.stats.healed += h;
-      u.status = u.hp <= u.maxHp * 0.2 ? 'critical' : (u.hp <= u.maxHp * 0.5 ? 'wounded' : 'ok');
-      if (u.healing.remaining <= 0.01 || u.hp >= u.maxHp) { u.healing = null; }
-    }
-    // IA adverse : emploie ses tactiques actives à des moments raisonnables
-    for (const team of this.teams) if (team.auto) this.autoTactics(team);
   };
-  Battle.prototype.autoTactics = function (team) {
-    if (this.tick % 10 !== 0) return; // une décision par seconde
-    const alive = team.units.filter(u => u.alive); if (!alive.length) return;
-    const underFire = alive.filter(u => this.t - u.lastShotByAt < 2).length;
-    for (const id of team.tacticIds) {
-      if (!TACTICS[id].active || !this.canUseTactic(team.index, id).ok) continue;
-      if (id === 'fumigene' && underFire >= 2 && this.rng.chance(0.5)) this.useTactic(team.index, id);
-      else if (id === 'reco' && this.t > 10 && !this.teamKnownEnemies(team).length && this.rng.chance(0.3)) this.useTactic(team.index, id);
-      else if (id === 'soins' && alive.some(u => u.hp < u.maxHp * 0.45) && this.rng.chance(0.6)) this.useTactic(team.index, id);
-      else if (id === 'barrage' && this.t > 15 && this.teamKnownEnemies(team).length >= 2 && this.rng.chance(0.4)) this.useTactic(team.index, id);
-      else if (id === 'frappe' && this.t > 20 && this.teamKnownEnemies(team).length >= 2 && this.rng.chance(0.35)) this.useTactic(team.index, id);
-    }
-  };
+  // tactiques actives jouées par l'IA : aucune pour l'instant (la seule tactique, le Tiroir, est passive)
+  Battle.prototype.autoTactics = function () {};
   // Dégâts hors tir direct (obus) : même comptabilité que les tirs, attribués à l'équipe
   // ---- À terre / relevé -----------------------------------------------------------------------------------------
   // Un opérateur mis hors de combat autrement que d'une balle dans la tête a 55 % de chances d'être seulement « à terre » :
@@ -1066,15 +1041,7 @@
     return best;
   };
   Battle.prototype.updateRevives = function () {
-    // un blessé à terre rampe (0,35 m/s) vers l'allié debout le plus proche, pour qu'on puisse le relever ; il s'arrête à 1 m
-    for (const a of this.units) {
-      a.crawling = false;
-      if (a.alive || !(a.bleedUntil > this.t)) continue;
-      let best = null, bd = 25; for (const f of this.teams[a.team].units) { if (!f.alive) continue; const d = dist2(a, f); if (d < bd) { bd = d; best = f; } }
-      if (!best || bd < 1.0) continue;
-      const step = 0.35 * DT, nx = a.x + (best.x - a.x) / bd * step, nz = a.z + (best.z - a.z) / bd * step;
-      if (!this.map.insideObstacle(nx, nz) && this.map.inBounds(nx, nz)) { a.x = nx; a.z = nz; a.facing = Math.atan2(best.z - a.z, best.x - a.x); a.crawling = true; }
-    }
+    // un blessé à terre ne bouge plus : c'est aux alliés de venir le relever
     for (const u of this.units) {
       if (!u.reviving) continue;
       const a = this.unitById(u.reviving.id);
@@ -1114,6 +1081,7 @@
     if (u.role.id !== 'support' || u.reloading > 0 || u.ammo < 20) return false;
     const k = u.knowledge[e.id]; if (!k || this.t - k.t > 2 || Math.hypot(k.x - e.x, k.z - e.z) > 1.2) return false;
     const d = dist2(u, e); if (d > u.weapon.range * 1.1 || d < 6) return false;
+    if (this.allyInLine(u, e)) return false;
     const blk = this.map.blocker(u.x, u.eyeY(), u.z, e.x, e.chestY(), e.z);
     return !!blk && blk.kind === 'cover' && this.map.hasLOS(u.x, u.eyeY(), u.z, e.x, 1.6, e.z);
   };
@@ -1135,7 +1103,7 @@
   // « Calé » : ordre Tenir, immobile à son poste depuis au moins 3 s (bonus de précision et silhouette réduite).
   Battle.prototype.isBraced = function (u) {
     if (!u.alive || u.moving) return false;
-    const need = this.hasTactic(this.teams[u.team], 'retranche') ? 1.5 : 3;                           // Retranchement
+    const need = 3;
     const still = this.t - (u.stillSince === undefined ? this.t : u.stillSince) >= need;
     if (has(u, 'ambusher') && still) return true;                 // Affût : position préparée quel que soit l'ordre
     return this.teams[u.team].order === 'hold' && still && u.post && Math.hypot(u.post.x - u.x, u.post.z - u.z) < 1.6;
@@ -1165,7 +1133,7 @@
     return false;
   };
   // Seuil de chance de toucher en dessous duquel on ne gaspille pas ses munitions (l'appui tire plus volontiers : suppression).
-  Battle.prototype.fireThreshold = function (u) { const base = u.role.id === 'support' ? 0.045 : 0.08; return this.hasTactic(this.teams[u.team], 'discipline') ? base * 1.5 : base; }; // Discipline de feu
+  Battle.prototype.fireThreshold = function (u) { return u.role.id === 'support' ? 0.045 : 0.08; };
   Battle.prototype.hitChance = function (u, e, d, asIfStill) {
     const w = u.weapon;
     let p = w.accuracy * (0.45 + 0.55 * u.def.marksmanship / 100);
@@ -1182,9 +1150,6 @@
     const hard = has(u, 'hardened') ? 0.5 : 1;                                       // Endurci
     if (u.status === 'wounded') p *= 1 - 0.15 * hard; else if (u.status === 'critical') p *= 1 - 0.35 * hard;
     if (this.isBraced(u)) p *= 1.1;           // position préparée : arme calée, repères pris
-    const tt = this.teams[u.team];
-    if (this.hasTactic(tt, 'discipline') && !u.moving) p *= 1.12;                                   // Discipline de feu
-    if (this.hasTactic(tt, 'blitz') && this.t < 30) p *= 0.9;                                        // Éclair : précision −10 % au début
     if (has(u, 'patience') && u.burst === 0 && u.aimFull) p *= 1.25;               // Patience : premier tir posé
     if (this.synergy(u, 'guidage')) p *= 1.08;                                        // synergie Guidage radio
     if (this.t < u.blindUntil) p *= 0.25;                                             // aveuglé
@@ -1192,7 +1157,7 @@
     if (e.stance === 'crouch') p *= 0.85;
     if (this.isBraced(e)) p *= 0.9;           // un défenseur installé expose moins de silhouette
     const cv = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
-    if (cv) p *= cv.level === 'partial' ? (this.hasTactic(this.teams[e.team], 'retranche') ? 0.5 : 0.55) : 0.3; // couvert partiel (Retranchement : ×0,5)
+    if (cv) p *= cv.level === 'partial' ? 0.55 : 0.3; // couvert partiel (Retranchement : ×0,5)
     if (w.rpm > 100) p *= 1 - (has(u, 'gunner') ? 0.03 : 0.06) * (u.att.compensateur ? 0.6 : 1) * Math.min(u.burst, 5);   // Tir soutenu, compensateur
     return { p: clamp(p, 0.03, 0.95), cover: cv };
   };
@@ -1203,8 +1168,9 @@
     const d = dist2(u, e);
     // sans ligne de vue sur la poitrine, pas de tir (la perception l'a vérifié ce pas-ci, on re-vérifie par sécurité)
     if (!this.canSee(u, e)) return;
+    if (this.allyInLine(u, e)) { u.fireAcc = Math.min(u.fireAcc, 0.99); u.blockedAt = this.t; return; }   // un allié devant : on ne tire pas
     if (this.hitChance(u, e, d).p < this.fireThreshold(u)) { u.fireAcc = Math.min(u.fireAcc, 0.99); return; }
-    u.fireAcc += DT * u.weapon.rpm / 60 * (this.hasTactic(this.teams[u.team], 'blitz') && this.t < 30 ? 1.2 : 1); // Éclair : cadence +20 %
+    u.fireAcc += DT * u.weapon.rpm / 60;
     while (u.fireAcc >= 1 && u.ammo > 0) {
       u.fireAcc -= 1;
       this.shoot(u, e, d);
@@ -1236,13 +1202,12 @@
     let fall = r <= 0.3 ? 1 : (r <= 1 ? 1 - (r - 0.3) / 0.7 * (1 - w.falloff) : Math.max(0.3 * w.falloff, w.falloff - (r - 1) * 0.7 * w.falloff));
     const roll = this.rng.next();
     let loc, mult, prot;
-    const headP = this.hasTactic(this.teams[u.team], 'tete') ? 0.14 : 0.08;   // Tir à la tête
+    const headP = 0.08;
     if (roll < headP) { loc = 'tête'; mult = 2.2; prot = e.armor.head; }
     else if (roll < 0.60) { loc = 'torse'; mult = 1.0; prot = e.armor.torso; }
     else { loc = 'membre'; mult = 0.55; prot = 0; }
     let dmg = w.damage * fall * mult * (1 - prot) * this.rng.range(0.85, 1.15);
     if (has(u, 'breach') && d < 10 && (w.cls === 'brèche' || w.cls === 'pm')) dmg *= 1.15;   // Enfonceur
-    if (this.hasTactic(this.teams[e.team], 'drill') && this.teams[u.team].order === 'hold') dmg *= 0.9; // Exercice de base : −10 % tant que l'adversaire tient
     if (this.synergy(e, 'commandement')) dmg *= 0.9;                                                   // synergie Commandement
     dmg = Math.round(dmg * 10) / 10;
     const before = e.hp;

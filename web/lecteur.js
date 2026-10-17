@@ -5,7 +5,7 @@
    - options : vol, pan (−1…1), vitesse (hauteur), varie (petite variation de hauteur, ex. .03), delai (s), reverb (0…1) ;
    - limiteur en sortie : pas de saturation quand beaucoup de sons s'additionnent. */
 const Son = (() => {
-  let ac = null, master = null, rev = null, loading = null; const buf = {}, last = {};
+  let ac = null, master = null, rev = null, loading = null, erreur = null, decodes = 0, echecs = 0; const buf = {}, last = {};
   function init(){
     if(ac){ if(ac.state === "suspended") ac.resume().catch(() => {}); return true; }
     try{
@@ -13,13 +13,13 @@ const Son = (() => {
       master = ac.createGain(); const lim = ac.createDynamicsCompressor();
       lim.threshold.value = -3; lim.knee.value = 3; lim.ratio.value = 20; lim.attack.value = .001; lim.release.value = .12;
       master.connect(lim).connect(ac.destination); charger(); return true;
-    }catch(e){ ac = null; return false; }
+    }catch(e){ ac = null; erreur = String(e && e.message || e); console.warn("Son : contexte audio impossible", e); return false; }
   }
   function charger(){
     if(loading || !ac) return loading; const el = document.getElementById("sons-data"); if(!el) return null;
     let data; try{ data = JSON.parse(el.textContent); }catch(e){ return null; }
     const dec = b64 => { const s = atob(b64), u = new Uint8Array(s.length); for(let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
-      return new Promise(res => ac.decodeAudioData(u.buffer, res, () => res(null))); };
+      return new Promise(res => ac.decodeAudioData(u.buffer, (b) => { decodes++; res(b); }, (e) => { echecs++; erreur = "décodage : " + (e && e.message || e); res(null); })); };
     loading = Promise.all(Object.entries(data).map(([k, arr]) => Promise.all(arr.map(dec)).then(bs => { const ok = bs.filter(Boolean); if(ok.length) buf[k] = ok; })));
     return loading;
   }
@@ -38,7 +38,16 @@ const Son = (() => {
     out.connect(master); if(o.reverb){ const s = ac.createGain(); s.gain.value = o.reverb; out.connect(s); s.connect(reverb()); }
     src.start(ac.currentTime + .003 + (o.delai || 0)); return true;
   }
-  ["pointerdown", "keydown"].forEach(ev => document.addEventListener(ev, function f(){ document.removeEventListener(ev, f, true); init(); }, true));
+  // déverrouillage : à CHAQUE geste tant que le contexte n'est pas « running » (certains cadres — artifact, iframe — ne le
+  // laissent démarrer qu'au deuxième geste ou le suspendent quand l'onglet passe en arrière-plan) ; un son muet d'un
+  // échantillon, joué pendant le geste, achève de le débloquer.
+  let muet = false;
+  function debloquer(){
+    if(!init()) return;
+    if(ac.state !== "running") ac.resume().catch(e => { erreur = "reprise : " + (e && e.message || e); });
+    if(!muet){ try{ const b = ac.createBuffer(1, 1, 22050), s = ac.createBufferSource(); s.buffer = b; s.connect(ac.destination); s.start(0); muet = true; }catch(e){} }
+  }
+  ["pointerdown", "pointerup", "keydown", "touchend", "click"].forEach(ev => document.addEventListener(ev, () => { if(!ac || ac.state !== "running") debloquer(); }, true));
   // boucles : plusieurs voies indépendantes (ambiance, musique), une boucle par voie, fondu entre deux
   const loops = {};
   async function boucle(nom, o = {}){
@@ -53,6 +62,8 @@ const Son = (() => {
   }
   function arreterBoucle(fondu = .6, voie){ const keys = voie ? [voie] : Object.keys(loops); for(const k of keys){ const l = loops[k]; if(!l) continue; delete loops[k]; try{ l.g.gain.linearRampToValueAtTime(0, ac.currentTime + fondu); l.src.stop(ac.currentTime + fondu + .05); }catch(e){} } }
   function volumeBoucle(voie, v, t = .5){ const l = loops[voie]; if(l) try{ l.g.gain.linearRampToValueAtTime(v, ac.currentTime + t); }catch(e){} }
-  return {init, jouer, charger, boucle, arreterBoucle, volumeBoucle, get pret(){ return !!loading; }, volume(v){ if(master) master.gain.value = v; }};
+  // état pour le diagnostic (réglages) : contexte, sons décodés, échecs
+  function etat(){ return { contexte: ac ? ac.state : "absent", sons: Object.keys(buf).length, decodes, echecs, erreur, volume: master ? master.gain.value : null }; }
+  return {init, jouer, charger, boucle, arreterBoucle, volumeBoucle, etat, debloquer, get pret(){ return !!loading; }, volume(v){ if(master) master.gain.value = v; }};
 })();
 window.Son = Son;

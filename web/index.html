@@ -131,7 +131,7 @@
   #settings { position: fixed; z-index: 80; } #settings .dialog { max-width: 620px; }
   .setrow { display: grid; grid-template-columns: 190px 1fr 56px; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
   .setrow .seg { display: flex; gap: 4px; flex-wrap: wrap; } .setrow input[type=range] { width: 100%; accent-color: var(--accent); } .setrow output { text-align: right; color: var(--muted); }
-  .setrow.save { grid-template-columns: 190px 1fr; } .setrow.save .seg { gap: 8px; } #setMsg { min-height: 18px; font-size: 12px; color: var(--ok); margin-top: 8px; }
+  .setrow.save { grid-template-columns: 190px 1fr; } .setrow.save .seg { gap: 8px; } #setMsg { min-height: 18px; font-size: 12px; color: var(--ok); margin-top: 8px; } .setstate { font-size: 12px; opacity: .8; }
   button.gear { font-size: 15px; padding: 4px 9px; }
   .dialog { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px 26px; max-width: 1100px; width: 94%; max-height: 92%; overflow: auto; box-shadow: 0 20px 60px #000a; }
   .dialog h2 { margin: 0 0 4px; font-size: 26px; letter-spacing: 0.1em; } .dialog h2.team0 { color: var(--a0); } .dialog h2.team1 { color: var(--a1); }
@@ -783,6 +783,105 @@
   #hq .tcardq { font-size: 13px; } #hq table.lg { font-size: 15px; } #hq .crstats b { font-size: 26px; }
   #result #resSpecials { top: 360px; font-size: 32px !important; } #result #resSpecials span { padding: 3px 0; } #result #resSpecials .m { font-size: 30px !important; } #result #resSpecials span:nth-child(-n+3) { font-size: 40px; } #result #resSpecials .head { font-size: 38px; }
   #resReason { top: 800px; } .resbtns { top: 845px; }
+
+  /* ===================== Refonte « PC moderne » : interface plus fine, plus petite, panneaux en verre fumé ===================== */
+  /* Police d'interface lisible (Segoe UI sous Windows) ; la police du jeu (RAW) reste pour les titres et les grands chiffres. */
+  :root { --ui: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    --glass: rgba(11,15,17,.78); --glass2: rgba(20,26,29,.86); --edge: rgba(255,255,255,.09); --edge2: rgba(255,255,255,.16); --acc: #4ee089; --acc2: #2fb6c9; }
+  #hq, #hq button { font-family: var(--ui); }
+  .hqname, .trnum b, .bc-rate b, .sqc-rate b, .oc-rate b, .tmrate b, .rb-money span:last-child, .bc-top b, .sqc-name, .oc-name, #app .tbname, #app .tpct, #app .clock, #app .card .cs { font-family: var(--raw); }
+  /* barre du haut : 64 px, verre fumé */
+  header.rawbar { height: 64px; padding: 0 10px; background: linear-gradient(180deg, rgba(22,27,30,.96), rgba(10,13,15,.9)); border-bottom: 1px solid var(--edge); box-shadow: 0 10px 30px rgba(0,0,0,.45); backdrop-filter: blur(8px); }
+  #hq .hqpanel { top: 64px; } #hq .hqpanel:not([data-panel=accueil]) { bottom: 70px; }
+  .sqbtn { width: 44px; height: 40px; margin-right: 6px; border-radius: 9px; background: rgba(255,255,255,.05) !important; border: 1px solid var(--edge) !important; box-shadow: none; color: #d8e2dd; transition: background .15s, border-color .15s; }
+  .sqbtn:hover { background: rgba(78,224,137,.14) !important; border-color: rgba(78,224,137,.5) !important; filter: none; }
+  .sqbtn .ico { width: 22px; height: 22px; filter: none; } .sqbtn.small { width: 40px; } .sqbtn.small .ico { width: 20px; height: 20px; }
+  .rb-cell { padding: 0 18px; border-left: 1px solid var(--edge); box-shadow: none; }
+  .rb-lbl { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; color: #8ea39a; }
+  .rb-sub { font-size: 13px; font-weight: 600; margin-top: 3px; letter-spacing: .04em; }
+  .rb-season { width: 190px; margin-left: 8px; } .rb-season .seg { gap: 2px; margin-top: 4px; } .rb-season .seg i { width: 9px; height: 10px; border-radius: 2px; }
+  .rb-team { width: 300px; padding-top: 0; } .hqname { font-size: 24px; text-shadow: none; }
+  .hqrank { height: 20px; margin-top: 5px; border: 1px solid rgba(180,140,255,.6); border-radius: 10px; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; gap: 8px; padding: 0 10px; }
+  .hqrank .rk b { font-size: 13px; } .hqrank #hqXp { font-size: 10.5px; }
+  .rb-ach { width: 220px; } .rb-ach .achs { gap: 4px; margin-top: 5px; } .rb-ach .ach { width: 28px; height: 26px; font-size: 14px; border-width: 1px; border-radius: 6px; }
+  .rb-money { font-size: 18px; gap: 2px; margin-right: 12px; } .rb-money > div { gap: 10px; } .rb-money span:last-child { min-width: 64px; } .mico .ico { width: 20px; height: 18px; }
+  /* pied : petites pilules */
+  .rawfoot { bottom: 16px; height: 44px; gap: 12px; padding: 0 22px; }
+  .pill { height: 40px; min-width: 0; padding: 0 18px 0 48px; border-radius: 20px !important; font-size: 12.5px !important; font-weight: 700; letter-spacing: .12em; gap: 8px;
+    background: var(--glass) !important; border: 1px solid var(--edge2) !important; box-shadow: 0 6px 18px rgba(0,0,0,.35); backdrop-filter: blur(6px); transition: background .15s, border-color .15s; }
+  .pill:hover { background: rgba(28,52,40,.9) !important; border-color: rgba(78,224,137,.6) !important; filter: none; }
+  .pill [data-ico] { left: 12px; width: 26px; height: 26px; } .pill [data-ico] .ico { width: 22px; height: 22px; filter: none; }
+  .pill em { font-size: 11px; color: var(--acc); background: rgba(78,224,137,.14); border-radius: 8px; padding: 1px 6px; margin-left: 2px; }
+  .pill.dim { height: 32px; padding: 0 14px; font-size: 10.5px !important; }
+  #hq .rawfoot .pill:nth-child(2) { margin-left: 0; }
+  /* accueil : soldat en grand, panneau de note compact, tuiles plus petites */
+  .pod { left: 30px; top: 0; width: 600px; height: 1010px; }
+  .pod canvas { left: -30px; top: 0; width: 640px; height: 1000px; }
+  .podframe { left: 40px; top: 70px; width: 380px; height: 820px; border-width: 2px; } .podglass { left: 420px; top: 50px; height: 820px; border-right-width: 2px; }
+  .trpanel { left: 660px; top: 70px; width: 620px; height: 210px; grid-template-columns: 290px 70px 1fr; padding: 0 26px; }
+  .trpanel::before { border-width: 2px; } .trpanel::after { left: 40px; right: 40px; background-size: 100% 3px, 100% 3px; }
+  .trnum b { font-size: 118px; } .trnum span { font-size: 13px; font-family: var(--ui); font-weight: 700; letter-spacing: .2em; color: #aeb7b3; margin-top: 8px; }
+  .tricons { gap: 10px; } .tricons .ico { width: 40px; height: 38px; } .tremb { height: 160px; } .tremb .emb { width: 160px; height: 160px; } .tremb .emb-txt { font-size: 120px; }
+  .homeTiles { left: 660px; top: 312px; gap: 18px; }
+  .tile { width: 194px; height: 136px; border-radius: 12px !important; border: 1px solid rgba(120,220,160,.35) !important; background: linear-gradient(180deg, rgba(20,44,30,.9), rgba(34,84,52,.92)) !important; box-shadow: 0 8px 22px rgba(0,0,0,.45); transition: transform .12s, border-color .12s; }
+  .tile:hover { border-color: rgba(120,240,170,.8) !important; filter: none; }
+  .tile b { height: 36px; font-size: 12.5px; font-weight: 700; letter-spacing: .14em; color: #eafff1; background: rgba(0,0,0,.35); border-top: 1px solid rgba(120,220,160,.3); }
+  .tart-play .ico { width: 104px; height: 70px; } .tart-cards .mc { width: 54px; height: 76px; bottom: -14px; border-width: 2px; } .tart-cards .mc:nth-child(1) { left: 22px; } .tart-cards .mc:nth-child(2) { left: 70px; } .tart-cards .mc:nth-child(3) { left: 118px; }
+  .tart-team img { height: 100px; } .tart-team img:nth-child(2) { left: 56px; height: 110px; } .tart-team img:nth-child(3) { left: 108px; }
+  .homeRight { left: 1800px; top: 84px; gap: 12px; }
+  .sqtile { width: 76px; height: 76px; border-radius: 14px !important; gap: 3px; background: var(--glass2) !important; border: 1px solid var(--edge2) !important; box-shadow: 0 6px 16px rgba(0,0,0,.4); }
+  .sqtile:hover { border-color: rgba(47,182,201,.8) !important; filter: none; } .sqtile .ico { width: 30px; height: 30px; filter: none; } .sqtile small { font-size: 9.5px; font-weight: 700; letter-spacing: .1em; }
+  .homeInfo { left: 660px; top: 480px; width: 620px; font-size: 14px; } .homeInfo .rankline { font-size: 14px; } .homeInfo .record2 b { font-size: 20px; }
+  .custom2 { left: 1460px; top: 84px; }
+  /* équipe : onglets et boutons fins, textes plus petits */
+  .tmtabs { top: 18px; gap: 6px; } .tmtabs button { height: 38px; text-align: center; font-size: 12.5px !important; font-weight: 700; letter-spacing: .14em; border-radius: 8px !important; background: var(--glass) !important; border: 1px solid var(--edge2) !important; box-shadow: none; }
+  .tmtabs button.on { background: rgba(78,224,137,.18) !important; border-color: rgba(78,224,137,.7) !important; color: #eafff1 !important; }
+  .tmbody { top: 66px; height: 430px; padding: 14px 32px 12px 60px; background: var(--glass); clip-path: none; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--edge2); }
+  .srow { grid-template-columns: 260px 50px 60px 260px; height: 50px; font-size: 15px; font-weight: 600; letter-spacing: .1em; border-bottom-color: rgba(255,255,255,.06); }
+  .srow .si .ico { width: 26px; height: 26px; } .srow .sv { font-family: var(--raw); font-size: 22px; } .srow .sbar { height: 10px; border-radius: 5px; overflow: hidden; } .srow .sbar i { border-radius: 5px; box-shadow: none; }
+  .tmbody .equip label, .tmbody .trh { font-family: var(--ui); font-weight: 700; font-size: 14px; letter-spacing: .1em; }
+  .tmbtns { top: 512px; gap: 12px; }
+  .ybtn { height: 46px; min-width: 0; padding: 0 20px 0 52px !important; border-radius: 23px !important; font-family: var(--ui); font-size: 12.5px !important; font-weight: 700; letter-spacing: .12em; color: #10140a !important;
+    background: linear-gradient(180deg, #e3ea64, #b9c434) !important; border: 0 !important; box-shadow: 0 6px 16px rgba(0,0,0,.35); }
+  .ybtn [data-ico] { left: 14px; } .ybtn .ico { width: 24px; height: 24px; }
+  .tmside { left: 1724px; top: 18px; } .tmrate { background: var(--glass); border: 1px solid var(--edge2); border-radius: 12px; } .tmrate span { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; } .tmrate b { font-size: 52px; }
+  .tmside .prep label { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; } .tmside .syn b { font-family: var(--ui); font-weight: 700; font-size: 12px; }
+  .tmsquad { top: 600px; gap: 16px; }
+  .sqc { width: 168px; height: 236px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,.5), inset 0 0 0 1px rgba(230,210,166,.45); }
+  .sqc-name { height: 34px; font-size: 18px; } .sqc-rate { width: 60px; height: 60px; border-radius: 14px; } .sqc-rate b { font-size: 26px; } .sqc-rate .ico { width: 20px; height: 20px; }
+  .sqc-art .flag { width: 54px; height: 36px; left: 8px; top: 8px; border-radius: 3px; opacity: .9; z-index: 2; }
+  .sqc-art .portrait, .opcard .oc-art .portrait { transform: translateX(-50%); height: 100%; }
+  .opcard .oc-art .flag { width: 40px; height: 27px; left: 6px; top: 6px; z-index: 2; }
+  .bc-art .flag { width: 64px; height: 42px; border-radius: 3px; }
+  /* jouer : textes plus fins */
+  .medtile .mt { font-size: 16px; font-family: var(--ui); font-weight: 700; letter-spacing: .12em; } .medtile .ms em { font-size: 13px !important; font-family: var(--ui); font-weight: 700; letter-spacing: .12em; } .medtile .ms strong { font-size: 26px; }
+  /* bataille : bandeau du haut fin, plaques plus petites, commandes discrètes */
+  #app .topbar { height: 60px; background: linear-gradient(180deg, rgba(0,0,0,.6), rgba(0,0,0,.18) 75%, transparent); padding: 0 14px; grid-template-columns: 1fr 100px 1fr; }
+  #app .tb { gap: 10px; } #app .tb .ins { width: 46px; height: 46px; padding: 2px; }
+  #app .tbname { font-size: 18px; } #app .tbar { height: 10px; border: 1px solid rgba(255,255,255,.55); border-radius: 5px; overflow: hidden; } #app .tbar i { border-radius: 5px; }
+  #app .tpct { font-size: 18px; } #app .tb.team0 .tpct, #app .tb.team1 .tpct { top: 22px; } #app .tb.team0 .tbname { padding-right: 70px; } #app .tb.team1 .tbname { padding-left: 70px; }
+  #app .clock { font-size: 18px; } #app .tbcenter { padding-top: 8px; }
+  #app .controls { top: 66px; right: 14px; gap: 4px; padding: 4px; background: rgba(0,0,0,.28); border-radius: 10px; }
+  #app .controls button, #app .controls select, #app .controls input { font-family: var(--ui); font-weight: 600; font-size: 12px; padding: 5px 9px; border: 1px solid rgba(255,255,255,.18); border-radius: 7px; background: rgba(8,10,12,.75); }
+  #app #play { font-family: var(--ui); font-weight: 700; font-size: 13px; padding: 6px 14px; border-radius: 16px; border: 1px solid #e8e8e8; letter-spacing: .08em; }
+  #app [data-cam="sat"] { width: 104px; height: 56px; font-size: 14px !important; border-radius: 12px !important; border-width: 1px !important; font-family: var(--ui); font-weight: 700; letter-spacing: .12em; }
+  #app [data-cam="sat"]::before { font-size: 9.5px; }
+  #app .bottombar { height: 60px; gap: 10px; padding: 0 128px 10px 10px; }
+  #app .card { height: 46px; padding: 0 10px 0 50px; border-radius: 10px; border: 1px solid rgba(160,200,255,.45); background: linear-gradient(180deg, rgba(36,110,210,.88), rgba(22,74,150,.9)); box-shadow: 0 6px 16px rgba(0,0,0,.4); gap: 3px; max-width: 230px; }
+  #app .roster.team1 .card { width: 118px; height: 38px; padding-left: 38px; border: 1px solid rgba(255,170,160,.45); background: linear-gradient(180deg, rgba(214,64,46,.88), rgba(150,30,20,.9)); box-shadow: 0 6px 16px rgba(0,0,0,.4); }
+  #app .card .role { left: 4px; top: 4px; bottom: 4px; width: 38px; border-radius: 7px; background: rgba(0,0,0,.6); } #app .card .role .ico { width: 24px; height: 24px; }
+  #app .roster.team1 .card .role { width: 28px; } #app .roster.team1 .card .role .ico { width: 18px; height: 18px; }
+  #app .card .cs { font-size: 15px; } #app .roster.team1 .card .cs { font-size: 12px; }
+  #app .card .st { left: 50px; top: 3px; font-size: 9.5px; } #app .card .hp { height: 6px; border: 0; border-radius: 3px; background: rgba(0,0,0,.45); overflow: hidden; } #app .roster.team1 .card .hp { height: 5px; }
+  #labels .lplate { font-size: 12px; } #labels .lshield { width: 22px; height: 25px; } #labels .lshield .ico { width: 14px; height: 14px; margin-top: -3px; } #labels .lbar { width: 36px; height: 4px; }
+  #ticker { bottom: 74px; } #killfeed { top: 66px !important; }
+  #app .tactics { top: 136px; }
+  /* briefing : bandeau plus bas, textes plus petits */
+  #briefing .brcard { height: 380px; padding: 50px 60px 24px 380px; }
+  #briefing .brfig { height: 470px; } #briefing .brteam { font-size: 48px; left: 360px; top: 26px; }
+  #briefing h2 { font-size: 46px; margin-top: 16px; } #briefing .brsub { font-size: 20px; border-bottom-width: 2px; padding-bottom: 10px; margin-bottom: 14px; }
+  #briefing p { font-size: 20px; min-height: 80px; } #briefing #briefGo { font-family: var(--ui); font-weight: 700; letter-spacing: .12em; font-size: 15px; padding: 12px 26px; border-radius: 22px; border: 0; }
+  #briefing .brloc { font-size: 22px; top: 80px; }
 </style>
 </head>
 <body>
@@ -960,7 +1059,7 @@
     <div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button><button id="skip" title="Résultat immédiat : la bataille est simulée jusqu'au bout sans être affichée (même résultat qu'en la regardant)">⏭ Résultat</button></div>
     <div class="group"><label>Alpha</label><select id="order0" title="Ordre d'Alpha — modifiable pendant la bataille"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
     <div class="group"><label>Bravo</label><select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
-    <div class="group"><label>Carte</label><select id="mapSel"><option value="entrepot">Entrepôt des docks</option><option value="place">Place du marché</option><option value="raffinerie">Raffinerie</option><option value="parking">Parking du centre commercial</option><option value="gare">Gare de triage</option></select><select id="condSel" title="Heure et météo : vue, ouïe et précision changent réellement"><option value="jour">Jour</option><option value="nuit">Nuit</option><option value="brouillard">Brouillard</option><option value="pluie">Pluie</option></select></div>
+    <div class="group"><label>Carte</label><select id="mapSel"><option value="parking">Parking du centre commercial</option></select><select id="condSel" title="Heure et météo : vue, ouïe et précision changent réellement"><option value="jour">Jour</option><option value="nuit">Nuit</option><option value="brouillard">Brouillard</option><option value="pluie">Pluie</option></select></div>
     <div class="group"><label>Graine</label><input id="seed" placeholder="aléatoire"></div>
     <button id="newBattle">Nouvelle</button><button id="replay" title="Rejouer la même graine">Rejouer</button>
     <span id="missionLabel" class="muted" hidden></span>
@@ -1034,6 +1133,8 @@
 <script src="figure.js"></script>
 <script src="gltf.js"></script>
 <script src="modeles/soldat.js"></script>
+<script src="modeles/decor.js"></script>
+<script src="modeles3d.js"></script>
 <script src="soldat3d.js"></script>
 <script src="decor.js"></script>
 <script src="portrait.js"></script>
@@ -1072,6 +1173,7 @@
 </script>
 <div id="settings" class="overlay hidden"><div class="dialog">
   <h2>Réglages</h2><p>Gardés dans ce navigateur.</p>
+  <div class="setrow"><span>Son</span><div class="seg" id="setSound"><button data-v="1">Activé</button><button data-v="0">Coupé</button><button id="setTest" title="Joue un son et affiche l'état du lecteur">Tester</button></div><span id="setSoundState" class="setstate"></span></div>
   <div class="setrow"><span>Volume général</span><input type="range" id="setVol" min="0" max="100" step="5"><output id="setVolV"></output></div>
   <div class="setrow"><span>Musique</span><input type="range" id="setMusic" min="0" max="100" step="5"><output id="setMusicV"></output></div>
   <div class="setrow"><span>Vitesse de bataille par défaut</span><div class="seg" id="setSpeed"><button data-v="1">1×</button><button data-v="2">2×</button><button data-v="4">4×</button></div><span></span></div>
@@ -1092,8 +1194,18 @@
     $('#setVol').value = Math.round(g.vol * 100); $('#setVolV').textContent = Math.round(g.vol * 100) + ' %';
     $('#setMusic').value = Math.round(g.music * 100); $('#setMusicV').textContent = Math.round(g.music * 100) + ' %';
     const seg = (id, v) => $(id).querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(v)));
+    seg('#setSound', window.OT_MUTE && window.OT_MUTE.get() ? 0 : 1); soundState();
     seg('#setSpeed', g.speed); seg('#setCam', g.cam); seg('#setQuality', g.quality); seg('#setShadows', g.shadows ? 1 : 0); seg('#setVoice', g.voice ? 1 : 0);
   }
+  // état du lecteur de sons, lisible par le joueur (diagnostic : contexte bloqué par le navigateur, sons non décodés…)
+  function soundState() {
+    const e = window.Son && Son.etat ? Son.etat() : null, el = $('#setSoundState'); if (!el) return;
+    if (!e) { el.textContent = 'lecteur absent'; return; }
+    el.textContent = window.OT_MUTE && window.OT_MUTE.get() ? 'coupé' : e.contexte === 'running' ? (e.sons ? 'en marche (' + e.sons + ' sons)' : 'chargement…') : e.contexte === 'absent' ? 'en attente d\'un clic' : 'bloqué par le navigateur — cliquez « Tester »';
+    if (e.echecs) el.textContent += ' — ' + e.echecs + ' son(s) illisible(s)';
+  }
+  $('#setSound').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v !== undefined && window.OT_MUTE) { window.OT_MUTE.set(v === '0'); sync(); } });
+  $('#setTest').addEventListener('click', () => { if (!window.Son) return; if (window.OT_MUTE && window.OT_MUTE.get()) window.OT_MUTE.set(false); Son.debloquer(); const go = () => { Son.jouer('tir_fusil', { vol: 0.9 }); sync(); }; const L = Son.charger(); if (L && L.then) L.then(go); else go(); setTimeout(sync, 800); });
   function open() { if (!S()) return; $('#setMsg').textContent = ''; sync(); $('#settings').classList.remove('hidden'); }
   window.OT_OPEN_SETTINGS = open;
   ['#hqSettings', '#openSettings'].forEach(id => { const b = $(id); if (b) b.addEventListener('click', open); });

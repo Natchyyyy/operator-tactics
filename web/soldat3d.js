@@ -21,10 +21,56 @@
           S.clips[c.name] = c;
         }
         g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false; } });
-        S.gltf = g; S.ready = true; delete root.MODELES.soldat;
-        for (const f of S.onReady.splice(0)) try { f(); } catch (e) { console.warn(e); }
+        S.gltf = g;
+        try { straighten(g); measure(g); } catch (e) { console.warn('soldat 3D (mesure) :', e); }
+        delete root.MODELES.soldat;
+        // le fusil Meshy (modeles3d.js) est attendu : les soldats naissent directement avec
+        const go = () => { S.ready = true; for (const f of S.onReady.splice(0)) try { f(); } catch (e) { console.warn(e); } };
+        if (root.Modeles3D) root.Modeles3D.whenReady(go); else go();
       }, (e) => console.warn('soldat 3D :', e));
     } catch (e) { console.warn('soldat 3D :', e); }
+  }
+  // Animations qui font tourner tout le corps sur lui-même (demi-tour du lancer, visée qui pivote) : on garde l'orientation
+  // du bassin de la première image (le jeu oriente déjà le soldat vers sa cible).
+  const STRAIGHT = ['Over_Shoulder_Throw', 'Rifle_Aim_Turn_Right', 'Kneeling_Reload', 'Standing_Reload', 'Gunshot_Reaction'];
+  function straighten(g) {
+    const hips = g.scene.getObjectByName('mixamorigHips') || g.scene.getObjectByName('mixamorig:Hips'); if (!hips) return;
+    g.scene.updateMatrixWorld(true);
+    const P = hips.parent.getWorldQuaternion(new THREE.Quaternion()), Pi = P.clone().invert(), up = new THREE.Vector3(0, 1, 0);
+    const q = new THREE.Quaternion(), qw = new THREE.Quaternion(), f = new THREE.Vector3();
+    const yawOf = (qq) => { qw.copy(P).multiply(qq); f.set(0, 0, 1).applyQuaternion(qw); if (Math.abs(f.y) > 0.9) { f.set(1, 0, 0).applyQuaternion(qw); return Math.atan2(f.x, f.z) - Math.PI / 2; } return Math.atan2(f.x, f.z); };
+    for (const n of STRAIGHT) {
+      const c = S.clips[n]; if (!c) continue;
+      const tr = c.tracks.find(t => /Hips\.quaternion$/.test(t.name)); if (!tr) continue;
+      const v = tr.values; const y0 = yawOf(q.fromArray(v, 0));
+      for (let i = 0; i < v.length; i += 4) {
+        q.fromArray(v, i); const d = yawOf(q) - y0;
+        // q' = P⁻¹ · Ry(−d) · P · q : on retire la rotation autour de la verticale du monde
+        const r = new THREE.Quaternion().setFromAxisAngle(up, -d);
+        const out = Pi.clone().multiply(r).multiply(P).multiply(q); out.toArray(v, i);
+      }
+    }
+  }
+  // Correction d'orientation par animation : de quel angle faut-il tourner le corps pour que l'ARME (main droite → main gauche)
+  // pointe droit devant (+Z, la direction « face » du jeu) ? Mesurée une fois au chargement.
+  // AIM : animations où l'arme doit viser droit devant, et l'instant (fraction) où la mesurer ; null = moyenne sur la boucle.
+  const AIM = { Rifle_Aim_Turn_Right: 0.0, Standing_Reload: 0.0, Kneeling_Reload: 0.06, Run_and_Shoot: null, Walk_Fight_Forward: null, Cautious_Crouch_Walk_Forward: null, Gunshot_Reaction: 0.0 };
+  const AIM_PART = { Walk_Fight_Forward: 0, Cautious_Crouch_Walk_Forward: 0, Run_and_Shoot: 0.6 };   // locomotion : on corrige moins (les jambes marchent droit)
+  S.yawFix = {};
+  function measure(g) {
+    const sc = g.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
+    const rh = b('RightHand'), lh = b('LeftHand'); if (!rh || !lh) return;
+    const mixer = new THREE.AnimationMixer(sc), pR = new THREE.Vector3(), pL = new THREE.Vector3();
+    for (const n in AIM) {
+      const c = S.clips[n]; if (!c) continue;
+      const a = mixer.clipAction(c); a.play();
+      const fr = AIM[n] === null ? [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875] : [AIM[n]];
+      let sx = 0, sz = 0;
+      for (const t of fr) { mixer.setTime(t * c.duration); sc.updateMatrixWorld(true); rh.getWorldPosition(pR); lh.getWorldPosition(pL); const dx = pL.x - pR.x, dz = pL.z - pR.z, L = Math.hypot(dx, dz) || 1; sx += dx / L; sz += dz / L; }
+      const yaw = Math.atan2(sx, sz); S.yawFix[n] = -yaw * (AIM_PART[n] !== undefined ? AIM_PART[n] : 1);
+      a.stop(); mixer.uncacheAction(c);
+    }
+    mixer.stopAllAction();
   }
   // matériau teinté : la toile beige de la tenue prend la couleur d'uniforme demandée (gilet, peau, bottes inchangés)
   const matCache = {};
@@ -60,7 +106,7 @@
     const body = cloneSkinned(S.gltf.scene); body.scale.setScalar(HEIGHT / RAW_H); pose.add(body);
     let skinned = null; body.traverse(n => { if (n.isSkinnedMesh) { skinned = n; n.material = tintedMaterial(n.material, o.uniform); } });
     const bone = (n) => body.getObjectByName('mixamorig:' + n) || body.getObjectByName('mixamorig' + n);
-    const weapon = o.weapon ? root.Figure.makeWeapon(o.weapon, o.attachments) : new THREE.Group(); if (!weapon.muzzle) weapon.muzzle = new THREE.Vector3(0, 0, 0.6);
+    const weapon = o.weapon ? ((root.Modeles3D && root.Modeles3D.arme()) || root.Figure.makeWeapon(o.weapon, o.attachments)) : new THREE.Group(); if (!weapon.muzzle) weapon.muzzle = new THREE.Vector3(0, 0, 0.6);
     group.add(weapon);
     const mixer = new THREE.AnimationMixer(body), actions = {};
     const act = (name) => { if (!S.clips[name]) return null; if (!actions[name]) { const a = mixer.clipAction(S.clips[name]); if (ONCE[name]) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; } actions[name] = a; } return actions[name]; };
@@ -72,12 +118,17 @@
         if (this.clip !== name) {
           const prev = this.clip && actions[this.clip];
           a.reset(); a.enabled = true; a.setEffectiveWeight(1); a.play();
+          if (opts.start) a.time = opts.start * a.getClip().duration;   // commencer plus loin dans l'animation
           if (prev) a.crossFadeFrom(prev, opts.fade !== undefined ? opts.fade : 0.22, false);
           this.clip = name;
         }
         if (opts.time !== undefined) { a.time = opts.time * a.getClip().duration; a.timeScale = 0; } else a.timeScale = opts.speed || 1;
       },
-      update(dt) { mixer.update(dt); },
+      // keepYaw : garder la correction actuelle (chute : on ne fait pas pivoter un corps qui tombe)
+      update(dt, keepYaw) {
+        mixer.update(dt);
+        if (!keepYaw) { const tgt = S.yawFix[this.clip] || 0; let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 10); }
+      },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
       placeWeapon(twoHands, recoil) {
         const rh = this.bones.rh, lh = this.bones.lh; if (!rh) return;
@@ -100,7 +151,7 @@
   // instantané d'un soldat pour les portraits : anime une copie à un instant d'une animation donnée
   function posed(o, clip, t) {
     const f = create(o); if (!f) return null;
-    f.play(clip || 'Walk_Fight_Forward', { time: t !== undefined ? t : 0.15 }); f.update(0); f.body.updateMatrixWorld(true);
+    f.play(clip || 'Walk_Fight_Forward', { time: t !== undefined ? t : 0.15 }); f.update(0); f.body.rotation.y = S.yawFix[f.clip] || 0; f.body.updateMatrixWorld(true);
     f.placeWeapon(true, 0); return f;
   }
   S.load = load; S.create = create; S.posed = posed; S.whenReady = (fn) => { if (S.ready) fn(); else S.onReady.push(fn); };

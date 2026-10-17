@@ -13,14 +13,8 @@
   // suppress  : effet de suppression de chaque tir proche de la cible (0..1)
   // kit       : nombre de chargeurs emportés (en plus de celui dans l'arme)
   const WEAPONS = {
-    carbine:  { id: 'carbine',  name: 'Carabine 5,56',      cls: 'fusil',    accuracy: 0.50, damage: 32, range: 45, minRange: 0,  rpm: 110, mag: 30,  reload: 2.6, aim: 0.55, falloff: 0.8,  suppress: 0.14, kit: 6 },
-    smg:      { id: 'smg',      name: 'Pistolet-mitrailleur 9 mm', cls: 'pm', accuracy: 0.64, damage: 26, range: 24, minRange: 0,  rpm: 170, mag: 30,  reload: 2.0, aim: 0.3,  falloff: 0.5,  suppress: 0.12, kit: 7 },
-    dmr:      { id: 'dmr',      name: 'Fusil de précision 7,62', cls: 'tireur', accuracy: 0.66, damage: 58, range: 90, minRange: 15, rpm: 34,  mag: 20,  reload: 3.0, aim: 1.6,  falloff: 0.9,  suppress: 0.28, kit: 5 },
-    lmg:      { id: 'lmg',      name: 'Mitrailleuse légère 5,56', cls: 'appui', accuracy: 0.32, damage: 30, range: 55, minRange: 0,  rpm: 210, mag: 100, reload: 6.5, aim: 0.9,  falloff: 0.8,  suppress: 0.26, kit: 3 },
-    shotgun:  { id: 'shotgun',  name: 'Fusil à pompe cal. 12', cls: 'brèche', accuracy: 0.80, damage: 85, range: 12, minRange: 0,  rpm: 55,  mag: 7,   reload: 3.8, aim: 0.25, falloff: 0.3,  suppress: 0.2,  kit: 5 },
-    // à acheter à l'armurerie
-    battle:   { id: 'battle',   name: 'Fusil de combat 7,62', cls: 'fusil',    accuracy: 0.52, damage: 46, range: 60, minRange: 0,  rpm: 75,  mag: 20,  reload: 2.9, aim: 0.7,  falloff: 0.85, suppress: 0.2,  kit: 5 },
-    smgsil:   { id: 'smgsil',   name: 'PM 9 mm silencieux', cls: 'pm',    accuracy: 0.64, damage: 23, range: 20, minRange: 0,  rpm: 150, mag: 30,  reload: 2.0, aim: 0.3,  falloff: 0.5,  suppress: 0.07, kit: 7, silenced: true },
+    // une seule arme pour l'instant (on retravaille le contenu un élément après l'autre) : le fusil d'assaut 5,56
+    carbine:  { id: 'carbine',  name: 'Fusil d\'assaut 5,56', cls: 'fusil',    accuracy: 0.50, damage: 32, range: 45, minRange: 0,  rpm: 110, mag: 30,  reload: 2.6, aim: 0.55, falloff: 0.8,  suppress: 0.14, kit: 6 },
   };
   // ---- ACCESSOIRES D'ARME : un par emplacement (optique, bouche, poignée, chargeur), achetés une fois, montés sur un opérateur.
   // Effets réels dans engine.js (recherche « accessoire ») ; not : classes d'arme qui ne l'acceptent pas.
@@ -48,11 +42,11 @@
   // Le rôle oriente l'IA (voir engine.js : decide) et l'arme par défaut.
   // weapons : armes que ce rôle sait employer (la première est celle par défaut)
   const ROLES = {
-    assault:  { id: 'assault',  name: 'Assaut',      weapon: 'carbine', weapons: ['carbine', 'battle', 'smg', 'smgsil', 'shotgun'], grenades: { frag: 1 } },
-    pointman: { id: 'pointman', name: 'Pointe',      weapon: 'smg',     weapons: ['smg', 'smgsil', 'shotgun', 'carbine'], grenades: { flash: 1 } },
-    marksman: { id: 'marksman', name: 'Tireur d\'élite', weapon: 'dmr', weapons: ['dmr', 'battle', 'carbine'], grenades: {} },
-    support:  { id: 'support',  name: 'Appui',       weapon: 'lmg',     weapons: ['lmg', 'battle', 'carbine'], grenades: {} },
-    breacher: { id: 'breacher', name: 'Brèche',      weapon: 'shotgun', weapons: ['shotgun', 'smg', 'smgsil', 'carbine'], grenades: { frag: 1, flash: 1 } },
+    assault:  { id: 'assault',  name: 'Assaut',      weapon: 'carbine', weapons: ['carbine'], grenades: { frag: 1 } },
+    pointman: { id: 'pointman', name: 'Pointe',      weapon: 'carbine', weapons: ['carbine'], grenades: { flash: 1 } },
+    marksman: { id: 'marksman', name: 'Tireur d\'élite', weapon: 'carbine', weapons: ['carbine'], grenades: {} },
+    support:  { id: 'support',  name: 'Appui',       weapon: 'carbine', weapons: ['carbine'], grenades: {} },
+    breacher: { id: 'breacher', name: 'Brèche',      weapon: 'carbine', weapons: ['carbine'], grenades: { frag: 1, flash: 1 } },
   };
 
   // ---- COMPÉTENCES -----------------------------------------------------------------------
@@ -94,7 +88,6 @@
     { id: 'kills',     text: 'Neutraliser {n} adversaires',                       goal: [12, 20], reward: 120 },
     { id: 'headshots', text: 'Réussir {n} tirs à la tête',                        goal: [3, 5],  reward: 120 },
     { id: 'capture',   text: 'Gagner {n} bataille de capture de zone',            goal: [1, 1],  reward: 150 },
-    { id: 'tactics',   text: 'Jouer {n} tactiques actives',                       goal: [3, 5],  reward: 100 },
     { id: 'weather',   text: 'Gagner {n} bataille de nuit ou par mauvais temps',  goal: [1, 1],  reward: 160 },
     { id: 'revives',   text: 'Relever {n} allié à terre',                         goal: [1, 1],  reward: 120 },
     { id: 'quick',     text: 'Gagner {n} batailles rapides',                      goal: [2, 2],  reward: 150 },
@@ -137,35 +130,12 @@
   // Inspirations : unités réelles (nom de l'unité), personnages fictifs.
   // rarity : 1 commun, 2 rare, 3 élite — sert au prix de recrutement et à la présentation
   const OPERATORS = [
-    { id: 'op_vautour', callsign: 'Vautour', unit: 'GIGN (France)',           role: 'assault',  armor: 'medium', trait: 'fasthands', rarity: 1, marksmanship: 74, reflexes: 70, mobility: 68, perception: 66, composure: 78, endurance: 72 },
-    { id: 'op_lynx',    callsign: 'Lynx',    unit: 'Commando Hubert (France)', role: 'pointman', armor: 'light',  trait: 'eagle', rarity: 1, marksmanship: 66, reflexes: 84, mobility: 86, perception: 74, composure: 64, endurance: 62 },
-    { id: 'op_granit',  callsign: 'Granit',  unit: 'GSG 9 (Allemagne)',       role: 'marksman', armor: 'light',  trait: 'patience', rarity: 2, marksmanship: 90, reflexes: 60, mobility: 58, perception: 88, composure: 82, endurance: 60 },
-    { id: 'op_bastion', callsign: 'Bastion', unit: 'KSK (Allemagne)',         role: 'support',  armor: 'heavy',  trait: 'steady', rarity: 1, marksmanship: 58, reflexes: 56, mobility: 54, perception: 60, composure: 86, endurance: 90 },
-    { id: 'op_belier',  callsign: 'Bélier',  unit: 'SAS (Royaume-Uni)',       role: 'breacher', armor: 'heavy',  trait: 'breach', rarity: 1, marksmanship: 62, reflexes: 72, mobility: 70, perception: 58, composure: 76, endurance: 84 },
-
-    { id: 'op_cobra',   callsign: 'Cobra',   unit: 'Navy SEALs (États-Unis)', role: 'assault',  armor: 'medium', trait: 'leader', rarity: 2, marksmanship: 76, reflexes: 72, mobility: 70, perception: 64, composure: 74, endurance: 74 },
-    { id: 'op_furet',   callsign: 'Furet',   unit: 'JTF2 (Canada)',           role: 'pointman', armor: 'light',  trait: 'runner', rarity: 2, marksmanship: 64, reflexes: 86, mobility: 88, perception: 76, composure: 60, endurance: 60 },
-    { id: 'op_harfang', callsign: 'Harfang', unit: 'FSK (Norvège)',           role: 'marksman', armor: 'light',  trait: 'opportunity', rarity: 3, marksmanship: 92, reflexes: 58, mobility: 56, perception: 90, composure: 84, endurance: 58 },
-    { id: 'op_bouclier',callsign: 'Bouclier',unit: 'GROM (Pologne)',          role: 'support',  armor: 'heavy',  trait: 'colossus', rarity: 2, marksmanship: 56, reflexes: 58, mobility: 52, perception: 62, composure: 88, endurance: 92 },
-    { id: 'op_marteau', callsign: 'Marteau', unit: 'Sayeret Matkal (Israël)', role: 'breacher', armor: 'heavy',  trait: 'hardened', rarity: 3, marksmanship: 60, reflexes: 74, mobility: 72, perception: 56, composure: 78, endurance: 86 },
-
-    { id: 'op_sirocco', callsign: 'Sirocco', unit: 'GIS (Italie)',             role: 'assault',  armor: 'light',  trait: 'radio', rarity: 2, marksmanship: 70, reflexes: 78, mobility: 80, perception: 70, composure: 68, endurance: 66 },
-    { id: 'op_ardoise', callsign: 'Ardoise', unit: 'SASR (Australie)',         role: 'marksman', armor: 'medium', trait: 'ambusher', rarity: 2, marksmanship: 86, reflexes: 64, mobility: 62, perception: 84, composure: 80, endurance: 68 },
-    { id: 'op_enclume', callsign: 'Enclume', unit: 'KCT (Pays-Bas)',           role: 'support',  armor: 'medium', trait: 'gunner', rarity: 1, marksmanship: 62, reflexes: 60, mobility: 62, perception: 62, composure: 82, endurance: 84 },
-    { id: 'op_ombre',   callsign: 'Ombre',   unit: 'UEI (Espagne)',            role: 'pointman', armor: 'light',  trait: 'ghost', rarity: 3, marksmanship: 72, reflexes: 90, mobility: 84, perception: 82, composure: 70, endurance: 60 },
-
-    // quatrième vague : grenadiers, vigies, secouristes
-    { id: 'op_corbeau', callsign: 'Corbeau', unit: 'Jagdkommando (Autriche)',  role: 'assault',  armor: 'medium', trait: 'grenadier', rarity: 2, marksmanship: 74, reflexes: 70, mobility: 66, perception: 68, composure: 76, endurance: 76 },
-    { id: 'op_mistral', callsign: 'Mistral', unit: 'SOG (Suède)',              role: 'pointman', armor: 'light',  trait: 'sentinel', rarity: 1, marksmanship: 64, reflexes: 80, mobility: 84, perception: 82, composure: 62, endurance: 62 },
-    { id: 'op_toubib',  callsign: 'Toubib',  unit: '1er RPIMa (France)',       role: 'support',  armor: 'medium', trait: 'medic', rarity: 2, marksmanship: 63, reflexes: 64, mobility: 60, perception: 66, composure: 84, endurance: 80 },
-    { id: 'op_balafre', callsign: 'Balafre', unit: 'DSU (Belgique)',           role: 'breacher', armor: 'heavy',  trait: 'grenadier', rarity: 1, marksmanship: 60, reflexes: 70, mobility: 66, perception: 60, composure: 74, endurance: 84 },
-    { id: 'op_faucon',  callsign: 'Faucon',  unit: 'Jægerkorpset (Danemark)',  role: 'marksman', armor: 'light',  trait: 'sentinel', rarity: 2, marksmanship: 88, reflexes: 62, mobility: 60, perception: 84, composure: 78, endurance: 60 },
-    { id: 'op_kodiak',  callsign: 'Kodiak',  unit: 'SBS (Royaume-Uni)',        role: 'assault',  armor: 'medium', trait: 'medic', rarity: 3, marksmanship: 84, reflexes: 78, mobility: 72, perception: 76, composure: 82, endurance: 80 },
-    // cinquième vague : des compatriotes pour les Frères d'armes (Italie, Canada, Pologne, Espagne)
-    { id: 'op_tramontane', callsign: 'Tramontane', unit: 'COMSUBIN (Italie)', role: 'marksman', armor: 'light',  trait: 'patience', rarity: 2, marksmanship: 88, reflexes: 62, mobility: 60, perception: 84, composure: 80, endurance: 60 },
-    { id: 'op_carcajou', callsign: 'Carcajou', unit: 'JTF2 (Canada)',         role: 'breacher', armor: 'heavy',  trait: 'hardened', rarity: 2, marksmanship: 62, reflexes: 74, mobility: 70, perception: 60, composure: 78, endurance: 86 },
-    { id: 'op_lancier',  callsign: 'Lancier',  unit: 'JW Formoza (Pologne)',  role: 'assault',  armor: 'medium', trait: 'radio',    rarity: 1, marksmanship: 70, reflexes: 70, mobility: 70, perception: 74, composure: 70, endurance: 70 },
-    { id: 'op_orage',    callsign: 'Orage',    unit: 'GEO (Espagne)',         role: 'support',  armor: 'heavy',  trait: 'steady',   rarity: 1, marksmanship: 58, reflexes: 58, mobility: 54, perception: 60, composure: 84, endurance: 88 },
+    // une seule unité pour l'instant : cinq opérateurs du GIGN (personnages fictifs, aucun insigne réel)
+    { id: 'op_vautour', callsign: 'Vautour', unit: 'GIGN (France)', role: 'assault',  armor: 'medium', trait: 'fasthands', rarity: 1, marksmanship: 74, reflexes: 70, mobility: 68, perception: 66, composure: 78, endurance: 72 },
+    { id: 'op_lynx',    callsign: 'Lynx',    unit: 'GIGN (France)', role: 'pointman', armor: 'light',  trait: 'eagle',     rarity: 1, marksmanship: 66, reflexes: 84, mobility: 86, perception: 74, composure: 64, endurance: 62 },
+    { id: 'op_granit',  callsign: 'Granit',  unit: 'GIGN (France)', role: 'marksman', armor: 'light',  trait: 'patience',  rarity: 2, marksmanship: 90, reflexes: 60, mobility: 58, perception: 88, composure: 82, endurance: 60 },
+    { id: 'op_bastion', callsign: 'Bastion', unit: 'GIGN (France)', role: 'support',  armor: 'heavy',  trait: 'medic',     rarity: 1, marksmanship: 58, reflexes: 56, mobility: 54, perception: 60, composure: 86, endurance: 90 },
+    { id: 'op_belier',  callsign: 'Bélier',  unit: 'GIGN (France)', role: 'breacher', armor: 'heavy',  trait: 'breach',    rarity: 1, marksmanship: 62, reflexes: 72, mobility: 70, perception: 58, composure: 76, endurance: 84 },
 
     // ---- Faction adverse : « Groupe Karst », société militaire privée fictive (non recrutable) ----
     { id: 'k_molosse', callsign: 'Molosse', unit: 'Groupe Karst — section d\'assaut', faction: 'karst', role: 'assault',  armor: 'medium', trait: 'leader',      rarity: 2, marksmanship: 70, reflexes: 70, mobility: 68, perception: 62, composure: 76, endurance: 76 },
@@ -177,22 +147,11 @@
     { id: 'k_taipan',  callsign: 'Taïpan',  unit: 'Groupe Karst — tireurs',           faction: 'karst', role: 'marksman', armor: 'medium', trait: 'ambusher',    rarity: 3, marksmanship: 86, reflexes: 62, mobility: 60, perception: 84, composure: 84, endurance: 66 },
     { id: 'k_bison',   callsign: 'Bison',   unit: 'Groupe Karst — appui feu',         faction: 'karst', role: 'support',  armor: 'heavy',  trait: 'colossus',    rarity: 2, marksmanship: 56, reflexes: 58, mobility: 56, perception: 60, composure: 88, endurance: 92 },
 
-    // ---- Seconde faction adverse : « Milice du Delta », force irrégulière fictive (non recrutable) : légère, nombreuse au contact,
-    // armes courtes ; son chef, « le Colonel », est un adversaire d'exception (mission finale de l'Opération Delta) ----
-    { id: 'd_scorpion', callsign: 'Scorpion', unit: 'Milice du Delta — choc',      faction: 'delta', role: 'assault',  armor: 'light',  trait: 'runner',   rarity: 2, headgear: 'foulard', marksmanship: 66, reflexes: 76, mobility: 82, perception: 64, composure: 60, endurance: 70 },
-    { id: 'd_fennec',   callsign: 'Fennec',   unit: 'Milice du Delta — éclaireurs', faction: 'delta', role: 'pointman', armor: 'light',  trait: 'eagle',    rarity: 2, headgear: 'casquette', marksmanship: 62, reflexes: 82, mobility: 88, perception: 78, composure: 56, endurance: 62 },
-    { id: 'd_busard',   callsign: 'Busard',   unit: 'Milice du Delta — tireurs',    faction: 'delta', role: 'marksman', armor: 'light',  trait: 'ambusher', rarity: 2, headgear: 'chapeau', marksmanship: 84, reflexes: 58, mobility: 60, perception: 82, composure: 70, endurance: 58 },
-    { id: 'd_rhino',    callsign: 'Rhino',    unit: 'Milice du Delta — appui',      faction: 'delta', role: 'support',  armor: 'medium', trait: 'gunner',   rarity: 2, headgear: 'bonnet', marksmanship: 56, reflexes: 56, mobility: 58, perception: 58, composure: 74, endurance: 86 },
-    { id: 'd_taureau',  callsign: 'Taureau',  unit: 'Milice du Delta — choc',       faction: 'delta', role: 'breacher', armor: 'medium', trait: 'breach',   rarity: 2, headgear: 'foulard', marksmanship: 60, reflexes: 74, mobility: 76, perception: 56, composure: 70, endurance: 82 },
-    { id: 'd_mamba',    callsign: 'Mamba',    unit: 'Milice du Delta — choc',       faction: 'delta', role: 'assault',  armor: 'light',  trait: 'fasthands', rarity: 2, headgear: 'casquette', marksmanship: 70, reflexes: 78, mobility: 76, perception: 62, composure: 62, endurance: 66 },
-    { id: 'd_gecko',    callsign: 'Gecko',    unit: 'Milice du Delta — éclaireurs', faction: 'delta', role: 'pointman', armor: 'light',  trait: 'ghost',    rarity: 2, headgear: 'bonnet', marksmanship: 62, reflexes: 84, mobility: 86, perception: 74, composure: 58, endurance: 60 },
-    { id: 'd_colonel',  callsign: 'Le Colonel', unit: 'Milice du Delta — commandement', faction: 'delta', role: 'assault', armor: 'heavy', trait: 'leader', traits: ['hardened'], rarity: 3, headgear: 'beret_rouge', marksmanship: 86, reflexes: 80, mobility: 64, perception: 84, composure: 92, endurance: 90 },
   ];
   // Factions : couleurs d'uniforme (rendu) et nom
   const FACTIONS = {
     allied: { id: 'allied', name: 'Coalition', uniform: 0x3a4a3c, vest: 0x2b352d },
     karst:  { id: 'karst',  name: 'Groupe Karst', uniform: 0x3b3a40, vest: 0x5a2628, glyph: '⚑' },
-    delta:  { id: 'delta',  name: 'Milice du Delta', uniform: 0x7a6a4a, vest: 0x3d3a2a, glyph: '☠' },
   };
 
   // ---- ORDRES TACTIQUES --------------------------------------------------------------
@@ -207,30 +166,13 @@
   // enemy : composition (identifiants d'opérateurs), level : niveau des ennemis, order : leur ordre tactique
   // reward : crédits en cas de victoire (la défaite rapporte une fraction), xp : expérience de base par opérateur engagé
   const MISSIONS = [
-    { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille adverse de quatre hommes progresse prudemment sur les docks. Interceptez-la.', mapId: 'entrepot', enemy: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal'], level: 6, order: 'careful', enemyTactics: [], reward: 180, xp: 40, difficulty: 1 },
-    { id: 'embuscade', name: 'Position retranchée', desc: 'L\'adversaire tient l\'entrepôt derrière ses conteneurs. Il faudra aller le chercher.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_hyene', 'k_chacal', 'k_vipere'], level: 8, order: 'hold', enemyTactics: ['retranche'], reward: 260, xp: 55, difficulty: 2 },
-    { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact par les deux couloirs. Tenez ou contre-attaquez.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_fauve'], level: 1, order: 'assault', enemyTactics: ['blitz', 'fumigene'], reward: 340, xp: 70, difficulty: 3 },
-    { id: 'marche', name: 'Marché sous le feu', desc: 'Une équipe adverse ratisse la place du marché. Reprenez-la rue par rue.', mapId: 'place', enemy: ['k_fauve', 'k_vipere', 'k_chacal', 'k_molosse'], level: 3, order: 'careful', enemyTactics: ['soins'], reward: 240, xp: 50, difficulty: 2 },
-    { id: 'tenir', name: 'Tenir la place', desc: 'Tenez la place 140 secondes face à un assaut : il suffit qu\'un seul opérateur soit encore en état à l\'échéance.', mapId: 'place', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_vipere'], level: 0, order: 'assault', objective: 'hold', duration: 140, enemyTactics: ['fumigene', 'barrage'], reward: 360, xp: 70, difficulty: 3 },
-    { id: 'nuit', name: 'Infiltration adverse', desc: 'Des opérateurs équipés d\'armes silencieuses s\'infiltrent prudemment : vous les entendrez à peine.', mapId: 'place', conditions: 'nuit', enemy: ['k_vipere', 'k_fauve', 'k_molosse', 'k_taipan', 'k_chacal'], enemyWeapons: { k_vipere: 'smgsil', k_fauve: 'smgsil', k_molosse: 'smgsil' }, level: 9, order: 'careful', enemyTactics: ['reco', 'discipline'], reward: 420, xp: 85, difficulty: 4 },
-    { id: 'cuves', name: 'Entre les cuves', desc: 'Le Groupe Karst s\'est installé dans la raffinerie. Il progresse prudemment entre les cuves et les tuyauteries : un terrain qui favorise celui qui tient.', mapId: 'raffinerie', conditions: 'pluie', enemy: ['k_chacal', 'k_vipere', 'k_fauve', 'k_hyene', 'k_molosse'], level: 2, order: 'careful', enemyTactics: ['retranche', 'soins'], reward: 320, xp: 65, difficulty: 2 },
-    { id: 'pompage', name: 'Station de pompage', desc: 'Tenez la station de pompage deux minutes face à des assaillants aguerris.', mapId: 'raffinerie', conditions: 'brouillard', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_rapace'], level: 8, order: 'assault', objective: 'hold', duration: 120, enemyTactics: ['blitz', 'barrage', 'fumigene'], reward: 400, xp: 80, difficulty: 4 },
-    { id: 'balise', name: 'Balise de localisation', desc: 'La balise d\'un agent disparu émet depuis l\'allée nord des docks. Quatre hommes du Groupe Karst la cherchent aussi. Prenez la zone et tenez-la jusqu\'à 100 % — inutile de neutraliser tout le monde.', mapId: 'entrepot', enemy: ['k_vipere', 'k_hyene', 'k_chacal', 'k_fauve'], level: 2, order: 'careful', objective: 'capture', enemyTactics: ['drill'], reward: 220, xp: 45, difficulty: 1 },
-    { id: 'priseplace', name: 'Prise de la place', desc: 'Le Groupe Karst veut contrôler la place du marché. Occupez-la avant lui et ne la lâchez pas.', mapId: 'place', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: -2, order: 'careful', objective: 'capture', enemyTactics: ['soins'], reward: 300, xp: 60, difficulty: 2 },
-    { id: 'vannes', name: 'Les vannes', desc: 'L\'aire de pompage nord commande toute la raffinerie. Des assaillants aguerris foncent dessus : prenez-la de vitesse.', mapId: 'raffinerie', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_taipan', 'k_rapace'], level: 7, order: 'assault', objective: 'capture', enemyTactics: ['blitz', 'fumigene'], reward: 420, xp: 80, difficulty: 4 },
-    { id: 'galerie', name: 'Balise de la galerie', desc: 'Les balises de notre agent disparu émettent depuis le parking du centre commercial. Trouvez-les et sécurisez l\'enclos central.', mapId: 'parking', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 1, order: 'careful', objective: 'capture', enemyTactics: ['fumigene', 'soins'], reward: 320, xp: 65, difficulty: 2 },
-    { id: 'parking', name: 'Nettoyage du parking', desc: 'Le Groupe Karst s\'est retranché entre les voitures et les barrières du parking. Délogez-le.', mapId: 'parking', conditions: 'nuit', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_hyene'], level: 6, order: 'hold', enemyTactics: ['retranche', 'reco'], reward: 380, xp: 75, difficulty: 3 },
-    { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'entrepot', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 7, order: 'assault', enemyTactics: ['blitz', 'reco', 'soins'], reward: 480, xp: 90, difficulty: 4 },
-    // ---- Opération Delta (seconde campagne) : la Milice du Delta, sur les mêmes terrains, souvent de nuit ou par mauvais temps ----
-    { id: 'd_barrage', faction: 'delta', name: 'Barrage routier', desc: 'La Milice du Delta a bloqué l\'accès au parking du centre commercial. Dégagez la route.', mapId: 'parking', enemy: ['d_scorpion', 'd_fennec', 'd_rhino', 'd_taureau', 'd_mamba'], level: 5, order: 'assault', enemyTactics: ['blitz'], reward: 260, xp: 55, difficulty: 2 },
-    { id: 'd_contrebande', faction: 'delta', name: 'Contrebande', desc: 'Sous la pluie, la milice décharge une cargaison sur les docks. Prenez la zone de transbordement.', mapId: 'entrepot', conditions: 'pluie', enemy: ['d_fennec', 'd_mamba', 'd_busard', 'd_rhino', 'd_gecko'], level: 8, order: 'careful', objective: 'capture', enemyTactics: ['fumigene'], reward: 280, xp: 60, difficulty: 2 },
-    { id: 'd_marchenoir', faction: 'delta', name: 'Marché noir', desc: 'De nuit, la milice tient le marché couvert. Ses tireurs attendent dans l\'ombre.', mapId: 'place', conditions: 'nuit', enemy: ['d_busard', 'd_rhino', 'd_scorpion', 'd_gecko', 'd_taureau'], level: 7, order: 'hold', enemyTactics: ['retranche'], reward: 300, xp: 60, difficulty: 3 },
-    { id: 'd_raid', faction: 'delta', name: 'Raid nocturne', desc: 'La milice attaque la raffinerie en pleine nuit, armes courtes au poing. Repoussez l\'assaut.', mapId: 'raffinerie', conditions: 'nuit', enemy: ['d_scorpion', 'd_mamba', 'd_taureau', 'd_fennec', 'd_gecko'], level: 8, order: 'assault', enemyWeapons: { d_scorpion: 'smg', d_mamba: 'smg' }, enemyTactics: ['blitz', 'fumigene'], reward: 320, xp: 65, difficulty: 3 },
-    { id: 'd_brume', faction: 'delta', name: 'Dans la brume', desc: 'Un brouillard épais sur les docks : on ne voit pas à quinze mètres. L\'ennemi est là, quelque part.', mapId: 'entrepot', conditions: 'brouillard', enemy: ['d_gecko', 'd_fennec', 'd_mamba', 'd_rhino', 'd_busard'], level: 5, order: 'careful', enemyTactics: ['camouflage'], reward: 340, xp: 70, difficulty: 3 },
-    { id: 'd_pointappui', faction: 'delta', name: 'Point d\'appui', desc: 'Tenez le parking deux minutes sous la pluie : la milice jette tout ce qu\'elle a dans la bataille.', mapId: 'parking', conditions: 'pluie', enemy: ['d_scorpion', 'd_taureau', 'd_rhino', 'd_mamba', 'd_fennec'], level: 8, order: 'assault', objective: 'hold', duration: 120, enemyTactics: ['blitz', 'barrage'], reward: 360, xp: 70, difficulty: 4 },
-    { id: 'd_convoi', faction: 'delta', name: 'Le convoi', desc: 'Un convoi d\'armes attend sur les voies de la gare de triage. Prenez le quai sud avant que la milice ne l\'évacue.', mapId: 'gare', enemy: ['d_mamba', 'd_busard', 'd_rhino', 'd_fennec', 'd_taureau'], level: 9, order: 'careful', objective: 'capture', enemyTactics: ['fumigene', 'soins'], reward: 370, xp: 75, difficulty: 4 },
-    { id: 'd_placeforte', faction: 'delta', name: 'La place forte', desc: 'La milice s\'est retranchée au cœur de la place du marché. Arrachez-lui la zone.', mapId: 'place', enemy: ['d_rhino', 'd_busard', 'd_taureau', 'd_scorpion', 'd_gecko'], level: 8, order: 'hold', objective: 'capture', enemyTactics: ['retranche', 'soins'], reward: 380, xp: 75, difficulty: 4 },
-    { id: 'd_colonel', faction: 'delta', name: 'Le Colonel', desc: 'Le chef de la milice en personne, avec sa garde rapprochée, de nuit dans la raffinerie. Il ne recule jamais.', mapId: 'raffinerie', conditions: 'nuit', enemy: ['d_colonel', 'd_mamba', 'd_busard', 'd_rhino', 'd_taureau'], level: 2, order: 'careful', enemyTactics: ['reco', 'soins', 'tete'], reward: 600, xp: 100, difficulty: 4, boss: 'd_colonel' },
+    // une seule carte pour l'instant : le parking du centre commercial ; une seule tactique : le tiroir (bonds alternés)
+    { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille du Groupe Karst traverse le parking du centre commercial. Interceptez-la.', mapId: 'parking', enemy: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal'], level: 0, order: 'careful', enemyTactics: ['tiroir'], reward: 180, xp: 40, difficulty: 1 },
+    { id: 'galerie', name: 'Balise de la galerie', desc: 'Les balises de notre agent disparu émettent depuis l\'enclos central du parking. Prenez la zone et tenez-la jusqu\'à 100 %.', mapId: 'parking', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 1, order: 'careful', objective: 'capture', enemyTactics: ['tiroir'], reward: 240, xp: 50, difficulty: 2 },
+    { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact entre les voitures. Tenez ou contre-attaquez.', mapId: 'parking', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_fauve'], level: 3, order: 'assault', enemyTactics: ['tiroir'], reward: 300, xp: 60, difficulty: 2 },
+    { id: 'tenir', name: 'Tenir le parking', desc: 'Tenez 140 secondes face à un assaut : il suffit qu\'un seul opérateur soit encore en état à l\'échéance.', mapId: 'parking', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_vipere'], level: 2, order: 'assault', objective: 'hold', duration: 140, enemyTactics: ['tiroir'], reward: 360, xp: 70, difficulty: 3 },
+    { id: 'parking', name: 'Nettoyage du parking', desc: 'De nuit, le Groupe Karst s\'est retranché entre les voitures et les barrières. Délogez-le.', mapId: 'parking', conditions: 'nuit', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_hyene'], level: 5, order: 'hold', enemyTactics: ['tiroir'], reward: 400, xp: 75, difficulty: 3 },
+    { id: 'elite', name: 'Détachement d\'élite', desc: 'Les meilleurs opérateurs adverses, mieux entraînés, à l\'assaut. Réservé aux escouades expérimentées.', mapId: 'parking', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_taipan', 'k_fauve'], level: 7, order: 'assault', enemyTactics: ['tiroir'], reward: 480, xp: 90, difficulty: 4 },
   ];
 
   // ---- MODES DE JEU (comme le menu « Jouer » du jeu d'origine) -------------------------------
@@ -238,18 +180,9 @@
   // prime de participation quand toutes ont été jouées, prime de campagne quand toutes ont été gagnées.
   // Vétéran et Élite rejouent les missions avec un adversaire plus aguerri (niveau +), plus de tactiques, de meilleures primes.
   const CAMPAIGNS = [
-    { id: 'reguliere', name: 'Campagne régulière', desc: 'Quatorze missions contre le Groupe Karst, des docks à la raffinerie en passant par le centre commercial.',
-      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
+    { id: 'reguliere', name: 'Campagne régulière', desc: 'Six missions contre le Groupe Karst sur le parking du centre commercial.',
+      missions: ['patrouille', 'galerie', 'assaut', 'tenir', 'parking', 'elite'],
       levelBonus: 0, rewardMul: 1, participation: 200, completion: 500, unlock: null },
-    { id: 'veteran', name: 'Campagne vétéran', desc: 'Les mêmes théâtres, un adversaire plus aguerri (+4 niveaux, une tactique de plus).',
-      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
-      levelBonus: 4, extraTactic: true, rewardMul: 1.5, participation: 350, completion: 900, unlock: { rank: 3 } },
-    { id: 'elite', name: 'Campagne élite', desc: 'Pour les escouades d\'exception : adversaire de niveau 12 à 14, toujours cinq hommes, deux tactiques de plus.',
-      missions: ['patrouille', 'balise', 'marche', 'cuves', 'embuscade', 'priseplace', 'galerie', 'assaut', 'tenir', 'parking', 'nuit', 'pompage', 'vannes', 'elite'],
-      levelBonus: 8, levelClamp: [4, 6], fullSquad: true, extraTactic: 2, rewardMul: 2, participation: 600, completion: 1500, unlock: { rating: 60 } },
-    { id: 'delta', name: 'Opération Delta', desc: 'Neuf missions contre la Milice du Delta — nuit, pluie, brouillard — jusqu\'à son chef, le Colonel.',
-      missions: ['d_barrage', 'd_contrebande', 'd_marchenoir', 'd_raid', 'd_brume', 'd_pointappui', 'd_convoi', 'd_placeforte', 'd_colonel'],
-      levelBonus: 0, rewardMul: 1, participation: 300, completion: 900, unlock: { rank: 2 } },
   ];
   // Bataille rapide : un adversaire à votre mesure (niveau tiré de la puissance d'équipe), carte et objectif au hasard ;
   // un paquet standard offert toutes les QUICK.prizeEvery victoires.
@@ -265,19 +198,9 @@
   // Chaque effet est implémenté dans engine.js (useTactic / applyPassiveTactics). active : déclenchée par le joueur
   // (uses : nombre d'emplois par bataille, cooldown en s) ; sinon passive, appliquée au début.
   const TACTICS = {
-    fumigene:    { id: 'fumigene',    name: 'Fumigène',          active: true, uses: 2, cooldown: 25, desc: 'Un écran de fumée de 8 m pendant 15 s entre l\'escouade et la menace la plus proche : coupe la vue dans les deux sens.' },
-    reco:        { id: 'reco',        name: 'Drone de reco',     active: true, uses: 1, cooldown: 0,  desc: 'Révèle la position de tous les adversaires à toute l\'escouade pendant 8 s.' },
-    soins:       { id: 'soins',       name: 'Trousse de soins',  active: true, uses: 2, cooldown: 20, desc: 'L\'opérateur le plus blessé encore en état récupère 35 PV en 5 s.' },
-    barrage:     { id: 'barrage',     name: 'Appui mortier',     active: true, uses: 1, cooldown: 0,  desc: 'Après 4 s, trois obus tombent autour de la position adverse connue la plus proche : dégâts dans 3 m, suppression dans 8 m.' },
-    drill:       { id: 'drill',       name: 'Exercice de base',  active: false, desc: 'Déplacement 12 % plus rapide pendant les 20 premières secondes ; dégâts subis −10 % tant que l\'adversaire tient.' },
-    blitz:       { id: 'blitz',       name: 'Éclair',            active: false, desc: 'Cadence de tir +20 % pendant 30 s au début de la bataille, précision −10 % pendant ce temps.' },
-    retranche:   { id: 'retranche',   name: 'Retranchement',     active: false, desc: 'Position préparée atteinte en 1,5 s au lieu de 3 ; les couverts partiels protègent un peu mieux (×0,5 au lieu de ×0,55).' },
-    discipline:  { id: 'discipline',  name: 'Discipline de feu', active: false, desc: 'Pas de tir sous 12 % de chances de toucher (économie de munitions) ; +12 % de précision à l\'arrêt.' },
-    // cartes reprises du jeu d'origine (Air strike, Headshot, Camouflage, Triage)
-    frappe:      { id: 'frappe',      name: 'Frappe aérienne',   active: true, uses: 1, cooldown: 0, desc: 'Après 5 s, un passage d\'avion mitraille une bande de 4 m sur 30 m à travers la position adverse connue la plus proche : 30 à 60 PV à découvert, moitié derrière un couvert bas, rien sous un toit ou derrière un mur.' },
-    tete:        { id: 'tete',        name: 'Tir à la tête',     active: false, desc: 'Chance de toucher à la tête portée de 8 % à 14 % pour toute l\'escouade.' },
-    camouflage:  { id: 'camouflage',  name: 'Camouflage',        active: false, desc: 'Les 40 premières secondes, l\'adversaire a 35 % de chances en moins de vous repérer (puis 15 %).' },
-    triage:      { id: 'triage',      name: 'Triage',            active: false, desc: 'Un opérateur blessé qui n\'est plus touché depuis 6 s récupère 2 PV par seconde, jusqu\'à 60 % de sa vie.' },
+    // une seule tactique pour l'instant. Tiroir : l'escouade progresse par bonds alternés — une moitié avance de couvert en couvert
+    // pendant que l'autre, arrêtée, la couvre ; puis les rôles s'inversent (engine.js : recherche « tiroir »).
+    tiroir: { id: 'tiroir', name: 'Tiroir', active: false, desc: 'Progression par bonds alternés : une moitié de l\'escouade avance pendant que l\'autre la couvre, arrêtée et prête à tirer, puis on inverse.' },
   };
 
   // ---- DÉFIS -------------------------------------------------------------------------
@@ -285,10 +208,8 @@
   const CHALLENGES = [
     { id: 'sans_perte', name: 'Sans perte',          desc: 'Réussir une mission sans aucun opérateur neutralisé.', reward: 200 },
     { id: 'a_trois',    name: 'À trois',             desc: 'Réussir une mission avec une escouade de trois.', reward: 250 },
-    { id: 'methodique', name: 'Méthodique',          desc: 'Réussir « Position retranchée » avec l\'ordre Prudent.', reward: 150 },
-    { id: 'pas_un_pouce', name: 'Pas un pouce',      desc: 'Réussir « Tenir la place » avec cinq opérateurs encore en état.', reward: 300 },
+    { id: 'pas_un_pouce', name: 'Pas un pouce',      desc: 'Réussir « Tenir le parking » avec cinq opérateurs encore en état.', reward: 300 },
     { id: 'tireur',     name: 'Œil du tireur',       desc: 'Un tireur d\'élite neutralise trois adversaires dans une même mission.', reward: 200 },
-    { id: 'silence',    name: 'Silence radio',       desc: 'Réussir « Infiltration adverse » sans qu\'aucun opérateur ne reste cloué au sol plus de 3 s.', reward: 300 },
     { id: 'elite',      name: 'Détachement brisé',   desc: 'Réussir « Détachement d\'élite ».', reward: 400 },
   ];
 
@@ -327,18 +248,15 @@
     { id: 'premiere',   name: 'Première victoire',  glyph: '★', desc: 'Remporter une bataille.', reward: { credits: 100 } },
     { id: 'dix',        name: 'Dix victoires',      glyph: '✪', desc: 'Remporter dix batailles.', reward: { headgear: 'beret_rouge' } },
     { id: 'chasseur',   name: 'Chasseur',           glyph: '◎', desc: 'Cinquante neutralisations en carrière.', reward: { headgear: 'chapeau' } },
-    { id: 'collection', name: 'Collectionneur',     glyph: '▣', desc: 'Débloquer dix opérateurs.', reward: { insignia: 'aigle' } },
     { id: 'veteran',    name: 'Vétéran',            glyph: '✦', desc: 'Amener un opérateur au niveau 5.', reward: { headgear: 'beret_vert' } },
     { id: 'podium',     name: 'Sur le podium',      glyph: '♛', desc: 'Finir une saison de ligue dans les trois premiers.', reward: { uniform: 'nuit' } },
-    { id: 'tacticien',  name: 'Tacticien',          glyph: '◆', desc: 'Jouer vingt tactiques actives.', reward: { credits: 250 } },
     { id: 'intact',     name: 'Sans une égratignure', glyph: '❖', desc: 'Gagner avec cinq opérateurs à plus de 90 % de vie.', reward: { headgear: 'foulard_rouge' } },
     { id: 'croise',     name: 'Tir croisé',         glyph: '✛', desc: 'Dix neutralisations de groupe en carrière.', reward: { insignia: 'eclair' } },
     { id: 'precision',  name: 'Tête froide',        glyph: '⊕', desc: 'Vingt-cinq tirs à la tête en carrière.', reward: { headgear: 'lunettes_soleil' } },
     { id: 'sauveteur',  name: 'Sauveteur',          glyph: '✚', desc: 'Relever cinq alliés à terre.', reward: { credits: 300 } },
     { id: 'nocturne',   name: 'Oiseau de nuit',     glyph: '☾', desc: 'Gagner cinq batailles de nuit.', reward: { insignia: 'rose' } },
     { id: 'terrain',    name: 'Maître du terrain',  glyph: '⬢', desc: 'Gagner cinq batailles de capture de zone.', reward: { insignia: 'ancre' } },
-    { id: 'colonel',    name: 'Le Colonel',         glyph: '☠', desc: 'Vaincre le Colonel, chef de la Milice du Delta (Opération Delta).', reward: { headgear: 'beret_bleu' } },
-    { id: 'campagne',   name: 'Campagne accomplie', glyph: '⚑', desc: 'Gagner les quatorze missions de la campagne régulière.', reward: { uniform: 'desert' } },
+    { id: 'campagne',   name: 'Campagne accomplie', glyph: '⚑', desc: 'Gagner toutes les missions de la campagne régulière.', reward: { uniform: 'desert' } },
   ];
   // ---- PROMOTIONS : second trait au choix (niveau 5), troisième (niveau 10) ----------------
   // Deux propositions par palier, tirées parmi les traits que l'opérateur n'a pas.
@@ -351,7 +269,7 @@
   // ---- ÉCONOMIE ----------------------------------------------------------------------
   const PRICES = {
     operator: { 1: 250, 2: 450, 3: 700 },           // recrutement selon la rareté
-    weapon:   { carbine: 0, smg: 0, dmr: 0, lmg: 0, shotgun: 0, battle: 320, smgsil: 260 },
+    weapon:   { carbine: 0 },
     armor:    { light: 0, medium: 150, heavy: 320, assaultv: 220, composite: 420 },
   };
   // Expérience nécessaire pour atteindre chaque niveau (niveau 0 → 1 : 100, etc.) ; +2 à chaque statistique par niveau (max 10).

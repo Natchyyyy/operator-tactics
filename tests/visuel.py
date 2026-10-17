@@ -16,8 +16,8 @@ SEUIL = 4.0   # écart moyen toléré (0–255) : absorbe le bruit de rendu, pas
 
 # chaque écran : nom, script de préparation (doit rendre une valeur), délai
 ECRANS = [   # la bataille d'abord (page ouverte en bataille libre), puis le QG
-    ("bataille-jour", "(() => { window.API.start({ mapId: 'entrepot', seed: 7 }); window.API.step(120); window.API.focus('Vautour', 2.3, 0.6, 26); return 1; })()"),
-    ("bataille-nuit", "(() => { window.API.start({ mapId: 'raffinerie', seed: 7, conditions: 'nuit' }); window.API.step(60); window.API.focus('Granit', 2.0, 0.8, 40); return 1; })()"),
+    ("bataille-jour", "(() => { window.API.start({ mapId: 'parking', seed: 7 }); window.API.step(120); window.API.focus('Vautour', 2.3, 0.6, 16); return 1; })()"),
+    ("bataille-nuit", "(() => { window.API.start({ mapId: 'parking', seed: 7, conditions: 'nuit' }); window.API.step(60); window.API.focus('Granit', 2.0, 0.8, 24); return 1; })()"),
     ("qg-accueil", "(() => { window.HQ.show(); return 1; })()"),
     ("qg-equipe", "(() => { document.querySelector('.tabs [data-tab=equipe]').click(); return 1; })()"),
     ("qg-cartes", "(() => { document.querySelector('.tabs [data-tab=cartes]').click(); return 1; })()"),

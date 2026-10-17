@@ -13,7 +13,7 @@
     { name: 'Alpha', color: 0x4f9cf0, css: '#4f9cf0', uniform: 0x3a4a3c, vest: 0x2b352d },
     { name: 'Bravo', color: 0xe85a4f, css: '#e85a4f', uniform: 0x6b5a3e, vest: 0x4e4230 },
   ];
-  const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯', frappe: '✈', tete: '☠', camouflage: '🌿', triage: '⛑' };
+  const TACTIC_ICON = { tiroir: '⇅', fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯', frappe: '✈', tete: '☠', camouflage: '🌿', triage: '⛑' };
   const tacIcon = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'timg')) || TACTIC_ICON[id] || '◆';      // icône dessinée si disponible
   const roleImg = (role) => (OT.imgTag && OT.imgTag('role_' + role, 'rimg')) || '';
   const $ = (s) => document.querySelector(s);
@@ -88,8 +88,8 @@
   function directorCamera() {
     const ev = DIRECTOR.eventShot;
     if (ev && simTime < ev.until) {   // plan d'événement : en hauteur, tourne lentement autour du point
-      const a = ev.yaw + (simTime - (ev.until - 2.6)) * 0.25, d = 11;
-      placeCam(new THREE.Vector3(ev.x + Math.cos(a) * d, 7, ev.z + Math.sin(a) * d), new THREE.Vector3(ev.x, 0.8, ev.z), cam.shot === 'ev' ? 0.12 : 1);
+      const a = ev.yaw + (simTime - (ev.until - 2.6)) * 0.25, d = 8;
+      placeCam(new THREE.Vector3(ev.x + Math.cos(a) * d, 4.6, ev.z + Math.sin(a) * d), new THREE.Vector3(ev.x, 0.8, ev.z), cam.shot === 'ev' ? 0.12 : 1);
       cam.shot = 'ev'; cam.target.set(ev.x, 0, ev.z); return;
     }
     DIRECTOR.eventShot = null;
@@ -108,7 +108,7 @@
     const list = s.kind === 'overview' ? engagedUnits() : battle.teams[0].units.filter(u => u.alive);
     if (!list.length) { cam.shot = null; return; }
     const c = centroid(list); let spread = 0; for (const u of list) spread = Math.max(spread, Math.hypot(u.x - c.x, u.z - c.z));
-    const d = Math.max(12, Math.min(34, spread * 1.6 + 8)), h = s.kind === 'overview' ? d * 0.75 : d * 0.6;
+    const d = Math.max(9, Math.min(24, spread * 1.15 + 6)), h = s.kind === 'overview' ? d * 0.62 : d * 0.5;   // plans serrés : les soldats restent grands à l'écran
     const toEnemy = Math.sign(battle.map.spawns[1].x - battle.map.spawns[0].x) || 1;   // on regarde vers l'adversaire
     const a = Math.PI + (toEnemy > 0 ? 0 : Math.PI) + s.yaw;
     placeCam(new THREE.Vector3(c.x + Math.cos(a) * d, h, c.z + Math.sin(a) * d), new THREE.Vector3(c.x + toEnemy * 3, 0.5, c.z), k);
@@ -393,7 +393,7 @@
   }
   function buildMap(map) {
     if (mapGroup) { // libérer les ressources GPU de la carte précédente (géométries et texture du sol créées ici)
-      mapGroup.traverse(o => { if (o.isMesh) { o.geometry.dispose(); if (o.material && o.material.map && o.material.map.isCanvasTexture && o.material.map.__ground) { o.material.map.dispose(); o.material.dispose(); } } });
+      mapGroup.traverse(o => { if (o.isMesh && !o.userData.keep) { o.geometry.dispose(); if (o.material && o.material.map && o.material.map.isCanvasTexture && o.material.map.__ground) { o.material.map.dispose(); o.material.dispose(); } } });
       scene.remove(mapGroup);
     }
     mapGroup = new THREE.Group(); obstacleMesh.clear();
@@ -417,10 +417,35 @@
       const cab = new THREE.Mesh(new THREE.BoxGeometry(5, 3, 5), legMat); cab.position.set(0, 25, 0); g.add(cab);
       g.position.set(x, 0, z); mapGroup.add(g);
     });
+    const M3 = OT.Modeles3D && OT.Modeles3D.ready ? OT.Modeles3D : null, has3 = (n) => M3 && M3.has(n);
+    // objets Meshy alignés bout à bout le long d'une boîte (barrières, sacs de sable) : autant de copies que la longueur le demande
+    const rangee = (n, o, unit, opts) => {
+      const g = new THREE.Group(), L = Math.max(o.w, o.d), k = Math.max(1, Math.round(L / unit)), along = o.w >= o.d;
+      for (let j = 0; j < k; j++) { const p = M3.fit(n, along ? L / k : o.w, o.h, along ? o.d : L / k, Object.assign({ flip: (j + (opts && opts.seed || 0)) % 2 === 1 }, opts)); const off = (j + 0.5) * L / k - L / 2; p.position.set(along ? off : 0, 0, along ? 0 : off); g.add(p); }
+      return g;
+    };
     map.obstacles.forEach((o, i) => {
       let mesh;
       const nm = o.name || '';
-      if (D3 && /^(voiture|fourgon|bus)/.test(nm)) {
+      if (has3('berline') && nm.startsWith('voiture')) {
+        mesh = M3.fit(i % 3 === 1 && has3('pickup') ? 'pickup' : 'berline', o.w, o.h, o.d, { flip: i % 2 === 0, tol: 0.3 });
+      } else if (has3('fourgon') && nm.startsWith('fourgon')) {
+        mesh = M3.fit('fourgon', o.w, o.h, o.d, { flip: i % 2 === 0, tol: 0.3 });
+      } else if (has3('bus') && nm.startsWith('bus')) {
+        mesh = M3.fit('bus', o.w, o.h, o.d, { tol: 0.35 });
+      } else if (has3('barriere') && nm.startsWith('barrière')) {
+        mesh = rangee('barriere', o, 2.0, { tol: 0.3, seed: i });
+      } else if (has3('sacs') && nm.startsWith('sacs')) {
+        mesh = rangee('sacs', o, 1.3, { tol: 1.2, seed: i });
+      } else if (has3('fut') && nm.startsWith('fût')) {
+        mesh = new THREE.Group(); const two = Math.max(o.w, o.d) > 1.2;   // un ou deux fûts dans la boîte
+        for (let j = 0; j < (two ? 2 : 1); j++) { const r = Math.min(o.w, o.d) * 0.95, p = M3.fit('fut', r, o.h, r, { byHeight: true, rot: i + j }); if (two) { const off = (j - 0.5) * Math.max(o.w, o.d) * 0.48; p.position.set(o.w >= o.d ? off : 0, 0, o.w >= o.d ? 0 : off); } mesh.add(p); }
+      } else if (has3('kiosque') && nm.startsWith('kiosque')) {
+        mesh = M3.fit('kiosque', o.w, o.h, o.d, { tol: 0.3, rot: o.x > map.width / 2 ? Math.PI / 2 : -Math.PI / 2 });
+      } else if (has3('palmier') && nm.startsWith('palmier')) {
+        mesh = M3.fit('palmier', 3, 6.2 + (i % 3) * 0.6, 3, { byHeight: true, rot: i }); mesh.position.y = 0;
+        mesh.children[0].position.y = -o.h / 2;
+      } else if (D3 && /^(voiture|fourgon|bus)/.test(nm)) {
         mesh = D3.car(o, i, nm.startsWith('voiture') ? 'car' : nm.startsWith('bus') ? 'bus' : 'van');
       } else if (D3 && nm.startsWith('palmier')) {
         mesh = D3.palm(o, i);
@@ -430,9 +455,9 @@
         mesh = D3.sandbags(o);
       } else if (D3 && nm.startsWith('fût')) {
         mesh = D3.barrel(o, i);
-      } else if (D3 && /^(caisses|mur |muret|pilier|bâtiment|immeuble|conteneur|quai|poste|halle|abri|kiosque)/.test(nm)) {
+      } else if (D3 && /^(caisses|mur |muret|pilier|bâtiment|immeuble|conteneur|quai|poste|halle|abri|kiosque|bac)/.test(nm)) {
         const D = D3.M, k = nm.split(' ')[0];
-        const matFor = { caisses: [D.caisse(), 1.2], mur: [D.beton(), 3], muret: [D.beton(), 3], pilier: [D.beton(), 3], quai: [D.beton(), 3], 'bâtiment': [D.facade(i % 2 ? 'gris' : ''), 6], immeuble: [D.facade(['', 'rose', 'gris'][i % 3]), 6], conteneur: [D.tole([0xb05a3e, 0x3e6a8e, 0x6e8a4a, 0xc8a040][i % 4]), 2.4], poste: [D.facade('gris'), 6], halle: [D.tole(0x9aa0a4), 2.4], abri: [D.tole(0xc8c8c0), 2.4], kiosque: [D.facade('rose'), 6] }[k] || [D.beton(), 3];
+        const matFor = { caisses: [D.caisse(), 1.2], mur: [D.beton(), 3], muret: [D.beton(), 3], pilier: [D.beton(), 3], quai: [D.beton(), 3], 'bâtiment': [D.facade(i % 2 ? 'gris' : ''), 6], immeuble: [D.facade(['', 'rose', 'gris'][i % 3]), 6], conteneur: [D.tole([0xb05a3e, 0x3e6a8e, 0x6e8a4a, 0xc8a040][i % 4]), 2.4], poste: [D.facade('gris'), 6], halle: [D.tole(0x9aa0a4), 2.4], abri: [D.tole(0xc8c8c0), 2.4], kiosque: [D.facade('rose'), 6], bac: [D.beton(), 1.5] }[k] || [D.beton(), 3];
         mesh = new THREE.Mesh(D3.box(o.w, o.h, o.d, matFor[1]), matFor[0]);
       } else if (/^(voiture|fourgon|bus)/.test(nm)) {
         mesh = carModel(o, i, nm.startsWith('voiture') ? 'car' : nm.startsWith('bus') ? 'bus' : 'van');
@@ -485,6 +510,8 @@
         edges.position.copy(mesh.position); mapGroup.add(edges);
       }
     });
+    // abribus (décor, hors du terrain) le long de la façade du centre commercial
+    if (has3('abribus') && map.id === 'parking') for (const x of [16, map.width - 16]) { const a = M3.fit('abribus', 4, 2.6, 1.6, { tol: 0.3 }); a.position.set(x, 1.3, -2.6); mapGroup.add(a); }
     // zones de départ
     map.spawns.forEach((sp, i) => {
       const ring = new THREE.Mesh(new THREE.RingGeometry(sp.r - 0.15, sp.r, 48), new THREE.MeshBasicMaterial({ color: TEAM[i].color, transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
@@ -555,6 +582,8 @@
       anim: { crouch: 0, fall: 0, fallDir: 0, recoil: 0, flinch: 0, aim: 0, phase: Math.random() * 6.28 } });
   }
   // le modèle 3D arrive après le début d'une bataille : on remplace les personnages sans toucher à la simulation
+  // les objets Meshy arrivent après le début d'une bataille : on redessine le décor (la simulation n'en dépend pas)
+  if (OT.Modeles3D) OT.Modeles3D.whenReady(() => { if (battle && mapGroup) { buildMap(battle.map); render(); } });
   if (OT.Soldat3D) OT.Soldat3D.whenReady(() => { if (!battle) return; for (const u of battle.units) { const old = meshes[u.id]; if (!old || old.isSkinned) continue; scene.remove(old.group); old.label.remove(); makeOperator(u); Object.assign(meshes[u.id], { prev: old.prev, cur: old.cur }); } render(); });
   function clearOperators() { for (const id in meshes) { scene.remove(meshes[id].group); meshes[id].label.remove(); delete meshes[id]; } }
 
@@ -566,21 +595,25 @@
     const crouch = u.alive && u.stance === 'crouch', aiming = u.alive && (u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture');
     const v = Math.hypot(m.cur.x - m.prev.x, m.cur.z - m.prev.z) / DT;
     const running = u.alive && u.moving && (u.state === 'closing' || u.state === 'retreat' || u.state === 'evade' || u.state === 'tozone' || v > 2.4);
-    const loco = (n) => m.play(n, { speed: Math.max(0.55, Math.min(1.8, (v || 1) / ({ Walking: 1.35, Walk_Fight_Forward: 1.1, Running: 3.4, RunFast: 5.2, Run_and_Shoot: 3.2, Cautious_Crouch_Walk_Forward: 0.9 }[n] || 1))) });
+    const loco = (n) => m.play(n, { speed: Math.max(0.6, Math.min(1.6, (v || 1) / ({ Walk_Fight_Forward: 1.25, Run_and_Shoot: 3.0 }[n] || 1))), fade: 0.2 });
+    // Seulement des animations « arme en main » (sinon le fusil flotte au bout d'un bras qui se balance) ; chaque animation a
+    // sa correction d'orientation (Soldat3D.yawFix) pour que l'arme vise droit devant, là où le moteur fait regarder le soldat.
     let two = true;
     if (!u.alive) {
       two = false;
-      if (u.crawling) m.play('Crawl_Backward', { speed: 0.8 });
-      else m.play(u.id.charCodeAt(u.id.length - 1) % 2 ? 'Shot_and_Fall_Forward' : 'Shot_in_the_Back_and_Fall', { speed: 1.25, fade: 0.08 });
+      m.play(u.id.charCodeAt(u.id.length - 1) % 2 ? 'Shot_and_Fall_Forward' : 'Shot_in_the_Back_and_Fall', { speed: 1.25, fade: 0.08 });
       m.ring.material.opacity = Math.max(0.15, m.ring.material.opacity - dt);
-    } else if (battle.over && battle.result && battle.result.winner === u.team) { m.play('victory'); two = false; }
-    else if (u.throwing) { m.play('Over_Shoulder_Throw', { speed: 1.6, fade: 0.1 }); two = false; }
+    } else if (battle.over && battle.result && battle.result.winner === u.team) { m.play('victory', { start: 0.12, fade: 0.35 }); two = false; }
+    else if (u.throwing) { m.play('Over_Shoulder_Throw', { speed: 1.6, fade: 0.12 }); two = false; }
     else if (u.reloading > 0) { const n = crouch ? 'Kneeling_Reload' : 'Standing_Reload'; m.play(n, { speed: Math.min(2.4, clipSpeed(n) / Math.max(1, u.weapon.reload || 2.5)) }); }
-    else if (u.moving && v > 0.15) { if (crouch) loco('Cautious_Crouch_Walk_Forward'); else if (running) loco(aiming ? 'Run_and_Shoot' : (v > 4.2 ? 'RunFast' : 'Running')); else loco(aiming ? 'Walk_Fight_Forward' : 'Walking'); }
-    else if (crouch) m.play('Kneeling_Reload', { time: 0.06 });
-    else m.play('Rifle_Aim_Turn_Right', { time: 0.02 });
+    else if (u.moving && v > 0.15) {
+      // marche arme à la poitrine ; course ou marche en visant : arme épaulée, canon devant
+      if ((running || aiming || v > 2.1) && !crouch) loco('Run_and_Shoot'); else loco('Walk_Fight_Forward');
+    }
+    else if (crouch) m.play('Kneeling_Reload', { time: 0.06, fade: 0.25 });
+    else m.play('Rifle_Aim_Turn_Right', { time: 0, fade: 0.25 });
     if (u.alive) m.ring.material.opacity = 0.8;
-    m.update(dt);
+    m.update(dt, !u.alive);
     if (m.bones.spine && (a.recoil > 0 || a.flinch > 0)) { m.bones.spine.rotation.x -= a.recoil * 0.05; m.bones.spine.rotation.z += a.flinch * 0.12 * Math.sin(simTime * 30); }
     m.placeWeapon(two, a.recoil);
   }
@@ -598,7 +631,6 @@
     m.legs[0].leg.rotation.x = swing * swingAmp - a.crouch * 1.15; m.legs[0].knee.rotation.x = Math.max(0, -swing) * 0.9 + a.crouch * 1.75;
     m.legs[1].leg.rotation.x = -swing * swingAmp - a.crouch * 0.55; m.legs[1].knee.rotation.x = Math.max(0, swing) * 0.9 + a.crouch * 1.95;
     m.hips.position.y = m.hipsY - a.crouch * 0.4 + (walking ? Math.abs(Math.cos(a.phase)) * 0.03 : 0);
-    if (!u.alive && u.crawling) { a.phase += dt * 5; const s = Math.sin(a.phase); m.legs[0].leg.rotation.x = s * 0.45; m.legs[1].leg.rotation.x = -s * 0.45; m.legs[0].knee.rotation.x = 0.4 + Math.max(0, s) * 0.6; m.legs[1].knee.rotation.x = 0.4 + Math.max(0, -s) * 0.6; }   // rampe
     // torse : penché en avant en course ou accroupi, recul au tir, tressaillement à l'impact ; épaule gauche avancée en visée
     m.torso.rotation.x = a.crouch * 0.3 + (running ? 0.22 : walking ? 0.08 : 0) - a.recoil * 0.06 + a.flinch * 0.25;
     m.torso.rotation.y = a.aim * 0.18;
@@ -777,6 +809,7 @@
   window.OT_MUSIC = { set(v) { musicVol = v; SETTINGS.music = v; try { localStorage.setItem('ot-music', String(v)); localStorage.setItem('ot-settings', JSON.stringify(SETTINGS)); } catch (e) { /* rien */ } if (window.Son) Son.volumeBoucle('musique', (battle && !$('#app').classList.contains('hidden') ? 0.7 : 0.8) * v); }, get: () => musicVol };
   function setMuted(m) { muted = m; try { localStorage.setItem('ot-mute', m ? '1' : '0'); } catch (e) { /* rien */ } $('#mute').textContent = m ? '🔇' : '🔊'; $('#mute').classList.toggle('on', !m); ambience(!m && !$('#app').classList.contains('hidden')); }
   $('#mute').addEventListener('click', () => setMuted(!muted));
+  window.OT_MUTE = { get: () => muted, set: (m) => setMuted(!!m) };
   document.addEventListener('click', (e) => { if (e.target.closest('button') && !e.target.closest('#mute')) play('clic', null, { vol: 0.8, varie: 0.05 }); }, true);
 
   // ---------------------------------------------------------------------------------------------
@@ -939,7 +972,6 @@
       if (ev.type === 'strike') { addStrike(ev); for (let k = -ev.half; k <= ev.half; k += 3) addScorch(ev.cx + ev.dx * k + (Math.random() - 0.5) * 1.5, ev.cz + ev.dz * k + (Math.random() - 0.5) * 1.5, 0.9); }
       if (ev.type === 'grenade_blast') { addBlast(ev); if (ev.kind !== 'flash') addScorch(ev.x, ev.z, 1.4); directorEvent('blast', ev.x, ev.z); }
     }
-    for (const u of battle.units) if (u.crawling && Math.random() < 0.08) addBlood(u.x, u.z, 0.22);   // traînée du blessé qui rampe
     updateTacticCards();
     // sons différés (impacts à l'arrivée de la balle), pas, rechargements, contact
     for (let i = pendingSounds.length - 1; i >= 0; i--) if (simTime >= pendingSounds[i].at) { const ps = pendingSounds[i]; play(ps.name, ps.pos, { vol: ps.vol }); pendingSounds.splice(i, 1); }
@@ -960,8 +992,13 @@
       const x = m.prev.x + (m.cur.x - m.prev.x) * alpha, z = m.prev.z + (m.cur.z - m.prev.z) * alpha;
       m.group.position.set(x, 0, z);
       // orientation : interpolation angulaire courte
-      let df = m.cur.facing - m.prev.facing; while (df > Math.PI) df -= 2 * Math.PI; while (df < -Math.PI) df += 2 * Math.PI;
-      m.group.rotation.y = -(m.prev.facing + df * alpha) + Math.PI / 2;
+      // orientation : on tourne vers la direction simulée à vitesse limitée (pas de demi-tour instantané qui ferait « tourner »
+      // le corps sur lui-même quand la cible ou le chemin change brusquement) ; un mort ne pivote plus
+      const want = -m.cur.facing + Math.PI / 2;
+      if (m.yaw === undefined || !isFinite(m.yaw)) m.yaw = want;
+      if (u.alive) { let d = want - m.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+        const maxStep = 7 * frameDt; m.yaw += Math.max(-maxStep, Math.min(maxStep, d * Math.min(1, frameDt * 12))); }
+      m.group.rotation.y = m.yaw;
       animateOperator(u, m, frameDt);
     }
   }
@@ -1044,7 +1081,11 @@
     battle.teams.forEach((team, ti) => {
       $('#tactics' + ti).querySelectorAll('.tcard').forEach(c => {
         const id = c.dataset.tactic, t = DATA.TACTICS[id], st = team.tactics[id];
-        if (!t.active) { c.querySelector('.tuse').textContent = 'passive'; return; }
+        if (!t.active) {   // Tiroir : quelle moitié avance en ce moment (bond n°)
+          if (id === 'tiroir' && team.bound) { const mv = team.units.filter(u => u.alive && u.boundGroup === team.bound.group).map(u => u.callsign); c.querySelector('.tuse').textContent = team.order === 'hold' ? 'en attente (Tenir)' : mv.length ? `bond ${team.bound.n + 1} : ${mv.join(', ')}` : 'passive'; }
+          else c.querySelector('.tuse').textContent = 'passive';
+          return;
+        }
         const cd = Math.max(0, st.cooldownUntil - battle.t);
         c.querySelector('.tuse').textContent = st.uses <= 0 ? 'épuisé' : cd > 0 ? `${cd.toFixed(0)} s` : `${st.uses} ×`;
         c.classList.toggle('off', st.uses <= 0 || cd > 0);
@@ -1188,7 +1229,7 @@
     while (!battle.over) battle.step();
     battle.drainEvents(); pendingSounds.length = 0;
     for (const f of fx) scene.remove(f.obj); fx.length = 0;
-    for (const u of battle.units) { const m = meshes[u.id]; m.prev = m.cur = { x: u.x, z: u.z, facing: u.facing }; m.label.classList.toggle('down', !u.alive); }
+    for (const u of battle.units) { const m = meshes[u.id]; m.prev = m.cur = { x: u.x, z: u.z, facing: u.facing }; m.yaw = undefined; m.label.classList.toggle('down', !u.alive); }
     instantResult = true; stepSim(); instantResult = false; acc = DT; render();
   }
   $('#skip').addEventListener('click', skipToEnd);

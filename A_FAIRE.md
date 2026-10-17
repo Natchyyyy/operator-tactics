@@ -1,5 +1,33 @@
 # À faire (suivi pour reprendre plus tard)
 
+## Retravailler chaque élément un par un (17/10, soir) — demande de l'utilisateur
+Principe : moins de contenu, mais chaque chose refaite proprement, une à la fois.
+- Contenu réduit : une seule carte (parking du centre commercial), cinq opérateurs du GIGN (Vautour, Lynx, Granit, Bastion,
+  Bélier — personnages fictifs), une seule arme (fusil d'assaut 5,56, modèle Meshy), une seule tactique (**Tiroir**),
+  adversaire unique : le Groupe Karst. Campagne régulière de 6 missions sur le parking. Sauvegarde v3 (migration : ce qui
+  n'existe plus disparaît, crédits et progression gardés). Les anciens terrains / armes / opérateurs ne servent plus qu'aux
+  tests du moteur (`tests/anciens.js`).
+- Tiroir (bonds alternés) : l'escouade est partagée en deux moitiés ; l'une avance de couvert en couvert (bond ≤ 11 m)
+  pendant que l'autre, arrêtée, couvre face à la menace ; puis on inverse. Le tireur d'élite reste en appui.
+- IA et alliés : plus de tir avec un camarade sur la trajectoire (pas de côté pour dégager l'angle), couverts répartis
+  (pas deux au même endroit, pas derrière un allié), soutien d'un camarade pris pour cible, tir concentré.
+- Les blessés à terre ne rampent plus (« les morts se déplacent allongés »).
+- Animations : seulement des animations « arme en main » (marche arme à la poitrine, course arme épaulée, visée,
+  rechargements) ; correction d'orientation mesurée par animation pour que l'arme vise droit devant ; plus de demi-tour
+  du lancer ni de la visée qui pivote ; rotation du corps à vitesse limitée (plus de corps qui tournent sur eux-mêmes).
+  Planche de contrôle : `outils/vues/clips.html?vue=face|haut|cote&a=Clip1,Clip2`.
+- Modèles Meshy (image → 3D, téléchargés) : fusil, berline, pick-up, fourgon, bus, barrière en béton, sacs de sable, fût,
+  kiosque, palmier, abribus. Allégés par `outils/decor_glb.py` (gltfpack compilé depuis github.com/zeux/meshoptimizer :
+  `make config=release gltfpack`) → `art/meshy/decor/*.glb` → `web/modeles/decor.js` ; chargés par `web/modeles3d.js`.
+  Les fichiers bruts sont dans `art/meshy/brut/` (non versionnés). Piège : l'option gltfpack `-sa` abîme les textures de
+  certains objets (barrière, kiosque, pick-up, bus) ; garder `-vtf` (UV en flottants).
+- Interface « PC moderne » : barre du haut et pied fins, pilules, police d'interface lisible (Segoe UI) et police du jeu
+  pour les titres et grands chiffres, soldat plus grand à l'accueil, portraits de l'escouade recadrés, HUD de bataille
+  plus fin, caméra « Réalisateur » plus proche.
+- Son : déverrouillage à chaque geste tant que le navigateur bloque l'audio, état visible dans Réglages (Son : Activé /
+  Coupé / Tester).
+- Suite possible : planter (bac à fleurs) en Meshy, autres armes une par une, autres agents, cartes une par une.
+
 ## Fait pendant la nuit du 16 au 17/10 (tout est testé, poussé sur main, et publié dans l'artifact)
 - Interface : écran Cartes v2 (paquets dessinés, ouverture carte par carte, raretés), Équipe v2 (escouade en pied avec notes),
   Réglages ⚙ (volumes, vitesse et caméra par défaut, qualité, ombres, export / import de la carrière), onglet Carrière

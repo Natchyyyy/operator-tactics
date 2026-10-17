@@ -4,3 +4,4 @@ sons/out/*.wav
 node_modules/
 art/meshy/soldat_brut.glb
 art/meshy/soldat.glb
+art/meshy/brut/
