@@ -4284,7 +4284,37 @@ window.Son = Son;
     brouillard: { hemi: [0xc0c6cc, 0x4a4844, 1.0], sun: [0xe8ecf0, 0.9], fog: [0x8b9198, 22, 95], bg: 0x8b9198, dome: false },
     pluie:      { hemi: [0x9aa6b4, 0x2e3034, 0.8], sun: [0xc8d0dc, 0.9], fog: [0x3a4149, 40, 140], bg: 0x2a3036, dome: false },
   };
-  let rain = null;
+  let rain = null, lamps = null, steam = null;
+  // décor vivant : lampadaires allumés de nuit (lumières ponctuelles chaudes), vapeur au-dessus des cuves de la raffinerie
+  function buildLamps(on) {
+    if (lamps) { scene.remove(lamps); lamps.traverse(o => { if (o.geometry) o.geometry.dispose(); }); lamps = null; }
+    if (!on || !battle) return;
+    lamps = new THREE.Group(); const W = battle.map.width, D = battle.map.depth;
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x2a2d31, roughness: 0.6, metalness: 0.5 }), bulbMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0 });
+    const spots = [[2, 2], [W - 2, 2], [2, D - 2], [W - 2, D - 2], [W / 2, 1.2], [W / 2, D - 1.2]];
+    for (const [x, z] of spots) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 6, 6), poleMat); pole.position.set(x, 3, z); lamps.add(pole);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), bulbMat); bulb.position.set(x, 6.05, z); lamps.add(bulb);
+      const l = new THREE.PointLight(0xffc27a, 70, 26, 1.3); l.position.set(x, 5.8, z); lamps.add(l);
+    }
+    scene.add(lamps);
+  }
+  function buildSteam() {
+    if (steam) { scene.remove(steam.obj); steam.obj.geometry.dispose(); steam = null; }
+    if (!battle || battle.map.id !== 'raffinerie') return;
+    const src = battle.map.obstacles.filter(o => /^cuve/.test(o.name || '')).slice(0, 4); if (!src.length) return;
+    const N = 160, pos = new Float32Array(N * 3), life = new Float32Array(N), base = [];
+    for (let i = 0; i < N; i++) { const o = src[i % src.length]; base.push([o.x + o.w / 2, o.h, o.z + o.d / 2]); life[i] = Math.random(); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const c = document.createElement('canvas'); c.width = c.height = 64; const cg = c.getContext('2d'); const gr = cg.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); cg.fillStyle = gr; cg.fillRect(0, 0, 64, 64);
+    const obj = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xd8dde2, size: 2.2, map: new THREE.CanvasTexture(c), transparent: true, opacity: 0.22, depthWrite: false })); obj.frustumCulled = false; scene.add(obj);
+    steam = { obj, base, life };
+  }
+  function updateSteam(dt) {
+    if (!steam) return; const a = steam.obj.geometry.attributes.position.array;
+    for (let i = 0; i < steam.life.length; i++) { steam.life[i] = (steam.life[i] + dt * 0.12) % 1; const k = steam.life[i], b = steam.base[i]; a[i * 3] = b[0] + Math.sin(i * 1.7 + k * 3) * 0.6 + k * 2.5; a[i * 3 + 1] = b[1] + 0.3 + k * 7; a[i * 3 + 2] = b[2] + Math.cos(i * 2.3) * 0.6; }
+    steam.obj.geometry.attributes.position.needsUpdate = true;
+  }
   function applyConditions(id) {
     const L = LOOK[id] || LOOK.jour;
     hemi.color.setHex(L.hemi[0]); hemi.groundColor.setHex(L.hemi[1]); hemi.intensity = L.hemi[2];
@@ -4299,6 +4329,7 @@ window.Son = Son;
       rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xa8b8c8, transparent: true, opacity: 0.35, depthWrite: false })); rain.frustumCulled = false; scene.add(rain);
     }
     $('#app').dataset.cond = id || 'jour';
+    buildLamps(id === 'nuit' || id === 'brouillard'); buildSteam();
   }
   function updateRain(dt) {
     if (!rain) return; const a = rain.geometry.attributes.position.array, v = 26 * dt;
@@ -5182,7 +5213,7 @@ window.Son = Son;
   }
   // secousse de caméra (explosions) : décalage aléatoire qui s'amortit
   function applyShake() { if (!cam.shake || cam.shake < 0.01) return; const k = cam.shake * 0.25; camera.position.x += (Math.random() - 0.5) * k; camera.position.y += (Math.random() - 0.5) * k; camera.position.z += (Math.random() - 0.5) * k; cam.shake *= 0.86; }
-  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); if (battle.zone) updateZone(); renderer.render(scene, camera); updateLabels(); updateRosters(); }
+  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); updateSteam(MANUAL ? 0.2 : frameDt + 0.003); if (battle.zone) updateZone(); renderer.render(scene, camera); updateLabels(); updateRosters(); }
 
   // musique dynamique : plus présente quand les échanges de tirs s'intensifient, en retrait pendant la progression
   let lastMusicAdj = 0, musicLevel = 0.7;
