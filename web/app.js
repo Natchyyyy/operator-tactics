@@ -571,7 +571,7 @@
     let fac = DATA.FACTIONS[u.def.faction || 'allied'] || DATA.FACTIONS.allied;   // uniforme selon la faction, marqueurs selon l'équipe
     const teamDef = battle.teams[u.team]; if (!u.def.faction && teamDef.uniform) { const uni = DATA.UNIFORMS.find(x => x.id === teamDef.uniform); if (uni) fac = uni; }
     // soldat Meshy (modèle 3D animé) s'il est chargé, sinon personnage dessiné par programme
-    const f = (OT.Soldat3D && OT.Soldat3D.ready && !OT.SETTINGS_LOWMODEL && OT.Soldat3D.create({ uniform: fac.uniform, weapon: u.weapon.id, attachments: u.att }))
+    const f = (OT.Soldat3D && OT.Soldat3D.ready && !OT.SETTINGS_LOWMODEL && OT.Soldat3D.create({ modele: u.def.faction ? 'soldat' : 'gign', uniform: fac.uniform, weapon: u.weapon.id, attachments: u.att }))
       || Figure.build({ id: u.def.id, weapon: u.weapon.id, uniform: fac.uniform, vest: fac.vest, teamColor: t.color, headgear: u.def.headgear || (u.def.faction ? 'casque_lunettes' : 'casque'), attachments: u.att });
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.42, 24), new THREE.MeshBasicMaterial({ color: t.color, transparent: true, opacity: 0.8, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; f.group.add(ring);
     scene.add(f.group);
@@ -1183,7 +1183,7 @@
       if (!u || !OT.Portrait) { img.removeAttribute('src'); return; }
       let fac = DATA.FACTIONS[u.def.faction || 'allied'] || DATA.FACTIONS.allied; const td = battle.teams[ti]; if (!u.def.faction && td.uniform) { const uni = DATA.UNIFORMS.find(x => x.id === td.uniform); if (uni) fac = uni; }
       const won = r.winner === ti;
-      img.src = OT.Portrait.render({ id: u.def.id, weapon: u.weapon.id, uniform: fac.uniform, vest: fac.vest, headgear: u.def.headgear || (u.def.faction ? 'casque_lunettes' : 'casque'), full: true, w: 420, h: 640, aiming: won }) || '';
+      img.src = OT.Portrait.render({ id: u.def.id, modele: u.def.faction ? 'soldat' : 'gign', weapon: u.weapon.id, uniform: fac.uniform, vest: fac.vest, headgear: u.def.headgear || (u.def.faction ? 'casque_lunettes' : 'casque'), full: true, w: 420, h: 640, aiming: won }) || '';
       img.classList.toggle('lost', r.winner !== -1 && !won);
     });
     let reward = '';
@@ -1269,7 +1269,7 @@
     $('#brIntel').innerHTML = `<div><span>Conditions</span><b>${cond}</b></div><div><span>Adversaire</span><b>${opts.teams[1].name} · ${opts.teams[1].operators.length} opérateurs · niveau ${mis.level}</b></div><div><span>Comportement</span><b>${D.ORDERS[mis.order].name}</b></div><div><span>Récompense</span><b>${mis.reward} cr. · ${mis.xp} XP</b></div>`;
     // soldat (le chef de l'escouade), nom d'équipe, lieu, texte qui se tape lettre à lettre comme dans le jeu d'origine
     const lead = battle.teams[0].units[0]; let fac = DATA.UNIFORMS.find(x => x.id === battle.teams[0].uniform) || DATA.FACTIONS.allied;
-    $('#brFig').src = (lead && OT.Portrait && OT.Portrait.render({ id: lead.def.id, weapon: lead.weapon.id, uniform: fac.uniform, vest: fac.vest, headgear: lead.def.headgear || 'casque', full: true, w: 420, h: 640, aiming: true })) || '';
+    $('#brFig').src = (lead && OT.Portrait && OT.Portrait.render({ id: lead.def.id, modele: lead.def.faction ? 'soldat' : 'gign', weapon: lead.weapon.id, uniform: fac.uniform, vest: fac.vest, headgear: lead.def.headgear || 'casque', full: true, w: 420, h: 640, aiming: true })) || '';
     $('#brTeam').textContent = battle.teams[0].name; $('#brSub').textContent = OT.MAPS[mis.mapId].name; $('#brLoc').textContent = `${String(8 + Math.floor(Math.random() * 10)).padStart(2, '0')}00 — ${OT.MAPS[mis.mapId].name}`;
     const full = mis.desc || ''; $('#brDesc').textContent = MANUAL ? full : ''; let ci = 0; clearInterval(showBriefing.tw);
     if (!MANUAL) showBriefing.tw = setInterval(() => { ci += 2; $('#brDesc').textContent = full.slice(0, ci) + (ci < full.length ? ' |' : ''); if (ci >= full.length) clearInterval(showBriefing.tw); }, 30);

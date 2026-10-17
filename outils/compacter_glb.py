@@ -5,7 +5,8 @@
 #    temps partagés ; possibilité de ne garder que certaines animations ;
 #  - textures recompressées en JPEG (couleur, relief, métal/rugosité) ;
 #  - seules les données réellement utilisées sont réécrites.
-# usage : python3 outils/compacter_glb.py entree.glb sortie.glb [--garder Anim1,Anim2] [--jpeg 85]
+# usage : python3 outils/compacter_glb.py entree.glb sortie.glb [--garder Anim1,Anim2] [--jpeg 85] [--tailles 1024,512,1024]
+#  --tailles : côté maximal des textures couleur, métal/rugosité, relief (réduites si plus grandes)
 import json, struct, sys, io
 import numpy as np
 from PIL import Image
@@ -14,6 +15,7 @@ src, dst = sys.argv[1], sys.argv[2]
 keep = None
 if '--garder' in sys.argv: keep = set(sys.argv[sys.argv.index('--garder') + 1].split(','))
 JQ = int(sys.argv[sys.argv.index('--jpeg') + 1]) if '--jpeg' in sys.argv else 85
+TAILLES = [int(x) for x in sys.argv[sys.argv.index('--tailles') + 1].split(',')] if '--tailles' in sys.argv else [0, 0, 0]
 
 b = open(src, 'rb').read()
 L = struct.unpack('<I', b[12:16])[0]; j = json.loads(b[20:20 + L])
@@ -100,18 +102,19 @@ for an in j['animations']:
     anims.append({'name': an['name'], 'samplers': samplers, 'channels': channels})
 # ---- textures en JPEG
 mat = j['materials'][0]; imgs, texs = [], []
-def addimg(ti, gray=False):
+def addimg(ti, maxi=0):
     im = j['images'][j['textures'][ti]['source']]; v = j['bufferViews'][im['bufferView']]
     pil = Image.open(io.BytesIO(bin0[v.get('byteOffset', 0):v.get('byteOffset', 0) + v['byteLength']])).convert('RGB')
+    if maxi and max(pil.size) > maxi: pil = pil.resize((maxi, maxi), Image.LANCZOS)
     buf = io.BytesIO(); pil.save(buf, 'JPEG', quality=JQ, optimize=True); data = buf.getvalue()
     while len(out_bin) % 4: out_bin.append(0)
     off = len(out_bin); out_bin.extend(data); views.append({'buffer': 0, 'byteOffset': off, 'byteLength': len(data)})
     imgs.append({'bufferView': len(views) - 1, 'mimeType': 'image/jpeg'}); texs.append({'source': len(imgs) - 1, 'sampler': 0})
     return len(texs) - 1
 pbr = mat.get('pbrMetallicRoughness', {}); newmat = {'name': mat.get('name', 'm'), 'pbrMetallicRoughness': {}}
-if 'baseColorTexture' in pbr: newmat['pbrMetallicRoughness']['baseColorTexture'] = {'index': addimg(pbr['baseColorTexture']['index'])}
-if 'metallicRoughnessTexture' in pbr: newmat['pbrMetallicRoughness']['metallicRoughnessTexture'] = {'index': addimg(pbr['metallicRoughnessTexture']['index'])}
-if 'normalTexture' in mat: newmat['normalTexture'] = {'index': addimg(mat['normalTexture']['index'])}
+if 'baseColorTexture' in pbr: newmat['pbrMetallicRoughness']['baseColorTexture'] = {'index': addimg(pbr['baseColorTexture']['index'], TAILLES[0])}
+if 'metallicRoughnessTexture' in pbr: newmat['pbrMetallicRoughness']['metallicRoughnessTexture'] = {'index': addimg(pbr['metallicRoughnessTexture']['index'], TAILLES[1])}
+if 'normalTexture' in mat: newmat['normalTexture'] = {'index': addimg(mat['normalTexture']['index'], TAILLES[2])}
 nj = {'asset': {'version': '2.0', 'generator': 'compacter_glb.py'}, 'extensionsUsed': ['KHR_mesh_quantization'], 'extensionsRequired': ['KHR_mesh_quantization'],
       'scene': j.get('scene', 0), 'scenes': j['scenes'], 'nodes': j['nodes'], 'meshes': [{'name': j['meshes'][0].get('name', 'corps'), 'primitives': [newprim]}],
       'skins': [newskin], 'animations': anims, 'materials': [newmat], 'textures': texs, 'images': imgs,

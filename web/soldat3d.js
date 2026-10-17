@@ -1,48 +1,69 @@
-// Soldat 3D fait avec Meshy (modèle texturé, squelette Mixamo, 17 animations) : chargement depuis les données incluses
-// (modeles/soldat.js → MODELES_ADD('soldat', base64)), copies par opérateur, teinte de l'uniforme selon l'équipe,
+// Soldats 3D faits avec Meshy (modèles texturés, squelette Mixamo, 17 animations) : chargement depuis les données incluses
+// (modeles/soldat.js et modeles/gign.js → OT.MODELES[nom], base64), copies par opérateur. Deux modèles :
+//  - « gign » : l'opérateur d'intervention (tenue marine, casque à visière) de l'équipe du joueur, couleurs d'origine ;
+//  - « soldat » : le soldat d'origine, pour l'adversaire, dont la toile beige prend la couleur d'uniforme de la faction.
+// Les deux partagent le squelette Mixamo et les mêmes animations (celles du GIGN y ont été transférées par
+// outils/greffer_animations.py) ; chaque modèle a ses propres clips, corrections d'orientation et garde basse. Puis :
 // choix de l'animation selon l'état simulé (marche, course, accroupi, visée, rechargement, lancer, chute, reptation,
 // victoire) et arme du jeu tenue dans les mains (placée chaque image entre la main droite et la main gauche).
 // Si le modèle manque ou ne se charge pas, le jeu garde ses personnages dessinés par programme (figure.js).
 (function (root) {
-  const S = { ready: false, gltf: null, clips: {}, onReady: [] };
+  const S = { ready: false, gltf: null, clips: {}, yawFix: {}, modeles: {}, onReady: [] };
+  const NOMS = ['gign', 'soldat'];            // le premier présent est le modèle par défaut
+  const TEINTE = { soldat: true };            // modèles dont l'uniforme prend la couleur demandée
   const HEIGHT = 1.8, RAW_H = 1.7;            // taille en jeu / taille du modèle exporté
   // vitesse « naturelle » de chaque cycle de locomotion (m/s), pour caler les pas sur le déplacement réel
   const LOCO = { Walking: 1.35, Walk_Fight_Forward: 1.1, Running: 3.4, RunFast: 5.2, Run_and_Shoot: 3.2, Cautious_Crouch_Walk_Forward: 0.9, Crawl_Backward: 0.5 };
   const ONCE = { Shot_and_Fall_Forward: 1, Shot_in_the_Back_and_Fall: 1, Over_Shoulder_Throw: 1 };
   function b64ToBuf(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
+  // Repère de paume : un point fixe dans chaque main, à la base des doigts (le squelette du GIGN n'a pas d'os de doigts).
+  // La paume = 60 % du poignet vers ce point.
+  const PALME = [0, 0.135, 0];
   function load() {
-    const Loader = window.THREEX && THREEX.GLTFLoader; const b64 = root.MODELES && root.MODELES.soldat;
-    if (!Loader || !b64 || !window.THREE) return;
-    try {
-      new Loader().parse(b64ToBuf(b64), '', (g) => {
-        // locomotion sur place : on retire le déplacement horizontal du bassin (le jeu déplace déjà le soldat)
-        for (const c of g.animations) {
-          for (const tr of c.tracks) if (/Hips\.position$/.test(tr.name)) { const v = tr.values, x0 = v[0], z0 = v[2]; for (let i = 0; i < v.length; i += 3) { v[i] = x0; v[i + 2] = z0; } }
-          S.clips[c.name] = c;
-        }
-        g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false; } });
-        S.gltf = g;
-        try { straighten(g); composite(); } catch (e) { console.warn('soldat 3D (mesure) :', e); }
-        try { gardeBasse(g); } catch (e) { console.warn('soldat 3D (garde basse) :', e); }
-        try { measure(g); } catch (e) { console.warn('soldat 3D (mesure) :', e); }
-        delete root.MODELES.soldat;
-        // le fusil Meshy (modeles3d.js) est attendu : les soldats naissent directement avec
-        const go = () => { S.ready = true; for (const f of S.onReady.splice(0)) try { f(); } catch (e) { console.warn(e); } };
-        if (root.Modeles3D) root.Modeles3D.whenReady(go); else go();
-      }, (e) => console.warn('soldat 3D :', e));
-    } catch (e) { console.warn('soldat 3D :', e); }
+    const Loader = window.THREEX && THREEX.GLTFLoader, MOD = root.MODELES || {};
+    if (!Loader || !window.THREE) return;
+    const todo = NOMS.filter(n => MOD[n]); let left = todo.length; if (!left) return;
+    const finish = () => {
+      if (--left > 0) return;
+      const def = S.modeles[NOMS.find(n => S.modeles[n])]; if (!def) return;
+      S.gltf = def.gltf; S.clips = def.clips; S.yawFix = def.yawFix; S.gbErr = def.gbErr; S.defaut = def.nom;
+      // le fusil Meshy (modeles3d.js) est attendu : les soldats naissent directement avec
+      const go = () => { S.ready = true; for (const f of S.onReady.splice(0)) try { f(); } catch (e) { console.warn(e); } };
+      if (root.Modeles3D) root.Modeles3D.whenReady(go); else go();
+    };
+    for (const nom of todo) {
+      try {
+        new Loader().parse(b64ToBuf(MOD[nom]), '', (g) => {
+          const M = { nom, gltf: g, clips: {}, yawFix: {} };
+          // locomotion sur place : on retire le déplacement horizontal du bassin (le jeu déplace déjà le soldat)
+          for (const c of g.animations) {
+            for (const tr of c.tracks) if (/Hips\.position$/.test(tr.name)) { const v = tr.values, x0 = v[0], z0 = v[2]; for (let i = 0; i < v.length; i += 3) { v[i] = x0; v[i + 2] = z0; } }
+            M.clips[c.name] = c;
+          }
+          g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false; } });
+          for (const [h, n] of [['RightHand', 'PalmeD'], ['LeftHand', 'PalmeG']]) {
+            const hb = g.scene.getObjectByName('mixamorig' + h) || g.scene.getObjectByName('mixamorig:' + h);
+            if (hb) { const r = new THREE.Object3D(); r.name = n; r.position.fromArray(PALME); hb.add(r); }
+          }
+          try { straighten(M); composite(M); } catch (e) { console.warn('soldat 3D (mesure) :', e); }
+          try { gardeBasse(M); } catch (e) { console.warn('soldat 3D (garde basse) :', e); }
+          try { measure(M); } catch (e) { console.warn('soldat 3D (mesure) :', e); }
+          S.modeles[nom] = M; delete MOD[nom]; finish();
+        }, (e) => { console.warn('soldat 3D ' + nom + ' :', e); finish(); });
+      } catch (e) { console.warn('soldat 3D ' + nom + ' :', e); finish(); }
+    }
   }
   // Animations qui font tourner tout le corps sur lui-même (demi-tour du lancer, visée qui pivote) : on garde l'orientation
   // du bassin de la première image (le jeu oriente déjà le soldat vers sa cible).
   const STRAIGHT = ['Over_Shoulder_Throw', 'Rifle_Aim_Turn_Right', 'Kneeling_Reload', 'Standing_Reload', 'Gunshot_Reaction'];
-  function straighten(g) {
-    const hips = g.scene.getObjectByName('mixamorigHips') || g.scene.getObjectByName('mixamorig:Hips'); if (!hips) return;
+  function straighten(M) {
+    const g = M.gltf, hips = g.scene.getObjectByName('mixamorigHips') || g.scene.getObjectByName('mixamorig:Hips'); if (!hips) return;
     g.scene.updateMatrixWorld(true);
     const P = hips.parent.getWorldQuaternion(new THREE.Quaternion()), Pi = P.clone().invert(), up = new THREE.Vector3(0, 1, 0);
     const q = new THREE.Quaternion(), qw = new THREE.Quaternion(), f = new THREE.Vector3();
     const yawOf = (qq) => { qw.copy(P).multiply(qq); f.set(0, 0, 1).applyQuaternion(qw); if (Math.abs(f.y) > 0.9) { f.set(1, 0, 0).applyQuaternion(qw); return Math.atan2(f.x, f.z) - Math.PI / 2; } return Math.atan2(f.x, f.z); };
     for (const n of STRAIGHT) {
-      const c = S.clips[n]; if (!c) continue;
+      const c = M.clips[n]; if (!c) continue;
       const tr = c.tracks.find(t => /Hips\.quaternion$/.test(t.name)); if (!tr) continue;
       const v = tr.values; const y0 = yawOf(q.fromArray(v, 0));
       for (let i = 0; i < v.length; i += 4) {
@@ -57,15 +78,15 @@
   // « Rifle_Aim_Turn_Right » (première image). Dans la marche d'origine le fusil est porté en travers, canon vers le bas :
   // il ne se tenait pas de façon crédible une fois l'arme du jeu mise dans les mains.
   const JAMBES = /(Hips|UpLeg|Leg|Foot|ToeBase|Toe_End)\.(quaternion|position)$/;
-  function composite() {
-    const walk = S.clips.Walk_Fight_Forward, aim = S.clips.Rifle_Aim_Turn_Right; if (!walk || !aim) return;
+  function composite(M) {
+    const walk = M.clips.Walk_Fight_Forward, aim = M.clips.Rifle_Aim_Turn_Right; if (!walk || !aim) return;
     const tracks = walk.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone());
     for (const t of aim.tracks) {
       if (JAMBES.test(t.name)) continue;
       const n = t.getValueSize(), v0 = Array.from(t.values.slice(0, n));
       tracks.push(new t.constructor(t.name, [0, walk.duration], v0.concat(v0)));
     }
-    S.clips.Walk_Aim = new THREE.AnimationClip('Walk_Aim', walk.duration, tracks);
+    M.clips.Walk_Aim = new THREE.AnimationClip('Walk_Aim', walk.duration, tracks);
   }
   // « Garde basse » (pose fixe, Garde_Basse) : debout bien droit, face à l'avant, fusil en travers du torse — crosse
   // vers l'épaule droite, canon vers le bas à gauche et un peu en avant. Aucune animation ne l'a : on la construit.
@@ -77,11 +98,11 @@
   // Repère du jeu : +Z devant le soldat, −X sa droite, mètres pour un soldat de 1,80 m, pieds à 0.
   const GB = { paume: [-0.02, 1.17, 0.25], canon: [0.7, -0.62, 0.17], coudeD: [-1, -0.7, -0.25], coudeG: [1, -0.8, -0.1] };
   S.GB = GB;
-  function gardeBasse(g) {
-    const aim = S.clips.Rifle_Aim_Turn_Right; if (!aim) return;
-    const sc = g.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
-    const R = { arm: b('RightArm'), fore: b('RightForeArm'), hand: b('RightHand'), mid: b('RightHandMiddle1') };
-    const L = { arm: b('LeftArm'), fore: b('LeftForeArm'), hand: b('LeftHand'), mid: b('LeftHandMiddle1') };
+  function gardeBasse(M) {
+    const aim = M.clips.Rifle_Aim_Turn_Right; if (!aim) return;
+    const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
+    const R = { arm: b('RightArm'), fore: b('RightForeArm'), hand: b('RightHand'), mid: sc.getObjectByName('PalmeD') };
+    const L = { arm: b('LeftArm'), fore: b('LeftForeArm'), hand: b('LeftHand'), mid: sc.getObjectByName('PalmeG') };
     if (!R.arm || !L.arm || !R.mid || !L.mid) return;
     const bones = []; sc.traverse(o => { if (o.isBone) bones.push(o); });
     const rest = bones.map(o => [o.quaternion.clone(), o.position.clone()]);
@@ -133,8 +154,8 @@
       tracks.push(new THREE.QuaternionKeyframeTrack(n + '.quaternion', [0, 1], q.concat(q)));
       if (/Hips$/.test(o.name)) { const p = o.position.toArray(); tracks.push(new THREE.VectorKeyframeTrack(n + '.position', [0, 1], p.concat(p))); }
     }
-    S.clips.Garde_Basse = new THREE.AnimationClip('Garde_Basse', 1, tracks);
-    S.gbErr = { R: palm(R).distanceTo(tR) / k, L: palm(L).distanceTo(tL) / k };
+    M.clips.Garde_Basse = new THREE.AnimationClip('Garde_Basse', 1, tracks);
+    M.gbErr = { R: palm(R).distanceTo(tR) / k, L: palm(L).distanceTo(tL) / k };
     restore(); sc.updateMatrixWorld(true);
   }
   // Correction d'orientation par animation : de quel angle faut-il tourner le corps pour que l'ARME (main droite → main gauche)
@@ -142,26 +163,25 @@
   // AIM : animations où l'arme doit viser droit devant, et l'instant (fraction) où la mesurer ; null = moyenne sur la boucle.
   const AIM = { Rifle_Aim_Turn_Right: 0.0, Standing_Reload: 0.0, Kneeling_Reload: 0.06, Run_and_Shoot: null, Walk_Fight_Forward: null, Walk_Aim: null, Cautious_Crouch_Walk_Forward: null, Gunshot_Reaction: 0.0 };
   const AIM_PART = { Walk_Fight_Forward: 0, Cautious_Crouch_Walk_Forward: 0, Run_and_Shoot: 0.6, Walk_Aim: 0.8 };   // locomotion : on corrige moins (les jambes marchent droit)
-  S.yawFix = {};
-  function measure(g) {
-    const sc = g.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
+  function measure(M) {
+    const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
     const rh = b('RightHand'), lh = b('LeftHand'); if (!rh || !lh) return;
     const mixer = new THREE.AnimationMixer(sc), pR = new THREE.Vector3(), pL = new THREE.Vector3();
     for (const n in AIM) {
-      const c = S.clips[n]; if (!c) continue;
+      const c = M.clips[n]; if (!c) continue;
       const a = mixer.clipAction(c); a.play();
       const fr = AIM[n] === null ? [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875] : [AIM[n]];
       let sx = 0, sz = 0;
       for (const t of fr) { mixer.setTime(t * c.duration); sc.updateMatrixWorld(true); rh.getWorldPosition(pR); lh.getWorldPosition(pL); const dx = pL.x - pR.x, dz = pL.z - pR.z, L = Math.hypot(dx, dz) || 1; sx += dx / L; sz += dz / L; }
-      const yaw = Math.atan2(sx, sz); S.yawFix[n] = -yaw * (AIM_PART[n] !== undefined ? AIM_PART[n] : 1);
+      const yaw = Math.atan2(sx, sz); M.yawFix[n] = -yaw * (AIM_PART[n] !== undefined ? AIM_PART[n] : 1);
       a.stop(); mixer.uncacheAction(c);
     }
     mixer.stopAllAction();
   }
   // matériau teinté : la toile beige de la tenue prend la couleur d'uniforme demandée (gilet, peau, bottes inchangés)
   const matCache = {};
-  function tintedMaterial(base, uniform) {
-    const key = uniform == null ? 'brut' : uniform.toString(16); if (matCache[key]) return matCache[key];
+  function tintedMaterial(base, uniform, nom) {
+    const key = (nom || '') + (uniform == null ? 'brut' : uniform.toString(16)); if (matCache[key]) return matCache[key];
     const m = base.clone(); m.roughness = 1; m.metalness = 0; if (m.color) m.color.multiplyScalar(0.92);
     if (uniform != null) {
       const c = new THREE.Color(uniform); m.userData.tint = c;
@@ -186,18 +206,20 @@
   }
   const V = () => new THREE.Vector3();
   // un soldat : group (posé par le jeu), pose (chute), weapon (avec .muzzle), anim
+  // o.modele : 'gign' (équipe du joueur) ou 'soldat' (adversaire) ; par défaut le premier modèle chargé
   function create(o) {
     if (!S.ready) return null;
+    const M = S.modeles[o.modele] || S.modeles[S.defaut];
     const group = new THREE.Group(), pose = new THREE.Group(); group.add(pose);
-    const body = cloneSkinned(S.gltf.scene); body.scale.setScalar(HEIGHT / RAW_H); pose.add(body);
-    let skinned = null; body.traverse(n => { if (n.isSkinnedMesh) { skinned = n; n.material = tintedMaterial(n.material, o.uniform); } });
+    const body = cloneSkinned(M.gltf.scene); body.scale.setScalar(HEIGHT / RAW_H); pose.add(body);
+    let skinned = null; body.traverse(n => { if (n.isSkinnedMesh) { skinned = n; n.material = tintedMaterial(n.material, TEINTE[M.nom] ? o.uniform : null, M.nom); } });
     const bone = (n) => body.getObjectByName('mixamorig:' + n) || body.getObjectByName('mixamorig' + n);
     const weapon = o.weapon ? ((root.Modeles3D && root.Modeles3D.arme()) || root.Figure.makeWeapon(o.weapon, o.attachments)) : new THREE.Group(); if (!weapon.muzzle) weapon.muzzle = new THREE.Vector3(0, 0, 0.6);
     group.add(weapon);
     const mixer = new THREE.AnimationMixer(body), actions = {};
-    const act = (name) => { if (!S.clips[name]) return null; if (!actions[name]) { const a = mixer.clipAction(S.clips[name]); if (ONCE[name]) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; } actions[name] = a; } return actions[name]; };
-    const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true,
-      bones: { rh: bone('RightHand'), lh: bone('LeftHand'), rm: bone('RightHandMiddle1'), lm: bone('LeftHandMiddle1'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips') },
+    const act = (name) => { if (!M.clips[name]) return null; if (!actions[name]) { const a = mixer.clipAction(M.clips[name]); if (ONCE[name]) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; } actions[name] = a; } return actions[name]; };
+    const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true, modele: M.nom, clips: M.clips, yawFix: M.yawFix,
+      bones: { rh: bone('RightHand'), lh: bone('LeftHand'), rm: body.getObjectByName('PalmeD'), lm: body.getObjectByName('PalmeG'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips') },
       // joue (en fondu) l'animation demandée ; time : figer à un instant (pose fixe) ; speed : vitesse du cycle
       play(name, opts = {}) {
         const a = act(name); if (!a) return;
@@ -213,7 +235,7 @@
       // keepYaw : garder la correction actuelle (chute : on ne fait pas pivoter un corps qui tombe)
       update(dt, keepYaw) {
         mixer.update(dt);
-        if (!keepYaw) { const tgt = S.yawFix[this.clip] || 0; let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 10); }
+        if (!keepYaw) { const tgt = M.yawFix[this.clip] || 0; let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 10); }
       },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
       // L'arme est tenue par les PAUMES (entre le poignet et la base des doigts), pas par les poignets : la poignée dans la paume
@@ -246,7 +268,7 @@
   // instantané d'un soldat pour les portraits : anime une copie à un instant d'une animation donnée
   function posed(o, clip, t) {
     const f = create(o); if (!f) return null;
-    f.play(clip || 'Walk_Fight_Forward', { time: t !== undefined ? t : 0.15 }); f.update(0); f.body.rotation.y = S.yawFix[f.clip] || 0; f.body.updateMatrixWorld(true);
+    f.play(clip || 'Walk_Fight_Forward', { time: t !== undefined ? t : 0.15 }); f.update(0); f.body.rotation.y = f.yawFix[f.clip] || 0; f.body.updateMatrixWorld(true);
     f.placeWeapon(true, 0); return f;
   }
   S.load = load; S.create = create; S.posed = posed; S.whenReady = (fn) => { if (S.ready) fn(); else S.onReady.push(fn); };

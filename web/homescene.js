@@ -20,9 +20,9 @@
     const uni = OT.DATA.UNIFORMS.find(u => u.id === profile.uniform) || OT.DATA.UNIFORMS[0], st = profile.operators[id];
     const k = JSON.stringify([id, uni.id, st.weaponId, st.headgear, !!st.wounded, !!(OT.Soldat3D && OT.Soldat3D.ready)]); if (k === key0) return; key0 = k;
     if (fig) scene.remove(fig.group);
-    const s3 = OT.Soldat3D && OT.Soldat3D.ready && OT.Soldat3D.create({ uniform: uni.uniform, weapon: st.weaponId });
+    const s3 = OT.Soldat3D && OT.Soldat3D.ready && OT.Soldat3D.create({ modele: 'gign', uniform: uni.uniform, weapon: st.weaponId });
     if (s3) {   // garde basse : debout, face au joueur, fusil en travers du torse, canon vers le bas
-      const P = window.HOMEPOSE || POSE; fig = s3; fig.play(P.clip, { time: P.t }); fig.update(0); fig.body.rotation.y = (OT.Soldat3D.yawFix[P.clip] || 0); fig.placeWeapon(true, 0); fig.group.rotation.y = P.yaw; fig.pose0 = P;
+      const P = window.HOMEPOSE || POSE; fig = s3; fig.play(P.clip, { time: P.t }); fig.update(0); fig.body.rotation.y = (fig.yawFix[P.clip] || 0); fig.placeWeapon(true, 0); fig.group.rotation.y = P.yaw; fig.pose0 = P;
     }
     else {
       fig = OT.Figure.build({ id, weapon: st.weaponId, uniform: uni.uniform, vest: uni.vest, teamColor: 0x4f9cf0, headgear: st.headgear || 'casque' });

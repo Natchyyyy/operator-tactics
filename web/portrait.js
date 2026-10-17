@@ -21,7 +21,7 @@
     const W = opts.w || 220, H = opts.h || 260;                       // grande taille pour les écrans de fin (figure en pied)
     renderer.setSize(W, H); camera.aspect = W / H; camera.updateProjectionMatrix();
     // soldat Meshy s'il est chargé (pose figée d'une animation), sinon personnage dessiné par programme
-    const S3 = root.Soldat3D && root.Soldat3D.ready && root.Soldat3D.posed({ uniform: opts.uniform, weapon: opts.weapon }, root.Soldat3D.clips.Garde_Basse ? 'Garde_Basse' : 'Rifle_Aim_Turn_Right', 0);   // garde basse : face à l'avant, fusil en travers du torse
+    const S3 = root.Soldat3D && root.Soldat3D.ready && root.Soldat3D.posed({ modele: opts.modele || 'gign', uniform: opts.uniform, weapon: opts.weapon }, root.Soldat3D.clips.Garde_Basse ? 'Garde_Basse' : 'Rifle_Aim_Turn_Right', 0);   // garde basse : face à l'avant, fusil en travers du torse
     const f = S3 || root.Figure.build({ id: opts.id, weapon: opts.weapon, uniform: opts.uniform, vest: opts.vest, headgear: opts.headgear });
     if (!S3) root.Figure.poseStatic(f, !!opts.aiming);
     f.group.rotation.y = S3 ? 0.22 : -0.45;   // soldat Meshy : presque de face, comme au menu
