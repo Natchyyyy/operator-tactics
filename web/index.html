@@ -83,6 +83,9 @@
   .overlay.hidden { display: none; }
   .vstip { text-align: center; font-size: 12.5px; color: #b9c4cf; margin: 10px auto 0; max-width: 900px; } .vstip b { color: var(--accent); letter-spacing: .1em; font-size: 11px; margin-right: 6px; }
   #vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(0,0,0,.38) 100%); }
+  .label .bark { position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%) scale(.85); opacity: 0; white-space: nowrap; background: rgba(240,242,236,.95); color: #14181c; font: 700 11.5px system-ui, sans-serif; padding: 3px 8px; border-radius: 8px; transition: opacity .15s, transform .15s; pointer-events: none; }
+  .label .bark::after { content: ''; position: absolute; left: 50%; top: 100%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: rgba(240,242,236,.95); }
+  .label .bark.on { opacity: 1; transform: translateX(-50%) scale(1); } .label.team1 .bark { background: rgba(255,226,220,.95); } .label.team1 .bark::after { border-top-color: rgba(255,226,220,.95); }
   /* Carrière */
   .hqgrid.two.play.career { grid-template-columns: 1.1fr 1fr; } .career .hqcol { overflow: auto; }
   .crstats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; } .crstats div { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }

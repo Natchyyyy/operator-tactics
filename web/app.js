@@ -829,6 +829,7 @@
       m.label.style.display = visible ? 'block' : 'none';
       if (!visible) continue;
       m.label.style.transform = `translate(${((p.x + 1) / 2 * w).toFixed(0)}px, ${((1 - p.y) / 2 * h).toFixed(0)}px) translate(-50%, -100%)`;
+      if (m.barkUntil && simTime > m.barkUntil) { m.barkUntil = 0; const b = m.label.querySelector('.bark'); if (b) b.classList.remove('on'); }
       const bar = m.label.querySelector('.lbar i'); bar.style.width = (100 * u.hp / u.maxHp).toFixed(0) + '%';
       bar.style.background = u.hp / u.maxHp > 0.5 ? '#5fc46a' : (u.hp / u.maxHp > 0.2 ? '#e0b03a' : '#d9543c');
     }
@@ -907,10 +908,36 @@
   }
   let bflashTimer = null;
   function flashBattle(msg) { let el = $('#bflash'); if (!el) { el = document.createElement('div'); el.id = 'bflash'; el.style.cssText = 'position:absolute;left:50%;top:14px;transform:translateX(-50%);background:rgba(15,20,26,.9);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:12px;z-index:6;pointer-events:none'; $('main').appendChild(el); } el.textContent = msg; el.style.display = 'block'; clearTimeout(bflashTimer); bflashTimer = setTimeout(() => { el.style.display = 'none'; }, 2200); }
+  // ---- Répliques radio (bulles au-dessus des soldats), tirées des événements réels de la simulation ----
+  const BARKS = {
+    spot: ['Contact !', 'Contact, droit devant !', 'Ennemi en vue !'], reload: ['Je recharge !', 'Rechargement !', 'Couvrez-moi, je recharge !'],
+    grenade: ['Grenade !'], throw: ['Grenade, à couvert !', 'Je lance !'], flank: ['Je contourne !', 'Je le prends par le flanc !'],
+    noammo: ['Plus de munitions !'], revive_start: ['Je m\u2019occupe de lui !', 'J\u2019arrive, tiens bon !'], revive: ['Debout, on y retourne !', 'Je te tiens !'],
+    flash: ['Je ne vois plus rien !', 'Aveuglé !'], suppress: ['Feu de suppression !', 'Je les cloue !'], down: ['Homme à terre !', 'On a un blessé !', 'Il est touché !'],
+  };
+  function bark(u, kind) {
+    const m = u && meshes[u.id]; if (!m || !u.alive || ended || (m.barkUntil && simTime < m.barkUntil - 1.2)) return;
+    const list = BARKS[kind]; if (!list) return;
+    let b = m.label.querySelector('.bark'); if (!b) { b = document.createElement('div'); b.className = 'bark'; m.label.prepend(b); }
+    b.textContent = list[Math.floor(Math.random() * list.length)]; b.classList.add('on'); m.barkUntil = simTime + 1.8;
+  }
+  function barkFor(e) {
+    const u = e.unit && unitById[e.unit];
+    if (e.kind === 'spot' && /contact/.test(e.text)) bark(u, 'spot');
+    else if (e.kind === 'reload' && Math.random() < 0.35) bark(u, 'reload');
+    else if (e.kind === 'grenade' && u) bark(u, /lance une/.test(e.text) ? 'throw' : 'grenade');
+    else if (e.kind === 'flank' || e.kind === 'noammo' || e.kind === 'revive_start' || e.kind === 'revive' || e.kind === 'flash') bark(u, e.kind);
+    else if (e.kind === 'suppress' && Math.random() < 0.5) bark(u, 'suppress');
+    else if (e.kind === 'down' && e.enemy && unitById[e.enemy]) {   // le coéquipier debout le plus proche du blessé
+      const d = unitById[e.enemy]; let best = null, bd = 25; for (const a of battle.units) { if (!a.alive || a.team !== d.team) continue; const k = Math.hypot(a.x - d.x, a.z - d.z); if (k < bd) { bd = k; best = a; } }
+      bark(best, 'down');
+    }
+  }
   function pumpLog() {
     const j = $('#journal'), tk = $('#ticker');
     while (logIndex < battle.log.length) {
       const e = battle.log[logIndex++];
+      barkFor(e);
       if (e.kind === 'reload' && e.unit && unitById[e.unit]) { const u = unitById[e.unit]; play('recharge', { x: u.x, y: 1, z: u.z }, { vol: 0.9 }); }
       if (e.kind === 'spot' && !contactPlayed) { contactPlayed = true; play('contact', null, { vol: 1, varie: 0 }); }
       if (e.silent) continue;
