@@ -296,6 +296,7 @@
   const INSIGNIAS = [
     { id: 'etoile', name: 'Étoile', glyph: '✶' }, { id: 'bouclier', name: 'Bouclier', glyph: '⛨' }, { id: 'aigle', name: 'Aigle', glyph: '⚚' },
     { id: 'eclair', name: 'Éclair', glyph: '⚡' }, { id: 'ancre', name: 'Ancre', glyph: '⚓' }, { id: 'rose', name: 'Rose des vents', glyph: '✵' },
+    { id: 'epee', name: 'Glaive', glyph: '†' }, { id: 'couronne', name: 'Couronne', glyph: '♔' }, { id: 'cible', name: 'Cible', glyph: '◎' }, { id: 'flamme', name: 'Flamme', glyph: '♨' },
   ];
   const UNIFORMS = [
     // camo : terrains (ou conditions) où la tenue se fond dans le décor — l'adversaire a 10 % de chances en moins de repérer l'escouade
@@ -303,6 +304,9 @@
     { id: 'urbain', name: 'Urbain', uniform: 0x4a4e55, vest: 0x2a2d33, camo: { maps: ['place', 'parking'] } },
     { id: 'desert', name: 'Désert', uniform: 0x8a7a55, vest: 0x5d523a, camo: { maps: ['raffinerie', 'gare'] } },
     { id: 'nuit', name: 'Nuit', uniform: 0x252a36, vest: 0x161a22, camo: { conditions: ['nuit'] } },
+    { id: 'gris', name: 'Gris acier', uniform: 0x5c6066, vest: 0x3a3d42, camo: { maps: ['gare'], conditions: ['pluie'] } },
+    { id: 'sable', name: 'Sable', uniform: 0x9c8a62, vest: 0x6e6046, camo: { maps: ['raffinerie'], conditions: ['brouillard'] } },
+    { id: 'marine', name: 'Marine', uniform: 0x2c3a52, vest: 0x1d2636, camo: { maps: ['entrepot'], conditions: ['nuit'] } },
   ];
   // ---- RANGS DU JOUEUR -------------------------------------------------------------------
   const RANKS = [
