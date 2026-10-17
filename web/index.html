@@ -97,6 +97,9 @@
   .lgprog { display: flex; gap: 6px; margin-top: 8px; } .lgprog i { flex: 1; height: 8px; border-radius: 4px; background: #262e37; } .lgprog i.v { background: var(--ok); } .lgprog i.d { background: var(--bad); } .lgprog i.n { background: var(--warn); } .lgprog i.cur { background: var(--accent); box-shadow: 0 0 8px rgba(201,168,74,.6); }
   table.lg .rk { display: inline-block; min-width: 22px; text-align: center; border-radius: 5px; padding: 1px 4px; } table.lg tr.p1 .rk { background: #c9a84a; color: #111; } table.lg tr.p2 .rk { background: #aab4bf; color: #111; } table.lg tr.p3 .rk { background: #a8714a; color: #111; }
   table.lg .pw { color: #ffe08a; } table.lg .form { white-space: nowrap; } .fm { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 3px; background: #444; } .fm.v { background: var(--ok); } .fm.d { background: var(--bad); } .fm.n { background: var(--warn); }
+  #killfeed { position: absolute; right: 118px; top: 14px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; z-index: 3; pointer-events: none; }
+  .kf { display: flex; align-items: center; gap: 6px; background: rgba(10,13,16,.72); border: 1px solid rgba(255,255,255,.08); border-radius: 6px; padding: 3px 9px; font: 700 12px system-ui, sans-serif; letter-spacing: .03em; transition: opacity .7s; }
+  .kf.out { opacity: 0; } .kf .t0 { color: #8cc0ff; } .kf .t1 { color: #ff9b90; } .kf .rimg { width: 30px; height: 13px; object-fit: cover; filter: brightness(1.7); } .kf .kfh { color: #ffd76a; font-size: 13px; } .kf small { color: var(--muted); font-weight: 500; }
   /* Carrière */
   .hqgrid.two.play.career { grid-template-columns: 1.1fr 1fr; } .career .hqcol { overflow: auto; }
   .crstats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; } .crstats div { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
@@ -498,6 +501,7 @@
     <div id="tactics0" class="tactics left"></div>
     <div id="tactics1" class="tactics right"></div>
     <div id="ticker"></div>
+    <div id="killfeed"></div>
     <div id="whiteout"></div>
     <div id="briefing" class="hidden"><div class="brcard">
       <div class="brhead"><span class="brteam">ALPHA</span><span id="brObj"></span><span id="brMap"></span></div>

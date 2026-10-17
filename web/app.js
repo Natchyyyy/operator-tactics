@@ -825,7 +825,7 @@
     $('#app').classList.toggle('capture', !!battle.zone);
     hideBanner();
     for (const u of battle.units) { makeOperator(u); unitById[u.id] = u; }
-    $('#journal').innerHTML = ''; $('#ticker').innerHTML = '';
+    $('#journal').innerHTML = ''; $('#ticker').innerHTML = ''; $('#killfeed').innerHTML = '';
     $('#result').classList.add('hidden');
     if (!opts.replayInputs && !MANUAL && cam.mode !== SETTINGS.cam && ['director', 'follow', 'sat', 'free'].includes(SETTINGS.cam)) { cam.mode = SETTINGS.cam; document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === cam.mode)); }
     cam.init = false; cam.autoFollow = null; cam.follow = null; cam.shot = null; DIRECTOR.eventShot = null; if (cam.mode === 'free') { cam.target.set(battle.map.width / 2, 0, battle.map.depth / 2); }
@@ -1020,7 +1020,17 @@
     let b = m.label.querySelector('.bark'); if (!b) { b = document.createElement('div'); b.className = 'bark'; m.label.prepend(b); }
     b.textContent = list[Math.floor(Math.random() * list.length)]; b.classList.add('on'); m.barkUntil = simTime + 1.8;
   }
+  // fil des neutralisations (en haut à droite) : tireur, arme (silhouette du rôle), victime ; tête, éclats, frappe signalés
+  function killFeed(e) {
+    const v = e.enemy && unitById[e.enemy]; if (!v) return; const k = e.unit && unitById[e.unit];
+    const div = document.createElement('div'); div.className = 'kf';
+    const how = e.loc === 'tête' ? '<b class="kfh" title="tir à la tête">⊕</b>' : /grenade|éclat/.test(e.loc || '') ? '<b class="kfh" title="grenade">✸</b>' : /frappe|obus|mortier/.test(e.loc || '') ? '<b class="kfh" title="frappe">✈</b>' : '';
+    div.innerHTML = `${k ? `<span class="t${k.team}">${escapeHtml(k.callsign)}</span>${roleImg(k.role.id)}` : ''}${how}<span class="t${v.team}">${escapeHtml(v.callsign)}</span>${v.bleedUntil > battle.t ? '<small>à terre</small>' : ''}`;
+    const box = $('#killfeed'); box.appendChild(div); while (box.children.length > 5) box.removeChild(box.firstChild);
+    if (!MANUAL) setTimeout(() => div.classList.add('out'), 6000), setTimeout(() => div.remove(), 6800);
+  }
   function barkFor(e) {
+    if (e.kind === 'down') killFeed(e);
     const u = e.unit && unitById[e.unit];
     if (e.kind === 'spot' && /contact/.test(e.text)) bark(u, 'spot');
     else if (e.kind === 'reload' && Math.random() < 0.35) bark(u, 'reload');
