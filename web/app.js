@@ -114,6 +114,10 @@
     cam.target.set(c.x, 0, c.z);
   }
   function applyCamera() {
+    if (briefing) {   // survol lent de la carte pendant le briefing
+      const t = performance.now() / 1000 - briefing.t0, a = briefing.a0 + t * 0.1, cx = battle.map.width / 2, cz = battle.map.depth / 2;
+      camera.position.set(cx + Math.cos(a) * (battle.map.width * 0.75), 30 + Math.sin(t * 0.2) * 3, cz + Math.sin(a) * (battle.map.depth * 0.95)); camera.lookAt(cx, 0, cz); return;
+    }
     if (cam.mode === 'director') { directorCamera(); return; }
     if (cam.mode === 'follow') {
       let id = cam.follow;
@@ -799,7 +803,7 @@
       m.lastStepPhase = ph;
     }
     pumpLog();
-    if (battle.over && !ended) { ended = true; paused = true; updatePlayButton(); if (instantResult || MANUAL) showResult(); else showBanner(showResult); play(battle.result.winner === 0 ? 'victoire' : 'defaite', null, { vol: 1, varie: 0 }); }
+    if (battle.over && !ended) { hideBriefing(false); ended = true; paused = true; updatePlayButton(); if (instantResult || MANUAL) showResult(); else showBanner(showResult); play(battle.result.winner === 0 ? 'victoire' : 'defaite', null, { vol: 1, varie: 0 }); }
   }
   const pendingSounds = [];
 
@@ -962,7 +966,7 @@
     mode = m; mission = mis || null; rewardsApplied = false;
     const free = m === 'free';
     // en mission, l'ordre d'Alpha reste modifiable en direct ; celui de Bravo et les réglages de graine/carte sont réservés à la bataille libre
-    for (const id of ['order1', 'seed', 'mapSel', 'newBattle', 'replay', 'resReplay', 'resNew']) $('#' + id).hidden = !free;
+    for (const id of ['order1', 'seed', 'mapSel', 'condSel', 'newBattle', 'replay', 'resReplay', 'resNew']) $('#' + id).hidden = !free;
     document.querySelectorAll('header .group').forEach(g => { if (g.querySelector('#order1, #seed, #mapSel')) g.hidden = !free; });
     $('#missionLabel').hidden = free; if (!free) $('#missionLabel').textContent = `Mission : ${mis.name}${mis.conditions && mis.conditions !== 'jour' ? ' · ' + DATA.CONDITIONS[mis.conditions].name : ''}`;
     $('#toHq').textContent = free ? 'QG' : 'Abandonner';
@@ -986,7 +990,7 @@
     instantResult = true; stepSim(); instantResult = false; acc = DT; render();
   }
   $('#skip').addEventListener('click', skipToEnd);
-  $('#play').addEventListener('click', () => { if (battle.over) return; paused = !paused; updatePlayButton(); ambience(true); });
+  $('#play').addEventListener('click', () => { if (battle.over) return; if (briefing) { hideBriefing(true); return; } paused = !paused; updatePlayButton(); ambience(true); });
   // ordres en cours de bataille : appliqués immédiatement à la simulation (Alpha toujours ; Bravo en bataille libre)
   $('#order0').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0 && !reviewing) { battle.command('order', 0, e.target.value); pumpLog(); buildRosters(); } });
   $('#order1').addEventListener('change', (e) => { if (battle && !battle.over && battle.t > 0 && mode === 'free' && !reviewing) { battle.command('order', 1, e.target.value); pumpLog(); buildRosters(); } });
@@ -1012,7 +1016,21 @@
   $('#resHq').addEventListener('click', goHq);
   $('#freeBattle').addEventListener('click', () => { setMode('free'); window.HQ.hide(); newBattle(optsFromForm()); ambience(true); });
   $('#hqHelp').addEventListener('click', () => { $('#help').classList.toggle('hidden'); });
-  window.HQ.onLaunch = (opts, mis) => { setMode('mission', mis); window.HQ.hide(); $('#order0').value = opts.teams[0].order; newBattle(opts); paused = false; updatePlayButton(); ambience(true); };
+  // Briefing (missions de campagne, comme dans le jeu d'origine) : survol de la carte, fiche de mission, puis « Commencer »
+  let briefing = null;
+  function showBriefing(mis, opts) {
+    const D = DATA, cond = mis.conditions && mis.conditions !== 'jour' ? D.CONDITIONS[mis.conditions].name : 'Jour';
+    $('#brObj').textContent = OT.Game.objectiveLabel(mis).toUpperCase(); $('#brMap').textContent = OT.MAPS[mis.mapId].name;
+    $('#brName').textContent = mis.name; $('#brDesc').textContent = mis.desc || '';
+    $('#brIntel').innerHTML = `<div><span>Conditions</span><b>${cond}</b></div><div><span>Adversaire</span><b>Groupe Karst · ${opts.teams[1].operators.length} opérateurs · niveau ${mis.level}</b></div><div><span>Comportement</span><b>${D.ORDERS[mis.order].name}</b></div><div><span>Récompense</span><b>${mis.reward} cr. · ${mis.xp} XP</b></div>`;
+    briefing = { t0: performance.now() / 1000, a0: Math.random() * 6.28 }; $('#briefing').classList.remove('hidden');
+  }
+  function hideBriefing(start) { if (!briefing) return; briefing = null; $('#briefing').classList.add('hidden'); cam.init = false; if (start) { paused = false; updatePlayButton(); } }
+  $('#briefGo').addEventListener('click', () => hideBriefing(true));
+  window.HQ.onLaunch = (opts, mis) => {
+    setMode('mission', mis); window.HQ.hide(); $('#order0').value = opts.teams[0].order; newBattle(opts); ambience(true);
+    if (mis.campaign && !MANUAL) { paused = true; updatePlayButton(); showBriefing(mis, opts); } else { paused = false; updatePlayButton(); }
+  };
   $('#toggleHelp').addEventListener('click', () => $('#help').classList.toggle('hidden'));
   $('#toggleJournal').addEventListener('click', () => { $('#journalWrap').classList.toggle('hidden'); $('#journal').scrollTop = $('#journal').scrollHeight; });
   $('#closeJournal').addEventListener('click', () => $('#journalWrap').classList.add('hidden'));

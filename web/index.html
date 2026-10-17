@@ -81,6 +81,15 @@
   #resSpecials { display: grid; grid-template-columns: 1fr auto 1fr; gap: 4px 14px; font-size: 13px; margin: 6px auto 12px; max-width: 520px; } #resSpecials .l { text-align: right; font-weight: 700; color: var(--a0); } #resSpecials .r { font-weight: 700; color: var(--a1); } #resSpecials .m { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 11px; text-align: center; }
   .overlay { position: absolute; inset: 0; background: rgba(8,10,13,.82); display: flex; align-items: center; justify-content: center; z-index: 10; }
   .overlay.hidden { display: none; }
+  /* Briefing de campagne */
+  #briefing { position: absolute; inset: 0; z-index: 9; display: flex; align-items: flex-end; justify-content: flex-start; padding: 0 0 150px 40px; background: linear-gradient(90deg, rgba(6,9,12,.78), rgba(6,9,12,0) 55%); pointer-events: none; }
+  #briefing.hidden { display: none; }
+  .brcard { pointer-events: auto; width: 560px; background: rgba(14,18,22,.92); border: 1px solid #2c3640; border-left: 4px solid var(--a0); border-radius: 10px; padding: 18px 22px; box-shadow: 0 18px 50px #000a; }
+  .brhead { display: flex; gap: 10px; align-items: center; font-size: 11px; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
+  .brhead span { padding: 2px 8px; border-radius: 4px; background: #1b232b; } .brhead .brteam { background: var(--a0); color: #0b1016; font-weight: 800; }
+  .brcard h2 { margin: 10px 0 6px; font-size: 26px; letter-spacing: .04em; } .brcard p { color: #c3ccd5; line-height: 1.45; margin: 0 0 12px; }
+  #brIntel { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-size: 12px; margin-bottom: 14px; } #brIntel div { display: flex; flex-direction: column; } #brIntel span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
+  .brfoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 11px; } .brfoot button { padding: 10px 20px; font-size: 14px; }
   /* Réglages */
   #settings { position: fixed; z-index: 80; } #settings .dialog { max-width: 620px; }
   .setrow { display: grid; grid-template-columns: 190px 1fr 56px; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
@@ -449,6 +458,11 @@
     <div id="tactics1" class="tactics right"></div>
     <div id="ticker"></div>
     <div id="whiteout"></div>
+    <div id="briefing" class="hidden"><div class="brcard">
+      <div class="brhead"><span class="brteam">ALPHA</span><span id="brObj"></span><span id="brMap"></span></div>
+      <h2 id="brName"></h2><p id="brDesc"></p><div id="brIntel"></div>
+      <div class="brfoot"><span class="muted">Briefing — la carte survolée est le terrain de la mission.</span><button id="briefGo" class="on">Commencer la mission</button></div>
+    </div></div>
     <div id="banner" class="banner hidden"><span id="bannerText"></span><small id="bannerSub"></small></div>
     <div id="journalWrap" class="hidden"><div class="jhead">Journal de combat <button id="closeJournal" class="mini">×</button></div><div id="journal"></div></div>
     <div id="result" class="overlay hidden"><img id="resFig0" class="resfig left" alt=""><img id="resFig1" class="resfig right" alt=""><div class="dialog resdlg">
