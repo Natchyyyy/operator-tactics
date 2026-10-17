@@ -22,7 +22,9 @@
         }
         g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false; } });
         S.gltf = g;
-        try { straighten(g); composite(); measure(g); } catch (e) { console.warn('soldat 3D (mesure) :', e); }
+        try { straighten(g); composite(); } catch (e) { console.warn('soldat 3D (mesure) :', e); }
+        try { gardeBasse(g); } catch (e) { console.warn('soldat 3D (garde basse) :', e); }
+        try { measure(g); } catch (e) { console.warn('soldat 3D (mesure) :', e); }
         delete root.MODELES.soldat;
         // le fusil Meshy (modeles3d.js) est attendu : les soldats naissent directement avec
         const go = () => { S.ready = true; for (const f of S.onReady.splice(0)) try { f(); } catch (e) { console.warn(e); } };
@@ -64,6 +66,76 @@
       tracks.push(new t.constructor(t.name, [0, walk.duration], v0.concat(v0)));
     }
     S.clips.Walk_Aim = new THREE.AnimationClip('Walk_Aim', walk.duration, tracks);
+  }
+  // « Garde basse » (pose fixe, Garde_Basse) : debout bien droit, face à l'avant, fusil en travers du torse — crosse
+  // vers l'épaule droite, canon vers le bas à gauche et un peu en avant. Aucune animation ne l'a : on la construit.
+  //  1. corps : pose de repos du modèle (bassin, jambes, dos, tête droits) ; doigts : ceux de la visée (ils tiennent l'arme) ;
+  //  2. fusil : placé dans l'espace devant le soldat (GB.paume = paume droite sur la poignée, GB.canon = direction du canon) ;
+  //  3. mains : même prise que dans la visée — la rotation de chaque main PAR RAPPORT AU FUSIL est mesurée dans
+  //     Rifle_Aim_Turn_Right puis reportée sur le fusil en garde basse ; gauche sur le garde-main, à la même distance ;
+  //  4. bras : IK à deux os (épaule → coude → poignet), coudes vers le bas et l'extérieur.
+  // Repère du jeu : +Z devant le soldat, −X sa droite, mètres pour un soldat de 1,80 m, pieds à 0.
+  const GB = { paume: [-0.02, 1.17, 0.25], canon: [0.7, -0.62, 0.17], coudeD: [-1, -0.7, -0.25], coudeG: [1, -0.8, -0.1] };
+  S.GB = GB;
+  function gardeBasse(g) {
+    const aim = S.clips.Rifle_Aim_Turn_Right; if (!aim) return;
+    const sc = g.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
+    const R = { arm: b('RightArm'), fore: b('RightForeArm'), hand: b('RightHand'), mid: b('RightHandMiddle1') };
+    const L = { arm: b('LeftArm'), fore: b('LeftForeArm'), hand: b('LeftHand'), mid: b('LeftHandMiddle1') };
+    if (!R.arm || !L.arm || !R.mid || !L.mid) return;
+    const bones = []; sc.traverse(o => { if (o.isBone) bones.push(o); });
+    const rest = bones.map(o => [o.quaternion.clone(), o.position.clone()]);
+    const restore = () => bones.forEach((o, i) => { o.quaternion.copy(rest[i][0]); o.position.copy(rest[i][1]); });
+    const W = (o) => o.getWorldPosition(new THREE.Vector3()), WQ = (o) => o.getWorldQuaternion(new THREE.Quaternion());
+    const palm = (h) => W(h.hand).lerp(W(h.mid), 0.6);
+    // repère du fusil (+Z bouche, +Y dessus) ; a = poignée → garde-main dans ce repère
+    // (fusil Meshy, modeles3d.js : poignée P(0,33 ; −0,13), garde-main P(−0,42 ; 0) → a ∝ (0 ; 0,13 ; 0,75))
+    const aW = new THREE.Vector3(0, 0.13, 0.75).normalize();
+    const fusil = (bvec) => {   // même règle que placeWeapon : a → bvec, le dessus du fusil vers le haut
+      const basis = (d) => { const u = new THREE.Vector3(0, 1, 0).addScaledVector(d, -d.y).normalize(); return new THREE.Matrix4().makeBasis(d, u, new THREE.Vector3().crossVectors(d, u)); };
+      return new THREE.Quaternion().setFromRotationMatrix(basis(bvec).multiply(basis(aW).transpose()));
+    };
+    // 1. prise dans la visée
+    const mixer = new THREE.AnimationMixer(sc), act = mixer.clipAction(aim); act.play(); mixer.setTime(0); sc.updateMatrixWorld(true);
+    const fingers = bones.filter(o => /(Right|Left)Hand.+/.test(o.name)).map(o => [o, o.quaternion.clone()]);
+    const pR0 = palm(R), pL0 = palm(L), Qa = fusil(pL0.clone().sub(pR0).normalize()), Qai = Qa.clone().invert();
+    const grip = (h) => { const q = WQ(h.hand); return { rel: Qai.clone().multiply(q), off: palm(h).sub(W(h.hand)).applyQuaternion(q.clone().invert()) }; };
+    const gR = grip(R), gL = grip(L), span = pL0.distanceTo(pR0);
+    act.stop(); mixer.uncacheAction(aim); restore(); fingers.forEach(([o, q]) => o.quaternion.copy(q)); sc.updateMatrixWorld(true);
+    // 2. fusil en garde basse (k : mètres du jeu → unités du modèle)
+    const k = RAW_H / HEIGHT, d = new THREE.Vector3().fromArray(GB.canon).normalize();
+    const u = new THREE.Vector3(0, 1, 0).addScaledVector(d, -d.y).normalize();
+    const Qn = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(u, d), u, d));
+    // le fusil en garde basse tient comme dans la visée : on cherche la rotation Qg (poignée → garde-main) équivalente
+    const bN = aW.clone().applyQuaternion(Qn), Qg = fusil(bN);
+    const tR = new THREE.Vector3().fromArray(GB.paume).multiplyScalar(k), tL = tR.clone().addScaledVector(bN, span);
+    // 3–4. chaque bras : poignet visé = paume visée − décalage paume/poignet de la main orientée comme dans la visée
+    const ik = (h, gp, target, pole) => {
+      const qh = Qg.clone().multiply(gp.rel), wT = target.clone().sub(gp.off.clone().applyQuaternion(qh));
+      const S0 = W(h.arm), E0 = W(h.fore), H0 = W(h.hand), a = S0.distanceTo(E0), bb = E0.distanceTo(H0);
+      let c = S0.distanceTo(wT); c = Math.min(c, (a + bb) * 0.999);
+      const dir = wT.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - bb * bb) / (2 * a * c)));
+      const p = new THREE.Vector3().fromArray(pole).normalize(); p.addScaledVector(dir, -p.dot(dir)).normalize();
+      const E1 = S0.clone().addScaledVector(dir, a * cosA).addScaledVector(p, a * Math.sqrt(1 - cosA * cosA));
+      const turn = (bone, from, to) => {   // tourne l'os (dans le monde) pour que from devienne to
+        const dq = new THREE.Quaternion().setFromUnitVectors(from.normalize(), to.normalize());
+        const wq = dq.multiply(WQ(bone)), pq = WQ(bone.parent).invert(); bone.quaternion.copy(pq.multiply(wq)); bone.updateMatrixWorld(true);
+      };
+      turn(h.arm, E0.clone().sub(S0), E1.clone().sub(S0));
+      const E2 = W(h.fore); turn(h.fore, W(h.hand).sub(E2), wT.clone().sub(E2));
+      h.hand.quaternion.copy(WQ(h.hand.parent).invert().multiply(qh)); h.hand.updateMatrixWorld(true);
+    };
+    ik(R, gR, tR, GB.coudeD); ik(L, gL, tL, GB.coudeG);
+    // 5. clip fixe : une clé (répétée) par os
+    const tracks = [];
+    for (const o of bones) {
+      const n = THREE.PropertyBinding.sanitizeNodeName(o.name), q = o.quaternion.toArray();
+      tracks.push(new THREE.QuaternionKeyframeTrack(n + '.quaternion', [0, 1], q.concat(q)));
+      if (/Hips$/.test(o.name)) { const p = o.position.toArray(); tracks.push(new THREE.VectorKeyframeTrack(n + '.position', [0, 1], p.concat(p))); }
+    }
+    S.clips.Garde_Basse = new THREE.AnimationClip('Garde_Basse', 1, tracks);
+    S.gbErr = { R: palm(R).distanceTo(tR) / k, L: palm(L).distanceTo(tL) / k };
+    restore(); sc.updateMatrixWorld(true);
   }
   // Correction d'orientation par animation : de quel angle faut-il tourner le corps pour que l'ARME (main droite → main gauche)
   // pointe droit devant (+Z, la direction « face » du jeu) ? Mesurée une fois au chargement.

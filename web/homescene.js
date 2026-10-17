@@ -13,7 +13,7 @@
   const key = new THREE.DirectionalLight(0xfff0d8, 3.2); key.position.set(2.5, 3.5, 4.5); scene.add(key);
   const rim = new THREE.DirectionalLight(0x6fe6ff, 2.6); rim.position.set(-3, 2.5, -3); scene.add(rim);
   const rim2 = new THREE.DirectionalLight(0x9ff0d0, 1.2); rim2.position.set(3, 1, -3); scene.add(rim2);
-  const POSE = { clip: 'Rifle_Aim_Turn_Right', t: 0, yaw: 1.15, cx: -0.02 };
+  const POSE = { clip: 'Garde_Basse', t: 0, yaw: 0.22, cx: 0.03 };
   let fig = null, key0 = '';
   function build(profile) {
     const id = profile.squad[0]; if (!id) { if (fig) scene.remove(fig.group); fig = null; key0 = ''; return; }
@@ -21,7 +21,7 @@
     const k = JSON.stringify([id, uni.id, st.weaponId, st.headgear, !!st.wounded, !!(OT.Soldat3D && OT.Soldat3D.ready)]); if (k === key0) return; key0 = k;
     if (fig) scene.remove(fig.group);
     const s3 = OT.Soldat3D && OT.Soldat3D.ready && OT.Soldat3D.create({ uniform: uni.uniform, weapon: st.weaponId });
-    if (s3) {   // posture de garde : debout, appuis au sol, fusil épaulé, tourné de trois quarts vers le menu
+    if (s3) {   // garde basse : debout, face au joueur, fusil en travers du torse, canon vers le bas
       const P = window.HOMEPOSE || POSE; fig = s3; fig.play(P.clip, { time: P.t }); fig.update(0); fig.body.rotation.y = (OT.Soldat3D.yawFix[P.clip] || 0); fig.placeWeapon(true, 0); fig.group.rotation.y = P.yaw; fig.pose0 = P;
     }
     else {

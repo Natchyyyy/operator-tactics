@@ -13,9 +13,9 @@ OT.Soldat3D.whenReady(() => {
   const dot = (c, p) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 8), new THREE.MeshBasicMaterial({ color: c, depthTest: false })); m.renderOrder = 9; m.position.copy(p); sc.add(m); };
   const B = f.bones, wp = (o) => o.getWorldPosition(new THREE.Vector3());
   dot(0xff3030, wp(B.rh).lerp(wp(B.rm), 0.6)); dot(0x3080ff, wp(B.lh).lerp(wp(B.lm), 0.6)); dot(0xffe040, f.weapon.localToWorld(f.weapon.muzzle.clone()));
-  const views = [[1.4, 1.55, 1.6], [2.0, 1.45, 0.05], [0.05, 3.2, 0.3], [-1.4, 1.6, -1.4]], w = W / 4;
-  views.forEach((p, i) => { const cam = new THREE.PerspectiveCamera(30, w / H, 0.05, 50); cam.position.set(p[0], p[1], p[2]); cam.lookAt(0, 1.3, 0.25); r.setViewport(i * w, 0, w, H); r.setScissor(i * w, 0, w, H); r.setScissorTest(true); r.render(sc, cam); });
-  document.getElementById('t').textContent = clip + ' à ' + tt + ' — 3/4 avant · profil · dessus · 3/4 arrière';
+  const views = [[0.0, 1.4, 2.6], [2.0, 1.45, 0.05], [0.05, 3.2, 0.3], [-1.4, 1.6, -1.4]], w = W / 4;
+  views.forEach((p, i) => { const cam = new THREE.PerspectiveCamera(30, w / H, 0.05, 50); cam.position.set(p[0], p[1], p[2]); cam.lookAt(0, 1.2, 0.2); r.setViewport(i * w, 0, w, H); r.setScissor(i * w, 0, w, H); r.setScissorTest(true); r.render(sc, cam); });
+  document.getElementById('t').textContent = JSON.stringify(OT.Soldat3D.gbErr || {}) + ' ' + clip +' à ' + tt + ' — 3/4 avant · profil · dessus · 3/4 arrière';
   window.PRET = true;
 });
 </script></body></html>
