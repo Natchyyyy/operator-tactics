@@ -8371,6 +8371,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   const key = new THREE.DirectionalLight(0xfff0d8, 3.2); key.position.set(2.5, 3.5, 4.5); scene.add(key);
   const rim = new THREE.DirectionalLight(0x6fe6ff, 2.6); rim.position.set(-3, 2.5, -3); scene.add(rim);
   const rim2 = new THREE.DirectionalLight(0x9ff0d0, 1.2); rim2.position.set(3, 1, -3); scene.add(rim2);
+  const POSE = { clip: 'Rifle_Aim_Turn_Right', t: 0, yaw: 0.6 };
   let fig = null, key0 = '';
   function build(profile) {
     const id = profile.squad[0]; if (!id) { if (fig) scene.remove(fig.group); fig = null; key0 = ''; return; }
@@ -8378,7 +8379,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const k = JSON.stringify([id, uni.id, st.weaponId, st.headgear, !!st.wounded, !!(OT.Soldat3D && OT.Soldat3D.ready)]); if (k === key0) return; key0 = k;
     if (fig) scene.remove(fig.group);
     const s3 = OT.Soldat3D && OT.Soldat3D.ready && OT.Soldat3D.create({ uniform: uni.uniform, weapon: st.weaponId });
-    if (s3) { fig = s3; fig.play('Walk_Fight_Forward', { time: 0.12 }); fig.update(0); fig.placeWeapon(true, 0); fig.group.rotation.y = -0.5; }
+    if (s3) {   // posture de garde : debout, appuis au sol, fusil épaulé, tourné de trois quarts vers le menu
+      const P = window.HOMEPOSE || POSE; fig = s3; fig.play(P.clip, { time: P.t }); fig.update(0); fig.body.rotation.y = (OT.Soldat3D.yawFix[P.clip] || 0); fig.placeWeapon(true, 0); fig.group.rotation.y = P.yaw; fig.pose0 = P;
+    }
     else {
       fig = OT.Figure.build({ id, weapon: st.weaponId, uniform: uni.uniform, vest: uni.vest, teamColor: 0x4f9cf0, headgear: st.headgear || 'casque' });
       OT.Figure.armPose(fig, 0.15);
@@ -8392,7 +8395,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function draw(t) {
     size();
     if (fig && !fig.isSkinned) { fig.torso.rotation.z = Math.sin(t * 0.9) * 0.012; fig.headG.rotation.y = -0.35 + Math.sin(t * 0.37) * 0.08; fig.group.position.y = Math.sin(t * 1.8) * 0.004; }
-    else if (fig) { fig.group.rotation.y = -0.5 + Math.sin(t * 0.3) * 0.06; }
+    else if (fig) { fig.group.rotation.y = fig.pose0.yaw + Math.sin(t * 0.3) * 0.03; }
     if (fig && fig.isSkinned) { camera.position.set(0.05, 0.95, 6.2); camera.lookAt(0.05, 0.92, 0); }   // soldat entier dans la capsule (pieds compris) else { camera.position.set(0.25, 1.0, 5.5); camera.lookAt(0.05, 0.9, 0); }
     renderer.render(scene, camera);
   }
