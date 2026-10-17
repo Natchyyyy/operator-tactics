@@ -118,7 +118,7 @@
       });
       const tactics = {};
       for (const id of (td.tactics || [])) if (TACTICS[id]) tactics[id] = { uses: TACTICS[id].active ? TACTICS[id].uses : 0, cooldownUntil: 0, used: 0 };
-      this.teams.push({ index: ti, name: td.name || (ti === 0 ? 'Alpha' : 'Bravo'), order, units, spawn: this.map.spawns[ti], lastSeen: {}, tactics, tacticIds: (td.tactics || []).filter(id => TACTICS[id]), auto: !!td.autoTactics, capture: 0 });
+      this.teams.push({ index: ti, name: td.name || (ti === 0 ? 'Alpha' : 'Bravo'), order, units, camo: (() => { const u = DATA.UNIFORMS.find(x => x.id === td.uniform); const c = u && u.camo; return c && ((c.maps || []).includes(this.map.id) || (c.conditions || []).includes(opts.conditions || 'jour')) ? 0.9 : 1; })(), spawn: this.map.spawns[ti], lastSeen: {}, tactics, tacticIds: (td.tactics || []).filter(id => TACTICS[id]), auto: !!td.autoTactics, capture: 0 });
     });
     this.units = this.teams.flatMap(t => t.units);
     this.placeUnits();
@@ -380,6 +380,7 @@
             if (e.stance === 'crouch') p *= 0.6;
             if (has(u, 'eagle')) p *= 1.3;                      // Œil de lynx
             if (has(e, 'ghost')) p *= 0.6;                      // Fantôme
+            p *= this.teams[e.team].camo;                        // tenue adaptée au terrain : −10 %
             if (this.hasTactic(this.teams[e.team], 'camouflage')) p *= this.t < 40 ? 0.65 : 0.85;   // Camouflage
             p = clamp(p, 0.02, 1);
           }

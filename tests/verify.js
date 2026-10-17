@@ -505,6 +505,12 @@ function duel(opts) {
 }
 
 {
+  // ---- camouflage des tenues : −10 % de repérage sur les terrains / conditions de la tenue, rien ailleurs ----
+  const camo = (uni, map, cond) => new Battle({ seed: 1, mapId: map, conditions: cond, teams: [{ operators: ['op_vautour'], uniform: uni }, { operators: ['k_molosse'] }] }).teams[0].camo;
+  check('camouflage : tenue urbaine en ville, désert à la raffinerie, nuit de nuit (×0,9) ; ailleurs ×1 ; l\'adversaire sans tenue ×1', camo('urbain', 'place') === 0.9 && camo('desert', 'raffinerie') === 0.9 && camo('nuit', 'entrepot', 'nuit') === 0.9 && camo('urbain', 'entrepot') === 1 && camo('nuit', 'entrepot') === 1 && new Battle({ seed: 1, mapId: 'place' }).teams[1].camo === 1);
+}
+
+{
   // ---- conditions : la nuit réduit la vue (sauf l'éclair d'un tireur), le brouillard aussi ; la pluie couvre les bruits ----
   const mp = new GameMap(MAPS.place); let row = null; for (let z = 3; z < 42 && row === null; z += 0.5) if (mp.hasLOS(14, 1.6, z, 54, 1.6, z) && !mp.insideObstacle(14, z) && !mp.insideObstacle(54, z)) row = z;
   const sees = (cond, fired) => { let n = 0; for (let sd = 1; sd <= 40; sd++) { const b = new Battle({ seed: sd, mapId: 'place', conditions: cond, teams: [{ operators: ['op_vautour'], tactics: [] }, { operators: ['k_molosse'], tactics: [] }] }); const [u] = b.teams[0].units, [e] = b.teams[1].units; u.x = 14; u.z = row; e.x = 54; e.z = row; u.facing = 0; e.moving = true; b.t = 10; e.lastShotAt = fired ? 9.8 : -99; for (let k = 0; k < 10; k++) { b.perceive(u); if (u.visible.has(e.id)) { n++; break; } } } return n; };

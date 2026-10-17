@@ -290,8 +290,11 @@
     { id: 'eclair', name: 'Éclair', glyph: '⚡' }, { id: 'ancre', name: 'Ancre', glyph: '⚓' }, { id: 'rose', name: 'Rose des vents', glyph: '✵' },
   ];
   const UNIFORMS = [
-    { id: 'olive', name: 'Olive', uniform: 0x3a4a3c, vest: 0x2b352d }, { id: 'urbain', name: 'Urbain', uniform: 0x4a4e55, vest: 0x2a2d33 },
-    { id: 'desert', name: 'Désert', uniform: 0x8a7a55, vest: 0x5d523a }, { id: 'nuit', name: 'Nuit', uniform: 0x252a36, vest: 0x161a22 },
+    // camo : terrains (ou conditions) où la tenue se fond dans le décor — l'adversaire a 10 % de chances en moins de repérer l'escouade
+    { id: 'olive', name: 'Olive', uniform: 0x3a4a3c, vest: 0x2b352d, camo: { maps: ['entrepot'], conditions: ['brouillard'] } },
+    { id: 'urbain', name: 'Urbain', uniform: 0x4a4e55, vest: 0x2a2d33, camo: { maps: ['place', 'parking'] } },
+    { id: 'desert', name: 'Désert', uniform: 0x8a7a55, vest: 0x5d523a, camo: { maps: ['raffinerie', 'gare'] } },
+    { id: 'nuit', name: 'Nuit', uniform: 0x252a36, vest: 0x161a22, camo: { conditions: ['nuit'] } },
   ];
   // ---- RANGS DU JOUEUR -------------------------------------------------------------------
   const RANKS = [

@@ -535,7 +535,7 @@
         <li><b>À terre</b> : un opérateur neutralisé autrement que d'une balle dans la tête reste parfois à terre 20 s ; un allié qui ne voit aucun ennemi peut aller le relever (4 s, 2 s pour un Secouriste), une fois par bataille, avec 30 % de sa vie.</li>
         <li><b>Heure et météo</b> : de <i>nuit</i> on voit deux fois moins loin, sauf un tireur dont l'arme non silencieuse lance des éclairs ; le <i>brouillard</i> réduit encore la vue ; la <i>pluie</i> couvre les bruits et gêne le tir lointain. Les deux camps subissent les mêmes conditions.</li>
         <li><b>Compétences</b> : chaque opérateur a un trait aux effets réels (vitesse, visée, rechargement, repérage, suppression…), décrit sur sa fiche au QG.</li>
-        <li><b>Quartier général</b> : 3 à 5 opérateurs, arme, protection, voie d'approche, ordre, 3 tactiques, puis une mission. Victoire → crédits, expérience, rang ; paquets de cartes (recrues, tactiques, perks, cosmétiques). Un opérateur neutralisé est indisponible une mission (ou soigné). Tout est sauvegardé dans ce navigateur.</li>
+        <li><b>Quartier général</b> : 3 à 5 opérateurs, arme, protection, voie d'approche, ordre, 3 tactiques, puis une mission. Victoire → crédits, expérience, rang ; paquets de cartes (recrues, tactiques, perks, cosmétiques). Un opérateur neutralisé revient gravement blessé (compétences ÷2) jusqu’aux soins ou à deux missions de repos. Tout est sauvegardé dans ce navigateur.</li>
       </ul>
       <div class="actions"><button onclick="document.getElementById('help').classList.add('hidden')" class="on">Fermer</button></div>
     </div></div>
@@ -1311,8 +1311,11 @@ window.Son = Son;
     { id: 'eclair', name: 'Éclair', glyph: '⚡' }, { id: 'ancre', name: 'Ancre', glyph: '⚓' }, { id: 'rose', name: 'Rose des vents', glyph: '✵' },
   ];
   const UNIFORMS = [
-    { id: 'olive', name: 'Olive', uniform: 0x3a4a3c, vest: 0x2b352d }, { id: 'urbain', name: 'Urbain', uniform: 0x4a4e55, vest: 0x2a2d33 },
-    { id: 'desert', name: 'Désert', uniform: 0x8a7a55, vest: 0x5d523a }, { id: 'nuit', name: 'Nuit', uniform: 0x252a36, vest: 0x161a22 },
+    // camo : terrains (ou conditions) où la tenue se fond dans le décor — l'adversaire a 10 % de chances en moins de repérer l'escouade
+    { id: 'olive', name: 'Olive', uniform: 0x3a4a3c, vest: 0x2b352d, camo: { maps: ['entrepot'], conditions: ['brouillard'] } },
+    { id: 'urbain', name: 'Urbain', uniform: 0x4a4e55, vest: 0x2a2d33, camo: { maps: ['place', 'parking'] } },
+    { id: 'desert', name: 'Désert', uniform: 0x8a7a55, vest: 0x5d523a, camo: { maps: ['raffinerie', 'gare'] } },
+    { id: 'nuit', name: 'Nuit', uniform: 0x252a36, vest: 0x161a22, camo: { conditions: ['nuit'] } },
   ];
   // ---- RANGS DU JOUEUR -------------------------------------------------------------------
   const RANKS = [
@@ -1859,7 +1862,7 @@ window.Son = Son;
       });
       const tactics = {};
       for (const id of (td.tactics || [])) if (TACTICS[id]) tactics[id] = { uses: TACTICS[id].active ? TACTICS[id].uses : 0, cooldownUntil: 0, used: 0 };
-      this.teams.push({ index: ti, name: td.name || (ti === 0 ? 'Alpha' : 'Bravo'), order, units, spawn: this.map.spawns[ti], lastSeen: {}, tactics, tacticIds: (td.tactics || []).filter(id => TACTICS[id]), auto: !!td.autoTactics, capture: 0 });
+      this.teams.push({ index: ti, name: td.name || (ti === 0 ? 'Alpha' : 'Bravo'), order, units, camo: (() => { const u = DATA.UNIFORMS.find(x => x.id === td.uniform); const c = u && u.camo; return c && ((c.maps || []).includes(this.map.id) || (c.conditions || []).includes(opts.conditions || 'jour')) ? 0.9 : 1; })(), spawn: this.map.spawns[ti], lastSeen: {}, tactics, tacticIds: (td.tactics || []).filter(id => TACTICS[id]), auto: !!td.autoTactics, capture: 0 });
     });
     this.units = this.teams.flatMap(t => t.units);
     this.placeUnits();
@@ -2121,6 +2124,7 @@ window.Son = Son;
             if (e.stance === 'crouch') p *= 0.6;
             if (has(u, 'eagle')) p *= 1.3;                      // Œil de lynx
             if (has(e, 'ghost')) p *= 0.6;                      // Fantôme
+            p *= this.teams[e.team].camo;                        // tenue adaptée au terrain : −10 %
             if (this.hasTactic(this.teams[e.team], 'camouflage')) p *= this.t < 40 ? 0.65 : 0.85;   // Camouflage
             p = clamp(p, 0.02, 1);
           }
@@ -3795,6 +3799,7 @@ window.Son = Son;
     'La pluie couvre les bruits : les tirs s\'entendent de moins loin.',
     'Un soldat accroupi derrière un couvert bas n\'offre presque rien à toucher ; contournez-le.',
     'Gagnez cinq batailles rapides pour recevoir un paquet de cartes offert.',
+    'La tenue compte : urbaine en ville, désert à la raffinerie et à la gare, olive aux docks, nuit… de nuit — l\'adversaire vous repère 10 % moins bien.',
     'Jouez toutes les missions d\'une campagne pour toucher la prime de participation, gagnez-les toutes pour la prime de campagne.',
     'Un allié à terre peut être relevé si personne ne voit d\'ennemi : gardez un Secouriste près du groupe.',
     'Le Grenadier emporte une grenade de plus et lance jusqu\'à 30 m.',
@@ -3805,6 +3810,9 @@ window.Son = Son;
     '« Revoir la bataille » rejoue tout à l\'identique : mêmes décisions, mêmes tirs, mêmes tactiques jouées.',
     'Les doublons de recrues renforcent l\'opérateur (+2 à une compétence) et prolongent son contrat.',
   ];
+  // camouflage des tenues : terrains et conditions où l'adversaire repère moins bien l'escouade (−10 %)
+  const camoText = (u) => [...(u.camo.maps || []).map(m => OT.MAPS[m] ? OT.MAPS[m].name : m), ...(u.camo.conditions || []).map(c => DATA.CONDITIONS[c].name.toLowerCase())].join(', ');
+  const camoActive = (u, m) => !!(u && u.camo && m && ((u.camo.maps || []).includes(m.mapId) || (u.camo.conditions || []).includes(m.conditions || 'jour')));
   const COND_FR = { jour: 'Jour', nuit: 'Nuit', brouillard: 'Brouillard', pluie: 'Pluie' };
   function rewardLabel(rw) {
     if (!rw) return ''; if (rw.credits) return rw.credits + ' crédits';
@@ -3851,7 +3859,7 @@ window.Son = Son;
     if (document.activeElement !== $('#teamName')) $('#teamName').value = profile.teamName;
     $('#insPick').innerHTML = INSIGNIAS.map(i => { const ok = profile.unlocked.insignias.includes(i.id); return `<button data-ins="${i.id}" class="${profile.insignia === i.id ? 'on' : ''} ${ok ? '' : 'locked'}" title="${i.name}${ok ? '' : ' (à débloquer dans un paquet)'}">${i.glyph}</button>`; }).join('');
     $('#insPick').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { if (Game.setCustomization(profile, 'insignia', b.dataset.ins)) { saveNow(); render(); } }));
-    $('#uniPick').innerHTML = UNIFORMS.map(u => { const ok = profile.unlocked.uniforms.includes(u.id); return `<button data-uni="${u.id}" class="${profile.uniform === u.id ? 'on' : ''} ${ok ? '' : 'locked'}" title="${u.name}${ok ? '' : ' (à débloquer dans un paquet)'}"><span class="sw" style="background:#${u.uniform.toString(16).padStart(6, '0')}"></span></button>`; }).join('');
+    $('#uniPick').innerHTML = UNIFORMS.map(u => { const ok = profile.unlocked.uniforms.includes(u.id); return `<button data-uni="${u.id}" class="${profile.uniform === u.id ? 'on' : ''} ${ok ? '' : 'locked'}" title="${u.name}${u.camo ? ' — camouflage : ' + camoText(u) : ''}${ok ? '' : ' (à débloquer dans un paquet)'}"><span class="sw" style="background:#${u.uniform.toString(16).padStart(6, '0')}"></span></button>`; }).join('');
     $('#uniPick').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { if (Game.setCustomization(profile, 'uniform', b.dataset.uni)) { saveNow(); render(); } }));
   }
   $('#teamName').addEventListener('change', (e) => { if (Game.setCustomization(profile, 'teamName', e.target.value)) { saveNow(); render(); } else e.target.value = profile.teamName; });
@@ -3859,7 +3867,7 @@ window.Son = Son;
     const m = currentMission();
     const squad = profile.squad.map(id => OPERATORS.find(o => o.id === id).callsign).join(', ') || 'aucun';
     const tac = (profile.tactics.equipped || []).map(id => TACTICS[id].name).join(', ') || 'aucune';
-    $('#hqDeploy').innerHTML = `<div class="deploy"><div><b>${esc(m.name)}</b> — ${OT.MAPS[m.mapId].name}</div><div>Escouade (${profile.squad.length}) : ${esc(squad)}</div><div>Ordre : ${ORDERS[profile.order].name} · Tactiques : ${esc(tac)}</div><div>Puissance ${Game.teamRating(profile)} contre niveau ${m.level} — ${esc((DATA.FACTIONS[m.faction || "karst"] || DATA.FACTIONS.karst).name)} (${ORDERS[m.order].name}${m.enemyTactics && m.enemyTactics.length ? ', tactiques : ' + m.enemyTactics.map(t => TACTICS[t].name).join(', ') : ''})</div></div>`;
+    $('#hqDeploy').innerHTML = `<div class="deploy"><div><b>${esc(m.name)}</b> — ${OT.MAPS[m.mapId].name}</div><div>Escouade (${profile.squad.length}) : ${esc(squad)}</div><div>Ordre : ${ORDERS[profile.order].name} · Tactiques : ${esc(tac)}</div><div>Puissance ${Game.teamRating(profile)} contre niveau ${m.level} — ${esc((DATA.FACTIONS[m.faction || "karst"] || DATA.FACTIONS.karst).name)} (${ORDERS[m.order].name}${m.enemyTactics && m.enemyTactics.length ? ', tactiques : ' + m.enemyTactics.map(t => TACTICS[t].name).join(', ') : ''})</div>${(() => { const u = UNIFORMS.find(x => x.id === profile.uniform); return camoActive(u, m) ? `<div class="good">Tenue « ${esc(u.name)} » adaptée au terrain : l’adversaire vous repère 10 % moins bien.</div>` : ''; })()}</div>`;
   }
   function renderLeague() {
     if (!profile.league) { profile.league = League.newSeason(Math.floor(Math.random() * 1e9)); saveNow(); }
