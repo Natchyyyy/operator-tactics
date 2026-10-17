@@ -35,7 +35,7 @@
   function render() {
     $('#credits').textContent = profile.credits;
     const c = profile.career;
-    $('#career').textContent = `${c.battles} bataille${c.battles > 1 ? 's' : ''} · ${c.kills} neutralisation${c.kills > 1 ? 's' : ''} · ${c.losses_units} opérateur${c.losses_units > 1 ? 's' : ''} évacué${c.losses_units > 1 ? 's' : ''}`;
+    $('#career').textContent = `${c.battles} bataille${c.battles > 1 ? 's' : ''} · ${c.kills} neutralisation${c.kills > 1 ? 's' : ''} · ${c.losses_units} opérateur${c.losses_units > 1 ? 's' : ''} mis hors de combat`;
     renderHome(); renderRoster(); renderDetail(); renderSquad(); renderMissions(); renderDeploy(); renderArmory(); renderPacks(); renderTactics(); renderPerks(); renderChallenges(); renderLeague(); renderRewards();
   }
   function renderAchievements() {
@@ -50,6 +50,12 @@
     $('#hqRank').textContent = RANKS[r].name; $('#hqXp').textContent = next === null ? 'rang maximal' : `${next} XP avant le rang suivant`;
     $('#hqXpBar').style.width = next === null ? '100%' : (100 * ((profile.xp || 0) - RANKS[r].xp) / (RANKS[r + 1].xp - RANKS[r].xp)).toFixed(0) + '%';
     $('#hqRating').textContent = Game.teamRating(profile);
+    $('#homeIns').textContent = ins.glyph; $('#homeRank').textContent = `Rang ${r} · ${RANKS[r].name}${next === null ? '' : ' — ' + next + ' XP avant le suivant'}`;
+    $('#homeSquad').innerHTML = profile.squad.map(id => { const o = OPERATORS.find(x => x.id === id), st = profile.operators[id]; return `<div class="hsq ${st.wounded ? 'wounded' : ''}" data-op="${id}"><span class="rt">${Math.round(Game.operatorRating(profile, id))}</span><b>${esc(o.callsign)}</b><small>${ROLES[o.role].name} · niv. ${Game.levelFor(st.xp)}${st.wounded ? ' · blessé' : ''}</small></div>`; }).join('');
+    $('#homeSquad').querySelectorAll('.hsq').forEach(e => e.addEventListener('click', () => { selected = e.dataset.op; showTab('equipe'); }));
+    const fp = profile.freePacks || {}, nfree = Object.values(fp).reduce((a, b) => a + b, 0); $('#homeFree').textContent = nfree ? `${nfree} paquet${nfree > 1 ? 's' : ''} offert${nfree > 1 ? 's' : ''} à ouvrir` : '';
+    if (profile.league) { const sn = profile.league, me = League.table(sn).find(x => x.id === 'player'); $('#homeLeague').textContent = `saison ${(profile.leagueSeasons || 0) + 1} · ${sn.round}/${League.SEASON_BATTLES} batailles · ${me.rank}${me.rank === 1 ? 'er' : 'e'} au classement`; }
+    if (window.HOMESCENE && tab === 'accueil' && !$('#hq').classList.contains('hidden')) window.HOMESCENE.show(profile); else if (window.HOMESCENE) window.HOMESCENE.hide();
     $('#hqWins').textContent = profile.career.wins; $('#hqLosses').textContent = profile.career.losses; $('#hqDraws').textContent = profile.career.draws;
     if (document.activeElement !== $('#teamName')) $('#teamName').value = profile.teamName;
     $('#insPick').innerHTML = INSIGNIAS.map(i => { const ok = profile.unlocked.insignias.includes(i.id); return `<button data-ins="${i.id}" class="${profile.insignia === i.id ? 'on' : ''} ${ok ? '' : 'locked'}" title="${i.name}${ok ? '' : ' (à débloquer dans un paquet)'}">${i.glyph}</button>`; }).join('');
@@ -346,7 +352,7 @@
   }
   window.HQ = {
     show() { switchTo(true); showTab(lastRewards && lastRewards.mission && lastRewards.mission.startsWith('Ligue') ? 'ligue' : 'accueil'); },
-    hide() { switchTo(false); },
+    hide() { if (window.HOMESCENE) window.HOMESCENE.hide(); switchTo(false); },
     // appelé par app.js à la fin d'une bataille de mission : applique les récompenses au profil et sauvegarde
     finishMission(mission, result) {
       const r = Game.applyRewards(profile, mission, result);

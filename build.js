@@ -9,6 +9,7 @@ html = html.replace('<script src="three.min.js"></script>', inline('web/three.mi
   .replace('<script src="figure.js"></script>', inline('web/figure.js'))
   .replace('<script src="portrait.js"></script>', inline('web/portrait.js'))
   .replace('<script src="images.js"></script>', inline('web/images.js'))
+  .replace('<script src="homescene.js"></script>', inline('web/homescene.js'))
   .replace('<script src="../sim/rng.js"></script>', inline('sim/rng.js'))
   .replace('<script src="../sim/data.js"></script>', inline('sim/data.js'))
   .replace('<script src="../sim/map.js"></script>', inline('sim/map.js'))
