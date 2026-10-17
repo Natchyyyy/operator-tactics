@@ -5119,7 +5119,7 @@ window.Son = Son;
         pendingSounds.push({ at: simTime + d / 110, name: imp, pos: ev.to, vol: ev.hit ? 1 : imp === 'impact_sol' ? 0.6 : 0.9 });
       }
       if (ev.type === 'shot' && ev.hit && Math.random() < 0.25) { const t = unitById[ev.target]; if (t) addBlood(t.x, t.z, 0.22); }
-      if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); }
+      if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); const u = unitById[ev.unit]; if (u) directorEvent('revive', u.x, u.z); }
       if (ev.type === 'down') { { const u = unitById[ev.unit]; if (u) addBlood(u.x, u.z, 0.6); } const m = meshes[ev.unit]; if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; } const u = unitById[ev.unit]; if (u) directorEvent('down', u.x, u.z); }
       if (ev.type === 'smoke') addSmoke(ev);
       if (ev.type === 'shell') { addShell(ev); addScorch(ev.x, ev.z, 1.8); play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2 }); cam.shake = Math.max(cam.shake || 0, 0.35); }

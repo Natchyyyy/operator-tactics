@@ -14,7 +14,7 @@
   rééquilibrées (`outils/equilibrage_campagne.js`).
 - Présentation : plan final ralenti sur la dernière neutralisation, répliques radio en bulles, traces de sang et
   d'explosion, lampadaires de nuit, vapeur à la raffinerie, tonalité ACES + vignettage, impacts selon la matière
-  (3 nouveaux sons), musique dynamique, accessoires visibles sur les armes.
+  (3 nouveaux sons), musique dynamique, accessoires visibles sur les armes, voix radio (synthèse vocale du navigateur, désactivable).
 - Technique : décor et personnages fusionnés (≈ 2× moins d'appels de dessin), sauvegarde versionnée (v2) avec migrations
   et mise de côté d'une sauvegarde illisible, tests de non-régression visuelle (`tests/visuel.py`), copie `docs/` pour
   GitHub Pages. Tests : moteur 99, jeu 96, ligue 11, page 62, visuel 7.
@@ -22,7 +22,6 @@
 ## Pistes suivantes
 - Modèles 3D Meshy (voir plus bas) : c'est ce qui changera le plus l'aspect du jeu.
 - Arbre de compétences plus riche que les promotions ; prestige au rang maximal.
-- Répliques radio parlées (voix synthétisées) en plus des bulles.
 - Application de bureau (Electron, .exe) si le jeu doit tourner hors navigateur.
 
 ## Images 2D (en pause — décision du 17/10)
