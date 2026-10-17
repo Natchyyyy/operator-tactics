@@ -445,6 +445,22 @@ function duel(opts) {
 }
 
 {
+  // ---- traits de la quatrième vague : Grenadier, Vigie, Secouriste ----
+  const duo = (a, b, map) => new Battle({ seed: 7, mapId: map || 'place', teams: [{ operators: [a], tactics: [] }, { operators: [b], tactics: [] }] });
+  let b = duo('op_corbeau', 'k_molosse'); const g0 = b.teams[0].units[0].grenades.frag; const g1 = duo('op_vautour', 'k_molosse').teams[0].units[0].grenades.frag;
+  check('Grenadier : une grenade à fragmentation de plus que le même rôle sans le trait', g0 === g1 + 1, { g0, g1 });
+  // Vigie : un ennemi qui marche à 9 m derrière un mur est entendu par la Vigie, pas par un autre éclaireur
+  const mp = new GameMap(MAPS.place);
+  let spot = null; for (let x = 6; x < 60 && !spot; x += 0.5) for (let z = 3; z < 42 && !spot; z += 0.5) if (!mp.insideObstacle(x, z) && !mp.insideObstacle(x + 9, z) && !mp.hasLOS(x, 1.6, z, x + 9, 1.6, z)) spot = { x, z };
+  const hears = (id) => { const b = duo(id, 'k_molosse'); const [u] = b.teams[0].units, [e] = b.teams[1].units; u.x = spot.x; u.z = spot.z; e.x = spot.x + 9; e.z = spot.z; e.moving = true; e.lastShotAt = -99; b.t = 5; b.perceive(u); return !!u.knowledge[e.id]; };
+  check('Vigie : entend les pas d\'un ennemi en mouvement à 9 m derrière un mur (un autre éclaireur non)', spot && hears('op_mistral') && !hears('op_lynx'), spot);
+  // Secouriste : un allié blessé à 3 m, plus touché depuis 4 s, remonte jusqu'à 70 % ; trop loin : rien
+  const heal = (dist) => { const b = new Battle({ seed: 7, mapId: 'place', teams: [{ operators: ['op_toubib', 'op_vautour'], tactics: [] }, { operators: ['k_molosse'], tactics: [] }] }); const [m, a] = b.teams[0].units; b.teams[1].units[0].alive = false; m.x = 20; m.z = 20; a.x = 20 + dist; a.z = 20; a.hp = a.maxHp * 0.3; a.lastHitAt = 0; b.t = 5; for (let i = 0; i < 400; i++) { b.updateTactics(); b.t += OT.DT; b.tick++; } return a.hp / a.maxHp; };
+  const h3 = heal(3), h9 = heal(9);
+  check('Secouriste : soigne un allié proche jusqu\'à 70 %, pas un allié à 9 m', Math.abs(h3 - 0.7) < 0.01 && Math.abs(h9 - 0.3) < 1e-9, { h3, h9 });
+}
+
+{
   // ---- équité entre les camps : deux escouades identiques, cartes symétriques → aucun camp ne doit être favorisé ----
   const mp = new GameMap(MAPS.parking); const key = (x, z) => x.toFixed(2) + ',' + z.toFixed(2);
   let asymCover = 0; for (const id of Object.keys(MAPS)) { const m = new GameMap(MAPS[id]); const S = new Set(m.coverPoints.map(p => key(p.x, p.z))); for (const p of m.coverPoints) if (!S.has(key(m.width - p.x, p.z))) asymCover++; }

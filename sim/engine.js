@@ -33,6 +33,7 @@
     this.ammo = this.weapon.mag; this.mags = this.weapon.kit;
     this.reloading = 0;           // temps de rechargement restant (s)
     this.grenades = Object.assign({}, this.role.grenades || {});   // dotation par rôle
+    if (has(this, 'grenadier')) this.grenades.frag = (this.grenades.frag || 0) + 1;   // Grenadier : une frag de plus
     this.throwing = null; this.lastGrenadeAt = -99; this.blindUntil = -99; this.evade = null;
     this.aimTimer = 0; this.fireAcc = 0; this.burst = 0;
     this.target = null; this.lastShotAt = -99; this.lastShotBy = null; this.lastShotByAt = -99; this.lastHitAt = -99;
@@ -195,7 +196,7 @@
     const known = this.knownEnemies(u);
     for (const { unit: e, k } of known) {
       if (this.t - k.t > 2) continue;
-      const d = Math.hypot(k.x - u.x, k.z - u.z); if (d < 8 || d > 24) continue;
+      const d = Math.hypot(k.x - u.x, k.z - u.z); if (d < 8 || d > (has(u, 'grenadier') ? 30 : 24)) continue;   // Grenadier : plus loin
       if (u.visible.has(e.id) && this.hitChance(u, e, d, true).p >= 0.22) continue;     // on peut le toucher : on tire
       if (this.alliesOf(u).some(a => a.alive && Math.hypot(a.x - k.x, a.z - k.z) < 5)) continue;
       if (!this.map.hasLOS(u.x, 2.3, u.z, k.x, 1.4, k.z)) continue;                // un mur haut empêche la trajectoire
@@ -381,7 +382,9 @@
         }
       }
       // 2) l'ouïe : un tir ennemi récent et proche donne une position approximative (bien moins loin si l'arme est silencieuse)
-      if (!newVisible.has(e.id) && this.t - e.lastShotAt < 0.25 && d < (e.weapon.silenced ? 18 : 70) * (has(e, 'ghost') ? 0.7 : 1)) {
+      //    Vigie : tirs entendus 40 % plus loin, et les pas d'un ennemi en mouvement à moins de 12 m (sauf Fantôme)
+      const hearR = (e.weapon.silenced ? 18 : 70) * (has(e, 'ghost') ? 0.7 : 1) * (has(u, 'sentinel') ? 1.4 : 1);
+      if (!newVisible.has(e.id) && ((this.t - e.lastShotAt < 0.25 && d < hearR) || (has(u, 'sentinel') && e.moving && d < 12 && !has(e, 'ghost')))) {
         const k = u.knowledge[e.id];
         if (!k || this.t - k.t > 1.5) {
           const err = 2 + d * 0.05;
@@ -940,6 +943,15 @@
       if (!u.alive || this.t - u.lastHitAt < 6 || u.hp >= u.maxHp * 0.6) continue;
       const h = Math.min(2 * DT * 5, u.maxHp * 0.6 - u.hp); u.hp += h; u.stats.healed += h;
       u.status = u.hp <= u.maxHp * 0.2 ? 'critical' : (u.hp <= u.maxHp * 0.5 ? 'wounded' : 'ok');
+    }
+    // Secouriste : soigne les alliés proches qui ne sont plus pris à partie (4 s), jusqu'à 70 %
+    if (this.tick % 5 === 0) for (const m of this.units) {
+      if (!m.alive || !has(m, 'medic') || m.suppression > 0.6 || this.t < m.blindUntil) continue;
+      for (const a of this.teams[m.team].units) {
+        if (a === m || !a.alive || this.t - a.lastHitAt < 4 || a.hp >= a.maxHp * 0.7 || Math.hypot(a.x - m.x, a.z - m.z) > 5) continue;
+        const h = Math.min(1.5 * DT * 5, a.maxHp * 0.7 - a.hp); a.hp += h; a.stats.healed += h; m.stats.medic = (m.stats.medic || 0) + h;
+        a.status = a.hp <= a.maxHp * 0.2 ? 'critical' : (a.hp <= a.maxHp * 0.5 ? 'wounded' : 'ok');
+      }
     }
     // soins : régénération progressive
     for (const u of this.units) if (u.alive && u.healing) {

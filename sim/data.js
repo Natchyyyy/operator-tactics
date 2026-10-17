@@ -58,6 +58,9 @@
     radio:       { id: 'radio',       name: 'Radio',             desc: 'Transmet immédiatement ce qu\'il voit et garde les positions connues 50 % plus longtemps.' },
     ambusher:    { id: 'ambusher',    name: 'Affût',             desc: 'Immobile depuis 3 s, il tire comme depuis une position préparée, quel que soit l\'ordre.' },
     gunner:      { id: 'gunner',      name: 'Tir soutenu',       desc: 'Perd deux fois moins de précision en rafale longue ; suppression 20 % plus forte.' },
+    grenadier:   { id: 'grenadier',   name: 'Grenadier',         desc: 'Une grenade à fragmentation de plus ; lance jusqu\'à 30 m au lieu de 24.' },
+    sentinel:    { id: 'sentinel',    name: 'Vigie',             desc: 'Entend les tirs 40 % plus loin et les pas d\'un ennemi en mouvement à moins de 12 m, même sans le voir.' },
+    medic:       { id: 'medic',       name: 'Secouriste',        desc: 'Soigne les alliés blessés à moins de 5 m (1,5 PV/s chacun, jusqu\'à 70 %) quand ils ne sont plus touchés depuis 4 s.' },
     ghost:       { id: 'ghost',       name: 'Fantôme',           desc: 'Plus difficile à repérer (−40 %) ; ses tirs s\'entendent moins loin.' },
   };
 
@@ -111,6 +114,14 @@
     { id: 'op_ardoise', callsign: 'Ardoise', unit: 'SASR (Australie)',         role: 'marksman', armor: 'medium', trait: 'ambusher', rarity: 2, marksmanship: 86, reflexes: 64, mobility: 62, perception: 84, composure: 80, endurance: 68 },
     { id: 'op_enclume', callsign: 'Enclume', unit: 'KCT (Pays-Bas)',           role: 'support',  armor: 'medium', trait: 'gunner', rarity: 1, marksmanship: 62, reflexes: 60, mobility: 62, perception: 62, composure: 82, endurance: 84 },
     { id: 'op_ombre',   callsign: 'Ombre',   unit: 'UEI (Espagne)',            role: 'pointman', armor: 'light',  trait: 'ghost', rarity: 3, marksmanship: 72, reflexes: 90, mobility: 84, perception: 82, composure: 70, endurance: 60 },
+
+    // quatrième vague : grenadiers, vigies, secouristes
+    { id: 'op_corbeau', callsign: 'Corbeau', unit: 'Jagdkommando (Autriche)',  role: 'assault',  armor: 'medium', trait: 'grenadier', rarity: 2, marksmanship: 74, reflexes: 70, mobility: 66, perception: 68, composure: 76, endurance: 76 },
+    { id: 'op_mistral', callsign: 'Mistral', unit: 'SOG (Suède)',              role: 'pointman', armor: 'light',  trait: 'sentinel', rarity: 1, marksmanship: 64, reflexes: 80, mobility: 84, perception: 82, composure: 62, endurance: 62 },
+    { id: 'op_toubib',  callsign: 'Toubib',  unit: '1er RPIMa (France)',       role: 'support',  armor: 'medium', trait: 'medic', rarity: 2, marksmanship: 63, reflexes: 64, mobility: 60, perception: 66, composure: 84, endurance: 80 },
+    { id: 'op_balafre', callsign: 'Balafre', unit: 'DSU (Belgique)',           role: 'breacher', armor: 'heavy',  trait: 'grenadier', rarity: 1, marksmanship: 60, reflexes: 70, mobility: 66, perception: 60, composure: 74, endurance: 84 },
+    { id: 'op_faucon',  callsign: 'Faucon',  unit: 'Jægerkorpset (Danemark)',  role: 'marksman', armor: 'light',  trait: 'sentinel', rarity: 2, marksmanship: 88, reflexes: 62, mobility: 60, perception: 84, composure: 78, endurance: 60 },
+    { id: 'op_kodiak',  callsign: 'Kodiak',  unit: 'SBS (Royaume-Uni)',        role: 'assault',  armor: 'medium', trait: 'medic', rarity: 3, marksmanship: 84, reflexes: 78, mobility: 72, perception: 76, composure: 82, endurance: 80 },
 
     // ---- Faction adverse : « Groupe Karst », société militaire privée fictive (non recrutable) ----
     { id: 'k_molosse', callsign: 'Molosse', unit: 'Groupe Karst — section d\'assaut', faction: 'karst', role: 'assault',  armor: 'medium', trait: 'leader',      rarity: 2, marksmanship: 70, reflexes: 70, mobility: 68, perception: 62, composure: 76, endurance: 76 },

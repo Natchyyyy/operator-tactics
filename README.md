@@ -46,6 +46,6 @@ l'issue dépend uniquement des événements simulés (perception, déplacements,
 
 ## Limites connues
 - Modèles d'opérateurs construits par programme (pas de modèles externes) ; bruitages et ambiances synthétisés, pas de musique.
-- Trois cartes, 14 opérateurs recrutables + 8 ennemis du Groupe Karst, 7 armes, 3 protections, 12 missions × 3 campagnes, 8 tactiques, 7 défis, 3 opérations spéciales.
+- Quatre cartes, 20 opérateurs recrutables (17 traits, dont Grenadier, Vigie, Secouriste) + 8 ennemis du Groupe Karst, 7 armes, 3 protections, 14 missions × 3 campagnes, 12 tactiques, 7 défis, 3 opérations spéciales ; réglages et export / import de la carrière.
 - Pas de multijoueur : la ligue oppose le joueur à des équipes IA (leurs matchs entre elles sont simulés par le même moteur).
 - La sauvegarde est locale au navigateur (localStorage) : pas de synchronisation entre appareils.
