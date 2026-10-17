@@ -90,6 +90,13 @@
   .daily.done { border-color: #4f9d5a; background: linear-gradient(135deg, #18261b, #141a16); } .daily.done b { color: var(--ok); }
   .accsel { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; } .accsel select { min-width: 0; font-size: 11px; } .armo.owned { opacity: .6; }
   .histsum { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 6px 0; font-size: 10.5px; color: var(--muted); } .histsum span { background: var(--panel2); border-radius: 6px; padding: 5px 6px; } .histsum b { display: block; font-size: 15px; color: var(--text); }
+  /* Ligue v2 */
+  .lgnext { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; background: linear-gradient(90deg, rgba(79,156,240,.12), rgba(20,24,28,.6) 40%, rgba(20,24,28,.6) 60%, rgba(232,90,79,.12)); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; }
+  .lgside { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; } .lgside b { font-size: 16px; letter-spacing: .06em; } .lgside .pw { font-size: 28px; font-weight: 800; color: #ffe08a; } .lgside small { color: var(--muted); font-size: 11px; }
+  .lgvs { font-size: 34px; font-weight: 900; color: var(--accent); text-align: center; letter-spacing: .1em; } .lgvs small { display: block; font-size: 11px; color: var(--muted); letter-spacing: .04em; font-weight: 500; }
+  .lgprog { display: flex; gap: 6px; margin-top: 8px; } .lgprog i { flex: 1; height: 8px; border-radius: 4px; background: #262e37; } .lgprog i.v { background: var(--ok); } .lgprog i.d { background: var(--bad); } .lgprog i.n { background: var(--warn); } .lgprog i.cur { background: var(--accent); box-shadow: 0 0 8px rgba(201,168,74,.6); }
+  table.lg .rk { display: inline-block; min-width: 22px; text-align: center; border-radius: 5px; padding: 1px 4px; } table.lg tr.p1 .rk { background: #c9a84a; color: #111; } table.lg tr.p2 .rk { background: #aab4bf; color: #111; } table.lg tr.p3 .rk { background: #a8714a; color: #111; }
+  table.lg .pw { color: #ffe08a; } table.lg .form { white-space: nowrap; } .fm { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 3px; background: #444; } .fm.v { background: var(--ok); } .fm.d { background: var(--bad); } .fm.n { background: var(--warn); }
   /* Carrière */
   .hqgrid.two.play.career { grid-template-columns: 1.1fr 1fr; } .career .hqcol { overflow: auto; }
   .crstats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; } .crstats div { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
@@ -420,7 +427,7 @@
     <div class="hqgrid two">
       <section class="hqcol"><h3>Saison</h3><div id="lgInfo" class="deploy"></div><button id="lgPlay" class="on">Match de ligue</button><div id="lgHint" class="muted" style="font-size:11px;text-align:center"></div>
         <h3 style="margin-top:10px">Historique</h3><div id="lgHistory" style="font-size:12px;display:flex;flex-direction:column;gap:3px"></div></section>
-      <section class="hqcol"><h3>Classement</h3><table class="lg" id="lgTable"></table><div class="muted" style="font-size:11px;margin-top:6px">2 points par victoire, 1 par égalité · différence = PV % restants (gagnant − perdant) · les autres équipes s'affrontent réellement entre elles après chacun de vos matchs.</div></section>
+      <section class="hqcol"><h3>Prochain match</h3><div id="lgNext"></div><div id="lgProg" class="lgprog"></div><h3 style="margin-top:12px">Classement</h3><table class="lg" id="lgTable"></table><div class="muted" style="font-size:11px;margin-top:6px">2 points par victoire, 1 par égalité · différence = PV % restants (gagnant − perdant) · les autres équipes s'affrontent réellement entre elles après chacun de vos matchs.</div></section>
     </div>
   </div>
   <!-- Missions -->

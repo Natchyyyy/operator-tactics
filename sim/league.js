@@ -57,7 +57,11 @@
     const sa = standings[a], sb = standings[b];
     sa.played++; sb.played++; sa.diff += diff; sb.diff -= diff;
     if (winner === 'a') { sa.wins++; sb.losses++; sa.points += 2; } else if (winner === 'b') { sb.wins++; sa.losses++; sb.points += 2; } else { sa.draws++; sb.draws++; sa.points++; sb.points++; }
+    // forme : les cinq derniers résultats de chaque équipe (v / n / d)
+    sa.form = (sa.form || []).concat(winner === 'a' ? 'v' : winner === 'b' ? 'd' : 'n').slice(-5); sb.form = (sb.form || []).concat(winner === 'b' ? 'v' : winner === 'a' ? 'd' : 'n').slice(-5);
   }
+  // puissance d'une équipe IA à la journée en cours (moyenne des notes de ses opérateurs, même barème que le QG)
+  function aiRating(team, season, rateFn) { const ops = aiRoster(team, season.seed, season.round); return Math.round(ops.reduce((s, d) => s + rateFn(d), 0) / ops.length); }
   // Après une bataille du joueur : enregistrer son résultat, puis simuler une journée entre les autres équipes
   function applyPlayerResult(season, opponentId, result) {
     const p0 = result.teams[0].hpPct, p1 = result.teams[1].hpPct;
@@ -97,6 +101,6 @@
     return { credits, lines, rank: me.rank, qualified: me.qualified };
   }
 
-  root.League = { AI_TEAMS, SEASON_BATTLES, QUALIFY, PRIZES, PARTICIPATION, newSeason, nextOpponent, nextMap, aiTeamDef, applyPlayerResult, table, seasonPrize };
+  root.League = { aiRating, AI_TEAMS, SEASON_BATTLES, QUALIFY, PRIZES, PARTICIPATION, newSeason, nextOpponent, nextMap, aiTeamDef, applyPlayerResult, table, seasonPrize };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? Object.assign({}, require('./rng.js'), require('./data.js'), require('./map.js'), require('./engine.js')) : (window.OT = window.OT || {}));
