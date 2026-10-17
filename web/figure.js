@@ -92,8 +92,15 @@
   }
 
   // ---- arme ------------------------------------------------------------------------------------------------------------
-  function makeWeapon(id) {
-    const d = W[id] || W.rifle; const w = new THREE.Group();
+  function makeWeapon(id, att) {
+    att = att || {};
+    let d = W[id] || W.rifle; const w = new THREE.Group();
+    if (att.lunette || att.holo || att.silencieux || att.chargeur) {   // accessoires montés : variante du gabarit de l'arme
+      d = Object.assign({}, d);
+      if (att.lunette) d.optic = 'scope'; else if (att.holo) d.optic = 'holo';
+      if (att.silencieux) d.suppressor = true;
+      if (att.chargeur && d.mag) d.mag = [d.mag[0] * 1.1, d.mag[1] * 1.45, d.mag[2], d.mag[3]];
+    }
     const [bw, bh, bd] = d.body;
     const body = new THREE.Mesh(box(bw, bh, bd), mats.gun); w.add(body);
     const hand = new THREE.Mesh(box(...d.hand), mats.polymer); hand.position.set(0, -0.004, bd / 2 + d.hand[2] / 2 - 0.02); w.add(hand);
@@ -109,7 +116,10 @@
     else if (d.optic === 'holo') { const o = new THREE.Mesh(box(0.045, 0.045, 0.09), mats.gun); o.position.set(0, bh / 2 + 0.035, -0.02); w.add(o); const g = new THREE.Mesh(box(0.035, 0.03, 0.005), mats.lens); g.position.set(0, bh / 2 + 0.04, 0.026); w.add(g); }
     else { const o = new THREE.Mesh(cyl(0.017, 0.017, 0.06, 10), mats.gun); o.rotation.x = Math.PI / 2; o.position.set(0, bh / 2 + 0.03, -0.03); w.add(o); const dot = new THREE.Mesh(sph(0.004, 4, 4), mats.red); dot.position.set(0, bh / 2 + 0.03, 0.0); w.add(dot); }
     if (d.bipod) for (const s of [-1, 1]) { const l = new THREE.Mesh(cyl(0.006, 0.006, 0.2, 4), mats.gunDark); l.position.set(s * 0.025, -0.07, muzzleZ - 0.1); l.rotation.x = 0.25; l.rotation.z = s * 0.15; w.add(l); }
-    w.muzzle = V(0, 0.012, muzzleZ);
+    if (att.silencieux && !(W[id] || {}).suppressor) { const s = new THREE.Mesh(cyl(d.barrel[0] * 2.4, d.barrel[0] * 2.4, 0.16, 10), mats.black); s.rotation.x = Math.PI / 2; s.position.set(0, 0.012, muzzleZ + 0.07); w.add(s); }
+    else if (att.compensateur) { const c = new THREE.Mesh(box(0.03, 0.03, 0.05), mats.gunDark); c.position.set(0, 0.012, muzzleZ + 0.02); w.add(c); }
+    if (att.poignee) { const g = new THREE.Mesh(box(0.026, 0.08, 0.03), mats.polymer); g.position.set(0, -0.07, bd / 2 + d.fore - 0.04); w.add(g); }
+    w.muzzle = V(0, 0.012, muzzleZ + (att.silencieux ? 0.15 : 0));
     w.gripPt = V(0, -bh / 2 - 0.06, d.grip - 0.012);            // main droite (poignée)
     w.forePt = V(0, -0.045, bd / 2 + d.fore - 0.02);           // main gauche (garde-main ou pompe)
     w.magPt = V(0, -bh / 2 - 0.06, 0.06);                       // main gauche au puits de chargeur (rechargement)
@@ -186,7 +196,7 @@
       const glove = new THREE.Mesh(geo.glove, mats.glove); glove.position.y = -FORE - 0.035; elbow.add(glove);
       arms[key] = { shoulder, elbow, side: s };
     }
-    const weapon = makeWeapon(o.weapon); torso.add(weapon);
+    const weapon = makeWeapon(o.weapon, o.attachments); torso.add(weapon);
     pose.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
     if (o.scale) group.scale.setScalar(o.scale);
     const f = { group, pose, hips, hipsY: HIPS_Y, legs, torso, headG, weapon, arms,
