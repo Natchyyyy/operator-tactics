@@ -18,6 +18,8 @@
   const RELEVE = { cote: 0.88, arriere: 0.88 };
   // marche directionnelle en visant : part de l'écart fusil / bassin rattrapée par la torsion du dos (le reste tourne le corps)
   const DOS_VISEE = 0.65;
+  // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
+  const PENCHE = 0.07;
   const ONCE = { Shot_and_Fall_Forward: 1, Shot_in_the_Back_and_Fall: 1, Over_Shoulder_Throw: 1 };
   // Fusil épaulé : dans ces animations la crosse doit reposer dans le creux de l'épaule droite. Les animations Mixamo ne l'y
   // mettent pas exactement (le fusil du jeu n'est pas celui de l'animation) : à chaque image, le fusil garde son orientation
@@ -593,6 +595,7 @@
         if (this.dosComp && Math.abs(this.dosComp) > 0.01 && spine3.length) { body.updateMatrixWorld(true); for (const sb of spine3) { mod(sb); twist(sb, -this.dosComp / spine3.length); } }
         // respiration (poses fixes : garde basse, visée) : légère flexion du dos
         if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { mod(spine1); spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
+        if ((this.epK || 0) > 0.01 && !keepYaw) this.penche(this.epK);
         if (enMarche && (this.marcheK || 0) > 0.05) this.ecarte(this.marcheK, this.coteK || 0, this.arrK || 0);
         const repos = (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right') && !enMarche && !keepYaw;
         if (this.pose0) this.poserPieds(dt, repos);
@@ -617,6 +620,20 @@
           // orientation du pied aussi (sinon la pointe pivote autour de la cheville cloué et glisse)
           mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(P.lockQ[i].clone().slerp(qC, s))); ft.updateMatrixWorld(true);
         });
+      },
+      // Posture de tir offensive (poses épaulées) : les animations tiennent souvent le buste en arrière (épaules derrière le
+      // bassin, poids sur les talons). On mesure de combien la poitrine (Spine2) est en avant du bassin dans la direction de
+      // visée et on penche le bas du dos (Spine, Spine1) pour l'amener à PENCHE m devant ; Spine2 est contre-tourné d'autant :
+      // la poitrine avance sans basculer, le fusil reste à niveau sur la cible (la tête est redressée ensuite par tete()).
+      penche(k) {
+        if (!hipsB || spine3.length < 3) return;
+        group.updateMatrixWorld(true);
+        const gq = group.getWorldQuaternion(new THREE.Quaternion()), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
+        const h = WP(spine3[0]), c = WP(spine3[2]), L = Math.max(0.1, h.distanceTo(c)), d = (PENCHE - c.clone().sub(h).dot(fw)) * k;
+        if (Math.abs(d) < 0.004) return;
+        const a = Math.max(-0.35, Math.min(0.35, Math.asin(Math.max(-0.9, Math.min(0.9, d / L)))));
+        const axe = (b, ang) => { mod(b); b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(lat, ang); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
+        axe(spine3[0], a * 0.5); axe(spine3[1], a * 0.5); axe(spine3[2], -a);
       },
       // Pieds jamais croisés (pas chassés et marche arrière « au pistolet » de la bibliothèque : pas très serrés, bottes l'une sur
       // l'autre, genoux qui se touchent) : écart minimal des chevilles le long de la ligne du bassin (les deux pieds poussés
