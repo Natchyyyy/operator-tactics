@@ -201,3 +201,5 @@ Principe : moins de contenu, mais chaque chose refaite proprement, une à la foi
 
 ## GitHub Pages
 - Activer Settings → Pages → « Deploy from a branch » → branche main, dossier **/docs** (copie de `dist/index.html` faite par `node build.js`) pour avoir le jeu jouable en ligne à l'adresse https://natchyyyy.github.io/operator-tactics/.
+
+- [anim-haut, à reprendre] Main d appui du soldat : deux bouts de doigts (index et auriculaire) dépassent d environ 2 cm au-dessus du garde-main (captures/anim-haut/labo5_main_appui.png, colonne 1) ; paume 2 cm dans le bord bas du garde-main.
