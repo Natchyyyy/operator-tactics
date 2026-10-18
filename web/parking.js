@@ -1026,7 +1026,7 @@
       const hose = cyl(g, 0.025, 1.3, tuyau, m, H - 0.8, (z0 + z1) / 2 + 1.85, 8);
       // grilles d'évacuation au sol, au milieu de la piste ; néons
       const gr = new T.Mesh(new T.BoxGeometry(0.4, 0.02, z1 - z0 - 1.5), grateMat()); gr.position.set(m, 0.012, (z0 + z1) / 2); gr.receiveShadow = true; group.add(gr);
-      const neon = bx(g, 0.12, 0.04, 1.2, std('neonLavage', 0xffffff, 0.3, 0, { emissive: 0xe8f4ff, emissiveIntensity: 0 }), m, H - 0.05, (z0 + z1) / 2); NIGHT.mats.push(neon.material);
+      const neon = bx(g, 0.12, 0.04, 1.2, std('neonLavage', 0xffffff, 0.3, 0, { emissive: 0xe8f4ff, emissiveIntensity: 0 }), m, H - 0.05, (z0 + z1) / 2); neon.material.userData.nuit = 1.2; NIGHT.mats.push(neon.material);
       void boom; void hose;
     }
     // lisibilité : vu d'en haut (caméra au-dessus du toit, regard plongeant), le toit devient presque transparent pour qu'on

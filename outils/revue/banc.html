@@ -106,6 +106,11 @@ function jouer(modele, etatId, rappel, opts) {
     const p = param(t);
     if (p.tir) { tirT += dt; if (tirT >= p.tir) { tirT = 0; a.recoil = 1; } }
     const vdx = (f.cur.x - f.prev.x) / DT, vdz = (f.cur.z - f.prev.z) / DT;
+    // la cible AFFICHÉE bouge à chaque image (dans le jeu, m.regard = position interpolée du soldat visé) : orientation voulue
+    // interpolée entre les deux pas de simulation, cible à 10 m dans cette direction
+    { const f0 = -(f.prev.facing !== undefined ? f.prev.facing : f.cur.facing) + Math.PI / 2, f1 = -f.cur.facing + Math.PI / 2; let df = f1 - f0; while (df > Math.PI) df -= 2 * Math.PI; while (df < -Math.PI) df += 2 * Math.PI;
+      const fi = f0 + df * alpha, gx = f.prev.x + (f.cur.x - f.prev.x) * alpha, gz = f.prev.z + (f.cur.z - f.prev.z) * alpha;
+      cible.x = gx + Math.sin(fi) * 10; cible.z = gz + Math.cos(fi) * 10; S.ETAT.meshes.cible.group.position.set(cible.x, 0, cible.z); }
     if (S.P.syncMeshes) { S.ETAT.frameDt = dt; S.P.syncMeshes(alpha); }
     else {
     const x = f.prev.x + (f.cur.x - f.prev.x) * alpha, z = f.prev.z + (f.cur.z - f.prev.z) * alpha; f.group.position.set(x, 0, z);

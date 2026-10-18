@@ -30,7 +30,7 @@
   // visée debout : flexion des genoux visée (rad)
   const GENOUX_VISEE = 0.38;
   // écart moyen des chevilles en marche (m)
-  const ECART_PAS = 0.17;
+  const ECART_PAS = 0.21;
   // à genou : hauteur du genou arrière posé (os, m), de sa cheville (pointe du pied au sol), cheville du pied avant à plat
   const GENOU = { genou: 0.075, cheville: 0.13, chevilleAv: 0.15 };
   const TROT = { s: 0.38, hs: 0.5, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
@@ -59,6 +59,7 @@
   // œil droit dans le repère de la tête (m : au-dessus de l'os de la tête, devant, à droite) ; point de visée de l'optique
   // (repère de l'arme : centre de la fenêtre du viseur point rouge) ; garde basse construite (rad : canon vers le bas, vers la
   // gauche ; m : crosse sous / devant le creux de l'épaule)
+  const VISEE_HAUT = 1.3;   // hauteur visée sur la cible (m au-dessus de ses pieds : poitrine d'un homme debout)
   const OEIL = { haut: 0.095, avant: 0.085, cote: 0.032 }, VISEE_OPTIQUE = [0, 0.145, -0.03], GARDE = { pique: 0.7, dedans: 0.42, bas: 0.0, avant: 0, recul: 0.045 };
   // creux de l'épaule de la garde basse (m, par rapport à l'articulation de l'épaule : vers le centre, l'avant, le bas)
   const POCHE = { dedans: 0.06, avant: 0.05, bas: 0.05 };
@@ -287,8 +288,8 @@
   // modèle). Genou dans son plan, pied gardant son orientation monde. Renvoie le nouveau clip (jambes seules) et l'erreur max.
   function jambesIK(M, src, nom, cible, dyH) {
     const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
-    const hips = b('Hips'), L = [['LeftUpLeg', 'LeftLeg', 'LeftFoot'], ['RightUpLeg', 'RightLeg', 'RightFoot']].map(l => l.map(b));
-    if (!hips || L.some(l => l.some(x => !x))) return null;
+    const hips = b('Hips'), L = [['LeftUpLeg', 'LeftLeg', 'LeftFoot'], ['RightUpLeg', 'RightLeg', 'RightFoot']].map(l => l.map(b)), toes = [b('LeftToeBase'), b('RightToeBase')];
+    if (!hips || L.some(l => l.some(x => !x)) || !toes[0] || !toes[1]) return null;
     const W = (o) => o.getWorldPosition(new THREE.Vector3()), WQ = (o) => o.getWorldQuaternion(new THREE.Quaternion());
     const clip = new THREE.AnimationClip(nom, src.duration, src.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone()));
     const mixer = new THREE.AnimationMixer(sc), act = mixer.clipAction(clip); act.play();
@@ -304,9 +305,13 @@
       if (dy) { const p0 = hips.parent.worldToLocal(H.clone()), p1 = hips.parent.worldToLocal(H.clone().add(new THREE.Vector3(0, dy, 0))); hips.position.add(p1.sub(p0)); hips.updateMatrixWorld(true); }
       L.forEach(([up, lo, ft], j) => {
         const Tj = T[j], S0 = W(up), E0 = W(lo), a = S0.distanceTo(E0), bb = E0.distanceTo(W(ft));
-        let c = S0.distanceTo(Tj); c = Math.min(Math.max(c, Math.abs(a - bb) + 1e-4), (a + bb) * 0.999);
+        // (genou jamais tendu à fond — flexion ≥ ~9° — et toujours plié vers l'avant, du côté des orteils : les cycles de la
+        // bibliothèque passaient le genou 13 à 20° « en arrière » de la ligne hanche-cheville à l'appui)
+        let c = S0.distanceTo(Tj); c = Math.min(Math.max(c, Math.abs(a - bb) + 1e-4), (a + bb) * 0.997);
         const dir = Tj.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - bb * bb) / (2 * a * c)));
-        const p = E0.clone().sub(S0); p.addScaledVector(dir, -p.dot(dir)); if (p.lengthSq() < 1e-10) p.set(0, 0, 1); p.normalize();
+        const p = E0.clone().sub(S0); p.addScaledVector(dir, -p.dot(dir));
+        { const fd = W(toes[j]).sub(W(ft)); fd.y = 0; fd.addScaledVector(dir, -fd.dot(dir)); if (fd.lengthSq() > 1e-8) { fd.normalize(); const pd = p.dot(fd), pl = p.length(); if (pd < 0) p.addScaledVector(fd, -pd + 0.02 * RAW_H / HEIGHT); else if (pl < 0.02 * RAW_H / HEIGHT) p.addScaledVector(fd, 0.02 * RAW_H / HEIGHT - pl); } }
+        if (p.lengthSq() < 1e-10) p.set(0, 0, 1); p.normalize();
         const E1 = S0.clone().addScaledVector(dir, a * cosA).addScaledVector(p, a * Math.sqrt(1 - cosA * cosA));
         turn(up, E0.clone().sub(S0), E1.sub(S0)); const E2 = W(lo); turn(lo, W(ft).sub(E2), Tj.clone().sub(E2));
         ft.quaternion.copy(WQ(ft.parent).invert().multiply(Aq[j])); ft.updateMatrixWorld(true);
@@ -470,6 +475,8 @@
     // pas moins écartés (les marches de la bibliothèque posent les chevilles à ~27 cm l'une de l'autre, une démarche en
     // « cow-boy » ; marche humaine : 8 à 17 cm, base tactique un peu plus large) : écart moyen ramené à ECART_PAS
     for (const n of ['Pas_Avant_Low', 'Pas_Glisse']) if (M.clips[n]) { const c = resserre(M, M.clips[n], ECART_PAS); if (c) M.clips[n] = c; }
+    // genoux jamais « en arrière » (voir jambesIK) dans les cycles qui ne sont pas déjà passés par l'IK
+    for (const n of ['Pas_Avant_Low', 'Pas_Run', 'Pas_Gauche', 'Pas_Droite', 'Pas_Arriere', 'Pas_Avant_Aim', 'Pas_Avant_Course']) if (M.clips[n]) { const c = jambesIK(M, M.clips[n], n, (i, H, A) => A.map(a => a.clone())); if (c) M.clips[n] = c; }
     // pieds au sol (pointe la plus basse du cycle à sa hauteur de repos)
     { const sc = M.gltf.scene, gb = M.clips.Garde_Basse, T = ['LeftToeBase', 'RightToeBase'].map(n => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n));
       if (gb && T[0] && T[1]) { const mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true); const repos = Math.min(...T.map(t => t.getWorldPosition(new THREE.Vector3()).y)); M.toeR = repos * HEIGHT / RAW_H; { const fa = ['LeftFoot', 'RightFoot'].map(n => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n)); if (fa[0] && fa[1]) M.ankR = Math.min(...fa.map(t => t.getWorldPosition(new THREE.Vector3()).y)) * HEIGHT / RAW_H; } mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true);
@@ -1459,7 +1466,7 @@
         lat.set(1, 0, 0); fwd.set(0, 0, 1);
         // visée
         let d;
-        if (this.regard) { const T = new THREE.Vector3(this.regard.x, WP(B.spine).y, this.regard.z).applyMatrix4(inv); d = T.sub(oeil).normalize(); }
+        if (this.regard) { const T = new THREE.Vector3(this.regard.x, (this.regard.y !== undefined ? this.regard.y : group.getWorldPosition(V()).y) + VISEE_HAUT, this.regard.z).applyMatrix4(inv); d = T.sub(oeil).normalize(); }
         else d = fwd.clone().multiplyScalar(Math.cos(VISEE_TANGAGE)).addScaledVector(up, Math.sin(VISEE_TANGAGE));
         { let ay = Math.atan2(d.dot(lat), d.dot(fwd)), ap = Math.asin(Math.max(-1, Math.min(1, d.y))); ay = Math.max(-0.6, Math.min(0.6, ay)); ap = Math.max(-0.5, Math.min(0.4, ap));
           d = fwd.clone().multiplyScalar(Math.cos(ay) * Math.cos(ap)).addScaledVector(lat, Math.sin(ay) * Math.cos(ap)).addScaledVector(up, Math.sin(ap)); }

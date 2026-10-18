@@ -966,7 +966,10 @@
         a.rescue = { by: u, t: this.t };
         const d = dist2(u, a);
         if (d <= 1.1) { this.stop(u); u.stance = 'crouch'; u.state = 'reviving'; u.target = null; u.reviving = { id: a.id, until: this.t + (has(u, 'medic') ? 2 : 4) }; this.logEvent('revive_start', `${u.callsign} se porte au secours de ${a.callsign}.`, { unit: u.id, team: u.team }); return; }
-        if (this.setGoal(u, a.x, a.z, 'revive')) { u.state = 'torevive'; u.stance = 'stand'; return; }
+        // on s'agenouille À CÔTÉ du blessé (à ~0,85 m, de son côté), pas sur lui
+        const L = d || 1, gx = a.x + (u.x - a.x) / L * 0.85, gz = a.z + (u.z - a.z) / L * 0.85;
+        const ok = this.map.inBounds(gx, gz) && !this.map.insideObstacle(gx, gz);
+        if (this.setGoal(u, ok ? gx : a.x, ok ? gz : a.z, 'revive')) { u.state = 'torevive'; u.stance = 'stand'; return; }
       }
     }
     // moral : ébranlé → décrocher vers un couvert en arrière, accroupi
@@ -1330,9 +1333,9 @@
     // qui s'opposerait à l'avance est retirée, et un camarade pile sur le chemin est contourné par le côté (sinon les deux
     // restaient collés : poussée et pas s'annulaient)
     const mx = d > 1e-6 ? (wp.x - u.x) / d : 0, mz = d > 1e-6 ? (wp.z - u.z) / d : 0;
-    // les corps (tous camps, point de chute ; rayon 0,8 m) se contournent de la même façon — sauf pour aller relever un blessé
+    // les corps (tous camps, point de chute ; rayon 0,8 m) se contournent de la même façon (on relève un blessé à côté de lui)
     for (const a of this.units) {
-      if (a === u || (a.alive ? a.team !== u.team : u.goalKind === 'revive')) continue;
+      if (a === u || (a.alive && a.team !== u.team)) continue;
       const R = a.alive ? 1.1 : 0.8, dd = Math.hypot(a.x - nx, a.z - nz);
       if (dd < R && dd > 1e-6) {
         let qx = (nx - a.x) / dd, qz = (nz - a.z) / dd;
