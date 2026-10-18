@@ -503,6 +503,10 @@
     for (let j = 0; j < 2; j++) {
       const s = []; for (let i = 0; i < N; i++) s.push(!!appui(i, j));
       if (s.every(x => x) || !s.some(x => x)) continue;
+      // (trous de 3 images au plus dans un appui comblés : après la pose, le pied des captures ralentit, glisse, ralentit — un
+      // appui coupé en deux avait deux ancres et le pied glissait de l'une à l'autre au sol)
+      for (let i = 0; i < N; i++) if (!s[i] && s[(i - 1 + N) % N]) { let g = 0; while (g < 4 && !s[(i + g) % N]) g++; if (g <= 3) for (let k = 0; k < g; k++) s[(i + k) % N] = true; }
+      if (s.every(x => x)) continue;
       let a0 = 0; while (!(s[a0] && !s[(a0 - 1 + N) % N])) a0++;   // début d'un appui
       const Pw = (k) => rel(k % N, j).clone().addScaledVector(vF, k), corr = new Array(N * 2 + 2);
       const runs = []; for (let k = a0; k < a0 + N; ) { if (s[k % N]) { let e = k; while (e + 1 < a0 + N && s[(e + 1) % N]) e++; runs.push([k, e]); k = e + 1; } else k++; }
