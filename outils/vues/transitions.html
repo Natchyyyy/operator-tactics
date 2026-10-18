@@ -1,0 +1,70 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Transitions de locomotion</title><style>body{margin:0;background:#2a3036;font:12px sans-serif;color:#ddd}canvas{display:block}</style></head><body>
+<script src="../../web/three.min.js"></script><script src="../../web/figure.js"></script><script src="../../web/gltf.js"></script><script src="../../web/modeles/soldat.js"></script><script src="../../web/modeles/gign.js"></script><script src="../../web/modeles/decor.js"></script><script src="../../web/modeles3d.js"></script><script src="../../web/soldat3d.js"></script>
+<script>
+// Enchaînements arrêt ↔ marche ↔ course (même logique que animateSkinned dans app.js, simplifiée) : un soldat suit un
+// scénario (vitesse, direction du déplacement par rapport à la visée, visée ou garde basse). Mesures image par image :
+// vitesse de rotation du torse et du bassin (°/image), saut d'un pied au sol (cm). Planche : ?debut=s&fin=s&cols=12&rangs=3.
+// ?m=gign|soldat ; window.MESURES ; window.planche().
+const q = new URLSearchParams(location.search);
+// [durée (s), vitesse (m/s), direction (°, 0 = vers la visée, 90 = à gauche), visée]
+const SCEN = [[1, 0, 0, 0], [2, 2.2, 0, 0], [0.8, 0, 0, 0], [0.8, 0, 0, 1], [1.6, 1.2, 90, 1], [0.8, 0, 0, 1], [1.6, 2.0, 180, 1], [0.6, 2.0, 45, 1], [0.8, 2.0, 45, 0], [1, 0, 0, 0]];
+OT.Soldat3D.whenReady(() => {
+  const W = 1800, H = 700, r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true; document.body.appendChild(r.domElement);
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(0x3a4248);
+  sc.add(new THREE.HemisphereLight(0xffffff, 0x404040, 1.5)); const dl = new THREE.DirectionalLight(0xfff0d8, 2.6); dl.position.set(4, 8, 6); dl.castShadow = true; dl.shadow.camera.left = -15; dl.shadow.camera.right = 15; dl.shadow.camera.top = 15; dl.shadow.camera.bottom = -15; dl.shadow.mapSize.set(2048, 2048); sc.add(dl); sc.add(dl.target);
+  const sol = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x5b5f62, roughness: 1 })); sol.rotation.x = -Math.PI / 2; sol.receiveShadow = true; sc.add(sol);
+  const grid = new THREE.GridHelper(60, 60, 0x777777, 0x666666); grid.position.y = 0.005; sc.add(grid);
+  const f = OT.Soldat3D.create({ modele: q.get('m') || 'gign', uniform: 0x6b5a3e, weapon: 'carbine' }); sc.add(f.group);
+  const dt = 1 / 30, frames = [], WQ = (o) => o.getWorldQuaternion(new THREE.Quaternion());
+  const yawOf = (o) => { const d = new THREE.Vector3(0, 0, 1).applyQuaternion(WQ(o)); return Math.atan2(d.x, d.z); };
+  const wrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+  const os = (n) => f.body.getObjectByName('mixamorig' + n) || f.body.getObjectByName('mixamorig:' + n);
+  const toes = [os('LeftToeBase'), os('RightToeBase')], spine = os('Spine2'), hips = os('Hips');
+  let t = 0, seg = 0, tSeg = 0;
+  // une image : même ordre que app.js (choix de l'animation, update, arme)
+  const pas = () => {
+    while (seg < SCEN.length && tSeg >= SCEN[seg][0]) { tSeg -= SCEN[seg][0]; seg++; }
+    const [, v, deg, vise] = SCEN[Math.min(seg, SCEN.length - 1)], e = deg * Math.PI / 180;
+    f.group.position.x += Math.sin(e) * v * dt; f.group.position.z += Math.cos(e) * v * dt;   // le groupe regarde +Z (la visée)
+    f.jambesCible = 0;
+    if (v > 0.15 && v <= 3.2) { const course = v > 1.45; f.marche(e, v, dt, course ? (vise ? 'Run_and_Shoot_Haut' : 'Run_Low_Haut') : (vise ? 'Walk_Aim_Haut' : 'Walk_Low_Haut'), course ? 'Pas_Avant_Course' : vise ? 'Pas_Avant_Aim' : 'Pas_Avant_Low'); }
+    else if (vise) f.play('Rifle_Aim_Turn_Right', { time: 0, fade: 0.25 }); else f.play('Garde_Basse', { time: 0, fade: 0.3 });
+    f.playLegs(null); f.update(dt); f.group.updateMatrixWorld(true); f.placeWeapon(true, 0, 'deux');
+    const bz = new THREE.Vector3(0, 0, 1).applyQuaternion(f.weapon.quaternion);
+    frames.push({ t: +t.toFixed(3), seg, torse: yawOf(spine), bassin: yawOf(hips), fusil: Math.atan2(bz.x, bz.z), pieds: toes.map(o => o.getWorldPosition(new THREE.Vector3())), clip: f.clip, dbg: [f.jambes, f.jambesCible, f.dosComp || 0, f.body.rotation.y].map(x => +(x * 57.3).toFixed(1)).join(' ') + ' K' + (f.marcheK || 0).toFixed(2) + ' ' + (f.blendW ? Object.entries(f.blendW).filter(e => e[1] > 0.01).map(e => e[0].replace('Pas_', '') + ':' + e[1].toFixed(2)).join(',') : '-') });
+    t += dt; tSeg += dt;
+  };
+  const TOT = SCEN.reduce((a, s) => a + s[0], 0);
+  const cols = +(q.get('cols') || 12), rangs = +(q.get('rangs') || 3), debut = +(q.get('debut') || 0), fin = +(q.get('fin') || TOT);
+  const tw = W / cols, th = H / rangs, cam = new THREE.PerspectiveCamera(32, tw / th, 0.1, 100), N = cols * rangs;
+  const az = +(q.get('az') || 35) * Math.PI / 180;
+  r.setScissorTest(true); r.setClearColor(0x3a4248); r.clear();
+  let k = 0;
+  window.planche = () => {
+    while (t < TOT - 1e-6) {
+      pas();
+      const want = debut + (fin - debut) * k / Math.max(1, N - 1);
+      if (k < N && t >= want - 1e-6) {
+        const p = f.group.position; cam.position.set(p.x + 4.6 * Math.sin(az), 1.7, p.z + 4.6 * Math.cos(az)); cam.lookAt(p.x, 0.85, p.z);
+        dl.position.set(p.x + 4, 8, p.z + 6); dl.target.position.set(p.x, 0, p.z);
+        const cx = (k % cols) * tw, cy = H - (Math.floor(k / cols) + 1) * th; r.setViewport(cx, cy, tw, th); r.setScissor(cx, cy, tw, th); r.render(sc, cam); k++;
+      }
+    }
+    return 0;
+  };
+  // mesures : rotations par image (torse, bassin, fusil), saut des pieds au sol (le pied le plus bas d'une image à l'autre)
+  window.FR = frames;
+  window.mesures = () => {
+    while (t < TOT - 1e-6) pas();
+    const out = { torseMax: 0, bassinMax: 0, fusilMax: 0, piedMax: 0, ou: {} };
+    for (let i = 1; i < frames.length; i++) {
+      const a = frames[i - 1], b = frames[i], dT = Math.abs(wrap(b.torse - a.torse)) * 57.3, dB = Math.abs(wrap(b.bassin - a.bassin)) * 57.3, dF = Math.abs(wrap(b.fusil - a.fusil)) * 57.3;
+      const j = b.pieds[0].y < b.pieds[1].y ? 0 : 1, dP = b.pieds[j].y < 0.1 && a.pieds[j].y < 0.1 ? Math.hypot(b.pieds[j].x - a.pieds[j].x, b.pieds[j].z - a.pieds[j].z) * 100 : 0;
+      for (const [k2, v2] of [['torseMax', dT], ['bassinMax', dB], ['fusilMax', dF], ['piedMax', dP]]) if (v2 > out[k2]) { out[k2] = +v2.toFixed(1); out.ou[k2] = b.t + ' ' + a.clip + '→' + b.clip; }
+    }
+    out.parSegment = SCEN.map((s, i) => { const fr = frames.filter(x => x.seg === i); let mT = 0, mP = 0; for (let j = 1; j < fr.length; j++) { mT = Math.max(mT, Math.abs(wrap(fr[j].torse - fr[j - 1].torse)) * 57.3); } return i + ':' + s.join('/') + ' torse°/img ' + mT.toFixed(1); });
+    return out;
+  };
+  window.PRET = true;
+});
+</script></body></html>

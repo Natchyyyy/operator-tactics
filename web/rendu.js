@@ -18,22 +18,30 @@
       tDiffuse: { value: null }, time: { value: 0 }, resolution: { value: new T.Vector2(1, 1) },
       contrast: { value: 1.12 }, saturation: { value: 1.1 }, warm: { value: new T.Vector3(1.07, 1.0, 0.91) }, cool: { value: new T.Vector3(0.98, 1.0, 1.02) },
       vignette: { value: 0.32 }, grain: { value: 0.018 }, aberration: { value: 0.0012 }, exposure: { value: 1.0 },
+      lift: { value: new T.Vector3(0, 0, 0) }, sharpen: { value: 0.35 },
     },
     vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `
-      uniform sampler2D tDiffuse; uniform float time, contrast, saturation, vignette, grain, aberration, exposure; uniform vec2 resolution; uniform vec3 warm, cool;
+      uniform sampler2D tDiffuse; uniform float time, contrast, saturation, vignette, grain, aberration, exposure, sharpen; uniform vec2 resolution; uniform vec3 warm, cool, lift;
       varying vec2 vUv;
       float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+      // lecture assainie : un seul pixel NaN / infini (normale nulle, division par zéro) ne doit pas noircir tout l'écran
+      vec3 fetch(vec2 uv) { vec3 t = texture2D(tDiffuse, uv).rgb; return (any(isnan(t)) || any(isinf(t))) ? vec3(0.0) : min(t, vec3(64.0)); }
       void main() {
-        vec2 d = vUv - 0.5; float r2 = dot(d, d);
+        vec2 d = vUv - 0.5; float r2 = dot(d, d), px = 1.0 / resolution.x, py = 1.0 / resolution.y;
         // aberration chromatique : seulement vers les bords
         vec2 off = d * aberration * r2 * 4.0;
-        vec3 c = vec3(texture2D(tDiffuse, vUv + off).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - off).b) * exposure;
+        vec3 base = fetch(vUv), c = vec3(fetch(vUv + off).r, base.g, fetch(vUv - off).b);
+        // netteté adaptative (type CAS) : micro-contraste des textures, bornée par la luminance locale (pas de halo)
+        vec3 nb = fetch(vUv + vec2(px, 0.0)) + fetch(vUv - vec2(px, 0.0)) + fetch(vUv + vec2(0.0, py)) + fetch(vUv - vec2(0.0, py));
+        float lb = dot(base, vec3(0.2126, 0.7152, 0.0722)) + 0.01;
+        c = max(c + clamp((base - nb * 0.25) * sharpen, vec3(-0.3 * lb), vec3(0.3 * lb)), vec3(0.0)) * exposure;
         float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
         // contraste autour d'un gris moyen en espace logarithmique (stable en HDR)
         vec3 lc = log2(max(c, 1e-5)); lc = (lc - log2(0.18)) * contrast + log2(0.18); c = exp2(lc);
         l = dot(c, vec3(0.2126, 0.7152, 0.0722));
         c = mix(vec3(l), c, saturation);
+        c += lift;   // noirs légèrement relevés (lisibilité de nuit, aspect pellicule)
         // séparation des tons : ombres légèrement froides, hautes lumières légèrement chaudes
         float k = smoothstep(0.02, 0.6, l); c *= mix(cool, warm, k);
         // vignettage doux
@@ -67,15 +75,38 @@
     });
     const m = new T.Mesh(new T.SphereGeometry(900, 48, 24), mat); m.frustumCulled = false; m.renderOrder = -1; return m;
   }
+  // ---- ciel de nuit : dégradé (halo orangé de la ville à l'horizon), étoiles, lune et son halo ----
+  function nightDome(moonDir) {
+    const mat = new T.ShaderMaterial({
+      uniforms: { moonDir: { value: moonDir.clone() } },
+      vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); vec4 p = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * p; gl_Position.z = gl_Position.w * 0.99999; }',
+      fragmentShader: `
+        uniform vec3 moonDir; varying vec3 vDir;
+        float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+        void main() {
+          vec3 d = normalize(vDir); float up = max(d.y, 0.0);
+          vec3 col = mix(vec3(0.028, 0.034, 0.052), vec3(0.004, 0.006, 0.014), pow(up, 0.45));
+          col += vec3(0.055, 0.034, 0.018) * exp(-up * 9.0);   // pollution lumineuse de la ville
+          vec3 g = d * 240.0, f = fract(g) - 0.5; float sd = h3(floor(g));
+          float star = step(0.986, sd) * smoothstep(0.22, 0.0, length(f)) * smoothstep(0.06, 0.35, up);
+          col += vec3(0.75, 0.82, 1.0) * star * (0.4 + 1.6 * fract(sd * 37.0));
+          float m = max(dot(d, moonDir), 0.0);
+          col += vec3(1.0, 0.97, 0.9) * smoothstep(0.99955, 0.9997, m) * 2.5 + vec3(0.22, 0.27, 0.4) * pow(m, 220.0) * 0.8 + vec3(0.03, 0.04, 0.07) * pow(m, 10.0);
+          gl_FragColor = vec4(col, 1.0);
+        }`,
+      side: T.BackSide, depthWrite: false, fog: false,
+    });
+    const m = new T.Mesh(new T.SphereGeometry(950, 32, 16), mat); m.frustumCulled = false; m.renderOrder = -2; m.visible = false; return m;
+  }
   // préréglages d'ambiance par condition : position du soleil, ciel, exposition, brouillard, intensité de l'environnement
   const AMB = {
-    jour:       { elev: 23, azim: 238, turb: 5.5, ray: 1.6, mie: 0.006, g: 0.82, exp: 0.95, sun: [0xffcb94, 6.2], env: 0.7, fog: [0xc8c2b8, 0.0040], clouds: 0.45, cloudTint: 0xffeedd, cloudDark: 0x8d8f9a, bloom: [0.3, 0.55, 0.92] },   // fin d'après-midi : soleil bas et chaud, longues ombres
-    nuit:       { elev: -12, azim: 215, turb: 2, ray: 0.3, mie: 0.002, g: 0.7, exp: 0.9, sun: [0x7d94d6, 0.55], env: 0.18, fog: [0x070a10, 0.016], clouds: 0.62, cloudTint: 0x2a3348, cloudDark: 0x0c1018, bloom: [0.6, 0.6, 0.55], night: true },
-    brouillard: { elev: 18, azim: 215, turb: 12, ray: 2.5, mie: 0.02, g: 0.9, exp: 0.7, sun: [0xe8ecf0, 1.0], env: 0.75, fog: [0x9aa1a8, 0.03], clouds: 0.2, cloudTint: 0xdfe3e6, cloudDark: 0x9aa1a8, bloom: [0.25, 0.6, 0.95] },
-    pluie:      { elev: 20, azim: 215, turb: 14, ray: 3, mie: 0.02, g: 0.85, exp: 0.7, sun: [0xc8d0dc, 0.9], env: 0.55, fog: [0x47505a, 0.013], clouds: 0.15, cloudTint: 0x6c7580, cloudDark: 0x2c323a, bloom: [0.35, 0.6, 0.9] },
+    jour:       { elev: 23, azim: 238, turb: 5.5, ray: 1.6, mie: 0.006, g: 0.82, exp: 0.95, sun: [0xffcb94, 6.2], env: 0.7, fog: [0xc8c2b8, 0.0040], clouds: 0.45, cloudTint: 0xffeedd, cloudDark: 0x8d8f9a, bloom: [0.3, 0.55, 0.92], grade: { c: 1.1, s: 1.08, warm: [1.08, 1.0, 0.9], cool: [0.95, 1.0, 1.05], vig: 0.3, grain: 0.014, lift: [0.0015, 0.0016, 0.002] } },   // fin d'après-midi : soleil bas et chaud, longues ombres
+    nuit:       { elev: -12, azim: 215, turb: 2, ray: 0.3, mie: 0.002, g: 0.7, exp: 0.9, sun: [0x7d94d6, 0.55], env: 0.18, fog: [0x070a10, 0.016], clouds: 0.62, cloudTint: 0x2a3348, cloudDark: 0x0c1018, bloom: [0.6, 0.6, 0.55], night: true, grade: { c: 1.04, s: 0.9, warm: [1.08, 0.99, 0.86], cool: [0.88, 0.97, 1.14], vig: 0.4, grain: 0.03, lift: [0.0035, 0.005, 0.009] } },
+    brouillard: { elev: 18, azim: 215, turb: 12, ray: 2.5, mie: 0.02, g: 0.9, exp: 0.7, sun: [0xe8ecf0, 1.0], env: 0.75, fog: [0x9aa1a8, 0.03], clouds: 0.2, cloudTint: 0xdfe3e6, cloudDark: 0x9aa1a8, bloom: [0.25, 0.6, 0.95], grade: { c: 0.96, s: 0.84, warm: [1.03, 1.0, 0.96], cool: [0.97, 1.0, 1.03], vig: 0.24, grain: 0.02, lift: [0.006, 0.0065, 0.007] } },
+    pluie:      { elev: 20, azim: 215, turb: 14, ray: 3, mie: 0.02, g: 0.85, exp: 0.7, sun: [0xc8d0dc, 0.9], env: 0.55, fog: [0x47505a, 0.013], clouds: 0.15, cloudTint: 0x6c7580, cloudDark: 0x2c323a, bloom: [0.35, 0.6, 0.9], grade: { c: 1.08, s: 0.86, warm: [1.0, 1.0, 0.97], cool: [0.93, 0.99, 1.07], vig: 0.34, grain: 0.022, lift: [0.002, 0.0026, 0.0034] } },
   };
   function create(renderer, scene, camera, sun, hemi) {
-    const R = { simple: SIMPLE, envIntensity: 1, amb: AMB.jour };
+    const R = { simple: SIMPLE, envIntensity: 1, amb: AMB.jour, lightDir: new T.Vector3(0, 1, 0), fitShadows: true };
     renderer.toneMapping = T.ACESFilmicToneMapping; renderer.outputColorSpace = T.SRGBColorSpace;
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
     // ombres : serrées sur le terrain de jeu
@@ -85,6 +116,7 @@
     let sky = null, clouds = null; const sunDir = new T.Vector3();
     if (X.Sky) { sky = new X.Sky(); sky.scale.setScalar(4000); sky.material.depthWrite = false; sky.frustumCulled = false; scene.add(sky); }
     clouds = cloudDome(new T.Vector3(0, 1, 0)); scene.add(clouds);
+    const MOON = new T.Vector3(-0.35, 0.8, 0.45).normalize(), night = nightDome(MOON); scene.add(night);
     if (scene.userData.dome) scene.userData.dome.visible = false;
     const pmrem = new T.PMREMGenerator(renderer); let envRT = null;
     const skyScene = new T.Scene();
@@ -106,8 +138,10 @@
       if (sky) { const u = sky.material.uniforms; u.turbidity.value = A.turb; u.rayleigh.value = A.ray; u.mieCoefficient.value = A.mie; u.mieDirectionalG.value = A.g; u.sunPosition.value.copy(sunDir); sky.visible = !A.night; }
       clouds.material.uniforms.sunDir.value.copy(sunDir); clouds.material.uniforms.cover.value = A.clouds; clouds.material.uniforms.tint.value.setHex(A.cloudTint); clouds.material.uniforms.dark.value.setHex(A.cloudDark);
       // le soleil (ou la lune) : même direction que le ciel, centré sur le terrain
-      const c = R.center || new T.Vector3(36, 0, 23), dir = A.night ? new T.Vector3(-0.35, 0.8, 0.45).normalize() : sunDir;
+      const c = R.center || new T.Vector3(36, 0, 23), dir = A.night ? MOON : sunDir;
+      R.lightDir.copy(dir); night.visible = !!A.night;
       sun.position.copy(c).addScaledVector(dir, 120); sun.target.position.copy(c); sun.color.setHex(A.sun[0]); sun.intensity = A.sun[1];
+      if (grade && A.grade) { const G = A.grade, u = grade.uniforms; u.contrast.value = G.c; u.saturation.value = G.s; u.warm.value.fromArray(G.warm); u.cool.value.fromArray(G.cool); u.vignette.value = G.vig; u.grain.value = G.grain; u.lift.value.fromArray(G.lift); }
       if (hemi) { hemi.intensity = A.night ? 0.25 : 0.45; }
       renderer.toneMappingExposure = A.exp;
       scene.fog = new T.FogExp2(A.fog[0], A.fog[1]);
@@ -129,16 +163,39 @@
         composer.addPass(hbao);
       }
       R.bloom = new X.UnrealBloomPass(new T.Vector2(size.x, size.y), 0.32, 0.55, 0.92); composer.addPass(R.bloom);
+      const hp = R.bloom.materialHighPassFilter;   // un seul pixel NaN / infini, étalé par le flou du halo, noircissait (ou blanchissait) tout l'écran
+      if (hp) { hp.fragmentShader = hp.fragmentShader.replace('vec4 texel = texture2D( tDiffuse, vUv );', 'vec4 texel = texture2D( tDiffuse, vUv ); if (any(isnan(texel)) || any(isinf(texel))) texel = vec4(0.0); texel.rgb = min(texel.rgb, vec3(40.0));'); hp.needsUpdate = true; }
       grade = new X.ShaderPass(GradeShader); composer.addPass(grade);
       composer.addPass(new X.OutputPass());
       if (X.SMAAPass) { smaa = new X.SMAAPass(size.x * pr, size.y * pr); composer.addPass(smaa); }
     }
     R.composer = composer; R.grade = grade;
-    R.setSize = function (w, h) { if (composer) { composer.setSize(w, h); if (grade) grade.uniforms.resolution.value.set(w, h); } };
+    R.setSize = function (w, h) { if (composer) { composer.setSize(w, h); if (grade) grade.uniforms.resolution.value.set(w * renderer.getPixelRatio(), h * renderer.getPixelRatio()); } };
+    // ---- ombres ajustées à la vue : caméra près du sol → carte d'ombre resserrée autour de ce qu'elle regarde (2 à 3 fois
+    // plus fine) ; vue haute → tout le terrain. Centre accroché au texel de la carte : pas de scintillement en mouvement.
+    const SF = { ext: 0, fw: new T.Vector3(), f: new T.Vector3(), x: new T.Vector3(), y: new T.Vector3(), UP: new T.Vector3(0, 1, 0) };
+    function fitShadow() {
+      const c = R.center || new T.Vector3(36, 0, 23), h = camera.position.y;
+      let ext = SF.ext;   // niveaux avec hystérésis : 18 m, 30 m, terrain entier (0)
+      if (!R.fitShadows) ext = 0; else if (h < 4.5) ext = 18; else if (h > 5.5 && h < 11) ext = 30; else if (h > 12) ext = 0; else if (!ext) ext = 30;
+      if (ext !== SF.ext) {
+        SF.ext = ext;
+        if (ext) { sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; } else { sc.left = -52; sc.right = 52; sc.top = 44; sc.bottom = -44; }
+        sc.updateProjectionMatrix();
+      }
+      if (!ext) { sun.position.copy(c).addScaledVector(R.lightDir, 120); sun.target.position.copy(c); return; }
+      camera.getWorldDirection(SF.fw); const fl = Math.hypot(SF.fw.x, SF.fw.z) || 1, ahead = ext * 0.62;
+      const f = SF.f.set(camera.position.x + SF.fw.x / fl * ahead, 0, camera.position.z + SF.fw.z / fl * ahead);
+      SF.x.crossVectors(SF.UP, R.lightDir).normalize(); SF.y.crossVectors(R.lightDir, SF.x);
+      const texel = 2 * ext / sun.shadow.mapSize.x, a = f.dot(SF.x), b = f.dot(SF.y);
+      f.addScaledVector(SF.x, Math.round(a / texel) * texel - a).addScaledVector(SF.y, Math.round(b / texel) * texel - b);
+      sun.position.copy(f).addScaledVector(R.lightDir, 120); sun.target.position.copy(f); sun.target.updateMatrixWorld();
+    }
     let t0 = performance.now();
     R.render = function () {
       const t = (performance.now() - t0) / 1000;
-      clouds.material.uniforms.time.value = t; clouds.position.copy(camera.position); if (sky) sky.position.copy(camera.position);
+      clouds.material.uniforms.time.value = t; clouds.position.copy(camera.position); night.position.copy(camera.position); if (sky) sky.position.copy(camera.position);
+      fitShadow();
       if (composer) { grade.uniforms.time.value = t; composer.render(); } else renderer.render(scene, camera);
     };
     R.passes = () => composer ? composer.passes : [];

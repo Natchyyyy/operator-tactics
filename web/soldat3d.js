@@ -25,7 +25,7 @@
   // poignet, coude dans son plan d'origine, mains gardant leur orientation) pour que les paumes restent sur la poignée et
   // le garde-main. CREUX : position du creux par rapport à l'articulation de l'épaule droite (m) : vers le centre du
   // corps, vers l'avant, vers le bas.
-  const EPAULE = { Rifle_Aim_Turn_Right: 1, Walk_Aim: 1, Walk_Aim_Haut: 1, Run_and_Shoot: 1, Gunshot_Reaction: 1 };
+  const EPAULE = { Rifle_Aim_Turn_Right: 1, Walk_Aim: 1, Walk_Aim_Haut: 1, Run_and_Shoot: 1, Run_and_Shoot_Haut: 1, Gunshot_Reaction: 1 };
   const CREUX = { dedans: 0.06, avant: 0.08, bas: 0.03 };
   S.CREUX = CREUX;
   const i4 = (o) => { for (const k in o) if (o[k] > 0) return false; return true; };
@@ -219,14 +219,17 @@
     M.clips.Pas_Droite = D;
     M.clips.Pas_Avant_Aim = legs(M.clips.Walk_Fight_Forward, 'Pas_Avant_Aim');
     M.clips.Pas_Avant_Low = legs(M.clips.Walking || M.clips.Walk_Fight_Forward, 'Pas_Avant_Low');
-    for (const n of ['Walk_Aim', 'Walk_Low']) { const c = M.clips[n]; if (c) { M.clips[n + '_Haut'] = new THREE.AnimationClip(n + '_Haut', c.duration, c.tracks.filter(t => !JAMBES.test(t.name)).map(t => t.clone())); } }
+    // course (petites foulées, ~1,5 à 3 m/s) : mêmes pas chassés / marche arrière, mais la marche avant est la course de
+    // « Run_and_Shoot » (jambes de Run_Low aussi) ; hauts du corps de la course (visée ou garde basse qui balance)
+    M.clips.Pas_Avant_Course = legs(M.clips.Run_and_Shoot, 'Pas_Avant_Course');
+    for (const n of ['Walk_Aim', 'Walk_Low', 'Run_and_Shoot', 'Run_Low']) { const c = M.clips[n]; if (c) { M.clips[n + '_Haut'] = new THREE.AnimationClip(n + '_Haut', c.duration, c.tracks.filter(t => !JAMBES.test(t.name)).map(t => t.clone())); } }
     if (M.yawFix.Walk_Aim !== undefined) M.yawFix.Walk_Aim_Haut = M.yawFix.Walk_Aim;
     M.dirs = true;
   }
   // Vitesse « naturelle » de chaque cycle de locomotion (m/s, pour un soldat de 1,80 m) : pendant l'appui, le pied recule
   // par rapport au bassin à la vitesse du sol. Le jeu lit l'animation à (vitesse réelle / vitesse naturelle) : plus de pieds
   // qui glissent. Mesurée sur les pieds, car les animations Meshy n'ont pas de déplacement de racine fiable.
-  const LOCOS = ['Walk_Fight_Forward', 'Walk_Aim', 'Walk_Low', 'Run_and_Shoot', 'Run_Low', 'Cautious_Crouch_Walk_Forward', 'Walking', 'Running', 'Pas_Avant_Aim', 'Pas_Avant_Low', 'Pas_Gauche', 'Pas_Droite', 'Pas_Arriere'];
+  const LOCOS = ['Walk_Fight_Forward', 'Walk_Aim', 'Walk_Low', 'Run_and_Shoot', 'Run_Low', 'Cautious_Crouch_Walk_Forward', 'Walking', 'Running', 'Pas_Avant_Aim', 'Pas_Avant_Low', 'Pas_Avant_Course', 'Pas_Gauche', 'Pas_Droite', 'Pas_Arriere'];
   function mesureLoco(M) {
     const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
     const hips = b('Hips'), feet = [b('LeftToeBase'), b('RightToeBase')]; if (!hips || !feet[0] || !feet[1]) return;
@@ -252,7 +255,7 @@
     // suffit pas (dans un pas chassé, le pied gauche est tantôt celui qui mène, tantôt celui qui suit). On essaie 20
     // décalages et on garde celui où le mélange 50/50 avance le plus franchement (pas qui s'annulent = démarche incohérente).
     M.decal = {};
-    for (const av of ['Pas_Avant_Aim', 'Pas_Avant_Low']) for (const cote of ['Pas_Gauche', 'Pas_Droite']) {
+    for (const av of ['Pas_Avant_Aim', 'Pas_Avant_Low', 'Pas_Avant_Course']) for (const cote of ['Pas_Gauche', 'Pas_Droite']) {
       const A = M.clips[av], C = M.clips[cote]; if (!A || !C) continue;
       const mx = new THREE.AnimationMixer(sc), a = mx.clipAction(A), c = mx.clipAction(C); a.play(); c.play(); a.setEffectiveWeight(0.5); c.setEffectiveWeight(0.5); a.timeScale = 0; c.timeScale = 0;
       const K = 20, NS = 24, mag = [], h = new THREE.Vector3(), p = new THREE.Vector3();
@@ -488,7 +491,11 @@
       // la direction du déplacement grâce au mélange.
       marche(ecart, v, dt, haut, avant) {
         const D = M.dirPas || {}, foul = (n) => Math.max(0.2, (M.loco[n] || 1) * (M.clips[n] ? M.clips[n].duration : 1));   // m par cycle
-        const a0 = (M.aimYaw && M.aimYaw[haut.replace(/_Haut$/, '')]) || 0, B = -a0 * (1 - DOS_VISEE);
+        // (a0 lissé sur ~0,2 s comme le fondu des hauts du corps : passer de la visée à la garde basse, ou de la marche à la
+        // course, ne fait plus sauter la torsion du dos)
+        const a0c = (M.aimYaw && M.aimYaw[haut.replace(/_Haut$/, '')]) || 0;
+        this.a0s = !this.blendW || this.a0s === undefined ? a0c : this.a0s + (a0c - this.a0s) * Math.min(1, dt * 12);
+        const a0 = this.a0s, B = -a0 * (1 - DOS_VISEE);
         let e = ecart - B; while (e > Math.PI) e -= 2 * Math.PI; while (e < -Math.PI) e += 2 * Math.PI;
         const wrap = (x) => { while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
         const PG = 'Pas_Gauche', PD = 'Pas_Droite', PR = 'Pas_Arriere', cible = { [avant]: 0, [PG]: 0, [PD]: 0, [PR]: 0 };

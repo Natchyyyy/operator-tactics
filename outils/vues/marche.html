@@ -3,7 +3,7 @@
 <script>
 // Marche dans 8 directions (soldat3d.marche) : chaque soldat a le torse vers la caméra et marche dans la direction de la
 // flèche au sol (0° = vers l'avant, 90° = vers sa gauche…). ?m=gign|soldat ; ?ph=0.25 (phase du pas) ; ?vise=1 ; ?dessus=1.
-const q = new URLSearchParams(location.search), PH = +(q.get('ph') || 0.25), VISE = q.get('vise') === '1';
+const q = new URLSearchParams(location.search), PH = +(q.get('ph') || 0.25), VISE = q.get('vise') === '1', VIT = +(q.get('v') || 1.2), COURSE = q.get('course') === '1';   // ?v=vitesse (m/s) ; ?course=1 : course
 OT.Soldat3D.whenReady(() => {
   const W = 1800, H = 700, r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true; document.body.appendChild(r.domElement);
   const sc = new THREE.Scene(); sc.background = new THREE.Color(0x3a4248);
@@ -22,9 +22,9 @@ OT.Soldat3D.whenReady(() => {
     const fl = new THREE.ArrowHelper(dir, new THREE.Vector3(0, 0.02, 0), 0.85, 0xffcc33, 0.22, 0.14); f.group.add(fl);
     fs.push([f, ecart]);
   }
-  const haut = VISE ? 'Walk_Aim_Haut' : 'Walk_Low_Haut', avant = VISE ? 'Pas_Avant_Aim' : 'Pas_Avant_Low';
+  const haut = COURSE ? (VISE ? 'Run_and_Shoot_Haut' : 'Run_Low_Haut') : VISE ? 'Walk_Aim_Haut' : 'Walk_Low_Haut', avant = COURSE ? 'Pas_Avant_Course' : VISE ? 'Pas_Avant_Aim' : 'Pas_Avant_Low';
   // 2 s de marche (poids lissés établis), puis on avance jusqu'à la phase demandée
-  for (const [f, e] of fs) for (let k = 0; k < 60; k++) { f.marche(e, 1.2, 1 / 30, haut, avant); f.update(1 / 30); }
+  for (const [f, e] of fs) for (let k = 0; k < 60; k++) { f.marche(e, VIT, 1 / 30, haut, avant); f.update(1 / 30); }
   // poser(ph) : avance chaque soldat jusqu'à la phase ph puis rend l'image (pour une planche de plusieurs instants)
   // ?grille=1 : un gros plan par soldat (?az=degrés autour du soldat, 0 = de face ; ?el=élévation en degrés)
   const GR = q.get('grille') === '1', AZ = +(q.get('az') || 0) * Math.PI / 180, EL = +(q.get('el') || 12) * Math.PI / 180, cg = new THREE.PerspectiveCamera(30, (W / 8) / H, 0.1, 100);
@@ -35,19 +35,21 @@ OT.Soldat3D.whenReady(() => {
       fs.forEach(([g], j) => { g.group.visible = j === i; }); r.setViewport(i * W / 8, 0, W / 8, H); r.setScissor(i * W / 8, 0, W / 8, H); r.render(sc, cg); });
     fs.forEach(([g]) => { g.group.visible = true; }); r.setScissorTest(false); r.setViewport(0, 0, W, H);
   };
-  window.poser = (ph) => { for (const [f, e] of fs) { let g = 0; while (Math.abs(((f.ph - ph) % 1 + 1) % 1) > 0.012 && g++ < 400) { f.marche(e, 1.2, 1 / 240, haut, avant); f.update(1 / 240); } f.placeWeapon(true, 0, 'deux'); } rendu(); return 0; };
+  window.poser = (ph) => { for (const [f, e] of fs) { let g = 0; while (Math.abs(((f.ph - ph) % 1 + 1) % 1) > 0.012 && g++ < 400) { f.marche(e, VIT, 1 / 240, haut, avant); f.update(1 / 240); } f.placeWeapon(true, 0, 'deux'); } rendu(); return 0; };
   // mesure() : sur un cycle, direction réelle des pas (pied d'appui, repère du groupe) comparée à la flèche, rapport vitesse
   // des pas / vitesse demandée (1 = pas de glissement), direction du fusil (0 = droit devant) et hauteur du bassin
   window.mesure = () => fs.map(([f, e]) => {
     const dt = 1 / 120, inv = new THREE.Matrix4(), P = [[], []], ft = ['LeftToeBase', 'RightToeBase'].map(n => f.body.getObjectByName('mixamorig' + n) || f.body.getObjectByName('mixamorig:' + n));
     const fus = [], hy = [], han = [], ul = ['LeftUpLeg', 'RightUpLeg'].map(n => f.body.getObjectByName('mixamorig' + n) || f.body.getObjectByName('mixamorig:' + n));
-    for (let i = 0, cumul = 0, ph0 = f.ph; cumul < 1 && i < 2000; i++) { const p = f.ph; f.marche(e, 1.2, dt, haut, avant); cumul += ((f.ph - p) % 1 + 1) % 1; f.update(dt); f.group.updateMatrixWorld(true); f.placeWeapon(true, 0, 'deux'); inv.copy(f.group.matrixWorld).invert();
+    for (let i = 0, cumul = 0, ph0 = f.ph; cumul < 1 && i < 2000; i++) { const p = f.ph; f.marche(e, VIT, dt, haut, avant); cumul += ((f.ph - p) % 1 + 1) % 1; f.update(dt); f.group.updateMatrixWorld(true); f.placeWeapon(true, 0, 'deux'); inv.copy(f.group.matrixWorld).invert();
       ft.forEach((o, j) => P[j].push(o.getWorldPosition(new THREE.Vector3()).applyMatrix4(inv)));
       const bz = new THREE.Vector3(0, 0, 1).applyQuaternion(f.weapon.quaternion); fus.push(Math.atan2(bz.x, bz.z)); hy.push(f.bones.hips.getWorldPosition(new THREE.Vector3()).y); const d = ul[1].getWorldPosition(new THREE.Vector3()).applyMatrix4(inv).sub(ul[0].getWorldPosition(new THREE.Vector3()).applyMatrix4(inv)); han.push(Math.atan2(d.x, d.z) + Math.PI / 2); }
+    let gl = 0, gn = 0; const vbx = VIT * Math.sin(e), vbz = VIT * Math.cos(e);
+    for (let i = 0; i + 1 < P[0].length; i++) { const j = P[0][i].y < P[1][i].y ? 0 : 1, a = P[j][i], b = P[j][i + 1]; if (a.y > 0.1 || b.y > 0.1) continue; gl += Math.hypot((b.x - a.x) / dt + vbx, (b.z - a.z) / dt + vbz); gn++; }
     let sx = 0, sz = 0, sv = 0, n = 0;
     P.forEach(pp => { const ym = Math.min(...pp.map(p => p.y)); for (let i = 0; i + 1 < pp.length; i++) { if (pp[i].y > ym + 0.03 || pp[i + 1].y > ym + 0.03) continue; const d = pp[i + 1].clone().sub(pp[i]).divideScalar(dt); sx -= d.x; sz -= d.z; sv += Math.hypot(d.x, d.z); n++; } });
     const deg = (r) => +(r * 180 / Math.PI).toFixed(1);
-    return { fleche: deg(e), pas: deg(Math.atan2(sx, sz)), vitesse: +(sv / n / 1.2).toFixed(2), fusil: deg(fus.reduce((a, b) => a + b, 0) / fus.length), bassin: [+Math.min(...hy).toFixed(3), +Math.max(...hy).toFixed(3)], corps: deg(f.body.rotation.y), hanches: deg(Math.atan2(han.reduce((a, b) => a + Math.sin(b), 0), han.reduce((a, b) => a + Math.cos(b), 0))), dos: deg(f.dosComp || 0) };
+    return { fleche: deg(e), pas: deg(Math.atan2(sx, sz)), vitesse: +(sv / n / VIT).toFixed(2), glisse: +(gl / Math.max(1, gn)).toFixed(2), fusil: deg(fus.reduce((a, b) => a + b, 0) / fus.length), bassin: [+Math.min(...hy).toFixed(3), +Math.max(...hy).toFixed(3)], corps: deg(f.body.rotation.y), hanches: deg(Math.atan2(han.reduce((a, b) => a + Math.sin(b), 0), han.reduce((a, b) => a + Math.cos(b), 0))), dos: deg(f.dosComp || 0) };
   });
   window.poser(PH);
   const c = document.createElement('div'); c.style.cssText = 'position:absolute;left:0;top:8px;width:' + W + 'px;display:flex'; c.innerHTML = noms.map(n => '<div style="flex:1;text-align:center">' + n + '</div>').join(''); document.body.appendChild(c);

@@ -141,6 +141,14 @@
     for (const k of ['x', 'y', 'z']) { const c = cur[k] - want[k], tmp = (vel[k] + w * c) * dt; vel[k] = (vel[k] - w * tmp) * e; cur[k] = want[k] + (c + tmp) * e; }
   }
   function setFov(v) { if (Math.abs(camera.fov - v) > 0.01) { camera.fov = v; camera.updateProjectionMatrix(); } }
+  function pushOut(p, pad) {   // sort un point des obstacles par la face la plus proche (déplacement continu, sans saut)
+    for (const o of battle.map.obstacles) {
+      if (p.y >= o.h + pad || p.x <= o.x - pad || p.x >= o.x + o.w + pad || p.z <= o.z - pad || p.z >= o.z + o.d + pad) continue;
+      const c = [[p.x - (o.x - pad), 'x', o.x - pad], [o.x + o.w + pad - p.x, 'x', o.x + o.w + pad], [p.z - (o.z - pad), 'z', o.z - pad], [o.z + o.d + pad - p.z, 'z', o.z + o.d + pad], [o.h + pad - p.y, 'y', o.h + pad]];
+      c.sort((a, b) => a[0] - b[0]); p[c[0][1]] = c[0][2];
+    }
+    return p;
+  }
   function inObstacle(p, pad) { for (const o of battle.map.obstacles) if (p.y < o.h + pad && p.x > o.x - pad && p.x < o.x + o.w + pad && p.z > o.z - pad && p.z < o.z + o.d + pad) return true; return false; }
   function segFree(a, b) {   // fraction libre du segment a → b (1 : aucun obstacle ne le coupe)
     let tmin = 1; const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
@@ -163,7 +171,7 @@
     if (p.y < 0.5 || inObstacle(p, 0.4) || p.x < 0.6 || p.z < 0.6 || p.x > mp.width - 0.6 || p.z > mp.depth - 0.6) return -1;
     const L = p.distanceTo(f.look); if (segFree(p, f.look) * L < Math.min(3.5, L * 0.5)) return -1;
     if (!f.pts.length) return 1;
-    let q = 0; for (const e of f.pts) if (segFree(p, e) > 0.995) q++;
+    let q = 0; for (const e of f.pts) if (segFree(p, e) > 0.995 || segFree(p, V3(e.x, e.y + 0.3, e.z)) > 0.995) q++;   // tête ou haut du casque
     return q / f.pts.length;
   }
   // cadrage d'un plan à l'instant présent : position, point visé, sujets à garder visibles, focale, amortissement, pivot de perche
@@ -173,20 +181,20 @@
       const kc = s.kind === 'killcam', id = kc ? s.kid : s.id, m = meshes[id], u = unitById[id];
       if (!m || !u || (!u.alive && !kc)) return null;
       let tg = unitById[kc ? s.vid : s.tid];
-      if (!kc && (!tg || !tg.alive)) { tg = u.target && u.target.alive ? u.target : null; s.tid = tg ? tg.id : null; }
+      if (!kc && (!tg || !tg.alive) && !(tg && s.lock > D.clock)) { tg = u.target && u.target.alive ? u.target : null; s.tid = tg ? tg.id : null; }   // (s.lock : on reste sur la victime qui tombe)
       const P = m.group.position, T = tg && meshes[tg.id] ? meshes[tg.id].group.position : null;
       let f = T ? new THREE.Vector2(T.x - P.x, T.z - P.z) : fwdOf(id); if (f.lengthSq() < 0.01) f = fwdOf(id); f.normalize();
       const d = smoothDir(s, 'dir', f.x, f.y, 2.2, dt), fx = d.x, fz = d.y, rx = -fz * side, rz = fx * side;
       const dist = T ? Math.hypot(T.x - P.x, T.z - P.z) : 10, back = 1.75 - Math.min(0.45, age * 0.09);   // lent travelling avant
-      const pos = V3(P.x - fx * back + rx * 0.62, 1.78, P.z - fz * back + rz * 0.62);
-      const tgt = T ? V3(T.x, kc ? 0.8 : (tg.eyeY ? tg.eyeY() : 1.5) - 0.3, T.z) : V3(P.x + fx * 10, 1.3, P.z + fz * 10);
+      const pos = V3(P.x - fx * back + rx * 0.62, Math.max(1.35, (u.eyeY ? u.eyeY() : 1.55) + 0.25), P.z - fz * back + rz * 0.62);   // à hauteur des yeux du tireur (accroupi : plus bas)
+      const tgt = T ? V3(T.x, kc || !tg.alive ? 0.8 : (tg.eyeY ? tg.eyeY() : 1.5) - 0.3, T.z) : V3(P.x + fx * 10, 1.3, P.z + fz * 10);
       // tireur au premier plan d'un côté, cible sur le tiers opposé : on vise un peu à côté de la cible
       const look = tgt.clone().add(V3(-rx * dist * 0.16, 0, -rz * dist * 0.16));
       const fov = kc ? 36 - Math.min(8, age * 3) : dist > 26 ? 32 : dist > 14 ? 38 : 44;
-      return { pos, look, pts: T ? [V3(T.x, kc ? 0.9 : tgt.y + 0.25, T.z)] : [], fov, st: kc ? 0.3 : 0.4, lst: 0.25, pivot: V3(P.x + rx * 0.3, 1.6, P.z + rz * 0.3) };
+      return { pos, look, pts: T ? [V3(T.x, kc ? 0.9 : tgt.y + 0.25, T.z)] : [], soft: !kc && tg && u.visible && u.visible.has(tg.id), fov, st: kc ? 0.3 : 0.4, lst: 0.25, pivot: V3(P.x + rx * 0.3, 1.6, P.z + rz * 0.3) };
     }
     if (s.kind === 'duel') {
-      const A = unitById[s.id], B = unitById[s.tid]; if (!A || !B || !A.alive || !B.alive || !meshes[s.id] || !meshes[s.tid]) return null;
+      const A = unitById[s.id], B = unitById[s.tid]; if (!A || !B || !A.alive || (!B.alive && !(s.lock > D.clock)) || !meshes[s.id] || !meshes[s.tid]) return null;
       const PA = meshes[s.id].group.position, PB = meshes[s.tid].group.position, L = Math.max(1, Math.hypot(PB.x - PA.x, PB.z - PA.z));
       const ux = (PB.x - PA.x) / L, uz = (PB.z - PA.z) / L, a = smoothDir(s, 'dir', -uz * side, ux * side, 1.2, dt), d = Math.max(4.5, L * 0.5 / (tanH * 0.62));
       if (d > 26) return null;
@@ -270,15 +278,20 @@
     const ev = D.pending; D.pending = null;
     if (ev && !(s && s.forced) && simTime - ev.at < 1.5) {
       const age = s ? D.clock - s.t0 : 99, evShot = s && (s.kind === 'killcam' || s.kind === 'blast');
-      if (!(evShot && age < 2.2) && !(ev.kind === 'blast' && age < 1.2)) next = eventShot(ev);
+      // déjà à l'image (dans le cadre, proche, non masqué) : pas de coupe, on prolonge le plan et on reste sur la victime
+      const P = V3(ev.x, 1, ev.z); camera.updateMatrixWorld(); const v = P.clone().project(camera);
+      const seenNow = s && s.kind !== 'establish' && v.z < 1 && Math.abs(v.x) < 0.8 && Math.abs(v.y) < 0.8 && camera.position.distanceTo(P) < 26 && segFree(camera.position, P) > 0.99;
+      if (seenNow) { s.dur = Math.max(s.dur, age + 2.5); s.lock = D.clock + 2.5; }
+      else if (!(evShot && age < 2.6) && !(ev.kind === 'blast' && age < 1.5)) { next = eventShot(ev); D.why = ev.kind; }
     }
     // 2) plan courant : fini, sujet perdu, sujet masqué trop longtemps, soldat arrêté, ou plan d'ensemble pendant l'action
     let f = !next && s ? frameShot(s, dt) : null;
     if (!next && !(s && s.forced)) {
       const age = s ? D.clock - s.t0 : 99;
-      if (f) D.masked = shotQuality(f) < 0.5 ? D.masked + dt : 0;
-      const need = !s || !f || age > s.dur || (D.masked > 0.9 && age > 1.5) || (s.kind === 'dolly' && s.still > 1.2 && age > D.minHold) || (s.kind === 'establish' && D.hist.length > 1 && engagedUnits(1).length && age > D.minHold);
+      if (f) { let q = shotQuality(f); if (f.soft && q >= 0) q = 1; D.masked = q < 0.5 ? D.masked + dt : 0; }   // (soft : le tireur voit sa cible, le plan reste lisible)
+      const need = !s ? 'debut' : !f ? 'perdu' : age > s.dur ? 'fin' : (D.masked > 1.2 && age > 2.5) ? 'masque' : (s.kind === 'dolly' && s.still > 1.2 && age > D.minHold) ? 'arret' : (s.kind === 'establish' && D.hist.length > 1 && engagedUnits(1).length && age > D.minHold) ? 'action' : '';
       if (need) {
+        D.why = need;
         for (const c of pickShot()) { next = bestOf(variants(c)); if (next) break; }
         if (!next) next = bestOf(variants({ kind: 'establish', dur: 5 }), null, -0.5);
       }
@@ -286,6 +299,7 @@
     if (next) {   // coupe
       next.t0 = D.clock; cam.shot = s = next; D.masked = 0;
       D.hist.push({ id: next.id, kind: next.kind, at: D.clock }); if (D.hist.length > 16) D.hist.shift();
+      if (D.log) D.log.push([+simTime.toFixed(1), next.kind, D.why]);
       if (next.kind === 'establish' || next.kind === 'overview') D.lastWide = D.clock;
       f = frameShot(s, 0);
     }
@@ -299,7 +313,7 @@
       damp3(cam.pos, want, D.vel, f.st, dt); damp3(cam.look, f.look, D.lvel, f.lst, dt);
       const w = 2 / 0.6, x = w * dt, e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x), c = D.fov - f.fov, tmp = (D.fvel + w * c) * dt; D.fvel = (D.fvel - w * tmp) * e; D.fov = f.fov + (c + tmp) * e;
     }
-    if (inObstacle(cam.pos, 0.15)) cam.pos.copy(clipBoom(f.pivot, cam.pos));   // même pendant le lissage, jamais dans un obstacle
+    pushOut(cam.pos, 0.2);   // même pendant le lissage, jamais dans un obstacle : on glisse le long de sa face la plus proche
     if (cam.pos.y < 9) inMap(cam.pos, 0.4);
     cam.pos.y = Math.max(0.35, cam.pos.y);
     camera.position.copy(cam.pos); camera.lookAt(cam.look); setFov(D.fov);
@@ -308,7 +322,7 @@
   // Mesure du réalisateur (sans rendu) : n pas de simulation, 3 images par pas ; nombre de coupes, durée des plans,
   // caméra dans un obstacle, sujet masqué, à-coups (accélération de la caméra hors coupes).
   function directorTrace(n) {
-    setCamMode('director'); const R = { cuts: 0, holds: [], kinds: {}, frames: 0, inside: 0, hidden: 0, maxStep: 0, jerk: 0 };
+    setCamMode('director'); const R = { cuts: 0, holds: [], kinds: {}, frames: 0, inside: 0, hidden: 0, maxStep: 0, jerk: 0 }; DIRECTOR.log = R.log = [];
     let ref = cam.shot, tCut = simTime, p0 = camera.position.clone(), v0 = new THREE.Vector3(), nf = 0;
     for (let i = 0; i < n && !battle.over; i++) {
       stepSim();
@@ -316,17 +330,18 @@
         acc = DT * k / 3; syncMeshes(k / 3); applyCamera(); R.frames++;
         const p = camera.position.clone(), v = p.clone().sub(p0), cut = cam.shot !== ref || v.length() > 2.5;
         if (cut) { const kind = typeof ref === 'object' && ref ? ref.kind : String(ref); R.cuts++; R.holds.push(+(simTime - tCut).toFixed(1)); R.kinds[kind] = (R.kinds[kind] || 0) + 1; ref = cam.shot; tCut = simTime; v0.set(0, 0, 0); }
-        else { R.maxStep = Math.max(R.maxStep, v.length()); if (nf++) R.jerk += v.clone().sub(v0).length(); v0.copy(v); }
+        else { R.maxStep = Math.max(R.maxStep, v.length()); if (v.length() > 0.6) (R.big = R.big || []).push([+simTime.toFixed(1), cam.shot && cam.shot.kind, +v.length().toFixed(2)]); if (nf++) R.jerk += v.clone().sub(v0).length(); v0.copy(v); }
         for (const o of battle.map.obstacles) if (p.y < o.h && p.x > o.x && p.x < o.x + o.w && p.z > o.z && p.z < o.z + o.d) { R.inside++; break; }
         const s = cam.shot && typeof cam.shot === 'object' ? cam.shot : null, su = s && s.id && meshes[s.id];
-        if (su && boomHit(p.x, p.y, p.z, su.group.position.x, 1.3, su.group.position.z) < 0.97) R.hidden++;
+        if (su && segFree(p, V3(su.group.position.x, 1.3, su.group.position.z)) < 0.97) { R.hidden++; (R.hiddenBy = R.hiddenBy || {})[s.kind] = (R.hiddenBy[s.kind] || 0) + 1; }
         p0.copy(p);
       }
     }
     const h = R.holds.slice(1); R.meanHold = +(h.reduce((a, b) => a + b, 0) / (h.length || 1)).toFixed(2); R.minHold = Math.min(...h); R.short = h.filter(x => x < 3).length;
-    R.jerk = +(R.jerk / Math.max(1, nf)).toFixed(4); R.maxStep = +R.maxStep.toFixed(3); R.t = battle.t; return R;
+    R.jerk = +(R.jerk / Math.max(1, nf)).toFixed(4); R.maxStep = +R.maxStep.toFixed(3); R.t = battle.t; DIRECTOR.log = null; return R;
   }
   function applyCamera() {
+    if (finale || briefing || cam.mode !== 'director') setFov(50);   // la focale varie seulement avec le réalisateur
     if (finale) {
       const t = performance.now() / 1000 - finale.t0, a = finale.a0 + Math.sin(t * 0.35) * 0.35, d = 7 - Math.min(2, t * 0.6);   // va-et-vient dans le secteur dégagé
       camera.position.set(finale.x + Math.cos(a) * d, 2.4 + Math.min(1, t * 0.3), finale.z + Math.sin(a) * d); camera.lookAt(finale.x, 0.5, finale.z); return;
@@ -366,7 +381,7 @@
     cam.pos.lerp(want, 0.2); cam.look.lerp(cam.target, 0.2);
     camera.position.copy(cam.pos); camera.lookAt(cam.look);
   }
-  function setCamMode(mode) { finale = null; cam.mode = mode; cam.shot = null; cam.init = false; document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === mode)); if (mode === 'free') { cam.target.set(battle.map.width / 2, 0, battle.map.depth / 2); cam.dist = 60; } }
+  function setCamMode(mode) { finale = null; cam.mode = mode; cam.shot = null; cam.init = false; if (mode === 'director') DIRECTOR.battle = null; document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === mode)); if (mode === 'free') { cam.target.set(battle.map.width / 2, 0, battle.map.depth / 2); cam.dist = 60; } }
   (function cameraControls() {
     let drag = null;
     canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, b: e.button, shift: e.shiftKey }; canvas.setPointerCapture(e.pointerId); });
@@ -864,7 +879,11 @@
       if (Math.abs(jambes) > 1.9 || (a.stopT > 1.2 && Math.abs(jambes) > 0.35) || crouch) { a.piedsYaw = m.yaw; jambes = 0; }
     }
     // marche (pas la course, pas accroupi) : jambes directionnelles (soldat3d.marche) quand le modèle a les pas chassés
-    const dirMarche = u.alive && m.marche && m.clips.Pas_Gauche && !crouch && u.moving && v > 0.15 && v <= 1.4 && !(u.reloading > 0) && !u.throwing && !battle.over;
+    // marche OU course (petites foulées) directionnelles jusqu'à 3,2 m/s ; au-delà (sprint) l'ancienne méthode. Marche ou
+    // course : choisie d'après la vitesse NOMINALE du soldat (u.speed()), pas la vitesse mesurée : le premier pas de
+    // simulation d'un départ est partiel (vitesse basse) et faisait jouer 0,1 s de marche avant la course
+    const dirMarche = u.alive && m.marche && m.clips.Pas_Gauche && !crouch && u.moving && v > 0.15 && v <= 3.2 && !(u.reloading > 0) && !u.throwing && !battle.over;
+    const course = (u.speed ? u.speed() : v) > 1.45 && !!m.clips.Pas_Avant_Course;
     if (dirMarche) { jambes = 0; a.recule = false; a.piedsYaw = m.yaw; }
     m.jambesCible = u.alive ? jambes : 0;
     const loco = (n) => { const nat = m.loco[n] || 1; m.play(n, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)), fade: 0.2 });
@@ -888,7 +907,8 @@
     else if (dirMarche) {
       const vise = aiming || u.preaim || !m.clips.Walk_Low_Haut;
       // (marche attend la direction par rapport au groupe, c.-à-d. à la visée : on rajoute la correction du corps retirée plus haut)
-      const ph = m.marche(ecart + (m.body ? m.body.rotation.y : 0), v, dt, vise ? 'Walk_Aim_Haut' : 'Walk_Low_Haut', vise ? 'Pas_Avant_Aim' : 'Pas_Avant_Low');
+      const haut = course ? (vise ? 'Run_and_Shoot_Haut' : 'Run_Low_Haut') : (vise ? 'Walk_Aim_Haut' : 'Walk_Low_Haut');
+      const ph = m.marche(ecart + (m.body ? m.body.rotation.y : 0), v, dt, haut, course ? 'Pas_Avant_Course' : vise ? 'Pas_Avant_Aim' : 'Pas_Avant_Low');
       a.phase = ph * 2 * Math.PI;
     }
     else if (u.moving && v > 0.15) {
@@ -1773,7 +1793,7 @@
     skip: () => { skipToEnd(); return battle.result; },
     camShot: (kind, id) => { if (kind === 'shoulder' || kind === 'dolly') { setCamMode('director'); cam.shot = { kind, id, side: 1, until: simTime + 999 }; cam.cutAt = simTime; } else { setCamMode('follow'); cam.follow = id; } render(); for (let i = 0; i < 60; i++) applyCamera(); render(); return [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)); },
     stepRaw: (n) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; return battle.t; },   // sans rendu (outils de capture)
-    dirTrace: (n) => directorTrace(n || 600),   // mesure du réalisateur (coupes, durée des plans, caméra masquée, à-coups)
+    dirTrace: (n) => directorTrace(n || 600), dirDebug: () => ({ frameShot, shotQuality, pickShot, variants, bestOf, D: DIRECTOR }),   // mesure du réalisateur (coupes, durée des plans, caméra masquée, à-coups)
     runToEnd: () => { instantResult = true; while (!battle.over) stepSim(); instantResult = false; acc = DT; render(); return battle.result; },
     start: (opts) => { newBattle(opts); render(); return battle.zone || true; },
     banner: () => { $('#result').classList.add('hidden'); showBanner(() => showResult()); },
