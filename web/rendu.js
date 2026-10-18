@@ -25,8 +25,8 @@
       uniform sampler2D tDiffuse; uniform float time, contrast, saturation, vignette, grain, aberration, exposure, sharpen; uniform vec2 resolution; uniform vec3 warm, cool, lift;
       varying vec2 vUv;
       float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-      // lecture assainie : un seul pixel NaN / infini (normale nulle, division par zéro) ne doit pas noircir tout l'écran
-      vec3 fetch(vec2 uv) { vec3 t = texture2D(tDiffuse, uv).rgb; return (any(isnan(t)) || any(isinf(t))) ? vec3(0.0) : min(t, vec3(64.0)); }
+      // lecture assainie : un seul pixel NaN (normale nulle, division par zéro) ne doit pas noircir tout l'écran
+      vec3 fetch(vec2 uv) { vec3 t = texture2D(tDiffuse, uv).rgb; return any(isnan(t)) ? vec3(0.0) : min(t, vec3(64.0)); }   // NaN → noir ; infini (reflet du soleil hors plage du tampon 16 bits) → très clair, pas noir
       void main() {
         vec2 d = vUv - 0.5; float r2 = dot(d, d), px = 1.0 / resolution.x, py = 1.0 / resolution.y;
         // aberration chromatique : seulement vers les bords
@@ -164,7 +164,7 @@
       }
       R.bloom = new X.UnrealBloomPass(new T.Vector2(size.x, size.y), 0.32, 0.55, 0.92); composer.addPass(R.bloom);
       const hp = R.bloom.materialHighPassFilter;   // un seul pixel NaN / infini, étalé par le flou du halo, noircissait (ou blanchissait) tout l'écran
-      if (hp) { hp.fragmentShader = hp.fragmentShader.replace('vec4 texel = texture2D( tDiffuse, vUv );', 'vec4 texel = texture2D( tDiffuse, vUv ); if (any(isnan(texel)) || any(isinf(texel))) texel = vec4(0.0); texel.rgb = min(texel.rgb, vec3(40.0));'); hp.needsUpdate = true; }
+      if (hp) { hp.fragmentShader = hp.fragmentShader.replace('vec4 texel = texture2D( tDiffuse, vUv );', 'vec4 texel = texture2D( tDiffuse, vUv ); if (any(isnan(texel))) texel = vec4(0.0); texel = min(texel, vec4(40.0));'); hp.needsUpdate = true; }
       grade = new X.ShaderPass(GradeShader); composer.addPass(grade);
       composer.addPass(new X.OutputPass());
       if (X.SMAAPass) { smaa = new X.SMAAPass(size.x * pr, size.y * pr); composer.addPass(smaa); }

@@ -35,7 +35,7 @@
   const REPOS = { Garde_Basse: 1, Rifle_Aim_Turn_Right: 1 };
   const RECHARGE = { Standing_Reload: 1, Standing_Reload_Haut: 1 };
   const EPAULE = { Rifle_Aim_Turn_Right: 1, Walk_Aim: 1, Walk_Aim_Haut: 1, Run_and_Shoot: 1, Run_and_Shoot_Haut: 1, Gunshot_Reaction: 1 };
-  const CREUX = { dedans: 0.06, avant: 0.08, bas: 0.03 };
+  const CREUX = { dedans: 0.16, avant: 0.08, bas: -0.03 };
   S.CREUX = CREUX;
   function b64ToBuf(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
   // Repère de paume : un point fixe dans chaque main, à la base des doigts (le squelette du GIGN n'a pas d'os de doigts).
@@ -208,14 +208,44 @@
     sc.updateMatrixWorld(true);
     return err * HEIGHT / RAW_H;
   }
+  // Cycle propre extrait d'une animation générée (Meshy « texte → mouvement ») : elle ne boucle pas, commence par un départ
+  // arrêté. On cherche la fenêtre [t1, t1 + p] (t1 dans [tMin, tMax], p dans [pMin, pMax]) dont la pose de fin ressemble le plus
+  // à celle du début (rotations des os des jambes, hauteur du bassin), on la rééchantillonne à 30 clés/s et l'écart restant au
+  // raccord est réparti linéairement sur le cycle (la dernière clé est exactement la première). Jambes et bassin seulement.
+  function cycle(c, nom, tMin, tMax, pMin, pMax) {
+    const tr = c.tracks.filter(t => JAMBES.test(t.name)); if (!tr.length) return null;
+    const it = tr.map(t => t.createInterpolant()), val = (t) => it.map(i => Array.from(i.evaluate(t)));
+    const ecart = (a, b) => { let d = 0; tr.forEach((t, j) => { if (/quaternion$/.test(t.name)) { const x = a[j], y = b[j]; d += 1 - Math.abs(x[0] * y[0] + x[1] * y[1] + x[2] * y[2] + x[3] * y[3]); } else d += Math.abs(a[j][1] - b[j][1]) * 2; }); return d; };
+    let best = null;
+    for (let t1 = tMin; t1 <= tMax + 1e-6; t1 += 1 / 30) { const a = val(t1); for (let p = pMin; p <= pMax + 1e-6 && t1 + p <= c.duration; p += 1 / 30) { const d = ecart(a, val(t1 + p)); if (!best || d < best.d) best = { d, t1, p }; } }
+    if (!best) return null;
+    const N = Math.max(4, Math.round(best.p * 30)), v0 = val(best.t1), v1 = val(best.t1 + best.p), q = new THREE.Quaternion(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), qi = new THREE.Quaternion();
+    const times = [], vals = tr.map(() => []);
+    for (let i = 0; i <= N; i++) {
+      const u = i / N, v = val(best.t1 + u * best.p); times.push(u * best.p);
+      tr.forEach((t, j) => {
+        if (/quaternion$/.test(t.name)) { qa.fromArray(v0[j]); qb.fromArray(v1[j]); const dq = qa.clone().multiply(qb.clone().invert()); q.fromArray(v[j]); qi.identity().slerp(dq, u).multiply(q).toArray(vals[j], vals[j].length); }
+        else for (let k = 0; k < v[j].length; k++) vals[j].push(v[j][k] + (v0[j][k] - v1[j][k]) * u);
+      });
+    }
+    const out = new THREE.AnimationClip(nom, best.p, tr.map((t, j) => new t.constructor(t.name, times, vals[j])));
+    out.userData = { t1: best.t1, p: best.p, ecart: best.d }; return out;
+  }
   function directions(M) {
     const G = M.clips.Walk_Left_with_Gun, B = M.clips.Walk_Backward_with_Gun; if (!G || !B) return;
     const legs = (c, nom) => c && new THREE.AnimationClip(nom, c.duration, c.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone()));
     M.clips.Pas_Gauche = legs(G, 'Pas_Gauche'); M.clips.Pas_Arriere = legs(B, 'Pas_Arriere');
+    // marche arrière générée (« Recul_IA » : pieds à largeur de hanches, jamais croisés, bassin presque de face) si le modèle
+    // l'a : un cycle propre en est extrait (~1,7 s, deux pas) ; sinon la marche arrière de la bibliothèque. (« Pas_Chasse_IA »,
+    // essayé pour le pas chassé, croise les pieds davantage que l'ancien et est trop lent : non utilisé.)
+    if (M.clips.Recul_IA) { const R = cycle(M.clips.Recul_IA, 'Pas_Arriere', 0.2, 1.3, 1.4, 2.4); if (R) { M.clips.Pas_Arriere = R; M.recul = R.userData; } }
     // bassin remonté vers celui de la marche avant (sans dépasser ce que les jambes permettent : genoux jamais tendus à fond)
     { const sc = M.gltf.scene, hb = sc.getObjectByName('mixamorigHips') || sc.getObjectByName('mixamorig:Hips'), ref = M.clips.Walk_Fight_Forward;
       if (hb && ref) { const mx = new THREE.AnimationMixer(sc); mx.clipAction(ref).play(); let s = 0; for (let i = 0; i < 20; i++) { mx.setTime(i / 20 * ref.duration); sc.updateMatrixWorld(true); s += hb.getWorldPosition(new THREE.Vector3()).y; } mx.stopAllAction(); mx.uncacheRoot(sc);
-        M.releveErr = {}; for (const [n, part] of [['Pas_Gauche', RELEVE.cote], ['Pas_Arriere', RELEVE.arriere]]) M.releveErr[n] = releve(M, M.clips[n], s / 20, part); } }
+        M.releveErr = {};
+        // (fraction réduite tant que les pieds ne touchent plus le sol à jambes tendues : erreur > 2,5 cm)
+        for (const [n, part0] of [['Pas_Gauche', RELEVE.cote], ['Pas_Arriere', RELEVE.arriere]]) { const src = M.clips[n];
+          for (const part of [part0, 0.7, 0.55, 0.4]) { const c = src.clone(); c.name = n; const err = releve(M, c, s / 20, part); M.clips[n] = c; M.releveErr[n] = [+err.toFixed(3), part]; if (err <= 0.025) break; } } } }
     // miroir gauche → droite (les repères des os gauche/droite du squelette Mixamo sont symétriques : q → (x, −y, −z, w))
     const D = legs(M.clips.Pas_Gauche, 'Pas_Droite');   // (celui dont le bassin a été remonté)
     for (const t of D.tracks) {
@@ -690,14 +720,16 @@
         // ou se touchent, on les tourne davantage vers leur côté, et vers ce côté-là plutôt que selon la ligne du bassin
         const gx = new THREE.Vector3(1, 0, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())); gx.y = 0; gx.normalize();
         const vueG = WP(pieds[0][1]).sub(WP(pieds[1][1])).dot(gx), sepG = WP(pieds[0][1]).sub(WP(pieds[1][1])).dot(lat);
-        const serreV = Math.max(0, Math.min(1, (0.2 - vueG) / 0.15)), serre = Math.max(serreV, Math.min(1, Math.max(0, (0.18 - sepG) / 0.15)));
+        // (genoux visés : écart des chevilles + 3 cm ; plus larges que les pieds, ce serait des jambes arquées « de cow-boy »)
+        const sepP = WP(pieds[0][2]).sub(WP(pieds[1][2])).dot(lat), cibleG = Math.max(0.12, sepP + 0.03), large = sepG > sepP + 0.04;
+        const serreV = large ? 0 : Math.max(0, Math.min(1, (0.2 - vueG) / 0.15)), serre = large ? 0 : Math.max(serreV, Math.min(1, Math.max(0, (cibleG - sepG) / 0.1)));
         pieds.forEach(([up, lo, ft], i) => {
           const S0 = WP(up), K0 = WP(lo), H0 = WP(ft), ax = H0.clone().sub(S0); if (ax.lengthSq() < 1e-6) return; ax.normalize();
           const kp = K0.clone().sub(S0); kp.addScaledVector(ax, -kp.dot(ax)); if (kp.lengthSq() < 1e-8) return; kp.normalize();
           const out = lat.clone().lerp(gx, serreV * 0.7 * Math.abs(lat.dot(gx))).multiplyScalar(i ? -1 : 1);   // (bassin très tourné : l'axe du groupe serait dans le sens du pas) out.addScaledVector(ax, -out.dot(ax)); if (out.lengthSq() < 1e-6) return; out.normalize();
           // angle (signé, autour de ax) du genou vers l'extérieur ; on en fait une part (plus grande si les genoux se serrent
-          // dans la silhouette), limitée à 45°
-          let a = Math.atan2(new THREE.Vector3().crossVectors(kp, out).dot(ax), kp.dot(out)); const lim = 0.79 + 0.41 * serre; a = Math.max(-lim, Math.min(lim, a * (0.5 + 0.5 * serre) * kg * K));
+          // dans la silhouette), limitée à 30°
+          let a = Math.atan2(new THREE.Vector3().crossVectors(kp, out).dot(ax), kp.dot(out)); a = Math.max(-0.52, Math.min(0.52, a * (large ? 0 : 0.2 + 0.6 * serre) * kg * K));   // (30° au plus)
           if (Math.abs(a) < 0.005) return;
           const qF = WQ(ft); mod(up); mod(ft);
           up.quaternion.copy(WQ(up.parent).invert().multiply(new THREE.Quaternion().setFromAxisAngle(ax, a)).multiply(WQ(up))); up.updateMatrixWorld(true);
@@ -755,7 +787,8 @@
           tourne(H, 1);
           { const qh = WQ(H), fa = faceL.clone().applyQuaternion(qh).normalize(), u = new THREE.Vector3(0, 1, 0).applyQuaternion(qh), up = new THREE.Vector3(0, 1, 0).addScaledVector(fa, -fa.y);
             if (up.lengthSq() > 1e-4) { up.normalize(); u.addScaledVector(fa, -u.dot(fa)).normalize();
-              const ang = Math.atan2(new THREE.Vector3().crossVectors(u, up).dot(fa), u.dot(up)) * kA, qr = new THREE.Quaternion().setFromAxisAngle(fa, ang);
+              // (en visée, la joue vient sur la crosse : tête inclinée de ~10° vers la droite, pas plus — la version exagérée déplaisait)
+              const ang = (Math.atan2(new THREE.Vector3().crossVectors(u, up).dot(fa), u.dot(up)) + 0.17 * (this.epK || 0)) * kA, qr = new THREE.Quaternion().setFromAxisAngle(fa, ang);
               H.quaternion.copy(WQ(H.parent).invert().multiply(qr).multiply(qh)); H.updateMatrixWorld(true); } }
           return;
         }
