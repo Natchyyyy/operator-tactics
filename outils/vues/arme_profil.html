@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Profil du fusil</title><style>body{margin:0;background:#888}canvas{display:block}</style></head><body>
+<script src="../../web/three.min.js"></script><script src="../../web/figure.js"></script><script src="../../web/gltf.js"></script><script src="../../web/modeles/decor.js"></script><script src="../../web/modeles3d.js"></script>
+<script>
+// Fusil seul en projection orthogonale (profil droit en haut, dessous en bas), grille 1 cm (traits forts tous les 5 cm),
+// repère des armes (+Z bouche, +Y dessus). Points : rouge = gripPt, bleu = forePt, vert = buttPt, jaune = muzzle.
+// ?z0=-0.3&z1=0.1 : portion affichée.
+const q = new URLSearchParams(location.search), Z0 = +(q.get('z0') || -0.46), Z1 = +(q.get('z1') || 0.46), Y0 = +(q.get('y0') || -0.18), Y1 = +(q.get('y1') || 0.18);
+OT.Modeles3D.whenReady(() => {
+  const PX = +(q.get('px') || 1400), W = PX, H = Math.round(PX * (Y1 - Y0) / (Z1 - Z0)) * 2;
+  const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setSize(W, H); r.autoClear = false; document.body.appendChild(r.domElement);
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(0xb0b4b8); sc.add(new THREE.HemisphereLight(0xffffff, 0x606060, 2.2));
+  const w = OT.Modeles3D.arme(); sc.add(w);
+  const dot = (c, p) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.004, 8, 6), new THREE.MeshBasicMaterial({ color: c, depthTest: false })); m.renderOrder = 9; m.position.copy(p); sc.add(m); };
+  dot(0xff0000, w.gripPt); dot(0x0040ff, w.forePt); dot(0x00c000, w.buttPt); dot(0xffd000, w.muzzle);
+  const g = []; for (let z = Math.ceil(Z0 * 100); z <= Z1 * 100; z++) g.push(z / 100, 0, z / 100);
+  const lines = (vert, strong) => { const pos = []; const st = strong ? 5 : 1;
+    for (let z = Math.ceil(Z0 * 100); z <= Z1 * 100; z++) if (!strong || z % 5 === 0) pos.push(...vert(z / 100, null));
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); return geo; };
+  const mk = (pos, c) => { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); const l = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: c, transparent: true, opacity: 0.6, depthTest: false })); l.renderOrder = 8; return l; };
+  const grid = (plane) => { const a = [], b = [];
+    for (let i = Math.ceil(Z0 * 100); i <= Math.floor(Z1 * 100); i++) { const z = i / 100, arr = i % 5 === 0 ? b : a; plane === 'yz' ? arr.push(0.1, Y0, z, 0.1, Y1, z) : arr.push(Y0, -0.1, z, Y1, -0.1, z); }
+    for (let i = Math.ceil(Y0 * 100); i <= Math.floor(Y1 * 100); i++) { const y = i / 100, arr = i % 5 === 0 ? b : a; plane === 'yz' ? arr.push(0.1, y, Z0, 0.1, y, Z1) : arr.push(y, -0.1, Z0, y, -0.1, Z1); }
+    const gr = new THREE.Group(); gr.add(mk(a, 0x506070)); gr.add(mk(b, 0x000000)); return gr; };
+  const g1 = grid('yz'), g2 = grid('xz');
+  // profil droit : caméra du côté −X (droite du tireur), regarde +X
+  const c1 = new THREE.OrthographicCamera(-(Z1 - Z0) / 2, (Z1 - Z0) / 2, (Y1 - Y0) / 2, -(Y1 - Y0) / 2, 0.01, 5); c1.position.set(-1, (Y0 + Y1) / 2, (Z0 + Z1) / 2); c1.lookAt(0, (Y0 + Y1) / 2, (Z0 + Z1) / 2);
+  r.setScissorTest(true); sc.add(g1); r.setViewport(0, H / 2, W, H / 2); r.setScissor(0, H / 2, W, H / 2); r.render(sc, c1); sc.remove(g1);
+  // dessous : caméra en −Y, haut de l'image = côté droit (−X) ... (+Z vers la droite de l'image)
+  const c2 = new THREE.OrthographicCamera(-(Z1 - Z0) / 2, (Z1 - Z0) / 2, (Y1 - Y0) / 2, -(Y1 - Y0) / 2, 0.01, 5); c2.position.set(0, -1, (Z0 + Z1) / 2); c2.up.set(-1, 0, 0); c2.lookAt(0, 0, (Z0 + Z1) / 2);
+  sc.add(g2); r.setViewport(0, 0, W, H / 2); r.setScissor(0, 0, W, H / 2); r.render(sc, c2);
+  window.PRET = true;
+});
+</script></body></html>

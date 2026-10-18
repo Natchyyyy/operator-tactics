@@ -15,69 +15,105 @@
     return out;
   }
 
-  // une seule carte pour l'instant : le parking du centre commercial (on retravaille le contenu un élément après l'autre)
+  // Rangée double de places de stationnement (épi droit, voitures nez à nez), orientée nord-sud : x0 = bord ouest de la
+  // rangée (10 m de large : deux places de 5 m), z0 = début de la première place (2,5 m de large chacune). Une lettre par
+  // place, moitié ouest puis moitié est : '.' place vide, 'v' berline, 'p' pick-up, 'f' fourgon (plus long : il dépasse dans
+  // l'allée), 'm' voiture mal garée (à cheval sur la ligne, l'arrière dans l'allée). Les voitures sont garées en marche
+  // avant : capot vers le milieu de la rangée (o.dir : sens du capot le long de x, lu par le rendu).
+  function rangee(x0, z0, ouest, est, teintes) {
+    const out = []; let n = 0;
+    [ouest, est].forEach((s, cote) => {
+      for (let k = 0; k < s.length; k++) {
+        const c = s[k]; if (c === '.') continue;
+        const z = z0 + 2.5 * k, dir = cote ? -1 : 1, t = teintes ? teintes[n++ % teintes.length] : undefined;
+        let o;
+        if (c === 'f') o = box(cote ? x0 + 5.2 : x0 - 0.4, z + 0.2, 5.2, 2.1, 2.4, 'wall', 'fourgon');
+        else if (c === 'm') o = box(cote ? x0 + 5.8 : x0 - 0.3, z + 1.0, 4.4, 1.9, 1.4, 'cover', 'voiture');
+        else o = box(cote ? x0 + 5.3 : x0 + 0.3, z + 0.3, 4.4, 1.9, 1.4, 'cover', c === 'p' ? 'voiture (pick-up)' : 'voiture');
+        o.dir = dir; if (t !== undefined) o.teinte = t; out.push(o);
+      }
+    });
+    return out;
+  }
+  // un arbre dans une jardinière (bac en béton surélevé) ; le tronc est un obstacle mince (bloque la vue au ras du tronc)
+  function bac(x, z, w, d) { return [box(x, z, w, d, 0.9, 'cover', 'bac à fleurs'), box(x + w / 2 - 0.25, z + d / 2 - 0.25, 0.5, 0.5, 5.0, 'wall', 'arbre')]; }
+
+  // une seule carte pour l'instant : le parking du centre commercial
   const MAPS = {
     parking: {
       id: 'parking', name: 'Parking du centre commercial', width: 72, depth: 46,
       spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
-      capture: { x: 36, z: 23, r: 6 },  // l'enclos central, partagé en deux par l'abri : on le prend par ses deux bouts (nord, sud)
+      capture: { x: 36, z: 23, r: 6 },  // la station de lavage : deux pistes ouvertes au nord et au sud, local technique au milieu
       asymetrique: true,
-      // z des trois voies d'approche, routes de l'IA : flanc nord le long du centre commercial (entre façade et kiosques),
-      // axe central, flanc sud le long du bus (un peu plus écarté que le nord : réglé par les batailles, comme le décor)
+      // z des trois voies d'approche, routes de l'IA : nord le long de la façade du centre commercial (quai de livraison,
+      // parvis, drive), milieu à travers les rangées de voitures et la station de lavage, sud le long du mur de la rue
+      // (arrêt de bus, kiosque, chantier).
       voies: { nord: 9, milieu: 23, sud: 38 },
-      // Tracé en trois voies (nord le long du centre commercial, milieu, sud le long du bus), mais chaque camp a son propre
-      // terrain : à l'ouest un conteneur couché au nord et un fourgon au sud ; à l'est un conteneur debout (nord-sud) qui
-      // ouvre un angle différent, un conteneur au sud. Le centre (abri, enclos, zone) reste sur l'axe pour l'équité ;
-      // l'équilibre est vérifié en jouant des centaines de batailles (tests : chaque camp gagne entre 35 et 65 %).
-      obstacles: [
-        box(-1, -1, 74, 1, 3.2, 'wall', 'mur nord'), box(-1, 46, 74, 1, 3.2, 'wall', 'mur sud'),
-        box(-1, 0, 1, 46, 3.2, 'wall', 'mur ouest'), box(72, 0, 1, 46, 3.2, 'wall', 'mur est'),
-        // centre (sur l'axe) : façade du centre commercial, bus, abri des caisses, enclos
-        box(26, 0, 20, 5, 6.0, 'wall', 'centre commercial'), box(30, 41, 12, 3, 3.0, 'wall', 'bus'),
-        box(35, 16.5, 2, 13, 2.8, 'wall', 'abri'),
-        box(29.5, 17.5, 0.6, 3.5, 0.95, 'cover', 'barrière'), box(29.5, 25, 0.6, 3.5, 0.95, 'cover', 'barrière'),
-        box(31, 17, 3, 0.6, 0.95, 'cover', 'barrière'), box(31, 28.4, 3, 0.6, 0.95, 'cover', 'barrière'),
-        box(41.9, 17.5, 0.6, 3.5, 0.95, 'cover', 'barrière'), box(41.9, 25, 0.6, 3.5, 0.95, 'cover', 'barrière'),
-        box(38, 17, 3, 0.6, 0.95, 'cover', 'barrière'), box(38, 28.4, 3, 0.6, 0.95, 'cover', 'barrière'),
-        box(31.5, 20.8, 2, 4.4, 1.4, 'cover', 'voiture'), box(38.5, 20.8, 2, 4.4, 1.4, 'cover', 'voiture'),
-        box(33, 12.5, 1.5, 1.5, 2.2, 'wall', 'caisses'), box(33, 32, 1.5, 1.5, 2.2, 'wall', 'caisses'),
-        box(37.5, 12.5, 1.5, 1.5, 2.2, 'wall', 'caisses'), box(37.5, 32, 1.5, 1.5, 2.2, 'wall', 'caisses'),
-        box(30, 9, 2, 2, 3.0, 'wall', 'kiosque'), box(40, 9, 2, 2, 3.0, 'wall', 'kiosque'),
-        box(26.5, 7, 3, 1.2, 1.0, 'cover', 'muret'), box(42.5, 7, 3, 1.2, 1.0, 'cover', 'muret'),
-        box(26.5, 38, 3, 1.2, 1.0, 'cover', 'muret'), box(42.5, 38, 3, 1.2, 1.0, 'cover', 'muret'),
-        // ---- OUEST
-        box(11, 13, 2.5, 5.5, 2.4, 'wall', 'fourgon'), box(11, 27.5, 2.5, 5.5, 2.4, 'wall', 'fourgon'),
-        box(16.5, 14.5, 6, 2.4, 2.6, 'wall', 'conteneur'),                     // voie nord / milieu : conteneur couché
-        box(17, 29.6, 5.5, 2.5, 2.4, 'wall', 'fourgon'), box(23, 30, 1.6, 1.6, 1.4, 'cover', 'palettes'),   // voie sud : fourgon et palettes
-        box(24, 21.8, 2, 2.4, 2.2, 'wall', 'caisses'), box(25, 17.5, 1, 2, 1.0, 'cover', 'sacs de sable'),
-        box(30, 35, 2, 2, 2.2, 'wall', 'caisses'),
-        box(6.5, 8.5, 2, 2, 2.2, 'wall', 'caisses'), box(6.5, 35.5, 2, 2, 2.2, 'wall', 'caisses'),
-        box(15, 21.5, 1.5, 3, 1.0, 'cover', 'bac à fleurs'), box(15.5, 22.5, 0.5, 0.5, 5.0, 'wall', 'palmier'),
-        box(24, 3, 1.5, 1.5, 1.0, 'cover', 'bac à fleurs'), box(24.5, 3.5, 0.5, 0.5, 5.0, 'wall', 'palmier'),
-        box(24, 41.5, 1.5, 1.5, 1.0, 'cover', 'bac à fleurs'), box(24.5, 42, 0.5, 0.5, 5.0, 'wall', 'palmier'),
-        box(17.5, 4, 2, 4.4, 1.4, 'cover', 'voiture'), box(17.5, 37.6, 2, 4.4, 1.4, 'cover', 'voiture'),
-        box(21.5, 8.5, 2, 4.4, 1.4, 'cover', 'voiture'), box(21.5, 33.5, 2, 4.4, 1.4, 'cover', 'voiture'),
-        box(26, 13, 4.4, 2, 1.4, 'cover', 'voiture'), box(26, 31, 4.4, 2, 1.4, 'cover', 'voiture'),
-        box(19.5, 20.5, 0.6, 4.5, 0.95, 'cover', 'barrière'), box(20.5, 27, 2.5, 0.6, 0.95, 'cover', 'barrière'),
-        box(8, 6, 1.5, 1.4, 1.1, 'cover', 'fût'), box(8, 38.6, 1.5, 1.4, 1.1, 'cover', 'fût'),
-        box(16, 11, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'), box(15.5, 33.5, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'),
-        // ---- EST
-        box(58.5, 13, 2.5, 5.5, 2.4, 'wall', 'fourgon'), box(59, 28.5, 2.5, 5.5, 2.4, 'wall', 'fourgon'),
-        box(51, 11.5, 2.4, 6, 2.6, 'wall', 'conteneur'),                       // voie nord : conteneur debout (nord-sud)
-        box(49.5, 29.1, 6, 2.4, 2.6, 'wall', 'conteneur'),                     // voie sud : conteneur couché
-        box(45.5, 23.2, 2, 2.4, 2.2, 'wall', 'caisses'), box(46, 19, 1, 2, 1.0, 'cover', 'sacs de sable'),
-        box(40.5, 36, 2, 2, 2.2, 'wall', 'caisses'),
-        box(63.5, 8.5, 2, 2, 2.2, 'wall', 'caisses'), box(63, 36, 2, 2, 2.2, 'wall', 'caisses'),
-        box(55.5, 21.5, 1.5, 3, 1.0, 'cover', 'bac à fleurs'), box(56, 22.5, 0.5, 0.5, 5.0, 'wall', 'palmier'),
-        box(46.5, 3, 1.5, 1.5, 1.0, 'cover', 'bac à fleurs'), box(47, 3.5, 0.5, 0.5, 5.0, 'wall', 'palmier'),
-        box(48, 41.5, 1.5, 1.5, 1.0, 'cover', 'bac à fleurs'), box(48.5, 42, 0.5, 0.5, 5.0, 'wall', 'palmier'),
-        box(53, 4.5, 2, 4.4, 1.4, 'cover', 'voiture'), box(52.5, 37.6, 2, 4.4, 1.4, 'cover', 'voiture'),
-        box(47.5, 8, 2, 4.4, 1.4, 'cover', 'voiture'), box(47.5, 34, 2, 4.4, 1.4, 'cover', 'voiture'),
-        box(41.6, 13, 4.4, 2, 1.4, 'cover', 'voiture'), box(41.6, 31, 4.4, 2, 1.4, 'cover', 'voiture'),
-        box(52, 20, 0.6, 4.5, 0.95, 'cover', 'barrière'), box(48.5, 26.5, 2.5, 0.6, 0.95, 'cover', 'barrière'),
-        box(62.5, 6, 1.5, 1.4, 1.1, 'cover', 'fût'), box(62.5, 38.6, 1.5, 1.4, 1.1, 'cover', 'fût'),
-        box(55, 11, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'), box(55.5, 32.5, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'),
-      ],
+      // Un vrai parking de centre commercial, vu du ciel : au nord la façade (entrée, parvis planté, quai de livraison à
+      // l'ouest, « drive » à l'est), au sud le mur de la rue (places le long du mur, arrêt de la navette, kiosque à pizzas, et
+      // à l'est une partie du parking fermée pour travaux), à l'ouest l'entrée à barrière (guérite), à l'est la sortie (poste
+      // électrique). Entre les deux, deux rangées doubles de places orientées nord-sud (les voitures garées en épi droit
+      // forment des lignes de couvert en travers du terrain, avec des places vides pour passer) et, au milieu, la station de
+      // lavage (zone à prendre). Pas symétrique : l'équilibre est vérifié en jouant des centaines de batailles.
+      obstacles: [].concat(
+        [
+          box(-1, -1, 74, 1, 3.2, 'wall', 'mur nord'), box(-1, 46, 74, 1, 3.2, 'wall', 'mur sud'),
+          box(-1, 0, 1, 18, 3.2, 'wall', 'mur ouest'), box(-1, 28, 1, 18, 3.2, 'wall', 'mur ouest'),
+          box(72, 0, 1, 18, 3.2, 'wall', 'mur est'), box(72, 28, 1, 18, 3.2, 'wall', 'mur est'),
+          // entrée (ouest) et sortie (est) du parking : barrières levantes dans l'ouverture du mur
+          box(-1, 18, 1, 10, 1.1, 'wall', 'mur portail ouest'), box(72, 18, 1, 10, 1.1, 'wall', 'mur portail est'),
+          // ---- NORD : façade du centre commercial (avancée de l'entrée), parvis
+          box(26, 0, 20, 5, 6.0, 'wall', 'centre commercial'),
+          box(33.2, 7.4, 5.2, 2.1, 2.4, 'wall', 'fourgon'),                      // livreur arrêté au dépose-minute devant l'entrée
+          // quai de livraison (nord-ouest) : quai surélevé contre la façade, camion à quai, palettes et rolls, benne
+          box(5, 0, 16, 2, 1.2, 'cover', 'quai de chargement'),
+          box(11.2, 2, 2.3, 5.6, 2.4, 'wall', 'fourgon (livraison)'),
+          box(15.4, 2.3, 1.2, 1.2, 1.0, 'cover', 'palettes'), box(17.1, 2.5, 1.2, 1.2, 0.75, 'cover', 'palettes'),
+          box(19.0, 2.2, 1.7, 0.8, 1.5, 'cover', 'rolls'),
+          box(0.6, 0.5, 2.0, 1.4, 1.3, 'cover', 'benne'),
+          // drive (nord-est) : auvent sur trois places, fourgon de livraison des courses, rolls
+          box(57.8, 0.4, 2.3, 5.6, 2.4, 'wall', 'fourgon (drive)'),
+          box(61, 0.6, 0.8, 1.7, 1.5, 'cover', 'rolls'), box(62.2, 0.6, 0.8, 1.7, 1.5, 'cover', 'rolls'),
+          // abris à chariots au bout des rangées (côté entrée)
+          box(18.5, 11.1, 4.2, 1.8, 1.1, 'cover', 'abri à chariots'), box(49.4, 11.1, 4.2, 1.8, 1.1, 'cover', 'abri à chariots'),
+          // ---- MILIEU : station de lavage (deux pistes, local technique au milieu), aspirateurs, voitures en attente
+          box(30.2, 18.5, 0.4, 9, 2.7, 'wall', 'lavage paroi'), box(41.4, 18.5, 0.4, 9, 2.7, 'wall', 'lavage paroi'),
+          box(34.6, 18.5, 2.8, 9, 2.7, 'wall', 'lavage local'),
+          box(38.9, 12.6, 1.9, 4.4, 1.4, 'cover', 'voiture'),                    // en attente devant la piste est
+          box(31.7, 28.9, 1.9, 4.4, 1.4, 'cover', 'voiture'),                    // sortie de la piste ouest, au séchage
+          box(26.0, 21.3, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(24.2, 23.0, 4.4, 1.9, 1.4, 'cover', 'voiture'),
+          box(45.4, 22.0, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(43.4, 23.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'),
+          // ---- OUEST : entrée (guérite du gardien), places le long du mur ouest avec bornes de recharge
+          box(9.4, 21.9, 2.2, 2.2, 2.6, 'wall', 'guérite'),
+          box(0.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), box(0.2, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon'),
+          box(0.2, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
+          // ---- EST : sortie (poste électrique), places le long du mur est
+          box(60.4, 23.6, 2.8, 3.2, 2.6, 'wall', 'poste électrique'), box(60.8, 27.2, 1.0, 0.5, 1.4, 'cover', 'armoire'),
+          box(66.6, 8.2, 5.2, 2.1, 2.4, 'wall', 'fourgon'), box(67.3, 13.3, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'), box(66.6, 29.4, 5.2, 2.1, 2.4, 'wall', 'fourgon'),
+          // ---- SUD : places le long du mur de la rue, kiosque à pizzas, arrêt de la navette, points de tri
+          box(8.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), box(16.1, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'),
+          box(23.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'),
+          box(19.6, 37.4, 2.4, 2.4, 3.0, 'wall', 'kiosque'),
+          box(30, 42.2, 12, 2.6, 3.0, 'wall', 'bus'), box(34.2, 39.9, 4.2, 1.5, 2.5, 'wall', 'abribus'),   // quai de la navette : abri sur l'îlot, bus le long
+          box(1.6, 43.6, 4.6, 1.6, 1.7, 'wall', 'colonnes de tri'),
+          // ---- SUD-EST : partie du parking fermée pour réfection de l'enrobé (séparateurs, clôtures de chantier, bungalow
+          // de chantier, benne à gravats, palettes de bordures, sacs de sable qui lestent les panneaux, fûts d'émulsion)
+          box(52.5, 34.2, 5.5, 0.6, 0.95, 'cover', 'barrière'), box(61, 34.2, 5, 0.6, 0.95, 'cover', 'barrière'),
+          box(51.9, 34.8, 0.3, 2.4, 2.0, 'wall', 'clôture de chantier'), box(51.9, 41.2, 0.3, 4.8, 2.0, 'wall', 'clôture de chantier'),   // bâches imprimées sur les grilles
+          box(59.4, 39.0, 2.4, 6.0, 2.6, 'wall', 'conteneur'),                  // conteneur de stockage du chantier
+          box(65.6, 43.4, 6, 2.4, 2.6, 'wall', 'conteneur'),
+          box(54.2, 43.6, 2.2, 1.5, 1.3, 'cover', 'benne'),
+          box(57.0, 37.6, 1.2, 1.2, 0.9, 'cover', 'palettes'), box(58.6, 38.3, 1.2, 1.2, 0.9, 'cover', 'palettes'),
+          box(62.8, 37.0, 2.4, 1.0, 0.8, 'cover', 'sacs de sable'),
+          box(67.4, 37.6, 1.4, 0.7, 1.1, 'cover', 'fût'),
+        ],
+        // îlots plantés aux bouts des rangées et sur le parvis
+        bac(13.6, 11.3, 4, 1.5), [box(13.6, 33.4, 4.6, 1.5, 1.7, 'wall', 'haie')], [box(53.8, 11.3, 4.4, 1.5, 1.7, 'wall', 'haie')], bac(49.6, 33.4, 2.0, 1.4),
+        bac(22.6, 5.8, 1.6, 1.6), bac(27.8, 5.8, 1.6, 1.6), bac(42.4, 5.8, 1.6, 1.6), bac(48.6, 5.8, 1.6, 1.6),
+        // rangées de places (ouest : x 13–23 ; est : x 49–59), du nord (z 13) au sud (z 33)
+        rangee(13, 13, 'vv..fvm.', '.fv..v.f', [0, 3, 5, 1, 6, 2, 4, 7, 0, 5]),
+        rangee(49, 13, 'v.fp..fv', 'f.v..v.v', [2, 6, 0, 4, 1, 7, 3, 5, 6, 2])
+      ),
     },
   };
 

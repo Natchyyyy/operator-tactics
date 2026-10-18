@@ -406,6 +406,146 @@
     M.gbErr = { R: palm(R).distanceTo(tR) / k, L: palm(L).distanceTo(tL) / k };
     restore(); sc.updateMatrixWorld(true);
   }
+  // ---- Prise de l'arme : mains posées sur le fusil, doigts refermés dessus -------------------------------------------------
+  // Le fusil Meshy en boîtes arrondies (repère des armes : +Z bouche, +Y dessus, +X gauche du tireur ; m) : centre c,
+  // demi-tailles h (arrondi compris), rayon d'arrondi r, inclinaison rx (rad, autour de X : poignée inclinée vers l'arrière).
+  // Mesuré sur le modèle (outils/vues/arme_profil.html). Sert à refermer les doigts au contact de l'arme (distance signée).
+  const FORMES = [
+    { n: 'poignee', c: [-0.002, -0.05, -0.1545], h: [0.015, 0.06, 0.026], r: 0.012, rx: 0.314 },
+    { n: 'carcasse', c: [-0.002, 0.05, -0.08], h: [0.024, 0.053, 0.15], r: 0.006 },
+    { n: 'pontet', c: [-0.002, -0.031, -0.088], h: [0.006, 0.004, 0.028], r: 0.003 },
+    { n: 'pontetAv', c: [-0.002, -0.016, -0.062], h: [0.006, 0.016, 0.004], r: 0.003 },
+    { n: 'detente', c: [-0.002, -0.012, -0.098], h: [0.003, 0.009, 0.003], r: 0.002 },
+    { n: 'chargeur', c: [-0.002, -0.06, 0.0025], h: [0.015, 0.06, 0.043], r: 0.008 },
+    { n: 'gardeMain', c: [-0.0025, 0.0675, 0.1825], h: [0.0285, 0.0365, 0.1125], r: 0.012 },
+    { n: 'crosse', c: [-0.002, 0.02, -0.33], h: [0.022, 0.05, 0.1], r: 0.01 },
+  ];
+  S.FORMES = FORMES;
+  function sdBoite(F, x, y, z) {
+    x -= F.c[0]; y -= F.c[1]; z -= F.c[2];
+    if (F.rx) { const c = Math.cos(F.rx), s = Math.sin(F.rx), y2 = c * y + s * z; z = -s * y + c * z; y = y2; }
+    const qx = Math.abs(x) - F.h[0] + F.r, qy = Math.abs(y) - F.h[1] + F.r, qz = Math.abs(z) - F.h[2] + F.r;
+    return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - F.r;
+  }
+  function sdArme(p) { let d = 1e9; for (const F of FORMES) d = Math.min(d, sdBoite(F, p.x, p.y, p.z)); return d; }
+  S.sdArme = sdArme;
+  // Calcul (une fois par modèle) de la prise : pour chaque main, sa place sur le fusil (matrice main / arme) et la pose de ses
+  // doigts. Les mains de l'animation de visée donnent l'orientation ; la main est glissée le long de la normale de sa paume
+  // jusqu'au contact ; puis chaque doigt se referme articulation par articulation jusqu'à toucher l'arme (une phalange qui
+  // touche fige celles d'avant, les suivantes continuent). Index droit : deux poses, tendu le long de la carcasse au-dessus
+  // du pontet (doigt hors de la détente) ou sur la détente (tir). Les doigts sont reconnus par leur position (pouce = le plus
+  // près du poignet ; puis du côté du pouce vers l'auriculaire) : dans les squelettes Meshy leurs noms sont souvent inversés.
+  // places des mains (repère de l'arme, m) : A = direction poignet → jointure du majeur, N = normale de la paume, mcp = jointure
+  // du majeur. Main droite : paume sur le flanc droit de la poignée, doigts vers l'avant autour de la poignée, jointures au
+  // bord avant ; main gauche : sous le garde-main, doigts vers la droite qui remontent sur son flanc droit, pouce à gauche.
+  const PRISE = {
+    R: { A: [0.15, -0.3, 0.94], N: [1, 0, 0], mcp: [-0.028, -0.035, -0.145],
+      // cibles du bout des doigts (index : tendu le long de la carcasse, au-dessus du pontet ; pouce : flanc gauche, sous la carcasse)
+      cibles: { 0: { p: [0.026, -0.008, -0.14], f1: [-0.4, 1.4], f2: 1.2 }, 1: { p: [-0.027, 0.008, -0.075], f1: [-0.4, 0.8], f2: 0.4, reg: 0.02 } },
+      detente: { p: [-0.004, -0.014, -0.088], f1: [-0.2, 1.4], f2: 1.6 } },
+    L: { A: [-0.95, 0.2, 0.25], N: [0.2, 1, 0], mcp: [-0.036, 0.026, 0.15],
+      cibles: { 0: { p: [0.04, 0.07, 0.2], f1: [-0.4, 1.2], f2: 1.0 } } },
+  };
+  S.PRISE = PRISE;
+  function calculerPrise(f, W) {
+    const sk = f.skinned; if (!sk || !f.weapon.isMeshy) return null;
+    const bones = sk.skeleton.bones, inv = sk.skeleton.boneInverses, bind = sk.bindMatrix;
+    const g = sk.geometry, pos = g.attributes.position, si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
+    const bindW = bones.map((b, i) => inv[i].clone().invert());
+    const locBind = (b) => { const i = bones.indexOf(b), pi = bones.indexOf(b.parent); const m = pi >= 0 ? bindW[pi].clone().invert().multiply(bindW[i]) : bindW[i].clone();
+      const t = V(), q = new THREE.Quaternion(), s = V(); m.decompose(t, q, s); return { t, q, s }; };
+    f.weapon.updateMatrixWorld(true); const Wi = f.weapon.matrixWorld.clone().invert();
+    const out = {};
+    for (const side of ['Right', 'Left']) {
+      const H = bones.find(b => b.name.endsWith(side + 'Hand')); if (!H) return null;
+      const hi = bones.indexOf(H), HbI = bindW[hi].clone().invert();
+      const rel = (b) => V().setFromMatrixPosition(HbI.clone().multiply(bindW[bones.indexOf(b)]));   // position de liaison dans le repère de la main
+      // chaînes de doigts (3 phalanges + bout)
+      const chaines = H.children.filter(b => b.isBone && bones.includes(b)).map(b => { const c = [b]; while (c.length < 4) { const n = c[c.length - 1].children.find(x => x.isBone); if (!n) break; c.push(n); } return c; }).filter(c => c.length >= 4);
+      if (chaines.length !== 5) return null;
+      const bases = chaines.map(c => rel(c[0])), moy = bases.reduce((a, b) => a.add(b.clone()), V()).multiplyScalar(1 / 5), axe = moy.clone().normalize();
+      const ip = bases.map((b, i) => [i, b.dot(axe)]).sort((a, b) => a[1] - b[1])[0][0];   // pouce : base la plus proche du poignet
+      const autres = [0, 1, 2, 3, 4].filter(i => i !== ip), cote = bases[ip].clone().addScaledVector(axe, -bases[ip].dot(axe));
+      autres.sort((a, b) => bases[b].dot(cote) - bases[a].dot(cote));   // index, majeur, annulaire, auriculaire
+      const ordre = [ip].concat(autres), NOM = ['pouce', 'index', 'majeur', 'annulaire', 'auriculaire'];
+      // normale de la paume (repère de la main) : côté vers lequel les doigts se plient = côté du bout du pouce
+      const I1 = bases[autres[0]], P1 = bases[autres[3]], M1 = bases[autres[1]];
+      const N = new THREE.Vector3().crossVectors(I1.clone().sub(P1), M1).normalize();
+      if (rel(chaines[ip][3]).sub(M1).dot(N) < 0) N.negate();
+      // sommets de la main et des doigts, dans le repère de liaison de l'os qui les porte le plus
+      const id = new Map(); id.set(hi, -1); ordre.forEach((c, k) => chaines[c].slice(0, 3).forEach((b, j) => id.set(bones.indexOf(b), k * 3 + j)));
+      const sommets = Array.from({ length: 16 }, () => []), v = V();
+      for (let i = 0; i < pos.count; i++) {
+        let best = -2, bw = 0, tot = 0; for (let k = 0; k < 4; k++) { const b = si.getComponent(i, k), w = sw.getComponent(i, k); if (!id.has(b)) continue; tot += w; if (w > bw) { bw = w; best = id.get(b); } }
+        if (tot < 0.5 || best < -1) continue;
+        const bi = best < 0 ? hi : bones.indexOf(chaines[ordre[Math.floor(best / 3)]][best % 3]);
+        v.fromBufferAttribute(pos, i).applyMatrix4(bind).applyMatrix4(inv[bi]); sommets[best + 1].push(v.clone());
+      }
+      // place de la main sur l'arme (repère de l'arme) : axe poignet → jointure du majeur A, normale de la paume N, jointure
+      // du majeur au point « mcp » (voir PRISE) ; l'échelle est celle de la main dans le jeu
+      f.body.updateMatrixWorld(true); const sH = V(); Wi.clone().multiply(H.matrixWorld).decompose(V(), new THREE.Quaternion(), sH);
+      const Pc = PRISE[side === 'Right' ? 'R' : 'L'], base = (a, n) => { const x = a.clone().normalize(), y = n.clone().addScaledVector(x, -n.dot(x)).normalize(); return new THREE.Matrix4().makeBasis(x, y, new THREE.Vector3().crossVectors(x, y)); };
+      const Rm = base(new THREE.Vector3().fromArray(Pc.A), new THREE.Vector3().fromArray(Pc.N)).multiply(base(M1.clone(), N).transpose());
+      const qR = new THREE.Quaternion().setFromRotationMatrix(Rm), mcpW = M1.clone().multiply(sH).applyQuaternion(qR);
+      const Hrel = new THREE.Matrix4().compose(new THREE.Vector3().fromArray(Pc.mcp).sub(mcpW), qR, sH);
+      // phalanges : repères de liaison locaux, axe de flexion local
+      const os = ordre.map((c, k) => chaines[c].slice(0, 3).map((b, j) => {
+        const lb = locBind(b), d = rel(chaines[c][j + 1]).sub(rel(b)).normalize();
+        let ax = new THREE.Vector3().crossVectors(d, N);
+        if (k === 0) ax.multiplyScalar(0.5).addScaledVector(new THREE.Vector3().crossVectors(d, M1).normalize(), 0.5);   // pouce : vers la paume et en travers
+        ax.normalize();
+        const qhb = new THREE.Quaternion(); HbI.clone().multiply(bindW[bones.indexOf(b)]).decompose(V(), qhb, V());   // orientation de liaison de l'os / main
+        return { b, nom: b.name, lb, ax: ax.applyQuaternion(qhb.invert()), som: sommets[k * 3 + j + 1] };
+      }));
+      const T = new THREE.Matrix4(), Q = new THREE.Quaternion(), p = V(), qa = new THREE.Quaternion();
+      const Nb = os.map(o3 => { const q = new THREE.Quaternion(); HbI.clone().multiply(bindW[bones.indexOf(o3[0].b)]).decompose(V(), q, V()); return N.clone().applyQuaternion(q.invert()); });   // normale de la paume dans le repère de la 1re phalange
+      const bout = ordre.map(c => locBind(chaines[c][3]).t);
+      // pose d'un doigt : th = [flexion 1, 2, 3, écartement 1] ; rotation locale de chaque phalange
+      const qLoc = (k, j, th) => { const o = os[k][j]; Q.copy(o.lb.q); if (j === 0 && th[3]) Q.multiply(qa.setFromAxisAngle(Nb[k], th[3])); return Q.multiply(qa.setFromAxisAngle(o.ax, th[j])).clone(); };
+      const fk = (k, th) => { const ms = []; let m = Hrel.clone(); os[k].forEach((o, j) => { m = m.clone().multiply(T.compose(o.lb.t, qLoc(k, j, th), o.lb.s)); ms.push(m); }); return ms; };
+      const dSeg = (k, th, ms) => { ms = ms || fk(k, th); return [0, 1, 2].map(j => { let d = 1e9; for (const u of os[k][j].som) d = Math.min(d, sdArme(p.copy(u).applyMatrix4(ms[j]))); return d; }); };
+      const dmin = (k, th) => Math.min(...dSeg(k, th));
+      // 1. contact de la paume (option) : glissée le long de sa normale (repère de l'arme) jusqu'à 2 mm d'enfoncement
+      const nW = N.clone().transformDirection(Hrel), paume = sommets[0].filter(u => u.clone().normalize().dot(N) > 0.15);
+      const gp = (t) => { let d = 1e9; for (const u of paume) d = Math.min(d, sdArme(p.copy(u).applyMatrix4(Hrel).addScaledVector(nW, t))); return d; };
+      let lo = 0, hi2 = 0.1; if (Pc.glisse && gp(-0.1) > -0.002) { lo = -0.1; for (let it = 0; it < 30; it++) { const mid = (lo + hi2) / 2; if (gp(mid) > -0.002) lo = mid; else hi2 = mid; } }
+      const glisse = Math.max(-0.05, Math.min(0.05, lo)); Hrel.premultiply(new THREE.Matrix4().makeTranslation(nW.x * glisse, nW.y * glisse, nW.z * glisse));
+      // 2a. fermeture jusqu'au contact (une phalange qui touche fige celles d'avant, les suivantes continuent)
+      const fermer = (k, vit, max) => {
+        const th = [0, 0, 0, 0], fige = [false, false, false];
+        for (let it = 0; it < 120 && fige.some(x => !x); it++) {
+          const av = th.slice(); for (let j = 0; j < 3; j++) if (!fige[j]) { th[j] = Math.min(max[j], th[j] + vit[j] * 0.025); if (th[j] >= max[j]) fige[j] = true; }
+          const d = dSeg(k, th);
+          for (let j = 2; j >= 0; j--) if (d[j] < 0.0015) { for (let i = 0; i <= j; i++) { if (!fige[i] && d[j] < -0.003) th[i] = av[i]; fige[i] = true; } break; }
+        }
+        return th;
+      };
+      // 2b. bout du doigt (articulation du bout) amené au point « cible » sans entrer dans l'arme : recherche en grille puis
+      // descente par coordonnées sur [flexion 1, 2, 3, écartement]
+      const cibler = (k, cible, o) => {
+        const C = new THREE.Vector3().fromArray(cible), cout = (th) => { const ms = fk(k, th), d = Math.min(...dSeg(k, th, ms));
+          return p.copy(bout[k]).applyMatrix4(ms[2]).distanceTo(C) + 6 * Math.max(0, -d - 0.002) + (o.reg || 0.004) * (Math.abs(th[1]) + Math.abs(th[2])) + 0.004 * Math.abs(th[3]); };
+        let best = null;
+        for (let a = o.f1[0]; a <= o.f1[1]; a += 0.1) for (let e = -0.6; e <= 0.6; e += 0.1) for (let c = 0; c <= o.f2; c += 0.12) { const th = [a, c, c * 0.8, e], v = cout(th); if (!best || v < best[0]) best = [v, th]; }
+        let th = best[1], v = best[0];
+        for (const st of [0.05, 0.02, 0.008]) for (let it = 0; it < 12; it++) { let mieux = false; for (let i = 0; i < 4; i++) for (const sg of [-1, 1]) { const t2 = th.slice(); t2[i] += sg * st; if (i < 3 && t2[i] < -0.3) continue; const v2 = cout(t2); if (v2 < v) { v = v2; th = t2; mieux = true; } } if (!mieux) break; }
+        return th;
+      };
+      const R = side === 'Right', res = { Hrel, glisse, N, ordre: ordre.map(c => chaines[c][0].name), doigts: [], dmin: [], err: [] };
+      const quats = (k, th) => os[k].map((o, j) => qLoc(k, j, th));
+      os.forEach((o3, k) => {
+        const c = Pc.cibles && Pc.cibles[k];
+        const th = c ? cibler(k, c.p, c) : fermer(k, [1, 1.15, 0.85], [1.6, 1.9, 1.4]);
+        res.doigts.push(o3.map((o, j) => [o.b.name, qLoc(k, j, th)])); (res.th || (res.th = [])).push(th);
+        res.dmin.push(+(dmin(k, th) * 100).toFixed(2));
+        if (c) res.err.push(+(p.copy(bout[k]).applyMatrix4(fk(k, th)[2]).distanceTo(new THREE.Vector3().fromArray(c.p)) * 100).toFixed(2));
+      });
+      res.paume = +(gp(0) * 100).toFixed(2); res.bouts = os.map((o3, k) => p.copy(bout[k]).applyMatrix4(fk(k, k < 5 ? (res.th || [])[k] || [0, 0, 0, 0] : 0)[2]).toArray());
+      if (R && Pc.detente) { const th = cibler(1, Pc.detente.p, Pc.detente); res.detente = quats(1, th); res.detenteErr = +(p.copy(bout[1]).applyMatrix4(fk(1, th)[2]).distanceTo(new THREE.Vector3().fromArray(Pc.detente.p)) * 100).toFixed(2); }
+      out[side === 'Right' ? 'R' : 'L'] = res;
+    }
+    return out;
+  }
   // Correction d'orientation par animation : de quel angle faut-il tourner le corps pour que l'ARME (main droite → main gauche)
   // pointe droit devant (+Z, la direction « face » du jeu) ? Mesurée une fois au chargement.
   // AIM : animations où l'arme doit viser droit devant, et l'instant (fraction) où la mesurer ; null = moyenne sur la boucle.
@@ -861,6 +1001,24 @@
       // mode : 'deux' (prise à deux mains, voir ci-dessus) ; 'droite' / 'gauche' : l'arme reste solidaire de cette main, dans
       // la position relative qu'elle avait à la dernière prise à deux mains (rechargement : la main gauche va au chargeur ;
       // lancer : l'arme pend à la main gauche) ; 'sol' : posée à plat au sol près de la main droite (soldat à terre) puis figée.
+      // Prise (voir calculerPrise) : mains amenées à leur place sur le fusil (IK des bras, orientation imposée) si « mains »,
+      // doigts posés sur l'arme ; k : poids (fondu)
+      tenir(k, mains, seule) {
+        const P = M.prise; if (!P || k < 0.01 || S.sansPrise) return;
+        const B = this.bones, tp = V(), tq = new THREE.Quaternion(), ts = V(); weapon.updateMatrixWorld(true);
+        const ob = this.osDoigts || (this.osDoigts = {}), os = (n) => ob[n] || (ob[n] = body.getObjectByName(n));
+        for (const [h, arm, fore, hand] of [['R', B.ra, B.rf, B.rh], ['L', B.la, B.lf, B.lh]]) {
+          const D = P[h]; if (!D || !hand || (seule && seule !== h)) continue;
+          if (mains && arm && fore) {
+            new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, D.Hrel).decompose(tp, tq, ts);
+            ik(arm, fore, hand, tp.sub(WP(hand)).multiplyScalar(k));
+            hand.quaternion.copy(WQ(hand.parent).invert().multiply(WQ(hand).slerp(tq, k))); hand.updateMatrixWorld(true);
+          }
+          D.doigts.forEach((ch, d) => ch.forEach(([n, q], j) => { const b = os(n); if (!b) return; mod(b);
+            const qq = h === 'R' && d === 1 && D.detente && this.detK > 0.01 ? q.clone().slerp(D.detente[j], this.detK) : q;
+            b.quaternion.slerp(qq, k); b.updateMatrixWorld(true); }));
+        }
+      },
       placeWeapon(twoHands, recoil, mode) {
         const B = this.bones, rh = B.rh, lh = B.lh; if (!rh) return;
         mode = mode || (twoHands ? 'deux' : 'droite');
@@ -939,6 +1097,11 @@
           }
         }
         weapon.position.copy(pos).addScaledVector(barrel, -(recoil || 0) * 0.04);
+        // mains à leur place sur le fusil, doigts refermés dessus (voir calculerPrise) ; index sur la détente en tir
+        { const dt = Math.max(0, Math.min(0.1, this.t - (this.tPrise === undefined ? this.t : this.tPrise))); this.tPrise = this.t; const kk = dt > 0 ? Math.min(1, dt * 8) : 1;
+          this.priseK = (this.priseK === undefined ? 1 : this.priseK) + ((two ? 1 : 0) - (this.priseK === undefined ? 1 : this.priseK)) * kk;
+          this.detK = (this.detK || 0) + (((recoil || 0) > 0.02 || ((this.epK || 0) > 0.6 && this.regard) ? 1 : 0) - (this.detK || 0)) * kk;
+          if (two) this.tenir(this.priseK, true); }
         if (two) {   // mémoire de la prise pour les modes à une main
           weapon.updateMatrixWorld(true);
           this.handLocal.droite = new THREE.Matrix4().copy(rh.matrixWorld).invert().multiply(weapon.matrixWorld);
@@ -946,6 +1109,12 @@
         }
       },
     };
+    // prise de l'arme (une fois par modèle), mesurée sur la visée
+    if (M.prise === undefined && M.clips.Rifle_Aim_Turn_Right && weapon.isMeshy) {
+      M.prise = null;
+      try { f.play('Rifle_Aim_Turn_Right', { time: 0, fade: 0 }); f.update(0); body.updateMatrixWorld(true); f.placeWeapon(true, 0, 'deux'); M.prise = calculerPrise(f, M); } catch (e) { console.warn('soldat 3D (prise) :', e); }
+      if (actions.Rifle_Aim_Turn_Right) actions.Rifle_Aim_Turn_Right.stop(); f.clip = null; f.epK = 0;
+    }
     // position « en bandoulière » = celle de la garde basse, mémorisée par rapport au torse (Spine2)
     if (M.clips.Garde_Basse && f.bones.spine) {
       f.play('Garde_Basse', { time: 0 }); f.update(0); body.updateMatrixWorld(true); f.placeWeapon(true, 0, 'deux'); weapon.updateMatrixWorld(true);

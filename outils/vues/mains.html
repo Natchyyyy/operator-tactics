@@ -1,0 +1,139 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Mains sur l'arme</title><style>body{margin:0;background:#2a3036;font:11px monospace;color:#ddd}canvas{display:block}#t{white-space:pre;padding:4px}</style></head><body>
+<script src="../../web/three.min.js"></script><script src="../../web/figure.js"></script><script src="../../web/gltf.js"></script><script src="../../web/modeles/soldat.js"></script><script src="../../web/modeles/gign.js"></script><script src="../../web/modeles/decor.js"></script><script src="../../web/modeles3d.js"></script><script src="../../web/soldat3d.js"></script>
+<script>
+// Gros plans des mains sur l'arme, pour chaque pose où le fusil est tenu à deux mains. Une ligne par pose :
+//  corps 3/4 avant · profil droit · main droite (côté droit) · main droite (dessous / avant) · main gauche (côté gauche) · main gauche (dessous)
+// + mesures : pour chaque doigt, distance signée (cm) entre les sommets du doigt et la surface du fusil (< 0 : dans l'arme),
+// enfoncement maximal de la main, distance de la paume.
+// ?m=gign|soldat ; ?poses=gb,vise,... ; ?c=160 (taille d'une case) ; ?ph=0.25 (phase des marches) ; ?num=1 : mesures seules
+const q = new URLSearchParams(location.search), MOD = q.get('m') || 'gign', C = +(q.get('c') || 160), PH = +(q.get('ph') || 0.25);
+const POSES = {
+  gb: { nom: 'garde basse', clip: 'Garde_Basse' },
+  vise: { nom: 'visée arrêt', clip: 'Rifle_Aim_Turn_Right' },
+  mvise: { nom: 'marche visée', marche: ['Walk_Aim_Haut', 'Pas_Avant_Aim', 1.1] },
+  mbas: { nom: 'marche basse', marche: ['Walk_Low_Haut', 'Pas_Avant_Low', 1.25] },
+  cvise: { nom: 'course visée', marche: ['Run_and_Shoot_Haut', 'Pas_Avant_Course', 2.8] },
+  cbas: { nom: 'course basse', marche: ['Run_Low_Haut', 'Pas_Avant_Course', 2.8] },
+  sprint: { nom: 'sprint', loco: ['Run_Low', 4.2] },
+  acc: { nom: 'accroupi', clip: 'Kneeling_Reload', t: 0.06 },
+  macc: { nom: 'marche accr.', loco: ['Cautious_Crouch_Walk_Forward', 0.9] },
+  mcote: { nom: 'pas côté visée', marche: ['Walk_Aim_Haut', 'Pas_Avant_Aim', 1.1], ecart: Math.PI / 2 },
+};
+const LISTE = (q.get('poses') || 'gb,vise,mvise,mbas,cvise,cbas,acc,macc').split(',');
+const ISO = { centre: new THREE.Vector3(0, -99, 0), u: { value: 1e3 }, set rayon(v) { this.u.value = v; } };
+const DOIGTS = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'];
+OT.Soldat3D.whenReady(() => {
+  if (q.get('sans') === '1') OT.Soldat3D.sansPrise = true;
+  const NUM = q.get('num') === '1', W = C * 8, H = C * LISTE.length;
+  const r = NUM ? null : new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  if (r) { r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; r.autoClear = false; document.body.prepend(r.domElement); }
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(0x3a4248);
+  sc.add(new THREE.HemisphereLight(0xffffff, 0x606060, 2.6)); const d = new THREE.DirectionalLight(0xfff0d8, 2.4); d.position.set(3, 5, 4); sc.add(d);
+  const d2 = new THREE.DirectionalLight(0xd8e8ff, 1.0); d2.position.set(-3, -1, -2); sc.add(d2);
+  const V = () => new THREE.Vector3(), WP = (o) => o.getWorldPosition(V());
+  const lignes = [], out = {};
+  LISTE.forEach((pk, row) => {
+    const P = POSES[pk]; if (!P) return;
+    const f = OT.Soldat3D.create({ modele: MOD, uniform: 0x4a4e55, weapon: 'carbine' }); sc.add(f.group);
+    if (q.get('transp') === '1') f.weapon.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.45; o.material.depthWrite = false; o.renderOrder = 5; } });
+    f.regard = null;
+    f.body.traverse(o => { if (o.isSkinnedMesh) { o.material = o.material.clone(); o.material.onBeforeCompile = (sh) => { sh.uniforms.uIsoC = { value: ISO.centre }; sh.uniforms.uIsoR = ISO.u;
+      sh.vertexShader = 'varying vec3 vIsoW;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vIsoW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = 'uniform vec3 uIsoC; uniform float uIsoR; varying vec3 vIsoW;\n' + sh.fragmentShader.replace('void main() {', 'void main() { if (distance(vIsoW, uIsoC) > uIsoR) discard;'); }; o.material.customProgramCacheKey = () => 'iso'; } });
+    const step = (dt) => {
+      if (P.marche) f.marche(P.ecart || 0, P.marche[2], dt, P.marche[0], P.marche[1]);
+      else if (P.loco) f.play(P.loco[0], { speed: P.marche ? 1 : P.loco[1] / ((f.loco[P.loco[0]]) || 1) });
+      else f.play(P.clip, { time: P.t || 0, fade: 0 });
+      f.update(dt); f.placeWeapon(true, 0, 'deux');
+    };
+    for (let k = 0; k < 75; k++) step(1 / 30);
+    if (P.marche) { let g = 0; while (Math.abs(((f.ph - PH) % 1 + 1) % 1) > 0.012 && g++ < 600) step(1 / 240); }
+    if (P.loco) { const a = f.mixer.existingAction(f.clips[P.loco[0]]); let g = 0; while (a && Math.abs(((a.time / a.getClip().duration - PH) % 1 + 1) % 1) > 0.015 && g++ < 600) step(1 / 240); }
+    f.group.updateMatrixWorld(true);
+    const m = mesure(f); out[pk] = m;
+    { f.weapon.updateMatrixWorld(true); const B = f.bones, inv = f.weapon.matrixWorld.clone().invert(), wqi = f.weapon.getWorldQuaternion(new THREE.Quaternion()).invert();
+      const loc = (h, mid) => WP(h).lerp(WP(mid), 0.6).applyMatrix4(inv), ax = (h, v) => v.clone().applyQuaternion(h.getWorldQuaternion(new THREE.Quaternion())).applyQuaternion(wqi);
+      const fmt = (v) => '(' + v.toArray().map(x => (x * 100).toFixed(1)).join(',') + ')', fd = (v) => '(' + v.toArray().map(x => x.toFixed(2)).join(',') + ')';
+      m.info = 'pR' + fmt(loc(B.rh, B.rm)) + ' yR' + fd(ax(B.rh, new THREE.Vector3(0, 1, 0))) + ' xR' + fd(ax(B.rh, new THREE.Vector3(1, 0, 0))) + '  pL' + fmt(loc(B.lh, B.lm)) + ' yL' + fd(ax(B.lh, new THREE.Vector3(0, 1, 0))) + ' xL' + fd(ax(B.lh, new THREE.Vector3(1, 0, 0))); }
+    lignes.push(P.nom.padEnd(15) + ' ' + ['R', 'L'].map(h => h + ' enf ' + m[h].enf.toFixed(1) + ' paume ' + m[h].paume.toFixed(1) + ' | ' + DOIGTS.map(x => x[0] + (m[h][x] === undefined ? '-' : m[h][x].toFixed(1))).join(' ')).join('  ||  ') + '\n     ' + m.info);
+    if (r) {
+      sc.children.forEach(o => { if (o.isGroup) o.visible = o === f.group; });
+      const B = f.bones, pr = WP(B.rh).lerp(WP(B.rm), 0.6), pl = WP(B.lh).lerp(WP(B.lm), 0.6), g = WP(f.group);
+      const fw = new THREE.Vector3(0, 0, 1).applyQuaternion(f.group.getWorldQuaternion(new THREE.Quaternion()));
+      const lat = new THREE.Vector3(1, 0, 0).applyQuaternion(f.group.getWorldQuaternion(new THREE.Quaternion()));   // gauche du soldat
+      const hy = WP(B.spine).y;
+      // repère de l'arme : caméras autour de la poignée (gripPt) et du garde-main (forePt), corps découpé autour de la main
+      f.weapon.updateMatrixWorld(true);
+      const wq = f.weapon.getWorldQuaternion(new THREE.Quaternion()), WX = (x, y, z) => new THREE.Vector3(x, y, z).applyQuaternion(wq);
+      const wUp = WX(0, 1, 0), gp = pr, fp = pl;
+      const D = 0.5;
+      const vues = [
+        [g.clone().addScaledVector(fw, 3).addScaledVector(lat, -1.6).setY(hy + 0.4), g.clone().setY(hy - 0.25), 32, null],
+        [g.clone().addScaledVector(lat, -3.2).setY(hy + 0.1), g.clone().addScaledVector(fw, 0.25).setY(hy - 0.1), 26, null],
+        [gp.clone().add(WX(-D, 0.03, 0)), gp, 32, pr, wUp],
+        [gp.clone().add(WX(D, 0.03, 0)), gp, 32, pr, wUp],
+        [gp.clone().add(WX(-0.1, -D * 0.8, 0.2)), gp, 32, pr, WX(0, 0, 1)],
+        [fp.clone().add(WX(D, 0.03, 0)), fp, 32, pl, wUp],
+        [fp.clone().add(WX(-D, 0.03, 0)), fp, 32, pl, wUp],
+        [fp.clone().add(WX(0.05, -D, -0.05)), fp, 32, pl, WX(0, 0, 1)],
+      ];
+      const LABO = q.get('labo');   // ?labo=R|L : 8 vues orthogonales (repère de l'arme) de cette main, autour de sa place
+      if (LABO) { const c = LABO === 'R' ? f.weapon.localToWorld(new THREE.Vector3(-0.01, -0.04, -0.15)) : f.weapon.localToWorld(new THREE.Vector3(0, 0.06, 0.15)), iso = LABO === 'R' ? pr : pl, Dl = 0.55;
+        vues.length = 0; for (const [d, u] of [[[-1, 0, 0], [0, 1, 0]], [[1, 0, 0], [0, 1, 0]], [[0, 0, 1], [0, 1, 0]], [[0, 0, -1], [0, 1, 0]], [[0, -1, 0], [0, 0, 1]], [[0, 1, 0], [0, 0, 1]], [[-0.7, -0.5, 0.5], [0, 1, 0]], [[0.7, -0.5, 0.5], [0, 1, 0]]])
+          vues.push([c.clone().add(WX(...d).normalize().multiplyScalar(Dl)), c, +(q.get('fov') || 26), iso, WX(...u)]); }
+      if (q.get('formes') === '1' && !f.formes) { const gF = new THREE.Group(); for (const F of OT.Soldat3D.FORMES) { const m = new THREE.Mesh(new THREE.BoxGeometry(F.h[0] * 2, F.h[1] * 2, F.h[2] * 2), new THREE.MeshBasicMaterial({ color: 0x00ff80, wireframe: true, depthTest: false })); m.position.fromArray(F.c); if (F.rx) m.rotation.x = F.rx; m.renderOrder = 10; gF.add(m); } f.weapon.add(gF); f.formes = gF; }
+      vues.forEach(([p, t, fov, iso, upv], i) => { const cam = new THREE.PerspectiveCamera(fov, 1, 0.02, 50); cam.position.copy(p); cam.up.copy(upv || new THREE.Vector3(0, 1, 0)); cam.lookAt(t);
+        ISO.centre.copy(iso || new THREE.Vector3(0, -99, 0)); ISO.rayon = iso ? +(q.get('iso') || 0.15) : 1e3;
+        const y = H - (row + 1) * C; r.setViewport(i * C, y, C, C); r.setScissor(i * C, y, C, C); r.setScissorTest(true); r.render(sc, cam); });
+      f.group.visible = false;
+    }
+  });
+  const PR = (OT.Soldat3D.modeles[MOD] || {}).prise; const prInfo = PR ? ['R', 'L'].map(h => h + ' glisse ' + (PR[h].glisse * 100).toFixed(1) + ' dmin ' + PR[h].dmin.join(',') + ' err ' + PR[h].err.join(',') + (PR[h].detenteErr !== undefined ? ' detErr ' + PR[h].detenteErr : '') + ' ordre ' + PR[h].ordre.map(n => n.replace(/mixamorig:?/, '')).join(',')).join('\n') : 'pas de prise';
+  document.getElementById('t').textContent = prInfo + '\n' + MOD + ' (cm ; doigt : distance min. de ses sommets à l\'arme, < 0 = enfoncé)\n' + lignes.join('\n');
+  window.MESURES = out; window.PRET = true;
+});
+// --- mesures -------------------------------------------------------------------------------------------------------
+// triangles du fusil (monde), point le plus proche (Ericson), signe par la normale du triangle
+function tris(weapon) {
+  const T = []; weapon.updateMatrixWorld(true);
+  weapon.traverse(o => { if (!o.isMesh || !o.visible) return; const g = o.geometry, pos = g.attributes.position, idx = g.index ? g.index.array : null, n = idx ? idx.length : pos.count;
+    for (let i = 0; i < n; i += 3) { const v = [0, 1, 2].map(k => new THREE.Vector3().fromBufferAttribute(pos, idx ? idx[i + k] : i + k).applyMatrix4(o.matrixWorld));
+      const nr = new THREE.Vector3().crossVectors(v[1].clone().sub(v[0]), v[2].clone().sub(v[0])); if (nr.lengthSq() < 1e-14) continue; nr.normalize();
+      const bmin = v[0].clone().min(v[1]).min(v[2]), bmax = v[0].clone().max(v[1]).max(v[2]); T.push({ v, nr, bmin, bmax }); } });
+  return T;
+}
+const _t = new THREE.Triangle(), _c = new THREE.Vector3();
+function sdist(T, p, rmax) {
+  let best = 1e9, bt = null, bc = null;
+  for (const t of T) { if (p.x < t.bmin.x - rmax || p.x > t.bmax.x + rmax || p.y < t.bmin.y - rmax || p.y > t.bmax.y + rmax || p.z < t.bmin.z - rmax || p.z > t.bmax.z + rmax) continue;
+    _t.set(t.v[0], t.v[1], t.v[2]); _t.closestPointToPoint(p, _c); const dd = _c.distanceToSquared(p); if (dd < best) { best = dd; bt = t; bc = _c.clone(); } }
+  if (!bt) return rmax;
+  const dd = Math.sqrt(best); return p.clone().sub(bc).dot(bt.nr) < 0 ? -dd : dd;
+}
+function mesure(f) {
+  const sk = f.skinned, T = tris(f.weapon), g = sk.geometry, pos = g.attributes.position, si = g.attributes.skinIndex, sw = g.attributes.skinWeight, bones = sk.skeleton.bones;
+  sk.skeleton.update && sk.updateMatrixWorld(true);
+  const res = {};
+  for (const [h, side] of [['R', 'Right'], ['L', 'Left']]) {
+    const groupe = {}; const re = new RegExp(side + 'Hand(' + DOIGTS.join('|') + ')?');
+    const bid = bones.map(b => { const m = re.exec(b.name); return m ? (m[1] || 'Hand') : null; });
+    const handB = bones.find(b => new RegExp(side + 'Hand$').test(b.name)), hp = handB.getWorldPosition(new THREE.Vector3());
+    const o = { enf: 0, paume: 0 };
+    const v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      let w = {}, tot = 0; for (let k = 0; k < 4; k++) { const b = bid[si.getComponent(i, k)], x = sw.getComponent(i, k); if (b && x > 0) { w[b] = (w[b] || 0) + x; tot += x; } }
+      if (tot < 0.5) continue; let best = null; for (const b in w) if (!best || w[b] > w[best]) best = b;
+      v.fromBufferAttribute(pos, i); sk.applyBoneTransform(i, v); v.applyMatrix4(sk.matrixWorld);
+      if (v.distanceTo(hp) > 0.3) continue;
+      (groupe[best] || (groupe[best] = [])).push(v.clone());
+    }
+    let enf = 0;
+    for (const b in groupe) { let mn = 1e9; const pts = groupe[b]; for (let i = 0; i < pts.length; i += (b === 'Hand' ? 2 : 1)) { const s = sdist(T, pts[i], 0.06); mn = Math.min(mn, s); } if (b !== 'Hand') o[b] = mn * 100; else o.main = mn * 100; enf = Math.min(enf, mn); }
+    o.enf = -enf * 100;
+    const B = f.bones, palm = h === 'R' ? B.rh.getWorldPosition(new THREE.Vector3()).lerp(B.rm.getWorldPosition(new THREE.Vector3()), 0.6) : B.lh.getWorldPosition(new THREE.Vector3()).lerp(B.lm.getWorldPosition(new THREE.Vector3()), 0.6);
+    o.paume = sdist(T, palm, 0.2) * 100;
+    res[h] = o;
+  }
+  return res;
+}
+</script><div id="t"></div></body></html>

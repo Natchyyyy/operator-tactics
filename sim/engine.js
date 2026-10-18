@@ -1,7 +1,7 @@
 // Moteur de combat OPERATOR TACTICS — simulation déterministe (graine), pas de temps fixe (0,1 s).
 // Chaque opérateur perçoit, décide et agit individuellement. Le résultat découle des événements simulés.
 (function (root, deps) {
-  const { RNG, DATA, GameMap, MAPS } = deps;
+  const { RNG, DATA, GameMap, MAPS, segmentHitsBox } = deps;
   const { WEAPONS, ARMORS, ROLES, OPERATORS, ORDERS, TACTICS, SYNERGIES, WOUND, GRENADES, CONDITIONS, ATTACHMENTS } = DATA;
   const SYNERGY_BY_ID = Object.fromEntries(SYNERGIES.map(s => [s.id, s]));
 
@@ -325,9 +325,12 @@
       if (this.alliesOf(u).some(a => a.alive && Math.hypot(a.x - k.x, a.z - k.z) < 5)) continue;
       if (!this.map.hasLOS(u.x, 2.3, u.z, k.x, 1.4, k.z)) continue;                // un mur haut empêche la trajectoire
       let sc = 1;
-      for (const { unit: o, k: ko } of known) if (o !== e && this.t - ko.t < 3 && Math.hypot(ko.x - k.x, ko.z - k.z) < 4) sc += 1;   // groupe
+      // groupe : chaque autre ennemi à moins de 4 m compte ; on vise le milieu du groupe (des soldats collés prennent tous les éclats)
+      let gx = k.x, gz = k.z, gn = 1;
+      for (const { unit: o, k: ko } of known) if (o !== e && this.t - ko.t < 3 && Math.hypot(ko.x - k.x, ko.z - k.z) < 4) { sc += 1; gx += ko.x; gz += ko.z; gn++; }
       if (this.zone && this.inZone(k)) sc += 0.5;                                      // déloger l'adversaire de la zone
-      if (sc > bs) { bs = sc; best = { x: k.x, z: k.z, d, e }; }
+      if (gn > 1) { gx /= gn; gz /= gn; if (Math.hypot(gx - u.x, gz - u.z) < 8 || this.alliesOf(u).some(a => a.alive && Math.hypot(a.x - gx, a.z - gz) < 5)) { gx = k.x; gz = k.z; } }
+      if (sc > bs) { bs = sc; best = { x: gx, z: gz, d: Math.hypot(gx - u.x, gz - u.z), e }; }
     }
     if (!best || (bs < 2 && !this.rng.chance(0.35))) return false;                     // un seul ennemi : pas systématique
     this.stop(u); u.state = 'throw'; u.stance = 'stand'; u.facing = Math.atan2(best.z - u.z, best.x - u.x);
@@ -448,8 +451,8 @@
       if (this.alliesOf(u).some(a => a.alive && ((a.zoneSpot && Math.hypot(a.zoneSpot.x - cp.x, a.zoneSpot.z - cp.z) < 2.5) || (a.post && Math.hypot(a.post.x - cp.x, a.post.z - cp.z) < 2.5)))) continue;
       let vis = 0; for (const p of ring) if (this.map.hasLOS(cp.x, EYE.stand, cp.z, p.x, CHEST.stand, p.z)) vis++;
       if (vis < 2) continue;
-      const sc = vis + (this.map.coverFrom(cp.x, cp.z, facePos.x, facePos.z, true) ? 2 : 0) - Math.hypot(cp.x - u.x, cp.z - u.z) * 0.08 + this.rng.next() * 0.5;
-      if (sc > bs) { bs = sc; best = cp; }
+      const h = this.hug(cp), sc = vis + (this.coverAt(h.hx, h.hz, facePos.x, facePos.z, true) ? 2 : 0) - Math.hypot(cp.x - u.x, cp.z - u.z) * 0.08 + this.rng.next() * 0.5;
+      if (sc > bs) { bs = sc; best = { x: h.hx, z: h.hz }; }
     }
     return best ? { x: best.x, z: best.z, flanc: true } : null;
   };
@@ -470,8 +473,8 @@
       for (const cp of this.map.coverPoints) {
         if (Math.hypot(cp.x - z.x, cp.z - z.z) > z.r - 0.6) continue;
         if (this.alliesOf(u).some(a => a.alive && a.zoneSpot && Math.hypot(a.zoneSpot.x - cp.x, a.zoneSpot.z - cp.z) < 2)) continue;
-        const sc = (this.map.coverFrom(cp.x, cp.z, facePos.x, facePos.z, true) ? 3 : 0) - Math.hypot(cp.x - u.x, cp.z - u.z) * 0.05 + this.rng.next() * 0.5;
-        if (sc > bs) { bs = sc; best = cp; }
+        const h = this.hug(cp), sc = (this.coverAt(h.hx, h.hz, facePos.x, facePos.z, true) ? 3 : 0) - Math.hypot(cp.x - u.x, cp.z - u.z) * 0.05 + this.rng.next() * 0.5;
+        if (sc > bs) { bs = sc; best = { x: h.hx, z: h.hz }; }
       }
       if (!best) {
         const side = Math.sign(this.teams[u.team].spawn.x - z.x) || 1;
@@ -485,7 +488,7 @@
     }
     if (Math.hypot(u.zoneSpot.x - u.x, u.zoneSpot.z - u.z) > 1.0 && this.setGoal(u, u.zoneSpot.x, u.zoneSpot.z, 'advance')) { u.state = 'tozone'; u.stance = 'stand'; return; }
     this.stop(u); u.state = 'capture'; u.facing = Math.atan2(facePos.z - u.z, facePos.x - u.x);
-    u.stance = this.map.coverFrom(u.x, u.z, facePos.x, facePos.z, false) ? 'crouch' : 'stand';
+    u.stance = this.coverAt(u.x, u.z, facePos.x, facePos.z, false) ? 'crouch' : 'stand';
   };
 
   // ---- Perception ------------------------------------------------------------------------
@@ -593,13 +596,68 @@
     }
     return best;
   };
+  // ---- Couvert LOCAL ------------------------------------------------------------------------------------------------
+  // map.coverFrom accepte n'importe quel obstacle sur le rayon, même une voiture à 20 m : un soldat se croyait « à couvert »
+  // en terrain nu. Un vrai couvert est un obstacle d'au moins 0,9 m, à moins de 1 m du soldat (bord de la boîte), qui coupe
+  // la ligne des yeux de la menace vers ses hanches ('partial' : le buste dépasse ; 'full' : caché même à hauteur visée).
+  const COVER_NEAR = 1.0, COVER_MIN_H = 0.9, HUG = 0.55;
+  const edgeDist = (x, z, o) => Math.hypot(Math.max(o.x - x, 0, x - (o.x + o.w)), Math.max(o.z - z, 0, z - (o.z + o.d)));
+  Battle.prototype.coverAt = function (x, z, tx, tz, standing) {
+    let best = null;
+    for (const o of this.map.obstacles) {
+      if (o.h < COVER_MIN_H || edgeDist(x, z, o) > COVER_NEAR) continue;
+      if (!segmentHitsBox(tx, EYE.stand, tz, x, 0.5, z, o)) continue;
+      if (segmentHitsBox(tx, EYE.stand, tz, x, standing ? CHEST.stand : CHEST.crouch, z, o)) return { level: 'full', obstacle: o };
+      best = { level: 'partial', obstacle: o };
+    }
+    return best;
+  };
+  // un obstacle assez haut tout contre soi (sans menace connue : s'accroupir contre lui a un sens, en terrain nu non)
+  Battle.prototype.besideObstacle = function (x, z) {
+    for (const o of this.map.obstacles) if (o.h >= COVER_MIN_H && edgeDist(x, z, o) <= COVER_NEAR) return o;
+    return null;
+  };
+  // La menace principale d'un opérateur : l'ennemi vu le plus proche, sinon celui qui vient de lui tirer dessus,
+  // sinon la position connue la plus proche. null si aucune.
+  Battle.prototype.mainThreat = function (u) {
+    let best = null, bd = Infinity;
+    for (const e of this.enemiesOf(u)) if (e.alive && u.visible.has(e.id)) { const d = dist2(u, e); if (d < bd) { bd = d; best = e; } }
+    if (best) return best;
+    if (this.t - u.lastShotByAt < 2 && u.lastShotBy && u.lastShotBy.alive) return u.lastShotBy;
+    for (const e of this.enemiesOf(u)) { const k = u.knowledge[e.id]; if (e.alive && k) { const d = Math.hypot(k.x - u.x, k.z - u.z); if (d < bd) { bd = d; best = k; } } }
+    return best;
+  };
+  // Point de couverture « plaqué » contre son obstacle (~0,55 m du bord) au lieu du centre de la case (jusqu'à 1,3 m) :
+  // on s'abrite contre la voiture, pas à un pas devant. Calculé une fois par point (les points sont recalculés par la carte
+  // quand un décor est détruit).
+  Battle.prototype.hug = function (cp) {
+    if (cp.hx === undefined) {
+      const o = cp.obstacle, nx = clamp(cp.x, o.x, o.x + o.w), nz = clamp(cp.z, o.z, o.z + o.d);
+      const dx = cp.x - nx, dz = cp.z - nz, L = Math.hypot(dx, dz);
+      cp.hx = cp.x; cp.hz = cp.z;
+      if (L > HUG + 0.02) {
+        const hx = nx + dx / L * HUG, hz = nz + dz / L * HUG;
+        if (!this.map.insideObstacle(hx, hz) && this.map.inBounds(hx, hz) && this.map.walkableSegment(cp.x, cp.z, hx, hz)) { cp.hx = hx; cp.hz = hz; }
+      }
+    }
+    return cp;
+  };
+  // Distance de combat préférée (m) : on s'installe à cette distance de l'adversaire, à couvert, plutôt que de lui courir
+  // dessus. Selon la portée de l'arme, un peu différente d'un opérateur à l'autre (les deux camps ne s'alignent pas).
+  const MIN_CLOSE = 8;            // en dessous, on ne s'approche pas volontairement (sauf assaut sur un adversaire cloué)
+  Battle.prototype.standoff = function (u) {
+    return clamp(u.weapon.range * 0.45, 12, 28) * (0.85 + 0.3 * ((u.idx * 0.618 + u.team * 0.31) % 1));
+  };
   // Le meilleur point de couverture contre une menace (ou une position connue), à distance raisonnable.
+  // Le point renvoyé est le point plaqué contre l'obstacle ; seul un VRAI couvert local face à la menace est retenu.
   Battle.prototype.findCover = function (u, threat, maxDist, opts) {
     opts = opts || {};
     let best = null, bestScore = -Infinity;
-    for (const cp of this.map.coverPoints) {
+    for (const c0 of this.map.coverPoints) {
+      if (Math.abs(c0.x - u.x) > maxDist + 1 || Math.abs(c0.z - u.z) > maxDist + 1) continue;
+      const h = this.hug(c0), cp = { x: h.hx, z: h.hz, obstacle: h.obstacle };
       const d = dist2(u, cp); if (d > maxDist) continue;
-      const cv = this.map.coverFrom(cp.x, cp.z, threat.x, threat.z, true);
+      const cv = this.coverAt(cp.x, cp.z, threat.x, threat.z, true);
       if (!cv) continue;
       // depuis ce point debout, puis-je voir la menace ? (sinon c'est une cachette, pas une position de tir)
       const canShoot = this.map.hasLOS(cp.x, EYE.stand, cp.z, threat.x, CHEST.stand, threat.z);
@@ -609,7 +667,7 @@
       let s = 10 - d * 0.6;
       if (cv.level === 'partial') s += 3; else s += 1.5;
       if (canShoot) s += opts.wantShoot === false ? 0 : 4;
-      if (opts.minRange && dt < opts.minRange) continue; // trop près de la menace pour cette arme
+      if (opts.minRange && dt < opts.minRange) continue; // trop près de la menace (arme, ou distance de combat voulue)
       if (opts.towards) s -= Math.hypot(cp.x - opts.towards.x, cp.z - opts.towards.z) * 0.25;
       if (opts.preferDist) s -= Math.abs(dt - opts.preferDist) * 0.08;
       // ne pas prendre un couvert occupé, visé ou réservé par un allié ; garder ses distances (une grenade, une rafale) ;
@@ -618,8 +676,8 @@
       for (const a of this.alliesOf(u)) {
         if (!a.alive) continue;
         const da = Math.hypot(a.x - cp.x, a.z - cp.z), dg = a.goal ? Math.hypot(a.goal.x - cp.x, a.goal.z - cp.z) : 99;
-        if (da < 2 || dg < 2 || (a.post && Math.hypot(a.post.x - cp.x, a.post.z - cp.z) < 2)) { occupied = true; break; }
-        const near = Math.min(da, dg); if (near < 4.5) s -= (4.5 - near) * 0.7;
+        if (da < 2.4 || dg < 2.4 || (a.post && Math.hypot(a.post.x - cp.x, a.post.z - cp.z) < 2.4)) { occupied = true; break; }
+        const near = Math.min(da, dg); if (near < 5) s -= (5 - near) * 0.8;
         if (segDist(a.goal || a, cp, threat) < 0.6) s -= 4;
       }
       if (occupied) continue;
@@ -629,15 +687,36 @@
     return best;
   };
   const COMMIT = { cover: 3, close: 2.5, bound: 4, advance: 2.5, hide: 4, fallback: 3 };
+  // Écarter un point de destination des équipiers : si un allié s'y trouve ou s'y rend (à moins de 2,5 m), on vise à côté,
+  // en travers de la marche (2,5 puis 4 m, d'un côté puis de l'autre) — deux opérateurs ne marchent plus vers le même point
+  // (la même position connue d'un ennemi, le même milieu de chemin) pour s'y retrouver collés.
+  Battle.prototype.spreadGoal = function (u, x, z) {
+    const crowd = (px, pz) => { let n = 0; for (const a of this.alliesOf(u)) { if (!a.alive) continue; if (Math.hypot(a.x - px, a.z - pz) < 2.5) n++; if (a.goal && Math.hypot(a.goal.x - px, a.goal.z - pz) < 2.5) n++; } return n; };
+    if (!crowd(x, z)) return { x, z };
+    const dx = x - u.x, dz = z - u.z, L = Math.hypot(dx, dz) || 1, side = u.idx % 2 ? 1 : -1;
+    let best = { x, z }, bc = crowd(x, z);
+    for (const off of [2.5, -2.5, 4, -4]) {
+      const px = x - dz / L * off * side, pz = z + dx / L * off * side;
+      if (!this.map.inBounds(px, pz) || this.map.insideObstacle(px, pz)) continue;
+      const c = crowd(px, pz); if (c < bc) { bc = c; best = { x: px, z: pz }; if (!c) break; }
+    }
+    return best;
+  };
   Battle.prototype.setGoal = function (u, x, z, kind) {
-    if (u.goal && Math.hypot(u.goal.x - x, u.goal.z - z) < 0.6 && u.path) { u.goalKind = kind; return true; }
+    const req = { x, z };
+    if (u.goal && u.goalReq && Math.hypot(u.goalReq.x - x, u.goalReq.z - z) < 0.6 && u.path) { u.goalKind = kind; return true; }
+    if (kind === 'advance' || kind === 'search') ({ x, z } = this.spreadGoal(u, x, z));
+    if (u.goal && Math.hypot(u.goal.x - x, u.goal.z - z) < 0.6 && u.path) { u.goalKind = kind; u.goalReq = req; return true; }
     const path = this.map.findPath(u.x, u.z, x, z);
     if (!path) { u.path = null; u.goal = null; return false; }
+    // le chemin s'arrête au centre de la dernière case : on va jusqu'au point exact (un couvert « plaqué » contre son obstacle)
+    const last = path[path.length - 1];
+    if (Math.hypot(last.x - x, last.z - z) > 0.05 && this.map.inBounds(x, z) && !this.map.insideObstacle(x, z) && this.map.walkableSegment(last.x, last.z, x, z)) path.push({ x, z });
     // le premier point du chemin est souvent le centre de la case où l'on se trouve déjà, parfois DERRIÈRE soi :
     // on le saute (sinon un demi-pas en arrière, puis demi-tour — le corps « tournait sur lui-même » à chaque nouveau chemin)
     let i0 = 0; while (i0 < path.length - 1 && (Math.hypot(path[i0].x - u.x, path[i0].z - u.z) < 0.9
       || ((path[i0].x - u.x) * (path[i0 + 1].x - path[i0].x) + (path[i0].z - u.z) * (path[i0 + 1].z - path[i0].z) < 0 && this.map.walkableSegment(u.x, u.z, path[i0 + 1].x, path[i0 + 1].z)))) i0++;
-    u.path = path; u.pathIdx = i0; u.goal = { x, z }; u.goalKind = kind; u.repathAt = this.t;
+    u.path = path; u.pathIdx = i0; u.goal = { x, z }; u.goalReq = req; u.goalKind = kind; u.repathAt = this.t;
     u.commitAt = this.t; u.commitUntil = this.t + (COMMIT[kind] || 2);
     return true;
   };
@@ -683,7 +762,7 @@
       let best = null, bs = -Infinity;
       for (const cp of this.map.coverPoints) {
         const dh = Math.hypot(cp.x - home.x, cp.z - home.z); if (dh > (this.zone ? this.zone.r - 0.5 : 18)) continue;
-        if (!this.map.coverFrom(cp.x, cp.z, threatPos.x, threatPos.z, true)) continue;
+        if (!this.coverAt(this.hug(cp).hx, cp.hz, threatPos.x, threatPos.z, true)) continue;
         let occupied = false;
         for (const a of this.alliesOf(u)) if (a.alive && a.post && Math.hypot(a.post.x - cp.x, a.post.z - cp.z) < 2.5) { occupied = true; break; }
         if (occupied) continue;
@@ -691,12 +770,36 @@
         if (sc > bs) { bs = sc; best = cp; }
       }
       if (!best && this.zone) { this.occupyZone(u, threatPos); return; }   // aucun couvert libre dans la zone : on s'y installe quand même
-      u.post = best ? { x: best.x, z: best.z } : (team.anchor ? { x: u.x, z: u.z } : { x: u.home.x, z: u.home.z });
+      u.post = best ? { x: best.hx, z: best.hz } : (team.anchor ? { x: u.x, z: u.z } : { x: u.home.x, z: u.home.z });
     }
-    if (Math.hypot(u.post.x - u.x, u.post.z - u.z) > 1.2) { if (this.setGoal(u, u.post.x, u.post.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; } }
+    if (Math.hypot(u.post.x - u.x, u.post.z - u.z) > 0.4) { if (this.setGoal(u, u.post.x, u.post.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; } }
     this.stop(u); u.state = 'hold'; u.stance = 'stand'; u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x);
   };
 
+  // S'avancer vers une position connue sans aller au-delà de la distance d'approche reach (pas de plus de 12 m d'un coup).
+  Battle.prototype.approach = function (u, p, nd, reach) {
+    const step = Math.min(12, nd - reach); if (step < 1.5) return false;
+    const g = { x: u.x + (p.x - u.x) / nd * step, z: u.z + (p.z - u.z) / nd * step };
+    if (this.setGoal(u, g.x, g.z, 'advance')) { u.state = 'advancing'; u.stance = 'stand'; return true; }
+    return false;
+  };
+  // Arrivé à distance : si l'on n'est pas derrière un vrai couvert face à la menace, rejoindre le plus proche (≤ 6 m) d'où
+  // l'on voit sa position, sans s'en approcher sous ~8 m. Vrai si un déplacement est lancé.
+  Battle.prototype.coverUp = function (u, p) {
+    if (this.coverAt(u.x, u.z, p.x, p.z, true)) return false;
+    const cp = this.findCover(u, p, 6, { requireShoot: true, minRange: MIN_CLOSE, preferDist: this.standoff(u) }) || this.findCover(u, p, 6, { minRange: MIN_CLOSE });
+    if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.4 && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return true; }
+    return false;
+  };
+  // Le déplacement en cours mène-t-il droit sur un ennemi en vue (point d'arrivée à moins de ~8 m de lui, plus près
+  // qu'on ne l'est) ? Les mises à couvert, esquives et relèves ne sont pas concernées ; l'assaut sur un adversaire cloué
+  // (rushUntil) descend jusqu'à 5 m.
+  Battle.prototype.goalTooClose = function (u, threats) {
+    if (!threats.length || !u.goal || !(u.goalKind === 'advance' || u.goalKind === 'bound' || u.goalKind === 'close') || u.state === 'sidestep') return false;
+    const lim = this.t < (u.rushUntil || 0) ? 5 : MIN_CLOSE;
+    for (const e of threats) { const dg = Math.hypot(u.goal.x - e.x, u.goal.z - e.z); if (dg < lim && dg < dist2(u, e) - 0.5) return true; }
+    return false;
+  };
   Battle.prototype.decide = function (u) {
     if (!u.alive) return;
     let order = this.teams[u.team].order;
@@ -760,16 +863,17 @@
     if (this.t < (u.shakenUntil || 0) || (threats.length && this.moraleCheck(u, threats))) {
       if (!u.throwing && !(u.evade && this.t < u.evade.until)) {
         const threat = threats[0] || (u.lastShotBy && u.lastShotBy.alive ? u.lastShotBy : null);
-        const cover = threat && this.map.coverFrom(u.x, u.z, threat.x, threat.z, true);
-        if (threat && !cover) { const cp = this.findCover(u, threat, 12, { towards: home }); if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'shaken'; u.stance = 'stand'; return; } }
+        const cover = threat && this.coverAt(u.x, u.z, threat.x, threat.z, false);
+        if (threat && !cover) { const cp = this.findCover(u, threat, 12, { towards: home }) || this.findCover(u, threat, 22, { towards: home }); if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'shaken'; u.stance = 'stand'; return; } }
         this.stop(u); u.stance = 'crouch'; u.state = 'shaken'; return;
       }
     }
     // grenade : en train de lancer, ou d'esquiver une grenade adverse → rien d'autre
     if (u.throwing || (u.evade && this.t < u.evade.until)) return;
     if (this.tryGrenade(u)) return;
-    // engagement sur un déplacement en cours : on continue (en tirant si possible) sauf si on vient d'être touché
-    if (this.t < u.commitUntil && u.goal && u.lastHitAt <= u.commitAt) return;
+    // engagement sur un déplacement en cours : on continue (en tirant si possible) sauf si on vient d'être touché, ou si
+    // ce déplacement mène droit sur un ennemi en vue (une marche d'approche ne se poursuit pas jusqu'à lui rentrer dedans)
+    if (this.t < u.commitUntil && u.goal && u.lastHitAt <= u.commitAt && !this.goalTooClose(u, threats)) return;
 
     // 1) une cible est visible : engager
     if (threats.length > 0) {
@@ -777,10 +881,10 @@
       const d = dist2(u, target);
       // la menace dont on se couvre : celui qui me tire dessus (même hors de vue), sinon ma cible
       const threat = (beingShot && u.lastShotBy && u.lastShotBy.alive) ? u.lastShotBy : target;
-      const cover = this.map.coverFrom(u.x, u.z, threat.x, threat.z, true);
+      const cover = this.coverAt(u.x, u.z, threat.x, threat.z, true);     // un VRAI couvert, contre soi, face à la menace
+      const stand = this.standoff(u);
       const pinned = u.suppression > 0.8 - u.def.composure / 400 + (this.isBraced(u) ? 0.15 : 0) + (has(u, 'steady') ? 0.15 : 0) + (this.nearLeader(u) ? 0.1 : 0); // composure 80 → 0,6 ; calé / Sang-froid / Meneur
       const effective = this.hitChance(u, target, d, true).p >= this.fireThreshold(u);
-      const wantCover = !cover && (beingShot || u.hp < u.maxHp * 0.7 || u.suppression > 0.35 || order !== 'assault' || u.reloading > 0);
 
       if (pinned && cover) { u.stance = 'crouch'; u.state = 'pinned'; this.stop(u); return; }
       const covering = this.tiroirOn(u) && u.boundGroup !== this.teams[u.team].bound.group;   // Tiroir : la moitié qui couvre ne bouge pas
@@ -810,7 +914,7 @@
       // ordre « Tenir » : on combat depuis son poste ; s'il ne couvre pas face à cette cible, on prend le couvert voisin et il devient le poste
       if (order === 'hold') {
         if (!cover) {
-          const postCovers = u.post && this.map.coverFrom(u.post.x, u.post.z, threat.x, threat.z, true);
+          const postCovers = u.post && this.coverAt(u.post.x, u.post.z, threat.x, threat.z, true);
           if (postCovers && Math.hypot(u.post.x - u.x, u.post.z - u.z) > 1.2 && this.setGoal(u, u.post.x, u.post.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; }
           if (!postCovers) { const cp = this.findCover(u, threat, 9, { minRange: u.weapon.minRange, requireShoot: true }) || this.findCover(u, threat, 9, { minRange: u.weapon.minRange }); if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.post = { x: cp.x, z: cp.z }; u.state = 'tocover'; u.stance = 'stand'; return; } }
         }
@@ -820,27 +924,38 @@
         if (!effective || ambush) { u.state = 'wait'; u.stance = cover ? 'crouch' : 'stand'; return; }
         u.state = 'engage'; u.stance = ((u.reloading > 0 || this.t < (u.burstPauseUntil || 0)) && cover) ? 'crouch' : 'stand'; return;
       }
-      // tir inefficace à cette distance (arme courte, cible trop loin) : se rapprocher de couvert en couvert
+      // assaut sur un adversaire cloué, en train de recharger : on gagne du terrain d'un couvert à un autre plus proche
+      // (jamais à moins de 5 m) — c'est le seul cas où l'on va au-devant de l'adversaire en plein échange de tirs
+      if (order === 'assault' && !covering && !pinned && u.status === 'ok' && !beingShot && u.suppression < 0.3 && d > 7 && d < stand + 6
+        && (target.state === 'pinned' || target.suppression > 0.6 || target.reloading > 0.8)) {
+        const cp = this.findCover(u, target, 10, { towards: target, minRange: 5, requireShoot: true });
+        if (cp && Math.hypot(cp.x - target.x, cp.z - target.z) < d - 3 && this.setGoal(u, cp.x, cp.z, 'close')) { u.state = 'closing'; u.stance = 'stand'; u.rushUntil = this.t + 3; return; }
+      }
+      // tir inefficace à cette distance (cible trop loin) : se rapprocher de couvert en couvert, sans descendre sous ~8 m
       if (!effective && !pinned && !covering) {
-        const cp = this.findCover(u, target, 16, { towards: target });
-        let gx, gz;
-        if (cp && Math.hypot(cp.x - target.x, cp.z - target.z) < d - 2) { gx = cp.x; gz = cp.z; }
-        else { gx = u.x + (target.x - u.x) * 0.5; gz = u.z + (target.z - u.z) * 0.5; }
-        if (this.setGoal(u, gx, gz, 'close')) { u.state = 'closing'; u.stance = 'stand'; return; }
+        const cp = this.findCover(u, target, 16, { towards: target, minRange: MIN_CLOSE });
+        let g = null;
+        if (cp && Math.hypot(cp.x - target.x, cp.z - target.z) < d - 2) g = cp;
+        else if (d > stand * 1.3) { const k = Math.min(0.5, (d - stand) / d); g = this.spreadGoal(u, u.x + (target.x - u.x) * k, u.z + (target.z - u.z) * k); }
+        if (g && this.setGoal(u, g.x, g.z, 'close')) { u.state = 'closing'; u.stance = 'stand'; return; }
       }
       // contournement : la cible est à couvert face à moi et je la touche mal → chercher un angle d'où son couvert ne sert plus
       if (effective && order !== 'hold' && !covering && (u.role.id === 'assault' || u.role.id === 'pointman') && !beingShot && u.suppression < 0.3) {
         const tc = this.map.coverFrom(target.x, target.z, u.x, u.z, target.stance === 'stand');
         if (tc && this.hitChance(u, target, d, true).p < 0.16) {
-          const cp = this.findCover(u, target, 16, { requireShoot: true, flank: target });
+          const cp = this.findCover(u, target, 16, { requireShoot: true, flank: target, minRange: MIN_CLOSE });
           if (cp && this.setGoal(u, cp.x, cp.z, 'close')) { u.state = 'closing'; u.stance = 'stand'; if (this.t - (u.lastFlankLog || -99) > 15) { u.lastFlankLog = this.t; this.logEvent('flank', `${u.callsign} contourne ${target.callsign}, à couvert.`, { unit: u.id, team: u.team }); } return; }
         }
       }
-      if (wantCover) {
-        // d'abord un couvert d'où l'on peut encore tirer sur la cible ; sinon n'importe quel couvert proche
-        const cp = this.findCover(u, threat, 9, { minRange: u.weapon.minRange, requireShoot: true }) || this.findCover(u, threat, 9, { minRange: u.weapon.minRange });
-        if (cp) {
-          if (this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; }
+      // pas de vrai couvert face à la menace : en prendre un d'où l'on tire, à distance de combat (on ne s'approche pas sous
+      // ~8 m pour se mettre à l'abri) ; trop près et rien autour : décrocher vers un couvert plus en arrière
+      if (!cover) {
+        const minR = Math.max(u.weapon.minRange, Math.min(MIN_CLOSE, d - 2));
+        const cp = this.findCover(u, threat, 9, { minRange: minR, requireShoot: true, preferDist: stand }) || this.findCover(u, threat, 9, { minRange: minR, preferDist: stand });
+        if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; }
+        if (d < MIN_CLOSE && order !== 'hold') {
+          const cp2 = this.findCover(u, threat, 16, { minRange: MIN_CLOSE, towards: home });
+          if (cp2 && this.setGoal(u, cp2.x, cp2.z, 'cover')) { u.state = 'fallback'; u.stance = 'stand'; return; }
         }
       }
       // sinon : tenir la position et tirer. Debout pour tirer par-dessus le couvert ; accroupi si on recharge à couvert.
@@ -869,7 +984,11 @@
         const fw = this.flankWaypoint(u, threatPos, 8);
         if (fw && this.flankMove(u, threatPos, fw)) return;
       }
-      if (nd > 6 && u.status !== 'critical' && this.tiroir(u, threatPos, threatPos)) return;   // Tiroir : bonds alternés vers la menace
+      // distance d'approche : position toute fraîche → on s'installe à distance de combat, à couvert, et on échange des tirs ;
+      // elle vieillit (personne ne la revoit) → on resserre de couvert en couvert ; périmée → on va voir ce qu'il en est
+      const age = this.t - threatPos.t, stand = this.standoff(u);
+      const reach = age < 6 ? stand : age < 14 ? MIN_CLOSE + 2 : 0;
+      if (nd > Math.max(6, reach + 2) && u.status !== 'critical' && this.tiroir(u, threatPos, threatPos, reach)) return;   // Tiroir : bonds alternés vers la menace
       if (u.role.id === 'marksman') {
         // un poste de tir à bonne distance AVEC vue sur la position connue
         if (nd < u.weapon.minRange * 1.5) {
@@ -891,13 +1010,23 @@
           const cp = this.findCover(u, threatPos, 40, { wantShoot: false, towards: home });
           if (cp && this.setGoal(u, cp.x, cp.z, 'hide')) { u.state = 'retreat'; u.stance = 'stand'; return; }
         }
-        const cp = this.findCover(u, threatPos, 16, { towards: threatPos });
-        if (cp && Math.hypot(cp.x - threatPos.x, cp.z - threatPos.z) < nd - 1.5 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
-        // pas de couvert plus avancé : avancer prudemment en direction de la menace
-        if (nd > 8 && this.setGoal(u, threatPos.x, threatPos.z, 'advance')) { u.state = 'advancing'; u.stance = 'stand'; return; }
-        this.stop(u); u.state = 'hold'; u.stance = 'stand'; return;
+        if (nd > reach + 2) {
+          const cp = this.findCover(u, threatPos, 16, { towards: threatPos, minRange: reach * 0.7 });
+          if (cp && Math.hypot(cp.x - threatPos.x, cp.z - threatPos.z) < nd - 1.5 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
+          // pas de couvert plus avancé : avancer prudemment en direction de la menace (jusqu'à la distance d'approche)
+          if (nd > 8 && this.approach(u, threatPos, nd, reach)) return;
+        }
+        if (reach > 0 && this.coverUp(u, threatPos)) return;
+        if (reach > 0) { this.stop(u); u.state = 'hold'; u.stance = 'stand'; u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x); return; }
       }
-      // assaut : aller au contact de la dernière position connue
+      // assaut : progresser vers la dernière position connue, de couvert en couvert, jusqu'à la distance d'approche ; là, se mettre
+      // à couvert face à elle et attendre qu'il se montre (ou que l'information vieillisse)
+      if (nd > reach + 2) {
+        const cp = this.findCover(u, threatPos, 12, { towards: threatPos, minRange: reach * 0.7 });
+        if (cp && Math.hypot(cp.x - threatPos.x, cp.z - threatPos.z) < nd - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
+        if (this.approach(u, threatPos, nd, reach)) return;
+      }
+      if (reach > 0) { if (this.coverUp(u, threatPos)) return; this.stop(u); u.state = 'overwatch'; u.stance = 'stand'; u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x); return; }
       if (nd > 4) { if (this.setGoal(u, threatPos.x, threatPos.z, 'advance')) { u.state = 'advancing'; u.stance = 'stand'; return; } }
       // arrivé sur la position connue et personne : l'information est périmée, on l'oublie
       delete u.knowledge[nearest.unit.id];
@@ -994,6 +1123,13 @@
     u.moving = false;
     if (u.path && u.goal) this.move(u);
     if (u.moving) u.stillSince = undefined; else if (wasMoving || u.stillSince === undefined) u.stillSince = this.t;
+    // accroupi à l'arrêt = « à couvert » : seulement derrière un vrai obstacle face à la menace principale (elle a pu bouger,
+    // le décor a pu sauter, on a pu se décaler). Sinon on se relève (et la prochaine décision cherche un vrai couvert).
+    // Exception : à genoux auprès d'un blessé qu'on relève.
+    if (u.stance === 'crouch' && !u.moving && u.state !== 'reviving') {
+      const th = this.mainThreat(u);
+      if (th ? !this.coverAt(u.x, u.z, th.x, th.z, false) : !this.besideObstacle(u.x, u.z)) u.stance = 'stand';
+    }
     // orientation : vers la cible si on en a une, sinon vers la marche
     if (u.target && u.target.alive) u.facing = Math.atan2(u.target.z - u.z, u.target.x - u.x);
     // tir
@@ -1051,8 +1187,8 @@
     for (const a of this.alliesOf(u)) {
       if (!a.alive) continue;
       const dd = Math.hypot(a.x - nx, a.z - nz);
-      if (dd < 0.7 && dd > 1e-6) {
-        const push = (0.7 - dd) * 0.6, px = nx + (nx - a.x) / dd * push, pz = nz + (nz - a.z) / dd * push;
+      if (dd < 1.0 && dd > 1e-6) {
+        const push = (1.0 - dd) * 0.5, px = nx + (nx - a.x) / dd * push, pz = nz + (nz - a.z) / dd * push;
         if (!this.map.insideObstacle(px, pz) && this.map.inBounds(px, pz)) { nx = px; nz = pz; }
       }
     }
@@ -1106,23 +1242,27 @@
     }
   };
   // décision d'un opérateur en tiroir (hors contact) : vrai si la décision est prise
-  Battle.prototype.tiroir = function (u, threatPos, dest) {
+  // reach (contact) : distance d'approche de la menace — les bonds s'arrêtent là (couverts choisis au-delà de ~70 % de reach),
+  // et celui qui couvre rejoint d'abord un vrai couvert proche face à elle.
+  Battle.prototype.tiroir = function (u, threatPos, dest, reach) {
     if (!this.tiroirOn(u)) return false;
     const b = this.teams[u.team].bound;
     const face = () => { u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x); };
     const overwatch = () => {
+      if (reach !== undefined && reach > 0 && this.coverUp(u, threatPos)) return true;
       this.stop(u); u.state = 'overwatch'; face();
-      u.stance = this.map.coverFrom(u.x, u.z, threatPos.x, threatPos.z, true) ? 'crouch' : 'stand';
+      u.stance = this.coverAt(u.x, u.z, threatPos.x, threatPos.z, true) ? 'crouch' : 'stand';
       return true;
     };
     if (u.goal && u.goalKind === 'bound') return true;                       // un bond en cours : on le termine
     if (u.boundGroup !== b.group || u.boundDone === b.n) return overwatch();  // on couvre (ou bond déjà fait)
+    const stopAt = Math.max(3, reach || 0);
     const dNow = Math.hypot(dest.x - u.x, dest.z - u.z);
-    if (dNow < 3) { u.boundDone = b.n; return overwatch(); }
-    const cp = this.findCover(u, threatPos, 11, { towards: dest });
+    if (dNow < stopAt) { u.boundDone = b.n; return overwatch(); }
+    const cp = this.findCover(u, threatPos, 11, { towards: dest, minRange: reach ? reach * 0.7 : 0 });
     let g;
     if (cp && Math.hypot(cp.x - dest.x, cp.z - dest.z) < dNow - 2) g = cp;
-    else { const k = Math.min(1, 8 / dNow); g = { x: u.x + (dest.x - u.x) * k, z: u.z + (dest.z - u.z) * k }; }
+    else { const step = Math.min(8, dNow - stopAt); if (step < 1.5) { u.boundDone = b.n; return overwatch(); } g = this.spreadGoal(u, u.x + (dest.x - u.x) / dNow * step, u.z + (dest.z - u.z) / dNow * step); }
     if (this.setGoal(u, g.x, g.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; u.boundGoalN = b.n; return true; }
     u.boundDone = b.n; return overwatch();
   };
@@ -1330,13 +1470,17 @@
     if (this.isBraced(u)) p *= 1.1;           // position préparée : arme calée, repères pris
     if (has(u, 'patience') && u.burst === 0 && u.aimFull) p *= 1.25;               // Patience : premier tir posé
     if (this.synergy(u, 'guidage')) p *= 1.08;                                        // synergie Guidage radio
-    if (this.t < u.blindUntil) p *= 0.25;                                             // aveuglé
     if (e.moving) p *= has(u, 'opportunity') ? 0.9 : 0.8;                             // Tir d'opportunité
     if (e.stance === 'crouch') p *= 0.85;
     if (this.isBraced(e)) p *= 0.9;           // un défenseur installé expose moins de silhouette
+    if (w.rpm > 100) p *= 1 - (has(u, 'gunner') ? 0.03 : 0.06) * (u.att.compensateur ? 0.6 : 1) * Math.min(u.burst, 5);   // Tir soutenu, compensateur
+    // à bout portant on ne rate (presque) plus : sous 10 m, la chance remonte fortement vers 95 % (×0,85 de l'écart à 1 m,
+    // ×0,59 à 3 m, ×0,35 à 5 m, rien à 10 m et au-delà). La portée lointaine reste incertaine.
+    const close = clamp(1 - d / 10, 0, 1);
+    if (close > 0) p += (0.95 - p) * Math.pow(close, 1.5);
+    if (this.t < u.blindUntil) p *= 0.25;                                             // aveuglé
     const cv = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
     if (cv) p *= cv.level === 'partial' ? 0.55 : 0.3; // couvert partiel (Retranchement : ×0,5)
-    if (w.rpm > 100) p *= 1 - (has(u, 'gunner') ? 0.03 : 0.06) * (u.att.compensateur ? 0.6 : 1) * Math.min(u.burst, 5);   // Tir soutenu, compensateur
     return { p: clamp(p, 0.03, 0.95), cover: cv };
   };
   Battle.prototype.fireAt = function (u, e) {

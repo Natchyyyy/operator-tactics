@@ -1,0 +1,314 @@
+// Revue d'animation — mesures automatiques sur un soldat Soldat3D (positions des os, du maillage, de l'arme).
+// Utilisé par le banc (outils/revue/banc.html) ET injecté dans le jeu (outils/revue/jeu.py) : les mêmes mesures, les mêmes
+// unités. Tout est en mètres / degrés dans le MONDE, sol à y = 0. Aucune modification du jeu : lecture seule.
+//
+//   REVUE.equiper(f)            calibre un soldat (capsules du corps, points de semelle, triangles de l'arme) — une fois
+//   REVUE.mesurer(f, ctx)       mesures instantanées d'une image (ctx : { cible: Vector3|null, vel: Vector3, tir: bool })
+//   new REVUE.Suivi()           mesures dans le temps (glissement des pieds, pas, cadence, à-coups) : .ajouter(m, dt) puis .bilan()
+(function () {
+  const V = () => new THREE.Vector3();
+  const D = 180 / Math.PI;
+  const os = (f, n) => f.body.getObjectByName('mixamorig' + n) || f.body.getObjectByName('mixamorig:' + n);
+  const WP = (o, v) => o.getWorldPosition(v || V());
+  const WQ = (o) => o.getWorldQuaternion(new THREE.Quaternion());
+  const ang = (a, b) => Math.acos(Math.max(-1, Math.min(1, a.clone().normalize().dot(b.clone().normalize())))) * D;
+  const wrap = (a) => { while (a > 180) a -= 360; while (a < -180) a += 360; return a; };
+  const azim = (v) => Math.atan2(v.x, v.z) * D;   // azimut (°) d'une direction horizontale, 0 = +Z
+
+  // distance de deux segments [p1,q1] [p2,q2] (Ericson, Real-Time Collision Detection 5.1.9)
+  function segSeg(p1, q1, p2, q2) {
+    const d1 = q1.clone().sub(p1), d2 = q2.clone().sub(p2), r = p1.clone().sub(p2);
+    const a = d1.dot(d1), e = d2.dot(d2), f = d2.dot(r); let s, t;
+    if (a < 1e-9 && e < 1e-9) return p1.distanceTo(p2);
+    if (a < 1e-9) { s = 0; t = Math.max(0, Math.min(1, f / e)); }
+    else { const c = d1.dot(r); if (e < 1e-9) { t = 0; s = Math.max(0, Math.min(1, -c / a)); }
+      else { const b = d1.dot(d2), den = a * e - b * b; s = den > 1e-9 ? Math.max(0, Math.min(1, (b * f - c * e) / den)) : 0; t = (b * s + f) / e;
+        if (t < 0) { t = 0; s = Math.max(0, Math.min(1, -c / a)); } else if (t > 1) { t = 1; s = Math.max(0, Math.min(1, (b - c) / a)); } } }
+    return p1.clone().addScaledVector(d1, s).distanceTo(p2.clone().addScaledVector(d2, t));
+  }
+  const ptSeg = (p, a, b) => { const ab = b.clone().sub(a), t = Math.max(0, Math.min(1, p.clone().sub(a).dot(ab) / Math.max(1e-9, ab.dot(ab)))); return p.distanceTo(a.clone().addScaledVector(ab, t)); };
+  // point le plus proche sur un triangle (Ericson 5.1.5)
+  function ptTri(p, a, b, c, out) {
+    const ab = b.clone().sub(a), ac = c.clone().sub(a), ap = p.clone().sub(a);
+    const d1 = ab.dot(ap), d2 = ac.dot(ap); if (d1 <= 0 && d2 <= 0) return out.copy(a);
+    const bp = p.clone().sub(b), d3 = ab.dot(bp), d4 = ac.dot(bp); if (d3 >= 0 && d4 <= d3) return out.copy(b);
+    const vc = d1 * d4 - d3 * d2; if (vc <= 0 && d1 >= 0 && d3 <= 0) return out.copy(a).addScaledVector(ab, d1 / (d1 - d3));
+    const cp = p.clone().sub(c), d5 = ab.dot(cp), d6 = ac.dot(cp); if (d6 >= 0 && d5 <= d6) return out.copy(c);
+    const vb = d5 * d2 - d1 * d6; if (vb <= 0 && d2 >= 0 && d6 <= 0) return out.copy(a).addScaledVector(ac, d2 / (d2 - d6));
+    const va = d3 * d6 - d5 * d4; if (va <= 0 && (d4 - d3) >= 0 && (d5 - d6) >= 0) return out.copy(b).addScaledVector(c.clone().sub(b), (d4 - d3) / ((d4 - d3) + (d5 - d6)));
+    const den = 1 / (va + vb + vc); return out.copy(a).addScaledVector(ab, vb * den).addScaledVector(ac, vc * den);
+  }
+
+  // ---------------------------------------------------------------------------------------------------------------
+  // Calibration
+  // ---------------------------------------------------------------------------------------------------------------
+  const SEGS = { tronc: ['Spine', 'Neck'], tete: ['Head', 'HeadTop_End'], brasD: ['RightArm', 'RightForeArm'], avbD: ['RightForeArm', 'RightHand'], brasG: ['LeftArm', 'LeftForeArm'], avbG: ['LeftForeArm', 'LeftHand'],
+    cuisseG: ['LeftUpLeg', 'LeftLeg'], tibiaG: ['LeftLeg', 'LeftFoot'], cuisseD: ['RightUpLeg', 'RightLeg'], tibiaD: ['RightLeg', 'RightFoot'], piedG: ['LeftFoot', 'LeftToeBase'], piedD: ['RightFoot', 'RightToeBase'] };
+  const DOM = { tronc: /^(Spine|Spine1|Spine2)$/, tete: /^Head$/, brasD: /^RightArm$/, avbD: /^RightForeArm$/, brasG: /^LeftArm$/, avbG: /^LeftForeArm$/, cuisseG: /^LeftUpLeg$/, tibiaG: /^LeftLeg$/, cuisseD: /^RightUpLeg$/, tibiaD: /^RightLeg$/, piedG: /^LeftFoot$/, piedD: /^RightFoot$/ };
+  const DOIGTS = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'];
+
+  function equiper(f) {
+    if (f.revue) return f.revue;
+    const R = { os: {}, rayons: {}, semelle: {}, arme: null };
+    const n = (x) => os(f, x);
+    for (const k of ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'HeadTop_End', 'RightShoulder', 'LeftShoulder', 'RightArm', 'RightForeArm', 'RightHand', 'LeftArm', 'LeftForeArm', 'LeftHand',
+      'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase', 'LeftToe_End', 'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase', 'RightToe_End']) R.os[k] = n(k);
+    for (const c of ['Right', 'Left']) for (const d of DOIGTS) for (const i of [1, 2, 3, 4]) R.os[c + d + i] = n(c + 'Hand' + d + i);
+    R.os.headfront = f.body.getObjectByName('headfront');
+    f.group.updateMatrixWorld(true);
+    // capsules : rayon = 75e centile de la distance des sommets (os dominant) à leur segment
+    const sk = f.skinned;
+    if (sk && sk.geometry && sk.getVertexPosition) {
+      const g = sk.geometry, si = g.attributes.skinIndex, sw = g.attributes.skinWeight, N = g.attributes.position.count, bones = sk.skeleton.bones;
+      const nomOs = bones.map(b => b.name.replace(/^mixamorig:?/, ''));
+      const dists = {}, v = V(), pts = { piedG: [], piedD: [] };
+      const seg = {}; for (const k in SEGS) { const a = R.os[SEGS[k][0]], b = R.os[SEGS[k][1]]; if (a && b) seg[k] = [WP(a), WP(b)]; }
+      for (let i = 0; i < N; i += 1) {
+        let bi = 0, bw = -1; for (let j = 0; j < 4; j++) { const w = sw.getComponent(i, j); if (w > bw) { bw = w; bi = si.getComponent(i, j); } }
+        const nm = nomOs[bi]; let cle = null; for (const k in DOM) if (DOM[k].test(nm)) { cle = k; break; }
+        const isToe = /^(Left|Right)(ToeBase|Toe_End)$/.test(nm); if (!cle && !isToe) continue;
+        sk.getVertexPosition(i, v); v.applyMatrix4(sk.matrixWorld);
+        if (cle && seg[cle]) (dists[cle] || (dists[cle] = [])).push(ptSeg(v, seg[cle][0], seg[cle][1]));
+        if (cle === 'piedG' || cle === 'piedD' || isToe) pts[(cle === 'piedG' || /^Left/.test(nm)) ? 'piedG' : 'piedD'].push([v.clone(), nm]);
+      }
+      for (const k in dists) { const a = dists[k].sort((x, y) => x - y); R.rayons[k] = a[Math.floor(a.length * (k === 'tronc' || k === 'tete' ? 0.6 : 0.5))];}   // (médiane : les sommets des hanches / fesses gonflent le 75e centile)
+      // semelle : talon (point le plus en arrière parmi les plus bas) et bout du pied (le plus en avant), dans le repère de leur os
+      for (const [cle, c] of [['piedG', 'Left'], ['piedD', 'Right']]) {
+        const P = pts[cle]; if (!P.length) continue;
+        const ft = R.os[c + 'Foot'], toe = R.os[c + 'ToeBase'], dir = WP(toe).sub(WP(ft)); dir.y = 0; dir.normalize();
+        const ymin = Math.min(...P.map(p => p[0].y)), bas = P.filter(p => p[0].y < ymin + 0.025);
+        let talon = bas[0][0], bout = bas[0][0];
+        for (const [p] of bas) { if (p.dot(dir) < talon.dot(dir)) talon = p; if (p.dot(dir) > bout.dot(dir)) bout = p; }
+        let tip = P[0][0]; for (const [p] of P) if (p.dot(dir) > tip.dot(dir)) tip = p;   // bout de la botte (même s'il n'est pas le plus bas)
+        const loc = (o, p) => o.worldToLocal(p.clone());
+        R.semelle[c] = { talon: loc(ft, talon), plante: loc(toe, WP(toe).setY(ymin)), bout: loc(toe, bout), pointe: loc(toe, tip), sol0: ymin - f.group.position.y };
+      }
+    }
+    // triangles de l'arme dans son repère, rangés dans une grille (cases de 2 cm) pour les distances doigt ↔ arme
+    const w = f.weapon; if (w) {
+      w.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(w.matrixWorld).invert(), tris = [];
+      w.traverse(o => { if (!o.isMesh || !o.geometry) return; const g = o.geometry, pos = g.attributes.position, idx = g.index, m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+        const get = (i) => V().fromBufferAttribute(pos, i).applyMatrix4(m); const nT = idx ? idx.count / 3 : pos.count / 3;
+        for (let t = 0; t < nT; t++) { const i0 = idx ? idx.getX(t * 3) : t * 3, i1 = idx ? idx.getX(t * 3 + 1) : t * 3 + 1, i2 = idx ? idx.getX(t * 3 + 2) : t * 3 + 2; tris.push([get(i0), get(i1), get(i2), o.name]); } });
+      // (l'échelle du groupe de l'arme est 1 ; les points de prise de Modeles3D sont dans ce même repère)
+      const C = 0.02, grille = new Map(), cle = (x, y, z) => x + ',' + y + ',' + z;
+      tris.forEach((t, i) => { const mn = t[0].clone().min(t[1]).min(t[2]), mx = t[0].clone().max(t[1]).max(t[2]);
+        for (let x = Math.floor(mn.x / C); x <= Math.floor(mx.x / C); x++) for (let y = Math.floor(mn.y / C); y <= Math.floor(mx.y / C); y++) for (let z = Math.floor(mn.z / C); z <= Math.floor(mx.z / C); z++) { const k = cle(x, y, z); if (!grille.has(k)) grille.set(k, []); grille.get(k).push(i); } });
+      const bb = new THREE.Box3(); tris.forEach(t => { bb.expandByPoint(t[0]); bb.expandByPoint(t[1]); bb.expandByPoint(t[2]); });
+      R.arme = { tris, grille, C, cle, bb, nTris: tris.length };
+      // détente (estimée) : devant la poignée, sous l'axe du canon — point de référence pour l'index (vérifiable en gros plan)
+      if (w.gripPt) R.arme.detente = w.gripPt.clone().add(new THREE.Vector3(0, 0.025, 0.065));   // (calé à l'œil sur la vue armeD du banc)
+      if (w.gripPt && w.forePt) { R.arme.axeZ = [w.gripPt.z, w.forePt.z]; }
+    }
+    f.revue = R; return R;
+  }
+  // distance (signée : < 0 = dans l'arme, selon la normale du triangle le plus proche) d'un point du monde à la surface de l'arme
+  function distArme(f, R, pW, rmax) {
+    const A = R.arme; if (!A) return null;
+    const p = f.weapon.worldToLocal(pW.clone()), C = A.C, r = Math.ceil((rmax || 0.06) / C);
+    const cx = Math.floor(p.x / C), cy = Math.floor(p.y / C), cz = Math.floor(p.z / C), vus = new Set(), q = V();
+    let best = Infinity, bq = null, bt = null;
+    for (let x = cx - r; x <= cx + r; x++) for (let y = cy - r; y <= cy + r; y++) for (let z = cz - r; z <= cz + r; z++) {
+      const L = A.grille.get(A.cle(x, y, z)); if (!L) continue;
+      for (const i of L) { if (vus.has(i)) continue; vus.add(i); const t = A.tris[i]; ptTri(p, t[0], t[1], t[2], q); const d = q.distanceToSquared(p); if (d < best) { best = d; bq = q.clone(); bt = t; } }
+    }
+    if (!bq) return { d: rmax || 0.06, loin: true };
+    const nrm = bt[1].clone().sub(bt[0]).cross(bt[2].clone().sub(bt[0])).normalize(), s = p.clone().sub(bq).dot(nrm) < 0 ? -1 : 1;
+    return { d: Math.sqrt(best) * s, piece: bt[3], pLoc: p, qLoc: bq };
+  }
+
+  // ---------------------------------------------------------------------------------------------------------------
+  // Mesures d'une image
+  // ---------------------------------------------------------------------------------------------------------------
+  function mesurer(f, ctx) {
+    ctx = ctx || {}; const R = equiper(f), O = R.os, m = {};
+    f.group.updateMatrixWorld(true); if (f.weapon) f.weapon.updateMatrixWorld(true);
+    const P = {}; for (const k in O) if (O[k]) P[k] = WP(O[k]);
+    const g0 = f.group.position.y, up = new THREE.Vector3(0, 1, 0);
+    const gq = WQ(f.group), avantG = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), gaucheG = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
+    const vel = ctx.vel || V(), vit = Math.hypot(vel.x, vel.z); m.vitesse = vit;
+    const dep = vit > 0.15 ? new THREE.Vector3(vel.x, 0, vel.z).normalize() : avantG.clone();   // direction de déplacement (ou de face)
+    const lat = new THREE.Vector3().crossVectors(up, dep).normalize();                            // gauche du déplacement
+    // --- pieds : points de semelle, hauteur au sol, orientation
+    for (const [c, s] of [['Left', 'G'], ['Right', 'D']]) {
+      const S = R.semelle[c]; if (!S) continue;
+      const ft = O[c + 'Foot'], toe = O[c + 'ToeBase'];
+      const talon = ft.localToWorld(S.talon.clone()), plante = toe.localToWorld(S.plante.clone()), bout = toe.localToWorld(S.bout.clone()), pointe = toe.localToWorld(S.pointe.clone());
+      m['talon' + s] = talon; m['plante' + s] = plante; m['bout' + s] = bout;
+      m['solMin' + s] = Math.min(talon.y, plante.y, bout.y, pointe.y) - g0;                  // < 0 : pied dans le sol
+      m['talonY' + s] = talon.y - g0; m['boutY' + s] = Math.min(bout.y, pointe.y) - g0;
+      const dir = bout.clone().sub(talon); dir.y = 0; m['piedAz' + s] = azim(dir);
+      m['piedVsDep' + s] = wrap(azim(dir) - azim(dep));                                         // angle de progression du pied
+      m['cheville' + s] = P[c + 'Foot'];
+      // genou : flexion (0 = jambe tendue), signe < 0 = hyperextension (genou en arrière de la ligne hanche → cheville)
+      const H = P[c + 'UpLeg'], K = P[c + 'Leg'], A = P[c + 'Foot'];
+      const flex = 180 - ang(H.clone().sub(K), A.clone().sub(K)), fw = dir.lengthSq() > 1e-6 ? dir.clone().normalize() : dep;
+      const ka = K.clone().sub(H), ha = A.clone().sub(H); const hors = ka.clone().sub(ha.clone().multiplyScalar(ka.dot(ha) / Math.max(1e-9, ha.dot(ha))));
+      m['genou' + s] = hors.dot(fw) < -0.005 && flex > 2 ? -flex : flex;
+      m['genouDevantOrteil' + s] = K.clone().sub(bout).dot(fw);                                    // > 0 : genou au-delà du bout du pied
+    }
+    // écart des pieds / genoux perpendiculaire au déplacement (< 0 : croisés), et dans le repère du bassin
+    if (P.LeftFoot && P.RightFoot) {
+      const bassinLat = P.LeftUpLeg.clone().sub(P.RightUpLeg); bassinLat.y = 0; bassinLat.normalize();
+      m.ecartPieds = P.LeftFoot.clone().sub(P.RightFoot).dot(lat); m.ecartGenoux = P.LeftLeg.clone().sub(P.RightLeg).dot(lat);
+      m.ecartPiedsBassin = P.LeftFoot.clone().sub(P.RightFoot).dot(bassinLat); m.ecartGenouxBassin = P.LeftLeg.clone().sub(P.RightLeg).dot(bassinLat);
+      m.ecartPiedsAvant = P.LeftFoot.clone().sub(P.RightFoot).dot(avantG);                           // décalage avant/arrière (pied gauche devant > 0)
+      m.ecartPiedsLarg = Math.abs(P.LeftFoot.clone().sub(P.RightFoot).dot(gaucheG));
+      const rr = (k) => R.rayons[k] || 0.06;
+      m.tibias = segSeg(P.LeftLeg, P.LeftFoot, P.RightLeg, P.RightFoot) - rr('tibiaG') - rr('tibiaD');   // < 0 : les tibias s'interpénètrent
+      m.cuisses = segSeg(P.LeftUpLeg, P.LeftLeg, P.RightUpLeg, P.RightLeg) - rr('cuisseG') - rr('cuisseD');
+      m.piedsPied = segSeg(P.LeftFoot, P.LeftToeBase, P.RightFoot, P.RightToeBase) - rr('piedG') - rr('piedD');
+    }
+    // --- bassin, buste, tête
+    const bas = P.LeftUpLeg.clone().sub(P.RightUpLeg); bas.y = 0; const bassinAv = new THREE.Vector3().crossVectors(bas, up).normalize();   // avant du bassin
+    const ep = P.LeftArm.clone().sub(P.RightArm); ep.y = 0; const epAv = new THREE.Vector3().crossVectors(ep, up).normalize();
+    m.bassinAz = azim(bassinAv); m.epaulesAz = azim(epAv); m.torsion = wrap(m.epaulesAz - m.bassinAz);
+    m.bassinVsDep = wrap(m.bassinAz - azim(dep)); m.bassinY = P.Hips.y - g0;
+    const tronc = P.Neck.clone().sub(P.Hips);
+    m.penche = Math.atan2(tronc.dot(epAv), tronc.y) * D;                // + : buste penché vers l'avant (repère des épaules)
+    m.roulis = Math.atan2(tronc.dot(ep.clone().normalize()), tronc.y) * D;  // inclinaison latérale (+ vers la gauche)
+    m.hautDos = (() => { const v = P.Neck.clone().sub(P.Spine2); return Math.atan2(v.dot(epAv), v.y) * D; })();
+    // tête : axe du visage (+Z local de Head), tangage / lacet ; œil ≈ headfront si présent
+    const qH = WQ(O.Head), face = new THREE.Vector3(0, 0, 1).applyQuaternion(qH), hautTete = new THREE.Vector3(0, 1, 0).applyQuaternion(qH);
+    m.teteAz = azim(face); m.teteTangage = Math.asin(Math.max(-1, Math.min(1, face.y))) * D;
+    const fx = face.clone().setY(0).normalize(), latT = new THREE.Vector3().crossVectors(fx, up).normalize();
+    m.teteRoulis = Math.atan2(-hautTete.dot(latT), hautTete.y) * D;   // + : penchée vers sa droite
+    const oeil = P.headfront ? P.headfront.clone() : P.Head.clone().addScaledVector(face, 0.09).addScaledVector(up, 0.03);
+    m.oeil = oeil;
+    // --- bras : coudes, poignets
+    for (const [c, s] of [['Right', 'D'], ['Left', 'G']]) {
+      const Sh = P[c + 'Arm'], E = P[c + 'ForeArm'], Hd = P[c + 'Hand'];
+      m['coude' + s] = ang(Sh.clone().sub(E), Hd.clone().sub(E));                       // 180 = bras tendu
+      m['coudeHaut' + s] = E.y - Sh.y;                                                    // > 0 : coude au-dessus de l'épaule (« aile de poulet »)
+      m['coudeEcart' + s] = E.clone().sub(Sh).dot(ep.clone().normalize()) * (c === 'Right' ? -1 : 1);   // coude écarté vers l'extérieur (m)
+      const mid = O[c + 'HandMiddle1'] ? P[c + 'HandMiddle1'] : (c === 'Right' ? (f.bones.rm && WP(f.bones.rm)) : (f.bones.lm && WP(f.bones.lm)));
+      if (mid) m['poignet' + s] = ang(Hd.clone().sub(E), mid.clone().sub(Hd));                // 0 = main dans l'axe de l'avant-bras
+    }
+    // --- arme
+    const w = f.weapon;
+    if (w && w.gripPt) {
+      const L2W = (p) => w.localToWorld(p.clone());
+      const grip = L2W(w.gripPt), fore = L2W(w.forePt), muz = L2W(w.muzzle), butt = w.buttPt ? L2W(w.buttPt) : null;
+      const canon = L2W(new THREE.Vector3(0, 0, 1)).sub(L2W(V())).normalize(), dessus = L2W(new THREE.Vector3(0, 1, 0)).sub(L2W(V())).normalize();
+      m.canonTangage = Math.asin(Math.max(-1, Math.min(1, canon.y))) * D; m.canonAz = azim(canon);
+      m.canonVsFace = wrap(m.canonAz - azim(avantG)); m.canonVsDep = wrap(m.canonAz - azim(dep));
+      m.armeRoulis = Math.atan2(-dessus.dot(new THREE.Vector3().crossVectors(canon, up).normalize()), dessus.y) * D;   // cant (inclinaison) de l'arme
+      m.bouche = muz; m.poignee = grip; m.crosse = butt;
+      // paumes
+      const palm = (h, mk) => mk ? WP(h).lerp(WP(mk), 0.6) : WP(h);
+      const pD = palm(O.RightHand, f.bones.rm), pG = palm(O.LeftHand, f.bones.lm);
+      m.paumeD_poignee = pD.distanceTo(grip);
+      const pGl = w.worldToLocal(pG.clone()), fl = w.forePt;
+      m.paumeG_axe = Math.hypot(pGl.x - fl.x, pGl.y - fl.y);                 // écart à l'axe du garde-main (perpendiculaire)
+      m.paumeG_long = pGl.z - fl.z;                                         // position le long de l'arme (+ vers la bouche)
+      m.paumeG_avantPoignee = pGl.z - w.gripPt.z;                           // m devant la poignée
+      const dPG = distArme(f, R, pG, 0.12); m.paumeG_surface = dPG ? dPG.d : null;
+      const dPD = distArme(f, R, pD, 0.12); m.paumeD_surface = dPD ? dPD.d : null;
+      // bouts des doigts ↔ surface de l'arme
+      for (const [c, s] of [['Right', 'D'], ['Left', 'G']]) for (const d of DOIGTS) {
+        const tip = O[c + d + 4]; if (!tip) continue; const r = distArme(f, R, P[c + d + 4], 0.1);
+        m['doigt' + s + d] = r ? r.d : null;
+        // courbure du doigt (somme des angles aux 3 articulations, 0 = tendu)
+        const p1 = P[c + d + 1], p2 = P[c + d + 2], p3 = P[c + d + 3], p4 = P[c + d + 4];
+        if (p1 && p2 && p3 && p4) m['courbe' + s + d] = ang(p2.clone().sub(p1), p3.clone().sub(p2)) + ang(p3.clone().sub(p2), p4.clone().sub(p3)) + (P[c + 'Hand'] ? ang(p1.clone().sub(P[c + 'Hand']), p2.clone().sub(p1)) : 0);
+      }
+      if (R.arme && R.arme.detente && P.RightIndex4) { const dt = L2W(R.arme.detente); m.indexDetente = P.RightIndex4.distanceTo(dt); m.detente = dt;
+        const il = w.worldToLocal(P.RightIndex4.clone()); m.indexHautDetente = il.y - R.arme.detente.y; m.indexAvantDetente = il.z - R.arme.detente.z; }
+      // crosse ↔ creux de l'épaule droite (entre clavicule et deltoïde : depuis l'articulation de l'épaule, vers le centre et l'avant)
+      if (butt) {
+        const sR = P.RightArm, sL = P.LeftArm, la = sL.clone().sub(sR).setY(0).normalize(), fw2 = new THREE.Vector3().crossVectors(la, up).normalize();
+        const creux = sR.clone().addScaledVector(la, 0.07).addScaledVector(fw2, 0.06);   // (à hauteur de l'articulation, 7 cm vers le centre, 6 cm devant)
+        m.creux = creux; m.crosseEpaule = butt.distanceTo(creux);
+        m.crosseSousAisselle = butt.distanceTo(sR.clone().addScaledVector(up, -0.12));
+      }
+      // ligne de visée : œil ↔ plan vertical du canon, hauteur de l'œil au-dessus de l'axe
+      { const rel = oeil.clone().sub(muz), latC = new THREE.Vector3().crossVectors(canon, up).normalize();
+        m.oeilLateral = rel.dot(latC); const along = rel.dot(canon), surAxe = muz.clone().addScaledVector(canon, along); m.oeilHaut = oeil.y - surAxe.y; m.oeilRecul = butt ? oeil.clone().sub(butt).dot(canon) : null;
+        m.teteVsCanon = wrap(m.teteAz - m.canonAz); }
+      // cible : erreur angulaire du canon (et de la ligne œil → cible)
+      if (ctx.cible) { const vC = ctx.cible.clone().sub(muz); m.erreurVisee = ang(canon, vC); m.erreurViseeAz = wrap(m.canonAz - azim(vC)); m.erreurViseeTangage = m.canonTangage - Math.atan2(vC.y, Math.hypot(vC.x, vC.z)) * D; }
+      // arme dans le corps : distance minimale du segment crosse → bouche aux capsules (moins le rayon de l'arme ~3 cm)
+      const rr = (k) => R.rayons[k] || 0.06, b0 = butt || grip;
+      const avantTronc = grip.clone().addScaledVector(canon, 0.05);   // (la crosse touche l'épaule exprès : on part de devant la poignée)
+      m.armeTronc = segSeg(avantTronc, muz, P.Spine, P.Neck) - rr('tronc') - 0.03;
+      m.armeTete = segSeg(b0, muz, P.Head, P.HeadTop_End || P.Head) - rr('tete') - 0.025;
+      m.armeCuisses = Math.min(segSeg(avantTronc, muz, P.LeftUpLeg, P.LeftLeg) - rr('cuisseG'), segSeg(avantTronc, muz, P.RightUpLeg, P.RightLeg) - rr('cuisseD')) - 0.03;
+      // canon pointé sur ses propres jambes / pieds (sécurité : on ne balaie jamais son corps avec la bouche)
+      { const ray = (a, b, r) => { const end = muz.clone().addScaledVector(canon, 3); return segSeg(muz, end, a, b) - r; };
+        m.boucheSurSoi = Math.min(ray(P.LeftLeg, P.LeftFoot, rr('tibiaG')), ray(P.RightLeg, P.RightFoot, rr('tibiaD')), ray(P.LeftUpLeg, P.LeftLeg, rr('cuisseG')), ray(P.RightUpLeg, P.RightLeg, rr('cuisseD')), ray(P.LeftFoot, P.LeftToeBase, rr('piedG')), ray(P.RightFoot, P.RightToeBase, rr('piedD'))); }
+      // bras gauche à travers l'arme / le torse : avant-bras gauche ↔ tronc
+      m.avantBrasTronc = Math.min(segSeg(P.LeftForeArm, P.LeftHand, P.Spine, P.Neck) - rr('avbG') - rr('tronc'), segSeg(P.RightForeArm, P.RightHand, P.Spine, P.Neck) - rr('avbD') - rr('tronc'));
+      m.mainsTronc = Math.min(ptSeg(pD, P.Spine, P.Neck), ptSeg(pG, P.Spine, P.Neck)) - rr('tronc') - 0.02;
+    }
+    // positions brutes utiles au suivi (pas de clone : ce sont déjà des copies)
+    m._P = { hips: P.Hips, head: P.Head, rh: P.RightHand, lh: P.LeftHand, spine2: P.Spine2 };
+    m._Q = { Hips: WQ(O.Hips), Spine2: WQ(O.Spine2), Head: WQ(O.Head), RightHand: WQ(O.RightHand), LeftHand: WQ(O.LeftHand), LeftFoot: WQ(O.LeftFoot), RightFoot: WQ(O.RightFoot), arme: f.weapon ? WQ(f.weapon) : null };
+    m._grp = f.group.position.clone();
+    return m;
+  }
+
+  // ---------------------------------------------------------------------------------------------------------------
+  // Suivi dans le temps
+  // ---------------------------------------------------------------------------------------------------------------
+  class Suivi {
+    constructor(opts) { this.fr = []; this.o = Object.assign({ sol: 0.02 }, opts || {}); }
+    ajouter(m, dt, extra) { m.dt = dt; if (extra) Object.assign(m, extra); this.fr.push(m); }
+    bilan() {
+      const F = this.fr, out = {}, SOL = this.o.sol; if (F.length < 3) return out;
+      // sol de référence de chaque pied : son point le plus bas sur la fenêtre (un pied enfoncé de 2 cm partout reste « au sol »)
+      const bas = {}; for (const s of ['G', 'D']) bas[s] = Math.min(0, ...F.map(f => f['solMin' + s]).filter(v => typeof v === 'number'));
+      const auSol = (f, s, k) => f[k + s].y - f._grp.y < bas[s] + SOL;
+      // glissement : un point de semelle au sol (< SOL) à deux images de suite ne doit pas bouger horizontalement
+      for (const s of ['G', 'D']) {
+        let somme = 0, temps = 0, pire = 0, pireI = -1, enPhase = 0, glPhase = 0, phases = [];
+        for (let i = 1; i < F.length; i++) {
+          const a = F[i - 1], b = F[i]; if (!a['talon' + s]) continue;
+          let best = null;
+          for (const k of ['talon', 'plante', 'bout']) { const pa = a[k + s], pb = b[k + s]; if (auSol(a, s, k) && auSol(b, s, k)) { const d = Math.hypot(pb.x - pa.x, pb.z - pa.z); if (best === null || d < best) best = d; } }
+          if (best === null) { if (enPhase > 0.08) phases.push([enPhase, glPhase]); enPhase = 0; glPhase = 0; continue; }
+          const v = best / b.dt; somme += best; temps += b.dt; enPhase += b.dt; glPhase += best; if (v > pire) { pire = v; pireI = i; }
+        }
+        if (enPhase > 0.08) phases.push([enPhase, glPhase]);
+        out['glisseMoy' + s] = temps > 0 ? somme / temps : 0;    // m/s moyen pendant l'appui
+        out['glisseMax' + s] = pire; out['glisseMaxImg' + s] = pireI;
+        out['glisseParAppui' + s] = phases.length ? Math.max(...phases.map(p => p[1])) : 0;   // m perdus sur l'appui le pire
+        out['appuis' + s] = phases.length;
+      }
+      // poses de pied (attaques) : le pied passe de levé à posé
+      const att = [];
+      for (const s of ['G', 'D']) { let leve = false; for (let i = 0; i < F.length; i++) { const y = F[i]['solMin' + s]; if (y === undefined) continue; if (y > bas[s] + SOL * 2.5) leve = true; else if (leve && y < bas[s] + SOL) { leve = false; att.push({ i, s, t: F.slice(0, i + 1).reduce((x, f) => x + f.dt, 0), p: F[i]['cheville' + s].clone(), genou: F[i]['genou' + s], ...F[i] }); } } }
+      att.sort((a, b) => a.i - b.i); out.attaques = att.length;
+      if (att.length >= 3) {
+        const T = F.reduce((x, f) => x + f.dt, 0), t0 = att[0].t, t1 = att[att.length - 1].t;
+        out.cadence = (att.length - 1) / Math.max(1e-3, t1 - t0) * 60;   // pas / min
+        const L = [], W = [];
+        for (let i = 1; i < att.length; i++) if (att[i].s !== att[i - 1].s) {
+          const d = att[i].p.clone().sub(att[i - 1].p), ve = F[att[i].i].vitesse > 0.15 ? new THREE.Vector3(...[0, 0, 0]) : null;
+          const dep = new THREE.Vector3(att[i]._grp.x - att[i - 1]._grp.x, 0, att[i]._grp.z - att[i - 1]._grp.z), dl = dep.length();
+          // longueur de pas = distance entre deux poses successives (pieds opposés) le long du déplacement ; largeur = perpendiculaire
+          if (dl > 0.05) { dep.normalize(); L.push(Math.abs(d.dot(dep))); W.push(Math.abs(d.x * -dep.z + d.z * dep.x)); }
+        }
+        if (L.length) { out.longPas = L.reduce((a, b) => a + b, 0) / L.length; out.largPas = W.reduce((a, b) => a + b, 0) / W.length; out.largPasMin = Math.min(...W); }
+        out.genouAttaque = att.map(a => a.genou).reduce((a, b) => a + b, 0) / att.length;
+      }
+      // à-coups : vitesse angulaire par os (°/s), pics = écart à la médiane glissante
+      const OS = ['Hips', 'Spine2', 'Head', 'RightHand', 'LeftHand', 'LeftFoot', 'RightFoot', 'arme'];
+      out.acoups = {};
+      for (const k of OS) {
+        const w = []; for (let i = 1; i < F.length; i++) { const a = F[i - 1]._Q[k], b = F[i]._Q[k]; if (!a || !b) { w.push(0); continue; } w.push(2 * Math.acos(Math.min(1, Math.abs(a.dot(b)))) * D / F[i].dt); }
+        // accélération angulaire (°/s²) : un vrai à-coup = un changement brutal de vitesse de rotation
+        let pire = 0, pi = -1; for (let i = 1; i < w.length; i++) { const acc = Math.abs(w[i] - w[i - 1]) / F[i + 1].dt; if (acc > pire) { pire = acc; pi = i + 1; } }
+        out.acoups[k] = { vMax: Math.max(...w), accMax: pire, img: pi };
+      }
+      // bassin : rebond vertical
+      const hy = F.map(f => f.bassinY); out.rebond = Math.max(...hy) - Math.min(...hy);
+      // valeurs extrêmes des mesures instantanées (min / max / moyenne / pire image)
+      const cles = Object.keys(F[0]).filter(k => typeof F[0][k] === 'number');
+      out.stat = {};
+      for (const k of cles) { let mn = Infinity, mx = -Infinity, s = 0, n = 0, imn = -1, imx = -1; F.forEach((f, i) => { const v = f[k]; if (typeof v !== 'number' || !isFinite(v)) return; if (v < mn) { mn = v; imn = i; } if (v > mx) { mx = v; imx = i; } s += v; n++; });
+        if (n) out.stat[k] = { min: mn, max: mx, moy: s / n, iMin: imn, iMax: imx }; }
+      return out;
+    }
+  }
+  window.REVUE = { equiper, mesurer, distArme, Suivi, segSeg, os };
+})();

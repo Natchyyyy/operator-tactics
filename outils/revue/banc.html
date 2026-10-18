@@ -1,0 +1,188 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Banc de revue d'animation</title><style>body{margin:0;background:#20252a;font:12px sans-serif;color:#ddd}</style></head><body>
+<script src="../../web/three.min.js"></script><script src="../../web/figure.js"></script><script src="../../web/gltf.js"></script><script src="../../web/modeles/soldat.js"></script><script src="../../web/modeles/gign.js"></script><script src="../../web/modeles/decor.js"></script><script src="../../web/modeles3d.js"></script><script src="../../web/soldat3d.js"></script>
+<script src="metriques.js"></script>
+<script>
+// Banc de revue : un soldat joue chaque ÉTAT du jeu (repos, patrouille, visée, pas chassés, recul, course, accroupi,
+// rechargement, tir, demi-tour, départ / arrêt) avec la VRAIE logique d'animation du jeu : la fonction animateSkinned()
+// et chargeur() sont extraites telles quelles de web/app.js au chargement (pas de copie qui vieillirait). La simulation est
+// imitée : pas de 0,1 s, position interpolée, vitesse lissée et orientation limitée comme syncMeshes().
+//   BANC.mesurer(modele, etat)          → mesures image par image + bilan (sans rendu, rapide)
+//   BANC.planche(modele, etat, opts)    → dataURL d'une planche (lignes = instants, colonnes = vues), avec étiquettes
+//   BANC.ETATS                          → la liste des états
+const DT = 0.1, FPS = 30, lerp = (a, b, k) => a + (b - a) * k;
+// [durée, paramètres] ; v m/s ; dir ° (0 = vers la visée/l'avant, 90 = vers sa gauche) ; vise ; accroupi ; recharge ; tir = intervalle (s) ; tourne °/s
+const ETATS = {
+  repos_garde_basse:  { seg: [[3.0, { v: 0 }]], fen: [1.2, 3.0], nom: 'Repos garde basse' },
+  repos_visee:        { seg: [[3.0, { v: 0, vise: 1 }]], fen: [1.2, 3.0], nom: 'Visée à l\'arrêt' },
+  tir_arret:          { seg: [[3.0, { v: 0, vise: 1, tir: 0.11 }]], fen: [1.2, 3.0], nom: 'Tir à l\'arrêt' },
+  patrouille:         { seg: [[4.0, { v: 1.35 }]], fen: [1.8, 4.0], nom: 'Patrouille (marche garde basse)' },
+  patrouille_lente:   { seg: [[4.0, { v: 0.9 }]], fen: [1.8, 4.0], nom: 'Patrouille lente' },
+  marche_visee:       { seg: [[4.0, { v: 1.1, vise: 1 }]], fen: [1.8, 4.0], nom: 'Marche en visant (avant)' },
+  marche_visee_diagG: { seg: [[4.0, { v: 1.1, vise: 1, dir: 45 }]], fen: [1.8, 4.0], nom: 'Marche visée diagonale avant gauche' },
+  marche_visee_diagD: { seg: [[4.0, { v: 1.1, vise: 1, dir: -45 }]], fen: [1.8, 4.0], nom: 'Marche visée diagonale avant droite' },
+  pas_chasse_G:       { seg: [[4.0, { v: 1.0, vise: 1, dir: 90 }]], fen: [1.8, 4.0], nom: 'Pas chassé vers la gauche' },
+  pas_chasse_D:       { seg: [[4.0, { v: 1.0, vise: 1, dir: -90 }]], fen: [1.8, 4.0], nom: 'Pas chassé vers la droite' },
+  recul_vise:         { seg: [[4.0, { v: 1.0, vise: 1, dir: 180 }]], fen: [1.8, 4.0], nom: 'Recul en visant' },
+  recul_diagD:        { seg: [[4.0, { v: 1.0, vise: 1, dir: -135 }]], fen: [1.8, 4.0], nom: 'Recul diagonal droite' },
+  jog_bas:            { seg: [[4.0, { v: 2.6 }]], fen: [1.8, 4.0], nom: 'Petite course garde basse' },
+  jog_vise:           { seg: [[4.0, { v: 2.6, vise: 1 }]], fen: [1.8, 4.0], nom: 'Petite course en visant' },
+  sprint:             { seg: [[4.0, { v: 4.6 }]], fen: [1.8, 4.0], nom: 'Sprint' },
+  accroupi:           { seg: [[3.0, { v: 0, accroupi: 1, vise: 1 }]], fen: [1.2, 3.0], nom: 'Accroupi (à couvert)' },
+  marche_accroupie:   { seg: [[4.0, { v: 0.9, accroupi: 1, vise: 1 }]], fen: [1.8, 4.0], nom: 'Marche accroupie' },
+  recharge_arret:     { seg: [[3.4, { v: 0, recharge: 2.6 }]], fen: [0.2, 3.0], nom: 'Rechargement debout' },
+  recharge_marche:    { seg: [[3.4, { v: 1.2, recharge: 2.6 }]], fen: [0.2, 3.0], nom: 'Rechargement en marchant' },
+  demi_tour:          { seg: [[0.8, { v: 0, vise: 1 }], [1.6, { v: 0, vise: 1, tourne: 110 }], [1.0, { v: 0, vise: 1 }]], fen: [0.6, 3.4], nom: 'Pivot sur place en visant' },
+  depart_arret:       { seg: [[1.0, { v: 0 }], [1.8, { v: 1.35 }], [1.6, { v: 0 }]], fen: [0.8, 4.4], nom: 'Départ / arrêt (garde basse)' },
+  depart_arret_vise:  { seg: [[1.0, { v: 0, vise: 1 }], [1.8, { v: 1.1, vise: 1 }], [1.6, { v: 0, vise: 1 }]], fen: [0.8, 4.4], nom: 'Départ / arrêt (visée)' },
+  virage_patrouille:  { seg: [[1.5, { v: 1.35 }], [2.0, { v: 1.35, courbe: 60 }]], fen: [1.0, 3.5], nom: 'Patrouille en virage (60°/s)' },
+};
+let PILOTE = null;
+// extrait une fonction de app.js (comptage des accolades, en sautant chaînes, gabarits, commentaires et regex simples)
+function extraire(src, nom) {
+  const i0 = src.indexOf('function ' + nom + '('); if (i0 < 0) throw new Error('introuvable : ' + nom);
+  let i = src.indexOf('{', i0), prof = 0;
+  for (; i < src.length; i++) {
+    const c = src[i];
+    if (c === '/' && src[i + 1] === '/') { i = src.indexOf('\n', i); continue; }
+    if (c === '/' && src[i + 1] === '*') { i = src.indexOf('*/', i) + 1; continue; }
+    if (c === '"' || c === "'" || c === '`') { const q = c; i++; while (i < src.length && src[i] !== q) { if (src[i] === '\\') i++; i++; } continue; }
+    if (c === '{') prof++; else if (c === '}') { prof--; if (prof === 0) return src.slice(i0, i + 1); }
+  }
+  throw new Error('fin de fonction introuvable : ' + nom);
+}
+async function chargerPilote() {
+  const src = await (await fetch('../../web/app.js', { cache: 'no-store' })).text();
+  const code = extraire(src, 'animateSkinned') + '\n' + extraire(src, 'chargeur') + '\nreturn { animateSkinned, chargeur };';
+  const fab = new Function('THREE', 'DT', 'lerp', 'ETAT', '_v1', '_v2', '_v3', 'with (ETAT) { ' + code + ' }');
+  PILOTE = { fab, longueur: code.length };
+}
+// un soldat + son environnement simulé
+function nouveau(modele) {
+  const f = OT.Soldat3D.create({ modele, uniform: 0x6b5a3e, weapon: 'carbine' });
+  f.ring = { material: { opacity: 0.55 } }; f.anim = { crouch: 0, fall: 0, fallDir: 0, recoil: 0, flinch: 0, aim: 0, phase: 0 };
+  f.prev = { x: 0, z: 0 }; f.cur = { x: 0, z: 0 }; f.yaw = 0;
+  const ETAT = { battle: { over: false, result: null }, meshes: {} };
+  const P = PILOTE.fab(THREE, DT, lerp, ETAT, new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3());
+  return { f, ETAT, P };
+}
+// joue un état ; à chaque image, rappel(img, t, ctx) après la pose complète (arme placée)
+function jouer(modele, etatId, rappel, opts) {
+  opts = opts || {};
+  const E = ETATS[etatId]; if (!E) throw new Error('état inconnu ' + etatId);
+  const S = nouveau(modele), f = S.f, a = f.anim;
+  const u = { id: 'u', alive: true, stance: 'stand', target: null, state: 'advancing', moving: false, reloading: 0, throwing: false, weapon: { reload: 2.6 }, preaim: false, _v: 0, speed() { return this._v; } };
+  const cible = { id: 'cible', alive: true, x: 0, z: 10 }; S.ETAT.meshes.cible = { group: { position: new THREE.Vector3(0, 0, 10) } };
+  let t = 0, tSim = 0, facing = 0, depAz = 0;   // facing : lacet voulu (rad, convention du groupe : avant = (sin, cos))
+  const total = E.seg.reduce((s, x) => s + x[0], 0), dt = 1 / FPS;
+  const param = (tt) => { let acc = 0; for (const [d, p] of E.seg) { if (tt < acc + d) return p; acc += d; } return E.seg[E.seg.length - 1][1]; };
+  let img = 0, tirT = 0, recharge0 = -1;
+  while (t < total - 1e-9) {
+    // pas de simulation
+    if (t >= tSim - 1e-9) {
+      const p = param(t);
+      u.stance = p.accroupi ? 'crouch' : 'stand'; u._v = p.v || 0; u.moving = (p.v || 0) > 0;
+      u.target = p.vise ? cible : null; u.state = p.vise ? 'engage' : (u.moving ? 'advancing' : 'idle');
+      if (p.tourne) facing += p.tourne * Math.PI / 180 * DT;
+      if (p.courbe) depAz += p.courbe * Math.PI / 180 * DT;
+      if (p.recharge) { if (recharge0 < 0) { recharge0 = t; u.reloading = p.recharge; } else u.reloading = Math.max(0, p.recharge - (t - recharge0)); } else u.reloading = 0;
+      const az = (p.vise || !u.moving ? facing : depAz) + (p.dir || 0) * Math.PI / 180;
+      if (!p.vise && u.moving) { facing = depAz; }
+      const ax = p.vise ? facing + (p.dir || 0) * Math.PI / 180 : depAz;
+      f.prev = { x: f.cur.x, z: f.cur.z }; f.cur = { x: f.cur.x + Math.sin(ax) * u._v * DT, z: f.cur.z + Math.cos(ax) * u._v * DT, facing: -facing + Math.PI / 2 };
+      // la cible reste à 10 m devant le soldat, à hauteur de poitrine
+      cible.x = f.cur.x + Math.sin(facing) * 10; cible.z = f.cur.z + Math.cos(facing) * 10; S.ETAT.meshes.cible.group.position.set(cible.x, 0, cible.z);
+      tSim += DT;
+    }
+    // image (comme syncMeshes)
+    const alpha = Math.max(0, Math.min(1, 1 - (tSim - t - dt) / DT));
+    const x = f.prev.x + (f.cur.x - f.prev.x) * alpha, z = f.prev.z + (f.cur.z - f.prev.z) * alpha; f.group.position.set(x, 0, z);
+    const vdx = (f.cur.x - f.prev.x) / DT, vdz = (f.cur.z - f.prev.z) / DT, vinst = Math.hypot(vdx, vdz), kv = vinst > 4 ? 0 : Math.min(1, dt * 9);
+    a.vx = (a.vx || 0) + (vdx - (a.vx || 0)) * kv; a.vz = (a.vz || 0) + (vdz - (a.vz || 0)) * kv;
+    let want = facing; if (!u.target && u.moving && vinst > 0.3 && Math.hypot(a.vx, a.vz) > 0.3) want = -Math.atan2(a.vz, a.vx) + Math.PI / 2;
+    let d = want - f.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; const ms = 5.5 * dt; f.yaw += Math.max(-ms, Math.min(ms, d * Math.min(1, dt * 10)));
+    f.group.rotation.y = f.yaw;
+    const p = param(t);
+    if (p.tir) { tirT += dt; if (tirT >= p.tir) { tirT = 0; a.recoil = 1; } }
+    S.P.animateSkinned(u, f, dt);
+    t += dt; img++;
+    if (rappel) rappel(img, t, { f, u, p, cible: new THREE.Vector3(cible.x, 1.35, cible.z), vel: new THREE.Vector3(vdx, 0, vdz), tir: a.recoil > 0.9, E });
+  }
+  return S;
+}
+function mesurerEtat(modele, etatId) {
+  const E = ETATS[etatId], suivi = new REVUE.Suivi(), brut = [];
+  jouer(modele, etatId, (img, t, c) => {
+    if (t < E.fen[0] - 1e-9 || t > E.fen[1] + 1e-9) return;
+    const m = REVUE.mesurer(c.f, { cible: c.p.vise ? c.cible : null, vel: c.vel, tir: c.tir });
+    suivi.ajouter(m, 1 / FPS, { t: +t.toFixed(3), clip: c.f.clip, vise: !!c.p.vise, v: c.p.v || 0 });
+  });
+  const b = suivi.bilan();
+  // images (allégées) pour la preuve : instant + mesures numériques
+  const fr = suivi.fr.map(m => { const o = {}; for (const k in m) if (typeof m[k] === 'number' || typeof m[k] === 'string' || typeof m[k] === 'boolean') o[k] = typeof m[k] === 'number' ? +m[k].toFixed(4) : m[k]; return o; });
+  return { etat: etatId, nom: E.nom, modele, bilan: b, images: fr, rayons: suivi.fr.length ? null : null };
+}
+// ---------------------------------------------------------------------------------------------------------------
+// Rendu des planches
+// ---------------------------------------------------------------------------------------------------------------
+let RD = null;
+function rendu(tw, th) {
+  if (!RD) {
+    const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true;
+    const sc = new THREE.Scene(); sc.background = new THREE.Color(0x9aa3aa);
+    sc.add(new THREE.HemisphereLight(0xffffff, 0x707070, 2.6)); const dl = new THREE.DirectionalLight(0xfff0d8, 2.6); const fill = new THREE.DirectionalLight(0xdfe8ff, 1.2); fill.position.set(-3, 2, -4); sc.add(fill); dl.castShadow = true; dl.shadow.mapSize.set(1024, 1024);
+    Object.assign(dl.shadow.camera, { left: -2, right: 2, top: 2, bottom: -2, near: 0.5, far: 20 }); sc.add(dl); sc.add(dl.target);
+    const sol = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0xa9acaf, roughness: 1 })); sol.rotation.x = -Math.PI / 2; sol.receiveShadow = true; sc.add(sol);
+    const grid = new THREE.GridHelper(400, 2000, 0x8a8f94, 0x8f9499); grid.position.y = 0.002; sc.add(grid);   // carreaux de 20 cm
+    const cam = new THREE.PerspectiveCamera(30, 1, 0.02, 100);
+    RD = { r, sc, dl, cam, marques: new THREE.Group() }; sc.add(RD.marques);
+  }
+  RD.r.setSize(tw, th, false); RD.cam.aspect = tw / th; RD.cam.updateProjectionMatrix(); return RD;
+}
+// vues : position de caméra relative au soldat (az ° autour de lui, 0 = face à lui ; el ° ; dist m ; cible : os ou hauteur)
+const VUES = {
+  face: { az: 0, el: 8, dist: 3.6, y: 0.95 }, profil: { az: -90, el: 6, dist: 3.6, y: 0.95 }, dos: { az: 180, el: 8, dist: 3.6, y: 0.95 },
+  troisQuarts: { az: -40, el: 14, dist: 3.6, y: 0.95 }, profilG: { az: 90, el: 6, dist: 3.6, y: 0.95 }, dessus: { az: 0, el: 80, dist: 3.4, y: 0.4 },
+  mainD: { az: -90, el: 5, dist: 0.75, os: 'RightHand' }, mainDdessous: { az: -60, el: -35, dist: 0.75, os: 'RightHand' }, mainDdessus: { az: -120, el: 55, dist: 0.75, os: 'RightHand' },
+  mainG: { az: 70, el: 10, dist: 0.8, os: 'LeftHand' }, mainGdessous: { az: 40, el: -35, dist: 0.8, os: 'LeftHand' }, mainGcote: { az: -80, el: 10, dist: 0.8, os: 'LeftHand' },
+  armeD: { az: -90, el: 5, dist: 1.1, os: 'RightHand', sansCorps: 1 }, armeG: { az: 90, el: 5, dist: 1.1, os: 'RightHand', sansCorps: 1 },
+  pieds: { az: -60, el: 18, dist: 1.5, y: 0.12 }, piedsFace: { az: 0, el: 4, dist: 1.6, y: 0.18 }, piedsProfil: { az: -90, el: 3, dist: 1.6, y: 0.18 },
+  tete: { az: -60, el: 8, dist: 0.9, os: 'Head' }, teteDessus: { az: -150, el: 40, dist: 0.9, os: 'Head' }, epaule: { az: -120, el: 15, dist: 0.85, os: 'RightShoulder' },
+};
+function placerCam(R, f, v) {
+  const g = f.group.position, yaw = f.group.rotation.y, az = yaw + v.az * Math.PI / 180, el = v.el * Math.PI / 180;
+  let tgt = new THREE.Vector3(g.x, v.y || 0.95, g.z);
+  if (v.os) { const o = REVUE.os(f, v.os); if (o) tgt = o.getWorldPosition(new THREE.Vector3()); }
+  R.cam.position.set(tgt.x + v.dist * Math.sin(az) * Math.cos(el), tgt.y + v.dist * Math.sin(el), tgt.z + v.dist * Math.cos(az) * Math.cos(el)); R.cam.lookAt(tgt);
+  R.dl.position.set(g.x + 3, 7, g.z + 4); R.dl.target.position.set(g.x, 0, g.z);
+}
+function marquer(R, pts) {
+  while (R.marques.children.length) R.marques.remove(R.marques.children[0]);
+  for (const [p, col, r] of pts) { if (!p) continue; const s = new THREE.Mesh(new THREE.SphereGeometry(r || 0.006, 10, 8), new THREE.MeshBasicMaterial({ color: col, depthTest: false })); s.renderOrder = 10; s.position.copy(p); R.marques.add(s); }
+}
+// opts : { vues: [...], instants: [t, ...] (s) ou n: nombre d'instants répartis dans la fenêtre, tw, th, marques: bool, titre }
+function planche(modele, etatId, opts) {
+  opts = opts || {}; const E = ETATS[etatId], vues = opts.vues || ['face', 'profil', 'dos', 'troisQuarts'];
+  const n = opts.n || 4, inst = opts.instants || Array.from({ length: n }, (_, i) => E.fen[0] + (E.fen[1] - E.fen[0]) * (i + 0.5) / n);
+  const tw = opts.tw || 200, th = opts.th || 260, ent = 18, gauche = 70;
+  const cv = document.createElement('canvas'); cv.width = gauche + tw * vues.length; cv.height = ent + 16 + th * inst.length; const cx = cv.getContext('2d');
+  cx.fillStyle = '#15191c'; cx.fillRect(0, 0, cv.width, cv.height); cx.fillStyle = '#eee'; cx.font = 'bold 13px sans-serif';
+  cx.fillText((opts.titre || (E.nom + ' — ' + modele)), 6, 14); cx.font = '11px sans-serif';
+  vues.forEach((v, j) => cx.fillText(v, gauche + j * tw + 4, ent + 12));
+  const R = rendu(tw, th); let k = 0; const info = [];
+  jouer(modele, etatId, (img, t, c) => {
+    if (k >= inst.length || t < inst[k] - 1e-6) return;
+    c.f.group.updateMatrixWorld(true); if (!c.f.group.parent) R.sc.add(c.f.group);
+    const m = REVUE.mesurer(c.f, { cible: c.p.vise ? c.cible : null, vel: c.vel });
+    const pts = opts.marques ? [[m.detente, 0xffdd00], [m.poignee, 0x33ff66], [c.f.weapon && c.f.weapon.forePt && c.f.weapon.localToWorld(c.f.weapon.forePt.clone()), 0x33ccff], [m.creux, 0xff33cc, 0.012], [m.crosse, 0xff8800, 0.01],
+      [m.talonG, 0xff3333, 0.012], [m.planteG, 0xff3333, 0.012], [m.boutG, 0xff3333, 0.012], [m.talonD, 0x3399ff, 0.012], [m.planteD, 0x3399ff, 0.012], [m.boutD, 0x3399ff, 0.012]] : [];
+    marquer(R, pts);
+    vues.forEach((vn, j) => { const V0 = VUES[vn]; placerCam(R, c.f, V0); if (V0.sansCorps) c.f.body.visible = false; R.r.render(R.sc, R.cam); c.f.body.visible = true; cx.drawImage(R.r.domElement, gauche + j * tw, ent + 16 + k * th); });
+    cx.fillStyle = '#eee'; cx.fillText('t=' + t.toFixed(2) + 's', 4, ent + 16 + k * th + 14); cx.fillText((c.f.clip || '').slice(0, 11), 4, ent + 16 + k * th + 28);
+    info.push({ t: +t.toFixed(3), clip: c.f.clip }); k++;
+    R.sc.remove(c.f.group);
+  });
+  return { url: cv.toDataURL('image/png'), info };
+}
+window.BANC = { ETATS, VUES, jouer, mesurer: mesurerEtat, planche, chargerPilote };
+OT.Soldat3D.whenReady(async () => { try { await chargerPilote(); window.PRET = true; } catch (e) { window.ERREUR = String(e); window.PRET = true; console.error(e); } });
+</script></body></html>
