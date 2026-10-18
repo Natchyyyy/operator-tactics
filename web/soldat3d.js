@@ -42,7 +42,9 @@
   // rechargements debout (main droite portée dans la poche de rechargement, voir poche())
   const REPOS = { Garde_Basse: 1, Rifle_Aim_Turn_Right: 1 };
   const RECHARGE = { Standing_Reload: 1, Standing_Reload_Haut: 1 };
-  const EPAULE = { Rifle_Aim_Turn_Right: 1, Walk_Aim: 1, Walk_Aim_Haut: 1, Run_and_Shoot: 1, Run_and_Shoot_Haut: 1, Gunshot_Reaction: 1 };
+  const EPAULE = { Rifle_Aim_Turn_Right: 1, Walk_Aim: 1, Walk_Aim_Haut: 1, Run_and_Shoot: 1, Run_and_Shoot_Haut: 1, Gunshot_Reaction: 1, Accroupi_Vise: 1, Accroupi_Marche_Vise: 1 };
+  // poses en garde basse construite (fusil, voir poseArme) en plus de Garde_Basse et des hauts du corps « _Low_Haut »
+  const BAS = { Accroupi_Bas: 1, Accroupi_Marche_Bas: 1 };
   const CREUX = { dedans: 0.16, avant: 0.08, bas: -0.03 };
   // œil droit dans le repère de la tête (m : au-dessus de l'os de la tête, devant, à droite) ; point de visée de l'optique
   // (repère de l'arme : centre de la fenêtre du viseur point rouge) ; garde basse construite (rad : canon vers le bas, vers la
@@ -65,7 +67,7 @@
       // le fusil Meshy (modeles3d.js) est attendu : les soldats naissent directement avec
       // la garde basse dépend de la géométrie de l'arme (poignée → garde-main) : construite une fois le fusil chargé aussi
       const go = () => {
-        for (const n in S.modeles) { const M = S.modeles[n]; try { gardeBasse(M); compositeBas(M); directions(M); mesureLoco(M); } catch (e) { console.warn('soldat 3D (garde basse) :', e); } }
+        for (const n in S.modeles) { const M = S.modeles[n]; try { gardeBasse(M); compositeBas(M); directions(M); mesureLoco(M); compositeAccroupi(M); } catch (e) { console.warn('soldat 3D (garde basse) :', e); } }
         S.ready = true; for (const f of S.onReady.splice(0)) try { f(); } catch (e) { console.warn(e); } texturesHD(); };
       if (root.Modeles3D) root.Modeles3D.whenReady(go); else go();
     };
@@ -504,6 +506,30 @@
     M.gbErr = { R: palm(R).distanceTo(tR) / k, L: palm(L).distanceTo(tL) / k };
     restore(); sc.updateMatrixWorld(true);
   }
+  // Accroupi : jambes et bassin de l'accroupi (« Kneeling_Reload » figé au début, avant que le fusil ne monte vers le ciel ;
+  // « Cautious_Crouch_Walk_Forward » pour la marche accroupie), haut du corps de la visée (Rifle_Aim_Turn_Right) ou de la garde
+  // basse ; le fusil est ensuite placé par poseArme et tenu à deux mains. Correction d'orientation mesurée comme measure().
+  function compositeAccroupi(M) {
+    const kn = M.clips.Kneeling_Reload, cw = M.clips.Cautious_Crouch_Walk_Forward, hauts = { Vise: M.clips.Rifle_Aim_Turn_Right, Bas: M.clips.Garde_Basse };
+    if (!kn || !hauts.Vise) return;
+    const fige = (t, temps, dur) => { const v = Array.from(t.createInterpolant().evaluate(temps)); return new t.constructor(t.name, [0, dur], v.concat(v)); };
+    for (const h in hauts) { const H = hauts[h]; if (!H) continue;
+      const haut = (dur) => H.tracks.filter(t => !JAMBES.test(t.name)).map(t => fige(t, 0, dur));
+      M.clips['Accroupi_' + h] = new THREE.AnimationClip('Accroupi_' + h, 1, kn.tracks.filter(t => JAMBES.test(t.name)).map(t => fige(t, 0.06 * kn.duration, 1)).concat(haut(1)));
+      if (cw) M.clips['Accroupi_Marche_' + h] = new THREE.AnimationClip('Accroupi_Marche_' + h, cw.duration, cw.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone()).concat(haut(cw.duration)));
+    }
+    // correction d'orientation (le fusil droit devant) et vitesse naturelle de la marche accroupie
+    const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n), rh = b('RightHand'), lh = b('LeftHand'); if (!rh || !lh) return;
+    const mixer = new THREE.AnimationMixer(sc), pR = new THREE.Vector3(), pL = new THREE.Vector3();
+    for (const n of ['Accroupi_Vise', 'Accroupi_Bas', 'Accroupi_Marche_Vise', 'Accroupi_Marche_Bas']) { const c = M.clips[n]; if (!c) continue;
+      const a = mixer.clipAction(c); a.play(); let sx = 0, sz = 0;
+      for (const t of [0, 0.25, 0.5, 0.75]) { mixer.setTime(t * c.duration); sc.updateMatrixWorld(true); rh.getWorldPosition(pR); lh.getWorldPosition(pL); const dx = pL.x - pR.x, dz = pL.z - pR.z, L = Math.hypot(dx, dz) || 1; sx += dx / L; sz += dz / L; }
+      const yaw = Math.atan2(sx, sz); M.yawFix[n] = -yaw * (/Marche/.test(n) ? 0.6 : 1); (M.aimYaw || (M.aimYaw = {}))[n] = yaw;
+      a.stop(); mixer.uncacheAction(c);
+      if (/Marche/.test(n) && M.loco) { M.loco[n] = M.loco.Cautious_Crouch_Walk_Forward; if (M.phase0) M.phase0[n] = M.phase0.Cautious_Crouch_Walk_Forward; }
+    }
+    mixer.stopAllAction(); mixer.uncacheRoot(sc);
+  }
   // ---- Prise de l'arme : mains posées sur le fusil, doigts refermés dessus -------------------------------------------------
   // Le fusil Meshy en boîtes arrondies (repère des armes : +Z bouche, +Y dessus, +X gauche du tireur ; m) : centre c,
   // demi-tailles h (arrondi compris), rayon d'arrondi r, inclinaison rx (rad, autour de X : poignée inclinée vers l'arrière).
@@ -911,7 +937,7 @@
         if (this.dosComp && Math.abs(this.dosComp) > 0.01 && spine3.length) { body.updateMatrixWorld(true); for (const sb of spine3) { mod(sb); twist(sb, -this.dosComp / spine3.length); } }
         // respiration (poses fixes : garde basse, visée) : légère flexion du dos
         if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { mod(spine1); spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
-        this.gbK = (this.gbK || 0) + ((this.clip === 'Garde_Basse' || this.clip === 'Walk_Low_Haut' || this.clip === 'Run_Low_Haut' || this.clip === 'Trot_Low_Haut' ? 1 : 0) - (this.gbK || 0)) * (dt > 0 ? Math.min(1, dt * 6) : 1);
+        this.gbK = (this.gbK || 0) + ((this.clip === 'Garde_Basse' || this.clip === 'Walk_Low_Haut' || this.clip === 'Run_Low_Haut' || this.clip === 'Trot_Low_Haut' || BAS[this.clip] ? 1 : 0) - (this.gbK || 0)) * (dt > 0 ? Math.min(1, dt * 6) : 1);
         if (Math.max(this.epK || 0, this.gbK) > 0.01 && !keepYaw) this.penche(Math.max(this.epK || 0, this.gbK));
         if (enMarche && (this.marcheK || 0) > 0.05) this.ecarte(this.marcheK, this.coteK || 0, this.arrK || 0);
         this.verrou(dt, !keepYaw && (enMarche || !!this.verrouPieds) && !S.sansVerrou);

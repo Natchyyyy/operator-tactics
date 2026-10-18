@@ -17,6 +17,10 @@ const POSES = {
   sprint: { nom: 'sprint', loco: ['Run_Low', 4.2] },
   acc: { nom: 'accroupi', clip: 'Kneeling_Reload', t: 0.06 },
   macc: { nom: 'marche accr.', loco: ['Cautious_Crouch_Walk_Forward', 0.9] },
+  acc2: { nom: 'accroupi visée', clip: 'Accroupi_Vise' },
+  accb: { nom: 'accroupi bas', clip: 'Accroupi_Bas' },
+  macc2: { nom: 'marche acc. visée', loco: ['Accroupi_Marche_Vise', 0.9] },
+  maccb: { nom: 'marche acc. bas', loco: ['Accroupi_Marche_Bas', 0.9] },
   mcote: { nom: 'pas côté visée', marche: ['Walk_Aim_Haut', 'Pas_Avant_Aim', 1.1], ecart: Math.PI / 2 },
 };
 const LISTE = (q.get('poses') || 'gb,vise,mvise,mbas,cvise,cbas,acc,macc').split(',');
