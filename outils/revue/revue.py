@@ -63,11 +63,14 @@ async def cmd_revue(a):
     async with async_playwright() as p:
         br, pg, errs = await page_banc(p)
         etats = a.etats.split(',') if a.etats else await pg.evaluate('Object.keys(BANC.ETATS)')
-        res = {}; t0 = time.time()
+        res = {}; t0 = time.time(); echecs = []
         for m in a.modeles.split(','):
             for e in etats:
-                with verrou(): r = await pg.evaluate(f'BANC.mesurer({json.dumps(m)}, {json.dumps(e)})')
-                res[(m, e)] = r
+                try:
+                    with verrou(): r = await pg.evaluate(f'BANC.mesurer({json.dumps(m)}, {json.dumps(e)})')
+                    res[(m, e)] = r
+                except Exception as ex:   # un état qui plante (fonction renommée, clip absent…) n'arrête pas la revue
+                    msg = str(ex).split('\n')[0][:300]; echecs.append((m, e, msg)); print(f'ÉCHEC mesure {m}/{e} : {msg}', flush=True)
             print(f'mesures {m} : {len(etats)} états ({time.time() - t0:.0f} s)', flush=True)
         # notation
         verdicts = []
@@ -87,8 +90,11 @@ async def cmd_revue(a):
         for (m, e), c in choix.items():
             if not c['instants']: continue
             ins = sorted(c['instants']); chemin = os.path.join(out, 'preuves', f'{m}_{e}.png')
-            with verrou(): r = await pg.evaluate(f'BANC.planche({json.dumps(m)}, {json.dumps(e)}, {json.dumps({"vues": c["vues"], "instants": ins, "marques": True, "tw": 220, "th": 260})})')
-            sauver_png(r['url'], chemin); c['chemin'] = chemin
+            try:
+                with verrou(): r = await pg.evaluate(f'BANC.planche({json.dumps(m)}, {json.dumps(e)}, {json.dumps({"vues": c["vues"], "instants": ins, "marques": True, "tw": 220, "th": 260})})')
+                sauver_png(r['url'], chemin); c['chemin'] = chemin
+            except Exception as ex:
+                msg = str(ex).split('\n')[0][:300]; echecs.append((m, e, 'planche : ' + msg)); print(f'ÉCHEC planche {m}/{e} : {msg}', flush=True); continue
             print(f'preuve {chemin} ({time.time() - t0:.0f} s)', flush=True)
         for v in mauvais:
             c = choix.get((v['modele'], v['etat']))
@@ -107,6 +113,7 @@ async def cmd_revue(a):
             vs = [v for v in verdicts if v['modele'] == m and v['etat'] == e]
             cells.append(f"{sum(v['niveau'] == 'OK' for v in vs)} / {sum(v['niveau'] == 'mineur' for v in vs)} / **{sum(v['niveau'] == 'majeur' for v in vs)}**")
         L.append(f'| {e} | ' + ' | '.join(cells) + ' |')
+    if echecs: L += ['', '## ÉCHECS (états non mesurés ou planches non rendues)', ''] + [f'- {m} / {e} : `{msg}`' for m, e, msg in echecs]
     tot = {n: sum(v['niveau'] == n for v in verdicts) for n in ('OK', 'mineur', 'majeur')}
     L += ['', f"Total : {tot['OK']} OK, {tot['mineur']} mineurs, {tot['majeur']} majeurs (sur {len(verdicts)} vérifications).", '']
     for part, titre in (('haut', 'Haut du corps (mains, doigts, arme, tête, buste)'), ('bas', 'Bas du corps (locomotion, pieds, jambes)')):
@@ -160,7 +167,9 @@ async def cmd_apercu(a):
         etats = a.etats.split(',') if a.etats else await pg.evaluate('Object.keys(BANC.ETATS)')
         tmp = []; t = time.time()
         for e in etats:
-            with verrou(): r = await pg.evaluate(f'BANC.planche({json.dumps(a.modele)}, {json.dumps(e)}, {json.dumps({"vues": a.vues.split(","), "n": 1, "tw": tw, "th": th, "marques": a.marques})})')
+            try:
+                with verrou(): r = await pg.evaluate(f'BANC.planche({json.dumps(a.modele)}, {json.dumps(e)}, {json.dumps({"vues": a.vues.split(","), "n": 1, "tw": tw, "th": th, "marques": a.marques})})')
+            except Exception as ex: print(f'ÉCHEC aperçu {e} : ' + str(ex).split(chr(10))[0][:300], flush=True); continue
             f = os.path.join(RACINE, 'captures', 'revue', '_tmp_' + e + '.png'); sauver_png(r['url'], f); tmp.append(f)
         await br.close()
     ims = [Image.open(f) for f in tmp]; W = max(i.width for i in ims); H = sum(i.height for i in ims)
