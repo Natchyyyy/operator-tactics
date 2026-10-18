@@ -102,9 +102,7 @@
           cap(box(23.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
           box(21.2, 33.8, 2.4, 2.4, 3.0, 'wall', 'kiosque'),
           box(30, 39.7, 12, 2.6, 3.0, 'wall', 'bus'), box(32.4, 38.0, 4.2, 1.5, 2.5, 'wall', 'abribus'), cap(box(44.2, 38.6, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),   // quai de la navette (abri sur l'îlot, bus le long) ; fourgon arrêté à la barrière de sortie
-          box(42.6, 34.6, 0.6, 3.2, 0.95, 'cover', 'barrière'),                   // séparateur entre le quai du bus et la voie de sortie
           ...bac(30.4, 34.0, 1.8, 1.4), ...bac(37.4, 34.0, 1.8, 1.4), box(37.4, 38.1, 1.8, 1.3, 0.9, 'cover', 'bac à fleurs'),   // jardinières du passage piéton et du quai
-          ...bac(30.2, 13.8, 1.6, 1.4),                                          // îlot planté à l'entrée de la piste 1
           cap(box(18.0, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1), cap(box(20.5, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
           box(52.6, 41.8, 1.2, 1.2, 0.9, 'cover', 'palettes'), box(53.0, 35.4, 1.0, 2.0, 0.9, 'cover', 'sacs de sable'),
           box(13.8, 33.8, 4.6, 1.6, 1.7, 'wall', 'colonnes de tri'),

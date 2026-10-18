@@ -24,6 +24,10 @@
   (≈ 125 Mo utilisés le 18/10, dont ~115 Mo de haute définition `hd/`) → surveiller `dist/publier.json` (« problemes »).
   Si la HD grossit encore : textures en .webp/.jpg plus compressées, ou modèles HD seulement sur githack (pas dans l'artifact).
 - Publier : `node outils/publier.js` (lots des fichiers changés) puis `node outils/publier.js --fait`.
+- Mesuré sur le PC de l'utilisateur (Chrome, carte graphique, raw.githack, même version du jeu) : page légère affichée à
+  0,4 s avec la barre (avant : page blanche jusqu'à 5,4 s), jeu prêt à 5,0 s (5,4 s), modèles HD prêts à 9,9 s (9,8 s).
+  Le gros du temps restant est l'initialisation de `web/app.js` (3,7 s sur le PC, ~11 s en rendu logiciel) : piste de
+  performance à part (voir `window.OT_CHARGEMENT.detail`).
 
 ## 18/10 : nouveaux personnages, marche dans toutes les directions, carte asymétrique, nouveaux objets
 - Personnages refaits (vues Gemini → Meshy multi-vues → remaillage 100 k → texture 8K PBR → rig humanoïde avec os des

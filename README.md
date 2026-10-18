@@ -33,6 +33,11 @@ des `<script src>` de `web/index.html` (ajouter un script là-bas suffit, `build
 - Ajouter des fichiers : script → `<script src>` dans `web/index.html` ; bibliothèque → `web/vendor/<nom>.js`
   (+ `<nom>.LICENSE`) ; modèle inclus → `web/modeles/<nom>.js` ; gros fichiers chargés à la demande (modèles, textures,
   sons supplémentaires) → `web/hd/`, lus par `fetch('hd/<fichier>')` avec repli (un `.glb` est publié en `hd/<nom>.json`).
+- `web/hd/` est versionné (mêmes fichiers que `docs/hd`, donc sans coût dans git) : un clone neuf reconstruit tout.
+  La page reçoit `window.OT_HD` (liste des fichiers HD réellement publiés ; `json: true` dans l'artifact) : le jeu ne
+  demande jamais un fichier absent (pas d'erreur 404). Sans `OT_HD` (page de développement `web/index.html`), il essaie.
+- Commit d'une version jouable : `node build.js` puis `git add -A` (le `.gitignore` écarte captures, sources Meshy brutes,
+  `dist/hd`, `dist/hdart`, `dist/complet.html`) — l'essentiel : `web/` (dont `web/hd`), `docs/` (`index.html`, `p/`, `hd/`).
 
 ## Organisation
 | Dossier | Contenu |
