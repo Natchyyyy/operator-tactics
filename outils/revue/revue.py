@@ -36,6 +36,7 @@ def instant(r, v):
     """instant (s) de l'image qui prouve le verdict v"""
     im = r['images']; b = r['bilan']
     if not im: return None
+    if v.get('t_pire') is not None: return v['t_pire']
     if v.get('acoup'): i = (b.get('acoups', {}).get(v['acoup']) or {}).get('img', -1); return im[min(max(i, 0), len(im) - 1)]['t']
     cle = list(v.get('cle') or ())
     if cle and cle[0].startswith('glisseMaxImg'): i = b.get(cle[0], -1); return im[min(max(i, 0), len(im) - 1)]['t']
@@ -65,12 +66,17 @@ async def cmd_revue(a):
         etats = a.etats.split(',') if a.etats else await pg.evaluate('Object.keys(BANC.ETATS)')
         res = {}; t0 = time.time(); echecs = []
         for m in a.modeles.split(','):
-            for e in etats:
-                try:
-                    with verrou(): r = await pg.evaluate(f'BANC.mesurer({json.dumps(m)}, {json.dumps(e)})')
-                    res[(m, e)] = r
-                except Exception as ex:   # un état qui plante (fonction renommée, clip absent…) n'arrête pas la revue
-                    msg = str(ex).split('\n')[0][:300]; echecs.append((m, e, msg)); print(f'ÉCHEC mesure {m}/{e} : {msg}', flush=True)
+            # (--groupe N : N états mesurés par prise du verrou partagé — sur une machine très chargée, chaque prise peut coûter
+            # plusieurs minutes d'attente ; un état seul ne prend que quelques secondes)
+            for g0 in range(0, len(etats), max(1, a.groupe)):
+                grp = etats[g0:g0 + max(1, a.groupe)]
+                with verrou():
+                    for e in grp:
+                        try:
+                            r = await pg.evaluate(f'BANC.mesurer({json.dumps(m)}, {json.dumps(e)})')
+                            res[(m, e)] = r
+                        except Exception as ex:   # un état qui plante (fonction renommée, clip absent…) n'arrête pas la revue
+                            msg = str(ex).split('\n')[0][:300]; echecs.append((m, e, msg)); print(f'ÉCHEC mesure {m}/{e} : {msg}', flush=True)
             print(f'mesures {m} : {len(etats)} états ({time.time() - t0:.0f} s)', flush=True)
         # notation
         verdicts = []
@@ -197,7 +203,7 @@ async def cmd_etats(a):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(); sp = ap.add_subparsers(dest='cmd', required=True)
-    r = sp.add_parser('revue'); r.add_argument('--modeles', default='gign,soldat'); r.add_argument('--etats'); r.add_argument('--preuves', type=int, default=14); r.add_argument('--sortie'); r.add_argument('--sans-trot', dest='sans_trot', action='store_true')
+    r = sp.add_parser('revue'); r.add_argument('--modeles', default='gign,soldat'); r.add_argument('--etats'); r.add_argument('--preuves', type=int, default=14); r.add_argument('--sortie'); r.add_argument('--sans-trot', dest='sans_trot', action='store_true'); r.add_argument('--groupe', type=int, default=1)
     pl = sp.add_parser('planche'); pl.add_argument('--modele', default='gign'); pl.add_argument('--etat', required=True); pl.add_argument('--vues', default='face,profil,dos,troisQuarts')
     pl.add_argument('--n', type=int, default=4); pl.add_argument('--instants'); pl.add_argument('--marques', action='store_true'); pl.add_argument('--taille', default='200x260'); pl.add_argument('--sortie')
     ape = sp.add_parser('apercu'); ape.add_argument('--modele', default='gign'); ape.add_argument('--etats'); ape.add_argument('--vues', default='face,profil,dessus,mainD,piedsProfil'); ape.add_argument('--taille', default='180x220'); ape.add_argument('--marques', action='store_true'); ape.add_argument('--sortie')

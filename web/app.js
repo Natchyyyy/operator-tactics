@@ -535,7 +535,7 @@
   }
   // Mesure du réalisateur (sans rendu) : n pas de simulation, 3 images par pas ; nombre de coupes, durée des plans,
   // caméra dans un obstacle, sujet masqué, à-coups (accélération de la caméra hors coupes).
-  function directorTrace(n) {
+  function directorTrace(n, probe) {   // probe(camera, plan, cadrage, simTime) : mesure externe (rayons contre le décor dessiné), après chaque pas
     setCamMode('director'); const R = { cuts: 0, holds: [], kinds: {}, frames: 0, inside: 0, hidden: 0, maxStep: 0, jerk: 0 }; DIRECTOR.log = R.log = [];
     const keepMon = DIRECTOR.mon; DIRECTOR.mon = keepMon || { shots: [], badKinds: {} };   // relevé plan par plan contre le décor dessiné
     let ref = cam.shot, tCut = simTime, p0 = camera.position.clone(), v0 = new THREE.Vector3(), nf = 0;
@@ -550,6 +550,7 @@
         const s = cam.shot && typeof cam.shot === 'object' ? cam.shot : null, su = s && s.id && meshes[s.id];
         if (su && segFree(p, V3(su.group.position.x, 1.3, su.group.position.z)) < 0.97) { R.hidden++; (R.hiddenBy = R.hiddenBy || {})[s.kind] = (R.hiddenBy[s.kind] || 0) + 1; }
         p0.copy(p);
+        if (probe && k === 3) probe(camera, s, DIRECTOR.lastF, simTime);
       }
     }
     const h = R.holds.slice(1); R.meanHold = +(h.reduce((a, b) => a + b, 0) / (h.length || 1)).toFixed(2); R.minHold = Math.min(...h); R.short = h.filter(x => x < 3).length;
@@ -1563,7 +1564,8 @@
     const last = battle.log.slice().reverse().find(e => e.kind === 'down' && e.enemy && unitById[e.enemy]);
     if (!last || MANUAL) return; const v = unitById[last.enemy];
     // angle de vue dégagé : on cherche une direction d'où la caméra (5 à 7 m, 2,5 à 3,4 m de haut) voit le soldat sans mur entre eux
-    const mp = battle.map, ok = (a) => [5, 6, 7].every(d => { const cx = v.x + Math.cos(a) * d, cz = v.z + Math.sin(a) * d; return mp.inBounds(cx, cz) && !mp.insideObstacle(cx, cz) && mp.hasLOS(cx, 2.6, cz, v.x, 0.5, v.z); });
+    occEnsure(); const mp = battle.map, V = V3(v.x, 0.5, v.z);   // (et contre le décor dessiné : ni sous l'auvent de la station de lavage, ni dans un arbre, ni derrière un mur)
+    const ok = (a) => [5, 6, 7].every(d => { const cx = v.x + Math.cos(a) * d, cz = v.z + Math.sin(a) * d; return mp.inBounds(cx, cz) && !mp.insideObstacle(cx, cz) && mp.hasLOS(cx, 2.6, cz, v.x, 0.5, v.z) && (!OCC.use || [2.4, 3.4].every(y => { const p = V3(cx, y, cz); return !occBad(p) && occRay(p, V, 0.45) >= 1; })); });
     const base = Math.atan2(camera.position.z - v.z, camera.position.x - v.x); let a0 = null;
     for (let k = 0; k < 24 && a0 === null; k++) { const a = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * Math.PI / 12; if (ok(a) && ok(a + 0.35) && ok(a - 0.35)) a0 = a; }
     if (a0 === null) for (let k = 0; k < 24 && a0 === null; k++) { const a = base + k * Math.PI / 12; if (ok(a)) a0 = a; }
@@ -2150,7 +2152,7 @@
     camShot: (kind, id) => { if (kind === 'shoulder' || kind === 'dolly') { setCamMode('director'); cam.shot = { kind, id, side: 1, until: simTime + 999 }; cam.cutAt = simTime; } else { setCamMode('follow'); cam.follow = id; } render(); for (let i = 0; i < 60; i++) applyCamera(); render(); return [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)); },
     stepRaw: (n) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; return battle.t; },   // sans rendu (outils de capture)
     camPos: () => ({ pos: [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)), fov: camera.fov, mode: cam.mode, shot: cam.shot && cam.shot.kind, paused, briefing: !!briefing, finale: !!finale }),   // diagnostic
-    dirTrace: (n) => directorTrace(n || 600),
+    dirTrace: (n, probe) => directorTrace(n || 600, probe), camera3: () => camera,   // (mesures : projection des soldats à l'écran)
     dirWatch: (on) => { if (on === false) { const r = DIRECTOR.mon ? dirReport(DIRECTOR.mon) : null; DIRECTOR.mon = null; return r; } DIRECTOR.mon = { shots: [], badKinds: {} }; return true; },   // relevé en temps réel : API.dirWatch() puis API.dirWatch(false)
     occGrid: () => (occEnsure(), OCC),
     occ: (x, y, z) => { occEnsure(); const p = V3(x, y, z); return { bad: occBad(p), ms: OCC.ms, n: OCC.g ? OCC.g.reduce((a, v) => a + (v ? 1 : 0), 0) : 0, fadeTop: OCC.fadeTop }; },   // mesure du réalisateur (coupes, durée des plans, caméra masquée, à-coups)

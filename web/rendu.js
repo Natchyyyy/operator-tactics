@@ -116,7 +116,7 @@
     let sky = null, clouds = null; const sunDir = new T.Vector3();
     if (X.Sky) { sky = new X.Sky(); sky.scale.setScalar(4000); sky.material.depthWrite = false; sky.frustumCulled = false; scene.add(sky); }
     clouds = cloudDome(new T.Vector3(0, 1, 0)); scene.add(clouds);
-    const MOON = new T.Vector3(-0.35, 0.8, 0.45).normalize(), night = nightDome(MOON); scene.add(night);
+    const MOON = new T.Vector3(-0.42, 0.58, 0.7).normalize(), night = nightDome(MOON); scene.add(night);   // lune assez basse (≈ 39°) : elle éclaire les silhouettes plus que le sol
     if (scene.userData.dome) scene.userData.dome.visible = false;
     const pmrem = new T.PMREMGenerator(renderer); let envRT = null;
     const skyScene = new T.Scene();

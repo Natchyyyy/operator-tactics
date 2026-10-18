@@ -72,8 +72,26 @@ python3 outils/revue/revue.py comparer captures/revue/NOM/rapport.json captures/
 - `comparer` liste ce qui s'est **amélioré** et surtout les **régressions** : un défaut corrigé ne doit pas en créer un autre ailleurs.
 - Regarder la planche de l'état corrigé **et** des états voisins (la marche visée et le pas chassé partagent des couches).
 
+### 6. Comparer à la vraie référence (vidéo réelle)
+La rubrique chiffrée ne suffit pas : on met **côte à côte** le personnage et la vraie vidéo (`captures/reference_video/`), même allure, même angle de vue.
+- Planche du banc à la même vue que l'image réelle (`--vues face,troisQuarts,profil`), recadrée et collée sous l'image réelle avec PIL (une ligne « VRAI », une ligne « NOUS »).
+- Comparer : hauteur du pied qui oscille, largeur de base vue de face, genoux dans l'axe des pieds, inclinaison du buste, rebond de la tête et du bassin, bras d'appui tendu et main loin devant.
+- Les bandes de la rubrique tirées de la vidéo sont citées « vraie vidéo (captures/reference_video/) » (voir RUBRIQUE.md § 1 et § 2).
+
+### 7. Pieds : la liste qui ne pardonne pas
+À chaque revue, en plus des appuis et du glissement :
+- orteils pliés ≈ 0° talon posé et en l'air, ≤ 35° à la poussée seulement (`orteil_pied_plat`, `orteil_poussee`) ;
+- pointe tendue en l'air ≤ 25° (> 30° = majeur, `plantaire_oscillation`) ;
+- chevilles jamais croisées, bottes jamais l'une dans l'autre (`pieds_croises*`, `pieds_se_touchent`) ;
+- botte rigide : longueur talon ↔ pointe à ± 8 % de la liaison (`botte_deformee`).
+Puis regarder `piedsProfil` et `piedsFace` image par image : un défaut d'une image (genou retourné, pied qui pique) ne se voit pas sur 4 instants.
+
+### 8. Envoyer les défauts (revue en équipe)
+Un message par animateur (bas du corps / haut du corps), chaque défaut avec : quoi, où (état, modèle, instant), la valeur mesurée et la cible, la source, et le chemin ABSOLU d'une image **recadrée et agrandie** sur le défaut. Puis revérifier la correction ET les voisins (pieds, genoux, prise, poignets, arme dans le torse). Tenir un tableau OK / mineur / majeur par état et par modèle, avec la tendance d'une revue à l'autre.
+
 ## Rubrique (résumé, détail et sources dans RUBRIQUE.md)
-- **Pieds** : posés SUR le sol (± 1,5 cm), immobiles en appui (glissement < 6 cm/s), jamais croisés, 8 à 17 cm d'écart en marche, pointe dans le sens de la marche (5-10° ouverte).
+- **Pieds** : posés SUR le sol (± 1,5 cm), immobiles en appui (glissement < 6 cm/s), jamais croisés, 8 à 17 cm d'écart en marche, pointe dans le sens de la marche (5-10° ouverte) ; botte rigide (orteils ≈ 0° sauf à la poussée ≤ 35°, longueur ± 8 %), pointe jamais tendue en l'air (> 30° = majeur).
+- **Vraie vidéo** : marche en visant = pied d'oscillation ≤ 12 cm, chevilles à 28-38 cm vues de face, genoux dans l'axe, buste 12-20°, bassin ≤ 3 cm de rebond ; petite course = talon ≤ 25 cm, chevilles à 15-25 cm, buste 15-25° ; visée à l'arrêt = buste 5-15°.
 - **Pas** : longueur ≈ √(vitesse × 0,39) m (1,35 m/s → 0,72 m, 113 pas/min) ; course 150-185 pas/min ; genou presque tendu à la pose en marche (≈ 5°), ≈ 20° en course ; jamais en hyperextension.
 - **Posture de tir** : pieds à largeur d'épaules, pied du côté du tir en retrait, genoux un peu fléchis (10-25°), buste penché en avant (5-20°), épaules carrées.
 - **Arme** : crosse dans le creux de l'épaule, joue sur la crosse, œil derrière le viseur, canon sur la cible (< 2,5°), arme droite (pas de roulis).
@@ -96,6 +114,10 @@ Si une machine avec une vraie carte graphique fait tourner le banc (ici : le PC 
 - **Comparer des pommes avec des pommes** : si on a corrigé une MESURE (pas l'animation) entre deux revues, `comparer` / `--avant` montrent de fausses régressions ou améliorations. Noter la version des mesures (date de metriques.js / rubrique.py) avec chaque rapport.
 - **Garder la ligne de commande stable** : d'autres machines lancent le banc automatiquement ; une vue ou un état mal défini ne doit pas tout arrêter (les échecs par état sont listés dans « ÉCHECS » du rapport, la revue continue).
 - **Ne pas sur-noter** : un faux positif répété fait perdre la confiance de l'animateur. Retirer ou corriger le critère tout de suite.
+- **Vérifier le signe et l'amplitude de chaque angle** avant de s'en servir : faire tourner l'os sur le banc de ±20°, ±40° autour d'un axe du MONDE et lire la mesure (elle doit rendre l'angle imposé, avec le bon signe). La « flexion plantaire » était mesurée à l'envers pendant plusieurs revues.
+- **Mesurer la peau, calibrer dans la pose de liaison** : bout des doigts = sommets du gant (l'os « …4 » est 1-3 cm dedans) ; axe du pied = ACP de la bande basse de la semelle (pas talon → pointe) ; avant-pied = vers le sommet le plus en avant de la botte (l'os `Toe_End` de gign pointe sur le côté).
+- **Transitions** : en jeu, exclure les 0,4 premières secondes d'un segment des critères de posture (la tête précède le fusil d'environ 0,3 s, c'est naturel) ; les à-coups jugent la transition.
+- **Quand un animateur conteste** : regarder le maillage soi-même (`--marques`, vue rapprochée), et corriger la mesure si elle a tort. Deux contestations sur quatre étaient justes.
 
 ## Adapter à Unreal Engine 5
 La rubrique, les seuils et les sources restent les mêmes. Seuls les outils changent.

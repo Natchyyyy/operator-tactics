@@ -133,8 +133,8 @@
           if (axe.dot(dir) < 0) axe.negate();
           // repères de liaison pour : orteils relevés (« orteil d'elfe »), flexion plantaire de la cheville, écrasement de la botte
           const toeEnd = R.os[c + 'Toe_End'], leg = R.os[c + 'Leg'];
-          const v1 = WP(toe).sub(WP(ft)), v2 = toeEnd ? WP(toeEnd).sub(WP(toe)) : v1.clone(), shin = WP(ft).sub(WP(leg));
-          const angOrteil = (a, b, n) => Math.atan2(b.clone().normalize().dot(n) - a.clone().normalize().dot(n), a.clone().normalize().dot(b.clone().normalize())) * D;
+          const v1 = WP(toe).sub(WP(ft)), v2 = tip.clone().sub(WP(toe)), shin = WP(ft).sub(WP(leg));   // (v2 : articulation des orteils → sommet le plus en avant de la botte. L'os Toe_End du modèle gign pointe sur le CÔTÉ, pas vers l'avant : inutilisable)
+          const angOrteil = (a, b, n) => { const a1 = a.clone().normalize(), a2 = b.clone().normalize(), sd = new THREE.Vector3().crossVectors(a1, n).normalize(); return Math.atan2(new THREE.Vector3().crossVectors(a1, a2).dot(sd), a1.dot(a2)) * D; };   // (angle signé autour de l'axe latéral du pied, + = orteils relevés ; vérifié sur le banc le 18/10)
           R.semelle[c] = { talon: loc(ft, talon), plante: loc(toe, plante), bout: loc(toe, bout), pointe: loc(toe, tip), sol0: 0, axeBind: +(Math.atan2(axe.dot(side), axe.dot(dir)) * D).toFixed(1), axe: axe.clone().applyQuaternion(WQ(ft).invert()),
             hautPied: upB.clone().applyQuaternion(WQ(ft).invert()), orteil0: angOrteil(v1, v2, upB), cheville0: ang(shin, v1),
             iTalon: talon.idx, iPointe: tip.idx, dBotte0: talon.distanceTo(tip) };
@@ -197,12 +197,14 @@
       m['talonY' + s] = talon.y - g0; m['boutY' + s] = Math.min(bout.y, pointe.y) - g0;
       const dir = S.axe ? S.axe.clone().applyQuaternion(WQ(ft)) : pointe.clone().sub(talon); dir.y = 0; m['piedAz' + s] = azim(dir); m['axe' + s] = dir.clone().normalize();   // (axe ACP de la semelle ; à défaut talon → bout de la botte)
       m['piedVsDep' + s] = wrap(azim(dir) - azim(dep));
-      // orteils relevés : angle de la phalange (ToeBase → Toe_End) au-dessus du pied (Foot → ToeBase), moins celui de la liaison
+      // orteils relevés : angle signé (axe latéral du pied) entre l'avant-pied (ToeBase → bout de la botte) et le pied (Foot → ToeBase), moins la liaison
       { const te = O[c + 'Toe_End'], up2 = S.hautPied ? S.hautPied.clone().applyQuaternion(WQ(ft)) : new THREE.Vector3(0, 1, 0);
-        const a1 = P[c + 'ToeBase'].clone().sub(P[c + 'Foot']).normalize(), a2 = te ? P[c + 'Toe_End'].clone().sub(P[c + 'ToeBase']).normalize() : a1.clone();
-        m['orteil' + s] = Math.atan2(a2.dot(up2) - a1.dot(up2), a1.dot(a2)) * D - (S.orteil0 || 0);
-        // flexion plantaire de la cheville (+ = pointe du pied vers le bas, par rapport à la liaison)
-        m['plantaire' + s] = ang(P[c + 'Foot'].clone().sub(P[c + 'Leg']), a1) - (S.cheville0 || 0);
+        const a1 = P[c + 'ToeBase'].clone().sub(P[c + 'Foot']).normalize(), a2 = pointe.clone().sub(P[c + 'ToeBase']).normalize();   // (a2 : vers le bout de la botte, solidaire de l'os des orteils)
+        m['orteil' + s] = (() => { const sd = new THREE.Vector3().crossVectors(a1, up2).normalize(); return Math.atan2(new THREE.Vector3().crossVectors(a1, a2).dot(sd), a1.dot(a2)) * D; })() - (S.orteil0 || 0);
+        // flexion plantaire de la cheville (+ = pointe du pied vers le bas, par rapport à la liaison). (Signe vérifié le 18/10 en
+        // tournant l'os du pied sur le banc : l'angle tibia / pied DIMINUE quand la pointe descend ; la version précédente avait le
+        // signe inverse et mesurait la flexion dorsale.)
+        m['plantaire' + s] = (S.cheville0 || 0) - ang(P[c + 'Foot'].clone().sub(P[c + 'Leg']), a1);
         m['talonLeve' + s] = (talon.y - plante.y);
         // botte écrasée / étirée : distance talon ↔ pointe de la botte (sommets de la peau) rapportée à la liaison
         if (f.skinned && S.iTalon !== undefined && S.dBotte0) { const va = V(), vb2 = V(); f.skinned.getVertexPosition(S.iTalon, va); f.skinned.getVertexPosition(S.iPointe, vb2); va.applyMatrix4(f.skinned.matrixWorld); vb2.applyMatrix4(f.skinned.matrixWorld);

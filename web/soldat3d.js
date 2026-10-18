@@ -974,6 +974,11 @@
   }
   const V = () => new THREE.Vector3();
   // ressort amorti critique (pulsation w, rad/s) de x vers c : [x, vitesse] ; dt = 0 : saut direct
+  // x vers c sans à-coup : cible filtrée (1er ordre, o[k + 'C']) suivie par un ressort amorti critique (vitesse o[k + 'V']) :
+  // vitesse ET accélération continues quand c saute ; dt = 0 : saut direct
+  const lisse2 = (o, k, x, c, w, dt) => { if (!(dt > 0)) { o[k + 'C'] = c; o[k + 'V'] = 0; return c; }
+    let c1 = o[k + 'C']; if (c1 === undefined) c1 = x; c1 += (c - c1) * Math.min(1, dt * w); o[k + 'C'] = c1;
+    const v = (o[k + 'V'] || 0) + (w * w * (c1 - x) - 2 * w * (o[k + 'V'] || 0)) * dt; o[k + 'V'] = v; return x + v * dt; };
   const ressort = (x, v, c, w, dt) => { if (!(dt > 0)) return [c, 0]; const a = w * w * (c - x) - 2 * w * v; v += a * dt; x += v * dt; if (x < 0) { x = 0; v = 0; } else if (x > 1) { x = 1; v = 0; } return [x, v]; };
   // un soldat : group (posé par le jeu), pose (chute), weapon (avec .muzzle), anim
   // o.modele : 'gign' (équipe du joueur) ou 'soldat' (adversaire) ; par défaut le premier modèle chargé
@@ -1054,10 +1059,17 @@
       play(name, opts = {}) {
         const a = act(name); if (!a) return;
         if (this.clip !== name) {
-          const prev = this.clip && actions[this.clip];
+          const prev = this.clip && actions[this.clip], F0 = this.fondu;
+          // fondu « adouci » (smootherstep, mené par update()) au lieu du fondu linéaire de three.js : le linéaire fait sauter la
+          // vitesse des os au début et à la fin du fondu (à-coup de 10 000 °/s² du buste en sortie de rechargement)
+          const wa0 = F0 && F0.de === a ? a.getEffectiveWeight() : 0;   // (retour vers l'animation qu'on quittait : on repart de son poids)
+          if (F0) { const dd = F0.de; if (dd !== a) { const w = dd.getEffectiveWeight(), r = Math.max(0.05, F0.d - F0.t); if (w > 0.002) { dd.setEffectiveWeight(w); dd.fadeOut(r); } else dd.stop(); } this.fondu = null; }
+          if (prev && prev !== a) prev.stopFading();
+          const w0 = prev && prev !== a ? prev.getEffectiveWeight() : 0;
           a.reset(); a.enabled = true; a.setEffectiveWeight(1); a.play();
           if (opts.start) a.time = opts.start * a.getClip().duration;   // commencer plus loin dans l'animation
-          if (prev) a.crossFadeFrom(prev, Math.max(opts.fade !== undefined ? opts.fade : 0.22, this.fadeMin || 0), false);   // (fadeMin : fondu minimal imposé par le jeu, ex. sortie de rechargement)
+          const d = Math.max(opts.fade !== undefined ? opts.fade : 0.22, this.fadeMin || 0);   // (fadeMin : fondu minimal imposé par le jeu, ex. sortie de rechargement)
+          if (prev && prev !== a) { if (d > 0.001 && w0 > 0.002) { a.setEffectiveWeight(wa0); this.fondu = { de: prev, a, w0, wa0, t: 0, d }; } else prev.stop(); }
           this.clip = name;
         }
         if (opts.time !== undefined) { a.time = opts.time * a.getClip().duration; a.timeScale = 0; } else a.timeScale = opts.speed || 1;
@@ -1174,6 +1186,9 @@
         }
         if (!enMarche) this.marcheK = Math.max(0, (this.marcheK || 0) - dt / 0.3);
         frameK++;
+        // fondu adouci en cours (voir play()) : poids en smootherstep, vitesse des os continue au début et à la fin
+        { const F = this.fondu; if (F && dt > 0) { F.t += dt; const x = Math.min(1, F.t / F.d), s = x * x * x * (x * (x * 6 - 15) + 10);
+            F.a.setEffectiveWeight(F.wa0 + (1 - F.wa0) * s); F.de.setEffectiveWeight(F.w0 * (1 - s)); if (x >= 1) { F.de.stop(); this.fondu = null; } } }
         mixer.update(dt); this.t += dt;
         // chute dans le dos : vers 55-75 % de l'animation le bassin roule et une jambe part en l'air (botte vers le ciel) : un pied
         // plus haut que le bassin est redescendu de 30 % de cet écart (IK de la jambe) autour de ce moment
@@ -1183,7 +1198,11 @@
             for (const [up, lo, ft] of pieds) if (ft) { const e = WP(ft).y - hy; if (e > 0) ik(up, lo, ft, new THREE.Vector3(0, -0.3 * w * e, 0)); } }
         }
         [this.epK, this.epV] = ressort(this.epK || 0, this.epV || 0, EPAULE[this.clip] ? 1 : 0, 11, dt);   // (ressort : pas d'à-coup au début des fondus)
-        if (!keepYaw) { const tgt = enMarche ? this.yawM : (M.yawFix[this.clip] || 0); let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 5); }   // (lent : les corrections diffèrent d'une pose à l'autre)
+        // (lent : les corrections diffèrent d'une pose à l'autre ; cible filtrée puis ressort amorti critique : la vitesse du corps
+        // ne saute pas quand la cible change d'un coup — avant, approche exponentielle : 160 °/s dès la 1re image en sortie de
+        // rechargement)
+        if (!keepYaw) { const tgt = enMarche ? this.yawM : (M.yawFix[this.clip] || 0); if (dt > 0) body.rotation.y = lisse2(this, 'yaw', body.rotation.y, tgt, enMarche ? 10 : 6, dt); }
+        else this.yawC = undefined;
         // torsion du dos en marche directionnelle : bassin des pas chassés / arrière (psi) + visée (le corps n'est tourné que
         // de yawM, le dos fait le reste, calculé sur l'orientation ACTUELLE du corps pour que le fusil reste sur la cible
         // pendant que le corps pivote) ; pondérée par marcheK (entrée / sortie en fondu, comme les animations)
@@ -1199,7 +1218,7 @@
           let pas = nj - this.jambes; pas = Math.max(-vj * dt, Math.min(vj * dt, pas)); this.jambes += pas; this.jambesV = Math.max(-vj, Math.min(vj, v1)); }
         // visée à l'arrêt : l'animation est de profil « sur un fil » (pieds l'un derrière l'autre sur l'axe de tir, jambes qui se
         // confondent vues de face) ; le bassin et les jambes sont tournés de CARRE vers la cible, le dos rattrape (fusil immobile)
-        this.carreK = (this.carreK || 0) + (((this.clip === 'Rifle_Aim_Turn_Right' || this.clip === 'Standing_Reload') && !keepYaw ? 1 : 0) - (this.carreK || 0)) * (dt > 0 ? Math.min(1, dt * 6) : 1);
+        this.carreK = lisse2(this, 'carre', this.carreK || 0, (this.clip === 'Rifle_Aim_Turn_Right' || this.clip === 'Standing_Reload') && !keepYaw ? 1 : 0, 8, dt);   // (sans à-coup du bassin)
         const tj = this.jambes + CARRE * this.carreK;
         if (Math.abs(tj) > 0.01 && hipsB && spine3.length) {
           body.updateMatrixWorld(true); mod(hipsB); twist(hipsB, tj);
@@ -1209,7 +1228,9 @@
         if (this.dosComp && Math.abs(this.dosComp) > 0.01 && spine3.length) { body.updateMatrixWorld(true); for (const sb of spine3) { mod(sb); twist(sb, -this.dosComp / spine3.length); } }
         // respiration (poses fixes : garde basse, visée) : légère flexion du dos
         if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { mod(spine1); spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
-        [this.gbK, this.gbV] = ressort(this.gbK || 0, this.gbV || 0, this.clip === 'Garde_Basse' || this.clip === 'Walk_Low_Haut' || this.clip === 'Run_Low_Haut' || this.clip === 'Trot_Low_Haut' || BAS[this.clip] ? 1 : 0, 9, dt);
+        // (cible filtrée + ressort : la penche du buste et la tête, proportionnelles à gbK, démarrent sans à-coup — sortie de
+        // rechargement : le ressort seul donnait 10 000 °/s² au buste à la 1re image)
+        this.gbK = Math.max(0, Math.min(1, lisse2(this, 'gb', this.gbK || 0, this.clip === 'Garde_Basse' || this.clip === 'Walk_Low_Haut' || this.clip === 'Run_Low_Haut' || this.clip === 'Trot_Low_Haut' || BAS[this.clip] ? 1 : 0, 10, dt)));
         if (Math.max(this.epK || 0, this.gbK) > 0.01 && !keepYaw) this.penche(Math.max(this.epK || 0, this.gbK));
         if (enMarche && (this.marcheK || 0) > 0.05) this.ecarte(this.marcheK, this.coteK || 0, this.arrK || 0);
         else if (this.verrouPieds && !keepYaw) this.ecarte(1, 0, 0);   // (marche accroupie, course épaulée : chevilles jamais croisées)
@@ -1319,19 +1340,26 @@
         // orientation gardée) ; elle fait pencher tout le buste d'un coup, sans voûter le dos
         // (visée : « nez au-dessus des orteils » ; course en garde basse : buste nettement penché, comme un coureur)
         const cible = this.clip === 'Rifle_Aim_Turn_Right' ? 0.44 : COURSE_BAS[this.clip] ? 0.42 : (this.epK || 0) > 0.5 ? PENCHE + 0.12 : PENCHE;
-        if (pieds[0][2] && pieds[1][2]) { const v0 = WP(cou0).sub(WP(hipsB)), hg = Math.max(0, Math.min(0.12, (cible - Math.atan2(v0.dot(fw), Math.max(0.05, v0.y))) * 0.5 * k));
+        // (toutes les corrections sont calculées entières puis appliquées au prorata de k : réponse LINÉAIRE en k — avant, les
+        // itérations à gain 1,5·k et les plafonds saturaient dès k ≈ 0,3 : le buste basculait d'un coup au début des fondus)
+        if (pieds[0][2] && pieds[1][2]) { const v0 = WP(cou0).sub(WP(hipsB)), hg = k * Math.max(0, Math.min(0.12, (cible - Math.atan2(v0.dot(fw), Math.max(0.05, v0.y))) * 0.5));
           if (hg > 0.004) { const pf = pieds.map(l => [WP(l[2]), WQ(l[2])]); axe(hipsB, hg);
             pieds.forEach(([up, lo, ft], i) => { const d = pf[i][0].clone().sub(WP(ft)); if (d.lengthSq() > 1e-10) ikJambe(up, lo, ft, d, orteils[i]); mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(pf[i][1])); ft.updateMatrixWorld(true); }); } }
+        const acc = [0, 0, 0];
         for (let it = 0, tot = 0; it < 3; it++) {
-          const w2 = WP(cou0).sub(WP(spine3[2])), h2 = Math.atan2(w2.dot(fw), Math.max(0.05, w2.y)); if (h2 > 0.3) axe(spine3[2], -(h2 - 0.3) * k);
-          const v = WP(cou0).sub(WP(hipsB)), a = Math.min(0.6 - tot, (cible - Math.atan2(v.dot(fw), Math.max(0.05, v.y))) * k * 1.5);   // (visée à l'arrêt : l'animation a le poids sur l'arrière, on penche plus)
+          const w2 = WP(cou0).sub(WP(spine3[2])), h2 = Math.atan2(w2.dot(fw), Math.max(0.05, w2.y)); if (h2 > 0.3) { axe(spine3[2], -(h2 - 0.3)); acc[2] -= h2 - 0.3; }
+          const v = WP(cou0).sub(WP(hipsB)), a = Math.min(0.6 - tot, (cible - Math.atan2(v.dot(fw), Math.max(0.05, v.y))) * 1.5);   // (visée à l'arrêt : l'animation a le poids sur l'arrière, on penche plus)
           if (a < 0.005) continue;   // (seulement vers l'avant : une course déjà penchée n'est pas redressée)
-          axe(spine3[0], a * 0.55); axe(spine3[1], a * 0.45); tot += a;
+          axe(spine3[0], a * 0.55); axe(spine3[1], a * 0.45); acc[0] += a * 0.55; acc[1] += a * 0.45; tot += a;
         }
+        if (k < 0.999) for (let j = 0; j < 3; j++) if (acc[j]) axe(spine3[j], (k - 1) * acc[j]);   // (même axe : les angles s'additionnent)
         // roulis : les visées de la bibliothèque penchent le buste sur le côté (10 à 18°) ; ramené à 4° au plus (bas du dos)
+        const rou = (b, a) => { mod(b); b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
+        let accR = 0;
         for (let it = 0; it < 2; it++) { const v = WP(cou0).sub(WP(hipsB)), r = Math.atan2(v.dot(lat), Math.max(0.05, v.y)), ex = r - Math.max(-0.07, Math.min(0.07, r));
           if (Math.abs(ex) < 0.004) break;
-          for (const [b, part] of [[spine3[0], 0.5], [spine3[1], 0.5]]) { mod(b); b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, ex * part * k); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); } }
+          rou(spine3[0], ex * 0.5); rou(spine3[1], ex * 0.5); accR += ex * 0.5; }
+        if (k < 0.999 && accR) { rou(spine3[0], (k - 1) * accR); rou(spine3[1], (k - 1) * accR); }
       },
       // Pieds jamais croisés (pas chassés et marche arrière « au pistolet » de la bibliothèque : pas très serrés, bottes l'une sur
       // l'autre, genoux qui se touchent) : écart minimal des chevilles le long de la ligne du bassin (les deux pieds poussés
@@ -1412,8 +1440,11 @@
             want = Math.max(-0.65 * vise, Math.min(0.65 * vise, this.coup || 0));   // (coup d'œil tiré en garde basse, puis visée)
           }
         }
-        this.teteA = (this.teteA || 0) + (want - (this.teteA || 0)) * Math.min(1, dt * 3.5);
-        const H = this.bones.head, kA = actif && neutre ? Math.max(this.epK || 0, this.gbK || 0) : 0;   // (visée ; garde basse : le dos penché ne doit pas baisser la tête)
+        this.teteA = dt > 0 ? lisse2(this, 'teteA', this.teteA || 0, want, 7, dt) : (this.teteA || 0);   // (vitesse de la tête continue : coups d'œil et cibles nouvelles sans à-coup)
+        const H = this.bones.head, kT = actif && neutre ? Math.max(this.epK || 0, this.gbK || 0) : 0;   // (visée ; garde basse : le dos penché ne doit pas baisser la tête)
+        // (poids lissé à part : en entrée / sortie de rechargement la tête passe du regard de l'animation — vers le chargeur — au
+        // regard droit devant, ~75° : avant, d'un coup à l'entrée et en 0,3 s à la sortie, à-coup de 11 000 °/s²)
+        const kA = dt > 0 && this.kH !== undefined ? Math.max(0, Math.min(1, lisse2(this, 'kH', this.kH, kT, 7, dt))) : kT; this.kH = kA;
         if (kA > 0.01) {
           // En visée, les animations collent la joue sur la crosse (tête roulée vers la droite et penchée sur le fusil) ; notre
           // fusil est plus bas : tête et cou ramenés vers leur pose droite (celle de la garde basse), puis la face tournée vers
@@ -1601,7 +1632,7 @@
         const kk = dt > 0 ? Math.min(1, dt * 8) : deja && this.t > 0 ? 0 : 1;   // (deux appels dans la même image : un seul pas de lissage)
         // ressort amorti critique (~0,3 s, départ en douceur : pas d'à-coup des mains au début / à la fin d'un rechargement)
         const c = tient ? 1 : 0; if (this.priseK === undefined || (dt === 0 && kk === 1)) { this.priseK = this.priseK === undefined ? 1 : c; this.priseV = 0; }
-        else if (dt > 0) { const w = 14, x = this.priseK, v = this.priseV || 0, a = w * w * (c - x) - 2 * w * v; this.priseV = v + a * dt; this.priseK = Math.max(0, Math.min(1, x + this.priseV * dt)); if (this.priseK === 0 || this.priseK === 1) this.priseV = 0; }
+        else if (dt > 0) { this.priseK = Math.max(0, Math.min(1, lisse2(this, 'prise', this.priseK, c, 13, dt))); if (this.priseK === 0 || this.priseK === 1) this.priseV = 0; }   // (cible filtrée : le fusil et les mains partent sans à-coup)
         return kk;
       },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)

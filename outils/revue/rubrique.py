@@ -303,4 +303,7 @@ def noter(r, etat):
         lo, hi = ok; ml, mh = mi; ecart = 0 if niv == 'OK' else ((lo - v) / max(1e-9, lo - ml) if v < lo else (v - hi) / max(1e-9, mh - hi))
         out.append({'id': c['id'], 'partie': c['partie'], 'lib': c['lib'], 'valeur': v, 'ok': ok, 'mineur': mi, 'niveau': niv, 'ecart': ecart,
                     'pourquoi': c['pourquoi'], 'src': c['src'], 'vues': c['vues'], 'cle': c.get('cle', ()), 'acoup': c.get('acoup')})
+        if c.get('t') and niv != 'OK':   # instant de la pire image (critères par phase du pied), pour la planche de preuve
+            try: out[-1]['t_pire'] = c['t'](r)
+            except Exception: pass
     return out

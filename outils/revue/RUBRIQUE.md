@@ -22,7 +22,7 @@ Fiabilité de chaque critère :
 | Vitesse | Wikipedia, *Preferred walking speed* et *Walking* | Marche 1,1 à 1,65 m/s (≈ 1,4 m/s), environ 100 à 115 pas/min. |
 | Walk ratio | Sekiya & Nagasaki 1998 *(connaissance générale, non relue ici)* | Rapport longueur de pas / cadence ≈ 0,0065 m/(pas/min), à peu près constant chez l'adulte. D'où L = √(v·60·0,0065) : 1,35 m/s → 0,72 m et 113 pas/min. |
 | Patinage | Zhang et al. 2018, *Mode-Adaptive Neural Networks* *(connaissance générale)* | Mesure standard du patinage des pieds : vitesse horizontale pondérée par (2 − 2^(h/H)), avec H = 2,5 cm. |
-| **Vidéo** | **Vidéo de référence de l'utilisateur** : soldat réel en marche en visant et en course fusil en main, images dans `captures/reference_video/` (`comparaison_marche_visee.jpg`, `comparaison_course.jpg`, `r*.png`) | Marche en visant : pieds bas (talon < 12 cm), base large (chevilles 28-38 cm vues de face), genoux dans l'axe, buste penché de 5-12°, bras d'appui presque tendu, main loin devant. Course : talon < 25 cm, pieds sous les hanches (15-25 cm), buste penché de 15-25°. |
+| **Vidéo** | **vraie vidéo (captures/reference_video/)** : soldat réel en marche en visant et en course fusil en main (`comparaison_marche_visee.jpg`, `comparaison_course.jpg`, `r*.png`) | Visée à l'arrêt : buste penché de 5-15°. Marche en visant : pied d'oscillation bas (talon ≤ 12 cm), base large (chevilles 28-38 cm vues de face), genoux dans l'axe (pas de valgus), buste penché de 12-20°, bassin qui rebondit de 3 cm au plus, bras d'appui presque tendu, main d'appui loin devant sur le garde-main. Course : talon ≤ 25 cm, pieds sous les hanches (15-25 cm), buste penché de 15-25°. |
 | Pieds cassés | Captures de l'utilisateur `captures/reference_video/pieds_trot_gign.png`, `pieds_trot_soldat.png` | Orteil relevé (« orteil d'elfe »), pointe tendue en l'air (« danseuse »), botte écrasée : défauts à ne jamais laisser passer. |
 | Amplitudes | Amplitudes articulaires usuelles *(connaissance générale)* | Rotation thoraco-lumbaire ≈ 40-50°. Poignet : flexion ≈ 70-80°, extension ≈ 70°, déviations 20-35°. Genou : hyperextension 0 à -5° au plus. |
 
@@ -47,7 +47,7 @@ Fiabilité de chaque critère :
 | `angle_pied` | angle pied / déplacement en appui, pied à plat seulement (+ = pointe vers l'extérieur) ; axe du pied = axe principal (ACP) de la bande basse de la semelle, pose de liaison | -6 à 22° | -14 à 32° | Les pieds suivent le déplacement, ouverts de 5 à 10°. |
 | `bassin_vs_deplacement` | bassin / déplacement, marche avant sans visée | ≤ 20° | ≤ 35° | Bassin face au déplacement (±4-5°). |
 | `torsion` | épaules / bassin | ≤ 45° | ≤ 62° | Rotation de la colonne. |
-| `rebond_bassin` | rebond vertical du bassin | marche 2-6,5 cm, visée 1,2-5 cm | — | Centre de masse ≈ 5 cm. En marche tactique, le rebond est réduit pour garder le viseur stable. |
+| `rebond_bassin` | rebond vertical du bassin | marche 2-6,5 cm, **marche visée 0,8-3 cm** | marche 1-8,5, visée 0,4-4 cm | Centre de masse ≈ 5 cm. En marche tactique, le rebond est réduit pour garder le viseur stable (vraie vidéo (captures/reference_video/) : ≤ 3 cm). |
 | `appui_largeur_arret` | largeur des pieds en visée à l'arrêt | 22-48 cm | 15-58 | FM 3-06.11 §3-23b. |
 | `appui_decale_arret` | pied du côté du tir en arrière | 4-38 cm | -4 à 48 | FM 3-06.11 §3-23b. |
 | `genoux_flechis_arret` | flexion moyenne des genoux en visée à l'arrêt | 6-30° | 2-40° | « Knees slightly bent ». |
@@ -55,23 +55,24 @@ Fiabilité de chaque critère :
 ### Ajouts : vidéo de référence et pieds « cassés »
 | id | Mesure | OK | Toléré | Pourquoi (réel) |
 |---|---|---|---|---|
-| `hauteur_talon` [sûr] | hauteur max du talon pendant l'oscillation | marche visée ≤ 12 cm, course et marche ≤ 25 cm | 18 / 32 cm | Vidéo : pieds bas en marche tactique, talon peu relevé en course (pas de « talons aux fesses »). |
-| `ecart_face` [sûr] | écart moyen des chevilles sur l'axe gauche-droite du corps | marche visée 28-38 cm, course 15-25 cm, marche 10-30 cm | 22-45 / 10-32 / 6-36 | Vidéo : base large en marche visée, pieds jamais en ligne. |
-| `valgus_genou` [sûr] | angle (plan frontal du bassin) du genou qui rentre, pied chargé seulement, genou plié de 5 à 70° | ≤ 8° | ≤ 15° | Vidéo : genoux dans l'axe des pieds. Valgus dynamique > 10° = défaut. |
-| `orteil_pied_plat` [sûr] | orteils (ToeBase → Toe_End) relevés par rapport au pied, moins la liaison, talon bas (< 3 cm) | ≤ 15° | ≤ 25° | « Orteil d'elfe » signalé par l'utilisateur. |
-| `orteil_poussee` [sûr] | idem, talon levé (poussée) | ≤ 35° | ≤ 45° | La botte plie aux orteils à la poussée, pas plus. |
-| `plantaire_oscillation` [sûr] | flexion plantaire de la cheville (tibia / pied, moins la liaison) quand le pied est à plus de 5 cm du sol | ≤ 30° | ≤ 40° | Pied de « danseuse » / botte froissée signalé par l'utilisateur. Cheville ≈ neutre en oscillation (FRCS). |
-| `botte_deformee` [sûr] | longueur talon ↔ pointe de la botte (sommets de la peau) / liaison − 1 | ≤ 8 % | ≤ 12 % | Botte rigide. Le simple skinning d'une pose de repos donne déjà 5-6 %. |
-| `pieds_se_touchent` [estimé : capsules] | distance des capsules de pied | ≥ 0 | ≥ -2 cm | Les bottes ne se traversent pas. |
-| `coude_appui` [sûr] | angle du coude gauche en visée | 125-175° | 105-180° | Vidéo : bras d'appui presque tendu. |
-| `main_appui_avant` [sûr] | main d'appui le long de l'arme (0 = poignée, 1 = bouche) | 0,45-0,85 | 0,35-0,95 | Vidéo, et Vortex : main loin devant. |
-| `penche_avant` (bandes révisées) | inclinaison bassin → cou | visée 5-14°, course 15-26° | ±3-5° | Vidéo : visée 5-12°, course 15-25°. |
+| `hauteur_talon` [sûr] | hauteur max du pied d'oscillation (point talon de la semelle, le plus haut du pied qui oscille) | marche visée ≤ 12 cm, course et marche ≤ 25 cm | 18 / 32 cm | vraie vidéo (captures/reference_video/) : pieds bas en marche tactique, talon peu relevé en course (pas de « talons aux fesses »). |
+| `ecart_face` [sûr] | écart moyen des chevilles sur l'axe gauche-droite du corps | marche visée 28-38 cm, course 15-25 cm, marche 10-30 cm | 22-45 / 10-32 / 6-36 | vraie vidéo (captures/reference_video/) : base large en marche visée, pieds jamais en ligne. |
+| `valgus_genou` [sûr] | angle (plan frontal du bassin) du genou qui rentre, pied chargé seulement, genou plié de 5 à 70° | ≤ 8° | ≤ 15° | vraie vidéo (captures/reference_video/) : genoux dans l'axe des pieds. Valgus dynamique > 10° = défaut. Liaison : -1,3° (gign), -2,9° (soldat), négligeable. |
+| `orteil_pied_plat` [sûr] | (a) orteils pliés : angle signé autour de l'axe latéral du pied entre l'avant-pied (articulation ToeBase → sommet le plus en avant de la botte) et le pied (Foot → ToeBase), moins la liaison, **valeur absolue**, images talon posé (talon < 3 cm) OU pied en l'air (semelle > 3 cm) | ≤ 10° (≈ 0) | ≤ 18° | Botte rigide : hors poussée, l'avant-pied reste dans l'axe. « Orteil d'elfe » signalé par l'utilisateur. |
+| `orteil_poussee` [sûr] | idem, images de poussée seulement (talon levé ≥ 3 cm ET pointe au sol) | ≤ 35° | ≤ 45° | La botte plie aux orteils à la poussée, pas plus. |
+| `plantaire_oscillation` [sûr] | (b) flexion plantaire de la cheville (+ = pointe vers le bas ; angle tibia / pied de la liaison moins l'angle courant) quand la semelle est à plus de 5 cm du sol | ≤ 25° | ≤ 30° ; **> 30° = majeur** | Pied de « danseuse » / botte froissée signalé par l'utilisateur. Cheville ≈ neutre en oscillation (FRCS). |
+| `pieds_croises` / `pieds_croises_lateral` | (c) écart minimal des chevilles le long de la ligne des hanches (voir § 2) | ≥ 3 cm / ≥ 6 cm | ≥ -1 / ≥ 2 cm | Pieds croisés = défaut. |
+| `pieds_se_touchent` [estimé : capsules] | (c) distance des capsules de pied (bottes qui se traversent) | ≥ 0 | ≥ -2 cm | Les bottes ne se traversent pas. |
+| `botte_deformee` [sûr] | (d) longueur talon ↔ pointe de la botte (sommets de la peau) / liaison − 1 | ≤ 8 % | ≤ 12 % | Botte rigide. Le sommet du talon est en partie lié au tibia : 20° de cheville donnent déjà 4-5 %, 40° ≈ 8-10 %. |
+| `coude_appui` [sûr] | angle du coude gauche en visée | 125-175° | 105-180° | vraie vidéo (captures/reference_video/) : bras d'appui presque tendu. |
+| `main_appui_avant` [sûr] | position de la main d'appui le long du garde-main (0 = poignée, 1 = bouche) | 0,45-0,85 | 0,35-0,95 | vraie vidéo (captures/reference_video/), et Vortex : main loin devant. |
+| `penche_avant` (bandes révisées) | inclinaison bassin → cou | visée à l'arrêt 5-15°, **marche visée 12-20°**, course 15-25° ; pas chassé / recul : 5-18° (marche), 8-22° (course) | ±3-5° | vraie vidéo (captures/reference_video/) : visée 5-15°, marche visée 12-20°, course 15-25°. |
 
 ## 3. Critères — haut du corps (`partie = haut`)
 
 | id | Mesure | OK | Toléré | Pourquoi (réel) |
 |---|---|---|---|---|
-| `penche_avant` | inclinaison bassin → cou vers l'avant | visée et course 5-22°, sinon 0-16° | ±4-8° | « Upper body leaned slightly forward », jamais en arrière. |
+| `penche_avant` | inclinaison bassin → cou vers l'avant | visée à l'arrêt 5-15°, marche visée 12-20°, course 15-25°, sinon 0-16° (détail § 2, ajouts) | ±4-8° | « Upper body leaned slightly forward », jamais en arrière. |
 | `roulis_buste` | inclinaison latérale | ≤ 9° | ≤ 16° | « Shoulders are square ». |
 | `paume_poignee` [sûr] | ligne poignet → jointures (50/65/80 %) ↔ surface de l'arme, moins 1,5 cm d'épaisseur de main | ≤ 3 cm | ≤ 5,5 cm | Main forte sur la poignée. |
 | `paume_garde_main` [sûr] | paume gauche ↔ surface de l'arme | ≤ 3 cm | ≤ 5,5 cm | Main d'appui qui serre le garde-main (Vortex). |
@@ -109,6 +110,9 @@ Liste établie sur ce projet. Chaque point a coûté une fausse alerte envoyée 
 7. **Un défaut d'une seule image existe.** Genoux retournés une image par cycle : bande image par image (`jeu.py --suivre`), et alarmes instantanées en jeu.
 8. **Comparer à version de mesure égale.** Changer une mesure fausse les comparaisons avant / après. Pour un vrai « avant », repasser l'ancienne version du jeu avec les mesures actuelles (`REVUE_URL`, voir SKILL.md).
 9. **Écouter les animateurs.** Deux contestations (axe du pied, bouts de doigts) étaient justes. Vérifier sa mesure sur une image avec `--marques` avant de défendre un chiffre.
+10. **Vérifier le SIGNE d'un angle en tournant l'os soi-même.** La « flexion plantaire » mesurait en fait la flexion dorsale (signe inversé) : le critère de « pied de danseuse » ne pouvait rien voir. Test : sur le banc, faire tourner l'os (Foot, ToeBase…) de ±20°, ±40° autour d'un axe du MONDE (pas l'axe local, qui peut être dans l'axe de l'os) et lire la mesure. Une mesure d'angle doit rendre ≈ l'angle imposé, avec le bon signe.
+11. **Ne pas se fier à l'orientation des os de bout.** Sur le modèle gign, `Toe_End` est À CÔTÉ de `ToeBase` (vecteur latéral) : l'angle « ToeBase → Toe_End » ne voulait rien dire (12-22° de faux « orteil relevé »). On mesure l'avant-pied jusqu'au sommet de botte le plus en avant (solidaire de l'os des orteils).
+12. **Phases du pied** : talon posé (< 3 cm), en l'air (semelle > 3 cm), poussée (talon levé, pointe au sol). Les orteils ne plient qu'à la poussée. Un critère « talon levé » seul mélangeait poussée et oscillation.
 
 - **Capsules** (tibias, arme ↔ torse ou tête) : rayons pris comme la médiane des sommets de chaque os. Les gilets épais et les casques donnent des approximations. Toujours vérifier sur la planche.
 - **Creux d'épaule et œil** : positions estimées. Une différence de ±3 cm n'est pas un défaut.
