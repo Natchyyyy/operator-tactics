@@ -14,6 +14,19 @@
     { name: 'Bravo', color: 0xe85a4f, css: '#e85a4f', uniform: 0x6b5a3e, vest: 0x4e4230 },
   ];
   const TACTIC_ICON = { tiroir: '⇅', fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯', frappe: '✈', tete: '☠', camouflage: '🌿', triage: '⛑' };
+  // Voies (nord, milieu, sud) en petit dessin : counts = opérateurs par voie [nord, milieu, sud], hi = voie mise en avant (-1, 0, 1)
+  const LANE_NAMES = { '-1': 'flanc nord', 0: 'milieu', 1: 'flanc sud' }, LANE_LETTER = { '-1': 'N', 0: 'M', 1: 'S' };
+  function laneSvg(counts, hi, cls) {
+    let g = '';
+    [-1, 0, 1].forEach((l, i) => {
+      const y = 12 + i * 12, on = hi === l, n = counts ? counts[i] : 0;
+      g += `<line x1="5" y1="${y}" x2="37" y2="${y}" stroke="${on ? '#6fe3a0' : 'currentColor'}" stroke-opacity="${on ? 1 : 0.35}" stroke-width="${on ? 3.4 : 2.4}" stroke-linecap="round"/>`;
+      g += `<path d="M37 ${y - 4.5} L44 ${y} L37 ${y + 4.5}" fill="${on ? '#6fe3a0' : 'currentColor'}" fill-opacity="${on || n ? 1 : 0.35}"/>`;
+      for (let k = 0; k < n; k++) g += `<circle cx="${30 - k * 6}" cy="${y}" r="3.3" fill="#fff" stroke="#0b0f14" stroke-width="1"/>`;
+    });
+    return `<svg class="${cls || 'timg'} lanesvg" viewBox="0 0 48 48" aria-hidden="true">${g}</svg>`;
+  }
+  TACTIC_ICON.tenailles = laneSvg([2, 1, 2]); TACTIC_ICON.rush_milieu = laneSvg([0, 4, 0], 0);
   const tacIcon = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'timg')) || TACTIC_ICON[id] || '◆';      // icône dessinée si disponible
   const roleImg = (role) => (OT.imgTag && OT.imgTag('role_' + role, 'rimg')) || '';
   const $ = (s) => document.querySelector(s);
@@ -1452,7 +1465,7 @@
         <div class="card" data-id="${u.id}" title="${u.def.unit} — ${u.weapon.name}">
           <span class="role">${OT.Ico ? OT.Ico(u.def.trait === 'leader' ? 'r_leader' : u.def.trait === 'radio' ? 'radio' : ({ assault: 'r_assault', pointman: 'r_pointman', marksman: 'r_marksman', support: 'r_support', breacher: 'r_breacher' })[u.role.id]) : roleIcon[u.role.id]}</span>
           <div class="cmain">
-            <div class="ctop"><span class="cs">${u.callsign}</span><span class="ammo"></span></div>
+            <div class="ctop"><span class="cs">${u.callsign}<span class="lane"></span></span><span class="ammo"></span></div>
             <div class="hp"><b></b><i></i></div>
             <div class="cbot"><span class="st"></span><span class="status"></span></div>
           </div>
@@ -1477,6 +1490,8 @@
       c.querySelector('.st').textContent = u.alive ? (u.reloading > 0 ? 'Recharge' : STATE_FR[u.state] || u.state) : (u.bleedUntil > battle.t ? 'À terre' : 'Hors de combat');
       c.querySelector('.ammo').innerHTML = u.alive ? `<b>${u.ammo}</b><small><u></u>${u.mags}</small>` : '';
       c.querySelector('.status').textContent = `${Math.round(u.hp)} PV · ${STATUS_FR[u.status]}`;
+      { const ln = c.querySelector('.lane'), key = u.alive && u.voie !== undefined && u.voie !== null ? u.voie + (u.flankDone ? 'r' : '') : '';   // voie : N / M / S (↘ : se rabat)
+        if (ln && ln.dataset.k !== key) { ln.dataset.k = key; ln.className = 'lane' + (key ? ' l' + (u.voie + 1) : ''); ln.textContent = key ? LANE_LETTER[u.voie] + (u.flankDone && u.voie ? '↘' : '') : ''; ln.title = key ? `Voie : ${LANE_NAMES[u.voie]}${u.flankDone && u.voie ? ' — arrivé par le flanc, se rabat' : ''}` : ''; } }
     }
     $('#clock').textContent = fmtT(battle.t);
     battle.teams.forEach((team, ti) => {
@@ -1498,7 +1513,16 @@
       const el = $('#tactics' + ti);
       let na = 0; const KEYS = ['A', 'Z', 'E'];
       el.innerHTML = team.tacticIds.map(id => { const t = DATA.TACTICS[id]; const key = ti === 0 && t.active ? KEYS[na++] || '' : ''; return `<div class="tcard ${t.active ? '' : 'passive'} ${ti === 1 ? 'enemy' : ''}" data-tactic="${id}" ${key ? `data-key="${key}"` : ''} title="${escapeHtml(t.desc)}"><div class="ticon">${tacIcon(id)}</div><div class="tname">${escapeHtml(t.name)}</div><div class="tuse"></div><div class="cd"></div></div>`; }).join('');
-      if (ti === 0) el.querySelectorAll('.tcard').forEach(c => c.addEventListener('click', () => {
+      // Rotation : faire passer toute l'escouade par une autre voie, en pleine bataille (touches R / F / V : nord / milieu / sud)
+      if (ti === 0 && battle.map.def.voies) el.insertAdjacentHTML('beforeend', `<div class="tcard rotcard" title="Rotation : toute l'escouade (hors tireur d'élite) passe par la voie choisie. Une rotation toutes les 10 s ; impossible en ordre « Tenir ».">
+        <div class="tname">Rotation</div><div class="rbtns">${[-1, 0, 1].map(l => `<button data-lane="${l}" data-key="${{ '-1': 'R', 0: 'F', 1: 'V' }[l]}" title="${LANE_NAMES[l]}">${laneSvg(null, l, 'rimg')}<span>${{ '-1': 'Nord', 0: 'Milieu', 1: 'Sud' }[l]}</span></button>`).join('')}</div><div class="tuse"></div><div class="cd"></div></div>`);
+      if (ti === 0) el.querySelectorAll('.rotcard button').forEach(bt => bt.addEventListener('click', (e) => {
+        e.stopPropagation(); const lane = +bt.dataset.lane;
+        const r = battle.command('rotate', 0, lane);
+        if (!r.ok) flashBattle(`Rotation : ${r.reason}.`); else { flashBattle(`Rotation : toute l'escouade passe par le ${LANE_NAMES[lane]}.`); pumpLog(); }
+        updateTacticCards();
+      }));
+      if (ti === 0) el.querySelectorAll('.tcard:not(.rotcard)').forEach(c => c.addEventListener('click', () => {
         const id = c.dataset.tactic; if (!DATA.TACTICS[id].active) return;
         const r = battle.command('tactic', 0, id);
         if (!r.ok) flashBattle(`${DATA.TACTICS[id].name} : ${r.reason}.`); else { pumpLog(); for (const ev of battle.drainEvents()) { if (ev.type === 'smoke') addSmoke(ev); if (ev.type === 'heal') addHeal(ev); if (ev.type === 'reco') addReco(ev); if (ev.type === 'barrage_called') addBarrageMarker(ev); } }
@@ -1509,6 +1533,14 @@
   function updateTacticCards() {
     battle.teams.forEach((team, ti) => {
       $('#tactics' + ti).querySelectorAll('.tcard').forEach(c => {
+        if (c.classList.contains('rotcard')) {   // Rotation : voie en cours, recharge
+          const cd = Math.max(0, (team.rotateUntil || 0) - battle.t), hold = team.order === 'hold';
+          c.querySelector('.tuse').textContent = hold ? 'impossible (Tenir)' : cd > 0 ? `${cd.toFixed(0)} s` : team.rotation !== undefined ? `par le ${LANE_NAMES[team.rotation]}` : 'prête';
+          c.classList.toggle('off', hold || cd > 0);
+          c.querySelectorAll('button').forEach(bt => bt.classList.toggle('on', team.rotation !== undefined && +bt.dataset.lane === team.rotation));
+          c.querySelector('.cd').style.width = cd > 0 ? (100 * (1 - cd / 10)) + '%' : '0';
+          return;
+        }
         const id = c.dataset.tactic, t = DATA.TACTICS[id], st = team.tactics[id];
         if (!t.active) {   // Tiroir : quelle moitié avance en ce moment (bond n°)
           if (id === 'tiroir' && team.bound) { const mv = team.units.filter(u => u.alive && u.boundGroup === team.bound.group).map(u => u.callsign); c.querySelector('.tuse').textContent = team.order === 'hold' ? 'en attente (Tenir)' : mv.length ? `bond ${team.bound.n + 1} : ${mv.join(', ')}` : 'passive'; }
@@ -1734,7 +1766,7 @@
   $('#closeJournal').addEventListener('click', () => $('#journalWrap').classList.add('hidden'));
   document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => { setCamMode(b.dataset.cam); if (b.dataset.cam !== 'follow') cam.follow = null; }));
   // raccourcis clavier en bataille (positions physiques des touches : valables en AZERTY comme en QWERTY)
-  // Espace : lancer / pause · 1, 2, 3 : vitesse ×1, ×2, ×4 · A, Z, E : tactiques actives 1 à 3 · C : caméra suivante · J : journal
+  // Espace : lancer / pause · 1, 2, 3 : vitesse ×1, ×2, ×4 · A, Z, E : tactiques actives 1 à 3 · R, F, V : rotation nord / milieu / sud · C : caméra suivante · J : journal
   const CAMS = ['director', 'follow', 'sat', 'free'];
   window.addEventListener('keydown', (e) => {
     if (e.target.matches('input,select,textarea') || $('#app').classList.contains('hidden') || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1742,7 +1774,9 @@
     const sp = { Digit1: '1', Digit2: '2', Digit3: '4', Numpad1: '1', Numpad2: '2', Numpad3: '4' }[e.code];
     if (sp) { const b = document.querySelector(`[data-speed="${sp}"]`); if (b) b.click(); return; }
     const ti = { KeyQ: 0, KeyW: 1, KeyE: 2 }[e.code];
-    if (ti !== undefined) { const cards = [...document.querySelectorAll('#tactics0 .tcard')].filter(c => !c.classList.contains('passive')); if (cards[ti]) cards[ti].click(); return; }
+    if (ti !== undefined) { const cards = [...document.querySelectorAll('#tactics0 .tcard')].filter(c => !c.classList.contains('passive') && !c.classList.contains('rotcard')); if (cards[ti]) cards[ti].click(); return; }
+    const rl = { KeyR: -1, KeyF: 0, KeyV: 1 }[e.code];
+    if (rl !== undefined) { const bt = document.querySelector(`#tactics0 .rotcard button[data-lane="${rl}"]`); if (bt) bt.click(); return; }
     if (e.code === 'KeyC') { const i = CAMS.indexOf(cam.mode); const b = document.querySelector(`[data-cam="${CAMS[(i + 1) % CAMS.length]}"]`); if (b) b.click(); return; }
     if (e.code === 'KeyJ') { $('#toggleJournal').click(); }
   });

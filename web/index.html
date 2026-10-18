@@ -1252,6 +1252,16 @@
   #app.hud3 .tcard[data-key]::after { content: attr(data-key); position: absolute; left: 7px; top: 7px; width: 18px; height: 18px; border-radius: 5px; background: rgba(255,255,255,.9); color: #0b0f14; font: 700 11px/18px var(--ui); text-align: center; }
   #app.hud3 .tcard.passive { opacity: .85; } #app.hud3 .tcard.off { opacity: .55; }
   #app.hud3 .tcard.enemy { width: 104px; padding: 6px; border-color: rgba(255,90,72,.3); background: linear-gradient(180deg, rgba(40,14,12,.7), rgba(20,8,8,.6)); } #app.hud3 .tcard.enemy .ticon .timg { width: 30px; height: 30px; } #app.hud3 .tcard.enemy .tname { font-size: 11px; }
+  /* voies : pastille de voie sur les cartes d'effectif, carte « Rotation », dessins des plans de voies */
+  #app .card .lane { display: inline-block; min-width: 15px; margin-left: 6px; padding: 1px 4px; border-radius: 4px; font: 700 10px/12px var(--ui, sans-serif); letter-spacing: 0; text-align: center; vertical-align: 2px; color: #0b0f14; background: #9aa6b2; }
+  #app .card .lane:empty { display: none; } #app .card .lane.l0 { background: #5ec8e8; } #app .card .lane.l1 { background: #b9c4cf; } #app .card .lane.l2 { background: #f0b45a; }
+  #app .tcard .lanesvg { color: #cfe8d8; }
+  #app .tcard.rotcard { width: auto; cursor: default; } #app .rotcard .tname { margin: 2px 0 5px; }
+  #app .rotcard .rbtns { display: flex; gap: 5px; } #app .rotcard button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; width: 52px; padding: 4px 2px 3px; border-radius: 8px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #dfe8ef; font: 600 10px/1.1 var(--ui, sans-serif); cursor: pointer; }
+  #app .rotcard button:hover { border-color: #6fe3a0; background: rgba(111,227,160,.14); } #app .rotcard button.on { border-color: #6fe3a0; box-shadow: 0 0 0 1px #6fe3a0 inset; }
+  #app .rotcard button .rimg { width: 30px; height: 30px; display: block; color: #cfe8d8; }
+  #app .rotcard button[data-key]::after { content: attr(data-key); position: absolute; left: 3px; top: 3px; width: 13px; height: 13px; border-radius: 3px; background: rgba(255,255,255,.9); color: #0b0f14; font: 700 9px/13px var(--ui, sans-serif); text-align: center; }
+  #app .tcard.rotcard.off button { opacity: .45; cursor: default; }
   /* étiquettes au-dessus des soldats : nom fin + losange d'équipe + barre de vie */
   .hud3 #labels .label { gap: 3px; font-family: 'Rajdhani', var(--ui); font-weight: 700; }
   .hud3 #labels .lplate { order: 2; font-size: 12px !important; letter-spacing: .14em; padding: 0; text-shadow: 0 1px 3px rgba(0,0,0,.9), 0 0 8px rgba(0,0,0,.6); }
@@ -1497,7 +1507,7 @@
         <li><b>Tactiques</b> (cartes à gauche) : fumigène, drone, soins, mortier… à jouer pendant la bataille, avec un nombre d'emplois et un temps de recharge ; les tactiques passives (exercice, retranchement…) s'appliquent dès le début. L'adversaire joue aussi les siennes (à droite).</li>
         <li><b>Ordres</b> : <i>Assaut</i> (aller au contact), <i>Tenir</i> (se poster, tirer à vue), <i>Prudent</i> (de couvert en couvert). L'ordre d'Alpha se change pendant la bataille.</li>
         <li><b>Caméra</b> : <i>Réalisateur</i> (par défaut) enchaîne les plans comme une retransmission — épaule d'un tireur, vue d'ensemble de l'échange, plan sur chaque explosion ou neutralisation ; <i>Suivre</i> se place derrière un soldat et change de point de vue au gré de l'action ; <i>Sat</i> montre toute la carte ; <i>Libre</i> : glisser pour tourner, molette pour zoomer, clic droit pour déplacer. Espace : pause.</li>
-        <li><b>Clavier</b> (en bataille) : <i>Espace</i> lancer / pause · <i>1 2 3</i> vitesse ×1 ×2 ×4 · <i>A Z E</i> (Q W E en QWERTY) tactiques actives · <i>C</i> caméra suivante · <i>J</i> journal.</li>
+        <li><b>Clavier</b> (en bataille) : <i>Espace</i> lancer / pause · <i>1 2 3</i> vitesse ×1 ×2 ×4 · <i>A Z E</i> (Q W E en QWERTY) tactiques actives · <i>R F V</i> rotation par le nord / le milieu / le sud · <i>C</i> caméra suivante · <i>J</i> journal.</li>
         <li><b>Décor destructible</b> : les caisses et palettes en bois volent en éclats sous les obus, les frappes et parfois les grenades — le couvert disparaît pour le reste de la bataille.</li>
         <li><b>Moral</b> : voir tomber deux camarades tout près en quelques secondes, face à plusieurs ennemis, peut ébranler un opérateur (test de sang-froid) : il décroche 5 s vers un couvert en arrière. Un Meneur proche et le trait Sang-froid aident ; un Meneur ne flanche jamais.</li>
         <li><b>À terre</b> : un opérateur neutralisé autrement que d'une balle dans la tête reste parfois à terre 20 s ; un allié qui ne voit aucun ennemi peut aller le relever (4 s, 2 s pour un Secouriste), une fois par bataille, avec 30 % de sa vie.</li>
