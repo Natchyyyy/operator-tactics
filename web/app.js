@@ -231,7 +231,7 @@
     if (s.kind === 'overview' || s.kind === 'establish') {
       let list = s.kind === 'overview' && !s.squad ? engagedUnits(4) : battle.units.filter(u => u.alive && (!s.squad || u.team === 0));
       if (list.length < 2) list = battle.units.filter(u => u.alive); if (!list.length) return null;
-      const pts = list.map(u => meshes[u.id] && meshes[u.id].group.position).filter(Boolean); if (!pts.length) return null;
+      const pts = list.map(u => V3(u.x, 0, u.z)); if (!pts.length) return null;   // positions de la simulation : avant « Lancer », les soldats 3D ne sont pas encore placés (sinon plan collé dans un coin de la carte)
       const c = centroid(pts); let r = 0; for (const p of pts) r = Math.max(r, Math.hypot(p.x - c.x, p.z - c.z));
       const sp = battle.map.spawns, ax0 = sp[1].x - sp[0].x, az0 = sp[1].z - sp[0].z, aL = Math.hypot(ax0, az0) || 1, ax = ax0 / aL, az = az0 / aL;   // axe du front (de nous vers eux)
       if (s.kind === 'establish') {   // grue haute derrière notre camp, qui descend doucement en regardant le terrain
