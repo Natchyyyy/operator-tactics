@@ -68,7 +68,8 @@
       if (!o.isSkinnedMesh || !o.skeleton) return;
       const g = o.geometry, pos = g.attributes.position, si = g.attributes.skinIndex, sw = g.attributes.skinWeight; if (!pos || !si || !sw) return;
       const map = o.skeleton.bones.map(b => segNom(b)), v = new T.Vector3();
-      for (let i = 0; i < pos.count; i++) {
+      const pas = Math.max(1, Math.floor(pos.count / 40000));   // (modèle HD ~100 000 sommets : un sur deux ou trois suffit)
+      for (let i = 0; i < pos.count; i += pas) {
         let best = -1, bw = 0; for (let k = 0; k < 4; k++) { const w = sw.getComponent(i, k); if (w > bw) { bw = w; best = si.getComponent(i, k); } }
         const s = best >= 0 ? map[best] : -1; if (s < 0) continue;
         v.fromBufferAttribute(pos, i).applyMatrix4(o.bindMatrix); box[s].expandByPoint(v);

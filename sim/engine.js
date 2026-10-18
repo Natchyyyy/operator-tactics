@@ -922,7 +922,10 @@
     if (this.tryGrenade(u)) return;
     // engagement sur un déplacement en cours : on continue (en tirant si possible) sauf si on vient d'être touché, ou si
     // ce déplacement mène droit sur un ennemi en vue (une marche d'approche ne se poursuit pas jusqu'à lui rentrer dedans)
-    if (this.t < u.commitUntil && u.goal && u.lastHitAt <= u.commitAt && !this.goalTooClose(u, threats)) return;
+    // Sous le feu (des balles claquent autour de soi depuis le départ), une marche d'approche ou un bond encore long
+    // s'interrompt aussi : on se met à couvert là où l'on est plutôt que de finir sa course à découvert.
+    const underFire = beingShot && u.lastShotByAt > u.commitAt && (u.goalKind === 'bound' || u.goalKind === 'advance' || u.goalKind === 'close') && u.goal && Math.hypot(u.goal.x - u.x, u.goal.z - u.z) > 3 && u.state !== 'sidestep';
+    if (this.t < u.commitUntil && u.goal && u.lastHitAt <= u.commitAt && !underFire && !this.goalTooClose(u, threats)) return;
 
     // 1) une cible est visible : engager
     if (threats.length > 0) {
@@ -1016,6 +1019,12 @@
 
     // 2) pas de cible visible mais des positions connues
     const known = this.knownEnemies(u);
+    // pris pour cible par un tireur qu'on ne voit pas : d'abord se mettre à couvert face à lui (un bond en cours s'arrête là)
+    if (beingShot && u.lastShotBy && u.lastShotBy.alive && order !== 'hold' && !this.coverAt(u.x, u.z, u.lastShotBy.x, u.lastShotBy.z, true)) {
+      const sh = u.lastShotBy, ds = dist2(u, sh), minR = Math.min(MIN_CLOSE, ds - 2);
+      const cp = this.findCover(u, sh, 9, { minRange: minR, requireShoot: true, preferDist: this.standoff(u) }) || this.findCover(u, sh, 9, { minRange: minR });
+      if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; }
+    }
     if (known.length > 0) {
       let nearest = known[0], nd = Infinity;
       for (const k of known) { const dd = Math.hypot(k.k.x - u.x, k.k.z - u.z); if (dd < nd) { nd = dd; nearest = k; } }

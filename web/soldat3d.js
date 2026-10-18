@@ -374,6 +374,28 @@
     const noms = new Set(legs.tracks.map(t => t.name));
     M.clips.Kneeling_Reload = new THREE.AnimationClip('Kneeling_Reload', src.duration, src.tracks.filter(t => !noms.has(t.name)).concat(legs.tracks));
   }
+  // Points de semelle de chaque pied (talon, plante sous l'articulation des orteils, bout), mesurés sur le maillage en pose
+  // de repos (sommets les plus bas) et exprimés dans le repère de l'os du pied / des orteils : le jeu sait ainsi où est
+  // vraiment la semelle (pied posé à plat, sur la pointe, sur le talon) pour la poser AU sol, ni dedans ni au-dessus.
+  function semelle(M) {
+    const gb = M.clips.Garde_Basse, sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n); if (!gb) return;
+    const mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true);
+    const pts = [], v = new THREE.Vector3(); let ymin = 1e9;
+    sc.traverse(o => { if (!o.isSkinnedMesh) return; o.skeleton.update(); const n = o.geometry.attributes.position.count; for (let i = 0; i < n; i++) { o.getVertexPosition(i, v); v.applyMatrix4(o.matrixWorld); if (v.y < 0.2) { pts.push(v.clone()); ymin = Math.min(ymin, v.y); } } });
+    const out = [];
+    ['Left', 'Right'].forEach((c, j) => {
+      const ft = b(c + 'Foot'), toe = b(c + 'ToeBase'); if (!ft || !toe) return;
+      const A = ft.getWorldPosition(new THREE.Vector3()), T = toe.getWorldPosition(new THREE.Vector3());
+      // (sommets bas les plus proches de ce pied)
+      const proches = pts.filter(p => p.y < ymin + 0.03 && Math.hypot(p.x - A.x, p.z - A.z) < 0.25);
+      if (proches.length < 3) return;
+      let talon = proches[0], bout = proches[0]; for (const p of proches) { if (p.z < talon.z) talon = p; if (p.z > bout.z) bout = p; }
+      const loc = (o, p) => o.worldToLocal(p.clone());
+      out[j] = { talon: loc(ft, talon), plante: loc(toe, new THREE.Vector3(T.x, ymin, T.z)), bout: loc(toe, bout), sol0: ymin * HEIGHT / RAW_H };
+    });
+    mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true);
+    if (out[0] && out[1]) M.semelle = out;
+  }
   function directions(M) {
     const G = M.clips.Walk_Left_with_Gun, B = M.clips.Walk_Backward_with_Gun; if (!G || !B) return;
     const legs = (c, nom) => c && new THREE.AnimationClip(nom, c.duration, c.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone()));
@@ -417,6 +439,7 @@
     for (const n of ['Walk_Aim', 'Walk_Low', 'Run_and_Shoot', 'Run_Low', 'Trot_Low']) { const c = M.clips[n]; if (c) { M.clips[n + '_Haut'] = new THREE.AnimationClip(n + '_Haut', c.duration, c.tracks.filter(t => !JAMBES.test(t.name)).map(t => t.clone())); } }
     if (M.yawFix.Walk_Aim !== undefined) M.yawFix.Walk_Aim_Haut = M.yawFix.Walk_Aim;
     try { genou(M); } catch (e) { console.warn('soldat 3D (genou) :', e); }
+    try { semelle(M); } catch (e) { console.warn('soldat 3D (semelle) :', e); }
     M.dirs = true;
   }
   // Vitesse « naturelle » de chaque cycle de locomotion (m/s, pour un soldat de 1,80 m) : pendant l'appui, le pied recule
@@ -810,6 +833,26 @@
       turn(arm, E0.clone().sub(S0), E1.sub(S0)); const E2 = WP(fore); turn(fore, WP(hand).sub(E2), T.sub(E2));
       hand.quaternion.copy(WQ(hand.parent).invert().multiply(qH)); hand.updateMatrixWorld(true);
     }
+    // IK d'une jambe (hanche → genou → cheville, orientation du pied gardée) : comme ik(), mais le genou ne se tend jamais à
+    // fond (≤ 99,3 % de la longueur : plus de genou « en arrière ») et plie TOUJOURS vers l'avant, au-dessus des orteils
+    // (si le genou est presque tendu, son plan d'origine est indéterminé : avant, il pouvait basculer en arrière)
+    function ikJambe(up, lo, ft, delta, toe) {
+      mod(up); mod(lo); mod(ft);
+      const qF = WQ(ft), S0 = WP(up), E0 = WP(lo), H0 = WP(ft), T = H0.clone().add(delta);
+      const a = S0.distanceTo(E0), b = E0.distanceTo(H0); let c = S0.distanceTo(T); c = Math.min(Math.max(c, Math.abs(a - b) + 1e-4), (a + b) * 0.993);
+      const dir = T.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - b * b) / (2 * a * c)));
+      const p = E0.clone().sub(S0); p.addScaledVector(dir, -p.dot(dir));
+      const fd = toe ? WP(toe).sub(H0) : new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())); fd.y = 0; fd.addScaledVector(dir, -fd.dot(dir));
+      if (fd.lengthSq() > 1e-8) { fd.normalize(); const pl = p.length(); if (pl < 0.04 || p.dot(fd) < 0) p.copy(fd).multiplyScalar(0.04).add(p.dot(fd) < 0 ? V() : p); }
+      if (p.lengthSq() < 1e-8) p.set(0, 0, 1); p.normalize();
+      const E1 = S0.clone().addScaledVector(dir, a * cosA).addScaledVector(p, a * Math.sqrt(1 - cosA * cosA));
+      turn(up, E0.clone().sub(S0), E1.sub(S0)); const E2 = WP(lo); turn(lo, WP(ft).sub(E2), T.sub(E2));
+      ft.quaternion.copy(WQ(ft.parent).invert().multiply(qF)); ft.updateMatrixWorld(true);
+    }
+    // points de semelle (monde) du pied i : talon, plante, bout (voir semelle()) ; sinon cheville / orteils approchés
+    const semW = (i) => { const S = M.semelle && M.semelle[i], ft = pieds[i][2], toe = orteils[i];
+      if (!S || !ft || !toe) { const A = WP(ft), T = toe ? WP(toe) : A.clone(); return { talon: A.clone().setY(A.y - 0.11), plante: T.clone().setY(T.y - 0.04), bout: T.clone().setY(T.y - 0.04) }; }
+      return { talon: S.talon.clone().applyMatrix4(ft.matrixWorld), plante: S.plante.clone().applyMatrix4(toe.matrixWorld), bout: S.bout.clone().applyMatrix4(toe.matrixWorld) }; };
     // tourne un os autour de la verticale (le sol est plat : la verticale du monde est celle du groupe), en gardant ses enfants
     const UP = new THREE.Vector3(0, 1, 0), qT = new THREE.Quaternion(), qP = new THREE.Quaternion();
     const twist = (bone, ang) => { bone.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(UP, ang); bone.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); bone.updateMatrixWorld(true); };
@@ -987,6 +1030,7 @@
         const repos = (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right') && !enMarche && !keepYaw;
         if (this.pose0) this.poserPieds(dt, repos);
         this.appui(dt, repos && !this.pose0);
+        if (!keepYaw && !S.sansSol) this.sol();
         this.tete(dt, keepYaw ? null : repos || enMarche || !!EPAULE[this.clip] || !!BAS[this.clip]);
         this.clipVu = this.clip;
       },
@@ -1024,24 +1068,29 @@
         const Lk = this.lock || (this.lock = [{ w: 0 }, { w: 0 }]); if (!pieds[0][2] || !orteils[0] || !orteils[1]) return;
         if (!actif && Lk[0].w <= 0 && Lk[1].w <= 0) { Lk[0].piv = Lk[1].piv = null; return; }
         group.updateMatrixWorld(true);
-        const sc = group.getWorldScale(V()).y, tR = (M.toeR || 0.04) * sc, aR = (M.ankR || 0.15) * sc;
+        const gy = group.getWorldPosition(V()).y, so = [semW(0), semW(1)], bas = (s) => Math.min(s.talon.y, s.plante.y, s.bout.y) - gy;
         pieds.forEach(([up, lo, ft], i) => {
-          const L = Lk[i], A = WP(ft), T = WP(orteils[i]), gy = group.getWorldPosition(V()).y;
-          // appui : pointe basse (≤ 4,5 cm au-dessus de sa hauteur de repos) et plus basse que l'autre ; talon : cheville basse
-          const Tb = WP(orteils[1 - i]), bas = T.y - gy < tR + 0.045, talon = bas && A.y - gy < aR + 0.025, appui = bas && T.y <= Tb.y + 0.02;
-          // pivot : talon au sol → cheville ; sinon pointe d'appui → pointe ; pointe encore basse → on garde le pivot actuel
-          const piv = !actif ? null : talon ? 'A' : appui ? 'T' : (L.piv && T.y - gy < tR + 0.07 ? L.piv : null);
+          const L = Lk[i], S = so[i], h = bas(S), hT = S.talon.y - gy, hP = Math.min(S.plante.y, S.bout.y) - gy;
+          // appui : semelle à moins de 3 cm du sol et plus basse que l'autre ; pivot : talon posé → talon, sinon la plante
+          const appui = h < 0.03 && h <= bas(so[1 - i]) + 0.02;
+          const piv = !actif ? null : appui && hT < 0.02 ? 'A' : appui ? 'T' : (L.piv && h < 0.05 ? L.piv : null);
           if (piv) {
-            const P = piv === 'A' ? A : T;
+            const P = piv === 'A' ? S.talon : S.plante;
             if (L.piv !== piv) { L.anc = P.clone(); if (L.off && L.w > 0) L.anc.addScaledVector(L.off, L.w * L.w * (3 - 2 * L.w)); L.piv = piv; }
-            // (et posé AU sol : la pointe à sa hauteur de repos, ou la cheville si le talon est posé ; les cycles flottent de 1 à 4 cm)
-            const dy = piv === 'A' ? Math.max(-0.04, Math.min(0.03, gy + aR - A.y)) : Math.max(-0.04, Math.min(0.06, gy + tR - T.y));
+            // (et posé AU sol : le point d'appui de la semelle à hauteur 0 ; les cycles flottent ou s'enfoncent de 1 à 4 cm)
+            const dy = Math.max(-0.04, Math.min(0.05, -(piv === 'A' ? hT : hP)));
             const d = new THREE.Vector3(L.anc.x - P.x, dy, L.anc.z - P.z);
             if (Math.hypot(d.x, d.z) > 0.22) { L.piv = null; L.w = Math.max(0, L.w - dt / 0.12); }   // (trop loin : pivot sur place, saut)
             else { L.off = d; L.w = Math.min(1, L.w + dt / 0.05); }
           } else { L.piv = null; L.w = Math.max(0, L.w - dt / 0.12); }
-          if (L.w > 0 && L.off && L.off.lengthSq() > 1e-8) ik(up, lo, ft, L.off.clone().multiplyScalar(L.w * L.w * (3 - 2 * L.w)));
+          if (L.w > 0 && L.off && L.off.lengthSq() > 1e-8) ikJambe(up, lo, ft, L.off.clone().multiplyScalar(L.w * L.w * (3 - 2 * L.w)), orteils[i]);
         });
+      },
+      // Sol : aucun point de semelle sous le sol (debout, accroupi, en marche) : le pied est remonté par l'IK de la jambe.
+      sol() {
+        if (!M.semelle || !pieds[0][2]) return;
+        group.updateMatrixWorld(true); const gy = group.getWorldPosition(V()).y;
+        pieds.forEach(([up, lo, ft], i) => { const S = semW(i), h = Math.min(S.talon.y, S.plante.y, S.bout.y) - gy; if (h < -0.003) ikJambe(up, lo, ft, new THREE.Vector3(0, -h, 0), orteils[i]); });
       },
       // Posture de tir offensive (poses épaulées) : les animations tiennent souvent le buste en arrière (épaules derrière le
       // bassin, poids sur les talons). On mesure de combien la poitrine (Spine2) est en avant du bassin dans la direction de
