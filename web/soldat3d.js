@@ -248,6 +248,24 @@
       if (lu && ru) { let cx = 0, cy = 0; for (let i = 0; i < N; i++) { mixer.setTime(i / N * dur); sc.updateMatrixWorld(true); const d = ru.getWorldPosition(new THREE.Vector3()).sub(lu.getWorldPosition(new THREE.Vector3())); const a = Math.atan2(d.x, d.z); cx += Math.cos(a); cy += Math.sin(a); } M.hipsYaw[clip] = Math.atan2(cy, cx); }
       mixer.stopAllAction(); mixer.uncacheRoot(sc);
     }
+    // Calage de phase des pas chassés sur chaque marche avant (pour le mélange en diagonale) : « pied gauche au sol » ne
+    // suffit pas (dans un pas chassé, le pied gauche est tantôt celui qui mène, tantôt celui qui suit). On essaie 20
+    // décalages et on garde celui où le mélange 50/50 avance le plus franchement (pas qui s'annulent = démarche incohérente).
+    M.decal = {};
+    for (const av of ['Pas_Avant_Aim', 'Pas_Avant_Low']) for (const cote of ['Pas_Gauche', 'Pas_Droite']) {
+      const A = M.clips[av], C = M.clips[cote]; if (!A || !C) continue;
+      const mx = new THREE.AnimationMixer(sc), a = mx.clipAction(A), c = mx.clipAction(C); a.play(); c.play(); a.setEffectiveWeight(0.5); c.setEffectiveWeight(0.5); a.timeScale = 0; c.timeScale = 0;
+      const K = 20, NS = 24, mag = [], h = new THREE.Vector3(), p = new THREE.Vector3();
+      for (let o = 0; o < K; o++) {
+        const P = [[], []];
+        for (let i = 0; i < NS; i++) { a.time = ((i / NS + M.phase0[av]) % 1) * A.duration; c.time = ((i / NS + M.phase0[cote] + o / K) % 1) * C.duration; mx.update(0); sc.updateMatrixWorld(true); hips.getWorldPosition(h); feet.forEach((f, j) => { f.getWorldPosition(p); P[j].push([p.x - h.x, p.y, p.z - h.z]); }); }
+        let sx = 0, sz = 0; P.forEach(pp => { const ym = Math.min(...pp.map(q => q[1])); for (let i = 0; i < NS; i++) { const q = pp[(i + 1) % NS]; if (pp[i][1] > ym + 0.03) continue; sx -= q[0] - pp[i][0]; sz -= q[2] - pp[i][2]; } });
+        mag.push(Math.hypot(sx, sz));
+      }
+      let best = 0, bv = -1; for (let o = 0; o < K; o++) { const s = 2 * mag[o] + mag[(o + 1) % K] + mag[(o + K - 1) % K]; if (s > bv) { bv = s; best = o; } }
+      (M.decal[av] || (M.decal[av] = {}))[cote] = best / K;
+      mx.stopAllAction(); mx.uncacheRoot(sc);
+    }
     // chutes : de combien le corps allongé flotte au-dessus du sol à la fin (le jeu le redescend pendant la chute)
     M.chuteY = {}; const bones = []; sc.traverse(o => { if (o.isBone) bones.push(o); });
     for (const clip of ['Shot_and_Fall_Forward', 'Shot_in_the_Back_and_Fall']) {
@@ -472,24 +490,36 @@
         const D = M.dirPas || {}, foul = (n) => Math.max(0.2, (M.loco[n] || 1) * (M.clips[n] ? M.clips[n].duration : 1));   // m par cycle
         const a0 = (M.aimYaw && M.aimYaw[haut.replace(/_Haut$/, '')]) || 0, B = -a0 * (1 - DOS_VISEE);
         let e = ecart - B; while (e > Math.PI) e -= 2 * Math.PI; while (e < -Math.PI) e += 2 * Math.PI;
-        const anc = [avant, 'Pas_Gauche', 'Pas_Arriere', 'Pas_Droite'].filter(n => M.clips[n] && D[n] !== undefined).map(n => [n, D[n]]).sort((x, y) => x[1] - y[1]);
-        const cible = {}; for (const [n] of anc) cible[n] = 0; cible[avant] = 0;
-        // deux ancres voisines a, b : poids tels que la somme des foulées (vecteurs) pointe exactement vers e
-        if (anc.length >= 3) for (let i = 0; i < anc.length; i++) {
-          const [na, ta] = anc[i], [nb, tb0] = anc[(i + 1) % anc.length], tb = i + 1 < anc.length ? tb0 : tb0 + 2 * Math.PI;
-          let t = e; if (t < ta) t += 2 * Math.PI; if (t < ta || t > tb) continue;
-          const wa = Math.max(0, Math.sin(tb - t)) / foul(na), wb = Math.max(0, Math.sin(t - ta)) / foul(nb), s = wa + wb;
-          if (s > 1e-6) { cible[na] += wa / s; cible[nb] += wb / s; } break;
-        }
-        if (i4(cible)) cible[avant] = 1;
+        const wrap = (x) => { while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
+        const PG = 'Pas_Gauche', PD = 'Pas_Droite', PR = 'Pas_Arriere', cible = { [avant]: 0, [PG]: 0, [PD]: 0, [PR]: 0 };
+        let tau = 0;
+        if (M.clips[PG] && M.clips[PD] && M.clips[PR] && D[PG] !== undefined && D[PD] !== undefined && D[PR] !== undefined) {
+          // pas chassé du côté où l'on va (d'après sa direction mesurée : « Pas_Gauche » va en fait vers la droite)
+          const cote = D[PG] * e > 0 ? PG : PD, tc = D[cote], ta = D[avant] || 0;
+          if (Math.abs(e) <= Math.abs(tc)) {
+            // secteur avant : mélange marche avant / pas chassé, poids tels que la somme des foulées (vecteurs) pointe vers e
+            // (ces deux démarches se mélangent bien une fois calées en phase, voir M.decal)
+            const wa = Math.abs(Math.sin(tc - e)) / foul(avant), wc = Math.abs(Math.sin(e - ta)) / foul(cote), s = wa + wc || 1;
+            cible[avant] = wa / s; cible[cote] = wc / s; this.selArr = false;
+          } else {
+            // secteur arrière : pas chassé et marche arrière se mélangent mal (pas qui s'annulent) ; on joue l'un OU l'autre,
+            // bassin tourné (tau) vers la direction exacte, en gardant celui qui tord le moins le dos (avec hystérésis ;
+            // le changement se fait en fondu par le lissage des poids)
+            const tw = (n) => wrap(e - D[n]), cout = (n) => Math.abs(wrap((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0) + tw(n)));
+            if (this.selArr ? cout(cote) < cout(PR) - 0.2 : cout(PR) < cout(cote) - 0.2) this.selArr = !this.selArr;
+            const n = this.selArr ? PR : cote; cible[n] = 1; tau = Math.max(-1.3, Math.min(1.3, tw(n)));
+          }
+        } else cible[avant] = 1;
+        this.jambesCible = tau;
         if (!this.blendW) this.blendW = {};
         const bw = this.blendW;
         for (const n in bw) if (!(n in cible)) cible[n] = 0;
         let tot = 0; for (const n in cible) { bw[n] = (bw[n] || 0) + (cible[n] - (bw[n] || 0)) * Math.min(1, dt * 8); if (bw[n] < 0.004 && cible[n] === 0) bw[n] = 0; tot += bw[n]; }
         // foulée du mélange : somme VECTORIELLE (en diagonale, avant + côté avancent moins que la somme des longueurs) ;
         // c'est elle qui cale la cadence sur la vitesse réelle (pas de pieds qui glissent)
-        let fx = 0, fz = 0; for (const n in bw) if (bw[n] > 0) { const L = bw[n] / tot * foul(n), t = D[n] || 0; fx += L * Math.sin(t); fz += L * Math.cos(t); }
-        this.ph = ((this.ph || 0) + dt * v / Math.max(0.25, Math.hypot(fx, fz))) % 1;
+        // (mesuré : la vraie foulée d'un mélange est entre la somme vectorielle et la somme des longueurs ; on prend la moyenne)
+        let fx = 0, fz = 0, fl = 0; for (const n in bw) if (bw[n] > 0) { const L = bw[n] / tot * foul(n), t = D[n] || 0; fx += L * Math.sin(t); fz += L * Math.cos(t); fl += L; }
+        this.ph = ((this.ph || 0) + dt * v / Math.max(0.25, (Math.hypot(fx, fz) + fl) / 2)) % 1;
         // entrée en marche : la couche des jambes monte en ~0,2 s (l'animation précédente s'efface pendant ce temps)
         this.marcheK = Math.min(1, (this.marcheK || 0) + dt / 0.2);
         let psi = 0;
@@ -499,7 +529,7 @@
           if (w <= 0) { if (a.isRunning()) a.stop(); continue; }
           if (!a.isRunning()) { a.reset(); a.play(); }
           a.enabled = true; a.timeScale = 0; a.stopFading(); a.setEffectiveWeight(w * this.marcheK);
-          a.time = ((this.ph + (M.phase0[n] || 0)) % 1) * a.getClip().duration;
+          a.time = ((this.ph + (M.phase0[n] || 0) + ((M.decal && M.decal[avant] && M.decal[avant][n]) || 0)) % 1) * a.getClip().duration;
           psi += w * ((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0));
         }
         while (psi > Math.PI) psi -= 2 * Math.PI; while (psi < -Math.PI) psi += 2 * Math.PI;

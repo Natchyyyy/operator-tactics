@@ -26,19 +26,28 @@ OT.Soldat3D.whenReady(() => {
   // 2 s de marche (poids lissés établis), puis on avance jusqu'à la phase demandée
   for (const [f, e] of fs) for (let k = 0; k < 60; k++) { f.marche(e, 1.2, 1 / 30, haut, avant); f.update(1 / 30); }
   // poser(ph) : avance chaque soldat jusqu'à la phase ph puis rend l'image (pour une planche de plusieurs instants)
-  window.poser = (ph) => { for (const [f, e] of fs) { let g = 0; while (Math.abs(((f.ph - ph) % 1 + 1) % 1) > 0.012 && g++ < 400) { f.marche(e, 1.2, 1 / 240, haut, avant); f.update(1 / 240); } f.placeWeapon(true, 0, 'deux'); } r.render(sc, cam); return 0; };
+  // ?grille=1 : un gros plan par soldat (?az=degrés autour du soldat, 0 = de face ; ?el=élévation en degrés)
+  const GR = q.get('grille') === '1', AZ = +(q.get('az') || 0) * Math.PI / 180, EL = +(q.get('el') || 12) * Math.PI / 180, cg = new THREE.PerspectiveCamera(30, (W / 8) / H, 0.1, 100);
+  const rendu = () => {
+    if (!GR) { r.render(sc, cam); return; }
+    r.setScissorTest(true);
+    fs.forEach(([f], i) => { const p = f.group.position, D = +(q.get("dist") || 8.5); cg.position.set(p.x + D * Math.sin(AZ) * Math.cos(EL), 0.95 + D * Math.sin(EL), p.z + D * Math.cos(AZ) * Math.cos(EL)); cg.lookAt(p.x, 0.92, p.z);
+      fs.forEach(([g], j) => { g.group.visible = j === i; }); r.setViewport(i * W / 8, 0, W / 8, H); r.setScissor(i * W / 8, 0, W / 8, H); r.render(sc, cg); });
+    fs.forEach(([g]) => { g.group.visible = true; }); r.setScissorTest(false); r.setViewport(0, 0, W, H);
+  };
+  window.poser = (ph) => { for (const [f, e] of fs) { let g = 0; while (Math.abs(((f.ph - ph) % 1 + 1) % 1) > 0.012 && g++ < 400) { f.marche(e, 1.2, 1 / 240, haut, avant); f.update(1 / 240); } f.placeWeapon(true, 0, 'deux'); } rendu(); return 0; };
   // mesure() : sur un cycle, direction réelle des pas (pied d'appui, repère du groupe) comparée à la flèche, rapport vitesse
   // des pas / vitesse demandée (1 = pas de glissement), direction du fusil (0 = droit devant) et hauteur du bassin
   window.mesure = () => fs.map(([f, e]) => {
     const dt = 1 / 120, inv = new THREE.Matrix4(), P = [[], []], ft = ['LeftToeBase', 'RightToeBase'].map(n => f.body.getObjectByName('mixamorig' + n) || f.body.getObjectByName('mixamorig:' + n));
-    const fus = [], hy = [];
-    for (let i = 0; i < 160; i++) { f.marche(e, 1.2, dt, haut, avant); f.update(dt); f.group.updateMatrixWorld(true); f.placeWeapon(true, 0, 'deux'); inv.copy(f.group.matrixWorld).invert();
+    const fus = [], hy = [], han = [], ul = ['LeftUpLeg', 'RightUpLeg'].map(n => f.body.getObjectByName('mixamorig' + n) || f.body.getObjectByName('mixamorig:' + n));
+    for (let i = 0, cumul = 0, ph0 = f.ph; cumul < 1 && i < 2000; i++) { const p = f.ph; f.marche(e, 1.2, dt, haut, avant); cumul += ((f.ph - p) % 1 + 1) % 1; f.update(dt); f.group.updateMatrixWorld(true); f.placeWeapon(true, 0, 'deux'); inv.copy(f.group.matrixWorld).invert();
       ft.forEach((o, j) => P[j].push(o.getWorldPosition(new THREE.Vector3()).applyMatrix4(inv)));
-      const bz = new THREE.Vector3(0, 0, 1).applyQuaternion(f.weapon.quaternion); fus.push(Math.atan2(bz.x, bz.z)); hy.push(f.bones.hips.getWorldPosition(new THREE.Vector3()).y); }
+      const bz = new THREE.Vector3(0, 0, 1).applyQuaternion(f.weapon.quaternion); fus.push(Math.atan2(bz.x, bz.z)); hy.push(f.bones.hips.getWorldPosition(new THREE.Vector3()).y); const d = ul[1].getWorldPosition(new THREE.Vector3()).applyMatrix4(inv).sub(ul[0].getWorldPosition(new THREE.Vector3()).applyMatrix4(inv)); han.push(Math.atan2(d.x, d.z) + Math.PI / 2); }
     let sx = 0, sz = 0, sv = 0, n = 0;
     P.forEach(pp => { const ym = Math.min(...pp.map(p => p.y)); for (let i = 0; i + 1 < pp.length; i++) { if (pp[i].y > ym + 0.03 || pp[i + 1].y > ym + 0.03) continue; const d = pp[i + 1].clone().sub(pp[i]).divideScalar(dt); sx -= d.x; sz -= d.z; sv += Math.hypot(d.x, d.z); n++; } });
     const deg = (r) => +(r * 180 / Math.PI).toFixed(1);
-    return { fleche: deg(e), pas: deg(Math.atan2(sx, sz)), vitesse: +(sv / n / 1.2).toFixed(2), fusil: deg(fus.reduce((a, b) => a + b, 0) / fus.length), bassin: [+Math.min(...hy).toFixed(3), +Math.max(...hy).toFixed(3)], corps: deg(f.body.rotation.y), dos: deg(f.dosComp || 0) };
+    return { fleche: deg(e), pas: deg(Math.atan2(sx, sz)), vitesse: +(sv / n / 1.2).toFixed(2), fusil: deg(fus.reduce((a, b) => a + b, 0) / fus.length), bassin: [+Math.min(...hy).toFixed(3), +Math.max(...hy).toFixed(3)], corps: deg(f.body.rotation.y), hanches: deg(Math.atan2(han.reduce((a, b) => a + Math.sin(b), 0), han.reduce((a, b) => a + Math.cos(b), 0))), dos: deg(f.dosComp || 0) };
   });
   window.poser(PH);
   const c = document.createElement('div'); c.style.cssText = 'position:absolute;left:0;top:8px;width:' + W + 'px;display:flex'; c.innerHTML = noms.map(n => '<div style="flex:1;text-align:center">' + n + '</div>').join(''); document.body.appendChild(c);

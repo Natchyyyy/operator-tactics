@@ -54,31 +54,55 @@
     }
     return best ? best.id : null;
   }
-  // ---- Réalisateur : enchaîne des plans comme une retransmission (épaule d'un tireur, vue d'ensemble de l'échange,
-  // plan rapproché sur un événement — explosion, neutralisation —, suivi de l'escouade pendant la progression). --------
-  const DIRECTOR = { eventShot: null };
-  function directorEvent(kind, x, z) {   // appelée sur une explosion ou une neutralisation : coupe vers l'événement
-    if (cam.mode !== 'director') return;
-    if (DIRECTOR.eventShot && simTime < DIRECTOR.eventShot.until - 1) return;   // on ne coupe pas un plan d'événement trop tôt
-    DIRECTOR.eventShot = { kind, x, z, until: simTime + 2.6, yaw: Math.random() * Math.PI * 2 };
-    cam.shot = null;
+  // ---- Réalisateur : retransmission automatique, comme la régie d'un match. -----------------------------------------
+  // Il note l'intérêt de chaque action (tireur qui a sa cible en vue, soldat pris pour cible, grenade, bond vers un
+  // couvert, prise de zone, accalmie) et choisit un plan adapté :
+  //  - « shoulder » : par-dessus l'épaule du tireur, la cible sur le tiers opposé du cadre, lent travelling avant ;
+  //  - « duel » : de trois-quarts, le tireur et sa cible tous deux dans le cadre ;
+  //  - « dolly » : travelling latéral à hauteur d'homme sur un soldat qui se déplace, de l'espace devant lui ;
+  //  - « overview » : plan large de l'échange, perpendiculaire à la ligne de front, rotation lente ;
+  //  - « establish » : plan d'ensemble en grue (ouverture, accalmies, de temps en temps pour « respirer ») ;
+  //  - « capture » : la zone et ceux qui la tiennent ;
+  //  - « killcam » : sur une neutralisation, épaule du tireur (ou plan serré sur la victime) qui se resserre ;
+  //  - « blast » : explosion vue en hauteur, en tournant.
+  // Règles : un plan tient au moins 3,5 s (seules une neutralisation ou une explosion coupent plus tôt) ; chaque position
+  // est validée avant la coupe (pas dans un obstacle, sujet visible, objectif non bouché par un mur) puis surveillée
+  // (sujet masqué plus d'une seconde → autre plan) ; tout mouvement est amorti par un ressort critique (aucun à-coup),
+  // la focale aussi ; la perche (clipBoom) empêche de traverser voitures et murs.
+  const DIRECTOR = { eventShot: null, pending: null, clock: 0, lastT: null, battle: null, t0: 0, lastWide: -99, hist: [], vel: new THREE.Vector3(), lvel: new THREE.Vector3(), fov: 50, fvel: 0, masked: 0, minHold: 3.5 };
+  function directorEvent(kind, x, z) {   // appelée sur une explosion ou une neutralisation : traitée à l'image suivante
+    if (cam.mode !== 'director' || kind === 'revive') return;
+    DIRECTOR.pending = { kind, x, z, at: simTime };
   }
-  function engagedUnits() { return battle.units.filter(u => u.alive && (battle.t - u.lastShotAt < 2.5 || battle.t - u.lastShotByAt < 2.5)); }
+  function engagedUnits(win) { win = win || 2.5; return battle.units.filter(u => u.alive && (battle.t - u.lastShotAt < win || battle.t - u.lastShotByAt < win)); }
+  const MOVE_STATES = { tocover: 2, bounding: 1.5, advancing: 1, closing: 1.5, tozone: 1.5, torevive: 2.5, fallback: 1.5, retreat: 1.5, reposition: 1, evade: 2.5 };
+  function recentlyShown(id, kind) {   // pénalité de répétition : même soldat ou même type de plan dans les 25 dernières secondes
+    let p = 0;
+    for (const h of DIRECTOR.hist) { const k = 1 - (DIRECTOR.clock - h.at) / 25; if (k <= 0) continue; if (id && h.id === id) p += 2.5 * k; if (h.kind === kind) p += 1.2 * k; }
+    return p;
+  }
+  // plans possibles, du plus intéressant au moins intéressant
   function pickShot() {
-    const eng = engagedUnits();
-    const shooters = eng.filter(u => u.target && u.visible.has(u.target.id));
-    const r = Math.random();
-    if (shooters.length && r < 0.5) {   // épaule d'un tireur (de préférence de notre équipe)
-      const own = shooters.filter(u => u.team === 0), pick = (own.length && Math.random() < 0.7 ? own : shooters)[Math.floor(Math.random() * (own.length && Math.random() < 0.7 ? own.length : shooters.length))];
-      return { kind: 'shoulder', id: (pick || shooters[0]).id, until: simTime + 4 + Math.random() * 2 };
+    const D = DIRECTOR, t = battle.t, C = [];
+    const add = (score, s) => { s.score = score - recentlyShown(s.id, s.kind) + Math.random() * 0.8; C.push(s); };
+    if (!D.hist.length) add(100, { kind: 'establish', dur: 5.5 });   // ouverture : plan d'ensemble
+    let action = 0;
+    for (const u of battle.units) {
+      if (!u.alive) continue;
+      const tg = u.target && u.target.alive ? u.target : null, firing = t - u.lastShotAt < 1.6, underFire = t - u.lastShotByAt < 1.6, own = u.team === 0 ? 1 : 0;
+      if (u.state === 'throw') { add(9 + own, { kind: 'shoulder', id: u.id, tid: tg && tg.id, dur: 4 }); action++; continue; }
+      if (tg && firing && u.visible && u.visible.has(tg.id)) {
+        const d = Math.hypot(tg.x - u.x, tg.z - u.z), hurt = tg.status === 'critical' ? 2 : tg.status === 'wounded' ? 1 : 0; action++;
+        add(6 + own * 1.5 + hurt + (d < 22 ? 1 : 0) + (underFire ? 1.5 : 0), { kind: 'shoulder', id: u.id, tid: tg.id, dur: 5 + Math.random() * 1.5 });
+        if (d < 26) add(5 + own + hurt + (underFire ? 1.5 : 0), { kind: 'duel', id: u.id, tid: tg.id, dur: 4.5 + Math.random() });
+      } else if (u.moving && MOVE_STATES[u.state]) add(2.5 + MOVE_STATES[u.state] + own * 1.2 + (underFire ? 2.5 : 0), { kind: 'dolly', id: u.id, dur: 4.5 + Math.random() });
+      if (battle.zone && u.state === 'capture') add(4 + own, { kind: 'capture', id: u.id, dur: 5 });
     }
-    if (eng.length >= 2) return { kind: 'overview', until: simTime + 5 + Math.random() * 2, yaw: (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.6) };
-    // progression : suivi en hauteur de notre escouade, ou épaule d'un éclaireur
-    const own = battle.teams[0].units.filter(u => u.alive);
-    if (own.length && r < 0.45) { const mv = own.filter(u => u.moving); if (mv.length) return { kind: 'dolly', id: mv[Math.floor(Math.random() * mv.length)].id, side: Math.random() < 0.5 ? -1 : 1, until: simTime + 4.5 }; }   // travelling latéral à hauteur d'homme
-    if (own.length && r < 0.75) return { kind: 'squad', until: simTime + 6, yaw: 0.35 + Math.random() * 0.5 };
-    const lead = own.slice().sort((a, b) => b.x * (battle.map.spawns[1].x > battle.map.spawns[0].x ? 1 : -1) - a.x * (battle.map.spawns[1].x > battle.map.spawns[0].x ? 1 : -1))[0];
-    return lead ? { kind: 'shoulder', id: lead.id, until: simTime + 5 } : { kind: 'squad', until: simTime + 5, yaw: 0.5 };
+    const eng = engagedUnits();
+    if (eng.length >= 3) add(4.5 + Math.min(3, eng.length * 0.4), { kind: 'overview', dur: 5.5, yaw: (Math.random() - 0.5) * 0.9 });
+    add((action ? 1 : 5) + Math.min(4, (D.clock - D.lastWide) / 10), { kind: 'establish', dur: action ? 4.5 : 6.5 });
+    add(1, { kind: 'overview', dur: 5, squad: true, yaw: 0.3 });   // repli : l'escouade
+    return C.sort((a, b) => b.score - a.score);
   }
   function centroid(list) { const n = list.length || 1; return { x: list.reduce((s, u) => s + u.x, 0) / n, z: list.reduce((s, u) => s + u.z, 0) / n }; }
   // Perche de caméra : la caméra ne traverse ni murs ni voitures. On lance le segment pivot → caméra contre les boîtes
@@ -104,54 +128,203 @@
     }
     return want;
   }
-  function placeCam(want, look, k) {
-    if (!cam.init || k >= 1) { cam.pos.copy(want); cam.look.copy(look); cam.init = true; }
-    else { cam.pos.lerp(want, k); cam.look.lerp(look, k * 1.4); }
-    camera.position.copy(cam.pos); camera.lookAt(cam.look);
+  // ---- outils du réalisateur : horloge, ressort critique, visibilité, cadrage ----
+  function dirTick() {   // horloge des plans : temps réel hors pause (en mode manuel : temps simulé) ; renvoie le pas d'image
+    const D = DIRECTOR, now = performance.now() / 1000, raw = D.lastT === null ? 1 / 60 : now - D.lastT; D.lastT = now;
+    if (MANUAL) { D.clock = simTime; return 1 / 30; }
+    const dt = raw < 0.002 ? 1 / 60 : Math.min(0.1, raw);
+    if (!paused) D.clock += dt;
+    return dt;
+  }
+  function damp3(cur, want, vel, st, dt) {   // ressort critique (SmoothDamp) : rejoint la cible sans dépassement ni à-coup
+    const w = 2 / Math.max(0.02, st), x = w * dt, e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+    for (const k of ['x', 'y', 'z']) { const c = cur[k] - want[k], tmp = (vel[k] + w * c) * dt; vel[k] = (vel[k] - w * tmp) * e; cur[k] = want[k] + (c + tmp) * e; }
+  }
+  function setFov(v) { if (Math.abs(camera.fov - v) > 0.01) { camera.fov = v; camera.updateProjectionMatrix(); } }
+  function inObstacle(p, pad) { for (const o of battle.map.obstacles) if (p.y < o.h + pad && p.x > o.x - pad && p.x < o.x + o.w + pad && p.z > o.z - pad && p.z < o.z + o.d + pad) return true; return false; }
+  function segFree(a, b) {   // fraction libre du segment a → b (1 : aucun obstacle ne le coupe)
+    let tmin = 1; const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+    for (const o of battle.map.obstacles) {
+      if (Math.min(a.y, b.y) > o.h) continue;
+      let t0 = 0, t1 = 1;
+      const slab = (p, d, lo, hi) => { if (Math.abs(d) < 1e-6) return p >= lo && p <= hi; let u = (lo - p) / d, v = (hi - p) / d; if (u > v) { const w = u; u = v; v = w; } t0 = Math.max(t0, u); t1 = Math.min(t1, v); return t0 <= t1; };
+      if (slab(a.x, dx, o.x, o.x + o.w) && slab(a.z, dz, o.z, o.z + o.d) && slab(a.y, dy, -1, o.h) && t0 < tmin) tmin = t0;
+    }
+    return tmin;
+  }
+  const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+  function eyeOf(id, y) { const m = meshes[id], u = unitById[id]; if (!m || !u) return null; return V3(m.group.position.x, y !== undefined ? y : (u.eyeY ? u.eyeY() : 1.5), m.group.position.z); }
+  function fwdOf(id) { const yaw = meshes[id].group.rotation.y; return new THREE.Vector2(Math.cos(-(yaw - Math.PI / 2)), Math.sin(-(yaw - Math.PI / 2))); }
+  function smoothDir(s, key, x, z, rate, dt) { if (!s[key] || !dt) s[key] = new THREE.Vector2(x, z); else s[key].lerp(new THREE.Vector2(x, z), 1 - Math.exp(-rate * dt)).normalize(); return s[key]; }
+  function inMap(p, m) { const mp = battle.map; p.x = Math.max(m, Math.min(mp.width - m, p.x)); p.z = Math.max(m, Math.min(mp.depth - m, p.z)); return p; }
+  // note d'un cadrage : -1 si la caméra est dans un obstacle, hors du terrain ou face à un mur ; sinon part des sujets visibles
+  function shotQuality(f) {
+    const p = f.pos, mp = battle.map;
+    if (p.y < 0.5 || inObstacle(p, 0.4) || p.x < 0.6 || p.z < 0.6 || p.x > mp.width - 0.6 || p.z > mp.depth - 0.6) return -1;
+    const L = p.distanceTo(f.look); if (segFree(p, f.look) * L < Math.min(3.5, L * 0.5)) return -1;
+    if (!f.pts.length) return 1;
+    let q = 0; for (const e of f.pts) if (segFree(p, e) > 0.995) q++;
+    return q / f.pts.length;
+  }
+  // cadrage d'un plan à l'instant présent : position, point visé, sujets à garder visibles, focale, amortissement, pivot de perche
+  function frameShot(s, dt) {
+    const D = DIRECTOR, age = D.clock - s.t0, side = s.side || 1, tanH = Math.tan(THREE.MathUtils.degToRad(21)) * (camera.aspect || 16 / 9);
+    if (s.kind === 'shoulder' || (s.kind === 'killcam' && s.view === 'killer')) {
+      const kc = s.kind === 'killcam', id = kc ? s.kid : s.id, m = meshes[id], u = unitById[id];
+      if (!m || !u || (!u.alive && !kc)) return null;
+      let tg = unitById[kc ? s.vid : s.tid];
+      if (!kc && (!tg || !tg.alive)) { tg = u.target && u.target.alive ? u.target : null; s.tid = tg ? tg.id : null; }
+      const P = m.group.position, T = tg && meshes[tg.id] ? meshes[tg.id].group.position : null;
+      let f = T ? new THREE.Vector2(T.x - P.x, T.z - P.z) : fwdOf(id); if (f.lengthSq() < 0.01) f = fwdOf(id); f.normalize();
+      const d = smoothDir(s, 'dir', f.x, f.y, 2.2, dt), fx = d.x, fz = d.y, rx = -fz * side, rz = fx * side;
+      const dist = T ? Math.hypot(T.x - P.x, T.z - P.z) : 10, back = 1.75 - Math.min(0.45, age * 0.09);   // lent travelling avant
+      const pos = V3(P.x - fx * back + rx * 0.62, 1.78, P.z - fz * back + rz * 0.62);
+      const tgt = T ? V3(T.x, kc ? 0.8 : (tg.eyeY ? tg.eyeY() : 1.5) - 0.3, T.z) : V3(P.x + fx * 10, 1.3, P.z + fz * 10);
+      // tireur au premier plan d'un côté, cible sur le tiers opposé : on vise un peu à côté de la cible
+      const look = tgt.clone().add(V3(-rx * dist * 0.16, 0, -rz * dist * 0.16));
+      const fov = kc ? 36 - Math.min(8, age * 3) : dist > 26 ? 32 : dist > 14 ? 38 : 44;
+      return { pos, look, pts: T ? [V3(T.x, kc ? 0.9 : tgt.y + 0.25, T.z)] : [], fov, st: kc ? 0.3 : 0.4, lst: 0.25, pivot: V3(P.x + rx * 0.3, 1.6, P.z + rz * 0.3) };
+    }
+    if (s.kind === 'duel') {
+      const A = unitById[s.id], B = unitById[s.tid]; if (!A || !B || !A.alive || !B.alive || !meshes[s.id] || !meshes[s.tid]) return null;
+      const PA = meshes[s.id].group.position, PB = meshes[s.tid].group.position, L = Math.max(1, Math.hypot(PB.x - PA.x, PB.z - PA.z));
+      const ux = (PB.x - PA.x) / L, uz = (PB.z - PA.z) / L, a = smoothDir(s, 'dir', -uz * side, ux * side, 1.2, dt), d = Math.max(4.5, L * 0.5 / (tanH * 0.62));
+      if (d > 26) return null;
+      const mx = (PA.x + PB.x) / 2 - ux * L * 0.18, mz = (PA.z + PB.z) / 2 - uz * L * 0.18;   // de trois-quarts, côté tireur
+      const pos = V3(mx + a.x * d + ux * age * 0.1, 1.55 + d * 0.08, mz + a.y * d + uz * age * 0.1);
+      const look = V3((PA.x + PB.x) / 2 + ux * L * 0.04, 1.15, (PA.z + PB.z) / 2 + uz * L * 0.04);
+      return { pos, look, pts: [eyeOf(s.id), eyeOf(s.tid)], fov: 42, st: 0.6, lst: 0.45, pivot: V3((PA.x + PB.x) / 2, 1.5, (PA.z + PB.z) / 2) };
+    }
+    if (s.kind === 'dolly') {   // de profil, à ~3,8 m, caméra basse ; le soldat sur le tiers arrière, de l'espace devant lui
+      const m = meshes[s.id], u = unitById[s.id]; if (!m || !u || !u.alive) return null;
+      const P = m.group.position, sp = Math.hypot(m.anim.vx || 0, m.anim.vz || 0);
+      const f0 = sp > 0.2 ? new THREE.Vector2(m.anim.vx / sp, m.anim.vz / sp) : new THREE.Vector2(Math.cos(u.facing), Math.sin(u.facing));
+      const dd = smoothDir(s, 'dir', f0.x, f0.y, 1.4, dt), dx = dd.x, dz = dd.y, nx = -dz * side, nz = dx * side;
+      s.still = u.moving ? 0 : (s.still || 0) + (dt || 0);
+      const pos = V3(P.x + nx * 3.8 - dx * 0.7, 1.25, P.z + nz * 3.8 - dz * 0.7), look = V3(P.x + dx * 2.1, 1.05, P.z + dz * 2.1);
+      return { pos, look, pts: [eyeOf(s.id)], fov: 46, st: 0.35, lst: 0.3, pivot: V3(P.x, 1.2, P.z) };
+    }
+    if (s.kind === 'overview' || s.kind === 'establish') {
+      let list = s.kind === 'overview' && !s.squad ? engagedUnits(4) : battle.units.filter(u => u.alive && (!s.squad || u.team === 0));
+      if (list.length < 2) list = battle.units.filter(u => u.alive); if (!list.length) return null;
+      const pts = list.map(u => meshes[u.id] && meshes[u.id].group.position).filter(Boolean); if (!pts.length) return null;
+      const c = centroid(pts); let r = 0; for (const p of pts) r = Math.max(r, Math.hypot(p.x - c.x, p.z - c.z));
+      const sp = battle.map.spawns, ax0 = sp[1].x - sp[0].x, az0 = sp[1].z - sp[0].z, aL = Math.hypot(ax0, az0) || 1, ax = ax0 / aL, az = az0 / aL;   // axe du front (de nous vers eux)
+      if (s.kind === 'establish') {   // grue haute derrière notre camp, qui descend doucement en regardant le terrain
+        const a = Math.atan2(-az, -ax) + side * 0.55 + (s.yaw || 0) + age * 0.015 * side, d = 20;
+        const pos = inMap(V3(c.x + Math.cos(a) * d, 0, c.z + Math.sin(a) * d), 1.2); pos.y = 19 - Math.min(4, age * 0.6);
+        return { pos, look: V3(c.x + ax * 3, 0, c.z + az * 3), pts: [], fov: 50, st: 1.1, lst: 0.9, pivot: V3(c.x, 1.5, c.z) };
+      }
+      const a = Math.atan2(ax, -az) * 1 + (side < 0 ? Math.PI : 0) + (s.yaw || 0) + age * 0.02 * side, d = Math.max(11, Math.min(28, r * 1.1 + 8));
+      const pos = inMap(V3(c.x + Math.cos(a) * d, 0, c.z + Math.sin(a) * d), 1); pos.y = 2 + d * 0.5;
+      return { pos, look: V3(c.x, 0.8, c.z), pts: pts.slice(0, 4).map(p => V3(p.x, 1.4, p.z)), fov: 46, st: 0.9, lst: 0.7, pivot: V3(c.x, 1.5, c.z) };
+    }
+    if (s.kind === 'capture') {
+      const Z = battle.zone; if (!Z) return null;
+      const who = battle.units.filter(u => u.alive && u.state === 'capture' && meshes[u.id]).map(u => eyeOf(u.id));
+      const a = (s.yaw || 0) + age * 0.04 * side, d = (Z.r || 4) + 7;
+      return { pos: V3(Z.x + Math.cos(a) * d, 3.4, Z.z + Math.sin(a) * d), look: V3(Z.x, 0.6, Z.z), pts: who.slice(0, 3), fov: 48, st: 0.8, lst: 0.6, pivot: V3(Z.x, 1.5, Z.z) };
+    }
+    if (s.kind === 'killcam') {   // plan serré sur la victime, qui se resserre pendant la chute
+      const m = meshes[s.vid]; if (!m) return null; const P = m.group.position, a = s.yaw || 0, d = 4.4 - Math.min(1.1, age * 0.35);
+      return { pos: V3(P.x + Math.cos(a) * d, 1.6 - Math.min(0.45, age * 0.15), P.z + Math.sin(a) * d), look: V3(P.x, 0.55, P.z), pts: [V3(P.x, 0.9, P.z)], fov: 40 - Math.min(6, age * 2), st: 0.3, lst: 0.2, pivot: V3(P.x, 1.2, P.z) };
+    }
+    if (s.kind === 'blast') {
+      const a = (s.yaw || 0) + age * 0.18;
+      return { pos: V3(s.x + Math.cos(a) * 9, 4.6, s.z + Math.sin(a) * 9), look: V3(s.x, 0.7, s.z), pts: [V3(s.x, 1, s.z)], fov: 48, st: 0.5, lst: 0.4, pivot: V3(s.x, 1.5, s.z) };
+    }
+    return null;
+  }
+  // meilleure variante (côté, angle) d'un plan ; null si aucune n'est assez dégagée
+  function bestOf(list, bonus, min) {
+    let best = null, bq = min === undefined ? 0.5 : min;
+    for (const s of list) { s.t0 = DIRECTOR.clock; const f = frameShot(s, 0); if (!f) continue; const q = shotQuality(f) + (bonus ? bonus(s) : 0); if (q > bq + 1e-6) { bq = q; best = s; } }
+    return best;
+  }
+  function variants(s) {
+    const out = [], sides = s.side ? [s.side] : [1, -1];
+    const yaws = s.kind === 'capture' ? [0, 1.57, 3.14, 4.71] : s.kind === 'overview' || s.kind === 'establish' ? [0, 0.45, -0.45] : [0];
+    for (const side of sides) for (const y of yaws) out.push(Object.assign({}, s, { side, yaw: (s.yaw || 0) + y }));
+    return out;
+  }
+  function eventShot(ev) {
+    if (ev.kind === 'down') {
+      let v = null, bd = 0.6; for (const u of battle.units) { const d = Math.hypot(u.x - ev.x, u.z - ev.z); if (d < bd) { bd = d; v = u; } }
+      if (!v || !meshes[v.id]) return null;
+      const k = v.lastShotBy && battle.t - v.lastShotByAt < 2 && meshes[v.lastShotBy.id] ? v.lastShotBy : null, opts = [];
+      if (k && Math.hypot(k.x - v.x, k.z - v.z) < 32) for (const side of [1, -1]) opts.push({ kind: 'killcam', view: 'killer', kid: k.id, vid: v.id, id: v.id, side, dur: 3.2 });
+      const a0 = k ? Math.atan2(k.z - v.z, k.x - v.x) : Math.random() * 6.28;
+      for (let i = 0; i < 6; i++) opts.push({ kind: 'killcam', view: 'victim', vid: v.id, id: v.id, side: 1, yaw: a0 + [0, 0.6, -0.6, 1.2, -1.2, Math.PI][i], dur: 3 });
+      return bestOf(opts, (o) => o.view === 'killer' ? 0.05 : 0);
+    }
+    if (ev.kind === 'blast') { const opts = []; for (let i = 0; i < 6; i++) opts.push({ kind: 'blast', x: ev.x, z: ev.z, side: 1, yaw: i * Math.PI / 3, dur: 2.8 }); return bestOf(opts); }
+    return null;
   }
   function directorCamera() {
-    const ev = DIRECTOR.eventShot;
-    if (ev && simTime < ev.until) {   // plan d'événement : en hauteur, tourne lentement autour du point
-      const a = ev.yaw + (simTime - (ev.until - 2.6)) * 0.25, d = 8;
-      placeCam(new THREE.Vector3(ev.x + Math.cos(a) * d, 4.6, ev.z + Math.sin(a) * d), new THREE.Vector3(ev.x, 0.8, ev.z), cam.shot === 'ev' ? 0.12 : 1);
-      cam.shot = 'ev'; cam.target.set(ev.x, 0, ev.z); return;
-    }
-    DIRECTOR.eventShot = null;
+    const D = DIRECTOR, dt = dirTick();
+    if (D.battle !== battle) { D.battle = battle; D.t0 = D.clock; D.lastWide = -99; D.hist.length = 0; D.pending = null; cam.shot = null; }
     let s = cam.shot && typeof cam.shot === 'object' ? cam.shot : null;
-    const fresh = !s || simTime > s.until || ((s.kind === 'shoulder' || s.kind === 'dolly') && (!unitById[s.id] || !unitById[s.id].alive));
-    if (fresh) { s = pickShot(); cam.shot = s; cam.cutAt = simTime; }
-    const k = simTime - (cam.cutAt || 0) < 0.05 ? 1 : 0.08;   // coupe franche au changement de plan, puis suivi doux
-    if (s.kind === 'shoulder') {
-      const m = meshes[s.id]; if (!m) { cam.shot = null; return; }
-      const yaw = m.group.rotation.y; let fx = Math.cos(-(yaw - Math.PI / 2)), fz = Math.sin(-(yaw - Math.PI / 2)); const px = m.group.position.x, pz = m.group.position.z;
-      // juste derrière l'épaule droite, à hauteur des yeux : on voit le profil du casque et l'arme, regard vers la cible
-      const u = unitById[s.id], tg = u && u.target && u.target.alive ? u.target : null;
-      if (tg) { const L = Math.hypot(tg.x - px, tg.z - pz) || 1; fx = (tg.x - px) / L; fz = (tg.z - pz) / L; }   // dans l'axe du tir
-      if (!cam.shDir) cam.shDir = new THREE.Vector2(fx, fz); if (k >= 1) cam.shDir.set(fx, fz); else cam.shDir.lerp(new THREE.Vector2(fx, fz), 0.06).normalize();
-      fx = cam.shDir.x; fz = cam.shDir.y; const rx = -fz * 0.55, rz = fx * 0.55;
-      const look = tg ? new THREE.Vector3(tg.x, 1.15, tg.z) : new THREE.Vector3(px + fx * 9, 1.35, pz + fz * 9);
-      const pivot = new THREE.Vector3(px + rx * 0.5, 1.65, pz + rz * 0.5);
-      placeCam(clipBoom(pivot, new THREE.Vector3(px - fx * 1.55 + rx, 1.82, pz - fz * 1.55 + rz)), look, k);
-      camera.position.copy(cam.pos = clipBoom(pivot, cam.pos)); camera.lookAt(cam.look);
-      cam.target.set(px, 0, pz); return;
+    if (s && s.t0 === undefined) { s.t0 = D.clock; s.forced = true; s.dur = 1e9; s.fresh = true; }   // plan imposé (API.camShot)
+    let next = null;
+    // 1) événement : neutralisation → kill-cam ; explosion → plan en hauteur (pas deux plans d'événement coup sur coup)
+    const ev = D.pending; D.pending = null;
+    if (ev && !(s && s.forced) && simTime - ev.at < 1.5) {
+      const age = s ? D.clock - s.t0 : 99, evShot = s && (s.kind === 'killcam' || s.kind === 'blast');
+      if (!(evShot && age < 2.2) && !(ev.kind === 'blast' && age < 1.2)) next = eventShot(ev);
     }
-    if (s.kind === 'dolly') {   // de profil, à 3,5 m, caméra basse qui suit le soldat ; regard un peu devant lui
-      const m = meshes[s.id], u = unitById[s.id]; if (!m || !u) { cam.shot = null; return; }
-      const px = m.group.position.x, pz = m.group.position.z, sp = Math.hypot(m.anim.vx || 0, m.anim.vz || 0);
-      const fx = sp > 0.2 ? m.anim.vx / sp : Math.cos(u.facing), fz = sp > 0.2 ? m.anim.vz / sp : Math.sin(u.facing);
-      if (!cam.dDir) cam.dDir = new THREE.Vector2(fx, fz); if (k >= 1) cam.dDir.set(fx, fz); else cam.dDir.lerp(new THREE.Vector2(fx, fz), 0.03).normalize();
-      const dx = cam.dDir.x, dz = cam.dDir.y, nx = -dz * s.side, nz = dx * s.side, pivot = new THREE.Vector3(px, 1.2, pz);
-      placeCam(clipBoom(pivot, new THREE.Vector3(px + nx * 3.5 - dx * 0.8, 1.15, pz + nz * 3.5 - dz * 0.8)), new THREE.Vector3(px + dx * 1.6, 1.0, pz + dz * 1.6), k);
-      camera.position.copy(cam.pos = clipBoom(pivot, cam.pos)); camera.lookAt(cam.look); cam.target.set(px, 0, pz); return;
+    // 2) plan courant : fini, sujet perdu, sujet masqué trop longtemps, soldat arrêté, ou plan d'ensemble pendant l'action
+    let f = !next && s ? frameShot(s, dt) : null;
+    if (!next && !(s && s.forced)) {
+      const age = s ? D.clock - s.t0 : 99;
+      if (f) D.masked = shotQuality(f) < 0.5 ? D.masked + dt : 0;
+      const need = !s || !f || age > s.dur || (D.masked > 0.9 && age > 1.5) || (s.kind === 'dolly' && s.still > 1.2 && age > D.minHold) || (s.kind === 'establish' && D.hist.length > 1 && engagedUnits(1).length && age > D.minHold);
+      if (need) {
+        for (const c of pickShot()) { next = bestOf(variants(c)); if (next) break; }
+        if (!next) next = bestOf(variants({ kind: 'establish', dur: 5 }), null, -0.5);
+      }
     }
-    const list = s.kind === 'overview' ? engagedUnits() : battle.teams[0].units.filter(u => u.alive);
-    if (!list.length) { cam.shot = null; return; }
-    const c = centroid(list); let spread = 0; for (const u of list) spread = Math.max(spread, Math.hypot(u.x - c.x, u.z - c.z));
-    const d = Math.max(9, Math.min(24, spread * 1.15 + 6)), h = s.kind === 'overview' ? d * 0.62 : d * 0.5;   // plans serrés : les soldats restent grands à l'écran
-    const toEnemy = Math.sign(battle.map.spawns[1].x - battle.map.spawns[0].x) || 1;   // on regarde vers l'adversaire
-    const a = Math.PI + (toEnemy > 0 ? 0 : Math.PI) + s.yaw;
-    placeCam(new THREE.Vector3(c.x + Math.cos(a) * d, h, c.z + Math.sin(a) * d), new THREE.Vector3(c.x + toEnemy * 3, 0.5, c.z), k);
-    cam.target.set(c.x, 0, c.z);
+    if (next) {   // coupe
+      next.t0 = D.clock; cam.shot = s = next; D.masked = 0;
+      D.hist.push({ id: next.id, kind: next.kind, at: D.clock }); if (D.hist.length > 16) D.hist.shift();
+      if (next.kind === 'establish' || next.kind === 'overview') D.lastWide = D.clock;
+      f = frameShot(s, 0);
+    }
+    if (!f) { if (s && s.forced) { cam.shot = null; } return; }
+    // 3) mouvement : coupe franche au changement de plan (sauf si le nouveau cadre est tout proche : on glisse), puis ressort
+    const want = clipBoom(f.pivot, f.pos);
+    const jump = !cam.init || (next || s.fresh) && (cam.pos.distanceTo(want) > 4 || cam.look.clone().sub(cam.pos).normalize().dot(f.look.clone().sub(want).normalize()) < 0.87);
+    s.fresh = false;
+    if (jump) { cam.pos.copy(want); cam.look.copy(f.look); D.vel.set(0, 0, 0); D.lvel.set(0, 0, 0); D.fov = f.fov; D.fvel = 0; cam.init = true; }
+    else {
+      damp3(cam.pos, want, D.vel, f.st, dt); damp3(cam.look, f.look, D.lvel, f.lst, dt);
+      const w = 2 / 0.6, x = w * dt, e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x), c = D.fov - f.fov, tmp = (D.fvel + w * c) * dt; D.fvel = (D.fvel - w * tmp) * e; D.fov = f.fov + (c + tmp) * e;
+    }
+    if (inObstacle(cam.pos, 0.15)) cam.pos.copy(clipBoom(f.pivot, cam.pos));   // même pendant le lissage, jamais dans un obstacle
+    if (cam.pos.y < 9) inMap(cam.pos, 0.4);
+    cam.pos.y = Math.max(0.35, cam.pos.y);
+    camera.position.copy(cam.pos); camera.lookAt(cam.look); setFov(D.fov);
+    cam.target.set(f.pivot.x, 0, f.pivot.z);
+  }
+  // Mesure du réalisateur (sans rendu) : n pas de simulation, 3 images par pas ; nombre de coupes, durée des plans,
+  // caméra dans un obstacle, sujet masqué, à-coups (accélération de la caméra hors coupes).
+  function directorTrace(n) {
+    setCamMode('director'); const R = { cuts: 0, holds: [], kinds: {}, frames: 0, inside: 0, hidden: 0, maxStep: 0, jerk: 0 };
+    let ref = cam.shot, tCut = simTime, p0 = camera.position.clone(), v0 = new THREE.Vector3(), nf = 0;
+    for (let i = 0; i < n && !battle.over; i++) {
+      stepSim();
+      for (let k = 1; k <= 3; k++) {
+        acc = DT * k / 3; syncMeshes(k / 3); applyCamera(); R.frames++;
+        const p = camera.position.clone(), v = p.clone().sub(p0), cut = cam.shot !== ref || v.length() > 2.5;
+        if (cut) { const kind = typeof ref === 'object' && ref ? ref.kind : String(ref); R.cuts++; R.holds.push(+(simTime - tCut).toFixed(1)); R.kinds[kind] = (R.kinds[kind] || 0) + 1; ref = cam.shot; tCut = simTime; v0.set(0, 0, 0); }
+        else { R.maxStep = Math.max(R.maxStep, v.length()); if (nf++) R.jerk += v.clone().sub(v0).length(); v0.copy(v); }
+        for (const o of battle.map.obstacles) if (p.y < o.h && p.x > o.x && p.x < o.x + o.w && p.z > o.z && p.z < o.z + o.d) { R.inside++; break; }
+        const s = cam.shot && typeof cam.shot === 'object' ? cam.shot : null, su = s && s.id && meshes[s.id];
+        if (su && boomHit(p.x, p.y, p.z, su.group.position.x, 1.3, su.group.position.z) < 0.97) R.hidden++;
+        p0.copy(p);
+      }
+    }
+    const h = R.holds.slice(1); R.meanHold = +(h.reduce((a, b) => a + b, 0) / (h.length || 1)).toFixed(2); R.minHold = Math.min(...h); R.short = h.filter(x => x < 3).length;
+    R.jerk = +(R.jerk / Math.max(1, nf)).toFixed(4); R.maxStep = +R.maxStep.toFixed(3); R.t = battle.t; return R;
   }
   function applyCamera() {
     if (finale) {
@@ -1600,6 +1773,7 @@
     skip: () => { skipToEnd(); return battle.result; },
     camShot: (kind, id) => { if (kind === 'shoulder' || kind === 'dolly') { setCamMode('director'); cam.shot = { kind, id, side: 1, until: simTime + 999 }; cam.cutAt = simTime; } else { setCamMode('follow'); cam.follow = id; } render(); for (let i = 0; i < 60; i++) applyCamera(); render(); return [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)); },
     stepRaw: (n) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; return battle.t; },   // sans rendu (outils de capture)
+    dirTrace: (n) => directorTrace(n || 600),   // mesure du réalisateur (coupes, durée des plans, caméra masquée, à-coups)
     runToEnd: () => { instantResult = true; while (!battle.over) stepSim(); instantResult = false; acc = DT; render(); return battle.result; },
     start: (opts) => { newBattle(opts); render(); return battle.zone || true; },
     banner: () => { $('#result').classList.add('hidden'); showBanner(() => showResult()); },
