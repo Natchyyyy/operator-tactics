@@ -441,7 +441,12 @@
       if (proches.length < 3 || T.y - ym < -0.01 || T.y - ym > 0.12 || A.y - ym < 0.03 || A.y - ym > 0.25) return;
       let talon = proches[0], bout = proches[0]; for (const p of proches) { if (p.z < talon.z) talon = p; if (p.z > bout.z) bout = p; }
       const loc = (o, p) => o.worldToLocal(p.clone());
-      out[j] = { talon: loc(ft, talon), plante: loc(toe, new THREE.Vector3(T.x, ym, T.z)), bout: loc(toe, bout), sol0: ym * HEIGHT / RAW_H };
+      // profil de la semelle : le sommet le plus bas de chaque tranche de 2 cm du talon à la pointe (dans le repère du pied
+      // ou des orteils selon qu'il est derrière ou devant l'articulation) ; c'est le plus bas de TOUS qui touche le sol quand
+      // le pied bascule (attaque du talon, déroulé sur la pointe)
+      const z0 = Math.min(...pied.map(p => p.z)), z1 = Math.max(...pied.map(p => p.z)), pts = [];
+      for (let z = z0; z < z1; z += 0.02) { let m = null; for (const p of pied) if (p.z >= z && p.z < z + 0.02 && p.y < A.y - 0.04 && (!m || p.y < m.y)) m = p; if (m) pts.push(m.z < T.z - 0.01 ? { o: 0, p: loc(ft, m) } : { o: 1, p: loc(toe, m) }); }
+      out[j] = { talon: loc(ft, talon), plante: loc(toe, new THREE.Vector3(T.x, ym, T.z)), bout: loc(toe, bout), pts, sol0: ym * HEIGHT / RAW_H };
     });
     mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true);
     if (out[0] && out[1]) M.semelle = out;
@@ -965,7 +970,9 @@
     // points de semelle (monde) du pied i : talon, plante, bout (voir semelle()) ; sinon cheville / orteils approchés
     const semW = (i) => { const S = M.semelle && M.semelle[i], ft = pieds[i][2], toe = orteils[i];
       if (!S || !ft || !toe) { const A = WP(ft), T = toe ? WP(toe) : A.clone(); return { talon: A.clone().setY(A.y - 0.11), plante: T.clone().setY(T.y - 0.04), bout: T.clone().setY(T.y - 0.04) }; }
-      return { talon: S.talon.clone().applyMatrix4(ft.matrixWorld), plante: S.plante.clone().applyMatrix4(toe.matrixWorld), bout: S.bout.clone().applyMatrix4(toe.matrixWorld) }; };
+      const r = { talon: S.talon.clone().applyMatrix4(ft.matrixWorld), plante: S.plante.clone().applyMatrix4(toe.matrixWorld), bout: S.bout.clone().applyMatrix4(toe.matrixWorld) };
+      r.min = Math.min(r.talon.y, r.plante.y, r.bout.y); if (S.pts) for (const q of S.pts) { const y = q.p.clone().applyMatrix4(q.o ? toe.matrixWorld : ft.matrixWorld).y; if (y < r.min) r.min = y; }
+      return r; };
     // tourne un os autour de la verticale (le sol est plat : la verticale du monde est celle du groupe), en gardant ses enfants
     const UP = new THREE.Vector3(0, 1, 0), qT = new THREE.Quaternion(), qP = new THREE.Quaternion();
     const twist = (bone, ang) => { bone.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(UP, ang); bone.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); bone.updateMatrixWorld(true); };
@@ -1186,7 +1193,7 @@
         const Lk = this.lock || (this.lock = [{ w: 0 }, { w: 0 }]); if (!pieds[0][2] || !orteils[0] || !orteils[1]) return;
         if (!actif && Lk[0].w <= 0 && Lk[1].w <= 0) { Lk[0].piv = Lk[1].piv = null; return; }
         group.updateMatrixWorld(true);
-        const gy = group.getWorldPosition(V()).y, so = [semW(0), semW(1)], bas = (s) => Math.min(s.talon.y, s.plante.y, s.bout.y) - gy;
+        const gy = group.getWorldPosition(V()).y, so = [semW(0), semW(1)], bas = (s) => (s.min !== undefined ? s.min : Math.min(s.talon.y, s.plante.y, s.bout.y)) - gy;
         pieds.forEach(([up, lo, ft], i) => {
           const L = Lk[i], S = so[i], h = bas(S), hT = S.talon.y - gy, hP = Math.min(S.plante.y, S.bout.y) - gy;
           // vitesse (monde) du pied tel que l'animation le place : un pied d'appui est presque immobile au sol, un pied en l'air
@@ -1214,9 +1221,9 @@
       sol() {
         if (!M.semelle || !pieds[0][2] || !hipsB) return;
         group.updateMatrixWorld(true); const gy = group.getWorldPosition(V()).y;
-        const hs = [0, 1].map(i => { const S = semW(i); return Math.min(S.talon.y, S.plante.y, S.bout.y) - gy; }), hm = Math.max(hs[0], hs[1]);
+        const hs = [0, 1].map(i => { const S = semW(i); return (S.min !== undefined ? S.min : Math.min(S.talon.y, S.plante.y, S.bout.y)) - gy; }), hm = Math.max(hs[0], hs[1]);
         if (hm < -0.003) { mod(hipsB); const h0 = WP(hipsB); hipsB.position.add(hipsB.parent.worldToLocal(h0.clone().setY(h0.y - Math.max(hm, -0.06))).sub(hipsB.parent.worldToLocal(h0.clone()))); hipsB.updateMatrixWorld(true); }
-        pieds.forEach(([up, lo, ft], i) => { const S = semW(i), h = Math.min(S.talon.y, S.plante.y, S.bout.y) - gy; if (h < -0.003) ikJambe(up, lo, ft, new THREE.Vector3(0, Math.min(0.06, -h), 0), orteils[i]); });   // (6 cm au plus : garde-fou)
+        pieds.forEach(([up, lo, ft], i) => { const S = semW(i), h = (S.min !== undefined ? S.min : Math.min(S.talon.y, S.plante.y, S.bout.y)) - gy; if (h < -0.003) ikJambe(up, lo, ft, new THREE.Vector3(0, Math.min(0.06, -h), 0), orteils[i]); });   // (6 cm au plus : garde-fou)
       },
       // Posture de tir offensive (poses épaulées) : les animations tiennent souvent le buste en arrière (épaules derrière le
       // bassin, poids sur les talons). On mesure de combien la poitrine (Spine2) est en avant du bassin dans la direction de
