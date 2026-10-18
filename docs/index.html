@@ -12900,7 +12900,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
             // bassin tourné (tau) vers la direction exacte, en gardant celui qui tord le moins le dos (avec hystérésis ;
             // le changement se fait en fondu par le lissage des poids)
             const tw = (n) => wrap(e - D[n]), cout = (n) => Math.abs(wrap((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0) + tw(n)));
-            if (this.selArr ? cout(cote) < cout(PR) - 0.2 : cout(PR) < cout(cote) - 0.2) this.selArr = !this.selArr;
+            // (changer de clip fait tourner le bassin de |psi + tau| d'un clip à l'autre, jusqu'à ~160° : il faut que le gain en
+            // vaille la peine, et la bascule se fait alors lentement, ~0,5 s, pour ne pas voir le bassin « tourner sur lui-même »)
+            const hz = (n) => wrap((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0) + Math.max(-1.3, Math.min(1.3, tw(n)))), [nc, no] = this.selArr ? [PR, cote] : [cote, PR];
+            if (cout(no) < cout(nc) - 0.2 - 0.3 * Math.abs(wrap(hz(no) - hz(nc)))) { this.selArr = !this.selArr; this.basculeT = 0.5; }
             const n = this.selArr ? PR : cote; cible[n] = 1; tau = Math.max(-1.3, Math.min(1.3, tw(n)));
           }
         } else cible[avant] = 1;
@@ -12909,7 +12912,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         if (!this.blendW) this.blendW = {};
         const bw = this.blendW;
         for (const n in bw) if (!(n in cible)) cible[n] = 0;
-        let tot = 0; for (const n in cible) { bw[n] = (bw[n] || 0) + (cible[n] - (bw[n] || 0)) * Math.min(1, dt * 8); if (bw[n] < 0.004 && cible[n] === 0) bw[n] = 0; tot += bw[n]; }
+        this.basculeT = Math.max(0, (this.basculeT || 0) - dt);
+        let tot = 0; for (const n in cible) { bw[n] = (bw[n] || 0) + (cible[n] - (bw[n] || 0)) * Math.min(1, dt * (this.basculeT > 0 ? 3.5 : 8)); if (bw[n] < 0.004 && cible[n] === 0) bw[n] = 0; tot += bw[n]; }
         // foulée du mélange : somme VECTORIELLE (en diagonale, avant + côté avancent moins que la somme des longueurs) ;
         // c'est elle qui cale la cadence sur la vitesse réelle (pas de pieds qui glissent)
         // (mesuré : la vraie foulée d'un mélange est entre la somme vectorielle et la somme des longueurs ; on prend la moyenne)
@@ -12960,7 +12964,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         let dj = this.jambesCible - this.jambes; while (dj > Math.PI) dj -= 2 * Math.PI; while (dj < -Math.PI) dj += 2 * Math.PI;
         // (sortie de marche directionnelle : la torsion du bassin se défait au rythme du fondu des jambes, pas d'un coup)
         const kj = !enMarche && (this.marcheK || 0) > 0 ? dt * 6 : dt * 14;
-        this.jambes += Math.max(-9 * dt, Math.min(9 * dt, dj * Math.min(1, kj)));
+        const vj = enMarche ? 5 : 9;   // (rad/s ; en marche directionnelle le bassin tourne posément)
+        this.jambes += Math.max(-vj * dt, Math.min(vj * dt, dj * Math.min(1, kj)));
         if (Math.abs(this.jambes) > 0.01 && hipsB && spine3.length) {
           body.updateMatrixWorld(true); mod(hipsB); twist(hipsB, this.jambes);
           for (const sb of spine3) { mod(sb); twist(sb, -this.jambes / spine3.length); }
