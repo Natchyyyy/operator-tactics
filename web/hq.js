@@ -627,6 +627,38 @@
     profile = Game.reset(storage || { removeItem: () => {} }); lastRewards = null; selected = profile.squad[0]; $('#resetSave').dataset.confirm = '0'; $('#resetSave').textContent = 'Réinitialiser'; render(); flash('Nouvelle carrière.');
   });
 
+  // ---- Sons d'interface (menus) : petit « tic » doux au survol, accord bref sur les boutons principaux ----------------------
+  // Synthétisés (pas d'échantillon), très bas, suivent le volume général et la coupure du son ; le clic lui-même reste le
+  // son « clic » joué par app.js sur tous les boutons. Survol : une fois par élément, au plus un toutes les 70 ms.
+  const UISFX = (() => {
+    let ac = null, out = null;
+    const vol = () => { if (window.OT_MUTE && window.OT_MUTE.get()) return 0; const v = window.OT_SETTINGS ? window.OT_SETTINGS.get('vol') : 0.9; return v == null ? 0.9 : v; };
+    function ensure() { if (ac) { if (ac.state === 'suspended') ac.resume().catch(() => {}); return true; } try { ac = new (window.AudioContext || window.webkitAudioContext)(); out = ac.createGain(); out.connect(ac.destination); return true; } catch (e) { ac = null; return false; } }
+    function tone(f0, f1, dur, v, type, delay) {
+      const t = ac.currentTime + 0.005 + (delay || 0), o = ac.createOscillator(), g = ac.createGain(); o.type = type || 'sine';
+      o.frequency.setValueAtTime(f0, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(out); o.start(t); o.stop(t + dur + 0.03);
+    }
+    return {
+      ensure,
+      hover() { if (!ac || ac.state !== 'running') return; const v = vol(); if (v > 0) tone(1500, 1150, 0.035, 0.02 * v); },
+      confirm() { if (!ensure()) return; const v = vol(); if (v <= 0) return; tone(523, 659, 0.12, 0.04 * v, 'triangle'); tone(784, 988, 0.16, 0.03 * v, 'triangle', 0.06); },
+    };
+  })();
+  {
+    const MENU = '#hq, #title, #vs, #rewards, .packopen', HOVER = 'button:not(:disabled), .medtile, .mission:not(.locked), .opcard, .sqc, .hsq, .tslot, .pkcard, .pcard:not(.flipped), .tcardq:not(.locked)';
+    const PRIMARY = '.hact.primary, #launch, #vsGo, #titleStart, #toPrep, #poClose, #rwContinue, #lgPlay';
+    let lastEl = null, lastT = 0;
+    document.addEventListener('pointerdown', () => UISFX.ensure(), true);
+    document.addEventListener('pointerover', (e) => {
+      const el = e.target.closest && e.target.closest(HOVER); if (!el || el === lastEl || !el.closest(MENU)) return;
+      lastEl = el; const now = performance.now(); if (now - lastT < 70) return; lastT = now; UISFX.hover();
+    }, true);
+    document.addEventListener('pointerout', (e) => { if (lastEl && !(e.relatedTarget && lastEl.contains(e.relatedTarget))) lastEl = null; }, true);
+    document.addEventListener('click', (e) => { const el = e.target.closest && e.target.closest(PRIMARY); if (el && !el.disabled) UISFX.confirm(); }, true);
+  }
+
   // transition en fondu entre les deux écrans
   function switchTo(showHq) {
     const f = $('#fade'); f.classList.add('on');

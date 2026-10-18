@@ -1044,7 +1044,7 @@
   .bc-role .ico { width: 34px; height: 34px; }
   .bc-sub { height: 32px; justify-content: flex-start; padding-left: 26px; background: rgba(0,0,0,.42); font: 700 13px var(--ui); letter-spacing: .24em; color: var(--rc); }
   .bc-art { border-radius: 0; box-shadow: none; background: radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--rc) 26%, #10201f) 0%, #0b1214 62%, #070a0b 100%); }
-  .bc-art .portrait.snap { height: 100%; bottom: 0; filter: drop-shadow(0 12px 18px rgba(0,0,0,.5)); }
+  .bc-art .portrait.snap { height: 114%; bottom: -3%; filter: drop-shadow(0 12px 18px rgba(0,0,0,.5)); }
   .bc-art .portrait:not(.snap), .sqc-art .portrait, .oc-art .portrait, .hsq .hsqp img, .tart-team .portrait { filter: contrast(1.22) brightness(1.14) saturate(1.08) drop-shadow(0 6px 8px rgba(0,0,0,.45)); }
   .sqc-art::after, .oc-art::after, .hsq .hsqp::after { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(90deg, rgba(120,220,255,.14), transparent 28%, transparent 72%, rgba(255,196,140,.12)), linear-gradient(0deg, rgba(4,7,8,.55), transparent 40%); }
   .bc-art::before { background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,.025) 3px 4px); }
@@ -1059,6 +1059,10 @@
   .tmside { left: 1716px; width: 184px; } .tmside .tmhint { display: block; margin-top: 2px; font: 500 12px/1.4 var(--ui); letter-spacing: 0; text-transform: none; color: var(--m-mut); } .tmside select { font-family: var(--ui); font-weight: 600; font-size: 12.5px; height: 34px; border-radius: 8px; }
   .tmside .syn { border-radius: 10px; } .tmside .syn span { font-size: 12px; }
   .tmbody select { font-family: var(--ui); border-radius: 8px; }
+  .tmbody .equip { align-items: stretch; gap: 14px; }
+  .tmbody .equip label { display: grid; grid-template-columns: 60px auto; justify-content: start; align-items: center; column-gap: 14px; font: 700 14px var(--ui); letter-spacing: .1em; }
+  .tmbody .equip label select { letter-spacing: 0; text-transform: none; height: 38px; }
+  .tmbody .equip .wspec, .tmbody .equip .contract { align-self: auto; margin: 0 0 0 74px; padding: 0; text-align: left; }
   .lanerow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
   .lanelbl { font: 700 14px var(--ui); letter-spacing: .1em; text-transform: uppercase; color: #fff; min-width: 60px; }
   .lanepick { display: inline-flex; padding: 3px; gap: 3px; border-radius: 12px; background: rgba(0,0,0,.4); border: 1px solid var(--m-line2); }
@@ -1180,6 +1184,95 @@
   /* panneaux secondaires (cartes, ligue, carrière) : même verre que le reste */
   #hq .hqpanel .hqcol { background: var(--m-glass); border: 1px solid var(--m-line); border-radius: 18px; padding: 18px; backdrop-filter: blur(10px); }
   #hq .hqpanel h3 { font-family: var(--ui); font-weight: 700; font-size: 12.5px; letter-spacing: .26em; color: var(--m-mut); }
+
+  /* ---- écran VS : deux panneaux en verre, couleur d'équipe en liseré, VS au centre, boutons en pilule ---- */
+  #vs { --t0: #4aa3ff; --t1: #ff5a48; font-family: var(--ui); }
+  #vs .vs3::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 40%, rgba(0,0,0,.15), rgba(0,0,0,.6) 80%); pointer-events: none; }
+  #vs .vs3 > * { animation: mIn .4s var(--m-ease); }
+  #vs .vsp { top: 46px; height: 330px; border: 1px solid var(--m-line2); border-radius: 20px; background: linear-gradient(180deg, rgba(16,22,26,.88), rgba(8,11,13,.92)); box-shadow: 0 24px 60px rgba(0,0,0,.5), inset 0 3px 0 var(--tc); backdrop-filter: blur(10px); overflow: hidden; }
+  #vs .vsp.team0 { --tc: var(--t0); } #vs .vsp.team1 { --tc: var(--t1); }
+  #vs .vsph { height: 74px; padding: 0 30px; background: linear-gradient(180deg, color-mix(in srgb, var(--tc) 16%, transparent), transparent); border-bottom: 1px solid var(--m-line); }
+  #vs .vsph b { font-family: var(--raw); font-size: 40px; color: #fff; }
+  #vs .vsrk { top: 86px; left: 32px; font: 700 13px var(--ui); letter-spacing: .22em; color: var(--tc); } #vs .vsp.rev .vsrk { right: 32px; }
+  #vs .vsrate { top: 122px; left: 24px; width: 168px; height: 170px; border-radius: 18px; padding-bottom: 16px; background: rgba(0,0,0,.42); border: 2px solid var(--tc); box-shadow: 0 0 30px color-mix(in srgb, var(--tc) 22%, transparent); justify-content: flex-end; }
+  #vs .vsp.rev .vsrate { right: 24px; }
+  #vs .vsrate b { top: 22px; left: 0; right: 0; height: 96px; background: none; font-family: var(--raw); font-size: 78px; }
+  #vs .vsrate span { font: 700 11.5px var(--ui); letter-spacing: .22em; color: var(--m-mut); }
+  #vs .vsrec { top: 130px; left: 222px; font: 700 14px/2.3 var(--ui); letter-spacing: .18em; color: var(--m-mut); } #vs .vsrec b { font-family: var(--raw); font-weight: 400; font-size: 28px; color: #fff; margin-left: 14px; vertical-align: -3px; } #vs .vsp.rev .vsrec { right: 222px; }
+  #vs .vsemb { top: 116px; right: 30px; width: 116px; height: 116px; padding: 16px; border: 2px solid var(--tc); background: radial-gradient(circle at 40% 35%, color-mix(in srgb, var(--tc) 55%, #10161a), #0b1013 75%); box-shadow: 0 8px 22px rgba(0,0,0,.5); color: #fff; }
+  #vs .vsp.rev .vsemb { left: 30px; right: auto; background: radial-gradient(circle at 40% 35%, color-mix(in srgb, var(--tc) 55%, #10161a), #0b1013 75%); color: #fff; }
+  #vs .vsach { bottom: 34px; left: 222px; gap: 6px; } #vs .vsach .ach { width: 40px; height: 38px; font-size: 18px; border-radius: 10px; border: 1px solid var(--m-line2); background: rgba(255,255,255,.04); color: #4b5a56; } #vs .vsach .ach.got { color: #fff; border-color: rgba(78,224,137,.6); background: rgba(78,224,137,.16); }
+  #vs .vsmid { top: 46px; height: 860px; background: linear-gradient(180deg, transparent, rgba(255,255,255,.22) 22%, rgba(255,255,255,.08) 60%, transparent) center / 2px 100% no-repeat; -webkit-mask: none; mask: none; }
+  #vs .vsmid span { margin-top: 110px; width: 104px; height: 104px; clip-path: none; border-radius: 50%; font-family: var(--raw); font-size: 38px; background: radial-gradient(circle at 40% 35%, #26323a, #0b1013 75%); border: 1px solid var(--m-line2); box-shadow: 0 0 0 6px rgba(0,0,0,.35), 0 14px 34px rgba(0,0,0,.55); }
+  #vs .vsp.rev .vsrate, #vs .vsp.rev .vsrk, #vs .vsp.rev .vsrec, #vs .vsp.rev .vsach { left: auto; } #vs .vsp.rev .vsach { right: 222px; }
+  #vs .vstac { top: 398px; gap: 14px; }
+  #vs .vstac > span { width: 158px; height: 196px; border-radius: 16px; background: linear-gradient(180deg, rgba(30,44,40,.9), rgba(10,16,15,.94)); border: 1px solid var(--m-line2); box-shadow: 0 14px 30px rgba(0,0,0,.45); }
+  #vs .vstac > span i { margin-top: 12px; font: 800 12.5px var(--ui); letter-spacing: .16em; }
+  #vs .vstac > span.empty { opacity: 1; background: rgba(255,255,255,.025); border: 1px dashed rgba(255,255,255,.14); box-shadow: none; }
+  #vs .vstac .tsvg { font-size: 92px; } #vs .vstac > span span { background: none; border: 0; padding: 0; border-radius: 0; }
+  #vs .vsmap { top: 618px; height: 330px; border: 1px solid var(--m-line2); border-radius: 20px; box-shadow: 0 24px 60px rgba(0,0,0,.55); }
+  #vs .vsloc { height: auto; padding: 46px 26px 18px; left: 0; right: 0; clip-path: none; flex-wrap: wrap; gap: 4px 14px; background: linear-gradient(0deg, rgba(5,8,9,.92), rgba(5,8,9,0)); font: 700 12px var(--ui); letter-spacing: .24em; color: var(--m-mut); }
+  #vs .vsloc b { font-family: var(--raw); font-size: 28px; letter-spacing: .02em; color: #fff; } #vs .vsloc small { font: 500 15px var(--ui); letter-spacing: .02em; color: #b9d2c4; }
+  #vs .vsinfo { top: 958px; width: 700px; font: 500 13px var(--ui); } #vs .vsinfo span { display: inline-block; margin: 0 6px 6px 0; padding: 3px 10px; border-radius: 12px; background: rgba(255,255,255,.06); border: 1px solid var(--m-line); }
+  #vs .vsinfo #vsSquad0 span { border-color: color-mix(in srgb, var(--t0) 45%, transparent); } #vs .vsinfo #vsSquad1 span { border-color: color-mix(in srgb, var(--t1) 45%, transparent); }
+  #vs .vsinfo .vstip { background: none; border: 0; } #vs .vsinfo .vstip b { font: 800 11px var(--ui); letter-spacing: .24em; text-transform: uppercase; color: var(--m-gold); }
+  #vs .vsback { left: 24px; top: 24px; height: 42px; padding: 0 22px; border-radius: 21px; font: 700 13px var(--ui); letter-spacing: .16em; text-transform: uppercase; color: var(--m-txt); background: rgba(10,14,16,.7); border: 1px solid var(--m-line2); backdrop-filter: blur(8px); }
+  #vs .vsback::before { content: '← '; } #vs .vsback:hover { background: rgba(255,255,255,.14); }
+  #vs .gbtn { top: 978px; height: 72px; padding: 0 30px 0 84px !important; border-radius: 36px !important; font: 800 17px var(--ui) !important; letter-spacing: .2em; color: var(--m-txt) !important; background: rgba(10,14,16,.78) !important; border: 1px solid var(--m-line2) !important; box-shadow: 0 14px 34px rgba(0,0,0,.45); backdrop-filter: blur(8px); }
+  #vs .gbtn .gi { left: 10px; top: 10px; bottom: 10px; width: 52px; border-radius: 26px; font-size: 18px; letter-spacing: -3px; background: rgba(255,255,255,.08); }
+  #vs .gbtn:hover { transform: translateY(-2px); filter: none; border-color: rgba(255,255,255,.34) !important; }
+  #vs #vsSkip { left: auto; right: 418px; } #vs #vsGo { left: auto; right: 40px; width: 360px; justify-content: center; color: var(--m-ink) !important; background: linear-gradient(150deg, #52e28e, #2aa862) !important; border-color: rgba(160,255,200,.55) !important; box-shadow: 0 16px 40px rgba(40,180,100,.32); }
+  #vs #vsGo .gi { background: rgba(0,0,0,.18); color: var(--m-ink); } #vs #vsGo:hover { background: linear-gradient(150deg, #66ec9c, #33b56c) !important; }
+  /* ---- récompenses : bandeau du haut fin, panneaux en verre avec un titre à liseré coloré ---- */
+  #rewards { font-family: var(--ui); }
+  #rewards .rwtop { height: 64px; padding-right: 40px; font-size: 26px; background: linear-gradient(180deg, rgba(12,16,18,.95), rgba(8,11,12,.84)); border-bottom: 1px solid rgba(255,255,255,.07); }
+  #rewards .rwtop::before { content: 'Récompenses de mission'; position: absolute; left: 50%; transform: translateX(-50%); font: 800 15px var(--ui); letter-spacing: .3em; text-transform: uppercase; color: var(--m-txt); }
+  #rewards .rwtop .ico { width: 30px; height: 30px; } #rewards .rwtop b { font-family: var(--raw); min-width: 0; }
+  #rewards .rwteam .bang { left: 14px; top: 14px; transform: rotate(45deg) scale(.8); }
+  #rewards .rwp { --rc: var(--m-gold); } #rewards .rwp.violet { --rc: #a970ff; } #rewards .rwp.red { --rc: #ff6a55; } #rewards .rwp.orange { --rc: #ffa94a; }
+  #rewards .rwp { border-radius: 20px; overflow: hidden; box-shadow: 0 30px 70px rgba(0,0,0,.55); border: 1px solid var(--m-line2); }
+  #rewards .rwp header { width: auto; height: 58px; padding-left: 28px; clip-path: none; font: 800 15px var(--ui); letter-spacing: .28em; color: var(--rc) !important; background: linear-gradient(90deg, color-mix(in srgb, var(--rc) 20%, rgba(14,18,20,.96)), rgba(14,18,20,.96)) !important; border-bottom: 1px solid var(--m-line) !important; box-shadow: inset 4px 0 0 var(--rc); }
+  #rewards .rwp > :not(header) { background: rgba(10,14,16,.94); }
+  #rewards .rwp table.rw { font: 600 21px var(--ui); letter-spacing: .06em; } #rewards .rwp table.rw td { padding: 10px 28px; border-bottom: 1px solid var(--m-line); } #rewards .rwp table.rw td:first-child { color: var(--m-gold); font-family: var(--raw); }
+  #rewards .rwp table.rw td:last-child { font-family: var(--raw); font-size: 26px; }
+  #rewards .rwp table.rw tr.good td:nth-child(2), #rewards .rwp table.rw tr.bad td:nth-child(2) { font-family: var(--raw); font-size: 38px; letter-spacing: .02em; } #rewards .rwp table.rw tr.good td:nth-child(2) { color: #7ff0a8; }
+  #rewards .rwTotal { padding: 18px 28px 24px; border-top: 0; gap: 16px; }
+  #rewards .rwTotal span { height: auto; padding: 0; background: none; font: 700 15px var(--ui); letter-spacing: .24em; color: var(--m-mut); border-radius: 0; }
+  #rewards .rwTotal b { height: auto; background: none; font-family: var(--raw); font-size: 72px; color: #fff; }
+  #rewards .rwTotal .coin.big { width: 64px; height: 64px; padding: 0; background: none; } #rewards .rwTotal .coin.big .ico { width: 58px; height: 58px; }
+  #rewards .rwXp { padding: 20px 28px 24px; font: 700 20px var(--ui); letter-spacing: .08em; } #rewards .rwXp .accent { color: #c9a8ff; }
+  #rewards .rwXp .xpbar.big { height: 14px; border-radius: 7px; border: 0; background: rgba(255,255,255,.08); overflow: hidden; } #rewards .rwXp .xpbar i { border-radius: 7px; background: linear-gradient(90deg, #7a3cff, #c9a8ff); box-shadow: none; }
+  #rewards .rwXp #rwRankUp { font-size: 16px; color: var(--m-gold); letter-spacing: .1em; } #rewards table.rw.small { font: 500 16px var(--ui) !important; } #rewards table.rw.small td { padding: 5px 0 !important; border-bottom: 1px solid var(--m-line); }
+  #rewards #rwInjuries, #rewards #rwAch { padding: 10px 28px 20px; min-height: 0; }
+  #rewards .inj { height: 54px; border-bottom: 1px solid var(--m-line); font: 700 21px var(--ui); letter-spacing: .08em; } #rewards .inj span { font: 700 13px var(--ui); letter-spacing: .2em; }
+  #rewards .achrow b { font-family: var(--raw); font-size: 30px; } #rewards .achrow small { font: 500 15px var(--ui); text-transform: none; color: var(--m-mut); }
+  #rewards .achico { border-radius: 14px; border: 1px solid rgba(232,182,74,.6); background: radial-gradient(circle at 40% 35%, #5a4418, #1a140a); }
+  #rewards .rwextra { top: 1010px; font: 500 14px var(--ui); color: var(--m-mut); text-shadow: none; }
+  #rewards .rwcont, #rewards .rwteam { top: 846px; height: 200px !important; } #rewards .rwcont b, #rewards .rwteam b { height: 54px; font-size: 18px; }
+  #rewards .rwcont .tart-play .ico { width: 150px; height: 100px; }
+  /* ---- ouverture de paquet : plein écran sombre, cartes en verre à liseré de rareté, barre de boutons en pilule ---- */
+  .packopen { background: radial-gradient(ellipse at 50% 45%, rgba(26,38,34,.95), rgba(5,7,8,.985) 70%); backdrop-filter: blur(8px); font-family: var(--ui); gap: 28px; }
+  .packopen.p-elite { background: radial-gradient(ellipse at 50% 45%, rgba(48,38,16,.97), rgba(7,6,4,.99) 70%); }
+  .potitle { font: 800 16px var(--ui); letter-spacing: .4em; color: var(--m-txt); }
+  .packopen .pcard { width: 210px; height: 304px; }
+  .packopen .pcard .face { border-radius: 16px; }
+  .packopen .pcard .back { background: radial-gradient(circle at 50% 40%, rgba(78,224,137,.16), transparent 60%), repeating-linear-gradient(45deg, #141c1a 0 10px, #10171a 10px 20px); border: 1px solid rgba(78,224,137,.4); color: var(--m-acc); box-shadow: 0 18px 40px rgba(0,0,0,.5); }
+  .packopen .pcard .back small { font: 700 9.5px var(--ui); letter-spacing: .3em; color: var(--m-mut); }
+  .packopen .pcard:not(.flipped):hover .back { border-color: var(--m-acc); }
+  .packopen .pcard .front { padding: 10px; gap: 6px; background: linear-gradient(180deg, #172025, #0b1013); border: 1px solid var(--m-line2); box-shadow: inset 0 3px 0 #8fa3a0, 0 18px 40px rgba(0,0,0,.5); }
+  .packopen .pcard.r2 .front { border-color: rgba(74,163,255,.6); box-shadow: inset 0 3px 0 #4aa3ff, 0 0 30px rgba(74,163,255,.35); background: linear-gradient(180deg, #16222e, #0b1013); }
+  .packopen .pcard.r3 .front { border-color: rgba(232,182,74,.7); box-shadow: inset 0 3px 0 #e8b64a, 0 0 36px rgba(232,182,74,.45); background: linear-gradient(180deg, #2a2414, #0f0d08); }
+  .packopen .pcard .ctop { font: 700 9.5px var(--ui); letter-spacing: .2em; }
+  .packopen .pcard .cart { border-radius: 10px; background: radial-gradient(circle at 50% 40%, #24343a, #0d1416); }
+  .packopen .pcard .cart .tsvg { font-size: 104px; }
+  .packopen .pcard .front b { font: 800 14px var(--ui); letter-spacing: .04em; } .packopen .pcard .front p { font-size: 11.5px; color: #b5c3bd; line-height: 1.4; }
+  .packopen .pobar { gap: 12px; } .packopen .pobar span { font-size: 14px; }
+  .packopen .pobar button { height: 46px; padding: 0 26px; border-radius: 23px; font: 700 13px var(--ui); letter-spacing: .16em; text-transform: uppercase; color: var(--m-txt); background: rgba(255,255,255,.07); border: 1px solid var(--m-line2); transition: background-color .16s, transform .18s var(--m-ease); }
+  .packopen .pobar button:hover { background: rgba(255,255,255,.14); transform: translateY(-2px); }
+  .packopen .pobar button.on { background: var(--m-acc-d); border-color: var(--m-acc-d); color: var(--m-ink); } .packopen .pobar button.on:hover { background: var(--m-acc); }
+  .packopen .potear .foil { border-radius: 18px; }
+  /* tactiques sans illustration : emblème dessiné, à la taille de chaque emplacement */
+  .pkcard .tsvg { font-size: 96px; } .tcardq .tart .tsvg { font-size: 66px; } .tart-cards .mc .tsvg { font-size: 40px; }
 
   /* ===================== HUD de bataille v3 : verre fumé, filets fins, chiffres tabulaires, couleurs d'équipe en accent ===================== */
   #app.hud3 { --hud: 'Rajdhani', var(--ui); --glass: rgba(10,14,19,.62); --glass2: rgba(16,22,30,.78); --edge: rgba(255,255,255,.10); --b0: #4aa3ff; --b1: #ff5a48; --txt: #eef3f8; --mut: rgba(220,230,240,.62); }
@@ -1321,7 +1414,7 @@
         <div class="hhead"><span class="hkick">Quartier général</span><b class="htitle" id="homeTeamTitle">Alpha</b>
           <div class="hrate ratingCard" title="Note d'équipe : moyenne des notes des opérateurs engagés"><span>Note d'équipe</span><b id="hqRating">0</b></div></div>
         <div class="hactions">
-          <button class="hact primary" data-go="missions"><span class="hwm" data-ico="arrows"></span><span class="hicon" data-ico="arrows"></span><b>Jouer</b><small>Campagne et bataille rapide sur le parking</small></button>
+          <button class="hact primary" data-go="missions"><span class="hwm" data-ico="play"></span><span class="hicon" data-ico="arrows"></span><b>Jouer</b><small>Campagne et bataille rapide sur le parking</small></button>
           <button class="hact" data-go="equipe"><span class="hwm" data-ico="soldier"></span><span class="hicon" data-ico="soldier"></span><b>Mon équipe</b><small>Opérateurs, ordre et formation</small></button>
         </div>
         <div class="hstats homeInfo">
@@ -1366,7 +1459,7 @@
   <!-- Cartes : paquets, tactiques, armurerie, perks -->
   <div class="hqpanel hidden" data-panel="cartes">
     <div class="hqgrid two">
-      <section class="hqcol"><h3>Paquets de cartes</h3><div id="hqPacks" class="packs"></div><div id="hqOpened" class="opened"></div><div id="packOpen" class="packopen hidden"></div>
+      <section class="hqcol"><h3>Paquets de cartes</h3><div id="hqPacks" class="packs"></div><div id="hqOpened" class="opened"></div>
         <h3 style="margin-top:8px">Armurerie</h3><div id="hqArmory" style="display:flex;flex-direction:column;gap:6px"></div></section>
       <section class="hqcol"><h3>Tactiques <small class="muted">(3 emportées en mission)</small></h3><div id="hqTactics" class="tgrid"></div>
         <h3 style="margin-top:8px">Perks acquis</h3><div id="hqPerks" class="muted" style="font-size:12px"></div></section>
@@ -1422,6 +1515,8 @@
     <button id="resetSave" class="pill dim">Réinitialiser</button>
   </footer>
 </div>
+<!-- ouverture de paquet : hors du QG (un panneau en verre dépoli « piège » les éléments en position fixe) -->
+<div id="packOpen" class="packopen hidden"></div>
 <div id="vs" class="overlay hidden rawov"><div class="vs3">
   <div class="vsp team0"><div class="vsph"><b id="vsName0"></b></div><div class="vsrk"><span id="vsRank0"></span></div>
     <div class="vsrate"><b id="vsRating0"></b><span>Note d'équipe</span></div><div class="vsrec" id="vsRec0"></div><div class="vsemb" id="vsIns0"></div><div class="vsach" id="vsAch0"></div></div>
@@ -12415,6 +12510,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // vitesse « naturelle » de chaque cycle de locomotion (m/s), pour caler les pas sur le déplacement réel
   const LOCO = { Walking: 1.35, Walk_Fight_Forward: 1.1, Running: 3.4, RunFast: 5.2, Run_and_Shoot: 3.2, Cautious_Crouch_Walk_Forward: 0.9, Crawl_Backward: 0.5 };
   // fraction de l'écart de hauteur du bassin (pas chassés / marche arrière → marche avant) rattrapée, voir releve()
+  // Marche arrière générée (Recul_IA) à la place de celle de la bibliothèque : désactivé. Mesuré (marche.html) : pieds jamais
+  // croisés le long du bassin, mais elle glisse 2 à 4 fois plus (appuis peu nets de l'animation générée : 1,75 m/s en petite
+  // course, 0,94 en marche contre 0,88 / 0,49) et, sa direction étant de biais (158-164°), vue de face les jambes se croisent
+  // davantage à 180°. « Pas_Chasse_IA » croise les pieds (pas croisé de ~15 cm) et va trop lentement (~0,6 m/s).
+  const MARCHE_IA = false;
   const RELEVE = { cote: 0.88, arriere: 0.88 };
   // marche directionnelle en visant : part de l'écart fusil / bassin rattrapée par la torsion du dos (le reste tourne le corps)
   const DOS_VISEE = 0.5;
@@ -12608,14 +12708,44 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     sc.updateMatrixWorld(true);
     return err * HEIGHT / RAW_H;
   }
+  // Cycle propre extrait d'une animation générée (Meshy « texte → mouvement ») : elle ne boucle pas, commence par un départ
+  // arrêté. On cherche la fenêtre [t1, t1 + p] (t1 dans [tMin, tMax], p dans [pMin, pMax]) dont la pose de fin ressemble le plus
+  // à celle du début (rotations des os des jambes, hauteur du bassin), on la rééchantillonne à 30 clés/s et l'écart restant au
+  // raccord est réparti linéairement sur le cycle (la dernière clé est exactement la première). Jambes et bassin seulement.
+  function cycle(c, nom, tMin, tMax, pMin, pMax) {
+    const tr = c.tracks.filter(t => JAMBES.test(t.name)); if (!tr.length) return null;
+    const it = tr.map(t => t.createInterpolant()), val = (t) => it.map(i => Array.from(i.evaluate(t)));
+    const ecart = (a, b) => { let d = 0; tr.forEach((t, j) => { if (/quaternion$/.test(t.name)) { const x = a[j], y = b[j]; d += 1 - Math.abs(x[0] * y[0] + x[1] * y[1] + x[2] * y[2] + x[3] * y[3]); } else d += Math.abs(a[j][1] - b[j][1]) * 2; }); return d; };
+    let best = null;
+    for (let t1 = tMin; t1 <= tMax + 1e-6; t1 += 1 / 30) { const a = val(t1); for (let p = pMin; p <= pMax + 1e-6 && t1 + p <= c.duration; p += 1 / 30) { const d = ecart(a, val(t1 + p)); if (!best || d < best.d) best = { d, t1, p }; } }
+    if (!best) return null;
+    const N = Math.max(4, Math.round(best.p * 30)), v0 = val(best.t1), v1 = val(best.t1 + best.p), q = new THREE.Quaternion(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), qi = new THREE.Quaternion();
+    const times = [], vals = tr.map(() => []);
+    for (let i = 0; i <= N; i++) {
+      const u = i / N, v = val(best.t1 + u * best.p); times.push(u * best.p);
+      tr.forEach((t, j) => {
+        if (/quaternion$/.test(t.name)) { qa.fromArray(v0[j]); qb.fromArray(v1[j]); const dq = qa.clone().multiply(qb.clone().invert()); q.fromArray(v[j]); qi.identity().slerp(dq, u).multiply(q).toArray(vals[j], vals[j].length); }
+        else for (let k = 0; k < v[j].length; k++) vals[j].push(v[j][k] + (v0[j][k] - v1[j][k]) * u);
+      });
+    }
+    const out = new THREE.AnimationClip(nom, best.p, tr.map((t, j) => new t.constructor(t.name, times, vals[j])));
+    out.userData = { t1: best.t1, p: best.p, ecart: best.d }; return out;
+  }
   function directions(M) {
     const G = M.clips.Walk_Left_with_Gun, B = M.clips.Walk_Backward_with_Gun; if (!G || !B) return;
     const legs = (c, nom) => c && new THREE.AnimationClip(nom, c.duration, c.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone()));
     M.clips.Pas_Gauche = legs(G, 'Pas_Gauche'); M.clips.Pas_Arriere = legs(B, 'Pas_Arriere');
+    // marche arrière générée (« Recul_IA » : pieds à largeur de hanches, jamais croisés, bassin presque de face) si le modèle
+    // l'a : un cycle propre en est extrait (~1,7 s, deux pas) ; sinon la marche arrière de la bibliothèque. (« Pas_Chasse_IA »,
+    // essayé pour le pas chassé, croise les pieds davantage que l'ancien et est trop lent : non utilisé.)
+    if (MARCHE_IA && M.clips.Recul_IA) { const R = cycle(M.clips.Recul_IA, 'Pas_Arriere', 0.2, 1.3, 1.4, 2.4); if (R) { M.clips.Pas_Arriere = R; M.recul = R.userData; } }
     // bassin remonté vers celui de la marche avant (sans dépasser ce que les jambes permettent : genoux jamais tendus à fond)
     { const sc = M.gltf.scene, hb = sc.getObjectByName('mixamorigHips') || sc.getObjectByName('mixamorig:Hips'), ref = M.clips.Walk_Fight_Forward;
       if (hb && ref) { const mx = new THREE.AnimationMixer(sc); mx.clipAction(ref).play(); let s = 0; for (let i = 0; i < 20; i++) { mx.setTime(i / 20 * ref.duration); sc.updateMatrixWorld(true); s += hb.getWorldPosition(new THREE.Vector3()).y; } mx.stopAllAction(); mx.uncacheRoot(sc);
-        M.releveErr = {}; for (const [n, part] of [['Pas_Gauche', RELEVE.cote], ['Pas_Arriere', RELEVE.arriere]]) M.releveErr[n] = releve(M, M.clips[n], s / 20, part); } }
+        M.releveErr = {};
+        // (fraction réduite tant que les pieds ne touchent plus le sol à jambes tendues : erreur > 2,5 cm)
+        for (const [n, part0] of [['Pas_Gauche', RELEVE.cote], ['Pas_Arriere', RELEVE.arriere]]) { const src = M.clips[n];
+          for (const part of [part0, 0.7, 0.55, 0.4]) { const c = src.clone(); c.name = n; const err = releve(M, c, s / 20, part); M.clips[n] = c; M.releveErr[n] = [+err.toFixed(3), part]; if (err <= 0.025) break; } } } }
     // miroir gauche → droite (les repères des os gauche/droite du squelette Mixamo sont symétriques : q → (x, −y, −z, w))
     const D = legs(M.clips.Pas_Gauche, 'Pas_Droite');   // (celui dont le bassin a été remonté)
     for (const t of D.tracks) {
@@ -12700,7 +12830,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   //     Rifle_Aim_Turn_Right puis reportée sur le fusil en garde basse ; gauche sur le garde-main, à la même distance ;
   //  4. bras : IK à deux os (épaule → coude → poignet), coudes vers le bas et l'extérieur.
   // Repère du jeu : +Z devant le soldat, −X sa droite, mètres pour un soldat de 1,80 m, pieds à 0.
-  const GB = { paume: [-0.1, 1.1, 0.24], canon: [0.45, -0.55, 0.7], coudeD: [-1, -0.7, -0.25], coudeG: [1, -0.8, -0.1] };
+  const GB = { paume: [-0.01, 1.1, 0.26], canon: [0.45, -0.55, 0.7], coudeD: [-1, -0.7, -0.25], coudeG: [1, -0.8, -0.1] };
   S.GB = GB;
   function gardeBasse(M) {
     const aim = M.clips.Rifle_Aim_Turn_Right; if (!aim) return;
@@ -12990,6 +13120,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         if (!enMarche) this.marcheK = Math.max(0, (this.marcheK || 0) - dt / 0.3);
         frameK++;
         mixer.update(dt); this.t += dt;
+        // chute dans le dos : vers 55-75 % de l'animation le bassin roule et une jambe part en l'air (botte vers le ciel) : un pied
+        // plus haut que le bassin est redescendu de 30 % de cet écart (IK de la jambe) autour de ce moment
+        if (this.clip === 'Shot_in_the_Back_and_Fall' && actions[this.clip] && hipsB) {
+          const p = actions[this.clip].time / M.clips[this.clip].duration, w = Math.max(0, 1 - Math.abs(p - 0.63) / 0.15);
+          if (w > 0) { group.updateMatrixWorld(true); const hy = WP(hipsB).y;
+            for (const [up, lo, ft] of pieds) if (ft) { const e = WP(ft).y - hy; if (e > 0) ik(up, lo, ft, new THREE.Vector3(0, -0.3 * w * e, 0)); } }
+        }
         this.epK = (this.epK || 0) + ((EPAULE[this.clip] ? 1 : 0) - (this.epK || 0)) * (dt > 0 ? Math.min(1, dt * 8) : 1);
         if (!keepYaw) { const tgt = enMarche ? this.yawM : (M.yawFix[this.clip] || 0); let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 5); }   // (lent : les corrections diffèrent d'une pose à l'autre)
         // torsion du dos en marche directionnelle : bassin des pas chassés / arrière (psi) + visée (le corps n'est tourné que
@@ -13120,7 +13257,12 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         hipsB.position.add(hipsB.parent.worldToLocal(h1).sub(hipsB.parent.worldToLocal(h0.clone()))); hipsB.updateMatrixWorld(true);
         const roule = (b, a) => { b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
         roule(hipsB, -s * 0.035); if (spine1) { mod(spine1); roule(spine1, s * 0.03); }
+        // garde basse : pied gauche ~17 cm en avant (appui décalé) et bassin 3 cm plus bas (genoux fléchis ~15-20°)
+        const gb = this.clip === 'Garde_Basse' ? this.reposK : 0;
+        if (gb > 0.01) { avant[0].addScaledVector(fw, 0.17 * gb); hipsB.position.add(hipsB.parent.worldToLocal(WP(hipsB).add(new THREE.Vector3(0, -0.03 * gb, 0))).sub(hipsB.parent.worldToLocal(WP(hipsB)))); hipsB.updateMatrixWorld(true); }
         pieds.forEach((l, i) => { const d = avant[i].clone().sub(WP(l[2])); if (d.lengthSq() > 1e-8) ik(l[0], l[1], l[2], d); });
+        // visée : le genou avant ne rentre pas vers l'intérieur (légère rotation des genoux vers l'extérieur, pieds immobiles)
+        if (this.clip === 'Rifle_Aim_Turn_Right') this.ecarte(this.reposK, 0, 0.6);
       },
       // Tête : regarde la cible (this.regard = {x, z} dans le monde, donné par le jeu ; limité en visée, la joue est sur la
       // crosse) ; sans cible, au repos, coups d'œil lents à gauche / à droite. Réparti sur le cou et la tête.
@@ -13146,7 +13288,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           // fusil est plus bas : tête et cou ramenés vers leur pose droite (celle de la garde basse), puis la face tournée vers
           // la direction de visée (+ coup d'œil / cible), un peu vers le bas : 40 % par le cou, le reste par la tête.
           mod(cou); mod(H); cou.quaternion.slerp(neutre[0], 0.75 * kA); H.quaternion.slerp(neutre[1], 0.75 * kA); cou.updateMatrixWorld(true);
-          const fq = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())), y = Math.atan2(fq.x, fq.z) + this.teteA, p = -0.08;
+          const fq = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())), y = Math.atan2(fq.x, fq.z) + this.teteA, p = -0.08 - 0.1 * (this.gbK || 0) * (1 - (this.epK || 0));   // (garde basse : regard un peu plus bas)
           const cible = new THREE.Vector3(Math.sin(y) * Math.cos(p), Math.sin(p), Math.cos(y) * Math.cos(p));
           const tourne = (b, part) => { const face = faceL.clone().applyQuaternion(WQ(H)).normalize(), q = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(face, cible), part * kA);
             b.quaternion.copy(WQ(b.parent).invert().multiply(q).multiply(WQ(b))); b.updateMatrixWorld(true); };
@@ -14374,9 +14516,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           vec3 refl = min(texture2DProj(tDiffuse, pr).rgb, vec3(6.0));
           vec3 V = normalize(cameraPosition - vWP); float f = 0.02 + 0.98 * pow(1.0 - clamp(V.y, 0.0, 1.0), 5.0);
           // pellicule d'eau mince : le bitume mouillé (assombri par le sol) reste visible dessous ; le reflet s'y pose selon
-          // Fresnel (faible vu d'en haut, miroir en lumière rasante) et un léger voile sombre marque le bord de l'eau
-          float k = clamp(f * 1.5 + 0.14, 0.0, 0.92);
-          gl_FragColor = vec4(refl * 0.9 * k / max(k + 0.1 * (1.0 - k), 1e-3), m * (k + 0.1 * (1.0 - k)));
+          // Fresnel (faible vu d'en haut, miroir en lumière rasante) ; l'eau assombrit un peu le fond (~28 %)
+          float k = clamp(f * 1.3 + 0.06, 0.0, 0.9), a = k + 0.28 * (1.0 - k);
+          gl_FragColor = vec4(refl * 0.85 * k / max(a, 1e-3), m * a);
         }`,
     };
     const r = new X.Reflector(new T.PlaneGeometry(W, D), { shader, textureWidth: 1024, textureHeight: 1024, clipBias: 0.003, multisample: 4 });
@@ -15057,7 +15199,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const W = 340, H = 636, cx = P.cx !== undefined ? P.cx : 0.05;
     if (fig) fig.group.visible = false; scene.add(s3.group);
     renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); camera.position.set(cx, 1.0, 5.85); camera.lookAt(cx, 0.9, 0);
-    let url = null; try { renderer.render(scene, camera); url = canvas.toDataURL('image/png'); } catch (e) { url = null; }
+    let url = null;
+    try {
+      renderer.render(scene, camera);
+      // garde-fou : si rien n'a été dessiné (contexte graphique en difficulté), on garde le portrait habituel
+      const gl = renderer.getContext(), px = new Uint8Array(8 * H * 4); gl.readPixels(W / 2 - 4, 0, 8, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      let n = 0; for (let i = 3; i < px.length; i += 4) if (px[i] > 8) n++;
+      url = n > H ? canvas.toDataURL('image/png') : null;
+    } catch (e) { url = null; }
     scene.remove(s3.group); if (fig) fig.group.visible = true;
     if (shown) draw(0); else { const w = canvas.clientWidth, h = canvas.clientHeight; if (w && h) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); } }
     return (snaps[k] = url);
@@ -18472,6 +18621,38 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     profile = Game.reset(storage || { removeItem: () => {} }); lastRewards = null; selected = profile.squad[0]; $('#resetSave').dataset.confirm = '0'; $('#resetSave').textContent = 'Réinitialiser'; render(); flash('Nouvelle carrière.');
   });
 
+  // ---- Sons d'interface (menus) : petit « tic » doux au survol, accord bref sur les boutons principaux ----------------------
+  // Synthétisés (pas d'échantillon), très bas, suivent le volume général et la coupure du son ; le clic lui-même reste le
+  // son « clic » joué par app.js sur tous les boutons. Survol : une fois par élément, au plus un toutes les 70 ms.
+  const UISFX = (() => {
+    let ac = null, out = null;
+    const vol = () => { if (window.OT_MUTE && window.OT_MUTE.get()) return 0; const v = window.OT_SETTINGS ? window.OT_SETTINGS.get('vol') : 0.9; return v == null ? 0.9 : v; };
+    function ensure() { if (ac) { if (ac.state === 'suspended') ac.resume().catch(() => {}); return true; } try { ac = new (window.AudioContext || window.webkitAudioContext)(); out = ac.createGain(); out.connect(ac.destination); return true; } catch (e) { ac = null; return false; } }
+    function tone(f0, f1, dur, v, type, delay) {
+      const t = ac.currentTime + 0.005 + (delay || 0), o = ac.createOscillator(), g = ac.createGain(); o.type = type || 'sine';
+      o.frequency.setValueAtTime(f0, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(out); o.start(t); o.stop(t + dur + 0.03);
+    }
+    return {
+      ensure,
+      hover() { if (!ac || ac.state !== 'running') return; const v = vol(); if (v > 0) tone(1500, 1150, 0.035, 0.02 * v); },
+      confirm() { if (!ensure()) return; const v = vol(); if (v <= 0) return; tone(523, 659, 0.12, 0.04 * v, 'triangle'); tone(784, 988, 0.16, 0.03 * v, 'triangle', 0.06); },
+    };
+  })();
+  {
+    const MENU = '#hq, #title, #vs, #rewards, .packopen', HOVER = 'button:not(:disabled), .medtile, .mission:not(.locked), .opcard, .sqc, .hsq, .tslot, .pkcard, .pcard:not(.flipped), .tcardq:not(.locked)';
+    const PRIMARY = '.hact.primary, #launch, #vsGo, #titleStart, #toPrep, #poClose, #rwContinue, #lgPlay';
+    let lastEl = null, lastT = 0;
+    document.addEventListener('pointerdown', () => UISFX.ensure(), true);
+    document.addEventListener('pointerover', (e) => {
+      const el = e.target.closest && e.target.closest(HOVER); if (!el || el === lastEl || !el.closest(MENU)) return;
+      lastEl = el; const now = performance.now(); if (now - lastT < 70) return; lastT = now; UISFX.hover();
+    }, true);
+    document.addEventListener('pointerout', (e) => { if (lastEl && !(e.relatedTarget && lastEl.contains(e.relatedTarget))) lastEl = null; }, true);
+    document.addEventListener('click', (e) => { const el = e.target.closest && e.target.closest(PRIMARY); if (el && !el.disabled) UISFX.confirm(); }, true);
+  }
+
   // transition en fondu entre les deux écrans
   function switchTo(showHq) {
     const f = $('#fade'); f.classList.add('on');
@@ -20415,9 +20596,12 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     // sol d'asphalte (détail en coordonnées du monde, sans tuilage visible)
     scene.fog.color.setHex(0x15120f); scene.fog.near = 7; scene.fog.far = 21;   // brume sombre : le fond se perd dans la pénombre
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), P.worldMat(P.asphalt(), { roughness: 0.94, color: 0x6a6c6e })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; set.add(ground);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), P.worldMat(P.asphalt(), { roughness: 0.94, color: 0x444d57 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; set.add(ground);
     // mur d'enceinte en panneaux de béton, assez haut pour que son arête sorte du cadre ; tags sur la face visible
-    const WH = 6; put(P.mesh({ name: 'mur nord', x: 11, z: 4, w: 34, h: WH, d: 0.35 }), 3, WH / 2, -6.4);
+    const WH = 6, wall = put(P.mesh({ name: 'mur nord', x: 11, z: 4, w: 34, h: WH, d: 0.35 }), -2.5, WH / 2, -6.4);
+    // tags : un seul gardé, en hauteur au-dessus de l'escouade (ni derrière le titre, ni derrière les têtes)
+    if (wall) { const tags = []; wall.traverse(n => { if (n.isMesh && n.material && n.material.polygonOffset && n.material.transparent) tags.push(n); });
+      tags.forEach((n, i) => { if (i) n.parent.remove(n); else { n.position.x = 6.4; n.position.y = 0.55; n.scale.setScalar(0.85); } }); }
     // conteneur à droite (modèle 3D s'il est chargé), caisses sur palettes, fûts, palettes
     const fit = (n, w, h, d, opts) => (M3 && M3.has(n) ? M3.fit(n, w, h, d, opts) : null);
     put(fit('conteneur', 6.1, 2.6, 2.45) || P.mesh({ name: 'conteneur', x: 2, z: 3, w: 6.1, h: 2.6, d: 2.45 }), 8.4, 1.3, -2.9, -0.95);

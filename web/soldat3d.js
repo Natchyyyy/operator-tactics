@@ -15,6 +15,11 @@
   // vitesse « naturelle » de chaque cycle de locomotion (m/s), pour caler les pas sur le déplacement réel
   const LOCO = { Walking: 1.35, Walk_Fight_Forward: 1.1, Running: 3.4, RunFast: 5.2, Run_and_Shoot: 3.2, Cautious_Crouch_Walk_Forward: 0.9, Crawl_Backward: 0.5 };
   // fraction de l'écart de hauteur du bassin (pas chassés / marche arrière → marche avant) rattrapée, voir releve()
+  // Marche arrière générée (Recul_IA) à la place de celle de la bibliothèque : désactivé. Mesuré (marche.html) : pieds jamais
+  // croisés le long du bassin, mais elle glisse 2 à 4 fois plus (appuis peu nets de l'animation générée : 1,75 m/s en petite
+  // course, 0,94 en marche contre 0,88 / 0,49) et, sa direction étant de biais (158-164°), vue de face les jambes se croisent
+  // davantage à 180°. « Pas_Chasse_IA » croise les pieds (pas croisé de ~15 cm) et va trop lentement (~0,6 m/s).
+  const MARCHE_IA = false;
   const RELEVE = { cote: 0.88, arriere: 0.88 };
   // marche directionnelle en visant : part de l'écart fusil / bassin rattrapée par la torsion du dos (le reste tourne le corps)
   const DOS_VISEE = 0.5;
@@ -238,7 +243,7 @@
     // marche arrière générée (« Recul_IA » : pieds à largeur de hanches, jamais croisés, bassin presque de face) si le modèle
     // l'a : un cycle propre en est extrait (~1,7 s, deux pas) ; sinon la marche arrière de la bibliothèque. (« Pas_Chasse_IA »,
     // essayé pour le pas chassé, croise les pieds davantage que l'ancien et est trop lent : non utilisé.)
-    if (M.clips.Recul_IA) { const R = cycle(M.clips.Recul_IA, 'Pas_Arriere', 0.2, 1.3, 1.4, 2.4); if (R) { M.clips.Pas_Arriere = R; M.recul = R.userData; } }
+    if (MARCHE_IA && M.clips.Recul_IA) { const R = cycle(M.clips.Recul_IA, 'Pas_Arriere', 0.2, 1.3, 1.4, 2.4); if (R) { M.clips.Pas_Arriere = R; M.recul = R.userData; } }
     // bassin remonté vers celui de la marche avant (sans dépasser ce que les jambes permettent : genoux jamais tendus à fond)
     { const sc = M.gltf.scene, hb = sc.getObjectByName('mixamorigHips') || sc.getObjectByName('mixamorig:Hips'), ref = M.clips.Walk_Fight_Forward;
       if (hb && ref) { const mx = new THREE.AnimationMixer(sc); mx.clipAction(ref).play(); let s = 0; for (let i = 0; i < 20; i++) { mx.setTime(i / 20 * ref.duration); sc.updateMatrixWorld(true); s += hb.getWorldPosition(new THREE.Vector3()).y; } mx.stopAllAction(); mx.uncacheRoot(sc);
@@ -330,7 +335,7 @@
   //     Rifle_Aim_Turn_Right puis reportée sur le fusil en garde basse ; gauche sur le garde-main, à la même distance ;
   //  4. bras : IK à deux os (épaule → coude → poignet), coudes vers le bas et l'extérieur.
   // Repère du jeu : +Z devant le soldat, −X sa droite, mètres pour un soldat de 1,80 m, pieds à 0.
-  const GB = { paume: [-0.1, 1.1, 0.24], canon: [0.45, -0.55, 0.7], coudeD: [-1, -0.7, -0.25], coudeG: [1, -0.8, -0.1] };
+  const GB = { paume: [-0.01, 1.1, 0.26], canon: [0.45, -0.55, 0.7], coudeD: [-1, -0.7, -0.25], coudeG: [1, -0.8, -0.1] };
   S.GB = GB;
   function gardeBasse(M) {
     const aim = M.clips.Rifle_Aim_Turn_Right; if (!aim) return;
@@ -620,6 +625,13 @@
         if (!enMarche) this.marcheK = Math.max(0, (this.marcheK || 0) - dt / 0.3);
         frameK++;
         mixer.update(dt); this.t += dt;
+        // chute dans le dos : vers 55-75 % de l'animation le bassin roule et une jambe part en l'air (botte vers le ciel) : un pied
+        // plus haut que le bassin est redescendu de 30 % de cet écart (IK de la jambe) autour de ce moment
+        if (this.clip === 'Shot_in_the_Back_and_Fall' && actions[this.clip] && hipsB) {
+          const p = actions[this.clip].time / M.clips[this.clip].duration, w = Math.max(0, 1 - Math.abs(p - 0.63) / 0.15);
+          if (w > 0) { group.updateMatrixWorld(true); const hy = WP(hipsB).y;
+            for (const [up, lo, ft] of pieds) if (ft) { const e = WP(ft).y - hy; if (e > 0) ik(up, lo, ft, new THREE.Vector3(0, -0.3 * w * e, 0)); } }
+        }
         this.epK = (this.epK || 0) + ((EPAULE[this.clip] ? 1 : 0) - (this.epK || 0)) * (dt > 0 ? Math.min(1, dt * 8) : 1);
         if (!keepYaw) { const tgt = enMarche ? this.yawM : (M.yawFix[this.clip] || 0); let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 5); }   // (lent : les corrections diffèrent d'une pose à l'autre)
         // torsion du dos en marche directionnelle : bassin des pas chassés / arrière (psi) + visée (le corps n'est tourné que
@@ -750,7 +762,12 @@
         hipsB.position.add(hipsB.parent.worldToLocal(h1).sub(hipsB.parent.worldToLocal(h0.clone()))); hipsB.updateMatrixWorld(true);
         const roule = (b, a) => { b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
         roule(hipsB, -s * 0.035); if (spine1) { mod(spine1); roule(spine1, s * 0.03); }
+        // garde basse : pied gauche ~17 cm en avant (appui décalé) et bassin 3 cm plus bas (genoux fléchis ~15-20°)
+        const gb = this.clip === 'Garde_Basse' ? this.reposK : 0;
+        if (gb > 0.01) { avant[0].addScaledVector(fw, 0.17 * gb); hipsB.position.add(hipsB.parent.worldToLocal(WP(hipsB).add(new THREE.Vector3(0, -0.03 * gb, 0))).sub(hipsB.parent.worldToLocal(WP(hipsB)))); hipsB.updateMatrixWorld(true); }
         pieds.forEach((l, i) => { const d = avant[i].clone().sub(WP(l[2])); if (d.lengthSq() > 1e-8) ik(l[0], l[1], l[2], d); });
+        // visée : le genou avant ne rentre pas vers l'intérieur (légère rotation des genoux vers l'extérieur, pieds immobiles)
+        if (this.clip === 'Rifle_Aim_Turn_Right') this.ecarte(this.reposK, 0, 0.6);
       },
       // Tête : regarde la cible (this.regard = {x, z} dans le monde, donné par le jeu ; limité en visée, la joue est sur la
       // crosse) ; sans cible, au repos, coups d'œil lents à gauche / à droite. Réparti sur le cou et la tête.
@@ -776,7 +793,7 @@
           // fusil est plus bas : tête et cou ramenés vers leur pose droite (celle de la garde basse), puis la face tournée vers
           // la direction de visée (+ coup d'œil / cible), un peu vers le bas : 40 % par le cou, le reste par la tête.
           mod(cou); mod(H); cou.quaternion.slerp(neutre[0], 0.75 * kA); H.quaternion.slerp(neutre[1], 0.75 * kA); cou.updateMatrixWorld(true);
-          const fq = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())), y = Math.atan2(fq.x, fq.z) + this.teteA, p = -0.08;
+          const fq = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())), y = Math.atan2(fq.x, fq.z) + this.teteA, p = -0.08 - 0.1 * (this.gbK || 0) * (1 - (this.epK || 0));   // (garde basse : regard un peu plus bas)
           const cible = new THREE.Vector3(Math.sin(y) * Math.cos(p), Math.sin(p), Math.cos(y) * Math.cos(p));
           const tourne = (b, part) => { const face = faceL.clone().applyQuaternion(WQ(H)).normalize(), q = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(face, cible), part * kA);
             b.quaternion.copy(WQ(b.parent).invert().multiply(q).multiply(WQ(b))); b.updateMatrixWorld(true); };

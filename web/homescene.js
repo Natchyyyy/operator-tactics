@@ -65,7 +65,14 @@
     const W = 340, H = 636, cx = P.cx !== undefined ? P.cx : 0.05;
     if (fig) fig.group.visible = false; scene.add(s3.group);
     renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); camera.position.set(cx, 1.0, 5.85); camera.lookAt(cx, 0.9, 0);
-    let url = null; try { renderer.render(scene, camera); url = canvas.toDataURL('image/png'); } catch (e) { url = null; }
+    let url = null;
+    try {
+      renderer.render(scene, camera);
+      // garde-fou : si rien n'a été dessiné (contexte graphique en difficulté), on garde le portrait habituel
+      const gl = renderer.getContext(), px = new Uint8Array(8 * H * 4); gl.readPixels(W / 2 - 4, 0, 8, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      let n = 0; for (let i = 3; i < px.length; i += 4) if (px[i] > 8) n++;
+      url = n > H ? canvas.toDataURL('image/png') : null;
+    } catch (e) { url = null; }
     scene.remove(s3.group); if (fig) fig.group.visible = true;
     if (shown) draw(0); else { const w = canvas.clientWidth, h = canvas.clientHeight; if (w && h) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); } }
     return (snaps[k] = url);

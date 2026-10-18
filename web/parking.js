@@ -285,9 +285,9 @@
           vec3 refl = min(texture2DProj(tDiffuse, pr).rgb, vec3(6.0));
           vec3 V = normalize(cameraPosition - vWP); float f = 0.02 + 0.98 * pow(1.0 - clamp(V.y, 0.0, 1.0), 5.0);
           // pellicule d'eau mince : le bitume mouillé (assombri par le sol) reste visible dessous ; le reflet s'y pose selon
-          // Fresnel (faible vu d'en haut, miroir en lumière rasante) et un léger voile sombre marque le bord de l'eau
-          float k = clamp(f * 1.5 + 0.14, 0.0, 0.92);
-          gl_FragColor = vec4(refl * 0.9 * k / max(k + 0.1 * (1.0 - k), 1e-3), m * (k + 0.1 * (1.0 - k)));
+          // Fresnel (faible vu d'en haut, miroir en lumière rasante) ; l'eau assombrit un peu le fond (~28 %)
+          float k = clamp(f * 1.3 + 0.06, 0.0, 0.9), a = k + 0.28 * (1.0 - k);
+          gl_FragColor = vec4(refl * 0.85 * k / max(a, 1e-3), m * a);
         }`,
     };
     const r = new X.Reflector(new T.PlaneGeometry(W, D), { shader, textureWidth: 1024, textureHeight: 1024, clipBias: 0.003, multisample: 4 });
