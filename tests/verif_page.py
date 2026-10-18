@@ -11,7 +11,8 @@ async def main():
     async with async_playwright() as p:
         br = await p.chromium.launch(args=GL); pg = await br.new_page(viewport={"width": 1400, "height": 860}); errs = []
         pg.on("pageerror", lambda e: errs.append("erreur: " + str(e)))
-        pg.on("console", lambda m: errs.append(f"console.{m.type}: {m.text}") if m.type == "error" else None)
+        # une ressource externe injoignable (police Google Fonts : pas d'internet dans le conteneur de test) n'est pas une erreur du jeu
+        pg.on("console", lambda m: errs.append(f"console.{m.type}: {m.text}") if m.type == "error" and "ERR_TUNNEL_CONNECTION_FAILED" not in m.text and "ERR_INTERNET_DISCONNECTED" not in m.text else None)
         async def tab(t):   # les onglets du QG sont des tuiles (barre d'onglets cachée, comme le jeu d'origine)
             if t == "missions": await pg.evaluate("() => { OT.resetPlay && OT.resetPlay(); document.querySelector('.tabs [data-tab=missions]').click(); }")
             else: await pg.evaluate(f"() => document.querySelector('.tabs [data-tab={t}]').click()")
@@ -21,6 +22,7 @@ async def main():
                 if not await pg.is_visible("#rewards"): break
                 await pg.click("#rwContinue"); await pg.wait_for_timeout(150)
         url = sys.argv[1] + ("&" if "?" in sys.argv[1] else "?") + "seed=3"
+        pg.set_default_timeout(240000)   # rendu logiciel (SwiftShader) : lancer une bataille avec le post-traitement complet prend du temps
         await pg.goto(url, timeout=120000); await pg.wait_for_function("window.PRET", timeout=60000)
         # ---- Écran titre puis quartier général ----
         check("la page s'ouvre sur l'écran titre (scène 3D)", await pg.is_visible("#title") and await pg.evaluate("() => !!document.querySelector('#titleScene')"))
@@ -66,16 +68,16 @@ async def main():
         bri = await pg.evaluate("() => [!document.querySelector('#briefing').classList.contains('hidden'), document.querySelector('#brName').textContent, window.API.battle().t]")
         check("mission de campagne : briefing affiché (nom de la mission), bataille en attente", bri[0] and bri[1] == "Patrouille accrochée" and bri[2] == 0, bri)
         await pg.click("#briefGo")
-        try: await pg.wait_for_function("() => window.API.battle().t > 0", timeout=15000)
+        try: await pg.wait_for_function("() => window.API.battle().t > 0", timeout=180000)
         except Exception: pass
         check("« Commencer la mission » ferme le briefing et lance la bataille", await pg.evaluate("() => document.querySelector('#briefing').classList.contains('hidden') && window.API.battle().t > 0"))
         tc = await pg.evaluate("() => [...document.querySelectorAll('#tactics0 .tcard')].map(c => c.dataset.tactic)"); check("la tactique Tiroir d'Alpha est affichée en bataille", tc == ['tiroir'], tc)
         check("Lynx porte le fusil d'assaut dans la bataille", await pg.evaluate("() => window.API.battle().units.find(u => u.callsign === 'Lynx').weapon.id") == "carbine")
         check("l'ennemi de la mission est celui annoncé (ordre Prudent, 4 opérateurs)", await pg.evaluate("() => window.API.battle().teams[1].order === 'careful' && window.API.battle().teams[1].units.length === 4"))
         await pg.click("[data-speed='4']"); await pg.wait_for_timeout(1500)
-        await pg.select_option("#order0", "hold"); await pg.wait_for_timeout(200)
-        used = await pg.evaluate("() => { const b = window.API.battle(); return [b.teams[0].bound.n, b.teams[0].units.filter(u => u.boundGroup >= 0).length]; }")
-        check("le Tiroir est en place (moitiés d'escouade, bonds comptés)", used[1] == 4 and used[0] >= 0, used)
+        await pg.click("#moreBtn"); await pg.select_option("#order0", "hold"); await pg.wait_for_timeout(200); await pg.click("#moreBtn")   # options repliées sous « ⋯ »
+        used = await pg.evaluate("() => { const b = window.API.battle(); return [b.teams[0].bound.n, b.teams[0].units.filter(u => u.boundGroup >= 0).length, b.teams[0].units.length]; }")
+        check("le Tiroir est en place (moitiés d'escouade, bonds comptés)", used[1] == used[2] and used[2] >= 4 and used[0] >= 0, used)
         check("l'ordre d'Alpha changé en cours de bataille est appliqué et journalisé", await pg.evaluate("() => window.API.battle().teams[0].order === 'hold' && window.API.battle().log.some(e => e.kind === 'order')"))
         await pg.evaluate("() => { API.pause(true); API.runToEnd(); }")   # fin de mission simulée d'un coup (le rendu logiciel des soldats 3D est lent)
         await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=60000)
@@ -108,7 +110,7 @@ async def main():
         check("après une bataille rapide, le compteur de batailles rapides avance", qp == 1, qp)
         # ---- Bataille libre (graine fixée) ----
         await pg.click("#freeBattle"); await pg.wait_for_timeout(600)
-        await pg.fill("#seed", "3"); await pg.click("#newBattle"); await pg.wait_for_timeout(200)
+        await pg.click("#moreBtn"); await pg.fill("#seed", "3"); await pg.click("#newBattle"); await pg.wait_for_timeout(200); await pg.click("#moreBtn")
         await pg.click("#play"); await pg.wait_for_timeout(100)  # « Nouvelle bataille » lance tout de suite ; on met en pause pour tester ▶ ci-dessous
         check("la page a un titre", (await pg.title()) == "Operator Tactics", await pg.title())
         check("la scène 3D est là (canvas WebGL)", await pg.evaluate("() => !!document.querySelector('#scene').getContext('webgl2') || !!document.querySelector('#scene').getContext('webgl')"))
@@ -154,7 +156,7 @@ async def main():
         await pg.evaluate("() => window.API.step(5)")
         same = await pg.evaluate("() => window.API.battle().seed"); check("« Rejouer cette graine » relance la même graine", same == res["seed"], (same, res["seed"]))
         # changer l'ordre d'Alpha en Tenir et relancer : l'ordre est bien transmis à la simulation
-        await pg.select_option("#order0", "hold"); await pg.click("#newBattle"); await pg.wait_for_timeout(200)
+        await pg.click("#moreBtn"); await pg.select_option("#order0", "hold"); await pg.click("#newBattle"); await pg.wait_for_timeout(200); await pg.click("#moreBtn")
         order = await pg.evaluate("() => window.API.battle().teams[0].order"); check("le sélecteur d'ordre modifie la simulation", order == "hold", order)
         await pg.evaluate("() => document.activeElement && document.activeElement.blur()")
         await pg.keyboard.press("3"); cam0 = await pg.evaluate("() => document.querySelector('[data-cam].on').dataset.cam"); await pg.keyboard.press("c")

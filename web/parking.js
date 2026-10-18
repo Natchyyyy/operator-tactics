@@ -167,6 +167,15 @@
     // inscriptions au sol (lettres peintes)
     p.font = `bold ${M(1.1)}px Arial`; p.textAlign = 'center'; p.fillStyle = white;
     for (const [x, z, t, r] of [[36, 9.6, 'SORTIE', 0], [6.5, D * 0.5, 'A', -Math.PI / 2], [W - 6.5, D * 0.5, 'B', Math.PI / 2]]) { p.save(); p.translate(M(x), M(z)); p.rotate(r); p.fillText(t, 0, 0); p.restore(); }
+    // numéros des places (au bout de chaque place) et places réservées (fond bleu, pictogramme fauteuil)
+    p.font = `bold ${M(0.42)}px Arial`; p.textAlign = 'center'; p.textBaseline = 'middle';
+    rows.forEach((zr, ri) => { let n = 1; for (let x = 5.2; x + 2.6 < W - 5; x += 2.6) for (const sd of [-1, 1]) {
+      if (x > 27.5 && x < 44.5 && zr === rows[1]) continue;
+      const cx = x + 1.3, cz = zr + sd * 1.45;
+      if (ri === 0 && sd === -1 && n <= 4) { p.fillStyle = 'rgba(32,72,140,0.62)'; p.fillRect(M(x + 0.08), M(sd < 0 ? zr - 2.5 : zr), M(2.44), M(2.5));
+        p.fillStyle = white; p.save(); p.translate(M(cx), M(zr - 0.75)); const k = M(0.28); p.beginPath(); p.arc(0, -k * 1.6, k * 0.35, 0, 7); p.fill(); p.lineWidth = k * 0.35; p.strokeStyle = white; p.beginPath(); p.moveTo(0, -k * 1.1); p.lineTo(0, 0); p.lineTo(k * 0.9, 0); p.lineTo(k * 1.2, k * 0.9); p.stroke(); p.beginPath(); p.arc(0, k * 0.4, k * 0.9, 0.4, 3.5); p.stroke(); p.restore(); }
+      p.fillStyle = white; p.save(); p.translate(M(cx), M(cz)); p.rotate(sd < 0 ? Math.PI : 0); p.fillText('ABC'[ri] + String(n).padStart(2, '0'), 0, 0); p.restore(); n++;
+    } });
     // usure de la peinture : on gomme selon un bruit fractal à deux échelles
     const er = document.createElement('canvas'); er.width = cw; er.height = ch; const e = er.getContext('2d'), eimg = e.createImageData(cw, ch), ed = eimg.data;
     const N1 = 256, F1 = fbmField(N1, 16, 5, 501, 0.6), F2 = fbmField(N1, 64, 3, 503, 0.6);
@@ -175,6 +184,12 @@
       const wear = Math.min(1, Math.max(0, (a * 0.7 + b * 0.5 - 0.42) * 2.6)); const i = (y * cw + x) * 4; ed[i + 3] = wear * 255;
     }
     e.putImageData(eimg, 0, 0); p.globalCompositeOperation = 'destination-out'; p.drawImage(er, 0, 0); p.globalCompositeOperation = 'source-over';
+    // fissures de l'enrobé (fines, ramifiées) et joints de goudron rebouchés (traits noirs brillants, plus larges)
+    const crack = (x, z, len, a0, w, col) => { p.strokeStyle = col; p.lineWidth = M(w); p.lineCap = 'round'; p.beginPath(); p.moveTo(M(x), M(z)); let a = a0;
+      for (let k = 0; k < len; k++) { a += (R() - 0.5) * 0.9; x += Math.cos(a) * 0.35; z += Math.sin(a) * 0.35; p.lineTo(M(x), M(z)); if (R() < 0.08 && w > 0.02) { p.stroke(); crack(x, z, Math.floor(len * 0.4), a + (R() < 0.5 ? 1 : -1) * 1.1, w * 0.6, col); p.strokeStyle = col; p.lineWidth = M(w); p.beginPath(); p.moveTo(M(x), M(z)); } }
+      p.stroke(); };
+    for (let k = 0; k < 26; k++) crack(R() * W, R() * D, 8 + Math.floor(R() * 22), R() * 6.28, 0.035, 'rgba(18,17,16,0.75)');
+    for (let k = 0; k < 9; k++) crack(R() * W, R() * D, 12 + Math.floor(R() * 25), R() * 6.28, 0.09, 'rgba(8,8,8,0.55)');
     // --- données : R crasse, G eau (flaques), B huile / pneus
     const dc = document.createElement('canvas'); dc.width = cw; dc.height = ch; const g = dc.getContext('2d');
     g.fillStyle = 'rgb(40,0,0)'; g.fillRect(0, 0, cw, ch);
@@ -528,7 +543,109 @@
         c.position.set(x, (kd === 'fourgon' ? 2.3 : 1.45) / 2, z); c.rotation.y = rot; c.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.userData.keep = true; } }); group.add(c);
       }
     }
+    try { props(map, group); } catch (e) { console.warn('parking (objets) :', e); }
     if (M3d && M3d.has('abribus')) { const a = M3d.fit('abribus', 4.5, 2.6, 1.6, { tol: 0.3 }); a.position.set(W / 2 + 10, 1.3 + 0.14, D + 16.6); a.rotation.y = Math.PI; a.traverse(o => { if (o.isMesh) { o.castShadow = true; o.userData.keep = true; } }); group.add(a); }
+  }
+  // ---------------------------------------------------------------------------------------------
+  // Petits objets du quotidien : plaques d'égout, avaloirs, feuilles et papiers, potelets, poubelles, panneaux,
+  // horodateurs, caméras de surveillance, chariots abandonnés (visuels seulement, hors des couverts de la simulation)
+  // ---------------------------------------------------------------------------------------------
+  function canvasTexP(N, draw, srgb) { const c = document.createElement('canvas'); c.width = c.height = N; draw(c.getContext('2d'), N); const t = new T.CanvasTexture(c); if (srgb) t.colorSpace = T.SRGBColorSpace; t.anisotropy = 8; return t; }
+  function manholeMat() { return mat('regard', () => {
+    const map = canvasTexP(256, (g, N) => { const R = rng(5); g.fillStyle = '#2a2826'; g.fillRect(0, 0, N, N); g.translate(N / 2, N / 2);
+      g.strokeStyle = '#4a4642'; g.lineWidth = 10; g.beginPath(); g.arc(0, 0, N * 0.46, 0, 7); g.stroke();
+      g.strokeStyle = '#3c3935'; g.lineWidth = 7; for (let r = N * 0.12; r < N * 0.42; r += N * 0.075) { g.beginPath(); g.arc(0, 0, r, 0, 7); g.stroke(); }
+      for (let k = 0; k < 16; k++) { g.rotate(Math.PI / 8); g.fillStyle = '#3e3a36'; g.fillRect(N * 0.1, -3, N * 0.32, 6); }
+      for (let k = 0; k < 900; k++) { g.fillStyle = `rgba(${R() < 0.5 ? '120,80,50' : '20,18,16'},${R() * 0.25})`; g.fillRect((R() - 0.5) * N, (R() - 0.5) * N, 2, 2); } }, true);
+    return new T.MeshStandardMaterial({ map, roughness: 0.55, metalness: 0.75, color: 0xb0aaa4 }); }); }
+  function grateMat() { return mat('avaloir', () => {
+    const map = canvasTexP(128, (g, N) => { g.fillStyle = '#121110'; g.fillRect(0, 0, N, N); g.fillStyle = '#4a4744'; g.fillRect(0, 0, N, 8); g.fillRect(0, N - 8, N, 8); g.fillRect(0, 0, 8, N); g.fillRect(N - 8, 0, 8, N); for (let x = 16; x < N - 8; x += 12) g.fillRect(x, 8, 5, N - 16); }, true);
+    return new T.MeshStandardMaterial({ map, roughness: 0.5, metalness: 0.8 }); }); }
+  function litterMat() { return mat('feuilles', () => {
+    const map = canvasTexP(512, (g, N) => { const R = rng(77), C = N / 4; g.clearRect(0, 0, N, N);
+      for (let i = 0; i < 16; i++) { const cx = (i % 4) * C + C / 2, cy = Math.floor(i / 4) * C + C / 2; g.save(); g.translate(cx, cy); g.rotate(R() * 6.28);
+        if (i < 10) {   // feuilles mortes (platane, chêne) : brun, ocre, rouille
+          const col = ['#8a5a2b', '#a8742e', '#6e4423', '#b9873f', '#7d3f1f'][i % 5]; g.fillStyle = col; g.beginPath();
+          const L = C * 0.36; for (let k = 0; k <= 20; k++) { const a = k / 20 * Math.PI * 2, r = L * (0.55 + 0.45 * Math.abs(Math.sin(a * 2.5))) * (0.8 + R() * 0.1); g.lineTo(Math.cos(a) * r, Math.sin(a) * r * 0.8); } g.fill();
+          g.strokeStyle = 'rgba(60,35,15,.8)'; g.lineWidth = 2; g.beginPath(); g.moveTo(-L, 0); g.lineTo(L * 0.9, 0); g.stroke();
+        } else if (i < 14) {   // papiers, tickets, emballages froissés
+          g.fillStyle = ['#e8e4da', '#d9d2c0', '#c8d4dc', '#efe9d0'][i - 10]; const w = C * (0.3 + R() * 0.2), h = C * (0.2 + R() * 0.15); g.beginPath(); g.moveTo(-w, -h); g.lineTo(w * 0.9, -h * 1.1); g.lineTo(w, h * 0.8); g.lineTo(-w * 0.8, h); g.closePath(); g.fill();
+          g.fillStyle = 'rgba(0,0,0,.15)'; for (let k = 0; k < 4; k++) g.fillRect(-w * 0.7, -h * 0.6 + k * h * 0.35, w * 1.3, 2);
+        } else { g.fillStyle = i === 14 ? '#b22222' : '#2a5ea8'; g.fillRect(-C * 0.12, -C * 0.22, C * 0.24, C * 0.44); g.fillStyle = 'rgba(255,255,255,.6)'; g.fillRect(-C * 0.12, -C * 0.05, C * 0.24, C * 0.08); }   // canette écrasée
+        g.restore(); } }, true);
+    return new T.MeshStandardMaterial({ map, alphaTest: 0.4, roughness: 0.9, side: T.DoubleSide }); }); }
+  function signTexP(kind) {
+    return canvasTexP(256, (g, N) => { g.fillStyle = '#f4f4f0'; g.fillRect(0, 0, N, N);
+      if (kind === 'P') { g.fillStyle = '#1f5fbf'; g.fillRect(10, 10, N - 20, N - 20); g.fillStyle = '#fff'; g.font = 'bold 190px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('P', N / 2, N / 2 + 10); }
+      else if (kind === '10') { g.fillStyle = '#fff'; g.beginPath(); g.arc(N / 2, N / 2, N / 2 - 4, 0, 7); g.fill(); g.strokeStyle = '#d0201a'; g.lineWidth = 30; g.beginPath(); g.arc(N / 2, N / 2, N / 2 - 22, 0, 7); g.stroke(); g.fillStyle = '#111'; g.font = 'bold 110px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('10', N / 2, N / 2 + 6); }
+      else { g.fillStyle = '#1a7a3a'; g.fillRect(6, 6, N - 12, N - 12); g.fillStyle = '#fff'; g.font = 'bold 54px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('SORTIE', N / 2, N / 2 - 30); g.beginPath(); g.moveTo(N / 2 - 50, N / 2 + 40); g.lineTo(N / 2 + 40, N / 2 + 40); g.lineTo(N / 2 + 40, N / 2 + 15); g.lineTo(N / 2 + 85, N / 2 + 55); g.lineTo(N / 2 + 40, N / 2 + 95); g.lineTo(N / 2 + 40, N / 2 + 70); g.lineTo(N / 2 - 50, N / 2 + 70); g.fill(); }
+    }, true);
+  }
+  function props(map, group) {
+    const W = map.width, D = map.depth, K = M3(), R = rng(4242);
+    const free = (x, z, m) => !map.obstacles.some(o => x > o.x - m && x < o.x + o.w + m && z > o.z - m && z < o.z + o.d + m);
+    // plaques d'égout (fonte) et avaloirs le long des bordures
+    const mh = new T.Mesh(new T.CylinderGeometry(0.42, 0.42, 0.02, 32), manholeMat());
+    for (const [x, z] of [[W * 0.18, D * 0.36], [W * 0.62, D * 0.64], [W * 0.84, D * 0.36], [W * 0.4, D * 0.12], [-10, D * 0.3], [W + 10, D * 0.7], [W * 0.3, -10], [W * 0.75, D + 10]]) {
+      if (!free(x, z, 0.6)) continue; const m = mh.clone(); m.position.set(x, 0.012, z); m.rotation.y = R() * 6; m.receiveShadow = true; group.add(m); }
+    const gr = new T.Mesh(new T.BoxGeometry(0.9, 0.02, 0.4), grateMat());
+    for (let x = 4; x < W - 2; x += 11) for (const z of [-5.25, D + 5.25]) { const m = gr.clone(); m.position.set(x, 0.015, z); m.receiveShadow = true; group.add(m); }
+    for (let z = 4; z < D - 2; z += 11) for (const x of [-5.25, W + 5.25]) { const m = gr.clone(); m.position.set(x, 0.015, z); m.rotation.y = Math.PI / 2; m.receiveShadow = true; group.add(m); }
+    // feuilles mortes, papiers et canettes : surtout au pied des murs, des bordures et dans les coins (le vent les y pousse)
+    const N = 900, inst = new T.InstancedMesh(new T.PlaneGeometry(0.22, 0.22), litterMat(), N), mtx = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), uvOff = new Float32Array(N * 2);
+    let n = 0;
+    for (let k = 0; k < N * 3 && n < N; k++) {
+      let x, z; const r = R();
+      if (r < 0.55) { const sd = Math.floor(R() * 4), t = R(), off = Math.pow(R(), 3) * 2.2; if (sd === 0) { x = t * W; z = off + 0.2; } else if (sd === 1) { x = t * W; z = D - off - 0.2; } else if (sd === 2) { x = off + 0.2; z = t * D; } else { x = W - off - 0.2; z = t * D; } }
+      else if (r < 0.8) { const o = map.obstacles[Math.floor(R() * map.obstacles.length)]; const a = R() * 6.28, d = 0.2 + Math.pow(R(), 2) * 1.2; x = o.x + o.w / 2 + Math.cos(a) * (o.w / 2 + d); z = o.z + o.d / 2 + Math.sin(a) * (o.d / 2 + d); if (!free(x, z, 0.05)) continue; }
+      else { x = -14 + R() * (W + 28); z = R() < 0.5 ? -1.5 - R() * 3 : D + 1.5 + R() * 3; }
+      const sc = 0.7 + R() * 0.9, y = (x < 0 || x > W || z < 0 || z > D) && Math.abs(x - W / 2) < W / 2 + 5 && Math.abs(z - D / 2) < D / 2 + 5 ? 0.145 : 0.008 + R() * 0.004;
+      e.set(-Math.PI / 2 + (R() - 0.5) * 0.25, 0, R() * 6.28, 'YXZ'); q.setFromEuler(e); mtx.compose(new T.Vector3(x, y, z), q, new T.Vector3(sc, sc, sc)); inst.setMatrixAt(n, mtx);
+      const cell = R() < 0.82 ? Math.floor(R() * 10) : 10 + Math.floor(R() * 6); uvOff[n * 2] = (cell % 4) / 4; uvOff[n * 2 + 1] = 0.75 - Math.floor(cell / 4) / 4; n++;
+    }
+    inst.count = n; inst.receiveShadow = true;
+    inst.geometry.setAttribute('uvOff', new T.InstancedBufferAttribute(uvOff, 2));
+    inst.material.onBeforeCompile = (sh) => { sh.vertexShader = 'attribute vec2 uvOff;\n' + sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_MAP\nvMapUv = uv * 0.25 + uvOff;\n#endif'); };
+    group.add(inst);
+    // potelets de la promenade devant le centre commercial (acier gris, bande réfléchissante)
+    const post = mat('potelet', () => new T.MeshStandardMaterial({ color: 0x3b4046, roughness: 0.4, metalness: 0.7 })), refl = mat('reflechissant', () => new T.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.25, metalness: 0.2, emissive: 0x222222 }));
+    const bollard = () => { const g = new T.Group(); const c = new T.Mesh(new T.CylinderGeometry(0.075, 0.085, 0.95, 16), post); c.position.y = 0.475; g.add(c); const b = new T.Mesh(new T.CylinderGeometry(0.078, 0.078, 0.07, 16), refl); b.position.y = 0.78; g.add(b); const t = new T.Mesh(new T.SphereGeometry(0.075, 16, 8, 0, 6.29, 0, 1.57), post); t.position.y = 0.95; g.add(t); g.traverse(o => { if (o.isMesh) o.castShadow = true; }); return g; };
+    for (let x = -12; x <= W + 12; x += 2.2) { if (Math.abs(x - W / 2) < 3) continue; const b = bollard(); b.position.set(x, 0.14, -1.6); group.add(b); }
+    // poubelles (corbeille Vigipirate : cercle d'acier et sac transparent), horodateurs
+    const steel = mat('acierPoub', () => new T.MeshStandardMaterial({ color: 0x5d646a, roughness: 0.35, metalness: 0.8 })), bag = mat('sac', () => new T.MeshPhysicalMaterial({ color: 0xdfe6ea, roughness: 0.3, transmission: 0.0, transparent: true, opacity: 0.55, side: T.DoubleSide }));
+    const bin = () => { const g = new T.Group(); const p = new T.Mesh(new T.CylinderGeometry(0.04, 0.04, 1.0, 10), steel); p.position.set(0, 0.5, -0.22); g.add(p); const ringM = new T.Mesh(new T.TorusGeometry(0.21, 0.018, 8, 28), steel); ringM.rotation.x = Math.PI / 2; ringM.position.y = 0.92; g.add(ringM);
+      const s = new T.Mesh(new T.CylinderGeometry(0.21, 0.17, 0.62, 20, 3, true), bag); s.position.y = 0.6; g.add(s); const tr = new T.Mesh(new T.SphereGeometry(0.12, 10, 8), mat('dechets', () => new T.MeshStandardMaterial({ color: 0x6b6458, roughness: 0.9 }))); tr.position.y = 0.42; tr.scale.y = 0.7; g.add(tr); g.traverse(o => { if (o.isMesh) o.castShadow = true; }); return g; };
+    const meter = () => { const g = new T.Group(); const b = new T.Mesh(new T.BoxGeometry(0.42, 1.45, 0.3), mat('horodateur', () => new T.MeshStandardMaterial({ color: 0x2e5b8c, roughness: 0.4, metalness: 0.5 }))); b.position.y = 0.725; g.add(b);
+      const sc = new T.Mesh(new T.PlaneGeometry(0.26, 0.16), mat('ecranHoro', () => new T.MeshStandardMaterial({ color: 0x10181c, emissive: 0x2a6a5a, emissiveIntensity: 0.6, roughness: 0.2 }))); sc.position.set(0, 1.12, 0.151); g.add(sc); const roof = new T.Mesh(new T.BoxGeometry(0.5, 0.06, 0.38), steel); roof.position.y = 1.48; g.add(roof); g.traverse(o => { if (o.isMesh) o.castShadow = true; }); return g; };
+    for (let x = 3; x < W; x += 14) { const b = bin(); b.position.set(x + 1.6, 0.14, -3.4); group.add(b); const b2 = bin(); b2.position.set(x + 8, 0.14, D + 3.4); b2.rotation.y = Math.PI; group.add(b2); }
+    for (const [x, z, r] of [[W * 0.3, -3.6, 0], [W * 0.7, D + 3.6, Math.PI], [-3.6, D * 0.5, Math.PI / 2], [W + 3.6, D * 0.3, -Math.PI / 2]]) { const m = meter(); m.position.set(x, 0.14, z); m.rotation.y = r; group.add(m); }
+    // panneaux : P (parking), limitation 10, sortie
+    const poleM = mat('poteauPanneau', () => new T.MeshStandardMaterial({ color: 0x9aa0a6, roughness: 0.35, metalness: 0.8 }));
+    const sign = (kind, x, z, rot, round) => { const g = new T.Group(); const p = new T.Mesh(new T.CylinderGeometry(0.035, 0.035, 2.6, 10), poleM); p.position.y = 1.3; g.add(p);
+      const face = new T.Mesh(round ? new T.CircleGeometry(0.32, 32) : new T.PlaneGeometry(0.6, 0.6), new T.MeshStandardMaterial({ map: signTexP(kind), roughness: 0.35, metalness: 0.1 })); face.position.set(0, 2.35, 0.045); g.add(face);
+      const back = new T.Mesh(round ? new T.CircleGeometry(0.32, 32) : new T.PlaneGeometry(0.6, 0.6), poleM); back.position.set(0, 2.35, 0.04); back.rotation.y = Math.PI; g.add(back);
+      g.position.set(x, 0.14, z); g.rotation.y = rot; g.traverse(o => { if (o.isMesh) o.castShadow = true; }); group.add(g); };
+    sign('P', -3.4, -3.4, Math.PI / 4, false); sign('10', W + 3.4, D * 0.5 - 6, -Math.PI / 2, true); sign('S', W + 3.4, D * 0.5 + 6, -Math.PI / 2, false); sign('P', W + 3.4, D + 3.4, -Math.PI * 0.75, false); sign('10', -3.4, D * 0.5, Math.PI / 2, true);
+    // caméras de surveillance au sommet de mâts, tournées vers le parking
+    const camM = mat('cameraVS', () => new T.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.4, metalness: 0.3 }));
+    for (const [x, z] of [[-2.2, -2.2], [W + 2.2, -2.2], [-2.2, D + 2.2], [W + 2.2, D + 2.2]]) {
+      const g = new T.Group(); const p = new T.Mesh(new T.CylinderGeometry(0.06, 0.08, 4.2, 10), poleM); p.position.y = 2.1; g.add(p);
+      const body = new T.Mesh(new T.BoxGeometry(0.16, 0.14, 0.38), camM); body.position.set(0, 4.15, 0.2); body.rotation.x = 0.35; g.add(body);
+      const lens = new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.02, 14), mat('objectif', () => new T.MeshStandardMaterial({ color: 0x080a0c, roughness: 0.05, metalness: 0.9 }))); lens.rotation.x = Math.PI / 2 + 0.35; lens.position.set(0, 4.08, 0.4); g.add(lens);
+      g.position.set(x, 0.14, z); g.lookAt(W / 2, 0.14, D / 2); g.traverse(o => { if (o.isMesh) o.castShadow = true; }); group.add(g);
+    }
+    // chariots abandonnés (fil d'acier) sur les trottoirs
+    const wire = mat('chariot', () => new T.MeshStandardMaterial({ color: 0xb8bec4, roughness: 0.3, metalness: 0.9 })), red = mat('poigneeChariot', () => new T.MeshStandardMaterial({ color: 0xc0261e, roughness: 0.5 }));
+    const cart = () => { const g = new T.Group(), L = 0.9, Wd = 0.55, H0 = 0.45, H1 = 0.95;
+      const rod = (a, b, r) => { const d = b.clone().sub(a), m = new T.Mesh(new T.CylinderGeometry(r || 0.008, r || 0.008, d.length(), 5), wire); m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize()); g.add(m); };
+      const V = (x, y, z) => new T.Vector3(x, y, z);
+      for (let i = 0; i <= 8; i++) { const x = -L / 2 + i * L / 8, sh = (i / 8) * 0.12; rod(V(x, H0, -Wd / 2 + sh), V(x, H1, -Wd / 2 - 0.02)); rod(V(x, H0, Wd / 2 - sh), V(x, H1, Wd / 2 + 0.02)); }
+      for (let k = 0; k <= 4; k++) { const y = H0 + k * (H1 - H0) / 4; rod(V(-L / 2, y, -Wd / 2), V(L / 2, y, -Wd / 2)); rod(V(-L / 2, y, Wd / 2), V(L / 2, y, Wd / 2)); rod(V(-L / 2, y, -Wd / 2), V(-L / 2, y, Wd / 2)); rod(V(L / 2, y, -Wd / 2), V(L / 2, y, Wd / 2)); }
+      for (let i = 0; i <= 6; i++) { const z = -Wd / 2 + i * Wd / 6; rod(V(-L / 2, H0, z), V(L / 2, H0, z)); }
+      rod(V(L / 2 + 0.12, H1 + 0.05, -Wd / 2 - 0.03), V(L / 2 + 0.12, H1 + 0.05, Wd / 2 + 0.03), 0.018); g.children[g.children.length - 1].material = red;
+      for (const [x, z] of [[-L / 2, -Wd / 2], [-L / 2, Wd / 2], [L / 2, -Wd / 2], [L / 2, Wd / 2]]) { rod(V(x, 0.08, z), V(x, H0, z), 0.012); const wh = new T.Mesh(new T.CylinderGeometry(0.06, 0.06, 0.035, 14), mat('roueChariot', () => new T.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 }))); wh.rotation.x = Math.PI / 2; wh.position.set(x, 0.06, z); g.add(wh); }
+      g.traverse(o => { if (o.isMesh) o.castShadow = true; }); return g; };
+    for (const [x, z, r] of [[W * 0.42, -2.6, 0.4], [W * 0.46, -2.9, 0.9], [-2.6, D * 0.8, 2.1], [W + 2.5, D * 0.15, -0.6]]) { const c = cart(); c.position.set(x, 0.14, z); c.rotation.y = r; group.add(c); }
   }
   // une pièce de la simulation habillée (null : laisser le jeu la dessiner)
   function mesh(o) {

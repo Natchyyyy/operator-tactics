@@ -1,5 +1,28 @@
 # À faire (suivi pour reprendre plus tard)
 
+## Nuit du 17 au 18/10 : passe « triple A » (rendu, parking, effets, caméras, HUD, IA, HD)
+- Rendu : `web/rendu.js` (ciel physique, nuages, IBL, ombres 4096, HBAO, bloom, étalonnage, SMAA ; `?fx=0` = simple).
+- Parking : `web/parking.js` (asphalte procédural, flaques réfléchissantes, murs, façade, rues, immeubles, objets du
+  quotidien `props()` : plaques d'égout, avaloirs, feuilles/papiers en instances, potelets, poubelles, horodateurs, panneaux,
+  caméras, chariots ; toit de l'abri détaillé).
+- Effets : `web/effets.js` (éclairs, traçantes, douilles, impacts par matière, décalques, sang, explosions, fumée ; réserve
+  de 6 lumières fixes). `API.efx()` expose `pools`, `debris`, `holes`… pour les isoler.
+- Marquages au sol en shader (`groundHolo` dans app.js) : zone de capture (hexagones, balayage, arc de progression), départs.
+- Caméras : épaule tout près dans l'axe du tir ; `clipBoom` (Suivre/épaule ne traversent plus murs ni voitures) ;
+  `API.camShot('shoulder'|'follow', id)`.
+- HUD v3 (`#app.hud3`, fin de la feuille de style) : tableau des scores centré, cartes d'escouade en verre fumé (vie avec
+  traînée de dégâts, munitions, chargeur, suppression), options repliées sous « ⋯ » (`#moreBtn`, `.morepanel`).
+- IA : cible = celle qu'on peut toucher (exposée) ; rafales contrôlées (4–8 coups) avec pause où l'on se baisse derrière
+  un couvert ; en progression, l'arme pointe vers la dernière position connue d'un ennemi (`u.preaim`).
+- Animations : secousse d'impact dans le sens de la balle, inclinaison dans les virages, marche épaulée en « pré-visée »,
+  chargeur qui sort de l'arme, passe dans la main gauche et revient (maillage `chargeur` découpé du fusil,
+  vérif : `outils/vues/chargeur.html`).
+- Haute définition (`web/hd/`, copié par build.js dans `dist/hd` et `docs/hd`) : fusil 70 k triangles, voitures 45 k,
+  bus 60 k… textures 2048 avec relief et rugosité (`outils/decor_glb.py --hd`), textures 2048 des personnages ; chargés si
+  publiés à côté de la page (sinon version incluse). `?hd=0` pour forcer la version légère.
+- Pistes : personnages plus détaillés (il faut Meshy : remaillage 100 k), magasin animé aussi pour l'adversaire (fait :
+  même fusil), plus d'objets dans les autres cartes.
+
 ## Polissage « triple A » des animations (17/10, nuit) — demande de l'utilisateur
 Mesuré par `scratchpad/diag.py` (bataille pas à pas, `window.API.diag()`) : avant, 91 % des images en mouvement avaient des
 pieds qui glissaient et 25 % un déplacement de côté avec les jambes de face ; après : 2 % et 3 %.

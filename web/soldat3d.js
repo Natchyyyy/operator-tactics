@@ -40,7 +40,7 @@
       // la garde basse dépend de la géométrie de l'arme (poignée → garde-main) : construite une fois le fusil chargé aussi
       const go = () => {
         for (const n in S.modeles) { const M = S.modeles[n]; try { gardeBasse(M); compositeBas(M); mesureLoco(M); } catch (e) { console.warn('soldat 3D (garde basse) :', e); } }
-        S.ready = true; for (const f of S.onReady.splice(0)) try { f(); } catch (e) { console.warn(e); } };
+        S.ready = true; for (const f of S.onReady.splice(0)) try { f(); } catch (e) { console.warn(e); } texturesHD(); };
       if (root.Modeles3D) root.Modeles3D.whenReady(go); else go();
     };
     for (const nom of todo) {
@@ -240,6 +240,25 @@
   }
   // matériau teinté : la toile beige de la tenue prend la couleur d'uniforme demandée (gilet, peau, bottes inchangés)
   const matCache = {};
+  // Textures haute définition (hd/<modèle>_couleur|relief|mr.jpg, 2048², tirées du modèle Meshy d'origine) si elles sont
+  // publiées à côté de la page : remplacées à chaud dans le matériau d'origine et dans toutes ses copies (teintes)
+  function texturesHD() {
+    if (!/^https?:/.test(location.protocol) || /[?&]hd=0/.test(location.search)) return;
+    const L = new THREE.TextureLoader();
+    for (const nom of NOMS) {
+      const M = S.modeles[nom]; if (!M) continue;
+      const mats = () => { const out = []; M.gltf.scene.traverse(o => { if (o.isMesh && o.material) out.push(o.material); }); for (const k in matCache) if (k.startsWith(nom)) out.push(matCache[k]); return out; };
+      const swap = (slots, file, srgb) => L.load('hd/' + nom + '_' + file + '.jpg', (t) => {
+        for (const m of mats()) for (const k of slots) {
+          const old = m[k]; if (!old) continue;
+          const nt = t.clone(); nt.flipY = old.flipY; nt.wrapS = old.wrapS; nt.wrapT = old.wrapT; nt.offset.copy(old.offset); nt.repeat.copy(old.repeat); nt.rotation = old.rotation; nt.center.copy(old.center);
+          nt.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; nt.anisotropy = 8; nt.needsUpdate = true; m[k] = nt; m.needsUpdate = true;
+        }
+        S.hd = (S.hd || 0) + 1;
+      }, undefined, () => {});
+      swap(['map'], 'couleur', true); swap(['normalMap'], 'relief', false); swap(['roughnessMap', 'metalnessMap'], 'mr', false);
+    }
+  }
   function tintedMaterial(base, uniform, nom) {
     const key = (nom || '') + (uniform == null ? 'brut' : uniform.toString(16)); if (matCache[key]) return matCache[key];
     const m = base.clone(); m.roughness = 1; m.metalness = 0; if (m.color) m.color.multiplyScalar(0.92);

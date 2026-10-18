@@ -458,6 +458,7 @@
       if (u.target === e) s += 1.5;                               // ne pas changer de cible sans raison
       if (e.target && e.target !== u && e.target.team === u.team && this.t - e.lastShotAt < 2) s += 2.5;   // il tire sur un allié : le soutenir
       let focus = 0; for (const a of this.alliesOf(u)) if (a.alive && a.target === e) focus++; s += Math.min(2, focus * 0.8);   // concentrer le feu
+      if (u.visible && u.visible.has(e.id)) s += 5 * this.hitChance(u, e, d).p;   // viser d'abord celui qu'on peut toucher (exposé, hors couvert)
       if (s > bestScore) { bestScore = s; best = e; }
     }
     return best;
@@ -686,7 +687,7 @@
         const teamEngaged = this.alliesOf(u).some(a => a.alive && (this.t - a.lastShotAt < 3 || this.t - a.lastShotByAt < 3)) || this.t - u.lastShotAt < 3;
         const ambush = !teamEngaged && d > u.weapon.range * 0.7 && !beingShot; // embuscade : on laisse approcher tant que personne n'est engagé
         if (!effective || ambush) { u.state = 'wait'; u.stance = cover ? 'crouch' : 'stand'; return; }
-        u.state = 'engage'; u.stance = (u.reloading > 0 && cover) ? 'crouch' : 'stand'; return;
+        u.state = 'engage'; u.stance = ((u.reloading > 0 || this.t < (u.burstPauseUntil || 0)) && cover) ? 'crouch' : 'stand'; return;
       }
       // tir inefficace à cette distance (arme courte, cible trop loin) : se rapprocher de couvert en couvert
       if (!effective && !pinned && !covering) {
@@ -890,7 +891,13 @@
     }
     u.stats.distance += Math.hypot(nx - u.x, nz - u.z);
     // regard : vers le point de passage visé (pas vers le petit pas de côté de la séparation entre alliés)
-    if (!u.target && d > 0.05) u.facing = Math.atan2(wp.z - u.z, wp.x - u.x);
+    if (!u.target && d > 0.05) {
+      // arme pointée vers la dernière position connue d'un ennemi (repéré il y a moins de 5 s) si elle n'est pas dans le dos :
+      // on progresse en couvrant l'angle dangereux plutôt qu'en regardant ses pieds
+      const mv = Math.atan2(wp.z - u.z, wp.x - u.x); let aim = null, best = 99;
+      for (const { k } of this.knownEnemies(u)) { if (this.t - k.t > 5) continue; const dd = Math.hypot(k.x - u.x, k.z - u.z); const a = Math.atan2(k.z - u.z, k.x - u.x); if (dd < best && angDiff(a, mv) < 1.9) { best = dd; aim = a; } }
+      u.facing = aim === null ? mv : aim; u.preaim = aim !== null;
+    }
     u.x = nx; u.z = nz; u.moving = true;
     if (d <= stepLen) { u.pathIdx++; if (u.pathIdx >= u.path.length) { this.arrive(u); return; } }
     // détection de blocage : pas de progrès depuis 2,5 s → nouveau chemin
@@ -1173,6 +1180,7 @@
     if (u.reloading > 0) return;
     if (u.ammo <= 0) return;
     if (u.aimTimer > 0) { u.aimTimer -= DT; return; }
+    if (this.t < (u.burstPauseUntil || 0)) return;   // entre deux rafales : on reprend la visée (et on se baisse derrière un couvert)
     const d = dist2(u, e);
     // sans ligne de vue sur la poitrine, pas de tir (la perception l'a vérifié ce pas-ci, on re-vérifie par sécurité)
     if (!this.canSee(u, e)) return;
@@ -1183,6 +1191,8 @@
       u.fireAcc -= 1;
       this.shoot(u, e, d);
     }
+    // rafales contrôlées : 4 à 8 coups puis une courte pause, le recul retombe (armes automatiques)
+    if (u.weapon.rpm > 100 && u.burst >= (u.burstLen || 6) && u.ammo > 0) { u.burstPauseUntil = this.t + 0.3 + this.rng.next() * 0.35; u.burst = 0; u.burstLen = 4 + Math.floor(this.rng.next() * 5); u.fireAcc = 0; }
     if (u.ammo === 0 && u.mags > 0) this.startReload(u);
   };
   Battle.prototype.shoot = function (u, e, d) {

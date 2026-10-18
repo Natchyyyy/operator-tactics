@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Operator Tactics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
 <style>
   /* Une seule identité visuelle, sombre (poste de commandement) : fond anthracite bleuté, accent laiton, équipes bleu / orange. */
   :root { color-scheme: dark; --bg: #0e1114; --panel: #151a1f; --panel2: #1b2128; --line: #262e37; --text: #d7dde3; --muted: #8a95a1; --accent: #c9a84a; --a0: #4f9cf0; --a1: #e85a4f; --ok: #5fc46a; --warn: #e0b03a; --bad: #d9543c; }
@@ -929,6 +930,101 @@
   /* Jouer : les deux modes au centre de l'écran (opérations spéciales et contrats mis de côté) */
   #playHome .medals { left: 0; right: 0; top: 190px; justify-content: center; gap: 70px; }
   #playHome::before { content: 'Jouer'; position: absolute; left: 0; right: 0; top: 70px; text-align: center; font-size: 15px; font-weight: 800; letter-spacing: .3em; text-transform: uppercase; color: #7fd8c8; }
+
+  /* ===================== HUD de bataille v3 : verre fumé, filets fins, chiffres tabulaires, couleurs d'équipe en accent ===================== */
+  #app.hud3 { --hud: 'Rajdhani', var(--ui); --glass: rgba(10,14,19,.62); --glass2: rgba(16,22,30,.78); --edge: rgba(255,255,255,.10); --b0: #4aa3ff; --b1: #ff5a48; --txt: #eef3f8; --mut: rgba(220,230,240,.62); }
+  #app.hud3 .topbar { left: 50% !important; right: auto !important; width: 980px !important; transform: translateX(-50%); top: 12px; height: 64px; padding: 0; background: none; grid-template-columns: 1fr 150px 1fr; gap: 6px; }
+  #app.hud3 .tb { position: relative; display: grid; grid-template-columns: 52px 1fr 86px; align-items: center; gap: 10px; padding: 8px 14px; background: linear-gradient(180deg, var(--glass2), var(--glass)); border: 1px solid var(--edge); backdrop-filter: blur(10px) saturate(1.2); -webkit-backdrop-filter: blur(10px) saturate(1.2); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  #app.hud3 .tb.team0 { clip-path: polygon(0 0, 100% 0, calc(100% - 16px) 100%, 0 100%); border-radius: 12px 0 0 12px; box-shadow: inset 0 -2px 0 var(--b0), 0 10px 30px rgba(0,0,0,.35); }
+  #app.hud3 .tb.team1 { grid-template-columns: 86px 1fr 52px; clip-path: polygon(0 0, 100% 0, 100% 100%, 16px 100%); border-radius: 0 12px 12px 0; box-shadow: inset 0 -2px 0 var(--b1), 0 10px 30px rgba(0,0,0,.35); }
+  #app.hud3 .tb.team1 .ins { order: 3; } #app.hud3 .tb.team1 .tbmain { order: 2; } #app.hud3 .tb.team1 .tpct { order: 1; }
+  #app.hud3 .tb .ins { width: 46px; height: 46px; padding: 0; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
+  #app.hud3 .tbmain { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 6px 3px; gap: 4px 8px; align-items: center; flex-direction: initial; }
+  #app.hud3 .tb.team1 .tbmain { grid-template-columns: auto 1fr; }
+  #app.hud3 .tbname { grid-column: 1; font-family: var(--hud); font-weight: 700; font-size: 19px; letter-spacing: .16em; text-transform: uppercase; color: var(--txt); text-shadow: none; padding: 0 !important; line-height: 1; }
+  #app.hud3 .tb.team1 .tbname { grid-column: 2; text-align: right; } #app.hud3 .tb.team1 .pips { grid-column: 1; grid-row: 1; justify-content: flex-start; }
+  #app.hud3 .pips { display: flex; gap: 4px; justify-content: flex-end; } #app.hud3 .pips i { width: 9px; height: 9px; transform: rotate(45deg); background: var(--b0); box-shadow: 0 0 6px var(--b0); }
+  #app.hud3 .tb.team1 .pips i { background: var(--b1); box-shadow: 0 0 6px var(--b1); } #app.hud3 .pips i.dead { background: rgba(255,255,255,.14); box-shadow: none; } #app.hud3 .pips i.down { background: #f0c040; box-shadow: 0 0 6px #f0c040; animation: zblink .5s infinite alternate; }
+  #app.hud3 .tbar { grid-column: 1 / -1; grid-row: 2; height: 6px; border: 0; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; position: relative; margin: 0; }
+  #app.hud3 .tbar::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 2px), rgba(10,14,19,.9) calc(10% - 2px) 10%); }
+  #app.hud3 .tbar i { border-radius: 0; background: linear-gradient(90deg, #2a7fe8, var(--b0)); box-shadow: 0 0 10px rgba(74,163,255,.6); transition: width .35s ease; }
+  #app.hud3 .tbar.rev i { background: linear-gradient(270deg, #d8321f, var(--b1)); box-shadow: 0 0 10px rgba(255,90,72,.6); margin-left: auto; }
+  #app.hud3 .cbar { grid-column: 1 / -1; grid-row: 3; height: 3px; background: rgba(255,255,255,.06); border-radius: 2px; overflow: hidden; margin: 0; } #app.hud3 .cbar i { background: #f2d36b; box-shadow: 0 0 6px #f2d36b; } #app.hud3 .cbar.rev i { margin-left: auto; }
+  #app.hud3 .tpct { position: static !important; font-family: var(--hud); font-weight: 700; font-size: 28px; line-height: 1; color: var(--txt); text-shadow: none; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  #app.hud3 .tb.team1 .tpct { text-align: left; }
+  #app.hud3 .tbcenter { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0; background: linear-gradient(180deg, rgba(4,6,9,.85), rgba(10,14,19,.7)); border: 1px solid var(--edge); border-radius: 0 0 14px 14px; backdrop-filter: blur(10px); height: 64px; }
+  #app.hud3 .clock { font-family: var(--hud); font-weight: 700; font-size: 28px; letter-spacing: .04em; color: #fff; text-shadow: none; font-variant-numeric: tabular-nums; line-height: 1; }
+  #app.hud3 .zstate { font-family: var(--ui); font-size: 9.5px; letter-spacing: .14em; padding: 2px 8px; border-radius: 9px; }
+  /* commandes : barre de verre compacte en haut à droite, options repliées dans « ⋯ » */
+  #app.hud3 .controls { z-index: 9; top: 86px !important; right: 14px; max-width: none; overflow: visible; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 6px; background: var(--glass); border: 1px solid var(--edge); border-radius: 12px; backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+  #app.hud3 .controls > .group { display: flex; gap: 2px; padding: 2px; background: rgba(255,255,255,.04); border-radius: 9px; }
+  #app.hud3 .controls label { display: none; }
+  #app.hud3 .controls button, #app.hud3 .controls select, #app.hud3 .controls input { font-family: var(--ui); font-weight: 600; font-size: 11.5px; letter-spacing: .02em; padding: 6px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--mut); transition: background .15s, color .15s; }
+  #app.hud3 .controls button:hover { background: rgba(255,255,255,.08); color: #fff; }
+  #app.hud3 .controls button.on { background: rgba(255,255,255,.92); color: #0b0f14; }
+  #app.hud3 #play { order: 0; font-family: var(--hud); font-size: 14px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; padding: 6px 16px; border-radius: 8px; background: linear-gradient(180deg, #3d9bff, #1f6fe0); color: #fff; border: 0; box-shadow: 0 0 14px rgba(61,155,255,.45); }
+  #app.hud3 #play.on { background: rgba(255,255,255,.1); color: #fff; box-shadow: none; }
+  #app.hud3 [data-cam="sat"] { position: static !important; width: auto !important; height: auto !important; font-size: 11.5px !important; border-radius: 7px !important; border: 0 !important; background: transparent !important; color: var(--mut) !important; text-transform: none; letter-spacing: .02em; font-weight: 600; }
+  #app.hud3 [data-cam="sat"]::before { content: none; } #app.hud3 [data-cam="sat"].on { background: rgba(255,255,255,.92) !important; color: #0b0f14 !important; }
+  #app.hud3 #moreBtn { font-size: 16px; line-height: 1; padding: 4px 10px; }
+  #app.hud3 .morepanel { display: none; z-index: 20; position: absolute; right: 0; top: calc(100% + 8px); width: 380px; background: rgba(12,16,22,.94) !important; flex-direction: column; gap: 8px; padding: 12px; background: var(--glass2); border: 1px solid var(--edge); border-radius: 12px; backdrop-filter: blur(14px); box-shadow: 0 16px 40px rgba(0,0,0,.45); }
+  #app.hud3 .controls.open .morepanel { display: flex; } #app.hud3 .controls.open #moreBtn { background: rgba(255,255,255,.92); color: #0b0f14; }
+  #app.hud3 .morepanel .group { display: grid; grid-template-columns: 60px 1fr auto; gap: 6px; align-items: center; } #app.hud3 .morepanel label { display: block; font-family: var(--ui); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--mut); }
+  #app.hud3 .morepanel select, #app.hud3 .morepanel input { background: rgba(255,255,255,.07); color: #fff; min-width: 0; width: 100%; } #app.hud3 .morepanel select:only-of-type, #app.hud3 .morepanel input { grid-column: span 2; } #app.hud3 .morepanel #condSel { width: 96px; }
+  #app.hud3 .morepanel .group:not(:has(label)) { display: flex; } #app.hud3 .morepanel button { flex: 1; background: rgba(255,255,255,.07); color: #fff; }
+  /* escouade : cartes en bas à gauche */
+  #app.hud3 .bottombar { height: auto; bottom: 14px; padding: 0 14px; gap: 18px; align-items: flex-end; justify-content: space-between; }
+  #app.hud3 .bottombar .roster { gap: 8px; } #app.hud3 #roster0 { flex: none; }
+  #app.hud3 .card { width: 212px; max-width: none; flex: none; height: 62px; padding: 0 12px 0 58px; display: block; border: 1px solid var(--edge); border-radius: 10px; background: linear-gradient(180deg, var(--glass2), var(--glass)); backdrop-filter: blur(10px); box-shadow: inset 3px 0 0 var(--b0), 0 10px 26px rgba(0,0,0,.35); color: var(--txt); overflow: hidden; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+  #app.hud3 .card:hover { transform: translateY(-2px); }
+  #app.hud3 .card .role { position: absolute; left: 10px; top: 50%; bottom: auto; width: 38px; height: 38px; transform: translateY(-50%); border-radius: 50%; background: radial-gradient(circle at 50% 35%, rgba(74,163,255,.35), rgba(10,20,34,.9)); border: 1px solid rgba(74,163,255,.55); }
+  #app.hud3 .card .role .ico { width: 22px; height: 22px; }
+  #app.hud3 .card .cmain { display: flex; flex-direction: column; justify-content: center; height: 100%; gap: 4px; }
+  #app.hud3 .card .ctop { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+  #app.hud3 .card .cs { margin: 0; font-family: var(--hud); font-weight: 700; font-size: 16px; letter-spacing: .08em; text-shadow: none; line-height: 1; }
+  #app.hud3 .card .ammo { font-family: var(--hud); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--txt); font-size: 15px; line-height: 1; } #app.hud3 .card .ammo small { font-size: 11px; color: var(--mut); margin-left: 5px; } #app.hud3 .card .ammo small u { display: inline-block; width: 4px; height: 8px; margin-right: 2px; border-radius: 1px; background: var(--mut); vertical-align: -0px; }
+  #app.hud3 .card .hp { position: relative; height: 5px; border-radius: 3px; background: rgba(255,255,255,.1); overflow: hidden; border: 0; }
+  #app.hud3 .card .hp i, #app.hud3 .card .hp b { position: absolute; left: 0; top: 0; bottom: 0; display: block; border-radius: 3px; }
+  #app.hud3 .card .hp i { background: linear-gradient(90deg, #36d17c, #7cf0a8); transition: width .15s; } #app.hud3 .card .hp b { background: #fff; opacity: .55; transition: width .6s ease .35s; }
+  #app.hud3 .card.low .hp i { background: linear-gradient(90deg, #e2452f, #ff8a5a); }
+  #app.hud3 .card .cbot { display: flex; justify-content: space-between; gap: 6px; font-family: var(--ui); font-size: 10px; line-height: 1; color: var(--mut); white-space: nowrap; }
+  #app.hud3 .card .st { position: static; font-size: 10px; color: var(--mut); opacity: 1; overflow: hidden; text-overflow: ellipsis; } #app.hud3 .card .status { display: none; }
+  #app.hud3 .card .sup { display: block; position: absolute; right: 0; top: 0; bottom: 0; width: 3px; background: transparent; } #app.hud3 .card .sup i { position: absolute; bottom: 0; left: 0; right: 0; display: block; background: #f0c040; box-shadow: 0 0 6px #f0c040; width: auto !important; }
+  #app.hud3 .card .mag { position: absolute; left: 58px; right: 12px; bottom: 0; height: 2px; background: rgba(255,255,255,.06); } #app.hud3 .card .mag i { display: block; height: 100%; background: rgba(255,255,255,.55); transition: width .1s; }
+  #app.hud3 .card.reload .mag i { background: #f0c040; animation: zblink .3s infinite alternate; }
+  #app.hud3 .card.hit { animation: cardhit .45s ease-out; } @keyframes cardhit { 0% { box-shadow: inset 3px 0 0 var(--b0), inset 0 0 0 1px #ff5a48, 0 0 22px rgba(255,70,50,.6); } 100% { box-shadow: inset 3px 0 0 var(--b0), 0 10px 26px rgba(0,0,0,.35); } }
+  #app.hud3 .card.dead { filter: none; opacity: .45; } #app.hud3 .card.dead .role { filter: grayscale(1); } #app.hud3 .card.dead .cs { text-decoration: line-through; text-decoration-color: rgba(255,90,72,.8); }
+  #app.hud3 .card.follow, #app.hud3 .card.sel { border-color: rgba(255,255,255,.65); box-shadow: inset 3px 0 0 #fff, 0 0 0 1px rgba(255,255,255,.4), 0 10px 26px rgba(0,0,0,.35); }
+  /* adversaires : cartes compactes en bas à droite */
+  #app.hud3 .roster.team1 .card { width: 120px; height: 40px; padding: 0 10px 0 36px; box-shadow: inset -3px 0 0 var(--b1), 0 10px 26px rgba(0,0,0,.35); border-color: var(--edge); background: linear-gradient(180deg, var(--glass2), var(--glass)); }
+  #app.hud3 .roster.team1 .card .role { left: 7px; width: 22px; height: 22px; background: radial-gradient(circle at 50% 35%, rgba(255,90,72,.35), rgba(34,10,10,.9)); border-color: rgba(255,90,72,.55); } #app.hud3 .roster.team1 .card .role .ico { width: 13px; height: 13px; }
+  #app.hud3 .roster.team1 .card .cs { font-size: 13px; letter-spacing: .08em; } #app.hud3 .roster.team1 .card .ammo, #app.hud3 .roster.team1 .card .cbot, #app.hud3 .roster.team1 .card .mag, #app.hud3 .roster.team1 .card .sup { display: none; }
+  #app.hud3 .roster.team1 .card .hp { height: 3px; } #app.hud3 .roster.team1 .card .hp i { background: linear-gradient(90deg, #e2452f, #ff7a5e); }
+  #app.hud3 .roster.team1 .card.hit { animation: none; }
+  /* tactiques : capacités à droite (touches A Z E), celles de l'adversaire à gauche, plus discrètes */
+  #app.hud3 .tactics { top: auto; bottom: 96px; gap: 8px; flex-direction: row; } #app.hud3 .tactics.left { right: 14px; left: auto; } #app.hud3 .tactics.right { left: auto; right: 14px; bottom: auto; top: 140px; flex-direction: column; opacity: .8; }
+  #app.hud3 .tcard { width: 118px; padding: 8px 8px 10px; border-radius: 12px; background: linear-gradient(180deg, var(--glass2), var(--glass)); border: 1px solid var(--edge); box-shadow: 0 10px 26px rgba(0,0,0,.35); backdrop-filter: blur(10px); }
+  #app.hud3 .tcard .ticon .timg { width: 46px; height: 46px; } #app.hud3 .tcard .tname { font-family: var(--hud); font-size: 13px; letter-spacing: .08em; color: var(--txt); margin-top: 2px; } #app.hud3 .tcard .tuse { font-family: var(--ui); font-size: 10px; color: var(--mut); }
+  #app.hud3 .tcard .cd { position: absolute; left: 0; bottom: 0; height: 3px; background: #6fe3a0; box-shadow: 0 0 8px #6fe3a0; }
+  #app.hud3 .tcard[data-key]::after { content: attr(data-key); position: absolute; left: 7px; top: 7px; width: 18px; height: 18px; border-radius: 5px; background: rgba(255,255,255,.9); color: #0b0f14; font: 700 11px/18px var(--ui); text-align: center; }
+  #app.hud3 .tcard.passive { opacity: .85; } #app.hud3 .tcard.off { opacity: .55; }
+  #app.hud3 .tcard.enemy { width: 104px; padding: 6px; border-color: rgba(255,90,72,.3); background: linear-gradient(180deg, rgba(40,14,12,.7), rgba(20,8,8,.6)); } #app.hud3 .tcard.enemy .ticon .timg { width: 30px; height: 30px; } #app.hud3 .tcard.enemy .tname { font-size: 11px; }
+  /* étiquettes au-dessus des soldats : nom fin + losange d'équipe + barre de vie */
+  .hud3 #labels .label { gap: 3px; font-family: 'Rajdhani', var(--ui); font-weight: 700; }
+  .hud3 #labels .lplate { order: 2; font-size: 12px !important; letter-spacing: .14em; padding: 0; text-shadow: 0 1px 3px rgba(0,0,0,.9), 0 0 8px rgba(0,0,0,.6); }
+  .hud3 #labels .label.team0 .lplate { color: #bfe0ff; } .hud3 #labels .label.team1 .lplate { color: #ffb3a8; }
+  .hud3 #labels .lbar { order: 3; width: 38px !important; height: 3px !important; border: 0; border-radius: 2px; background: rgba(0,0,0,.55); box-shadow: 0 0 0 1px rgba(0,0,0,.35); overflow: hidden; }
+  .hud3 #labels .lshield { order: 1; width: 9px !important; height: 9px !important; clip-path: none; transform: rotate(45deg); background: var(--b0, #4aa3ff) !important; box-shadow: 0 0 8px #4aa3ff; border-radius: 1px; }
+  .hud3 #labels .label.team1 .lshield { background: #ff5a48 !important; box-shadow: 0 0 8px #ff5a48; } .hud3 #labels .label.down .lshield { background: #777 !important; box-shadow: none; } .hud3 #labels .lshield .ico { display: none; }
+  .hud3 .label .bark { font-family: var(--ui); font-weight: 600; font-size: 11px; background: rgba(10,14,19,.82); color: #fff; border: 1px solid rgba(255,255,255,.14); border-radius: 7px; backdrop-filter: blur(6px); }
+  .hud3 .label .bark::after { border-top-color: rgba(10,14,19,.82); } .hud3 .label.team1 .bark { background: rgba(40,12,10,.85); } .hud3 .label.team1 .bark::after { border-top-color: rgba(40,12,10,.85); }
+  /* fil des neutralisations et journal défilant */
+  #app.hud3 #killfeed { top: 140px !important; right: 140px; gap: 5px; } #app.hud3 .kf { font-family: var(--ui); font-weight: 700; font-size: 12px; background: linear-gradient(90deg, rgba(10,14,19,.4), rgba(10,14,19,.8)); border: 0; border-right: 2px solid rgba(255,255,255,.4); border-radius: 6px 0 0 6px; padding: 5px 10px; }
+  #app.hud3 .kf .t0 { color: #9fd0ff; } #app.hud3 .kf .t1 { color: #ffa597; }
+  #app.hud3 #ticker { left: 16px; bottom: 92px; font-family: var(--ui); font-size: 11px; max-width: 560px; } #app.hud3 #ticker div { color: rgba(235,242,248,.78); padding: 1px 0; animation: tickin .25s ease-out; } #app.hud3 #ticker .t { color: rgba(235,242,248,.4); font-variant-numeric: tabular-nums; }
+  @keyframes tickin { from { opacity: 0; transform: translateX(-8px); } }
+  #app.hud3 #ticker div:nth-last-child(n+4) { opacity: .45; } #app.hud3 #ticker div:nth-last-child(3) { opacity: .65; }
+  #app.hud3 #vignette { background: radial-gradient(ellipse at 50% 50%, transparent 60%, rgba(0,0,0,.32) 100%); }
 </style>
 </head>
 <body>
@@ -1096,27 +1192,25 @@
 </div></div>
 <div id="flash" class="hidden"></div>
 <div id="fade"></div>
-<div id="app" class="screen hidden">
+<div id="app" class="screen hidden hud3">
   <div class="topbar">
-    <div class="tb team0"><span class="ins" id="ins0">✶</span><div class="tbmain"><div class="tbname" id="tname0">Alpha</div><div class="cbar"><i id="cbar0"></i></div><div class="tbar"><i id="tbar0"></i></div></div><span class="tpct" id="tpct0">100%</span></div>
+    <div class="tb team0"><span class="ins" id="ins0">✶</span><div class="tbmain"><div class="tbname" id="tname0">Alpha</div><div class="pips" id="pips0"></div><div class="cbar"><i id="cbar0"></i></div><div class="tbar"><i id="tbar0"></i></div></div><span class="tpct" id="tpct0">100%</span></div>
     <div class="tbcenter"><span class="clock" id="clock">0:00.0</span><span class="revtag">Revoir</span><span id="zoneState" class="zstate"></span></div>
-    <div class="tb team1 rev"><span class="ins" id="ins1">⚑</span><div class="tbmain"><div class="tbname" id="tname1">Bravo</div><div class="cbar rev"><i id="cbar1"></i></div><div class="tbar rev"><i id="tbar1"></i></div></div><span class="tpct" id="tpct1">100%</span></div>
+    <div class="tb team1 rev"><span class="ins" id="ins1">⚑</span><div class="tbmain"><div class="tbname" id="tname1">Bravo</div><div class="pips" id="pips1"></div><div class="cbar rev"><i id="cbar1"></i></div><div class="tbar rev"><i id="tbar1"></i></div></div><span class="tpct" id="tpct1">100%</span></div>
   </div>
   <div class="controls">
     <div class="group"><button id="play">▶ Lancer</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button><button id="skip" title="Résultat immédiat : la bataille est simulée jusqu'au bout sans être affichée (même résultat qu'en la regardant)">⏭ Résultat</button></div>
-    <div class="group"><label>Alpha</label><select id="order0" title="Ordre d'Alpha — modifiable pendant la bataille"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
-    <div class="group"><label>Bravo</label><select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
-    <div class="group"><label>Carte</label><select id="mapSel"><option value="parking">Parking du centre commercial</option></select><select id="condSel" title="Heure et météo : vue, ouïe et précision changent réellement"><option value="jour">Jour</option><option value="nuit">Nuit</option><option value="brouillard">Brouillard</option><option value="pluie">Pluie</option></select></div>
-    <div class="group"><label>Graine</label><input id="seed" placeholder="aléatoire"></div>
-    <button id="newBattle">Nouvelle</button><button id="replay" title="Rejouer la même graine">Rejouer</button>
-    <span id="missionLabel" class="muted" hidden></span>
-    <div class="spacer"></div>
-    <div class="group"><label>Caméra</label><button data-cam="director" class="on" title="Réalisateur : plans d'épaule, vues d'ensemble des échanges, plans sur les explosions et les neutralisations">Réalisateur</button><button data-cam="follow" title="Derrière un soldat (clic sur une carte pour choisir, sinon automatique)">Suivre</button><button data-cam="sat" title="Vue satellite">Sat</button><button data-cam="free" title="Vue libre : glisser, molette, clic droit">Libre</button></div>
-    <button id="toggleJournal">Journal</button>
-    <button id="toHq">QG</button>
-    <button id="mute" title="Son">🔊</button>
-    <button id="openSettings" class="gear" title="Réglages">⚙</button>
-    <button id="toggleHelp" title="Aide">?</button>
+    <div class="group cams"><label>Caméra</label><button data-cam="director" class="on" title="Réalisateur : plans d'épaule, vues d'ensemble des échanges, plans sur les explosions et les neutralisations">Réalisateur</button><button data-cam="follow" title="Derrière un soldat (clic sur une carte pour choisir, sinon automatique)">Suivre</button><button data-cam="sat" title="Vue satellite">Sat</button><button data-cam="free" title="Vue libre : glisser, molette, clic droit">Libre</button></div>
+    <button id="toHq">QG</button><button id="mute" title="Son">🔊</button><button id="moreBtn" title="Plus d'options : ordres, carte, météo, graine, journal, réglages">⋯</button>
+    <div class="morepanel">
+      <div class="group"><label>Alpha</label><select id="order0" title="Ordre d'Alpha — modifiable pendant la bataille"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
+      <div class="group"><label>Bravo</label><select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
+      <div class="group"><label>Carte</label><select id="mapSel"><option value="parking">Parking du centre commercial</option></select><select id="condSel" title="Heure et météo : vue, ouïe et précision changent réellement"><option value="jour">Jour</option><option value="nuit">Nuit</option><option value="brouillard">Brouillard</option><option value="pluie">Pluie</option></select></div>
+      <div class="group"><label>Graine</label><input id="seed" placeholder="aléatoire"></div>
+      <div class="group"><button id="newBattle">Nouvelle</button><button id="replay" title="Rejouer la même graine">Rejouer</button></div>
+      <div class="group"><button id="toggleJournal">Journal</button><button id="openSettings" class="gear" title="Réglages">⚙</button><button id="toggleHelp" title="Aide">?</button></div>
+      <span id="missionLabel" class="muted" hidden></span>
+    </div>
   </div>
   <main>
     <canvas id="scene"></canvas>

@@ -75,6 +75,7 @@
     if (eng.length >= 2) return { kind: 'overview', until: simTime + 5 + Math.random() * 2, yaw: (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.6) };
     // progression : suivi en hauteur de notre escouade, ou épaule d'un éclaireur
     const own = battle.teams[0].units.filter(u => u.alive);
+    if (own.length && r < 0.45) { const mv = own.filter(u => u.moving); if (mv.length) return { kind: 'dolly', id: mv[Math.floor(Math.random() * mv.length)].id, side: Math.random() < 0.5 ? -1 : 1, until: simTime + 4.5 }; }   // travelling latéral à hauteur d'homme
     if (own.length && r < 0.75) return { kind: 'squad', until: simTime + 6, yaw: 0.35 + Math.random() * 0.5 };
     const lead = own.slice().sort((a, b) => b.x * (battle.map.spawns[1].x > battle.map.spawns[0].x ? 1 : -1) - a.x * (battle.map.spawns[1].x > battle.map.spawns[0].x ? 1 : -1))[0];
     return lead ? { kind: 'shoulder', id: lead.id, until: simTime + 5 } : { kind: 'squad', until: simTime + 5, yaw: 0.5 };
@@ -117,7 +118,7 @@
     }
     DIRECTOR.eventShot = null;
     let s = cam.shot && typeof cam.shot === 'object' ? cam.shot : null;
-    const fresh = !s || simTime > s.until || (s.kind === 'shoulder' && (!unitById[s.id] || !unitById[s.id].alive));
+    const fresh = !s || simTime > s.until || ((s.kind === 'shoulder' || s.kind === 'dolly') && (!unitById[s.id] || !unitById[s.id].alive));
     if (fresh) { s = pickShot(); cam.shot = s; cam.cutAt = simTime; }
     const k = simTime - (cam.cutAt || 0) < 0.05 ? 1 : 0.08;   // coupe franche au changement de plan, puis suivi doux
     if (s.kind === 'shoulder') {
@@ -133,6 +134,15 @@
       placeCam(clipBoom(pivot, new THREE.Vector3(px - fx * 1.55 + rx, 1.82, pz - fz * 1.55 + rz)), look, k);
       camera.position.copy(cam.pos = clipBoom(pivot, cam.pos)); camera.lookAt(cam.look);
       cam.target.set(px, 0, pz); return;
+    }
+    if (s.kind === 'dolly') {   // de profil, à 3,5 m, caméra basse qui suit le soldat ; regard un peu devant lui
+      const m = meshes[s.id], u = unitById[s.id]; if (!m || !u) { cam.shot = null; return; }
+      const px = m.group.position.x, pz = m.group.position.z, sp = Math.hypot(m.anim.vx || 0, m.anim.vz || 0);
+      const fx = sp > 0.2 ? m.anim.vx / sp : Math.cos(u.facing), fz = sp > 0.2 ? m.anim.vz / sp : Math.sin(u.facing);
+      if (!cam.dDir) cam.dDir = new THREE.Vector2(fx, fz); if (k >= 1) cam.dDir.set(fx, fz); else cam.dDir.lerp(new THREE.Vector2(fx, fz), 0.03).normalize();
+      const dx = cam.dDir.x, dz = cam.dDir.y, nx = -dz * s.side, nz = dx * s.side, pivot = new THREE.Vector3(px, 1.2, pz);
+      placeCam(clipBoom(pivot, new THREE.Vector3(px + nx * 3.5 - dx * 0.8, 1.15, pz + nz * 3.5 - dz * 0.8)), new THREE.Vector3(px + dx * 1.6, 1.0, pz + dz * 1.6), k);
+      camera.position.copy(cam.pos = clipBoom(pivot, cam.pos)); camera.lookAt(cam.look); cam.target.set(px, 0, pz); return;
     }
     const list = s.kind === 'overview' ? engagedUnits() : battle.teams[0].units.filter(u => u.alive);
     if (!list.length) { cam.shot = null; return; }
@@ -557,7 +567,7 @@
     // abribus (décor, hors du terrain) le long de la façade du centre commercial
     if (has3('abribus') && map.id === 'parking' && !PK) for (const x of [16, map.width - 16]) { const a = M3.fit('abribus', 4, 2.6, 1.6, { tol: 0.3 }); a.position.set(x, 1.3, -2.6); mapGroup.add(a); }
     // zones de départ
-    map.spawns.forEach((sp, i) => {
+    if (!PK) map.spawns.forEach((sp, i) => {   // (parking : marquage holographique à la place)
       const ring = new THREE.Mesh(new THREE.RingGeometry(sp.r - 0.15, sp.r, 48), new THREE.MeshBasicMaterial({ color: TEAM[i].color, transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
       ring.rotation.x = -Math.PI / 2; ring.position.set(sp.x, 0.02, sp.z); mapGroup.add(ring);
     });
@@ -617,7 +627,7 @@
     // soldat Meshy (modèle 3D animé) s'il est chargé, sinon personnage dessiné par programme
     const f = (OT.Soldat3D && OT.Soldat3D.ready && !OT.SETTINGS_LOWMODEL && OT.Soldat3D.create({ modele: u.def.faction ? 'soldat' : 'gign', uniform: fac.uniform, weapon: u.weapon.id, attachments: u.att }))
       || Figure.build({ id: u.def.id, weapon: u.weapon.id, uniform: fac.uniform, vest: fac.vest, teamColor: t.color, headgear: u.def.headgear || (u.def.faction ? 'casque_lunettes' : 'casque'), attachments: u.att });
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.42, 24), new THREE.MeshBasicMaterial({ color: t.color, transparent: true, opacity: 0.8, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; f.group.add(ring);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.41, 40), new THREE.MeshBasicMaterial({ color: t.color, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; f.group.add(ring);
     scene.add(f.group);
     const label = document.createElement('div'); label.className = 'label team' + u.team;
     label.innerHTML = `<div class="lplate"><span class="lname">${u.callsign}</span></div><div class="lbar"><i></i></div><div class="lshield">${OT.Ico ? OT.Ico(u.def.trait === 'leader' ? 'r_leader' : u.def.trait === 'radio' ? 'radio' : ({ assault: 'r_assault', pointman: 'r_pointman', marksman: 'r_marksman', support: 'r_support', breacher: 'r_breacher' })[u.role.id]) : ''}</div>`;
@@ -691,17 +701,51 @@
     }
     else if (u.moving && v > 0.15) {
       if (crouch) loco('Cautious_Crouch_Walk_Forward');
-      else if (aiming) loco(v > 1.4 ? 'Run_and_Shoot' : 'Walk_Aim');          // ennemi connu : fusil épaulé
+      else if (aiming || u.preaim) loco(v > 1.4 ? 'Run_and_Shoot' : 'Walk_Aim');          // ennemi connu : fusil épaulé
       else loco(v > 1.4 ? (m.clips.Run_Low ? 'Run_Low' : 'Run_and_Shoot') : (m.clips.Walk_Low ? 'Walk_Low' : 'Walk_Aim'));   // sinon garde basse
     }
     else if (crouch) m.play('Kneeling_Reload', { time: 0.06, fade: 0.25 });
     else if (aiming || !m.clips.Garde_Basse) m.play('Rifle_Aim_Turn_Right', { time: 0, fade: 0.25 });
     else m.play('Garde_Basse', { time: 0, fade: 0.3 });
     if (!legs) m.playLegs(null);
-    if (u.alive) { m.ring.material.opacity = 0.8; a.deadT = 0; m.pose.position.y = 0; }
+    if (u.alive) { m.ring.material.opacity = 0.55; a.deadT = 0; m.pose.position.y = 0; }
     m.update(dt, !u.alive);
-    if (m.bones.spine && (a.recoil > 0 || a.flinch > 0)) { m.mod(m.bones.spine); m.bones.spine.rotation.x -= a.recoil * 0.05; m.bones.spine.rotation.z += a.flinch * 0.12 * Math.sin(simTime * 30); }
+    // inclinaison dans les virages en courant (le torse se penche vers l'intérieur de la courbe)
+    { const va = Math.atan2(a.vz || 0, a.vx || 0), sp = Math.hypot(a.vx || 0, a.vz || 0); let tr = a.vAng === undefined ? 0 : va - a.vAng; while (tr > Math.PI) tr -= 2 * Math.PI; while (tr < -Math.PI) tr += 2 * Math.PI; a.vAng = va;
+      const want = u.alive && sp > 1 && dt > 0 ? Math.max(-0.16, Math.min(0.16, (tr / dt) * sp * 0.025)) : 0; a.bank = lerp(a.bank || 0, want, Math.min(1, dt * 5));
+      if (m.bones.spine && Math.abs(a.bank) > 0.005) { m.mod(m.bones.spine); m.bones.spine.rotation.z += a.bank; } }
+    if (m.bones.spine && (a.recoil > 0 || a.flinch > 0)) {
+      m.mod(m.bones.spine); m.bones.spine.rotation.x -= a.recoil * 0.05;
+      if (a.flinch > 0 && u.alive) {   // impact : le torse encaisse dans le sens de la balle (secousse brève), la tête suit
+        const hd = a.hitDir || { x: 0, z: 0 }, fw = hd.x * Math.sin(m.yaw) + hd.z * Math.cos(m.yaw), sd = hd.x * Math.cos(m.yaw) - hd.z * Math.sin(m.yaw);
+        const e = Math.sin(Math.min(1, (1 - a.flinch) * 2.2) * Math.PI) * 0.6 + a.flinch * 0.4;
+        m.bones.spine.rotation.x += fw * 0.32 * e; m.bones.spine.rotation.z -= sd * 0.22 * e; m.bones.spine.rotation.y += sd * 0.28 * e;
+        if (m.bones.head) { m.mod(m.bones.head); m.bones.head.rotation.x += fw * 0.25 * e; m.bones.head.rotation.z -= sd * 0.2 * e; }
+      }
+    }
     m.placeWeapon(mode === 'deux', a.recoil, mode);
+    chargeur(u, m, a);
+  }
+  // Chargeur pendant le rechargement : il tombe de l'arme, un neuf apparaît dans la main gauche, puis rejoint le puits
+  // de chargeur. (Le chargeur est un maillage à part du fusil, voir Modeles3D.)
+  const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3();
+  function chargeur(u, m, a) {
+    const w = m.weapon, mag = w && w.mag; if (!mag || !w.magCenter) return;
+    if (!(u.alive && u.reloading > 0)) { if (a.relMax) { a.relMax = 0; mag.position.copy(w.magHome); mag.visible = true; } return; }
+    if (!a.relMax || u.reloading > a.relMax) a.relMax = u.reloading;
+    const f = 1 - u.reloading / a.relMax; w.updateMatrixWorld(true);
+    const home = w.localToWorld(_v1.copy(w.magCenter)), down = w.localToWorld(_v2.set(0, -1, 0)).sub(w.localToWorld(_v3.set(0, 0, 0))).normalize();
+    let target = null; mag.visible = true;
+    if (f < 0.22) target = home.clone();
+    else if (f < 0.36) { const k = (f - 0.22) / 0.14; target = home.clone().addScaledVector(down, k * k * 0.9); if (k > 0.85) mag.visible = false; }
+    else if (f < 0.42) mag.visible = false;
+    else {
+      const lm = m.bones && (m.bones.lm || m.bones.lh); if (!lm) { target = home.clone(); }
+      else { const hand = lm.getWorldPosition(new THREE.Vector3()).addScaledVector(down, 0.06); const k = f < 0.7 ? 0 : Math.min(1, (f - 0.7) / 0.15); target = hand.lerp(home, k * k * (3 - 2 * k)); }
+    }
+    if (!target) return;
+    const p = mag.parent; const origin = p.localToWorld(_v3.copy(w.magHome)); origin.add(target.sub(home));
+    mag.position.copy(p.worldToLocal(origin));
   }
   function animateOperator(u, m, dt) {
     if (m.isSkinned) return animateSkinned(u, m, dt);
@@ -769,7 +813,7 @@
         const q = w.getWorldQuaternion(new THREE.Quaternion()), right = new THREE.Vector3(-1, 0, 0).applyQuaternion(q), up = new THREE.Vector3(0, 1, 0).applyQuaternion(q), fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
         EFX.casing(port, right, up, fwd);
       }
-      if (ev.hit) { const tm = meshes[ev.target]; if (tm) tm.anim.flinch = 1; EFX.bloodHit(to, dir, delay); }
+      if (ev.hit) { const tm = meshes[ev.target]; if (tm) { tm.anim.flinch = 1; tm.anim.hitDir = { x: dir.x, z: dir.z }; } EFX.bloodHit(to, dir, delay); }
       else { const n = surfaceNormal(to); EFX.impact(to, n, to.y < 0.15 ? 'impact_sol' : impactSound(to), delay); }
       return;
     }
@@ -1127,7 +1171,7 @@
       const an = m.anim, vdx = (m.cur.x - m.prev.x) / DT, vdz = (m.cur.z - m.prev.z) / DT, vinst = Math.hypot(vdx, vdz);
       const kv = vinst > 4 ? 0 : Math.min(1, frameDt * 5); an.vx = (an.vx || 0) + (vdx - (an.vx || 0)) * kv; an.vz = (an.vz || 0) + (vdz - (an.vz || 0)) * kv;
       let want = -m.cur.facing + Math.PI / 2;
-      if (u.alive && !u.target && u.moving && vinst > 0.3 && Math.hypot(an.vx, an.vz) > 0.3) want = -Math.atan2(an.vz, an.vx) + Math.PI / 2;
+      if (u.alive && !u.target && !u.preaim && u.moving && vinst > 0.3 && Math.hypot(an.vx, an.vz) > 0.3) want = -Math.atan2(an.vz, an.vx) + Math.PI / 2;
       if (m.yaw === undefined || !isFinite(m.yaw)) m.yaw = want;
       if (u.alive) { let d = want - m.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
         const maxStep = 5.5 * frameDt; m.yaw += Math.max(-maxStep, Math.min(maxStep, d * Math.min(1, frameDt * 10))); }
@@ -1155,18 +1199,22 @@
   }
 
   function updateLabels() {
-    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const w = canvas.clientWidth, h = canvas.clientHeight, placed = [];
     for (const u of battle.units) {
       const m = meshes[u.id];
       const p = new THREE.Vector3(m.group.position.x, u.alive ? (u.stance === 'crouch' ? 1.5 : 2.05) : 0.6, m.group.position.z).project(camera);
       const visible = p.z < 1 && p.x > -1.1 && p.x < 1.1 && p.y > -1.1 && p.y < 1.1;
       m.label.style.display = visible ? 'block' : 'none';
       if (!visible) continue;
-      m.label.style.transform = `translate(${((p.x + 1) / 2 * w).toFixed(0)}px, ${((1 - p.y) / 2 * h).toFixed(0)}px) translate(-50%, -100%)`;
+      m.lx = (p.x + 1) / 2 * w; m.ly = (1 - p.y) / 2 * h; m.lz = p.z; placed.push(m);
       if (m.barkUntil && simTime > m.barkUntil) { m.barkUntil = 0; const b = m.label.querySelector('.bark'); if (b) b.classList.remove('on'); }
       const bar = m.label.querySelector('.lbar i'); bar.style.width = (100 * u.hp / u.maxHp).toFixed(0) + '%';
       bar.style.background = u.hp / u.maxHp > 0.5 ? '#5fc46a' : (u.hp / u.maxHp > 0.2 ? '#e0b03a' : '#d9543c');
     }
+    // étiquettes qui se chevauchent : la plus lointaine monte d'un cran (pas de « MOLRAPACE »)
+    placed.sort((a, b) => a.lz - b.lz);
+    for (let i = 0; i < placed.length; i++) { const a = placed[i]; for (let k = 0; k < i; k++) { const b = placed[k]; if (Math.abs(a.lx - b.lx) < 70 && Math.abs(a.ly - b.ly) < 16) { a.ly = b.ly - 17; k = -1; } } }
+    for (const m of placed) m.label.style.transform = `translate(${m.lx.toFixed(0)}px, ${m.ly.toFixed(0)}px) translate(-50%, -100%)`;
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -1183,10 +1231,15 @@
       const el = $('#roster' + ti);
       el.innerHTML = team.units.map(u => `
         <div class="card" data-id="${u.id}" title="${u.def.unit} — ${u.weapon.name}">
-          <div class="crow"><span class="role">${OT.Ico ? OT.Ico(u.def.trait === 'leader' ? 'r_leader' : u.def.trait === 'radio' ? 'radio' : ({ assault: 'r_assault', pointman: 'r_pointman', marksman: 'r_marksman', support: 'r_support', breacher: 'r_breacher' })[u.role.id]) : roleIcon[u.role.id]}</span><span class="cs">${u.callsign}</span><span class="st"></span></div>
-          <div class="bars"><div class="hp"><i></i></div><div class="sup"><i></i></div></div>
-          <div class="crow small"><span class="ammo"></span><span class="status"></span></div>
+          <span class="role">${OT.Ico ? OT.Ico(u.def.trait === 'leader' ? 'r_leader' : u.def.trait === 'radio' ? 'radio' : ({ assault: 'r_assault', pointman: 'r_pointman', marksman: 'r_marksman', support: 'r_support', breacher: 'r_breacher' })[u.role.id]) : roleIcon[u.role.id]}</span>
+          <div class="cmain">
+            <div class="ctop"><span class="cs">${u.callsign}</span><span class="ammo"></span></div>
+            <div class="hp"><b></b><i></i></div>
+            <div class="cbot"><span class="st"></span><span class="status"></span></div>
+          </div>
+          <div class="sup"><i></i></div><div class="mag"><i></i></div>
         </div>`).join('');
+      $('#pips' + ti).innerHTML = team.units.map(u => `<i data-id="${u.id}"></i>`).join('');
       if (ti === 0) el.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => { cam.follow = cam.follow === c.dataset.id ? null : c.dataset.id; cam.mode = 'follow'; setCamMode('follow'); el.querySelectorAll('.card').forEach(k => k.classList.toggle('follow', k.dataset.id === cam.follow)); }));
     });
     buildTacticCards();
@@ -1195,10 +1248,15 @@
     for (const u of battle.units) {
       const c = document.querySelector(`.card[data-id="${u.id}"]`); if (!c) continue;
       c.classList.toggle('dead', !u.alive);
-      c.querySelector('.hp i').style.width = (100 * u.hp / u.maxHp).toFixed(0) + '%';
+      const hpw = (100 * u.hp / u.maxHp).toFixed(0) + '%', hi = c.querySelector('.hp i');
+      if (hi.style.width !== hpw) { if (parseFloat(hpw) < parseFloat(hi.style.width || '100')) { c.classList.remove('hit'); void c.offsetWidth; c.classList.add('hit'); } hi.style.width = hpw; const gb = c.querySelector('.hp b'); if (gb) gb.style.width = hpw; }
+      c.classList.toggle('low', u.alive && u.hp / u.maxHp < 0.35);
+      c.classList.toggle('reload', u.alive && u.reloading > 0);
+      { const mg = c.querySelector('.mag i'); if (mg) mg.style.width = (100 * u.ammo / Math.max(1, u.weapon.mag)).toFixed(0) + '%'; }
+      { const pip = document.querySelector(`.pips i[data-id="${u.id}"]`); if (pip) { pip.classList.toggle('dead', !u.alive); pip.classList.toggle('down', !u.alive && u.bleedUntil > battle.t); } }
       c.querySelector('.sup i').style.width = (100 * u.suppression).toFixed(0) + '%';
       c.querySelector('.st').textContent = u.alive ? (u.reloading > 0 ? 'Recharge' : STATE_FR[u.state] || u.state) : (u.bleedUntil > battle.t ? 'À terre' : 'Hors de combat');
-      c.querySelector('.ammo').textContent = `${u.ammo}/${u.weapon.mag} · ${u.mags} ch.`;
+      c.querySelector('.ammo').innerHTML = u.alive ? `<b>${u.ammo}</b><small><u></u>${u.mags}</small>` : '';
       c.querySelector('.status').textContent = `${Math.round(u.hp)} PV · ${STATUS_FR[u.status]}`;
     }
     $('#clock').textContent = fmtT(battle.t);
@@ -1219,7 +1277,8 @@
   function buildTacticCards() {
     battle.teams.forEach((team, ti) => {
       const el = $('#tactics' + ti);
-      el.innerHTML = team.tacticIds.map(id => { const t = DATA.TACTICS[id]; return `<div class="tcard ${t.active ? '' : 'passive'} ${ti === 1 ? 'enemy' : ''}" data-tactic="${id}" title="${escapeHtml(t.desc)}"><div class="ticon">${tacIcon(id)}</div><div class="tname">${escapeHtml(t.name)}</div><div class="tuse"></div><div class="cd"></div></div>`; }).join('');
+      let na = 0; const KEYS = ['A', 'Z', 'E'];
+      el.innerHTML = team.tacticIds.map(id => { const t = DATA.TACTICS[id]; const key = ti === 0 && t.active ? KEYS[na++] || '' : ''; return `<div class="tcard ${t.active ? '' : 'passive'} ${ti === 1 ? 'enemy' : ''}" data-tactic="${id}" ${key ? `data-key="${key}"` : ''} title="${escapeHtml(t.desc)}"><div class="ticon">${tacIcon(id)}</div><div class="tname">${escapeHtml(t.name)}</div><div class="tuse"></div><div class="cd"></div></div>`; }).join('');
       if (ti === 0) el.querySelectorAll('.tcard').forEach(c => c.addEventListener('click', () => {
         const id = c.dataset.tactic; if (!DATA.TACTICS[id].active) return;
         const r = battle.command('tactic', 0, id);
@@ -1450,6 +1509,8 @@
   };
   window.HQ.onLaunch = (opts, mis) => { window.HQ.onPrepare(opts, mis); window.HQ.onStart(opts, mis); };
   $('#toggleHelp').addEventListener('click', () => $('#help').classList.toggle('hidden'));
+  $('#moreBtn').addEventListener('click', (e) => { e.stopPropagation(); $('#app .controls').classList.toggle('open'); });
+  document.addEventListener('pointerdown', (e) => { const c = $('#app .controls'); if (c && c.classList.contains('open') && !c.contains(e.target)) c.classList.remove('open'); });
   $('#toggleJournal').addEventListener('click', () => { $('#journalWrap').classList.toggle('hidden'); $('#journal').scrollTop = $('#journal').scrollHeight; });
   $('#closeJournal').addEventListener('click', () => $('#journalWrap').classList.add('hidden'));
   document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => { setCamMode(b.dataset.cam); if (b.dataset.cam !== 'follow') cam.follow = null; }));
@@ -1515,7 +1576,7 @@
     // un pas de simulation rendu en k images intermédiaires (comme en temps réel : interpolation entre deux pas)
     stepFine: (k) => { stepSim(); for (let i = 1; i <= (k || 3); i++) { acc = DT * i / (k || 3); render(); } return battle.t; },
     skip: () => { skipToEnd(); return battle.result; },
-    camShot: (kind, id) => { if (kind === 'shoulder') { setCamMode('director'); cam.shot = { kind: 'shoulder', id, until: simTime + 999 }; cam.cutAt = simTime; } else { setCamMode('follow'); cam.follow = id; } render(); for (let i = 0; i < 60; i++) applyCamera(); render(); return [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)); },
+    camShot: (kind, id) => { if (kind === 'shoulder' || kind === 'dolly') { setCamMode('director'); cam.shot = { kind, id, side: 1, until: simTime + 999 }; cam.cutAt = simTime; } else { setCamMode('follow'); cam.follow = id; } render(); for (let i = 0; i < 60; i++) applyCamera(); render(); return [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)); },
     stepRaw: (n) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; return battle.t; },   // sans rendu (outils de capture)
     runToEnd: () => { instantResult = true; while (!battle.over) stepSim(); instantResult = false; acc = DT; render(); return battle.result; },
     start: (opts) => { newBattle(opts); render(); return battle.zone || true; },
@@ -1528,7 +1589,7 @@
     useTactic: (id) => battle.command('tactic', 0, id),
     review: () => { review(); return battle.replayQueue.length; },
     meshes: () => meshes, scene: () => scene,
-    efx: () => EFX,
+    efx: () => EFX, rendu: () => RENDU,
     look: (x, z, yaw, pitch, dist, y) => { setCamMode('free'); cam.follow = null; cam.init = false; cam.target.set(x, y === undefined ? 0.9 : y, z); cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; for (let i = 0; i < 30; i++) applyCamera(); render(); return 0; },
     spinWatch: (on) => { SPIN.on = on !== false; SPIN.events = []; SPIN.hist = {}; }, spins: () => SPIN.events,
     setSpeed: (k) => { speed = k; }, play: () => { paused = false; updatePlayButton(); },

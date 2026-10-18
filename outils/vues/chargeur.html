@@ -1,0 +1,12 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Chargeur du fusil</title><style>body{margin:0;background:#2a3036}</style></head><body>
+<script src="../../web/three.min.js"></script><script src="../../web/three-addons.js"></script><script src="../../web/gltf.js"></script><script src="../../web/modeles/decor.js"></script><script src="../../web/modeles3d.js"></script>
+<script>
+// Vérifie la découpe du chargeur : fusil de profil et de 3/4, chargeur en rouge. ?hd=1 : version haute définition (../../web/hd)
+OT.Modeles3D.whenReady(() => {
+  const W = 1400, H = 500, r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; r.autoClear = false; document.body.appendChild(r.domElement);
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(0x3a4248); sc.add(new THREE.HemisphereLight(0xffffff, 0x404040, 2)); const d = new THREE.DirectionalLight(0xffffff, 2); d.position.set(2, 3, 4); sc.add(d);
+  const w = OT.Modeles3D.arme(); sc.add(w); w.mag.material = new THREE.MeshBasicMaterial({ color: 0xff3020 });
+  [[[1.2, 0, 0]], [[0.8, 0.5, 0.8]]].forEach(([p], i) => { const cam = new THREE.PerspectiveCamera(30, (W / 2) / H, 0.01, 20); cam.position.set(...p); cam.lookAt(0, 0, 0); r.setViewport(i * W / 2, 0, W / 2, H); r.setScissor(i * W / 2, 0, W / 2, H); r.setScissorTest(true); r.render(sc, cam); });
+  window.PRET = true;
+});
+</script></body></html>

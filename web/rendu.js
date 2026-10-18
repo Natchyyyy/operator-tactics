@@ -141,6 +141,7 @@
       clouds.material.uniforms.time.value = t; clouds.position.copy(camera.position); if (sky) sky.position.copy(camera.position);
       if (composer) { grade.uniforms.time.value = t; composer.render(); } else renderer.render(scene, camera);
     };
+    R.passes = () => composer ? composer.passes : [];
     R.setConditions('jour');
     return R;
   }

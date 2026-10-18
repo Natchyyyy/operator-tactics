@@ -44,4 +44,7 @@ fs.mkdirSync(path.join(root, 'docs'), { recursive: true }); fs.writeFileSync(pat
 const m = html.match(/<title>[\s\S]*?<\/style>/), body = html.match(/<body>([\s\S]*)<\/body>/);
 if (!m || !body) throw new Error('structure de page inattendue');
 fs.writeFileSync(path.join(root, 'dist/artifact.html'), m[0] + '\n' + body[1].trim() + '\n');
+// versions haute définition (modèles, textures) publiées à côté de la page : copiées dans dist/hd et docs/hd
+{ const src = path.join(root, 'web/hd'); if (fs.existsSync(src)) for (const dst of ['dist/hd', 'docs/hd']) { fs.mkdirSync(path.join(root, dst), { recursive: true });
+  for (const f of fs.readdirSync(src)) { const a = path.join(src, f), b = path.join(root, dst, f); if (!fs.existsSync(b) || fs.statSync(b).size !== fs.statSync(a).size) fs.copyFileSync(a, b); } } }
 console.log('dist/index.html :', (html.length / 1024).toFixed(0), 'Ko ; dist/artifact.html écrit');

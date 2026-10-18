@@ -159,12 +159,12 @@
     // éclair de bouche : origine p, direction d (unitaire)
     E.muzzle = function (p, d, silenced) {
       if (silenced) { alpha.add({ p: p.clone(), v: d.clone().multiplyScalar(0.6).add(V(0, 0.3, 0)), life: 0.6, size: 0.08, grow: 3, frame: 4 + Math.floor(Math.random() * 4), col: [0.7, 0.7, 0.7], a0: 0.25, drag: 2 }); return; }
-      const hot = [9, 6.2, 2.6];
-      add.add({ p: p.clone().addScaledVector(d, 0.05), life: 0.045, size: rnd(0.16, 0.24), rot: Math.random() * 6.28, frame: 1, col: hot, a0: 1 });
+      const hot = [4.6, 3.1, 1.3];
+      add.add({ p: p.clone().addScaledVector(d, 0.05), life: 0.045, size: rnd(0.11, 0.17), rot: Math.random() * 6.28, frame: 1, col: hot, a0: 1 });
       for (let k = 0; k < 2; k++) add.add({ p: p.clone().addScaledVector(d, 0.12 + k * 0.08), axis: d.clone().multiplyScalar(rnd(0.22, 0.34)), life: 0.04, size: 0.07 - k * 0.02, frame: 2, col: hot, a0: 0.9 });
       for (let k = 0; k < 3; k++) add.add({ p: p.clone(), v: d.clone().multiplyScalar(rnd(6, 14)).add(V(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1))), life: rnd(0.05, 0.12), size: 0.012, stretch: 0.012, frame: 3, col: [8, 5, 2], a0: 1 });
       alpha.add({ p: p.clone().addScaledVector(d, 0.1), v: d.clone().multiplyScalar(0.8).add(V(0, 0.35, 0)), life: rnd(0.6, 1.1), size: 0.09, grow: 4, frame: 4 + Math.floor(Math.random() * 4), col: [0.62, 0.6, 0.58], a0: 0.22, drag: 2.5, fadeIn: 0.05, rot: Math.random() * 6, spin: rnd(-1, 1) });
-      light(p.clone().addScaledVector(d, 0.2), 0xffb26b, rnd(14, 22), 8, 0.05);
+      light(p.clone().addScaledVector(d, 0.2), 0xffb26b, rnd(7, 11), 7, 0.05);
     };
     // traçante : de a à b, vitesse (m/s), part après « delay »
     E.tracer = function (a, b, speed, team) {

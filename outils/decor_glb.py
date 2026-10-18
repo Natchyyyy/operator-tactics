@@ -11,6 +11,7 @@ ap = argparse.ArgumentParser(); ap.add_argument('src'); ap.add_argument('dst')
 ap.add_argument('--tris', type=int, default=4000); ap.add_argument('--tex', type=int, default=1024); ap.add_argument('--jpeg', type=int, default=82)
 ap.add_argument('--agressif', action='store_true'); ap.add_argument('--erreur', type=float, default=0.05); ap.add_argument('--metal', type=float, default=0.0); ap.add_argument('--rugo', type=float, default=0.8)
 ap.add_argument('--gltfpack', default='/home/claude/meshoptimizer/gltfpack')
+ap.add_argument('--hd', action='store_true', help='garde aussi le relief (normal map) et le métal/rugosité, à la taille --tex (version haute définition)')
 a = ap.parse_args()
 
 def lire(path):
@@ -49,8 +50,18 @@ if 'baseColorTexture' in pbr:
     buf = io.BytesIO(); pil.save(buf, 'JPEG', quality=a.jpeg, optimize=True)
     images.append({'bufferView': push(buf.getvalue()), 'mimeType': 'image/jpeg'}); textures.append({'source': 0, 'sampler': 0})
     pbr['baseColorTexture'] = {'index': 0}
-pbr.pop('metallicRoughnessTexture', None); pbr['metallicFactor'] = a.metal; pbr['roughnessFactor'] = a.rugo
-for k in ('normalTexture', 'occlusionTexture', 'emissiveTexture'): mat.pop(k, None)
+def garder(ref, q):   # ajoute une autre texture (relief, métal/rugosité) réduite à --tex
+    tex = j['textures'][ref['index']]; im = j['images'][tex['source']]; bv = j['bufferViews'][im['bufferView']]
+    pil = Image.open(io.BytesIO(b0[bv.get('byteOffset', 0):bv.get('byteOffset', 0) + bv['byteLength']])).convert('RGB')
+    if max(pil.size) > a.tex: pil = pil.resize((a.tex, a.tex), Image.LANCZOS)
+    buf = io.BytesIO(); pil.save(buf, 'JPEG', quality=q, optimize=True)
+    images.append({'bufferView': push(buf.getvalue()), 'mimeType': 'image/jpeg'}); textures.append({'source': len(images) - 1, 'sampler': 0})
+    return {'index': len(textures) - 1}
+if a.hd and 'normalTexture' in mat: mat['normalTexture'] = garder(mat['normalTexture'], 92)
+else: mat.pop('normalTexture', None)
+if a.hd and 'metallicRoughnessTexture' in pbr: pbr['metallicRoughnessTexture'] = garder(pbr['metallicRoughnessTexture'], 90); pbr['metallicFactor'] = 1; pbr['roughnessFactor'] = 1
+else: pbr.pop('metallicRoughnessTexture', None); pbr['metallicFactor'] = a.metal; pbr['roughnessFactor'] = a.rugo
+for k in ('occlusionTexture', 'emissiveTexture'): mat.pop(k, None)
 mat.pop('alphaMode', None); mat['doubleSided'] = False
 j['materials'] = [mat]; j['images'] = images; j['textures'] = textures; j['samplers'] = [{'magFilter': 9729, 'minFilter': 9987, 'wrapS': 33071, 'wrapT': 33071}]
 for m in j['meshes']:
