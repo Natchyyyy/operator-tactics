@@ -224,7 +224,8 @@
       { const bl2 = P.LeftUpLeg.clone().sub(P.RightUpLeg); bl2.y = 0; bl2.normalize(); const inw = bl2.clone().multiplyScalar(c === 'Left' ? -1 : 1);   // vers le milieu
         const bav2 = new THREE.Vector3().crossVectors(bl2, new THREE.Vector3(0, 1, 0)).normalize(), proj = (v) => v.clone().addScaledVector(bav2, -v.dot(bav2));
         const u1 = proj(K.clone().sub(H)), u2 = proj(A.clone().sub(K));
-        m['valgus' + s] = u1.lengthSq() > 1e-6 && u2.lengthSq() > 1e-6 && flex > 5 ? Math.atan2(u1.clone().normalize().dot(inw) - u2.clone().normalize().dot(inw), u1.clone().normalize().dot(u2.clone().normalize())) * D : 0; }   // (hyperextension : jambe presque tendue, genou en arrière selon l'avant du bassin)   // (signe seulement près de la jambe tendue : au-delà, un genou plié « à l'envers » se verrait de toute façon)
+        m['valgus' + s] = u1.lengthSq() > 1e-6 && u2.lengthSq() > 1e-6 && flex > 5 && flex < 70 && (m['solMin' + s] === undefined || m['solMin' + s] < 0.05) ?   // (pied chargé seulement : en oscillation, genou très plié, la projection frontale n'a pas de sens)
+           Math.atan2(u1.clone().normalize().dot(inw) - u2.clone().normalize().dot(inw), u1.clone().normalize().dot(u2.clone().normalize())) * D : 0; }   // (hyperextension : jambe presque tendue, genou en arrière selon l'avant du bassin)   // (signe seulement près de la jambe tendue : au-delà, un genou plié « à l'envers » se verrait de toute façon)
       m['genouDevantOrteil' + s] = K.clone().sub(bout).dot(fw);                                    // > 0 : genou au-delà du bout du pied
     }
     // écart des pieds / genoux perpendiculaire au déplacement (< 0 : croisés), et dans le repère du bassin
