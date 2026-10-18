@@ -29,7 +29,7 @@
   function portraitOf(o, full) {
     const st = profile.operators[o.id] || {}; const uni = UNIFORMS.find(u => u.id === profile.uniform) || UNIFORMS[0];
     const fac = o.faction ? DATA.FACTIONS[o.faction] : uni;
-    const url = OT.Portrait && OT.Portrait.render({ id: o.id, weapon: st.weaponId || ROLES[o.role].weapon, uniform: fac.uniform, vest: fac.vest, headgear: st.headgear || (o.faction ? 'casque_lunettes' : 'casque'), full: !!full, aiming: !!full });
+    const url = OT.Portrait && OT.Portrait.render({ id: o.id, modele: o.faction ? 'soldat' : 'gign', weapon: st.weaponId || ROLES[o.role].weapon, uniform: fac.uniform, vest: fac.vest, headgear: st.headgear || (o.faction ? 'casque_lunettes' : 'casque'), full: !!full, aiming: !!full });
     return url ? `<img class="portrait ${full ? 'full' : ''}" src="${url}" alt="">` : '';
   }
 
@@ -550,9 +550,9 @@
     $('#vsSquad1').innerHTML = enemyDefs.map(d => `<span>${esc(d.callsign)}</span>`).join('');
     // soldats en pied de part et d'autre, comme le jeu d'origine
     const uni = UNIFORMS.find(u => u.id === profile.uniform) || UNIFORMS[0], d0 = opts.teams[0].operators[0], d1 = enemyDefs[0];
-    const fig = (d, u, v, hg) => (OT.Portrait && d && OT.Portrait.render({ id: d.id, weapon: d.weapon || (ROLES[d.role] || {}).weapon, uniform: u, vest: v, headgear: hg, full: true, w: 420, h: 640, aiming: true })) || '';
+    const fig = (d, u, v, hg, modele) => (OT.Portrait && d && OT.Portrait.render({ id: d.id, weapon: d.weapon || (ROLES[d.role] || {}).weapon, uniform: u, vest: v, headgear: hg, full: true, w: 420, h: 640, aiming: true, modele })) || '';
     $('#vsFig0').src = fig(d0, uni.uniform, uni.vest, (profile.operators[profile.squad[0]] || {}).headgear || 'casque');
-    $('#vsFig1').src = fig(d1, fac.uniform || 0x5c6066, fac.vest || 0x3a3d42, mission.faction === 'delta' ? 'foulard' : 'casque_lunettes');
+    $('#vsFig1').src = fig(d1, fac.uniform || 0x5c6066, fac.vest || 0x3a3d42, mission.faction === 'delta' ? 'foulard' : 'casque_lunettes', 'soldat');   // l'adversaire a son propre modèle
     // aperçu du terrain : la bataille est préparée maintenant, l'image vient de sa propre scène 3D
     const prev = window.HQ.onPrepare ? window.HQ.onPrepare(opts, mission) : null;
     $('#vsMapImg').src = prev || ''; $('#vsMapImg').style.visibility = prev ? '' : 'hidden';

@@ -12566,7 +12566,15 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     };
     // version haute définition du personnage (hd/<nom>_hd.glb ou .json : maillage complet ~100 000 triangles, mêmes os et
     // animations) si elle est publiée à côté de la page ; sinon la version incluse (~27 000 triangles)
-    const HDok = /^https?:/.test(location.protocol) && !/[?&]hd=0/.test(location.search);
+    // rendu logiciel (pas de carte graphique : SwiftShader, llvmpipe) : le maillage et les textures 4K du personnage HD
+    // saturent la mémoire et l'image sort noire ; on garde alors la version incluse (?hd=1 force la HD)
+    const LOGICIEL = (() => { if (/[?&]hd=1/.test(location.search)) return false;
+      try { const c = document.createElement('canvas'), gl = c.getContext('webgl2') || c.getContext('webgl'); if (!gl) return false;
+        const ext = gl.getExtension('WEBGL_debug_renderer_info'), r = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : '';
+        const lc = gl.getExtension('WEBGL_lose_context'); if (lc) lc.loseContext();
+        return /swiftshader|llvmpipe|softpipe|software/i.test(r || ''); } catch (e) { return false; } })();
+    S.logiciel = LOGICIEL;
+    const HDok = /^https?:/.test(location.protocol) && !/[?&]hd=0/.test(location.search) && !LOGICIEL;
     const source = (nom) => {
       if (!HDok) return Promise.resolve(b64ToBuf(MOD[nom]));
       const glb = () => fetch('hd/' + nom + '_hd.glb').then(r => r.ok && !/text\/html/.test(r.headers.get('content-type') || '') ? r.arrayBuffer() : null).catch(() => null);
@@ -12927,6 +12935,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // publiées à côté de la page : remplacées à chaud dans le matériau d'origine et dans toutes ses copies (teintes)
   function texturesHD() {
     if (!/^https?:/.test(location.protocol) || /[?&]hd=0/.test(location.search)) return;
+    if (S.logiciel) { S.hd = 99; return; }   // (rendu logiciel : textures incluses ; S.hd signale « fini » aux scripts de capture)
     const L = new THREE.TextureLoader();
     for (const nom of NOMS) {
       const M = S.modeles[nom]; if (!M) continue;
@@ -13886,8 +13895,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   const AMB = {
     jour:       { elev: 23, azim: 238, turb: 5.5, ray: 1.6, mie: 0.006, g: 0.82, exp: 0.95, sun: [0xffcb94, 6.2], env: 0.7, fog: [0xc8c2b8, 0.0040], clouds: 0.45, cloudTint: 0xffeedd, cloudDark: 0x8d8f9a, bloom: [0.3, 0.55, 0.92], grade: { c: 1.1, s: 1.08, warm: [1.08, 1.0, 0.9], cool: [0.95, 1.0, 1.05], vig: 0.3, grain: 0.014, lift: [0.0015, 0.0016, 0.002] } },   // fin d'après-midi : soleil bas et chaud, longues ombres
     nuit:       { elev: -12, azim: 215, turb: 2, ray: 0.3, mie: 0.002, g: 0.7, exp: 0.9, sun: [0x7d94d6, 0.55], env: 0.18, fog: [0x070a10, 0.016], clouds: 0.62, cloudTint: 0x2a3348, cloudDark: 0x0c1018, bloom: [0.6, 0.6, 0.55], night: true, grade: { c: 1.04, s: 0.9, warm: [1.08, 0.99, 0.86], cool: [0.88, 0.97, 1.14], vig: 0.4, grain: 0.03, lift: [0.0035, 0.005, 0.009] } },
-    brouillard: { elev: 18, azim: 215, turb: 12, ray: 2.5, mie: 0.02, g: 0.9, exp: 0.7, sun: [0xe8ecf0, 1.0], env: 0.75, fog: [0x9aa1a8, 0.03], clouds: 0.2, cloudTint: 0xdfe3e6, cloudDark: 0x9aa1a8, bloom: [0.25, 0.6, 0.95], grade: { c: 0.96, s: 0.84, warm: [1.03, 1.0, 0.96], cool: [0.97, 1.0, 1.03], vig: 0.24, grain: 0.02, lift: [0.006, 0.0065, 0.007] } },
-    pluie:      { elev: 20, azim: 215, turb: 14, ray: 3, mie: 0.02, g: 0.85, exp: 0.7, sun: [0xc8d0dc, 0.9], env: 0.55, fog: [0x47505a, 0.013], clouds: 0.15, cloudTint: 0x6c7580, cloudDark: 0x2c323a, bloom: [0.35, 0.6, 0.9], grade: { c: 1.08, s: 0.86, warm: [1.0, 1.0, 0.97], cool: [0.93, 0.99, 1.07], vig: 0.34, grain: 0.022, lift: [0.002, 0.0026, 0.0034] } },
+    brouillard: { elev: 18, azim: 215, turb: 12, ray: 2.5, mie: 0.02, g: 0.9, exp: 0.8, sun: [0xe8ecf0, 1.0], env: 0.85, hemi: 0.85, fog: [0x9aa1a8, 0.03], clouds: 0.2, cloudTint: 0xdfe3e6, cloudDark: 0x9aa1a8, bloom: [0.25, 0.6, 0.95], grade: { c: 0.96, s: 0.84, warm: [1.03, 1.0, 0.96], cool: [0.97, 1.0, 1.03], vig: 0.24, grain: 0.02, lift: [0.006, 0.0065, 0.007] } },
+    pluie:      { elev: 20, azim: 215, turb: 14, ray: 3, mie: 0.02, g: 0.85, exp: 0.88, sun: [0xc8d0dc, 1.25], env: 0.8, hemi: 0.85, fog: [0x47505a, 0.013], clouds: 0.15, cloudTint: 0x6c7580, cloudDark: 0x2c323a, bloom: [0.35, 0.6, 0.9], grade: { c: 1.08, s: 0.86, warm: [1.0, 1.0, 0.97], cool: [0.93, 0.99, 1.07], vig: 0.34, grain: 0.022, lift: [0.002, 0.0026, 0.0034] } },
   };
   function create(renderer, scene, camera, sun, hemi) {
     const R = { simple: SIMPLE, envIntensity: 1, amb: AMB.jour, lightDir: new T.Vector3(0, 1, 0), fitShadows: true };
@@ -13926,7 +13935,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       R.lightDir.copy(dir); night.visible = !!A.night;
       sun.position.copy(c).addScaledVector(dir, 120); sun.target.position.copy(c); sun.color.setHex(A.sun[0]); sun.intensity = A.sun[1];
       if (grade && A.grade) { const G = A.grade, u = grade.uniforms; u.contrast.value = G.c; u.saturation.value = G.s; u.warm.value.fromArray(G.warm); u.cool.value.fromArray(G.cool); u.vignette.value = G.vig; u.grain.value = G.grain; u.lift.value.fromArray(G.lift); }
-      if (hemi) { hemi.intensity = A.night ? 0.25 : 0.45; }
+      if (hemi) { hemi.intensity = A.hemi || (A.night ? 0.25 : 0.45); }   // ciel couvert (pluie, brouillard) : la lumière vient surtout du ciel
       renderer.toneMappingExposure = A.exp;
       scene.fog = new T.FogExp2(A.fog[0], A.fog[1]);
       scene.background = A.night ? new T.Color(0x05070c) : null;
@@ -18047,7 +18056,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function portraitOf(o, full) {
     const st = profile.operators[o.id] || {}; const uni = UNIFORMS.find(u => u.id === profile.uniform) || UNIFORMS[0];
     const fac = o.faction ? DATA.FACTIONS[o.faction] : uni;
-    const url = OT.Portrait && OT.Portrait.render({ id: o.id, weapon: st.weaponId || ROLES[o.role].weapon, uniform: fac.uniform, vest: fac.vest, headgear: st.headgear || (o.faction ? 'casque_lunettes' : 'casque'), full: !!full, aiming: !!full });
+    const url = OT.Portrait && OT.Portrait.render({ id: o.id, modele: o.faction ? 'soldat' : 'gign', weapon: st.weaponId || ROLES[o.role].weapon, uniform: fac.uniform, vest: fac.vest, headgear: st.headgear || (o.faction ? 'casque_lunettes' : 'casque'), full: !!full, aiming: !!full });
     return url ? `<img class="portrait ${full ? 'full' : ''}" src="${url}" alt="">` : '';
   }
 
@@ -18568,9 +18577,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     $('#vsSquad1').innerHTML = enemyDefs.map(d => `<span>${esc(d.callsign)}</span>`).join('');
     // soldats en pied de part et d'autre, comme le jeu d'origine
     const uni = UNIFORMS.find(u => u.id === profile.uniform) || UNIFORMS[0], d0 = opts.teams[0].operators[0], d1 = enemyDefs[0];
-    const fig = (d, u, v, hg) => (OT.Portrait && d && OT.Portrait.render({ id: d.id, weapon: d.weapon || (ROLES[d.role] || {}).weapon, uniform: u, vest: v, headgear: hg, full: true, w: 420, h: 640, aiming: true })) || '';
+    const fig = (d, u, v, hg, modele) => (OT.Portrait && d && OT.Portrait.render({ id: d.id, weapon: d.weapon || (ROLES[d.role] || {}).weapon, uniform: u, vest: v, headgear: hg, full: true, w: 420, h: 640, aiming: true, modele })) || '';
     $('#vsFig0').src = fig(d0, uni.uniform, uni.vest, (profile.operators[profile.squad[0]] || {}).headgear || 'casque');
-    $('#vsFig1').src = fig(d1, fac.uniform || 0x5c6066, fac.vest || 0x3a3d42, mission.faction === 'delta' ? 'foulard' : 'casque_lunettes');
+    $('#vsFig1').src = fig(d1, fac.uniform || 0x5c6066, fac.vest || 0x3a3d42, mission.faction === 'delta' ? 'foulard' : 'casque_lunettes', 'soldat');   // l'adversaire a son propre modèle
     // aperçu du terrain : la bataille est préparée maintenant, l'image vient de sa propre scène 3D
     const prev = window.HQ.onPrepare ? window.HQ.onPrepare(opts, mission) : null;
     $('#vsMapImg').src = prev || ''; $('#vsMapImg').style.visibility = prev ? '' : 'hidden';
@@ -19422,8 +19431,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       } else if (has3('kiosque') && nm.startsWith('kiosque')) {
         mesh = M3.fit('kiosque', o.w, o.h, o.d, { tol: 0.3, rot: o.x > map.width / 2 ? Math.PI / 2 : -Math.PI / 2 });
       } else if (has3('arbre') && nm.startsWith('palmier')) {   // arbre d'alignement (sa grille de pied disparaît dans le bac)
-        mesh = M3.fit('arbre', 3, 5.6 + (i % 3) * 0.5, 3, { byHeight: true, rot: i * 1.7 }); mesh.position.y = 0;
-        mesh.children[0].position.y = -o.h / 2;
+        mesh = M3.fit('arbre', 3, 6.4 + (i % 3) * 0.5, 3, { byHeight: true, rot: i * 1.7 }); mesh.position.y = 0;
+        mesh.children[0].position.y = -o.h / 2 - 0.8;   // pied enfoncé : la dalle à grille (plus large que le bac) passe sous le sol, le corset reste dans le bac
       } else if (has3('palettes') && nm.startsWith('palettes')) {
         mesh = M3.fit('palettes', o.w, o.h, o.d, { tol: 0.35, rot: (i % 4) * Math.PI / 2 });
       } else if (has3('conteneur') && nm.startsWith('conteneur')) {

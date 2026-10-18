@@ -712,8 +712,8 @@
       } else if (has3('kiosque') && nm.startsWith('kiosque')) {
         mesh = M3.fit('kiosque', o.w, o.h, o.d, { tol: 0.3, rot: o.x > map.width / 2 ? Math.PI / 2 : -Math.PI / 2 });
       } else if (has3('arbre') && nm.startsWith('palmier')) {   // arbre d'alignement (sa grille de pied disparaît dans le bac)
-        mesh = M3.fit('arbre', 3, 5.6 + (i % 3) * 0.5, 3, { byHeight: true, rot: i * 1.7 }); mesh.position.y = 0;
-        mesh.children[0].position.y = -o.h / 2;
+        mesh = M3.fit('arbre', 3, 6.4 + (i % 3) * 0.5, 3, { byHeight: true, rot: i * 1.7 }); mesh.position.y = 0;
+        mesh.children[0].position.y = -o.h / 2 - 0.8;   // pied enfoncé : la dalle à grille (plus large que le bac) passe sous le sol, le corset reste dans le bac
       } else if (has3('palettes') && nm.startsWith('palettes')) {
         mesh = M3.fit('palettes', o.w, o.h, o.d, { tol: 0.35, rot: (i % 4) * Math.PI / 2 });
       } else if (has3('conteneur') && nm.startsWith('conteneur')) {

@@ -71,7 +71,7 @@ async def main():
         try: await pg.wait_for_function("() => window.API.battle().t > 0", timeout=180000)
         except Exception: pass
         check("« Commencer la mission » ferme le briefing et lance la bataille", await pg.evaluate("() => document.querySelector('#briefing').classList.contains('hidden') && window.API.battle().t > 0"))
-        tc = await pg.evaluate("() => [...document.querySelectorAll('#tactics0 .tcard')].map(c => c.dataset.tactic)"); check("la tactique Tiroir d'Alpha est affichée en bataille", tc == ['tiroir'], tc)
+        tc = await pg.evaluate("() => [...document.querySelectorAll('#tactics0 .tcard:not(.rotcard)')].map(c => c.dataset.tactic)"); check("la tactique Tiroir d'Alpha est affichée en bataille", tc == ['tiroir'], tc)
         check("Lynx porte le fusil d'assaut dans la bataille", await pg.evaluate("() => window.API.battle().units.find(u => u.callsign === 'Lynx').weapon.id") == "carbine")
         check("l'ennemi de la mission est celui annoncé (ordre Prudent, 4 opérateurs)", await pg.evaluate("() => window.API.battle().teams[1].order === 'careful' && window.API.battle().teams[1].units.length === 4"))
         await pg.click("[data-speed='4']"); await pg.wait_for_timeout(1500)

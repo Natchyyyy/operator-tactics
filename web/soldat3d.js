@@ -63,7 +63,15 @@
     };
     // version haute définition du personnage (hd/<nom>_hd.glb ou .json : maillage complet ~100 000 triangles, mêmes os et
     // animations) si elle est publiée à côté de la page ; sinon la version incluse (~27 000 triangles)
-    const HDok = /^https?:/.test(location.protocol) && !/[?&]hd=0/.test(location.search);
+    // rendu logiciel (pas de carte graphique : SwiftShader, llvmpipe) : le maillage et les textures 4K du personnage HD
+    // saturent la mémoire et l'image sort noire ; on garde alors la version incluse (?hd=1 force la HD)
+    const LOGICIEL = (() => { if (/[?&]hd=1/.test(location.search)) return false;
+      try { const c = document.createElement('canvas'), gl = c.getContext('webgl2') || c.getContext('webgl'); if (!gl) return false;
+        const ext = gl.getExtension('WEBGL_debug_renderer_info'), r = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : '';
+        const lc = gl.getExtension('WEBGL_lose_context'); if (lc) lc.loseContext();
+        return /swiftshader|llvmpipe|softpipe|software/i.test(r || ''); } catch (e) { return false; } })();
+    S.logiciel = LOGICIEL;
+    const HDok = /^https?:/.test(location.protocol) && !/[?&]hd=0/.test(location.search) && !LOGICIEL;
     const source = (nom) => {
       if (!HDok) return Promise.resolve(b64ToBuf(MOD[nom]));
       const glb = () => fetch('hd/' + nom + '_hd.glb').then(r => r.ok && !/text\/html/.test(r.headers.get('content-type') || '') ? r.arrayBuffer() : null).catch(() => null);
@@ -424,6 +432,7 @@
   // publiées à côté de la page : remplacées à chaud dans le matériau d'origine et dans toutes ses copies (teintes)
   function texturesHD() {
     if (!/^https?:/.test(location.protocol) || /[?&]hd=0/.test(location.search)) return;
+    if (S.logiciel) { S.hd = 99; return; }   // (rendu logiciel : textures incluses ; S.hd signale « fini » aux scripts de capture)
     const L = new THREE.TextureLoader();
     for (const nom of NOMS) {
       const M = S.modeles[nom]; if (!M) continue;
