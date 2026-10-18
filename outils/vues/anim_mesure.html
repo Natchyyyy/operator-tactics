@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Mesures des cycles de marche</title></head><body>
+<script src="../../web/three.min.js"></script><script src="../../web/figure.js"></script><script src="../../web/gltf.js"></script><script src="../../web/modeles/soldat.js"></script><script src="../../web/modeles/gign.js"></script><script src="../../web/modeles/decor.js"></script><script src="../../web/modeles3d.js"></script><script src="../../web/soldat3d.js"></script>
+<script>
+// Mesures (sans rendu) des cycles de locomotion de chaque modèle : direction réelle des pas (déplacement du pied d'appui
+// par rapport au bassin, dans le repère du modèle : 0° = +Z devant, 90° = +X sa gauche), vitesse naturelle, hauteur et
+// rebond du bassin, orientation du bassin. Résultat : window.MESURES (JSON).
+OT.Soldat3D.whenReady(() => {
+  const out = {};
+  for (const nom in OT.Soldat3D.modeles) {
+    const M = OT.Soldat3D.modeles[nom], sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
+    const hips = b('Hips'), feet = [b('LeftToeBase'), b('RightToeBase')], k = 1.8 / 1.7, R = {};
+    for (const clip of ['Walking', 'Walk_Fight_Forward', 'Pas_Avant_Aim', 'Pas_Avant_Low', 'Pas_Gauche', 'Pas_Droite', 'Pas_Arriere', 'Running', 'Run_and_Shoot', 'Run_Low', 'Walk_Aim', 'Walk_Low', 'Garde_Basse', 'Rifle_Aim_Turn_Right']) {
+      const c = M.clips[clip]; if (!c) continue;
+      const mixer = new THREE.AnimationMixer(sc), act = mixer.clipAction(c); act.play(); const N = 60, dur = c.duration;
+      const P = [[], []], H = [];
+      for (let i = 0; i < N; i++) { mixer.setTime(i / N * dur); sc.updateMatrixWorld(true); H.push(hips.getWorldPosition(new THREE.Vector3())); feet.forEach((ft, j) => P[j].push(ft.getWorldPosition(new THREE.Vector3()))); }
+      let sx = 0, sz = 0;
+      feet.forEach((ft, j) => { const ymin = Math.min(...P[j].map(p => p.y)); for (let i = 0; i < N; i++) { if (P[j][i].y > ymin + 0.03) continue; const i2 = (i + 1) % N; const d = P[j][i2].clone().sub(H[i2]).sub(P[j][i].clone().sub(H[i])); sx -= d.x; sz -= d.z; } });
+      const hy = H.map(h => h.y * k), fy = P.map(pp => Math.min(...pp.map(p => p.y)) * k);
+      const pieds = P.map(pp => { let x = 0, z = 0; pp.forEach(p => { x += p.x; z += p.z; }); return [+(x / N * k).toFixed(3), +(z / N * k).toFixed(3)]; });
+      R[clip] = { dir: +(Math.atan2(sx, sz) * 180 / Math.PI).toFixed(1), loco: M.loco && +(M.loco[clip] || 0).toFixed(2), dur: +dur.toFixed(2), phase0: M.phase0 && +(M.phase0[clip] || 0).toFixed(2),
+        hipsY: +(hy.reduce((a, b) => a + b, 0) / N).toFixed(3), bob: +(Math.max(...hy) - Math.min(...hy)).toFixed(3), piedY: fy.map(v => +v.toFixed(3)),
+        hipsYaw: M.hipsYaw && M.hipsYaw[clip] !== undefined ? +(M.hipsYaw[clip] * 180 / Math.PI).toFixed(1) : null, yawFix: +((M.yawFix[clip] || 0) * 180 / Math.PI).toFixed(1), pieds,
+        hipsXZ: [+(H.reduce((a, h) => a + h.x, 0) / N * k).toFixed(3), +(H.reduce((a, h) => a + h.z, 0) / N * k).toFixed(3)] };
+      mixer.stopAllAction(); mixer.uncacheRoot(sc);
+    }
+    out[nom] = R;
+  }
+  window.MESURES = out; window.PRET = true;
+});
+</script></body></html>

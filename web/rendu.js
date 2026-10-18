@@ -69,7 +69,7 @@
   }
   // préréglages d'ambiance par condition : position du soleil, ciel, exposition, brouillard, intensité de l'environnement
   const AMB = {
-    jour:       { elev: 31, azim: 230, turb: 4.5, ray: 1.3, mie: 0.005, g: 0.8, exp: 0.9, sun: [0xffd9a8, 5.6], env: 0.75, fog: [0xb9c3c9, 0.0042], clouds: 0.5, cloudTint: 0xfff4e6, cloudDark: 0x8d97a6, bloom: [0.32, 0.55, 0.92] },
+    jour:       { elev: 23, azim: 238, turb: 5.5, ray: 1.6, mie: 0.006, g: 0.82, exp: 0.95, sun: [0xffcb94, 6.2], env: 0.7, fog: [0xc8c2b8, 0.0040], clouds: 0.45, cloudTint: 0xffeedd, cloudDark: 0x8d8f9a, bloom: [0.3, 0.55, 0.92] },   // fin d'après-midi : soleil bas et chaud, longues ombres
     nuit:       { elev: -12, azim: 215, turb: 2, ray: 0.3, mie: 0.002, g: 0.7, exp: 0.9, sun: [0x7d94d6, 0.55], env: 0.18, fog: [0x070a10, 0.016], clouds: 0.62, cloudTint: 0x2a3348, cloudDark: 0x0c1018, bloom: [0.6, 0.6, 0.55], night: true },
     brouillard: { elev: 18, azim: 215, turb: 12, ray: 2.5, mie: 0.02, g: 0.9, exp: 0.7, sun: [0xe8ecf0, 1.0], env: 0.75, fog: [0x9aa1a8, 0.03], clouds: 0.2, cloudTint: 0xdfe3e6, cloudDark: 0x9aa1a8, bloom: [0.25, 0.6, 0.95] },
     pluie:      { elev: 20, azim: 215, turb: 14, ray: 3, mie: 0.02, g: 0.85, exp: 0.7, sun: [0xc8d0dc, 0.9], env: 0.55, fog: [0x47505a, 0.013], clouds: 0.15, cloudTint: 0x6c7580, cloudDark: 0x2c323a, bloom: [0.35, 0.6, 0.9] },

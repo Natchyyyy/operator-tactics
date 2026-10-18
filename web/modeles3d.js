@@ -1,21 +1,26 @@
-// Objets 3D faits avec Meshy (fusil d'assaut, voitures, bus, barrières, sacs de sable, fût, kiosque, palmier, abribus) :
+// Objets 3D faits avec Meshy (fusil d'assaut, voitures, bus, barrières, sacs de sable, fût, kiosque, palmier, abribus, arbre
+// d'alignement à grille, benne à ordures, palettes filmées, conteneur maritime, armoire électrique) :
 // chargés une fois depuis les données incluses (modeles/decor.js), puis copiés (géométrie et matériau partagés) et
 // ajustés à la boîte de l'obstacle simulé. Si un modèle manque, le jeu garde le décor dessiné par programme (decor.js).
 (function (root) {
   const S = { ready: false, scenes: {}, boxes: {}, onReady: [], hd: {} };
-  const NOMS = ['fusil', 'berline', 'pickup', 'fourgon', 'bus', 'barriere', 'sacs', 'fut', 'abribus', 'kiosque', 'palmier'];
+  const NOMS = ['fusil', 'berline', 'pickup', 'fourgon', 'bus', 'barriere', 'sacs', 'fut', 'abribus', 'kiosque', 'palmier', 'arbre', 'benne', 'palettes', 'conteneur', 'armoire'];
   function b64ToBuf(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
   function finish() { S.ready = true; for (const f of S.onReady.splice(0)) try { f(); } catch (e) { console.warn(e); } }
   function load() {
     const Loader = window.THREEX && THREEX.GLTFLoader, M = root.MODELES || {};
     if (!Loader || !window.THREE) return finish();
-    const todo = NOMS.filter(n => M[n]); let left = todo.length; if (!left) return finish();
+    // objets publiés seulement en haute définition (hd/, pas de version incluse dans la page : elle serait trop lourde) ;
+    // sans eux (page ouverte seule, hors ligne), le décor dessiné par programme les remplace
+    const HDOK = /^https?:/.test(location.protocol) && !/[?&]hd=0/.test(location.search) && !!window.fetch;
+    const HDSEUL = new Set(['arbre', 'benne', 'palettes', 'conteneur', 'armoire']);
+    const todo = NOMS.filter(n => M[n] || (HDOK && HDSEUL.has(n))); let left = todo.length; if (!left) return finish();
     const done = () => { if (--left === 0) finish(); };
     // version haute définition (hd/<nom>.glb, plus de triangles, textures 2048 avec relief et rugosité) si elle est
     // publiée à côté de la page ; sinon (fichier local, hors ligne) la version incluse dans la page
-    const HD = new Set(['fusil', 'berline', 'pickup', 'fourgon', 'bus', 'barriere', 'sacs', 'fut', 'abribus', 'kiosque']);
+    const HD = new Set(['fusil', 'berline', 'pickup', 'fourgon', 'bus', 'barriere', 'sacs', 'fut', 'abribus', 'kiosque', 'arbre', 'benne', 'palettes', 'conteneur', 'armoire']);
     const source = (n) => {
-      const inline = () => b64ToBuf(M[n]);
+      const inline = () => (M[n] ? b64ToBuf(M[n]) : null);
       if (!HD.has(n) || !/^https?:/.test(location.protocol) || /[?&]hd=0/.test(location.search) || !window.fetch) return Promise.resolve(inline());
       const t = new Promise(r => setTimeout(() => r(null), 12000));
       // .glb (GitHub Pages, serveur local) ou, à défaut, .json contenant le .glb en base64 (hébergeurs qui ne servent pas .glb)
@@ -25,6 +30,7 @@
       return Promise.race([f, t]).then(buf => { if (buf && buf.byteLength > 1000) { S.hd[n] = true; return buf; } return inline(); });
     };
     for (const n of todo) source(n).then(buf => {
+      if (!buf) return done();
       try {
         new Loader().parse(buf, '', (g) => {
           const sc = g.scene; sc.updateMatrixWorld(true);

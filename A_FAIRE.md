@@ -1,5 +1,20 @@
 # À faire (suivi pour reprendre plus tard)
 
+## 18/10 : nouveaux personnages, marche dans toutes les directions, carte asymétrique, nouveaux objets
+- Personnages refaits (vues Gemini → Meshy multi-vues → remaillage 100 k → texture 8K PBR → rig humanoïde avec os des
+  doigts → animations « Marchez à gauche avec un pistolet » et « Marcher en arrière avec un pistolet » de la bibliothèque) :
+  `art/meshy/v2/{gign2,soldat2}_brut.glb`. Chaîne : `outils/greffer_animations.py cible.glb art/meshy/<source>.glb sortie.glb
+  --doigts` (8 influences lues, animations propres à la cible gardées, doigts en position de prise) → gltfpack `-si 0.26 -sp
+  -noq -kn -km` (version incluse ~27 k triangles) → `compacter_glb.py --tailles 1024,512,512` → `modele_en_js.py` ;
+  version HD complète `compacter_glb.py --tailles 16,16,16` → `web/hd/<nom>_hd.glb` (chargée par soldat3d.js si servie) ;
+  textures `outils/textures_hd.py brut.glb <nom>` → `web/hd/<nom>_couleur|relief|mr.jpg` (4096/4096/2048).
+- Marche directionnelle (« blend space ») : `soldat3d.js` `directions()` + `f.marche()`, `app.js` `animateSkinned`
+  (`dirMarche`) ; planche de contrôle `outils/vues/marche.html?m=gign|soldat&ph=0.25` (`poser(ph)`).
+- Carte parking asymétrique (`asymetrique: true`), équilibre vérifié par `node outils/equilibre.js parking 400`.
+- Objets Meshy « HD seulement » (pas de version incluse, trop lourde) : arbre d'alignement, benne, palettes filmées,
+  conteneur, armoire électrique (`modeles3d.js` `HDSEUL`). Remaillage dans Meshy avant téléchargement (gltfpack ne simplifie
+  pas les atlas UV très découpés de Meshy) ; `outils/decor_glb.py --permissif` (= gltfpack `-sp`).
+
 ## Nuit du 17 au 18/10 : passe « triple A » (rendu, parking, effets, caméras, HUD, IA, HD)
 - Rendu : `web/rendu.js` (ciel physique, nuages, IBL, ombres 4096, HBAO, bloom, étalonnage, SMAA ; `?fx=0` = simple).
 - Parking : `web/parking.js` (asphalte procédural, flaques réfléchissantes, murs, façade, rues, immeubles, objets du

@@ -9,7 +9,7 @@ from PIL import Image
 
 ap = argparse.ArgumentParser(); ap.add_argument('src'); ap.add_argument('dst')
 ap.add_argument('--tris', type=int, default=4000); ap.add_argument('--tex', type=int, default=1024); ap.add_argument('--jpeg', type=int, default=82)
-ap.add_argument('--agressif', action='store_true'); ap.add_argument('--erreur', type=float, default=0.05); ap.add_argument('--metal', type=float, default=0.0); ap.add_argument('--rugo', type=float, default=0.8)
+ap.add_argument('--agressif', action='store_true'); ap.add_argument('--permissif', action='store_true', help='gltfpack -sp : simplifie à travers les coutures des UV (garde les textures, contrairement à -sa)'); ap.add_argument('--erreur', type=float, default=0.05); ap.add_argument('--metal', type=float, default=0.0); ap.add_argument('--rugo', type=float, default=0.8)
 ap.add_argument('--gltfpack', default='/home/claude/meshoptimizer/gltfpack')
 ap.add_argument('--hd', action='store_true', help='garde aussi le relief (normal map) et le métal/rugosité, à la taille --tex (version haute définition)')
 a = ap.parse_args()
@@ -22,7 +22,7 @@ j, _ = lire(a.src)
 tris = sum(j['accessors'][p['indices']]['count'] // 3 for m in j['meshes'] for p in m['primitives'])
 ratio = min(1.0, a.tris / tris)
 tmp = tempfile.mktemp(suffix='.glb')
-cmd = [a.gltfpack, '-i', a.src, '-o', tmp, '-si', f'{ratio:.6f}', '-se', str(a.erreur), '-kn', '-vtf'] + (['-sa'] if a.agressif else [])
+cmd = [a.gltfpack, '-i', a.src, '-o', tmp, '-si', f'{ratio:.6f}', '-se', str(a.erreur), '-kn', '-vtf'] + (['-sa'] if a.agressif else []) + (['-sp'] if a.permissif else [])
 subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
 j, b0 = lire(tmp); os.remove(tmp)
 

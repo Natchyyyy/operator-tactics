@@ -450,9 +450,10 @@ function duel(opts) {
 {
   // ---- équité entre les camps : deux escouades identiques, cartes symétriques → aucun camp ne doit être favorisé ----
   const mp = new GameMap(MAPS.parking); const key = (x, z) => x.toFixed(2) + ',' + z.toFixed(2);
-  let asymCover = 0; for (const id of Object.keys(MAPS)) { const m = new GameMap(MAPS[id]); const S = new Set(m.coverPoints.map(p => key(p.x, p.z))); for (const p of m.coverPoints) if (!S.has(key(m.width - p.x, p.z))) asymCover++; }
-  const f1 = mp.nearestFree(36.0 - 3, 26), f2 = mp.nearestFree(36.0 + 3, 26), c1 = mp.centerOf(f1.c, f1.r), c2 = mp.centerOf(f2.c, f2.r);
-  check('symétrie : points de couverture en miroir sur toutes les cartes, case libre la plus proche en miroir', asymCover === 0 && Math.abs((c1.x + c2.x) - 72) < 1e-9 && c1.z === c2.z, { asymCover, c1, c2 });
+  let asymCover = 0; for (const id of Object.keys(MAPS)) { if (MAPS[id].asymetrique) continue; const m = new GameMap(MAPS[id]);   // cartes voulues asymétriques : l'équité est vérifiée par les batailles (ci-dessous)
+ const S = new Set(m.coverPoints.map(p => key(p.x, p.z))); for (const p of m.coverPoints) if (!S.has(key(m.width - p.x, p.z))) asymCover++; }
+  const f1 = mp.nearestFree(36.0 - 2.75, 23.25), f2 = mp.nearestFree(36.0 + 2.75, 23.25), c1 = mp.centerOf(f1.c, f1.r), c2 = mp.centerOf(f2.c, f2.r);
+  check('symétrie : points de couverture en miroir sur les cartes symétriques (le parking est volontairement asymétrique)', asymCover === 0 && (MAPS.parking.asymetrique || (Math.abs((c1.x + c2.x) - 72) < 1e-9 && c1.z === c2.z)), { asymCover, c1, c2 });
   const ops = ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
   for (const obj of ['eliminate', 'capture']) {
     const w = [0, 0];

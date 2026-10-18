@@ -498,6 +498,13 @@
         for (let j = 0; j < (two ? 2 : 1); j++) { const r = Math.min(o.w, o.d) * 0.95, p = M3.fit('fut', r, o.h, r, { byHeight: true, rot: i + j }); if (two) { const off = (j - 0.5) * Math.max(o.w, o.d) * 0.48; p.position.set(o.w >= o.d ? off : 0, 0, o.w >= o.d ? 0 : off); } mesh.add(p); }
       } else if (has3('kiosque') && nm.startsWith('kiosque')) {
         mesh = M3.fit('kiosque', o.w, o.h, o.d, { tol: 0.3, rot: o.x > map.width / 2 ? Math.PI / 2 : -Math.PI / 2 });
+      } else if (has3('arbre') && nm.startsWith('palmier')) {   // arbre d'alignement (sa grille de pied disparaît dans le bac)
+        mesh = M3.fit('arbre', 3, 5.6 + (i % 3) * 0.5, 3, { byHeight: true, rot: i * 1.7 }); mesh.position.y = 0;
+        mesh.children[0].position.y = -o.h / 2;
+      } else if (has3('palettes') && nm.startsWith('palettes')) {
+        mesh = M3.fit('palettes', o.w, o.h, o.d, { tol: 0.35, rot: (i % 4) * Math.PI / 2 });
+      } else if (has3('conteneur') && nm.startsWith('conteneur')) {
+        mesh = M3.fit('conteneur', o.w, o.h, o.d, { tol: 0.3, flip: i % 2 === 0 });
       } else if (has3('palmier') && nm.startsWith('palmier')) {
         mesh = M3.fit('palmier', 3, 6.2 + (i % 3) * 0.6, 3, { byHeight: true, rot: i }); mesh.position.y = 0;
         mesh.children[0].position.y = -o.h / 2;
@@ -672,7 +679,8 @@
     // direction du déplacement lissée sur ~0,3 s : les petits zigzags du chemin (centre de case, écartement d'un allié)
     // ne font plus pivoter les jambes dans tous les sens
     let ecart = 0;
-    if (v > 0.15 && Math.hypot(a.vx, a.vz) > 0.1) { ecart = (-Math.atan2(a.vz, a.vx) + Math.PI / 2) - m.yaw; while (ecart > Math.PI) ecart -= 2 * Math.PI; while (ecart < -Math.PI) ecart += 2 * Math.PI; }
+    if (v > 0.15 && Math.hypot(a.vx, a.vz) > 0.1) { ecart = (-Math.atan2(a.vz, a.vx) + Math.PI / 2) - m.yaw - (m.body ? m.body.rotation.y : 0);   // − correction de visée de l'animation (elle tourne aussi les jambes)
+      while (ecart > Math.PI) ecart -= 2 * Math.PI; while (ecart < -Math.PI) ecart += 2 * Math.PI; }
     const seuil = a.recule ? 1.25 : 1.85; a.recule = v > 0.15 && Math.abs(ecart) > seuil;
     let jambes = a.recule ? ecart + (ecart > 0 ? -Math.PI : Math.PI) : ecart, sens = a.recule ? -1 : 1;
     if (v > 0.15) { a.piedsYaw = m.yaw + jambes; a.stopT = 0; }
@@ -682,6 +690,9 @@
       jambes = a.piedsYaw - m.yaw; while (jambes > Math.PI) jambes -= 2 * Math.PI; while (jambes < -Math.PI) jambes += 2 * Math.PI;
       if (Math.abs(jambes) > 1.9 || (a.stopT > 1.2 && Math.abs(jambes) > 0.35) || crouch) { a.piedsYaw = m.yaw; jambes = 0; }
     }
+    // marche (pas la course, pas accroupi) : jambes directionnelles (soldat3d.marche) quand le modèle a les pas chassés
+    const dirMarche = u.alive && m.marche && m.clips.Pas_Gauche && !crouch && u.moving && v > 0.15 && v <= 1.4 && !(u.reloading > 0) && !u.throwing && !battle.over;
+    if (dirMarche) { jambes = 0; a.recule = false; a.piedsYaw = m.yaw; }
     m.jambesCible = u.alive ? jambes : 0;
     const loco = (n) => { const nat = m.loco[n] || 1; m.play(n, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)), fade: 0.2 });
       const act = m.mixer.existingAction(m.clips[n]); if (act) a.phase = act.time / (m.clips[n].duration || 1) * 2 * Math.PI; };   // phase des pas (sons)
@@ -700,6 +711,12 @@
         m.play('Standing_Reload_Haut', { speed: rs }); const lj = v > 1.4 ? 'Run_Jambes' : 'Walk_Jambes', nat = m.loco[v > 1.4 ? 'Run_and_Shoot' : 'Walk_Fight_Forward'] || 1;
         m.playLegs(lj, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)) }); legs = true;
       } else { const n = crouch ? 'Kneeling_Reload' : 'Standing_Reload'; m.play(n, { speed: rs }); }
+    }
+    else if (dirMarche) {
+      const vise = aiming || u.preaim || !m.clips.Walk_Low_Haut;
+      // (marche attend la direction par rapport au groupe, c.-à-d. à la visée : on rajoute la correction du corps retirée plus haut)
+      const ph = m.marche(ecart + (m.body ? m.body.rotation.y : 0), v, dt, vise ? 'Walk_Aim_Haut' : 'Walk_Low_Haut', vise ? 'Pas_Avant_Aim' : 'Pas_Avant_Low');
+      a.phase = ph * 2 * Math.PI;
     }
     else if (u.moving && v > 0.15) {
       if (crouch) loco('Cautious_Crouch_Walk_Forward');
@@ -1174,7 +1191,7 @@
       // vitesse lissée sur ~0,3 s (direction des jambes, et direction du corps quand on marche sans cible : les petits
       // zigzags du chemin ne font plus pivoter le soldat dans tous les sens) ; un saut > 4 m/s est un replacement, ignoré
       const an = m.anim, vdx = (m.cur.x - m.prev.x) / DT, vdz = (m.cur.z - m.prev.z) / DT, vinst = Math.hypot(vdx, vdz);
-      const kv = vinst > 4 ? 0 : Math.min(1, frameDt * 5); an.vx = (an.vx || 0) + (vdx - (an.vx || 0)) * kv; an.vz = (an.vz || 0) + (vdz - (an.vz || 0)) * kv;
+      const kv = vinst > 4 ? 0 : Math.min(1, frameDt * 9); an.vx = (an.vx || 0) + (vdx - (an.vx || 0)) * kv; an.vz = (an.vz || 0) + (vdz - (an.vz || 0)) * kv;
       let want = -m.cur.facing + Math.PI / 2;
       if (u.alive && !u.target && !u.preaim && u.moving && vinst > 0.3 && Math.hypot(an.vx, an.vz) > 0.3) want = -Math.atan2(an.vz, an.vx) + Math.PI / 2;
       if (m.yaw === undefined || !isFinite(m.yaw)) m.yaw = want;

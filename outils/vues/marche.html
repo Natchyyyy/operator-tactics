@@ -1,0 +1,47 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Marche directionnelle</title><style>body{margin:0;background:#2a3036;font:13px sans-serif;color:#ddd}canvas{display:block}</style></head><body>
+<script src="../../web/three.min.js"></script><script src="../../web/figure.js"></script><script src="../../web/gltf.js"></script><script src="../../web/modeles/soldat.js"></script><script src="../../web/modeles/gign.js"></script><script src="../../web/modeles/decor.js"></script><script src="../../web/modeles3d.js"></script><script src="../../web/soldat3d.js"></script>
+<script>
+// Marche dans 8 directions (soldat3d.marche) : chaque soldat a le torse vers la caméra et marche dans la direction de la
+// flèche au sol (0° = vers l'avant, 90° = vers sa gauche…). ?m=gign|soldat ; ?ph=0.25 (phase du pas) ; ?vise=1 ; ?dessus=1.
+const q = new URLSearchParams(location.search), PH = +(q.get('ph') || 0.25), VISE = q.get('vise') === '1';
+OT.Soldat3D.whenReady(() => {
+  const W = 1800, H = 700, r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true; document.body.appendChild(r.domElement);
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(0x3a4248);
+  sc.add(new THREE.HemisphereLight(0xffffff, 0x404040, 1.5)); const d = new THREE.DirectionalLight(0xfff0d8, 2.6); d.position.set(4, 8, 6); d.castShadow = true; d.shadow.camera.left = -12; d.shadow.camera.right = 12; d.shadow.camera.top = 6; d.shadow.camera.bottom = -6; d.shadow.mapSize.set(2048, 1024); sc.add(d);
+  const sol = new THREE.Mesh(new THREE.PlaneGeometry(30, 10), new THREE.MeshStandardMaterial({ color: 0x5b5f62, roughness: 1 })); sol.rotation.x = -Math.PI / 2; sol.receiveShadow = true; sc.add(sol);
+  const cam = new THREE.PerspectiveCamera(30, W / H, 0.1, 100);
+  if (q.get('dessus') === '1') { cam.position.set(0, 16, 6); } else cam.position.set(0, 1.5, 11); cam.lookAt(0, 0.9, 0);
+  const noms = ['avant 0°', '45° gauche', 'gauche 90°', '135°', 'arrière 180°', '−135°', 'droite −90°', '−45°'];
+  const fs = [];
+  for (let i = 0; i < 8; i++) {
+    const ecart = (i <= 4 ? i : i - 8) * Math.PI / 4;
+    const f = OT.Soldat3D.create({ modele: q.get('m') || 'gign', uniform: 0x6b5a3e, weapon: 'carbine' });
+    f.group.position.set((i - 3.5) * 1.75, 0, 0); f.group.traverse(o => { if (o.isMesh) o.castShadow = true; }); sc.add(f.group);
+    // flèche au sol : direction du déplacement dans le repère du soldat (+Z devant, +X sa gauche)
+    const dir = new THREE.Vector3(Math.sin(ecart), 0, Math.cos(ecart));
+    const fl = new THREE.ArrowHelper(dir, new THREE.Vector3(0, 0.02, 0), 0.85, 0xffcc33, 0.22, 0.14); f.group.add(fl);
+    fs.push([f, ecart]);
+  }
+  const haut = VISE ? 'Walk_Aim_Haut' : 'Walk_Low_Haut', avant = VISE ? 'Pas_Avant_Aim' : 'Pas_Avant_Low';
+  // 2 s de marche (poids lissés établis), puis on avance jusqu'à la phase demandée
+  for (const [f, e] of fs) for (let k = 0; k < 60; k++) { f.marche(e, 1.2, 1 / 30, haut, avant); f.update(1 / 30); }
+  // poser(ph) : avance chaque soldat jusqu'à la phase ph puis rend l'image (pour une planche de plusieurs instants)
+  window.poser = (ph) => { for (const [f, e] of fs) { let g = 0; while (Math.abs(((f.ph - ph) % 1 + 1) % 1) > 0.012 && g++ < 400) { f.marche(e, 1.2, 1 / 240, haut, avant); f.update(1 / 240); } f.placeWeapon(true, 0, 'deux'); } r.render(sc, cam); return 0; };
+  // mesure() : sur un cycle, direction réelle des pas (pied d'appui, repère du groupe) comparée à la flèche, rapport vitesse
+  // des pas / vitesse demandée (1 = pas de glissement), direction du fusil (0 = droit devant) et hauteur du bassin
+  window.mesure = () => fs.map(([f, e]) => {
+    const dt = 1 / 120, inv = new THREE.Matrix4(), P = [[], []], ft = ['LeftToeBase', 'RightToeBase'].map(n => f.body.getObjectByName('mixamorig' + n) || f.body.getObjectByName('mixamorig:' + n));
+    const fus = [], hy = [];
+    for (let i = 0; i < 160; i++) { f.marche(e, 1.2, dt, haut, avant); f.update(dt); f.group.updateMatrixWorld(true); f.placeWeapon(true, 0, 'deux'); inv.copy(f.group.matrixWorld).invert();
+      ft.forEach((o, j) => P[j].push(o.getWorldPosition(new THREE.Vector3()).applyMatrix4(inv)));
+      const bz = new THREE.Vector3(0, 0, 1).applyQuaternion(f.weapon.quaternion); fus.push(Math.atan2(bz.x, bz.z)); hy.push(f.bones.hips.getWorldPosition(new THREE.Vector3()).y); }
+    let sx = 0, sz = 0, sv = 0, n = 0;
+    P.forEach(pp => { const ym = Math.min(...pp.map(p => p.y)); for (let i = 0; i + 1 < pp.length; i++) { if (pp[i].y > ym + 0.03 || pp[i + 1].y > ym + 0.03) continue; const d = pp[i + 1].clone().sub(pp[i]).divideScalar(dt); sx -= d.x; sz -= d.z; sv += Math.hypot(d.x, d.z); n++; } });
+    const deg = (r) => +(r * 180 / Math.PI).toFixed(1);
+    return { fleche: deg(e), pas: deg(Math.atan2(sx, sz)), vitesse: +(sv / n / 1.2).toFixed(2), fusil: deg(fus.reduce((a, b) => a + b, 0) / fus.length), bassin: [+Math.min(...hy).toFixed(3), +Math.max(...hy).toFixed(3)], corps: deg(f.body.rotation.y), dos: deg(f.dosComp || 0) };
+  });
+  window.poser(PH);
+  const c = document.createElement('div'); c.style.cssText = 'position:absolute;left:0;top:8px;width:' + W + 'px;display:flex'; c.innerHTML = noms.map(n => '<div style="flex:1;text-align:center">' + n + '</div>').join(''); document.body.appendChild(c);
+  window.PRET = true;
+});
+</script></body></html>

@@ -20,35 +20,61 @@
     parking: {
       id: 'parking', name: 'Parking du centre commercial', width: 72, depth: 46,
       spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
-      capture: { x: 36, z: 26, r: 6 },  // l'enclos central : barrières en béton et deux voitures (comme « Harrabah Mall »)
-      obstacles: mirrored(72, [
+      capture: { x: 36, z: 23, r: 6 },  // l'enclos central, partagé en deux par l'abri : on le prend par ses deux bouts (nord, sud)
+      asymetrique: true,
+      // Tracé en trois voies (nord le long du centre commercial, milieu, sud le long du bus), mais chaque camp a son propre
+      // terrain : à l'ouest un conteneur couché au nord et un fourgon au sud ; à l'est un conteneur debout (nord-sud) qui
+      // ouvre un angle différent, un conteneur au sud. Le centre (abri, enclos, zone) reste sur l'axe pour l'équité ;
+      // l'équilibre est vérifié en jouant des centaines de batailles (tests : chaque camp gagne entre 35 et 65 %).
+      obstacles: [
         box(-1, -1, 74, 1, 3.2, 'wall', 'mur nord'), box(-1, 46, 74, 1, 3.2, 'wall', 'mur sud'),
         box(-1, 0, 1, 46, 3.2, 'wall', 'mur ouest'), box(72, 0, 1, 46, 3.2, 'wall', 'mur est'),
-        // façade du centre commercial au nord, bus garé au sud (pièces centrées : symétriques par elles-mêmes)
+        // centre (sur l'axe) : façade du centre commercial, bus, abri des caisses, enclos
         box(26, 0, 20, 5, 6.0, 'wall', 'centre commercial'), box(30, 41, 12, 3, 3.0, 'wall', 'bus'),
-        // fourgons garés devant les zones de départ : écrans
+        box(35, 16.5, 2, 13, 2.8, 'wall', 'abri'),
+        box(29.5, 17.5, 0.6, 3.5, 0.95, 'cover', 'barrière'), box(29.5, 25, 0.6, 3.5, 0.95, 'cover', 'barrière'),
+        box(31, 17, 3, 0.6, 0.95, 'cover', 'barrière'), box(31, 28.4, 3, 0.6, 0.95, 'cover', 'barrière'),
+        box(41.9, 17.5, 0.6, 3.5, 0.95, 'cover', 'barrière'), box(41.9, 25, 0.6, 3.5, 0.95, 'cover', 'barrière'),
+        box(38, 17, 3, 0.6, 0.95, 'cover', 'barrière'), box(38, 28.4, 3, 0.6, 0.95, 'cover', 'barrière'),
+        box(31.5, 20.8, 2, 4.4, 1.4, 'cover', 'voiture'), box(38.5, 20.8, 2, 4.4, 1.4, 'cover', 'voiture'),
+        box(33, 12.5, 1.5, 1.5, 2.2, 'wall', 'caisses'), box(33, 32, 1.5, 1.5, 2.2, 'wall', 'caisses'),
+        box(37.5, 12.5, 1.5, 1.5, 2.2, 'wall', 'caisses'), box(37.5, 32, 1.5, 1.5, 2.2, 'wall', 'caisses'),
+        box(30, 9, 2, 2, 3.0, 'wall', 'kiosque'), box(40, 9, 2, 2, 3.0, 'wall', 'kiosque'),
+        box(26.5, 7, 3, 1.2, 1.0, 'cover', 'muret'), box(42.5, 7, 3, 1.2, 1.0, 'cover', 'muret'),
+        box(26.5, 38, 3, 1.2, 1.0, 'cover', 'muret'), box(42.5, 38, 3, 1.2, 1.0, 'cover', 'muret'),
+        // ---- OUEST
         box(11, 13, 2.5, 5.5, 2.4, 'wall', 'fourgon'), box(11, 27.5, 2.5, 5.5, 2.4, 'wall', 'fourgon'),
-        // guérite de parking et palmiers dans leurs bacs
-        box(30, 9, 2, 2, 3.0, 'wall', 'kiosque'),
+        box(16.5, 14.5, 6, 2.4, 2.6, 'wall', 'conteneur'),                     // voie nord / milieu : conteneur couché
+        box(17, 29.6, 5.5, 2.5, 2.4, 'wall', 'fourgon'), box(23, 30, 1.6, 1.6, 1.4, 'cover', 'palettes'),   // voie sud : fourgon et palettes
+        box(24, 21.8, 2, 2.4, 2.2, 'wall', 'caisses'), box(25, 17.5, 1, 2, 1.0, 'cover', 'sacs de sable'),
+        box(30, 35, 2, 2, 2.2, 'wall', 'caisses'),
+        box(6.5, 8.5, 2, 2, 2.2, 'wall', 'caisses'), box(6.5, 35.5, 2, 2, 2.2, 'wall', 'caisses'),
         box(15, 21.5, 1.5, 3, 1.0, 'cover', 'bac à fleurs'), box(15.5, 22.5, 0.5, 0.5, 5.0, 'wall', 'palmier'),
         box(24, 3, 1.5, 1.5, 1.0, 'cover', 'bac à fleurs'), box(24.5, 3.5, 0.5, 0.5, 5.0, 'wall', 'palmier'),
-        // rangées de voitures garées (couvert : cache un homme accroupi)
+        box(24, 41.5, 1.5, 1.5, 1.0, 'cover', 'bac à fleurs'), box(24.5, 42, 0.5, 0.5, 5.0, 'wall', 'palmier'),
         box(17.5, 4, 2, 4.4, 1.4, 'cover', 'voiture'), box(17.5, 37.6, 2, 4.4, 1.4, 'cover', 'voiture'),
-        box(21.5, 8.5, 2, 4.4, 1.4, 'cover', 'voiture'), box(21.5, 33.1, 2, 4.4, 1.4, 'cover', 'voiture'),
-        box(21.5, 15.5, 2, 4.4, 1.4, 'cover', 'voiture'), box(21.5, 26.1, 2, 4.4, 1.4, 'cover', 'voiture'),
+        box(21.5, 8.5, 2, 4.4, 1.4, 'cover', 'voiture'), box(21.5, 33.5, 2, 4.4, 1.4, 'cover', 'voiture'),
         box(26, 13, 4.4, 2, 1.4, 'cover', 'voiture'), box(26, 31, 4.4, 2, 1.4, 'cover', 'voiture'),
-        // enclos central : barrières en béton avec des passages
-        box(29.5, 19, 0.6, 3.5, 0.95, 'cover', 'barrière'), box(29.5, 29.5, 0.6, 3.5, 0.95, 'cover', 'barrière'),
-        box(31, 18.5, 3, 0.6, 0.95, 'cover', 'barrière'), box(31, 33, 3, 0.6, 0.95, 'cover', 'barrière'),
-        box(32, 25.3, 1, 1.4, 0.95, 'cover', 'sacs de sable'),
-        // au centre de l'enclos, l'abri des caisses de paiement : coupe la vue d'une zone de départ à l'autre et partage la zone en deux
-        box(35, 19.5, 2, 13, 2.8, 'wall', 'abri'),
-        box(31.5, 23.5, 2, 4.4, 1.4, 'cover', 'voiture'),
-        // divers
+        box(19.5, 20.5, 0.6, 4.5, 0.95, 'cover', 'barrière'), box(20.5, 27, 2.5, 0.6, 0.95, 'cover', 'barrière'),
         box(8, 6, 1.5, 1.4, 1.1, 'cover', 'fût'), box(8, 38.6, 1.5, 1.4, 1.1, 'cover', 'fût'),
-        box(16, 11, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'), box(16, 32.6, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'),
-        box(26.5, 38, 3, 1.2, 1.0, 'cover', 'muret'), box(26.5, 7, 3, 1.2, 1.0, 'cover', 'muret'),
-      ]),
+        box(16, 11, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'), box(15.5, 33.5, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'),
+        // ---- EST
+        box(58.5, 13, 2.5, 5.5, 2.4, 'wall', 'fourgon'), box(59, 28.5, 2.5, 5.5, 2.4, 'wall', 'fourgon'),
+        box(51, 11.5, 2.4, 6, 2.6, 'wall', 'conteneur'),                       // voie nord : conteneur debout (nord-sud)
+        box(49.5, 29.1, 6, 2.4, 2.6, 'wall', 'conteneur'),                     // voie sud : conteneur couché
+        box(45.5, 23.2, 2, 2.4, 2.2, 'wall', 'caisses'), box(46, 19, 1, 2, 1.0, 'cover', 'sacs de sable'),
+        box(40.5, 36, 2, 2, 2.2, 'wall', 'caisses'),
+        box(63.5, 8.5, 2, 2, 2.2, 'wall', 'caisses'), box(63, 36, 2, 2, 2.2, 'wall', 'caisses'),
+        box(55.5, 21.5, 1.5, 3, 1.0, 'cover', 'bac à fleurs'), box(56, 22.5, 0.5, 0.5, 5.0, 'wall', 'palmier'),
+        box(46.5, 3, 1.5, 1.5, 1.0, 'cover', 'bac à fleurs'), box(47, 3.5, 0.5, 0.5, 5.0, 'wall', 'palmier'),
+        box(48, 41.5, 1.5, 1.5, 1.0, 'cover', 'bac à fleurs'), box(48.5, 42, 0.5, 0.5, 5.0, 'wall', 'palmier'),
+        box(53, 4.5, 2, 4.4, 1.4, 'cover', 'voiture'), box(52.5, 37.6, 2, 4.4, 1.4, 'cover', 'voiture'),
+        box(47.5, 8, 2, 4.4, 1.4, 'cover', 'voiture'), box(47.5, 34, 2, 4.4, 1.4, 'cover', 'voiture'),
+        box(41.6, 13, 4.4, 2, 1.4, 'cover', 'voiture'), box(41.6, 31, 4.4, 2, 1.4, 'cover', 'voiture'),
+        box(52, 20, 0.6, 4.5, 0.95, 'cover', 'barrière'),
+        box(62.5, 6, 1.5, 1.4, 1.1, 'cover', 'fût'), box(62.5, 38.6, 1.5, 1.4, 1.1, 'cover', 'fût'),
+        box(55, 11, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'), box(55.5, 32.5, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'),
+      ],
     },
   };
 
