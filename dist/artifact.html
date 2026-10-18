@@ -12038,7 +12038,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const inline = () => b64ToBuf(M[n]);
       if (!HD.has(n) || !/^https?:/.test(location.protocol) || /[?&]hd=0/.test(location.search) || !window.fetch) return Promise.resolve(inline());
       const t = new Promise(r => setTimeout(() => r(null), 12000));
-      const f = fetch('hd/' + n + '.glb').then(r => r.ok && !/text\/html/.test(r.headers.get('content-type') || '') ? r.arrayBuffer() : null).catch(() => null);
+      // .glb (GitHub Pages, serveur local) ou, à défaut, .json contenant le .glb en base64 (hébergeurs qui ne servent pas .glb)
+      const glb = () => fetch('hd/' + n + '.glb').then(r => r.ok && !/text\/html/.test(r.headers.get('content-type') || '') ? r.arrayBuffer() : null).catch(() => null);
+      const json = () => fetch('hd/' + n + '.json').then(r => r.ok ? r.json() : null).then(j => j && j.glb ? b64ToBuf(j.glb) : null).catch(() => null);
+      const f = glb().then(b => b && b.byteLength > 1000 ? b : json());
       return Promise.race([f, t]).then(buf => { if (buf && buf.byteLength > 1000) { S.hd[n] = true; return buf; } return inline(); });
     };
     for (const n of todo) source(n).then(buf => {

@@ -47,4 +47,7 @@ fs.writeFileSync(path.join(root, 'dist/artifact.html'), m[0] + '\n' + body[1].tr
 // versions haute définition (modèles, textures) publiées à côté de la page : copiées dans dist/hd et docs/hd
 { const src = path.join(root, 'web/hd'); if (fs.existsSync(src)) for (const dst of ['dist/hd', 'docs/hd']) { fs.mkdirSync(path.join(root, dst), { recursive: true });
   for (const f of fs.readdirSync(src)) { const a = path.join(src, f), b = path.join(root, dst, f); if (!fs.existsSync(b) || fs.statSync(b).size !== fs.statSync(a).size) fs.copyFileSync(a, b); } } }
+// pour l'hébergement des artifacts (pas de .glb servi) : dist/hdart, les .glb en base64 dans des .json, les .jpg tels quels
+{ const src = path.join(root, 'web/hd'), dst = path.join(root, 'dist/hdart'); if (fs.existsSync(src)) { fs.mkdirSync(dst, { recursive: true });
+  for (const f of fs.readdirSync(src)) { const a = path.join(src, f); if (f.endsWith('.glb')) fs.writeFileSync(path.join(dst, f.replace(/\.glb$/, '.json')), JSON.stringify({ glb: fs.readFileSync(a).toString('base64') })); else fs.copyFileSync(a, path.join(dst, f)); } } }
 console.log('dist/index.html :', (html.length / 1024).toFixed(0), 'Ko ; dist/artifact.html écrit');
