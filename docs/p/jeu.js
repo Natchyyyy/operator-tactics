@@ -6734,7 +6734,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // écart moyen des chevilles en marche (m)
   const ECART_PAS = 0.21;
   // à genou : hauteur du genou arrière posé (os, m), de sa cheville (pointe du pied au sol), cheville du pied avant à plat
-  const GENOU = { genou: 0.075, cheville: 0.13, chevilleAv: 0.15 };
+  const GENOU = { genou: 0.075, cheville: 0.13, chevilleAv: 0.15, baisse: 0.035 };   // baisse : bassin abaissé (m) pour que le genou arrière touche le sol
   const TROT = { s: 0.38, hs: 0.5, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
   const PENCHE = 0.21;
@@ -6988,7 +6988,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // IK des jambes cuite dans un clip (30 clés/s) : pour chaque image, cible(i, H, A, Aq) donne la position monde voulue de
   // chaque cheville (A, Aq : cheville et orientation d'origine ; H : bassin) ; dyH(i) : montée du bassin (m, unités du
   // modèle). Genou dans son plan, pied gardant son orientation monde. Renvoie le nouveau clip (jambes seules) et l'erreur max.
-  function jambesIK(M, src, nom, cible, dyH) {
+  function jambesIK(M, src, nom, cible, dyH, libre) {   // libre : pas de règle sur le plan du genou (à genou)
     const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
     const hips = b('Hips'), L = [['LeftUpLeg', 'LeftLeg', 'LeftFoot'], ['RightUpLeg', 'RightLeg', 'RightFoot']].map(l => l.map(b)), toes = [b('LeftToeBase'), b('RightToeBase')];
     if (!hips || L.some(l => l.some(x => !x)) || !toes[0] || !toes[1]) return null;
@@ -7012,7 +7012,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         let c = S0.distanceTo(Tj); c = Math.min(Math.max(c, Math.abs(a - bb) + 1e-4), (a + bb) * 0.997);
         const dir = Tj.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - bb * bb) / (2 * a * c)));
         const p = E0.clone().sub(S0); p.addScaledVector(dir, -p.dot(dir));
-        { const fd = W(toes[j]).sub(W(ft)); fd.y = 0; fd.addScaledVector(dir, -fd.dot(dir)); if (fd.lengthSq() > 1e-8) { fd.normalize(); const pd = p.dot(fd), pl = p.length(); if (pd < 0) p.addScaledVector(fd, -pd + 0.02 * RAW_H / HEIGHT); else if (pl < 0.02 * RAW_H / HEIGHT) p.addScaledVector(fd, 0.02 * RAW_H / HEIGHT - pl); } }
+        if (!libre) { const fd = W(toes[j]).sub(W(ft)); fd.y = 0; fd.addScaledVector(dir, -fd.dot(dir)); if (fd.lengthSq() > 1e-8) { fd.normalize(); const pd = p.dot(fd), pl = p.length(); if (pd < 0) p.addScaledVector(fd, -pd + 0.02 * RAW_H / HEIGHT); else if (pl < 0.02 * RAW_H / HEIGHT) p.addScaledVector(fd, 0.02 * RAW_H / HEIGHT - pl); } }
         if (p.lengthSq() < 1e-10) p.set(0, 0, 1); p.normalize();
         const E1 = S0.clone().addScaledVector(dir, a * cosA).addScaledVector(p, a * Math.sqrt(1 - cosA * cosA));
         turn(up, E0.clone().sub(S0), E1.sub(S0)); const E2 = W(lo); turn(lo, W(ft).sub(E2), Tj.clone().sub(E2));
@@ -7094,11 +7094,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const hz = Math.sqrt(Math.max(0, bb * bb - (AY - K) ** 2)); out[r] = Nt.clone().addScaledVector(sh, hz); out[r].y = AY;
         // orteils au sol : le pied tourne autour de la cheville pour que sa pointe touche le sol
         const T = W(L[r][3]), fv = T.clone().sub(A[r]), len = fv.length(), h = Math.hypot(fv.x, fv.z);
-        if (len > 1e-4 && h > 1e-4) { const y1 = Math.max(-len * 0.98, tR + 0.012 * k - AY), h1 = Math.sqrt(len * len - y1 * y1), f1 = new THREE.Vector3(fv.x / h * h1, y1, fv.z / h * h1);
+        if (len > 1e-4 && h > 1e-4) { const y1 = Math.max(-len * 0.98, tR - 0.004 * k - AY), h1 = Math.sqrt(len * len - y1 * y1), f1 = new THREE.Vector3(fv.x / h * h1, y1, fv.z / h * h1);
           Aq[r] = new THREE.Quaternion().setFromUnitVectors(fv.clone().normalize(), f1.normalize()).multiply(Aq[r]); } }
       // pied avant : posé à plat (on le descend de ce qu'il flotte)
       { const T = W(L[f][3]), fl = Math.min(T.y - tR, A[f].y - GENOU.chevilleAv * k); if (fl > 0) out[f].y -= fl; }
-      return out; });
+      return out; }, () => -GENOU.baisse * k, true);
     if (!legs) return;
     const noms = new Set(legs.tracks.map(t => t.name));
     M.clips.Kneeling_Reload = new THREE.AnimationClip('Kneeling_Reload', src.duration, src.tracks.filter(t => !noms.has(t.name)).concat(legs.tracks));
@@ -7629,7 +7629,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const dir = T.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - b * b) / (2 * a * c)));
       const p = E0.clone().sub(S0); p.addScaledVector(dir, -p.dot(dir));
       const fd = toe ? WP(toe).sub(H0) : new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())); fd.y = 0; fd.addScaledVector(dir, -fd.dot(dir));
-      if (fd.lengthSq() > 1e-8) { fd.normalize(); const pd = p.dot(fd), pl = p.length(); if (pd < -0.005) p.copy(fd); else if (pl < 0.015) p.addScaledVector(fd, 0.015 - pl); }   // (genou en arrière → vers l'avant ; presque tendu → plan des orteils ; sinon son plan d'origine)
+      if (fd.lengthSq() > 1e-8 && E0.y > H0.y + 0.05) { fd.normalize(); const pd = p.dot(fd), pl = p.length(); if (pd < -0.005) p.copy(fd); else if (pl < 0.015) p.addScaledVector(fd, 0.015 - pl); }   // (genou en arrière → vers l'avant ; presque tendu → plan des orteils ; sinon son plan d'origine)
       if (p.lengthSq() < 1e-8) p.set(0, 0, 1); p.normalize();
       const E1 = S0.clone().addScaledVector(dir, a * cosA).addScaledVector(p, a * Math.sqrt(1 - cosA * cosA));
       turn(up, E0.clone().sub(S0), E1.sub(S0)); const E2 = WP(lo); turn(lo, WP(ft).sub(E2), T.sub(E2));
@@ -8303,6 +8303,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           const w = procW * (M.prise && !S.sansPrise ? pk : 1); weapon.quaternion.slerp(Pp.q, w); pos.lerp(Pp.p, w); }
         barrel.set(0, 0, 1).applyQuaternion(weapon.quaternion);
         weapon.position.copy(pos).addScaledVector(barrel, -(recoil || 0) * 0.04);
+        // recul : la bouche se relève un peu (~2°) autour de la crosse, les mains suivent (tenir)
+        if ((recoil || 0) > 0.01 && weapon.buttPt && !S.sansPrise) { const ax = new THREE.Vector3().crossVectors(barrel, new THREE.Vector3(0, 1, 0)); if (ax.lengthSq() > 1e-6) {
+          ax.normalize(); const qr = new THREE.Quaternion().setFromAxisAngle(ax, recoil * 0.035), bL = weapon.buttPt.clone().applyQuaternion(weapon.quaternion), b0 = weapon.position.clone().add(bL);
+          weapon.quaternion.premultiply(qr); weapon.position.copy(b0.sub(bL.applyQuaternion(qr))); } }
         // mains à leur place sur le fusil, doigts refermés dessus (voir calculerPrise) ; index sur la détente en tir
         { const kk = this.majPrise(tient);
           this.detK = (this.detK || 0) + (((recoil || 0) > 0.02 || ((this.epK || 0) > 0.6 && this.regard) ? 1 : 0) - (this.detK || 0)) * kk;
@@ -10947,11 +10951,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (let k = -3; k <= 3; k++) dash((gate ? gate.x + gate.w / 2 : W / 2) + k * 0.9, D + 3, 0.45, 3.6);   // passage piéton devant l'entrée
     for (let k = -3; k <= 3; k++) dash(-10 + k * 1.1, D + 2, 0.55, 3.8);
     // lampadaires le long des trottoirs (ouest, sud, est) et dans le parking (îlots, milieu des rangées)
-    const lampAt = (x, z, rot, y) => { const l = streetLamp(); l.position.set(x, y === undefined ? 0.14 : y, z); l.rotation.y = rot; l.traverse(o => { if (o.isMesh) o.castShadow = true; }); group.add(l); const p = l.userData.lightAt.clone().applyAxisAngle(new T.Vector3(0, 1, 0), rot).add(l.position); lights.push(p); };
+    const lampAt = (x, z, rot, y, k) => { const l = streetLamp(); l.position.set(x, y === undefined ? 0.14 : y, z); l.rotation.y = rot; l.traverse(o => { if (o.isMesh) o.castShadow = true; }); group.add(l); const p = l.userData.lightAt.clone().applyAxisAngle(new T.Vector3(0, 1, 0), rot).add(l.position); if (k) p.k = k; lights.push(p); };
     for (let x = -6; x <= W + 6; x += 14) if (!gate || Math.abs(x - gate.x - gate.w / 2) > 6) lampAt(x, D + 3.2, Math.PI / 2);
     for (let z = 6; z <= D - 6; z += 14) { lampAt(-3.2, z, Math.PI); lampAt(W + 3.2, z, 0); }
-    for (const [x0, z0, n] of MK.rangees) { lampAt(x0 + 5, z0 + 2.5 * Math.floor(n / 2), 0, 0); lampAt(x0 + 5, z0 + 2.5 * Math.floor(n / 2), Math.PI, 0); }
-    for (const o of OB.filter(o => o.name === 'bac à fleurs' && o.w * o.d > 4)) lampAt(o.x + 0.4, o.z + o.d / 2, 0, o.h);
+    for (const [x0, z0, n] of MK.rangees) { lampAt(x0 + 5, z0 + 2.5 * Math.floor(n / 2), 0, 0, 260); lampAt(x0 + 5, z0 + 2.5 * Math.floor(n / 2), Math.PI, 0, 260); }   // dans le parking : flaques de lumière bien visibles la nuit
+    for (const o of OB.filter(o => o.name === 'bac à fleurs' && o.w * o.d > 4)) lampAt(o.x + 0.4, o.z + o.d / 2, 0, o.h, 260);
     // immeubles autour (au nord, derrière les arrières de boutiques de la ruelle : plus hauts, plus loin)
     const R = rng(2026), tones = ['brique', 'pierre', 'creme', 'brique', 'sable', 'pierre', 'brique', 'gris'];
     const place = (x, z, w, d, h, s) => { const b = building(w, h, d, tones[Math.floor(R() * tones.length)], s); b.position.set(x, 0.14, z); group.add(b); };
@@ -11274,7 +11278,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       };
     });
     group.add(g); void etat;
-    lights.push(new T.Vector3(cx, H - 0.3, (z0 + z1) / 2));
+    const lw = new T.Vector3(cx, H - 0.3, (z0 + z1) / 2); lw.k = 18; lights.push(lw);   // éclairage d'auvent, doux (pas d'éblouissement sur la zone)
   }
   // ---- haie taillée dans une jardinière, totem des tarifs
   function haie(o) {
@@ -11588,7 +11592,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     U.wet.value = id === 'pluie' ? 1 : id === 'brouillard' ? 0.35 : 0;
     if (root.Ruelle && root.Ruelle.setConditions) try { root.Ruelle.setConditions(id); } catch (e) { console.warn('ruelle :', e); }
     if (lightGroup) { scene.remove(lightGroup); lightGroup = null; }
-    if (night) { lightGroup = new T.Group(); for (const p of lights) { const l = new T.PointLight(0xffc98a, 120, 28, 1.6); l.position.copy(p); lightGroup.add(l); } scene.add(lightGroup); }
+    if (night) { lightGroup = new T.Group(); for (const p of lights) { const l = new T.PointLight(0xffc98a, p.k || 120, p.k > 150 ? 22 : 28, 1.6); l.position.copy(p); lightGroup.add(l); } scene.add(lightGroup); }
   }
   function tick(t) { U.time.value = t; }
   root.Parking = { build, mesh, setConditions, tick, asphalt, concrete, worldMat, teinter, brickDet };
@@ -13477,6 +13481,12 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           const cp = this.findCover(u, target, 16, { requireShoot: true, flank: target, minRange: MIN_CLOSE });
           if (cp && this.setGoal(u, cp.x, cp.z, 'close')) { u.state = 'closing'; u.stance = 'stand'; if (this.t - (u.lastFlankLog || -99) > 15) { u.lastFlankLog = this.t; this.logEvent('flank', `${u.callsign} contourne ${target.callsign}, à couvert.`, { unit: u.id, team: u.team }); } return; }
         }
+      }
+      // face à face à moins de 4 m de part et d'autre d'un muret : on ne reste pas échanger des tirs à bout portant, on
+      // décroche vers un couvert à distance de combat (une fois toutes les 8 s au plus)
+      if (cover && d < 4 && order !== 'hold' && this.t < (u.rushUntil || 0) === false && this.t - (u.breakAt || -99) > 8) {
+        const cp = this.findCover(u, target, 12, { minRange: MIN_CLOSE, requireShoot: true, towards: home }) || this.findCover(u, target, 12, { minRange: MIN_CLOSE, towards: home });
+        if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.breakAt = this.t; u.state = 'fallback'; u.stance = 'stand'; return; }
       }
       // pas de vrai couvert face à la menace : en prendre un d'où l'on tire, à distance de combat (on ne s'approche pas sous
       // ~8 m pour se mettre à l'abri) ; trop près et rien autour : décrocher vers un couvert plus en arrière
