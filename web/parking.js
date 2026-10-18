@@ -183,7 +183,7 @@
     for (const [x, z, d] of [[10, 33, N_], [10, 18, N_], [18, 13.2, E_], [26.6, 19, S_], [26.6, 30, S_], [45.6, 31, N_], [45.6, 19.5, N_], [54, 13.4, E_], [65.2, 19, S_], [65.2, 33.5, S_], [57, 37.6, O_], [16, 37.6, E_]]) arrow(x, z, d);
     // entrée et sortie : lignes d'arrêt, inscriptions, flèches
     const gate = OB.find(o => o.name === 'mur portail sud');
-    if (gate) { const gx = gate.x, gw = gate.w; p.fillStyle = white; p.fillRect(M(gx + gw / 2 + 0.6), M(44.2), M(gw / 2 - 0.6), M(0.3)); text(gx + gw * 0.25, 42.0, 'ENTRÉE', 0, 0.7); text(gx + gw * 0.78, 42.0, 'SORTIE', 0, 0.7); arrow(gx + gw * 0.25, 44.6, N_); arrow(gx + gw * 0.78, 40.2, S_);
+    if (gate) { const gx = gate.x, gw = gate.w; p.fillStyle = white; p.fillRect(M(gx + 0.1), M(44.2), M(gw / 2 - 0.6), M(0.3)); text(gx + gw * 0.78, 42.0, 'ENTRÉE', 0, 0.7); text(gx + gw * 0.25, 37.6, 'SORTIE', 0, 0.7); arrow(gx + gw * 0.78, 44.6, N_); arrow(gx + gw * 0.25, 36.0, S_);   // on roule à droite : entrée à l'est, sortie à l'ouest
       p.strokeStyle = yellow; p.lineWidth = M(0.12); line(gx + gw / 2, 39.5, gx + gw / 2, 46); }
     // quai de la navette : zigzags jaunes, inscription BUS, îlot de l'abri ; passage piéton vers le quai
     const bus = OB.find(o => o.name === 'bus');
@@ -1019,7 +1019,7 @@
       const c = o.material.clone(); if (NIGHT.mats.includes(o.material)) NIGHT.mats.push(c); o.material = c; o.userData.keep = true;
       o.onBeforeRender = (r, sc, cam) => {
         if (cam.isOrthographicCamera || cam.position.y < 0) return;   // ombres, reflets des flaques : on ne change rien
-        cam.getWorldDirection(dir); const haut = cam.position.y > H + 3.5 && dir.y < -0.35;
+        cam.getWorldDirection(dir); const haut = cam.position.y > H + 1.6 && dir.y < -0.2;
         if (c.userData.haut !== haut) { c.userData.haut = haut; c.transparent = haut; c.opacity = haut ? 0.15 : 1; c.depthWrite = !haut; c.needsUpdate = true; }
       };
     });
@@ -1278,7 +1278,7 @@
     if (n === 'armoire') return has('armoire') ? M.fit('armoire', o.w, o.h, o.d, { tol: 0.3, rot: Math.PI }) : armoireP(o);
     if (n === 'benne') return has('benne') ? M.fit('benne', o.w, o.h, o.d, { tol: 0.3, rot: o.z < 5 ? 0 : Math.PI }) : benneP(o);
     if (n.startsWith('palettes') && !has('palettes')) return crates(o);
-    if (n.startsWith('abri')) return booth(o);
+    if (n === 'abri' || n.startsWith('abri des')) return booth(o);
     if (n.startsWith('muret')) return lowWall(o);
     if (n.startsWith('bac à fleurs')) return planter(o);
     if (n.startsWith('conteneur')) return has('conteneur') ? null : container(o);   // modèle Meshy s'il est chargé

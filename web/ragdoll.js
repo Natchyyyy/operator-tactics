@@ -181,7 +181,7 @@
     const t0 = performance.now();
     // vitesses : pose actuelle, puis l'animation avancée de 1/30 s
     const A = poseSegments(m, Mo); m.update(1 / 30, false); const B = poseSegments(m, Mo);
-    const an = m.anim || {}, vG = new T.Vector3(an.vx || 0, 0, an.vz || 0); if (vG.length() > 6) vG.setLength(6);
+    const an = m.anim || {}, vG = new T.Vector3(an.vx || 0, 0, an.vz || 0); if (vG.length() > 6) vG.setLength(6); r.elan = vG.length();
     const k = B[0].k;
     // boîtes des segments dans LA pose de la mort : la boîte de chaque os rattaché (main, pied, cou…) suit sa rotation figée
     const skel = m.skinned.skeleton, centres = [], demis = [], Sm = new T.Matrix4(), Si = new T.Matrix4(), Sj = new T.Matrix4(), cn = new T.Vector3();
@@ -290,7 +290,8 @@
     ab.addShape(new C.Box(new C.Vec3(Math.max(0.015, A.d.x), Math.max(0.015, A.d.y), Math.max(0.015, A.d.z))));
     const cw = A.c.clone().applyMatrix4(M); ab.position.set(cw.x, Math.max(cw.y, Math.min(A.d.x, A.d.y, A.d.z) + 0.01), cw.z); ab.quaternion.set(q.x, q.y, q.z, q.w);
     const rr = new C.Vec3(cw.x - fb.position.x, cw.y - fb.position.y, cw.z - fb.position.z), v = fb.velocity.vadd(fb.angularVelocity.cross(rr));
-    ab.velocity.copy(v); ab.angularVelocity.copy(fb.angularVelocity).scale(0.6, ab.angularVelocity);
+    const lv = v.length(); if (lv > 2.5) v.scale(2.5 / lv, v);   // (pas d'arme lancée en l'air par un bras qui fouette)
+    ab.velocity.copy(v); ab.angularVelocity.copy(fb.angularVelocity).scale(0.5, ab.angularVelocity); const lw = ab.angularVelocity.length(); if (lw > 5) ab.angularVelocity.scale(5 / lw, ab.angularVelocity);
     ab.previousPosition.copy(ab.position); ab.interpolatedPosition.copy(ab.position); ab.previousQuaternion.copy(ab.quaternion); ab.interpolatedQuaternion.copy(ab.quaternion);
     W.addBody(ab); A.body = ab; A.sc = sc;
   }
@@ -369,11 +370,13 @@
     for (const j of r.art) {
       const a = j.a, b = j.b;
       const wr = new T.Vector3(b.angularVelocity.x - a.angularVelocity.x, b.angularVelocity.y - a.angularVelocity.y, b.angularVelocity.z - a.angularVelocity.z);
-      let des = new T.Vector3(), k = 1 - Math.exp(-P.frottementArt * j.frot * h);   // part de la vitesse relative retirée (frottement)
+      // (jambes au sol : frottement faible, des genoux restés en l'air retombent sur le côté)
+      let des = new T.Vector3(), k = 1 - Math.exp(-P.frottementArt * (j.flex && !r.debout ? 0.3 : j.frot) * h);   // part de la vitesse relative retirée (frottement)
       // jambes qui cèdent : genoux et hanches poussés vers la flexion pendant ~0,5 s, quelle que soit la mort (même une balle
       // dans la tête : un corps inerte aux genoux tendus basculerait d'un bloc ou se plierait aux hanches comme un pantin)
       // (tant que le bassin est haut, jusqu'à ~1 s : le corps s'affaisse sur les genoux puis tombe)
-      if (j === r.art[0]) r.debout = r.t < P.flechitT || (r.debout !== false && r.t < 1 && r.corps[0].position.y > 0.5);
+      // (soldat lancé, > 1,5 m/s : son élan le fait tomber en avant, les jambes ne cèdent qu'un instant)
+      if (j === r.art[0]) r.debout = r.elan > 1.5 ? r.t < 0.15 : r.t < P.flechitT || (r.debout !== false && r.t < 1 && r.corps[0].position.y > 0.5);
       const kf = j.flex ? P.flechit * (r.debout ? 1 : 0) : 0;
       if ((ton > 0 && j.force > 0) || kf > 0) {
         qa.set(a.quaternion.x, a.quaternion.y, a.quaternion.z, a.quaternion.w); qb.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);

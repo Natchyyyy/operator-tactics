@@ -36,8 +36,16 @@ for (const m of corpsSansSons.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)
 for (const s of scripts) if (/<\/script/i.test(s.code)) throw new Error(s.nom + ' contient « </script » : impossible de l\'inclure dans une page');
 if (/<script\b[^>]*\bsrc=/.test(source.slice(0, source.indexOf('<body>')))) throw new Error('web/index.html : <script src> dans <head> non géré');
 
+// ---- haute définition disponible : web/hd (versionné) ; à défaut (vieux clone sans web/hd) docs/hd tel quel
+const listeHD = (d) => fs.existsSync(R(d)) ? fs.readdirSync(R(d)).filter(f => !f.startsWith('.') && !/\.tmp\d*$/.test(f)) : [];
+const hdDir = listeHD('web/hd').length ? 'web/hd' : 'docs/hd', hdSrc = R(hdDir), hdFichiers = listeHD(hdDir);
+if (hdDir !== 'web/hd') console.warn('web/hd absent : haute définition reprise de docs/hd (' + hdFichiers.length + ' fichiers)');
+// window.OT_HD : fichiers HD réellement publiés à côté de la page (le jeu ne demande pas les autres → pas d'erreur 404) ;
+// json : true pour l'artifact claude.ai (les .glb y sont publiés en hd/<nom>.json). Absent en développement (web/index.html).
+const scriptHD = (json) => `<script>window.OT_HD = ${JSON.stringify({ json, fichiers: Object.fromEntries(hdFichiers.map(f => [f, 1])) })};</script>`;
+
 // ---- 1. page complète en un seul fichier (ordre d'origine)
-let complet = source;
+let complet = source.replace('<body>', () => '<body>\n' + scriptHD(false));
 for (const s of scripts) if (!s.inline) complet = complet.replace(s.tag, () => `<script>\n${s.code}\n</script>`);
 ecrire('dist/complet.html', complet);
 
@@ -60,8 +68,8 @@ let corpsLeger = corpsSansSons; for (const s of scripts) corpsLeger = corpsLeger
 corpsLeger = corpsLeger.split('\n').filter(l => l.trim()).join('\n');
 const styleLeger = tete[0].replace(/<\/style>$/, () => lire('web/chargeur.css') + '</style>');
 // scripts marqués data-page (petits, utiles dès le premier affichage : police du titre) : gardés dans la page légère
-const corpsFinal = corpsLeger + scripts.filter(s => s.genre === 'page').map(s => `\n<script>\n${s.code}\n</script>`).join('') + `\n<script>\n${chargeur}\n</script>\n`;
-const page = source.slice(0, source.indexOf(tete[0])) + styleLeger + source.slice(source.indexOf(tete[0]) + tete[0].length, source.indexOf('<body>')) + '<body>\n' + corpsFinal + '</body>\n</html>\n';
+const corpsFinal = (json) => scriptHD(json) + '\n' + corpsLeger + scripts.filter(s => s.genre === 'page').map(s => `\n<script>\n${s.code}\n</script>`).join('') + `\n<script>\n${chargeur}\n</script>\n`;
+const page = source.slice(0, source.indexOf(tete[0])) + styleLeger + source.slice(source.indexOf(tete[0]) + tete[0].length, source.indexOf('<body>')) + '<body>\n' + corpsFinal(false) + '</body>\n</html>\n';
 for (const dst of ['dist', 'docs']) {
   const garder = new Set([...parties, ...annexes].map(p => path.basename(p.f)));
   if (fs.existsSync(R(dst + '/p'))) for (const f of fs.readdirSync(R(dst + '/p'))) if (!garder.has(f)) fs.rmSync(R(dst + '/p/' + f));   // fichiers retirés
@@ -69,11 +77,10 @@ for (const dst of ['dist', 'docs']) {
   ecrire(dst + '/index.html', page);   // en dernier : la page ne référence que des fichiers déjà écrits
 }
 // variante « artifact » : sans squelette (doctype/html/head/body), titre et style en tête — le publieur ajoute le squelette
-ecrire('dist/artifact.html', styleLeger + '\n' + corpsFinal);
+ecrire('dist/artifact.html', styleLeger + '\n' + corpsFinal(true));
 
 // ---- 3. haute définition : web/hd copié dans dist/hd et docs/hd ; dist/hdart pour les artifacts (.glb → .json base64)
-const hdSrc = R('web/hd'), hdFichiers = fs.existsSync(hdSrc) ? fs.readdirSync(hdSrc).filter(f => !f.startsWith('.')) : [];
-for (const dst of ['dist/hd', 'docs/hd']) { fs.mkdirSync(R(dst), { recursive: true });
+for (const dst of ['dist/hd', 'docs/hd'].filter(d => d !== hdDir)) { fs.mkdirSync(R(dst), { recursive: true });
   for (const f of fs.readdirSync(R(dst))) if (!hdFichiers.includes(f)) fs.rmSync(R(dst + '/' + f));   // fichiers retirés de web/hd
   for (const f of hdFichiers) { const a = path.join(hdSrc, f), b = R(dst + '/' + f); if (!fs.existsSync(b) || fs.statSync(b).size !== fs.statSync(a).size || fs.statSync(b).mtimeMs < fs.statSync(a).mtimeMs) fs.copyFileSync(a, b); } }
 const hdart = (f) => f.replace(/\.glb$/, '.json');

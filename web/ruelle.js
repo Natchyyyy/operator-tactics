@@ -503,7 +503,8 @@
       if (n.startsWith('clim')) return condenser(o);
       if (n === 'benne' && hasM('benne')) return model('benne', o.w, o.h, o.d, { tol: 0.3, rot: o.z < 5 ? Math.PI : 0 });
       if (n === 'armoire' && hasM('armoire')) return model('armoire', o.w, o.h, o.d, { tol: 0.3 });
-      if (n === 'haie') return hedge(o);   // (app.js n'a pas de cas 'armoire' : sans ceci, boîte grise)
+      if (n === 'haie') return hedge(o);
+      if (n.startsWith('caisse automatique') && hasM('caisse')) return model('caisse', o.w, o.h, o.d, { tol: 0.2, rot: Math.PI / 2 });   // bornes de paiement vers l'est et l'ouest   // (app.js n'a pas de cas 'armoire' : sans ceci, boîte grise)
       if (n.startsWith('caisses') && hasM('caisses')) return model('caisses', o.w, o.h, o.d, { tol: 0.3, rot: Math.round(o.x * 7) % 4 * Math.PI / 2 });
       if (n.startsWith('guérite') && hasM('guerite')) return model('guerite', o.w, o.h, o.d, { tol: 0.25, rot: -Math.PI / 2 });
     } catch (e) { console.warn('ruelle (' + n + ') :', e); }

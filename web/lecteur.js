@@ -32,7 +32,9 @@ const Son = (() => {
   }
   // paquet complémentaire : après les sons de la page ; absent, page d'erreur HTML ou file:// → on garde les sons inclus
   function chargerPack(){
-    if(pack !== "absent" || typeof fetch === "undefined" || location.protocol === "file:") return; pack = "chargement";
+    if(pack !== "absent" || typeof fetch === "undefined" || location.protocol === "file:") return;
+    if(PACK === "hd/sons_hd.json" && window.OT_HD && !window.OT_HD.fichiers["sons_hd.json"]){ pack = "indisponible"; return; }   // pas publié avec la page (build.js) : pas de requête 404
+    pack = "chargement";
     fetch(PACK).then(r => r.ok && !/text\/html/.test(r.headers.get("content-type") || "") ? r.json() : null).then(d => {
       if(!d || typeof d !== "object"){ pack = "indisponible"; return; }
       return decoder(d).then(() => { pack = "chargé"; for(const v in voulu) if(voulu[v]) boucle(voulu[v].nom, Object.assign({}, voulu[v].o, {voie: v, fondu: 2.5, remplace: true})); });

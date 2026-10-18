@@ -74,18 +74,19 @@
           // Au milieu, une chicane : l'annexe en briques d'un immeuble avance dans la ruelle, en face le local à poubelles.
           box(9, 10.5, 15, 0.3, 0.8, 'cover', 'clôture grillagée'), box(27.5, 10.5, 19, 0.3, 0.8, 'cover', 'clôture grillagée'),
           box(50, 10.5, 13, 0.3, 0.8, 'cover', 'clôture grillagée'),
-          box(30, 0, 7, 7.0, 5.0, 'wall', 'annexe'), box(39, 6.6, 4, 3.9, 2.0, 'wall', 'local poubelles'),
+          box(30, 0, 7, 6.0, 5.0, 'wall', 'annexe'), box(39, 7.2, 4, 3.3, 2.0, 'wall', 'local poubelles'),
+          box(28.4, 7.6, 1.2, 1.2, 1.0, 'cover', 'caisses'), box(37.7, 7.8, 1.2, 1.2, 1.0, 'cover', 'palettes'),   // à couvert dans la chicane
           box(12, 0.9, 5.2, 2.1, 2.4, 'wall', 'fourgon'), box(56, 8.2, 5.2, 2.1, 2.4, 'wall', 'fourgon'),
           box(0.5, 0.4, 2.0, 1.4, 1.3, 'cover', 'benne'), box(20, 8.8, 2.0, 1.4, 1.3, 'cover', 'benne'), box(52.5, 0.4, 2.0, 1.4, 1.3, 'cover', 'benne'),
           box(7.6, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'), box(28.2, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'), box(61.5, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'),
-          box(18.6, 8.9, 1.2, 1.2, 1.0, 'cover', 'palettes'), box(43.9, 0.4, 1.2, 1.2, 1.3, 'cover', 'caisses'),
+          box(18.6, 8.9, 1.2, 1.2, 1.0, 'cover', 'palettes'), box(43.9, 0.4, 1.2, 1.2, 1.3, 'cover', 'caisses'), box(37.4, 2.6, 1.2, 1.2, 1.0, 'cover', 'palettes'),
           box(66.2, 7.6, 1.2, 1.2, 1.5, 'cover', 'caisses'), box(3.6, 8.4, 1.2, 1.2, 1.0, 'cover', 'palettes'),
           // ---- MILIEU : station de lavage (deux pistes, local technique au milieu), aspirateurs, véhicules en attente ;
           // devant, l'îlot du totem des tarifs
           box(30.2, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'), box(41.4, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'),
           box(34.6, 17.9, 2.8, 3.6, 3.3, 'wall', 'lavage local'), box(35.7, 21.5, 0.6, 6.6, 1.1, 'cover', 'lavage muret'),   // local technique au nord, muret entre les pistes
           cap(box(38.8, 12.7, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),                     // en attente devant la piste est
-          cap(box(31.4, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),                     // sortie de la piste ouest, au séchage
+          cap(box(31.4, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1), cap(box(42.4, 29.2, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),   // aire de séchage                     // sortie de la piste ouest, au séchage
           box(33.2, 11.0, 5.4, 1.6, 1.7, 'wall', 'haie'), box(35.3, 11.5, 1.2, 0.5, 3.6, 'wall', 'totem'),
           box(26.0, 21.3, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(24.2, 23.0, 4.4, 1.9, 1.4, 'cover', 'voiture'),
           box(45.4, 22.0, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(43.4, 23.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'),
@@ -100,7 +101,12 @@
           cap(box(8.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1), cap(box(16.1, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),
           cap(box(23.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
           box(21.2, 33.8, 2.4, 2.4, 3.0, 'wall', 'kiosque'),
-          box(30, 39.7, 12, 2.6, 3.0, 'wall', 'bus'), box(32.4, 38.0, 4.2, 1.5, 2.5, 'wall', 'abribus'), cap(box(44.2, 38.6, 2.1, 5.2, 2.4, 'wall', 'fourgon'), -1),   // quai de la navette (abri sur l'îlot, bus le long) ; fourgon arrêté à la barrière d'entrée
+          box(30, 39.7, 12, 2.6, 3.0, 'wall', 'bus'), box(32.4, 38.0, 4.2, 1.5, 2.5, 'wall', 'abribus'), cap(box(44.2, 38.6, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),   // quai de la navette (abri sur l'îlot, bus le long) ; fourgon arrêté à la barrière de sortie
+          box(42.6, 34.6, 0.6, 3.2, 0.95, 'cover', 'barrière'),                   // séparateur entre le quai du bus et la voie de sortie
+          ...bac(30.4, 34.0, 1.8, 1.4), ...bac(37.4, 34.0, 1.8, 1.4), box(37.4, 38.1, 1.8, 1.3, 0.9, 'cover', 'bac à fleurs'),   // jardinières du passage piéton et du quai
+          ...bac(30.2, 13.8, 1.6, 1.4),                                          // îlot planté à l'entrée de la piste 1
+          cap(box(18.0, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1), cap(box(20.5, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
+          box(52.6, 41.8, 1.2, 1.2, 0.9, 'cover', 'palettes'), box(53.0, 35.4, 1.0, 2.0, 0.9, 'cover', 'sacs de sable'),
           box(13.8, 33.8, 4.6, 1.6, 1.7, 'wall', 'colonnes de tri'),
           // ---- SUD-EST : partie du parking fermée pour réfection de l'enrobé (séparateurs, clôtures de chantier bâchées,
           // conteneurs du chantier, benne à gravats, palettes de bordures, sacs de sable qui lestent les panneaux, fût)

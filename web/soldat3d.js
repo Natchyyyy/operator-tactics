@@ -55,7 +55,7 @@
   // œil droit dans le repère de la tête (m : au-dessus de l'os de la tête, devant, à droite) ; point de visée de l'optique
   // (repère de l'arme : centre de la fenêtre du viseur point rouge) ; garde basse construite (rad : canon vers le bas, vers la
   // gauche ; m : crosse sous / devant le creux de l'épaule)
-  const OEIL = { haut: 0.095, avant: 0.085, cote: 0.032 }, VISEE_OPTIQUE = [0, 0.145, -0.03], GARDE = { pique: 0.7, dedans: 0.3, bas: 0.0, avant: 0, recul: 0.07 };
+  const OEIL = { haut: 0.095, avant: 0.085, cote: 0.032 }, VISEE_OPTIQUE = [0, 0.145, -0.03], GARDE = { pique: 0.7, dedans: 0.42, bas: 0.0, avant: 0, recul: 0.09 };
   // creux de l'épaule de la garde basse (m, par rapport à l'articulation de l'épaule : vers le centre, l'avant, le bas)
   const POCHE = { dedans: 0.06, avant: 0.05, bas: 0.05 };
   S.OEIL = OEIL; S.GARDE = GARDE;
@@ -91,11 +91,12 @@
     S.logiciel = LOGICIEL;
     const HDok = /^https?:/.test(location.protocol) && !/[?&]hd=0/.test(location.search) && !LOGICIEL;
     const source = (nom) => {
-      if (!HDok) return Promise.resolve(b64ToBuf(MOD[nom]));
+      const OHD = window.OT_HD;   // fichiers HD publiés (build.js) : on ne demande pas un fichier absent
+      if (!HDok || (OHD && !OHD.fichiers[nom + '_hd.glb'])) return Promise.resolve(b64ToBuf(MOD[nom]));
       const glb = () => fetch('hd/' + nom + '_hd.glb').then(r => r.ok && !/text\/html/.test(r.headers.get('content-type') || '') ? r.arrayBuffer() : null).catch(() => null);
       const json = () => fetch('hd/' + nom + '_hd.json').then(r => r.ok ? r.json() : null).then(j => j && j.glb ? b64ToBuf(j.glb) : null).catch(() => null);
       const t = new Promise(r => setTimeout(() => r(null), 25000));
-      return Promise.race([glb().then(b => b && b.byteLength > 1000 ? b : json()), t]).then(b => { if (b && b.byteLength > 1000) { S.hdMaillage = (S.hdMaillage || 0) + 1; return b; } return b64ToBuf(MOD[nom]); });
+      return Promise.race([OHD && OHD.json ? json() : glb().then(b => b && b.byteLength > 1000 ? b : json()), t]).then(b => { if (b && b.byteLength > 1000) { S.hdMaillage = (S.hdMaillage || 0) + 1; return b; } return b64ToBuf(MOD[nom]); });
     };
     for (const nom of todo) {
       source(nom).then((buf) => {
@@ -743,7 +744,7 @@
     for (const nom of NOMS) {
       const M = S.modeles[nom]; if (!M) continue;
       const mats = () => { const out = []; M.gltf.scene.traverse(o => { if (o.isMesh && o.material) out.push(o.material); }); for (const k in matCache) if (k.startsWith(nom)) out.push(matCache[k]); return out; };
-      const swap = (slots, file, srgb) => L.load('hd/' + nom + '_' + file + '.jpg', (t) => {
+      const swap = (slots, file, srgb) => window.OT_HD && !window.OT_HD.fichiers[nom + '_' + file + '.jpg'] ? null : L.load('hd/' + nom + '_' + file + '.jpg', (t) => {
         for (const m of mats()) for (const k of slots) {
           const old = m[k]; if (!old) continue;
           const nt = t.clone(); nt.flipY = old.flipY; nt.wrapS = old.wrapS; nt.wrapT = old.wrapT; nt.offset.copy(old.offset); nt.repeat.copy(old.repeat); nt.rotation = old.rotation; nt.center.copy(old.center);
@@ -1257,9 +1258,10 @@
             // trop s'écarter de celle de l'animation, coude plutôt bas (pas « en aile de poulet »)
             const u = E0.clone().sub(S0); u.addScaledVector(dir, -u.dot(dir)); if (u.lengthSq() < 1e-8) u.set(0, -1, 0).addScaledVector(dir, -dir.y); u.normalize();
             const w = new THREE.Vector3().crossVectors(dir, u), Aw = os(D.ordre[2]).position.clone().normalize().applyQuaternion(qH), up = new THREE.Vector3(0, 1, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()));
+            const seuilC = 0.55 - 0.25 * (this.epK || 0);   // (coude au moins à mi-hauteur du bras sous l'épaule en garde basse, un peu plus haut en visée)
             const coude = (ph) => C.clone().addScaledVector(u, r * Math.cos(ph)).addScaledVector(w, r * Math.sin(ph));
             const dedans = new THREE.Vector3(h === 'R' ? 1 : -1, 0, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()));   // vers le centre du corps
-            const cout = (ph) => { const E = coude(ph), f = T.clone().sub(E).normalize(); return Math.acos(Math.max(-1, Math.min(1, f.dot(Aw)))) + 0.25 * Math.abs(ph) + 2 * Math.max(0, E.clone().sub(S0).dot(up) / a + 0.1) + 3 * Math.max(0, E.clone().sub(S0).dot(dedans) / a - 0.05); };   // (coude jamais rentré dans le buste)
+            const cout = (ph) => { const E = coude(ph), f = T.clone().sub(E).normalize(); return Math.acos(Math.max(-1, Math.min(1, f.dot(Aw)))) + 0.25 * Math.abs(ph) + 3 * Math.max(0, E.clone().sub(S0).dot(up) / a + seuilC) + 3 * Math.max(0, E.clone().sub(S0).dot(dedans) / a - 0.05); };   // (coude jamais rentré dans le buste)
             let ph = 0, cb = cout(0); for (let x = -2.4; x <= 2.4; x += 0.2) { const cx = cout(x); if (cx < cb) { cb = cx; ph = x; } }
             for (const st of [0.08, 0.03, 0.01]) for (const sg of [-1, 1]) { while (cout(ph + sg * st) < cb) { ph += sg * st; cb = cout(ph); } }
             const sw = this.coudePh || (this.coudePh = {}); ph = sw[h] === undefined ? ph : sw[h] + (ph - sw[h]) * Math.min(1, 0.35); sw[h] = ph;
