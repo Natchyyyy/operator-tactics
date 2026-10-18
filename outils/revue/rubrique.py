@@ -9,6 +9,8 @@ ETIQ = {
     'repos_garde_basse': {'arret', 'garde_basse'},
     'repos_visee': {'arret', 'vise'},
     'tir_arret': {'arret', 'vise', 'tir'},
+    'guet': {'arret', 'vise', 'guet'},
+    'guet_accroupi': {'arret', 'vise', 'guet', 'accroupi'},
     'patrouille': {'marche', 'garde_basse', 'avant'},
     'patrouille_lente': {'marche', 'garde_basse', 'avant'},
     'marche_visee': {'marche', 'vise', 'avant'},
@@ -177,7 +179,7 @@ crit(id='index_hors_detente', partie='haut', lib='Index : courbure quand on ne t
 crit(id='index_sur_detente_tir', partie='haut', lib='Index ↔ détente en tirant (m, max ; détente estimée)', quand=lambda e: 'tir' in e,
      val=lambda r: st(r, 'indexDetente', 'max'), ok=(0, 0.025), mineur=(0, 0.045), cle=('indexDetente', 'max'),
      pourquoi='Pour tirer, la première phalange de l\'index est sur la détente.', src='TC 3-22.9 fig. 8-2 (natural trigger finger placement)', vues=['mainD', 'mainDdessous'])
-crit(id='erreur_visee', partie='haut', lib='Canon ↔ cible (°, max)', quand=lambda e: 'vise' in e and 'recharge' not in e,
+crit(id='erreur_visee', partie='haut', lib='Canon ↔ cible (°, max)', quand=lambda e: 'vise' in e and 'recharge' not in e and 'guet' not in e,
      val=lambda r: st(r, 'erreurVisee', 'max'), ok=None, mineur=None, cle=('erreurVisee', 'max'),
      bornes=lambda e: ((0, 2.5), (0, 6)) if 'arret' in e else ((0, 4), (0, 9)),
      pourquoi='En visée, le canon est SUR la cible ; à 10 m, 3° = 50 cm à côté.', src='Géométrie (le tir doit partir vers la cible)', vues=['troisQuarts', 'dessus'])

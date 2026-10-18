@@ -1208,8 +1208,8 @@
           const vA = L.pA && dt > 0 ? Math.hypot(S.plante.x - L.pA.x, S.plante.z - L.pA.z) / dt : 0; L.pA = S.plante.clone();
           // appui : semelle à moins de 3 cm du sol, plus basse que l'autre, et pied (presque) immobile ; pivot : talon posé →
           // talon, sinon la plante
-          const appui = h < 0.03 && h <= bas(so[1 - i]) + 0.02 && (L.piv || vA < 1.1);
-          const piv = !actif ? null : appui && hT < 0.02 ? 'A' : appui ? 'T' : (L.piv && h < 0.05 ? L.piv : null);
+          const appui = h < 0.03 && h <= bas(so[1 - i]) + 0.02 && vA < (L.piv ? 1.3 : 1.1);
+          const piv = !actif ? null : appui && hT < 0.02 ? 'A' : appui ? 'T' : (L.piv && h < 0.05 && vA < 1.3 ? L.piv : null);   // (pied qui repart en rasant le sol — pas chassé — : relâché)
           if (piv) {
             const P = piv === 'A' ? S.talon : S.plante;
             if (L.piv !== piv) { L.anc = P.clone(); if (L.off && L.w > 0) L.anc.addScaledVector(L.off, L.w * L.w * (3 - 2 * L.w)); L.piv = piv; }
@@ -1246,9 +1246,9 @@
         // épaules presque carrées) — le dos tourne pour amener la ligne des épaules à BIAIS (rad) de la face ; le fusil est
         // placé ensuite (poseArme), les bras suivent
         { const ek = this.epK || 0; if (ek > 0.01 && !S.sansCarre) { const e = WP(B.la).sub(WP(B.ra)).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()).invert());
-          // en marche : épaules à 0,75 rad au plus du bassin (bassinM, donné par marche()) — un tireur droitier qui se déplace vers
+          // en marche : épaules à 0,95 rad au plus du bassin (bassinM, donné par marche()) — un tireur droitier qui se déplace vers
           // sa gauche se met de face au lieu de se tordre
-          let Sv = -BIAIS; if (this.bassinM !== undefined && this.blendW && this.blendFrame === frameK - 1) Sv = Math.max(this.bassinM - 0.75, Math.min(this.bassinM + 0.75, Sv));
+          let Sv = -BIAIS; if (this.bassinM !== undefined && this.blendW && this.blendFrame === frameK - 1) Sv = Math.max(this.bassinM - 0.95, Math.min(this.bassinM + 0.95, Sv));
           this.epS = this.epS === undefined ? Sv : this.epS + (Sv - this.epS) * 0.15;
           const d = Math.max(-1, Math.min(1, Math.PI / 2 + this.epS - Math.atan2(e.x, e.z))) * ek; if (Math.abs(d) > 0.01) for (const sb of spine3) { mod(sb); twist(sb, d / spine3.length); } } }
         const lat = WP(B.la).sub(WP(B.ra)); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();
@@ -1410,7 +1410,8 @@
       // de chargeur sous le fusil (45-60 %), l'y tient (60-86 %, chargeur() l'enfonce), puis rend la main à l'animation (96 %)
       mainChargeur(p) {
         const sm = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
-        const w = p < 0.86 ? sm(p / 0.12) : 1 - sm((p - 0.86) / 0.1); if (w < 0.01) return;
+        const avecPrise = !!(M.prise && M.prise.L && !S.sansPrise), fin = sm((p - 0.76) / 0.18);   // (fin : la main revient sous le garde-main)
+        const w = p < 0.86 || avecPrise ? sm(p / 0.12) : 1 - sm((p - 0.86) / 0.1); if (w < 0.01) return;
         const B = this.bones, sc = group.getWorldScale(V()).x; weapon.updateMatrixWorld(true); group.updateMatrixWorld(true);
         const gq = group.getWorldQuaternion(new THREE.Quaternion()), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
         const poche = WP(B.spine).addScaledVector(fw, 0.17 * sc).addScaledVector(new THREE.Vector3(0, 1, 0), -0.3 * sc).addScaledVector(lat, 0.06 * sc);
@@ -1430,9 +1431,12 @@
               const pr = this.angPuits !== undefined && this.t - this.tPuits < 0.2 ? this.angPuits : ang; ang = pr + Math.max(-0.04, Math.min(0.04, ang - pr)); this.angPuits = ang; this.tPuits = this.t;
               tq.premultiply(new THREE.Quaternion().setFromAxisAngle(down, ang * ins)); } }
           // (orientation visée limitée à ~3° par image : pas de retournement de la main si les repères basculent)
-          const qV = qP.slerp(tq, ins); if (this.qMainG && this.t - this.tMainG < 0.2) { const ang = this.qMainG.angleTo(qV); if (ang > 0.05) qV.copy(this.qMainG.clone().slerp(qV, 0.05 / ang)); }
+          const qV = qP.slerp(tq, ins);
+          // fin du rechargement : place et orientation de la prise sous le garde-main (un seul IK : pas deux cibles qui se disputent)
+          let cib = cible; if (fin > 0) { const sp = V(), sq = new THREE.Quaternion(); new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, Dl.Hrel).decompose(sp, sq, V()); cib = cible.clone().lerp(sp, fin); qV.slerp(sq, fin); }
+          if (this.qMainG && this.t - this.tMainG < 0.2) { const ang = this.qMainG.angleTo(qV), lim = 0.05 + 0.25 * fin; if (ang > lim) qV.copy(this.qMainG.clone().slerp(qV, lim / ang)); }
           this.qMainG = qV.clone(); this.tMainG = this.t;
-          this.poserBras('L', B.la, B.lf, B.lh, cible, qV, w, Dl); }
+          this.poserBras('L', B.la, B.lf, B.lh, cib, qV, w, Dl); }
         else ik(B.la, B.lf, B.lh, T.sub(palm).multiplyScalar(w));
       },
       // Bras h (épaule arm → coude fore → poignet hand) : poignet amené en tp (monde) et main orientée en tq, poids k. Le coude est
@@ -1571,7 +1575,7 @@
             mw.decompose(weapon.position, weapon.quaternion, V()); weapon.scale.set(1, 1, 1);
             if (p >= 0 && lh && B.la && B.lf && weapon.magCenter) this.mainChargeur(p);
             // fin du rechargement : la main gauche revient à sa place sous le garde-main ; le fusil est mémorisé pour la reprise
-            if (p >= 0 && M.prise && !S.sansPrise) { const xs = Math.max(0, Math.min(1, (p - 0.84) / 0.12)), fin = xs * xs * (3 - 2 * xs); if (fin > 0.01) this.tenir(fin, true, 'L'); }
+            if (p >= 0 && M.prise && !S.sansPrise) { const xs = Math.max(0, Math.min(1, (p - 0.76) / 0.18)), fin = xs * xs * (3 - 2 * xs); if (fin > 0.01) this.tenir(fin, !weapon.magCenter, 'L'); }   // (doigts ; la main elle-même est menée par mainChargeur)
             if (mode === 'droite') this.armeDroite = { q: weapon.quaternion.clone(), p: weapon.position.clone() };
             // la main qui porte le fusil garde ses doigts sur la poignée ; la prise à deux mains se défait (reprise en fondu ensuite)
             if (mode === 'droite') this.tenir(1, false, 'R');

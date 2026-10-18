@@ -14,6 +14,8 @@ const DT = 0.1, FPS = 30, lerp = (a, b, k) => a + (b - a) * k;
 const ETATS = {
   repos_garde_basse:  { seg: [[3.0, { v: 0 }]], fen: [1.2, 3.0], nom: 'Repos garde basse' },
   repos_visee:        { seg: [[3.0, { v: 0, vise: 1 }]], fen: [1.2, 3.0], nom: 'Visée à l\'arrêt' },
+  guet:               { seg: [[6.0, { v: 0, vise: 1, guet: 1 }]], fen: [1.2, 6.0], nom: 'Guet : en visée sans cible (surveillance d\'un secteur)' },
+  guet_accroupi:      { seg: [[6.0, { v: 0, vise: 1, guet: 1, accroupi: 1 }]], fen: [1.2, 6.0], nom: 'Guet accroupi (à couvert, sans cible)' },
   tir_arret:          { seg: [[3.0, { v: 0, vise: 1, tir: 0.11 }]], fen: [1.2, 3.0], nom: 'Tir à l\'arrêt' },
   patrouille:         { seg: [[4.0, { v: 1.35 }]], fen: [1.8, 4.0], nom: 'Patrouille (marche garde basse)' },
   patrouille_lente:   { seg: [[4.0, { v: 0.9 }]], fen: [1.8, 4.0], nom: 'Patrouille lente' },
@@ -90,7 +92,7 @@ function jouer(modele, etatId, rappel, opts) {
     if (t >= tSim - 1e-9) {
       const p = param(t);
       u.stance = p.accroupi ? 'crouch' : 'stand'; u._v = p.v || 0; u.moving = (p.v || 0) > 0;
-      u.target = p.vise ? cible : null; u.state = p.vise ? 'engage' : (u.moving ? 'advancing' : 'idle');
+      u.target = p.vise && !p.guet ? cible : null; u.state = p.guet ? 'overwatch' : p.vise ? 'engage' : (u.moving ? 'advancing' : 'idle');   // (guet : en visée, sans cible — le soldat surveille un secteur)
       if (p.tourne) facing += p.tourne * Math.PI / 180 * DT;
       if (p.courbe) depAz += p.courbe * Math.PI / 180 * DT;
       if (p.recharge) { if (recharge0 < 0) { recharge0 = t; u.reloading = p.recharge; } else u.reloading = Math.max(0, p.recharge - (t - recharge0)); } else u.reloading = 0;
