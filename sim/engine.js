@@ -193,7 +193,9 @@
       this.logEvent('flank', `${u.callsign} arrive par le flanc ${u.voie < 0 ? 'nord' : 'sud'} et se rabat.`, { unit: u.id, team: u.team, silent: true });
       return null;
     }
-    return { x: u.x + dirx * Math.min(ahead - reach + 1, 10), z: clamp(home.z + this.laneOf(u), 2, this.map.depth - 2) };
+    const lz = clamp(home.z + this.laneOf(u), 2, this.map.depth - 2);
+    // loin de sa voie : on la rejoint d'abord (presque latéralement), puis on la suit
+    return { x: u.x + dirx * Math.min(ahead - reach + 1, Math.abs(u.z - lz) > 4 ? 4 : 10), z: lz };
   };
   // Avancer d'un pas le long de la voie de flanc (fw) : en tiroir par bonds alternés, en ordre prudent de couvert en couvert.
   Battle.prototype.flankMove = function (u, threatPos, fw) {
@@ -844,8 +846,9 @@
     const dirx = Math.sign(objective.x - home.x) || 1;
     const progress = (u.x - home.x) * dirx;
     const span = Math.abs(objective.x - home.x);
-    const stepLen = order === 'careful' ? 12 : 22;
-    let gx = home.x + dirx * Math.min(span - 6, progress + stepLen), gz = clamp(home.z + lane, 2, this.map.depth - 2);
+    let gz = clamp(home.z + lane, 2, this.map.depth - 2);
+    const stepLen = u.voie && Math.abs(u.z - gz) > 4 ? 5 : order === 'careful' ? 12 : 22;   // flanqueur loin de sa voie : la rejoindre d'abord
+    let gx = home.x + dirx * Math.min(span - 6, progress + stepLen);
     // Tiroir : bonds alternés le long de sa voie, jusqu'aux abords de la zone adverse
     if (progress < span - 8 && this.tiroir(u, objective, { x: home.x + dirx * (span - 8), z: gz })) return;
     if (order === 'careful' || u.role.id === 'support') {
