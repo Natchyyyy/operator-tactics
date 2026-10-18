@@ -96,9 +96,11 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
 {
   // ---- Couvert, espacement, distance d'engagement, précision à bout portant (sur de vraies batailles) ----
   // Vérification indépendante du moteur : un « vrai couvert » est un obstacle d'au moins 0,9 m de haut, dont le bord est à
-  // moins de 1 m du soldat, qui coupe la ligne des yeux de la menace (1,6 m) vers ses hanches (0,5 m).
+  // moins de 1 m du soldat, qui coupe la ligne des yeux de la menace (1,6 m) vers ses hanches (0,5 m), juste devant lui.
   const edge = (x, z, o) => Math.hypot(Math.max(o.x - x, 0, x - (o.x + o.w)), Math.max(o.z - z, 0, z - (o.z + o.d)));
-  const realCover = (b, x, z, tx, tz) => b.map.obstacles.some(o => o.h >= 0.9 && edge(x, z, o) <= 1.0 && OT.segmentHitsBox(tx, 1.6, tz, x, 0.5, z, o));
+  // (l'obstacle coupe la ligne dans les 1,6 m devant le soldat : au bout d'un long bac aligné sur la menace, on est à côté, pas derrière)
+  const realCover = (b, x, z, tx, tz) => { const D = Math.hypot(tx - x, tz - z), L = Math.min(1.6, D * 0.9); if (D < 0.5) return false;
+    return b.map.obstacles.some(o => o.h >= 0.9 && edge(x, z, o) <= 1.0 && OT.segmentHitsBox(x + (tx - x) / D * L, 0.5 + 1.1 * L / D, z + (tz - z) / D * L, x, 0.5, z, o)); };
   const threatOf = (b, u) => {
     let th = null, td = 99;
     for (const e of b.enemiesOf(u)) if (e.alive && u.visible.has(e.id)) { const d = Math.hypot(u.x - e.x, u.z - e.z); if (d < td) { td = d; th = e; } }

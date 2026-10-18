@@ -94,9 +94,9 @@
           // ---- SUD : places le long du mur de la rue, kiosque à pizzas, arrêt de la navette, points de tri
           box(8.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), box(16.1, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'),
           box(23.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'),
-          box(44.6, 33.8, 2.4, 2.4, 3.0, 'wall', 'kiosque'),
-          box(30, 39.7, 12, 2.6, 3.0, 'wall', 'bus'), box(32.4, 38.0, 4.2, 1.5, 2.5, 'wall', 'abribus'), box(24, 36.1, 5.2, 2.1, 2.4, 'wall', 'fourgon'),   // quai de la navette : abri sur l'îlot, bus le long
-          box(19.2, 33.8, 4.6, 1.6, 1.7, 'wall', 'colonnes de tri'),
+          box(21.2, 33.8, 2.4, 2.4, 3.0, 'wall', 'kiosque'),
+          box(30, 39.7, 12, 2.6, 3.0, 'wall', 'bus'), box(32.4, 38.0, 4.2, 1.5, 2.5, 'wall', 'abribus'), box(45.2, 36.1, 5.2, 2.1, 2.4, 'wall', 'fourgon'),   // quai de la navette : abri sur l'îlot, bus le long
+          box(13.8, 33.8, 4.6, 1.6, 1.7, 'wall', 'colonnes de tri'),
           // ---- SUD-EST : partie du parking fermée pour réfection de l'enrobé (séparateurs, clôtures de chantier bâchées,
           // conteneurs du chantier, benne à gravats, palettes de bordures, sacs de sable qui lestent les panneaux, fût)
           box(52.5, 34.2, 5.5, 0.6, 0.95, 'cover', 'barrière'), box(61, 34.2, 5, 0.6, 0.95, 'cover', 'barrière'),

@@ -619,12 +619,17 @@
     const c = clamp(Math.floor(x / g.S), 0, g.cols - 1), r = clamp(Math.floor(z / g.S), 0, g.rows - 1);
     return g.cells[r * g.cols + c];
   };
+  // L'obstacle doit couper la ligne DEVANT le soldat (dans ses 1,6 premiers mètres vers la menace) : au bout d'un long bac
+  // aligné sur la menace, on est « à côté » du couvert, pas derrière (le moindre pas de côté de l'adversaire nous découvre).
+  const FRONT = 1.6;
   Battle.prototype.coverAt = function (x, z, tx, tz, standing) {
+    const D = Math.hypot(tx - x, tz - z); if (D < 0.5) return null;
+    const L = Math.min(FRONT, D * 0.9), qx = x + (tx - x) / D * L, qz = z + (tz - z) / D * L, ch = standing ? CHEST.stand : CHEST.crouch;
     let best = null;
     for (const o of this.nearObstacles(x, z)) {
       if (edgeDist(x, z, o) > COVER_NEAR) continue;
-      if (!segmentHitsBox(tx, EYE.stand, tz, x, 0.5, z, o)) continue;
-      if (segmentHitsBox(tx, EYE.stand, tz, x, standing ? CHEST.stand : CHEST.crouch, z, o)) return { level: 'full', obstacle: o };
+      if (!segmentHitsBox(qx, 0.5 + (EYE.stand - 0.5) * L / D, qz, x, 0.5, z, o)) continue;
+      if (segmentHitsBox(qx, ch + (EYE.stand - ch) * L / D, qz, x, ch, z, o)) return { level: 'full', obstacle: o };
       best = { level: 'partial', obstacle: o };
     }
     return best;
