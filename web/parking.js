@@ -1124,6 +1124,24 @@
     }
     if (!along) inner.rotation.y = Math.PI / 2; g.add(inner); return g;
   }
+  // ---- fourgons de métier : livrée (bandes et texte sur les flancs), auvent pour le nettoyeur, gyrophare pour le chantier
+  function fourgonMetier(o, M) {
+    const g = new T.Group(), along = o.w >= o.d, L = along ? o.w : o.d, th = along ? o.d : o.w, H = o.h, n = o.name;
+    const flip = o.dir !== undefined ? (along ? o.dir > 0 : o.dir < 0) : false;
+    g.add(teinter(M.fit('fourgon', o.w, o.h, o.d, { flip, tol: 0.3 }), 2));
+    const livree = n === 'fourgon (lavage)' ? ['#1f5fa8', 'AQUANOVA', 'SERVICE · DÉPANNAGE'] : n === 'fourgon (nettoyage)' ? ['#2e8b57', 'NET\'AUTO', 'LAVAGE À LA MAIN · LUSTRAGE'] : ['#e8641b', 'VOIRIE NOVA', 'TRAVAUX PUBLICS'];
+    const side = new T.Group();
+    for (const s2 of [-1, 1]) panneau(side, L * 0.62, H * 0.32, (q, w, h) => { q.clearRect(0, 0, w, h); q.fillStyle = livree[0]; q.fillRect(0, h * 0.62, w, h * 0.22); txt(q, livree[1], w * 0.5, h * 0.3, 'bold 110px Arial', livree[0]); txt(q, livree[2], w * 0.5, h * 0.73, 'bold 44px Arial', '#ffffff'); }, 0, -H * 0.02, s2 * (th / 2 + 0.03), s2 < 0 ? Math.PI : 0);
+    side.traverse(m => { if (m.isMesh) { m.material.transparent = true; m.material.alphaTest = 0.05; } });
+    if (n === 'fourgon (nettoyage)') {   // auvent déroulé du côté ouest, au-dessus de 2,2 m (on passe dessous)
+      const tx = mat('auventNet', () => new T.MeshStandardMaterial({ color: 0x2e8b57, roughness: 0.8, side: T.DoubleSide }));
+      const aw = new T.Mesh(new T.PlaneGeometry(L * 0.7, 1.8), tx); aw.rotation.x = -Math.PI / 2 + 0.12; aw.position.set(0, H / 2 - 0.05, -(th / 2 + 0.9)); side.add(aw);
+      const barre = new T.Mesh(new T.BoxGeometry(L * 0.7, 0.05, 0.05), M3().metal); barre.position.set(0, H / 2 - 0.27, -(th / 2 + 1.78)); side.add(barre);   // store banne sans pieds
+    }
+    if (n === 'fourgon (chantier)') { const gy = new T.Mesh(new T.CylinderGeometry(0.08, 0.1, 0.14, 12), std('gyrophare', 0xff8a00, 0.3, 0, { emissive: 0xff7a00, emissiveIntensity: 0.6 })); gy.position.set(L * 0.2, H / 2 + 0.07, 0); side.add(gy); }
+    if (!along) side.rotation.y = Math.PI / 2; g.add(side);
+    return g;
+  }
   // ---- borne de recharge : socle, écran, câble enroulé
   function borne(o) {
     const g = new T.Group(), H = o.h;
@@ -1300,6 +1318,7 @@
     if (/^lavage/.test(n)) return lavage(o);
     if (n === 'haie') return haie(o);
     if (n === 'totem') return totem(o);
+    if ((n === 'fourgon (lavage)' || n === 'fourgon (nettoyage)' || n === 'fourgon (chantier)') && has('fourgon')) return fourgonMetier(o, M);
     if (n === 'abribus' && has('abribus')) {   // abri : modèle Meshy, plus une « sucette » publicitaire éclairée au bout est et le cadre des horaires
       const g = new T.Group(), m = M.fit('abribus', o.w, o.h, o.d, { tol: 0.3 }); g.add(m);
       const mupi = new T.Group(); bx(mupi, 0.18, 1.9, 1.3, std('cadreMupi', 0x2b2f33, 0.4, 0.6), 0, 0, 0);

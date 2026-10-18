@@ -159,6 +159,9 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   t2.maxHp = t2.hp = 1e6; t1.maxHp = t1.hp = 1e6;
   for (let k = 0; k < 300; k++) c.shoot(s1, t1, 12);
   const sl = c.log.filter(l => l.stray);
+  // et en vraies batailles, chaque balle perdue (s'il y en a : elles sont rares quand l'escouade est bien espacée) est journalisée
+  let st = 0, lg = 0; for (let sd = 201; sd <= 206; sd++) { const x = mk(sd); x.run(); st += x.units.reduce((a, v) => a + (v.stats.strays || 0), 0); lg += x.log.filter(l => l.stray && /^Balle perdue/.test(l.text)).length; }
+  check('balles perdues : en vraies batailles, chacune est journalisée (compteur = journal)', st === lg, { st, lg });
   check('balles perdues : en tir réel, l\'adversaire derrière la cible prend des balles perdues, journalisées « Balle perdue : … », dégâts au calcul normal (tête / torse / membre)',
     sl.length > 30 && sl.length === s1.stats.strays && sl.every(l => /^Balle perdue : /.test(l.text) && l.enemy === t2.id && ['tête', 'torse', 'membre'].includes(l.loc)) && t2.stats.damageTaken > 0 && t1.stats.damageTaken > 0, { strays: sl.length, stat: s1.stats.strays });
 }
@@ -203,7 +206,8 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   const m = mk(1), kps = m.keyPositions(), badKp = [];
   for (const q of kps) {
     const cov = q.menace === null || q.menace === undefined || !!m.coverAt(q.x, q.z, q.x + Math.cos(q.menace) * 20, q.z + Math.sin(q.menace) * 20, true);
-    if (m.map.insideObstacle(q.x, q.z) || !cov || m.map.spawns.some(sp => !m.map.findPath(sp.x, sp.z, q.x, q.z))) badKp.push(q.id);
+    const reach = (sp) => { const pa = m.map.findPath(sp.x, sp.z, q.x, q.z), l = pa && pa[pa.length - 1]; return !!l && Math.hypot(l.x - q.x, l.z - q.z) < 1.2 && m.map.walkableSegment(l.x, l.z, q.x, q.z); };   // le chemin arrive bien AU point (pas de l'autre côté d'un mur)
+    if (m.map.insideObstacle(q.x, q.z) || !cov || !m.map.spawns.every(reach)) badKp.push(q.id);
   }
   check(`position clé : celles de la carte (${kps.length}) sont libres, joignables des deux camps et couvertes face à leur menace`, badKp.length === 0, badKp);
   // sans ordre, rien ne change : l'IA ne court pas d'elle-même aux positions clés

@@ -55,8 +55,8 @@
       // x, z : où se tient l'opérateur (case libre, collé à un couvert d'au moins 0,9 m) ; r : rayon « tenue » ; menace :
       // direction d'où vient la menace (radians, atan2(dz, dx)), le couvert est de ce côté ; voie : -1 nord, 0 milieu, 1 sud
       positionsCles: [
-        { id: 'lavage-ouest', nom: 'Piste 1 du lavage', x: 34.4, z: 25.0, r: 2.5, menace: 0, voie: 0 },
-        { id: 'lavage-est', nom: 'Piste 2 du lavage', x: 37.6, z: 25.0, r: 2.5, menace: Math.PI, voie: 0 },
+        { id: 'lavage-ouest', nom: 'Piste 1 du lavage', x: 35.1, z: 25.0, r: 2.5, menace: 0, voie: 0 },
+        { id: 'lavage-est', nom: 'Piste 2 du lavage', x: 36.9, z: 25.0, r: 2.5, menace: Math.PI, voie: 0 },
         { id: 'ruelle-ouest', nom: 'Caisses de la ruelle', x: 27.9, z: 8.2, r: 2.5, menace: 0, voie: -1 },
         { id: 'ruelle-est', nom: 'Palettes de la ruelle', x: 39.1, z: 3.2, r: 2.5, menace: Math.PI, voie: -1 },
         { id: 'quai-ouest', nom: 'Jardinière du quai (ouest)', x: 29.9, z: 34.7, r: 2.5, menace: 0, voie: 1 },
@@ -98,11 +98,11 @@
           // qu'on sèche au sud, l'îlot du totem des tarifs, de chaque côté deux places d'aspiration
           box(30.2, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'), box(41.4, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'),
           box(34.6, 17.9, 2.8, 3.6, 3.3, 'wall', 'lavage local'), box(35.7, 21.5, 0.6, 6.6, 1.1, 'cover', 'lavage muret'),
-          cap(box(34.95, 12.7, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),             // attend qu'une piste se libère
-          cap(box(34.95, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),             // au séchage, à la sortie des pistes
+          cap(box(34.95, 12.7, 2.1, 5.2, 2.4, 'wall', 'fourgon (lavage)'), 1),     // fourgon du technicien de la station, à la porte du local
+          cap(box(34.95, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon (nettoyage)'), 1),  // nettoyeur à la main (lustrage) sur l'aire de séchage, auvent ouvert
           box(33.3, 11.0, 5.4, 1.6, 1.7, 'wall', 'haie'), box(35.4, 11.5, 1.2, 0.5, 3.6, 'wall', 'totem'),
           cap(box(27.9, 18.6, 1.9, 4.4, 1.4, 'cover', 'voiture'), -1), box(28.5, 23.4, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), cap(box(27.9, 24.6, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
-          cap(box(42.2, 18.6, 1.9, 4.4, 1.4, 'cover', 'voiture'), -1), box(42.7, 23.4, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), cap(box(42.2, 24.6, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),
+          cap(box(42.2, 18.6, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), -1), box(42.7, 23.4, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), cap(box(42.2, 24.6, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),
           // ---- OUEST : caisse automatique (piétons) sur son îlot ; places le long du mur ouest, borne de recharge
           box(9.4, 21.9, 2.2, 2.2, 2.6, 'wall', 'caisse automatique'),
           cap(box(0.2, 11.0, 5.2, 2.1, 2.4, 'wall', 'fourgon'), -1), cap(box(0.3, 13.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'), -1),
@@ -111,7 +111,7 @@
           // ---- EST : poste électrique sur son îlot planté ; places le long du mur est (au sud, la camionnette du chantier)
           box(60.4, 21.9, 2.2, 2.2, 2.6, 'wall', 'poste électrique'), box(60.6, 24.6, 1.0, 0.5, 1.4, 'cover', 'armoire'),
           cap(box(66.6, 11.0, 5.2, 2.1, 2.4, 'wall', 'fourgon'), 1), cap(box(67.3, 13.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'), 1),
-          cap(box(67.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), 1), cap(box(66.6, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon'), 1),
+          cap(box(67.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), 1), cap(box(66.6, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon (chantier)'), 1),   // camionnette de l'équipe du chantier, entrée par le bout des séparateurs
           box(71.3, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
           // ---- SUD : places le long du mur de la rue, kiosque à pizzas et consigne à colis (de part et d'autre), quai de la
           // navette (abri et jardinières sur l'îlot, bus le long), fourgons de livraison, point de tri
@@ -129,7 +129,7 @@
           box(52.6, 41.8, 1.2, 1.2, 0.9, 'cover', 'palettes'), box(53.0, 35.4, 1.0, 2.0, 0.9, 'cover', 'sacs de sable'),
           // ---- SUD-EST : partie du parking fermée pour réfection de l'enrobé (séparateurs, clôtures de chantier bâchées,
           // conteneurs du chantier, benne à gravats, palettes de bordures, sacs de sable qui lestent les panneaux, fût)
-          box(52.5, 34.2, 5.5, 0.6, 0.95, 'cover', 'barrière'), box(61, 34.2, 5, 0.6, 0.95, 'cover', 'barrière'),
+          box(52.5, 34.2, 5.5, 0.6, 0.95, 'cover', 'barrière'), box(61, 34.2, 4, 0.6, 0.95, 'cover', 'barrière'),
           box(51.9, 34.8, 0.3, 1.2, 2.0, 'wall', 'clôture de chantier'), box(51.9, 41.2, 0.3, 4.8, 2.0, 'wall', 'clôture de chantier'),
           box(59.4, 39.0, 2.4, 6.0, 2.6, 'wall', 'conteneur'), box(65.6, 43.4, 6, 2.4, 2.6, 'wall', 'conteneur'),
           box(54.2, 43.4, 2.6, 1.7, 1.3, 'cover', 'benne à gravats'),

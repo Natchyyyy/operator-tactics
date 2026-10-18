@@ -853,6 +853,19 @@
     node.addLevel(sk, 0, 0.15); node.addLevel(m, LOD_D, 0.15);
     return m;
   }
+  // Visière relevée du casque GIGN : deux pivots sombres sur les côtés (le modèle Meshy n'a pas de charnière), enfants de l'os
+  // de la tête ; posés dans l'espace du maillage (m) puis ramenés dans le repère de l'os (inverse de liaison × bindMatrix)
+  let CHAR = null;
+  function charnieres(sk) {
+    const i = sk.skeleton.bones.findIndex(b => b.name === 'mixamorig:Head' || b.name === 'mixamorigHead'); if (i < 0) return;
+    if (!CHAR) { const g = new THREE.CylinderGeometry(0.014, 0.014, 0.012, 14); g.rotateZ(Math.PI / 2); CHAR = { g, m: new THREE.MeshStandardMaterial({ color: 0x16191e, roughness: 0.45, metalness: 0.4 }) }; }
+    const L = new THREE.Matrix4().multiplyMatrices(sk.skeleton.boneInverses[i], sk.bindMatrix);
+    for (const x of [0.121, -0.125]) {
+      const c = new THREE.Mesh(CHAR.g, CHAR.m); c.name = 'charniereVisiere';
+      c.applyMatrix4(new THREE.Matrix4().multiplyMatrices(L, new THREE.Matrix4().makeTranslation(x, 1.592, 0.052)));
+      sk.skeleton.bones[i].add(c);
+    }
+  }
   function cloneSkinned(src) {
     const c = src.clone(true), bones = {}; c.traverse(o => { if (o.isBone) bones[o.name] = o; });
     c.traverse(o => { if (o.isSkinnedMesh) { const sk = o.skeleton; o.bind(new THREE.Skeleton(sk.bones.map(b => bones[b.name]), sk.boneInverses), o.bindMatrix); } });
@@ -874,6 +887,7 @@
     if (M.clips.Garde_Basse) for (const t of M.clips.Garde_Basse.tracks) { const m = /^(.*)\.(quaternion|position)$/.exec(t.name), o = m && (body.getObjectByName(m[1]) || body.getObjectByName(m[1].replace(/^mixamorig/, 'mixamorig:'))); if (o) o[m[2]].fromArray(t.values, 0); }
     let skinned = null; body.traverse(n => { if (n.isSkinnedMesh) { skinned = n; n.material = tintedMaterial(n.material, TEINTE[M.nom] ? o.uniform : null, M.nom); } });
     if (skinned && M.lod) try { lod(skinned, M.lod); } catch (e) { console.warn('soldat 3D (LOD) :', e); }
+    if (skinned && M.nom === 'gign') try { charnieres(skinned); } catch (e) { console.warn('soldat 3D (visière) :', e); }
     const bone = (n) => body.getObjectByName('mixamorig:' + n) || body.getObjectByName('mixamorig' + n);
     const weapon = o.weapon ? ((root.Modeles3D && root.Modeles3D.arme()) || root.Figure.makeWeapon(o.weapon, o.attachments)) : new THREE.Group(); if (!weapon.muzzle) weapon.muzzle = new THREE.Vector3(0, 0, 0.6);
     group.add(weapon);
@@ -1346,10 +1360,12 @@
         // orientation de la main : celle de sa prise sous le garde-main (paume vers le haut, comme pour pousser le chargeur), au
         // lieu de celle de l'animation qui tourne brusquement ; coude choisi pour un poignet peu cassé (poserBras)
         if (M.prise && M.prise.L && !S.sansPrise) { const tq = new THREE.Quaternion(); new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, M.prise.L.Hrel).decompose(V(), tq, V());
-          const ins = sm((p - 0.45) / 0.15);   // (au porte-chargeur : poignet dans l'axe de l'avant-bras ; au puits : main sous le fusil)
-          this.poserBras('L', B.la, B.lf, B.lh, WP(B.lh).add(T.sub(palm)), WQ(B.lh).slerp(tq, ins), w, M.prise.L);
-          if (ins < 0.99) { const n = M.prise.L.ordre[2], mid = (this.osDoigts && this.osDoigts[n]) || body.getObjectByName(n), A = WP(mid).sub(WP(B.lh)).normalize(), F = WP(B.lh).sub(WP(B.lf)).normalize();
-            const q = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(A, F), w * (1 - ins) * 0.85); B.lh.quaternion.copy(WQ(B.lh.parent).invert().multiply(q).multiply(WQ(B.lh))); B.lh.updateMatrixWorld(true); } }
+          const ins = sm((p - 0.45) / 0.15);   // (au porte-chargeur : orientation de l'animation ; au puits : main sous le fusil)
+          // au porte-chargeur : main dans le prolongement épaule → poche, paume vers le ventre
+          const Dl = M.prise.L, n = Dl.ordre[2], mid = (this.osDoigts && this.osDoigts[n]) || body.getObjectByName(n), cible = WP(B.lh).add(T.clone().sub(palm));
+          const base = (a, nn) => { const x = a.clone().normalize(), y = nn.clone().addScaledVector(x, -nn.dot(x)).normalize(); return new THREE.Matrix4().makeBasis(x, y, new THREE.Vector3().crossVectors(x, y)); };
+          const Aw = cible.clone().sub(WP(B.la)).normalize(), qP = new THREE.Quaternion().setFromRotationMatrix(base(Aw, fw.clone().negate()).multiply(base(mid.position.clone(), Dl.N).transpose()));
+          this.poserBras('L', B.la, B.lf, B.lh, cible, qP.slerp(tq, ins), w, Dl); }
         else ik(B.la, B.lf, B.lh, T.sub(palm).multiplyScalar(w));
       },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
@@ -1378,9 +1394,14 @@
         const coude = (ph) => C.clone().addScaledVector(u, r * Math.cos(ph)).addScaledVector(w, r * Math.sin(ph));
         const dedans = new THREE.Vector3(h === 'R' ? 1 : -1, 0, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()));   // vers le centre du corps
         const cout = (ph) => { const E = coude(ph), f = T.clone().sub(E).normalize(); return Math.acos(Math.max(-1, Math.min(1, f.dot(Aw)))) + 0.25 * Math.abs(ph) + 3 * Math.max(0, E.clone().sub(S0).dot(up) / a + seuilC) + 3 * Math.max(0, E.clone().sub(S0).dot(dedans) / a - 0.05); };   // (coude jamais rentré dans le buste)
-        let ph = 0, cb = cout(0); for (let x = -2.4; x <= 2.4; x += 0.2) { const cx = cout(x); if (cx < cb) { cb = cx; ph = x; } }
-        for (const st of [0.08, 0.03, 0.01]) for (const sg of [-1, 1]) { while (cout(ph + sg * st) < cb) { ph += sg * st; cb = cout(ph); } }
-        const sw = this.coudePh || (this.coudePh = {}); ph = sw[h] === undefined ? ph : sw[h] + (ph - sw[h]) * Math.min(1, 0.35); sw[h] = ph;
+        // (cohérence d'une image à l'autre : recherche locale autour du coude précédent, changement limité ; recherche complète
+        // seulement à la première image ou après une pause)
+        const sw = this.coudePh || (this.coudePh = {}), prev = sw[h] && this.t - sw[h].t < 0.2 ? sw[h].ph : null;
+        let ph = prev === null ? 0 : prev, cb = cout(ph);
+        if (prev === null) for (let x = -2.4; x <= 2.4; x += 0.2) { const cx = cout(x); if (cx < cb) { cb = cx; ph = x; } }
+        for (const st of [0.08, 0.03, 0.01]) for (const sg of [-1, 1]) { let n = 0; while (n++ < 40 && cout(ph + sg * st) < cb) { ph += sg * st; cb = cout(ph); } }
+        if (prev !== null) ph = prev + Math.max(-0.08, Math.min(0.08, ph - prev));
+        sw[h] = { ph, t: this.t };
         const E1 = coude(ph * k);
         turn(arm, E0.clone().sub(S0), E1.clone().sub(S0)); const E2 = WP(fore); turn(fore, WP(hand).sub(E2), T.clone().sub(E2));
         // torsion : la moitié de la rotation de la main autour de l'avant-bras est portée par l'avant-bras (poignet moins vrillé)
