@@ -22,6 +22,8 @@ Fiabilité de chaque critère :
 | Vitesse | Wikipedia, *Preferred walking speed* et *Walking* | Marche 1,1 à 1,65 m/s (≈ 1,4 m/s), environ 100 à 115 pas/min. |
 | Walk ratio | Sekiya & Nagasaki 1998 *(connaissance générale, non relue ici)* | Rapport longueur de pas / cadence ≈ 0,0065 m/(pas/min), à peu près constant chez l'adulte. D'où L = √(v·60·0,0065) : 1,35 m/s → 0,72 m et 113 pas/min. |
 | Patinage | Zhang et al. 2018, *Mode-Adaptive Neural Networks* *(connaissance générale)* | Mesure standard du patinage des pieds : vitesse horizontale pondérée par (2 − 2^(h/H)), avec H = 2,5 cm. |
+| **Vidéo** | **Vidéo de référence de l'utilisateur** : soldat réel en marche en visant et en course fusil en main, images dans `captures/reference_video/` (`comparaison_marche_visee.jpg`, `comparaison_course.jpg`, `r*.png`) | Marche en visant : pieds bas (talon < 12 cm), base large (chevilles 28-38 cm vues de face), genoux dans l'axe, buste penché de 5-12°, bras d'appui presque tendu, main loin devant. Course : talon < 25 cm, pieds sous les hanches (15-25 cm), buste penché de 15-25°. |
+| Pieds cassés | Captures de l'utilisateur `captures/reference_video/pieds_trot_gign.png`, `pieds_trot_soldat.png` | Orteil relevé (« orteil d'elfe »), pointe tendue en l'air (« danseuse »), botte écrasée : défauts à ne jamais laisser passer. |
 | Amplitudes | Amplitudes articulaires usuelles *(connaissance générale)* | Rotation thoraco-lumbaire ≈ 40-50°. Poignet : flexion ≈ 70-80°, extension ≈ 70°, déviations 20-35°. Genou : hyperextension 0 à -5° au plus. |
 
 ## 2. Critères — bas du corps (`partie = bas`)
@@ -49,6 +51,21 @@ Fiabilité de chaque critère :
 | `appui_largeur_arret` | largeur des pieds en visée à l'arrêt | 22-48 cm | 15-58 | FM 3-06.11 §3-23b. |
 | `appui_decale_arret` | pied du côté du tir en arrière | 4-38 cm | -4 à 48 | FM 3-06.11 §3-23b. |
 | `genoux_flechis_arret` | flexion moyenne des genoux en visée à l'arrêt | 6-30° | 2-40° | « Knees slightly bent ». |
+
+### Ajouts : vidéo de référence et pieds « cassés »
+| id | Mesure | OK | Toléré | Pourquoi (réel) |
+|---|---|---|---|---|
+| `hauteur_talon` [sûr] | hauteur max du talon pendant l'oscillation | marche visée ≤ 12 cm, course et marche ≤ 25 cm | 18 / 32 cm | Vidéo : pieds bas en marche tactique, talon peu relevé en course (pas de « talons aux fesses »). |
+| `ecart_face` [sûr] | écart moyen des chevilles sur l'axe gauche-droite du corps | marche visée 28-38 cm, course 15-25 cm, marche 10-30 cm | 22-45 / 10-32 / 6-36 | Vidéo : base large en marche visée, pieds jamais en ligne. |
+| `valgus_genou` [sûr] | angle (plan frontal du bassin) du genou qui rentre, pied chargé seulement, genou plié de 5 à 70° | ≤ 8° | ≤ 15° | Vidéo : genoux dans l'axe des pieds. Valgus dynamique > 10° = défaut. |
+| `orteil_pied_plat` [sûr] | orteils (ToeBase → Toe_End) relevés par rapport au pied, moins la liaison, talon bas (< 3 cm) | ≤ 15° | ≤ 25° | « Orteil d'elfe » signalé par l'utilisateur. |
+| `orteil_poussee` [sûr] | idem, talon levé (poussée) | ≤ 35° | ≤ 45° | La botte plie aux orteils à la poussée, pas plus. |
+| `plantaire_oscillation` [sûr] | flexion plantaire de la cheville (tibia / pied, moins la liaison) quand le pied est à plus de 5 cm du sol | ≤ 30° | ≤ 40° | Pied de « danseuse » / botte froissée signalé par l'utilisateur. Cheville ≈ neutre en oscillation (FRCS). |
+| `botte_deformee` [sûr] | longueur talon ↔ pointe de la botte (sommets de la peau) / liaison − 1 | ≤ 8 % | ≤ 12 % | Botte rigide. Le simple skinning d'une pose de repos donne déjà 5-6 %. |
+| `pieds_se_touchent` [estimé : capsules] | distance des capsules de pied | ≥ 0 | ≥ -2 cm | Les bottes ne se traversent pas. |
+| `coude_appui` [sûr] | angle du coude gauche en visée | 125-175° | 105-180° | Vidéo : bras d'appui presque tendu. |
+| `main_appui_avant` [sûr] | main d'appui le long de l'arme (0 = poignée, 1 = bouche) | 0,45-0,85 | 0,35-0,95 | Vidéo, et Vortex : main loin devant. |
+| `penche_avant` (bandes révisées) | inclinaison bassin → cou | visée 5-14°, course 15-26° | ±3-5° | Vidéo : visée 5-12°, course 15-25°. |
 
 ## 3. Critères — haut du corps (`partie = haut`)
 
@@ -81,7 +98,18 @@ Fiabilité de chaque critère :
 | `cant_arme` | roulis de l'arme en visée | ≤ 8° | ≤ 18° | Viseur à 12 h. |
 | `acoup_*` [réglé] | pic d'accélération angulaire (°/s²) des os principaux et de l'arme | mains et arme ≤ 3 500, bassin, dos et tête ≤ 2 500, pieds ≤ 20 000 | ×2 | Saccades et « pops ». Seuils calés sur les cycles capturés d'origine. |
 
-## 4. Pièges connus (faux positifs)
+## 4. Pièges connus et leçons apprises (faux positifs rencontrés pendant la mise au point)
+Liste établie sur ce projet. Chaque point a coûté une fausse alerte envoyée à un animateur.
+1. **Calibrer dans la pose de liaison, jamais dans la pose du moment.** Des points de semelle pris à la première image mesurée (pied en l'air, pointe en bas) ont donné des angles de pied de 140-170° et des pieds « dans le sol ».
+2. **Mesurer la peau, pas les os.** Le bout des doigts Meshy (os « …4 ») est 1 à 3 cm DANS le gant, et l'os `headfront` est à hauteur de bouche. Le plus en avant des sommets de la botte est côté gros orteil : l'axe talon → pointe était tourné de 35° vers l'intérieur. On utilise l'axe principal (ACP) de la semelle.
+3. **Repère du bassin pour le genou.** Le signe de l'hyperextension pris par rapport au pied ratait les genoux retournés de la jambe arrière. On mesure le sens du genou par rapport à l'avant du bassin.
+4. **Le banc doit rejouer le code du jeu.** `animateSkinned()`, `chargeur()` et `syncMeshes()` sont extraits de app.js à chaque chargement. Une copie de syncMeshes a vieilli, et une cible déplacée seulement aux pas de simulation fabriquait des à-coups de 10 000 °/s².
+5. **Ne pas juger les transitions comme des postures.** En jeu, la tête atteint la cible ~0,3 s avant que le fusil monte ; c'est naturel. Les 0,4 premières secondes d'un segment sont exclues des critères de posture.
+6. **Un pied bas n'est pas forcément en appui.** Un pied qui rase le sol plus vite que le corps est en oscillation. Le patinage pondéré par la hauteur sert de contrôle sans seuil.
+7. **Un défaut d'une seule image existe.** Genoux retournés une image par cycle : bande image par image (`jeu.py --suivre`), et alarmes instantanées en jeu.
+8. **Comparer à version de mesure égale.** Changer une mesure fausse les comparaisons avant / après. Pour un vrai « avant », repasser l'ancienne version du jeu avec les mesures actuelles (`REVUE_URL`, voir SKILL.md).
+9. **Écouter les animateurs.** Deux contestations (axe du pied, bouts de doigts) étaient justes. Vérifier sa mesure sur une image avec `--marques` avant de défendre un chiffre.
+
 - **Capsules** (tibias, arme ↔ torse ou tête) : rayons pris comme la médiane des sommets de chaque os. Les gilets épais et les casques donnent des approximations. Toujours vérifier sur la planche.
 - **Creux d'épaule et œil** : positions estimées. Une différence de ±3 cm n'est pas un défaut.
 - **Glissement** : un pied qui rase le sol en oscillation n'est pas un appui. Les images où le pied bas va plus vite que le corps sont exclues. `patine_*` sert de contrôle sans seuil.
