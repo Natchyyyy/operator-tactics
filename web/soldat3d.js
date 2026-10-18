@@ -31,6 +31,8 @@
   const GENOUX_VISEE = 0.38;
   // écart moyen des chevilles en marche (m)
   const ECART_PAS = 0.21;
+  // recul : foulée de la marche arrière allongée (rapport)
+  const RECUL = 1.45;
   // à genou : hauteur du genou arrière posé (os, m), de sa cheville (pointe du pied au sol), cheville du pied avant à plat
   const GENOU = { genou: 0.075, cheville: 0.13, chevilleAv: 0.15, baisse: 0.035 };   // baisse : bassin abaissé (m) pour que le genou arrière touche le sol
   const TROT = { s: 0.38, hs: 0.5, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
@@ -344,7 +346,7 @@
   // position moyenne), pieds levés moins haut (× hs) et bassin un peu remonté (jambes moins écartées → moins fléchies).
   // Même cadence que la course : vitesse naturelle ≈ s × 4,6 m/s. Droit, souple, pieds dans l'axe : un trot de patrouille,
   // pas la course accroupie « au fusil » (Run_and_Shoot) qui faisait un petit trottinement de crabe sans ennemi en vue.
-  function foulee(M, src, nom, s, hs, rise) {
+  function foulee(M, src, nom, s, hs, rise, kp0) {
     const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n), hips = b('Hips'), F = [b('LeftFoot'), b('RightFoot')];
     if (!src || !hips || !F[0] || !F[1]) return null;
     const mixer = new THREE.AnimationMixer(sc); mixer.clipAction(src).play();
@@ -360,7 +362,7 @@
     // celle de la pose de repos (part 1 − kp de l'écart), pour une attaque du sol plus à plat de petite foulée
     const toes = [b('LeftToeBase'), b('RightToeBase')], gb = M.clips.Garde_Basse; let p0 = 0.6, tR = null;
     if (gb && toes[0]) { const mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true); const f = W(toes[0]).sub(W(F[0])); p0 = Math.atan2(-f.y, Math.hypot(f.x, f.z)); tR = Math.min(W(toes[0]).y, W(toes[1]).y); mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true); }
-    const kp = TROT.kp, up = new THREE.Vector3(0, 1, 0), k = RAW_H / HEIGHT;
+    const kp = kp0 !== undefined ? kp0 : TROT.kp, up = new THREE.Vector3(0, 1, 0), k = RAW_H / HEIGHT;
     return jambesIK(M, src, nom, (i, H, A, Aq) => {
       const H0 = H.clone(), out = A.map(a => cib(H0, a)), fr = [null, null];
       if (toes[0] && toes[1]) A.forEach((a, j) => { const f = W(toes[j]).sub(a), h = Math.hypot(f.x, f.z), len = f.length(); if (h < 1e-4) return; const p = Math.atan2(-f.y, h), np = kp < 1 ? p0 + (p - p0) * kp : p;
@@ -472,6 +474,10 @@
       else if (/position$/.test(t.name)) for (let i = 0; i < v.length; i += 3) v[i] = -v[i];
     }
     M.clips.Pas_Droite = D;
+    // recul en visant (la simulation l'autorise jusqu'à 1,8 m/s) : la marche arrière de la bibliothèque a une foulée de ~0,8 m,
+    // il fallait la jouer 2 fois trop vite (257 pas/min). Foulée allongée (× RECUL) : ~170 pas/min à 1,7 m/s, bassin un peu
+    // plus bas (jambes plus écartées d'avant en arrière)
+    if (M.clips.Pas_Arriere) { const r = foulee(M, M.clips.Pas_Arriere, 'Pas_Arriere', RECUL, 1.5, 0.6, 1); if (r) M.clips.Pas_Arriere = r; }
     M.clips.Pas_Avant_Aim = legs(M.clips.Walk_Fight_Forward, 'Pas_Avant_Aim');
     M.clips.Pas_Avant_Low = legs(M.clips.Walking || M.clips.Walk_Fight_Forward, 'Pas_Avant_Low');
     // course (petites foulées, ~1,5 à 3 m/s) : mêmes pas chassés / marche arrière, mais la marche avant est la course de
@@ -488,7 +494,7 @@
     // « cow-boy » ; marche humaine : 8 à 17 cm, base tactique un peu plus large) : écart moyen ramené à ECART_PAS
     for (const n of ['Pas_Avant_Low', 'Pas_Glisse']) if (M.clips[n]) { const c = resserre(M, M.clips[n], ECART_PAS); if (c) M.clips[n] = c; }
     // genoux jamais « en arrière » (voir jambesIK) dans les cycles qui ne sont pas déjà passés par l'IK
-    for (const n of ['Pas_Avant_Low', 'Pas_Run', 'Pas_Gauche', 'Pas_Droite', 'Pas_Arriere', 'Pas_Avant_Aim', 'Pas_Avant_Course']) if (M.clips[n]) { const c = jambesIK(M, M.clips[n], n, (i, H, A) => A.map(a => a.clone())); if (c) M.clips[n] = c; }
+    for (const n of ['Pas_Avant_Low', 'Pas_Run', 'Pas_Gauche', 'Pas_Droite', 'Pas_Avant_Aim', 'Pas_Avant_Course']) if (M.clips[n]) { const c = jambesIK(M, M.clips[n], n, (i, H, A) => A.map(a => a.clone())); if (c) M.clips[n] = c; }
     // pieds au sol (pointe la plus basse du cycle à sa hauteur de repos)
     { const sc = M.gltf.scene, gb = M.clips.Garde_Basse, T = ['LeftToeBase', 'RightToeBase'].map(n => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n));
       if (gb && T[0] && T[1]) { const mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true); const repos = Math.min(...T.map(t => t.getWorldPosition(new THREE.Vector3()).y)); M.toeR = repos * HEIGHT / RAW_H; { const fa = ['LeftFoot', 'RightFoot'].map(n => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n)); if (fa[0] && fa[1]) M.ankR = Math.min(...fa.map(t => t.getWorldPosition(new THREE.Vector3()).y)) * HEIGHT / RAW_H; } mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true);
@@ -688,10 +694,10 @@
   const PRISE = {
     R: { A: [0.383, -0.386, 0.839], N: [0.913, 0.294, -0.282], mcp: [-0.04, -0.063, -0.129],
       // cibles du bout des doigts (index : tendu le long de la carcasse, au-dessus du pontet ; pouce : flanc gauche, sous la carcasse)
-      cibles: { 0: { ferme: [0.6, 1, 0.8], max: [1.2, 1.3, 1.2] }, 1: { p: [-0.036, 0.006, -0.075], f1: [-0.4, 0.8], f2: 0.3, reg: 0.03, ecart: 0.5 } },
-      detente: { p: [-0.004, -0.014, -0.088], f1: [-0.2, 1.4], f2: 1.6 } },
+      cibles: { 0: { ferme: [0.6, 1, 0.8], max: [1.2, 1.3, 1.2] }, 1: { p: [-0.036, 0.004, 0], auto: true, f1: [-0.45, 0.8], f2: 0.3, reg: 0.03, ecart: 0.5 } },
+      detente: { p: [-0.004, -0.014, -0.088], f1: [-0.15, 1.4], f2: 1.6 } },
     L: { A: [-0.816, 0.149, 0.559], N: [0.19, 0.982, 0.015], mcp: [-0.036, 0.01, 0.168],
-      cibles: { 0: { p: [0.04, 0.07, 0.2], f1: [-0.4, 1.2], f2: 1.0 } } },
+      cibles: { 0: { p: [0.04, 0.07, 0.2], f1: [-0.15, 1.2], f2: 1.0 } } },
     // places propres à un modèle (mêmes champs, remplacent ceux du dessus) : les mains n'ont pas la même forme
     gign: { R: { A: [0.209, 0.261, 0.943], N: [0.934, 0.232, -0.271], mcp: [-0.04, -0.051, -0.119] }, L: { A: [-0.822, 0.089, 0.563], N: [0.074, 0.996, -0.051], mcp: [-0.028, 0.012, 0.168] } },
   };
@@ -774,12 +780,16 @@
       // 2b. bout du doigt (articulation du bout) amené au point « cible » sans entrer dans l'arme : recherche en grille puis
       // descente par coordonnées sur [flexion 1, 2, 3, écartement]
       const cibler = (k, cible, o) => {
-        const C = new THREE.Vector3().fromArray(cible), cout = (th) => { const ms = fk(k, th), d = Math.min(...dSeg(k, th, ms));
+        const C = new THREE.Vector3().fromArray(cible);
+        if (o.auto) {   // index tendu : bout droit devant sa base, le long du flanc de la carcasse, au-dessus du pontet
+          const m0 = fk(k, [0, 0, 0, 0]), base = V().setFromMatrixPosition(m0[0]), Lf = V().setFromMatrixPosition(m0[1]).distanceTo(base) + V().setFromMatrixPosition(m0[2]).distanceTo(V().setFromMatrixPosition(m0[1])) + p.copy(bout[k]).applyMatrix4(m0[2]).distanceTo(V().setFromMatrixPosition(m0[2]));
+          C.set(cible[0], Math.max(cible[1], base.y + 0.004), base.z + Math.sqrt(Math.max(0, Lf * Lf * 0.94 - (cible[0] - base.x) ** 2))); o.pAuto = C.toArray(); }
+        const cout = (th) => { const ms = fk(k, th), d = Math.min(...dSeg(k, th, ms));
           return p.copy(bout[k]).applyMatrix4(ms[2]).distanceTo(C) + 6 * Math.max(0, -d - 0.002) + (o.reg || 0.004) * (Math.abs(th[1]) + Math.abs(th[2])) + 0.004 * Math.abs(th[3]); };
         let best = null;
-        for (let a = Math.max(-0.15, o.f1[0]); a <= o.f1[1]; a += 0.1) for (let e = -(o.ecart || 0.35); e <= (o.ecart || 0.35); e += 0.07) for (let c = 0; c <= o.f2; c += 0.12) { const th = [a, c, c * 0.8, e], v = cout(th); if (!best || v < best[0]) best = [v, th]; }
+        for (let a = o.f1[0]; a <= o.f1[1]; a += 0.1) for (let e = -(o.ecart || 0.35); e <= (o.ecart || 0.35); e += 0.07) for (let c = 0; c <= o.f2; c += 0.12) { const th = [a, c, c * 0.8, e], v = cout(th); if (!best || v < best[0]) best = [v, th]; }
         let th = best[1], v = best[0];
-        for (const st of [0.05, 0.02, 0.008]) for (let it = 0; it < 12; it++) { let mieux = false; for (let i = 0; i < 4; i++) for (const sg of [-1, 1]) { const t2 = th.slice(); t2[i] += sg * st; if (i === 0 && t2[i] < -0.15 || i === 1 && t2[i] < 0 || i === 2 && t2[i] < 0 || i === 3 && Math.abs(t2[i]) > (o.ecart || 0.35)) continue; const v2 = cout(t2); if (v2 < v) { v = v2; th = t2; mieux = true; } } if (!mieux) break; }
+        for (const st of [0.05, 0.02, 0.008]) for (let it = 0; it < 12; it++) { let mieux = false; for (let i = 0; i < 4; i++) for (const sg of [-1, 1]) { const t2 = th.slice(); t2[i] += sg * st; if (i === 0 && t2[i] < (o.f1[0] < -0.15 ? o.f1[0] : -0.15) || i === 1 && t2[i] < 0 || i === 2 && t2[i] < 0 || i === 3 && Math.abs(t2[i]) > (o.ecart || 0.35)) continue; const v2 = cout(t2); if (v2 < v) { v = v2; th = t2; mieux = true; } } if (!mieux) break; }
         return th;
       };
       const R = side === 'Right', res = { Hrel, glisse, N, ordre: ordre.map(c => chaines[c][0].name), doigts: [], dmin: [], err: [] };
@@ -789,7 +799,7 @@
         const th = c && c.ferme ? fermer(k, c.ferme, c.max) : c ? cibler(k, c.p, c) : fermer(k, [1, 1.15, 0.85], [1.6, 1.9, 1.4]);
         res.doigts.push(o3.map((o, j) => [o.b.name, qLoc(k, j, th)])); (res.th || (res.th = [])).push(th);
         res.dmin.push(+(dmin(k, th) * 100).toFixed(2));
-        if (c && c.p) res.err.push(+(p.copy(bout[k]).applyMatrix4(fk(k, th)[2]).distanceTo(new THREE.Vector3().fromArray(c.p)) * 100).toFixed(2));
+        if (c && c.p) res.err.push(+(p.copy(bout[k]).applyMatrix4(fk(k, th)[2]).distanceTo(new THREE.Vector3().fromArray(c.pAuto || c.p)) * 100).toFixed(2));
       });
       res.paumeLoc = new THREE.Vector3().fromArray(PALME).multiplyScalar(0.6).applyMatrix4(Hrel);
       res.paume = +(gp(0) * 100).toFixed(2); res.bouts = os.map((o3, k) => p.copy(bout[k]).applyMatrix4(fk(k, k < 5 ? (res.th || [])[k] || [0, 0, 0, 0] : 0)[2]).toArray());
@@ -1612,7 +1622,7 @@
         if (procW > 0.01) { const Pp = this.poseArme(loc, inv);
           // position lissée (ressort ~0,1 s, repère du groupe) : le fusil n'encaisse pas tout le rebond des pas (les bras l'absorbent)
           if (this.tPose !== undefined && this.t > this.tPose && this.pArme && !S.sansLisse) { const dtp = Math.min(0.1, this.t - this.tPose), w0 = 11, e = Pp.p.clone().sub(this.pArme), a = e.multiplyScalar(w0 * w0).addScaledVector(this.vArme, -2 * w0);
-            this.vArme.addScaledVector(a, dtp); this.pArme.addScaledVector(this.vArme, dtp); if (this.pArme.distanceTo(Pp.p) > 0.08) { this.pArme.copy(Pp.p); this.vArme.set(0, 0, 0); } Pp.p.copy(this.pArme); }
+            this.vArme.addScaledVector(a, dtp); this.pArme.addScaledVector(this.vArme, dtp); { const e2 = this.pArme.clone().sub(Pp.p), L2 = e2.length(); if (L2 > 0.03) { this.pArme.copy(Pp.p).addScaledVector(e2, 0.03 / L2); this.vArme.multiplyScalar(0.5); } } Pp.p.copy(this.pArme); }   // (retard limité à 3 cm : transitions rapides sans à-coup)
           else if (this.tPose !== this.t || !this.pArme) { this.pArme = Pp.p.clone(); this.vArme = V(); }
           this.tPose = this.t;
           const w = procW * (M.prise && !S.sansPrise ? pk : 1); weapon.quaternion.slerp(Pp.q, w); pos.lerp(Pp.p, w); }

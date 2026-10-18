@@ -53,10 +53,13 @@ window.ECH = { bandeN: 10, bande: null, img: 0, cat: {}, seg: {}, fin: [], pires
       s2.suivi.ajouter(mm, 1 / 30, { img: E.img, clip: m.clip, v: +k.v.toFixed(2) });
       // bande de profil de la petite course (vérification visuelle systématique) : 1er soldat en jog_bas_avant depuis > 1 s,
       // une vue de côté toutes les 2 images, 10 vues
-      if (E.bandeN > 0 && k.c === 'jog_bas_avant' && E.img - s2.i0 > 30 && (!E.bande || E.bande.u === u.id) && (!E.bande || E.bande.imgs.length < E.bandeN) && (!E.bande || E.img - E.bande.der >= 2)) {
+      // (ou, avec --suivre NOM --de I --a J, ce soldat-là entre les images I et J)
+      const SV = E.suivre;
+      if (SV ? (u.callsign === SV.cs && E.img >= SV.de && E.img <= SV.a && (!E.bande || E.img - E.bande.der >= SV.pas)) :
+        (E.bandeN > 0 && k.c === 'jog_bas_avant' && E.img - s2.i0 > 30 && (!E.bande || E.bande.u === u.id) && (!E.bande || E.bande.imgs.length < E.bandeN) && (!E.bande || E.img - E.bande.der >= 2))) {
         if (!E.bande) E.bande = { u: u.id, cs: u.callsign, imgs: [], der: 0 };
         E.bande.der = E.img; const g = m.group.position, yaw = Math.atan2(Math.sin(m.yaw), -Math.cos(m.yaw));
-        E.actif = false; E.dessin = true; try { API.look(g.x, g.z, yaw, 0.12, 2.6, 0.75); E.bande.imgs.push([E.img, cv().toDataURL('image/jpeg', 0.85), +mm.genouSensG.toFixed(0), +mm.genouSensD.toFixed(0)]); } finally { E.actif = true; E.dessin = false; }
+        E.actif = false; E.dessin = true; try { API.look(g.x, g.z, yaw, 0.1, E.suivre ? 2.2 : 2.6, E.suivre ? 0.6 : 0.75); E.bande.imgs.push([E.img, cv().toDataURL('image/jpeg', 0.85), +mm.genouSensG.toFixed(0), +mm.genouSensD.toFixed(0)]); } finally { E.actif = true; E.dessin = false; }
       }
       // alarmes instantanées (seuils « majeur » de la rubrique) : gros plan rendu TOUT DE SUITE (pas de 2e passe)
       if (E.alarmes.length < E.maxAlarmes) for (const [id, t] of E.TESTS) { let x; try { x = t(mm, k); } catch (e) { x = null; } if (x === null || x === false || x === undefined) continue;
@@ -118,6 +121,7 @@ async def main(a):
             await pg.evaluate(f"API.start({{mapId: {json.dumps(a.carte)}, seed: {a.graine}, conditions: 'jour'}})")
             await pg.evaluate(ECH)
             await pg.evaluate(f'ECH.maxAlarmes = {a.alarmes}')
+            if a.suivre: await pg.evaluate(f"ECH.suivre = {{cs: {json.dumps(a.suivre)}, de: {a.de}, a: {a.a}, pas: {a.tous}}}")
         return br, pg
     errs = []
     async with async_playwright() as p:
@@ -177,10 +181,10 @@ async def main(a):
         for j, (i, im, g, d) in enumerate(ims):
             pl.paste(im.resize((tw, th)), (j * tw, 0)); dr.text((j * tw + 4, th + 3), f"img {i}  genoux G {g} D {d}", fill=(255, 80, 80) if max(g, d) > 100 else (220, 220, 220))
         fb = os.path.join(out, 'bande_trot_profil.jpg'); pl.save(fb, quality=88)
-        L += ['', f"## Bande de profil de la petite course ({bande['cs']}) : `{os.path.relpath(fb, RACINE)}`", '']
+        L += ['', f"## Bande de profil ({bande['cs']}) : `{os.path.relpath(fb, RACINE)}`", '']
     def ecrire():
         open(os.path.join(out, 'jeu.md'), 'w').write('\n'.join(L))
-        json.dump({'categories': cat, 'alarmes': alarmes, 'verdicts': [{k: v[k] for k in v if k not in ('quand',)} for v in verd]}, open(os.path.join(out, 'jeu.json'), 'w'), default=str)
+        json.dump({'series': [{'cs': g['cs'], 'c': g['c'], 'modele': g['modele'], 'img': [i['t'] for i in g['images']], **{k: [i.get(k) for i in g['images']] for k in ('genouSensG', 'genouSensD', 'genouG', 'genouD', 'solMinG', 'solMinD', 'v', 'clip', 'erreurVisee', 'canonVsDep', 'poignetD', 'poignetG')}} for g in seg], 'categories': cat, 'alarmes': alarmes, 'verdicts': [{k: v[k] for k in v if k not in ('quand',)} for v in verd]}, open(os.path.join(out, 'jeu.json'), 'w'), default=str)
     ecrire(); print(os.path.join(out, 'jeu.md'), flush=True)
     # preuves : 2e passe déterministe (même graine), on s'arrête à l'image du pire cas et on rend un gros plan
     choix = []
@@ -215,5 +219,5 @@ async def main(a):
     if errs: print('erreurs de page :', errs[:5])
 
 ap = argparse.ArgumentParser(); ap.add_argument('--carte', default='parking'); ap.add_argument('--graine', type=int, default=3); ap.add_argument('--pas', type=int, default=900)
-ap.add_argument('--k', type=int, default=3); ap.add_argument('--bloc', type=int, default=60); ap.add_argument('--alarmes', type=int, default=10); ap.add_argument('--sortie'); ap.add_argument('--preuves', type=int, default=0)
+ap.add_argument('--k', type=int, default=3); ap.add_argument('--bloc', type=int, default=60); ap.add_argument('--alarmes', type=int, default=10); ap.add_argument('--suivre'); ap.add_argument('--de', type=int, default=0); ap.add_argument('--a', type=int, default=99999); ap.add_argument('--tous', type=int, default=1); ap.add_argument('--sortie'); ap.add_argument('--preuves', type=int, default=0)
 asyncio.run(main(ap.parse_args()))

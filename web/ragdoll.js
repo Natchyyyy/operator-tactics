@@ -596,30 +596,34 @@
   R.reanimateur = function (u, m, dt, unites, maillages) {
     const e = m.reani || (m.reani = { w: 0, off: new THREE.Vector3(), yaw: 0 });
     let cible = false;
-    if (!u.reviving) e.cote = false;
+    if (!u.reviving) e.cote = false;   // (e.cible reste : voir « attend »)
     if (u.alive && u.reviving && unites && maillages) {
       const a = unites[u.reviving.id], ma = a && maillages[a.id], r = ma && ma.rag;
-      if (a && !a.alive && r && r.etat === 'physique' && r.fige && ma.bones && ma.bones.hips && ma.bones.head) {
+      if (a && !a.alive && r && r.etat === 'physique' && !r.erreur && ma.bones && ma.bones.hips && ma.bones.head) {
         const P = ma.bones.hips.getWorldPosition(new THREE.Vector3()), H = ma.bones.head.getWorldPosition(new THREE.Vector3());
         const ax = new THREE.Vector3(H.x - P.x, 0, H.z - P.z); if (ax.lengthSq() < 1e-4) ax.set(1, 0, 0); ax.normalize();
         let n = new THREE.Vector3(-ax.z, 0, ax.x); if (n.x * (u.x - P.x) + n.z * (u.z - P.z) < 0) n.negate();
         // (côté le plus proche, sauf si un bras ou une jambe du corps y est étendu : genoux du sauveteur dedans ; l'autre côté
         // s'il est plus dégagé ; puis on recule jusqu'à ~0,22 m de dégagement pour les genoux)
+        if (!r.fige) r.osCorps = null;   // (corps encore en mouvement : empreinte recalculée)
         if (!r.osCorps) { r.osCorps = []; ma.body.traverse(o => { if (o.isBone && /mixamorig/.test(o.name) && !/Hand.|_End|Top/.test(o.name)) r.osCorps.push(o.getWorldPosition(new THREE.Vector3())); }); }
-        const degage = (sp, nn) => { let d = 9; for (const c of r.osCorps) for (const k of [0.15, 0.4]) d = Math.min(d, Math.hypot(sp.x - nn.x * k - c.x, sp.z - nn.z * k - c.z)); return d; };
+        // (empreinte du sauveteur agenouillé : genoux devant lui, vers le corps ; pieds derrière ; un peu de chaque côté)
+        const EMP = [[0.15, 0], [0.4, 0], [-0.3, 0.12], [-0.3, -0.12], [0.1, 0.22], [0.1, -0.22]];
+        const degage = (sp, nn) => { let d = 9; for (const c of r.osCorps) for (const [f, l] of EMP) d = Math.min(d, Math.hypot(sp.x - nn.x * f - nn.z * l - c.x, sp.z - nn.z * f + nn.x * l - c.z)); return d; };
         const essai = (nn) => { let c = REANIM.cote, sp; for (let i = 0; i < 6; i++, c += 0.1) { sp = P.clone().addScaledVector(nn, c).addScaledVector(ax, REANIM.versTete); if (degage(sp, nn) >= 0.22) break; } return { sp, nn, d: degage(sp, nn), c }; };
-        let best = e.cote && e.cible === a.id ? essai(e.nn) : null;
+        let best = e.cote && e.cible === a.id && r.fige ? essai(e.nn) : null;
         if (!best) { const A = essai(n), B = essai(n.clone().negate()); best = A.c <= B.c + 0.15 ? A : B; e.nn = best.nn; e.cote = true; e.cible = a.id; }
         n = best.nn; const spot = best.sp; spot.y = 0;
         const off = new THREE.Vector3(spot.x - u.x, 0, spot.z - u.z);
         // (trop loin : le corps glisse de l'excédent vers le sauveteur, une seule fois, en 0,5 s ; le point suit le corps)
-        if (!r.glisse) glisserCorps(ma, r, off.length() > REANIM.max ? off.clone().negate().setLength(off.length() - REANIM.max + 0.05) : null);
-        else glisserCorps(ma, r, null, dt);
+        if (r.fige) { if (!r.glisse) glisserCorps(ma, r, off.length() > REANIM.max ? off.clone().negate().setLength(off.length() - REANIM.max + 0.05) : null); else glisserCorps(ma, r, null, dt); }
         if (off.length() > REANIM.max) off.setLength(REANIM.max);
         e.off.copy(off); e.yaw = Math.atan2(-n.x, -n.z); cible = true;
       }
     }
-    e.w = cible ? Math.min(1, e.w + dt / REANIM.t) : Math.max(0, e.w - dt / REANIM.t);
+    // (relevé réussi : le sauveteur reste à côté tant que le blessé se relève, ~1,1 s, puis revient ; sinon ils se croiseraient)
+    const attend = !cible && e.cible && maillages && maillages[e.cible] && maillages[e.cible].rag && maillages[e.cible].rag.etat === 'releve';
+    e.w = cible ? Math.min(1, e.w + dt / REANIM.t) : attend ? e.w : Math.max(0, e.w - dt / REANIM.t);
     if (e.w <= 0) return;
     const k = lisse(e.w);
     m.group.position.x += e.off.x * k; m.group.position.z += e.off.z * k;

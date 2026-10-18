@@ -836,6 +836,12 @@
   };
 
   // S'avancer vers une position connue sans aller au-delà de la distance d'approche reach (pas de plus de 12 m d'un coup).
+  // Posture en attente face à une menace connue : derrière un couvert qui cache même debout (on n'y verrait rien de toute
+  // façon), baissé ; derrière un couvert bas, debout pour surveiller par-dessus ; sans couvert, debout.
+  Battle.prototype.waitStance = function (u, p) {
+    const c = this.coverAt(u.x, u.z, p.x, p.z, true);
+    return c && c.level === 'full' ? 'crouch' : 'stand';
+  };
   Battle.prototype.approach = function (u, p, nd, reach) {
     const step = Math.min(12, nd - reach); if (step < 1.5) return false;
     const g = { x: u.x + (p.x - u.x) / nd * step, z: u.z + (p.z - u.z) / nd * step };
@@ -1169,7 +1175,7 @@
           if (nd > 8 && this.approach(u, threatPos, nd, reach)) return;
         }
         if (reach > 0 && this.coverUp(u, threatPos)) return;
-        if (reach > 0) { this.stop(u); u.state = 'hold'; u.stance = 'stand'; u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x); return; }
+        if (reach > 0) { this.stop(u); u.state = 'hold'; u.stance = this.waitStance(u, threatPos); u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x); return; }
       }
       // assaut : progresser vers la dernière position connue, de couvert en couvert, jusqu'à la distance d'approche ; là, se mettre
       // à couvert face à elle et attendre qu'il se montre (ou que l'information vieillisse)
@@ -1178,7 +1184,7 @@
         if (cp && Math.hypot(cp.x - threatPos.x, cp.z - threatPos.z) < nd - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
         if (this.approach(u, threatPos, nd, reach)) return;
       }
-      if (reach > 0) { if (this.coverUp(u, threatPos)) return; this.stop(u); u.state = 'overwatch'; u.stance = 'stand'; u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x); return; }
+      if (reach > 0) { if (this.coverUp(u, threatPos)) return; this.stop(u); u.state = 'overwatch'; u.stance = this.waitStance(u, threatPos); u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x); return; }
       if (nd > 4) { if (this.setGoal(u, threatPos.x, threatPos.z, 'advance')) { u.state = 'advancing'; u.stance = 'stand'; return; } }
       // arrivé sur la position connue et personne : l'information est périmée, on l'oublie
       delete u.knowledge[nearest.unit.id];
@@ -1413,7 +1419,7 @@
     const overwatch = () => {
       if (reach !== undefined && reach > 0 && this.coverUp(u, threatPos)) return true;
       this.stop(u); u.state = 'overwatch'; face();
-      u.stance = this.coverAt(u.x, u.z, threatPos.x, threatPos.z, true) ? 'crouch' : 'stand';
+      u.stance = this.waitStance(u, threatPos);
       return true;
     };
     if (u.goal && u.goalKind === 'bound') return true;                       // un bond en cours : on le termine
