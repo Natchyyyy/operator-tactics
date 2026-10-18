@@ -1452,7 +1452,12 @@
       }
       if (ev.type === 'shot' && ev.hit && Math.random() < 0.25) { const t = unitById[ev.target]; if (t) addBlood(t.x, t.z, 0.22); }
       if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); const u = unitById[ev.unit]; if (u) directorEvent('revive', u.x, u.z); }
-      if (ev.type === 'down') { { const u = unitById[ev.unit]; if (u) { addBlood(u.x, u.z, 0.6); pendingSounds.push({ at: simTime + 0.5, name: 'chute', pos: { x: u.x, y: 0.3, z: u.z }, vol: 1 }); } } const m = meshes[ev.unit]; if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; if (m.isSkinned && !(OT.Ragdoll && OT.Ragdoll.mort(unitById[ev.unit], m, battle))) chooseFall(unitById[ev.unit], m); } const u = unitById[ev.unit]; if (u) directorEvent('down', u.x, u.z); }
+      if (ev.type === 'down') {
+        // mort en ragdoll (ragdoll.js) : la flaque de sang apparaît sous le bassin quand le corps s'est posé
+        const u = unitById[ev.unit], m = meshes[ev.unit], rag = !!(u && m && m.isSkinned && OT.Ragdoll && OT.Ragdoll.mort(u, m, battle, (x, z) => addBlood(x, z, 0.6)));
+        if (u) { if (!rag) addBlood(u.x, u.z, 0.6); pendingSounds.push({ at: simTime + 0.5, name: 'chute', pos: { x: u.x, y: 0.3, z: u.z }, vol: 1 }); }
+        if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; if (m.isSkinned && !rag) chooseFall(u, m); }
+        if (u) directorEvent('down', u.x, u.z); }
       if (ev.type === 'smoke') addSmoke(ev);
       if (ev.type === 'shell') { addShell(ev); addScorch(ev.x, ev.z, 1.8); play('explosion_lourde', { x: ev.x, y: 1, z: ev.z }, { vol: 1.1, espace: true }); cam.shake = Math.max(cam.shake || 0, 0.35); }
       if (ev.type === 'heal') addHeal(ev);

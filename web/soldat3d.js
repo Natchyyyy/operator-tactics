@@ -337,14 +337,17 @@
     const dy = mont * rise;
     // pied moins cambré (la course attaque le sol pointe en avant, très tendue) : inclinaison cheville → pointe ramenée vers
     // celle de la pose de repos (part 1 − kp de l'écart), pour une attaque du sol plus à plat de petite foulée
-    const toes = [b('LeftToeBase'), b('RightToeBase')], gb = M.clips.Garde_Basse; let p0 = 0.6;
-    if (gb && toes[0]) { const mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true); const f = W(toes[0]).sub(W(F[0])); p0 = Math.atan2(-f.y, Math.hypot(f.x, f.z)); mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true); }
-    const kp = TROT.kp, up = new THREE.Vector3(0, 1, 0);
+    const toes = [b('LeftToeBase'), b('RightToeBase')], gb = M.clips.Garde_Basse; let p0 = 0.6, tR = null;
+    if (gb && toes[0]) { const mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true); const f = W(toes[0]).sub(W(F[0])); p0 = Math.atan2(-f.y, Math.hypot(f.x, f.z)); tR = Math.min(W(toes[0]).y, W(toes[1]).y); mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true); }
+    const kp = TROT.kp, up = new THREE.Vector3(0, 1, 0), k = RAW_H / HEIGHT;
     return jambesIK(M, src, nom, (i, H, A, Aq) => {
-      const H0 = H.clone();
-      if (toes[0] && toes[1] && kp < 1) A.forEach((a, j) => { const f = W(toes[j]).sub(a), h = Math.hypot(f.x, f.z); if (h < 1e-4) return; const p = Math.atan2(-f.y, h), np = p0 + (p - p0) * kp;
-        const fh = new THREE.Vector3(f.x / h, 0, f.z / h), f1 = fh.clone().multiplyScalar(Math.cos(np)).addScaledVector(up, -Math.sin(np)); Aq[j] = new THREE.Quaternion().setFromUnitVectors(f.normalize(), f1).multiply(Aq[j]); });
-      return A.map(a => cib(H0, a)); }, () => dy);
+      const H0 = H.clone(), out = A.map(a => cib(H0, a)), fr = [null, null];
+      if (toes[0] && toes[1]) A.forEach((a, j) => { const f = W(toes[j]).sub(a), h = Math.hypot(f.x, f.z), len = f.length(); if (h < 1e-4) return; const p = Math.atan2(-f.y, h), np = kp < 1 ? p0 + (p - p0) * kp : p;
+        const fh = new THREE.Vector3(f.x / h, 0, f.z / h), f1 = fh.clone().multiplyScalar(Math.cos(np)).addScaledVector(up, -Math.sin(np)); Aq[j] = new THREE.Quaternion().setFromUnitVectors(f.clone().normalize(), f1).multiply(Aq[j]); fr[j] = f1.multiplyScalar(len); });
+      // pied d'appui (le plus bas, près du sol) : sa plante posée au sol (hauteur de repos des orteils) une fois le pied redressé
+      if (tR !== null && fr[0] && fr[1]) { const j = out[0].y + fr[0].y < out[1].y + fr[1].y ? 0 : 1, ty = out[j].y + fr[j].y, w = Math.max(0, Math.min(1, 1 - (ty - tR) / (0.08 * k)));
+        if (w > 0) out[j].y += (tR - ty) * w; }
+      return out; }, () => dy);
   }
   // Pieds au sol : la plupart des cycles de la bibliothèque « flottent » (la pointe la plus basse du cycle 1 à 6 cm au-dessus
   // du sol, mesuré). On descend (ou remonte) le bassin de tout le clip pour que la pointe la plus basse soit à sa hauteur de

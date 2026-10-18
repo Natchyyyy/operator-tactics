@@ -107,7 +107,7 @@
     W.quatNormalizeFast = false; W.quatNormalizeSkip = 0;
     matCorps = new C.Material('corps'); matSol = new C.Material('sol'); matArme = new C.Material('arme');
     W.addContactMaterial(new C.ContactMaterial(matCorps, matSol, { friction: P.frottementSol, restitution: 0, contactEquationStiffness: 1e7, contactEquationRelaxation: 3 }));
-    W.addContactMaterial(new C.ContactMaterial(matArme, matSol, { friction: 0.5, restitution: 0.12 }));
+    W.addContactMaterial(new C.ContactMaterial(matArme, matSol, { friction: 0.95, restitution: 0.08 }));   // (l'arme ne glisse pas loin)
     const sol = new C.Body({ mass: 0, material: matSol, collisionFilterGroup: G_SOL, collisionFilterMask: G_CORPS | G_ARME });
     sol.addShape(new C.Plane()); sol.quaternion.setFromEuler(-Math.PI / 2, 0, 0); W.addBody(sol);
     return W;
@@ -159,13 +159,14 @@
   }
 
   // ---- Mort : enregistrée à l'événement « down », démarre à l'arrivée de la balle -----------------------------------------
-  R.mort = function (u, m, battle) {
+  // flaque(x, z) : facultatif, appelé une fois quand le corps s'est posé (sang sous le bassin)
+  R.mort = function (u, m, battle, flaque) {
     if (!R.dispo() || !m || !m.isSkinned || !m.skinned || u.alive) return false;
     if (battle && u.bleedUntil > battle.t) return false;   // à terre (peut être relevé) : animations
     if (battle !== battleRef) { reinit(); battleRef = battle; }
     let loc = null; if (battle && battle.log) for (let i = battle.log.length - 1; i >= Math.max(0, battle.log.length - 40); i--) { const e = battle.log[i]; if (e.kind === 'down' && e.enemy === u.id) { loc = e.loc || null; break; } }
     if (m.anim) delete m.anim.fallYaw;   // (le jeu ne fait plus pivoter le groupe : le corps figé ne doit pas tourner)
-    m.rag = { etat: 'attente', attente: 0, loc, dir: null, t0: battle ? battle.t : 0, u, map: battle && battle.map, graine: hash(u.id + ':' + (battle ? battle.t.toFixed(2) : '0')) };
+    m.rag = { etat: 'attente', attente: 0, loc, flaque: flaque || null, dir: null, t0: battle ? battle.t : 0, u, map: battle && battle.map, graine: hash(u.id + ':' + (battle ? battle.t.toFixed(2) : '0')) };
     return true;
   };
   // balle qui a tué (événement « shot » touché) : direction (monde, normalisée) et délai de vol de la traçante
@@ -179,7 +180,7 @@
 
   // Construction du corps physique à partir de la pose animée
   function demarrer(u, m) {
-    const r = m.rag, Mo = mesurer(m); if (!Mo || !monde()) { m.rag = null; return false; }
+    const r = m.rag, Mo = mesurer(m); if (!Mo || !monde()) { m.rag = null; if (r.flaque) r.flaque(u.x, u.z); return false; }
     const C = root.CANNON, T = THREE; classeLimite();
     const t0 = performance.now();
     // vitesses : pose actuelle, puis l'animation avancée de 1/30 s
@@ -292,7 +293,7 @@
     const C = root.CANNON, T = THREE, A = r.arme, fb = r.corps[IDX.avbrasD];
     const M = new T.Matrix4().compose(new T.Vector3(fb.position.x, fb.position.y, fb.position.z), new T.Quaternion(fb.quaternion.x, fb.quaternion.y, fb.quaternion.z, fb.quaternion.w), new T.Vector3(1, 1, 1)).multiply(A.rel);
     const p = new T.Vector3(), q = new T.Quaternion(), sc = new T.Vector3(); M.decompose(p, q, sc);
-    const ab = new C.Body({ mass: 3.4, material: matArme, linearDamping: 0.05, angularDamping: 0.3, collisionFilterGroup: G_ARME, collisionFilterMask: G_SOL | G_OBS, allowSleep: false });
+    const ab = new C.Body({ mass: 3.4, material: matArme, linearDamping: 0.35, angularDamping: 0.7, collisionFilterGroup: G_ARME, collisionFilterMask: G_SOL | G_OBS, allowSleep: false });
     ab.addShape(new C.Box(new C.Vec3(Math.max(0.015, A.d.x), Math.max(0.015, A.d.y), Math.max(0.015, A.d.z))));
     const cw = A.c.clone().applyMatrix4(M); ab.position.set(cw.x, Math.max(cw.y, Math.min(A.d.x, A.d.y, A.d.z) + 0.01), cw.z); ab.quaternion.set(q.x, q.y, q.z, q.w);
     // vitesse de la main (sans le fouet du bras) + un peu de hasard ; jamais lancée vers le haut ni loin
@@ -397,7 +398,7 @@
       if (j.flex) {
         const lead = j.nom.endsWith(r.graine < 0.5 ? 'G' : 'D'), T1 = r.elan > 1.5 ? 0.08 : P.flechitT;
         if (lead) kf = r.t < T1 ? P.flechit : 0;
-        else { garde = true; kf = P.tenue * (r.t < 0.3 ? 1 : Math.max(0, 1 - (r.t - 0.3) / 0.15)) * (r.elan > 1.5 ? 0.3 : 1); }
+        else { garde = true; kf = P.tenue * (r.t < 0.25 ? 1 : Math.max(0, 1 - (r.t - 0.25) / 0.12)) * (r.elan > 1.5 ? 0.3 : 1); }
       }
       if (j.hc) {   // genou : vitesse de flexion visée (flexion + = rotation + autour de l'axe ; le moteur vise −vitesse)
         if (kf > 0) { const cible = garde ? j.flex0 : Math.min(1.7, j.flex0 + 0.75), v = Math.max(-8, Math.min(8, (cible - angleGenou(j)) * 12)); j.hc.setMotorSpeed(-v); j.hc.setMotorMaxForce(kf * 900); }
@@ -441,10 +442,12 @@
     for (const b of r.corps) vmax = Math.max(vmax, b.velocity.length(), b.angularVelocity.length() * 0.15);
     if (r.erreur) { R.stats.abandons = (R.stats.abandons || 0) + 1; figer(r); return; }
     r.calme = vmax < P.repos ? r.calme + dt : 0;
+    { const b = r.corps[0]; if (r.flaque && r.t > 0.6 && b.position.y < 0.4 && b.velocity.length() < 0.4) poserFlaque(r); }
     if ((r.t > 1 && r.calme > P.reposT) || r.t > P.dureeMax) r.aFiger = true;
   }
+  function poserFlaque(r) { const f = r.flaque; r.flaque = null; if (f) try { const p = r.corps ? r.corps[0].position : null; f(p && !r.erreur ? p.x : r.x0, p && !r.erreur ? p.z : r.z0); } catch (e) { console.warn(e); } }
   function figer(r) {
-    if (r.fige) return; r.fige = true;
+    if (r.fige) return; r.fige = true; if (!r.erreur) poserFlaque(r);
     for (const j of r.art) for (const c of j.cons) W && W.removeConstraint(c);
     for (const b of r.corps) W && W.removeBody(b);
     if (r.arme && r.arme.body && W) W.removeBody(r.arme.body);
@@ -457,14 +460,14 @@
     const r = m.rag; if (!r) return false;
     if (u.alive) { liberer(m); return false; }
     if (r.etat === 'attente') {
-      if (!R.dispo()) { m.rag = null; return false; }
+      if (!R.dispo()) { m.rag = null; if (r.flaque) r.flaque(u.x, u.z); return false; }
       r.attente -= dt;
       if (r.attente > 0) { m.update(dt, false); m.placeWeapon(true, 0, 'deux'); return true; }
       if (!demarrer(u, m)) return false;
     }
     if (r.etat === 'physique' && r.erreur) {   // abandon : os remis dans la pose de la mort, animation de chute
       for (const [o, q, p] of r.sauve) { o.quaternion.copy(q); o.position.copy(p); }
-      r.etat = 'abandon'; return false;
+      r.etat = 'abandon'; poserFlaque(r); return false;
     }
     if (r.etat !== 'physique') return false;
     if (!r.fige) { appliquer(r, m); if (r.aFiger) { figer(r); } }

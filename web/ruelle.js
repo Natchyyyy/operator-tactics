@@ -504,7 +504,7 @@
       if (n === 'benne' && hasM('benne')) return model('benne', o.w, o.h, o.d, { tol: 0.3, rot: o.z < 5 ? Math.PI : 0 });
       if (n === 'armoire' && hasM('armoire')) return model('armoire', o.w, o.h, o.d, { tol: 0.3 });
       if (n === 'haie') return hedge(o);
-      if (n === 'aspirateur' && hasM('aspirateur')) { const p = model('aspirateur', o.w, o.h * 1.55, o.d, { byHeight: true, tol: 0.3, rot: o.x > 36 ? -Math.PI / 2 : Math.PI / 2 }); p.position.y = o.h * 0.275; return p; }   // le bras dépasse au-dessus de la boîte
+      if (n === 'aspirateur' && hasM('aspirateur')) return model('aspirateur', o.w, o.h, o.d, { byHeight: true, tol: 0.3, rot: o.x > 36 ? -Math.PI / 2 : Math.PI / 2 });   // colonne d'aspiration, tuyau enroulé sur le côté
       if (n === 'borne de recharge' && hasM('borne')) return model('borne', o.w, o.h, o.d, { tol: 0.3, rot: Math.PI / 2 });   // écran vers +x
       if (n.startsWith('caisse automatique') && hasM('caisse')) return model('caisse', o.w, o.h, o.d, { tol: 0.2, rot: Math.PI / 2 });   // bornes de paiement vers l'est et l'ouest   // (app.js n'a pas de cas 'armoire' : sans ceci, boîte grise)
       if (n.startsWith('caisses') && hasM('caisses')) return model('caisses', o.w, o.h, o.d, { tol: 0.3, rot: Math.round(o.x * 7) % 4 * Math.PI / 2 });
