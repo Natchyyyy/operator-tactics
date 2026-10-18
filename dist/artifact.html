@@ -15690,7 +15690,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // progresse le long de sa voie ; ensuite il se rabat sur la destination, par le côté (une fois pour toutes).
   // Renvoie le prochain point de la voie, ou null (pas de flanc, ou flanc terminé).
   Battle.prototype.flankWaypoint = function (u, dest, reach) {
-    if (!u.voie || u.flankDone || !this.map.def.voies) return null;
+    if (!u.voie || u.flankDone || !this.map.def.voies || this.teams[u.team].order === 'hold') return null;   // « Tenir » : pas de flanc
     const home = this.teams[u.team].spawn, dirx = Math.sign(this.map.spawns[1 - u.team].x - home.x) || 1;
     const ahead = (dest.x - u.x) * dirx;
     if (this.teams[u.team].units.filter(a => a.alive).length <= 2) { u.flankDone = true; return null; }   // à deux, on ne se sépare plus
@@ -16311,7 +16311,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // capture : on n'abandonne pas la zone pour courir après une position connue lointaine ; on s'y installe face à la menace
       // … sauf si l'adversaire est lui-même dans la zone : il faut aller l'en déloger
       if (this.zone && u.role.id !== 'marksman' && !(this.zone.contested && this.inZone(threatPos, 1.5)) && (nd > 10 || this.inZone(u))) {
-        const fw = nd > 10 && order !== 'hold' && this.flankWaypoint(u, this.zone, 0);   // flanqueur : par sa voie jusqu'à hauteur de la zone
+        const fw = nd > 10 && this.flankWaypoint(u, this.zone, 0);   // flanqueur : par sa voie jusqu'à hauteur de la zone
         if (fw && this.flankMove(u, threatPos, fw)) return;
         this.occupyZone(u, threatPos); return;
       }
@@ -16359,7 +16359,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // 3) aucune information : se déployer / avancer vers l'objectif
     if (this.zone && (u.role.id !== 'marksman' || this.inZone(u))) {
       // capture : tout le monde vers la zone (le tireur d'élite garde son poste de surveillance plus bas)
-      const fw = order !== 'hold' && this.flankWaypoint(u, this.zone, 0);        // flanqueur : par sa voie jusqu'à hauteur de la zone
+      const fw = this.flankWaypoint(u, this.zone, 0);        // flanqueur : par sa voie jusqu'à hauteur de la zone
       if (fw && this.flankMove(u, objective, fw)) return;
       if (!this.inZone(u, 2) && this.tiroir(u, objective, this.zone)) return;   // Tiroir : bonds alternés jusqu'à la zone
       if (order === 'careful' || u.role.id === 'support') {
