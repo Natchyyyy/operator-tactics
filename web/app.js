@@ -38,7 +38,7 @@
     const dome = new THREE.Mesh(new THREE.SphereGeometry(300, 24, 16), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false }));
     dome.position.set(32, -30, 20); scene.add(dome); scene.userData.dome = dome;
   })();
-  const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 400);
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.3, 6000);
 
   // caméra orbitale maison (glisser : tourner ; molette : zoom ; clic droit / Maj : déplacer)
   // Trois modes : « follow » (derrière un soldat, choisi ou automatique), « sat » (vue d'ensemble), « free » (orbite libre)
@@ -179,6 +179,8 @@
   sun.position.set(40, 60, 10); sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.left = -45; sun.shadow.camera.right = 45; sun.shadow.camera.top = 35; sun.shadow.camera.bottom = -35; sun.shadow.camera.far = 160; sun.shadow.bias = -0.0008;
   scene.add(sun); scene.add(sun.target);
+  // rendu haut de gamme (rendu.js) : ciel physique, environnement, ombres serrées, post-traitement
+  const RENDU = OT.Rendu ? OT.Rendu.create(renderer, scene, camera, sun, hemi) : null;
 
   // ---- Conditions (jour, nuit, brouillard, pluie) : lumière, brouillard de distance, pluie ; effets de jeu dans engine.js ----
   const LOOK = {
@@ -221,9 +223,12 @@
   function applyConditions(id) {
     const L = LOOK[id] || LOOK.jour;
     hemi.color.setHex(L.hemi[0]); hemi.groundColor.setHex(L.hemi[1]); hemi.intensity = L.hemi[2];
-    sun.color.setHex(L.sun[0]); sun.intensity = L.sun[1];
-    scene.fog.color.setHex(L.fog[0]); scene.fog.near = L.fog[1]; scene.fog.far = L.fog[2]; scene.background.setHex(L.bg);
-    if (scene.userData.dome) scene.userData.dome.visible = L.dome;
+    if (RENDU) { if (battle) RENDU.setCenter(battle.map.width / 2, battle.map.depth / 2); RENDU.setConditions(id || 'jour'); }
+    else {
+      sun.color.setHex(L.sun[0]); sun.intensity = L.sun[1];
+      scene.fog.color.setHex(L.fog[0]); scene.fog.near = L.fog[1]; scene.fog.far = L.fog[2]; scene.background.setHex(L.bg);
+      if (scene.userData.dome) scene.userData.dome.visible = L.dome;
+    }
     if (rain) { scene.remove(rain); rain.geometry.dispose(); rain.material.dispose(); rain = null; }
     if (id === 'pluie') {   // gouttes en traits (segments) qui tombent dans un volume autour de la caméra
       const N = 3500, pos = new Float32Array(N * 6);
@@ -232,7 +237,8 @@
       rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xa8b8c8, transparent: true, opacity: 0.35, depthWrite: false })); rain.frustumCulled = false; scene.add(rain);
     }
     $('#app').dataset.cond = id || 'jour';
-    buildLamps(id === 'nuit' || id === 'brouillard'); buildSteam();
+    if (OT.Parking && battle && battle.map.id === 'parking') { OT.Parking.setConditions(id || 'jour', scene); buildLamps(false); } else buildLamps(id === 'nuit' || id === 'brouillard');
+    buildSteam();
   }
   function updateRain(dt) {
     if (!rain) return; const a = rain.geometry.attributes.position.array, v = 26 * dt;
@@ -398,13 +404,16 @@
     }
     mapGroup = new THREE.Group(); obstacleMesh.clear();
     const D3 = OT.Decor, style = { parking: 'parking', place: 'place', raffinerie: 'raffinerie', gare: 'gare' }[map.id] || 'entrepot';
-    if (D3) for (const gm of D3.ground(map, style)) mapGroup.add(gm);
+    const PK = map.id === 'parking' && OT.Parking ? OT.Parking : null;   // parking haut de gamme (parking.js)
+    if (PK) { /* sol, monde autour : plus bas, une fois les modèles Meshy connus */ }
+    else if (D3) for (const gm of D3.ground(map, style)) mapGroup.add(gm);
     else { const ground = new THREE.Mesh(new THREE.PlaneGeometry(map.width, map.depth), new THREE.MeshStandardMaterial({ map: groundTexture(map.width, map.depth), roughness: 1 }));
       ground.rotation.x = -Math.PI / 2; ground.position.set(map.width / 2, 0, map.depth / 2); ground.receiveShadow = true; mapGroup.add(ground); }
     // environnement : asphalte autour de l'enceinte et quelques entrepôts lointains en silhouette
     const outer = new THREE.Mesh(new THREE.PlaneGeometry(320, 320), D3 ? new THREE.MeshStandardMaterial({ map: (() => { const t = D3.TEX.asphalte().clone(); t.needsUpdate = true; t.repeat.set(80, 80); return t; })(), color: 0x9a9894, roughness: 1 }) : new THREE.MeshStandardMaterial({ color: 0x2a2d31, roughness: 1 }));
     outer.rotation.x = -Math.PI / 2; outer.position.set(map.width / 2, -0.02, map.depth / 2); outer.receiveShadow = true; mapGroup.add(outer);
-    if (D3) mapGroup.add(D3.skyline(map, style === 'parking' || style === 'place' ? 'ville' : style === 'entrepot' ? 'port' : 'industrie'));
+    if (PK) outer.position.y = -0.05;
+    if (D3 && !PK) mapGroup.add(D3.skyline(map, style === 'parking' || style === 'place' ? 'ville' : style === 'entrepot' ? 'port' : 'industrie'));
     const farMat = new THREE.MeshStandardMaterial({ color: 0x3a3f46, roughness: 1 });
     if (!D3) [[-30, -25, 30, 9, 14], [20, -40, 50, 11, 18], [95, -30, 28, 8, 16], [110, 20, 20, 10, 30], [100, 60, 40, 9, 14], [20, 70, 60, 8, 12], [-40, 30, 24, 12, 20], [-35, 65, 30, 7, 16]].forEach(([x, z, w, h, d]) => {
       const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), farMat); b.position.set(x, h / 2, z); mapGroup.add(b);
@@ -418,6 +427,7 @@
       g.position.set(x, 0, z); mapGroup.add(g);
     });
     const M3 = OT.Modeles3D && OT.Modeles3D.ready ? OT.Modeles3D : null, has3 = (n) => M3 && M3.has(n);
+    if (PK) PK.build(map, mapGroup, { M3 });
     // objets Meshy alignés bout à bout le long d'une boîte (barrières, sacs de sable) : autant de copies que la longueur le demande
     const rangee = (n, o, unit, opts) => {
       const g = new THREE.Group(), L = Math.max(o.w, o.d), k = Math.max(1, Math.round(L / unit)), along = o.w >= o.d;
@@ -427,7 +437,9 @@
     map.obstacles.forEach((o, i) => {
       let mesh;
       const nm = o.name || '';
-      if (has3('berline') && nm.startsWith('voiture')) {
+      const pkm = PK && PK.mesh(o);
+      if (pkm) mesh = pkm;
+      else if (has3('berline') && nm.startsWith('voiture')) {
         mesh = M3.fit(i % 3 === 1 && has3('pickup') ? 'pickup' : 'berline', o.w, o.h, o.d, { flip: i % 2 === 0, tol: 0.3 });
       } else if (has3('fourgon') && nm.startsWith('fourgon')) {
         mesh = M3.fit('fourgon', o.w, o.h, o.d, { flip: i % 2 === 0, tol: 0.3 });
@@ -511,7 +523,7 @@
       }
     });
     // abribus (décor, hors du terrain) le long de la façade du centre commercial
-    if (has3('abribus') && map.id === 'parking') for (const x of [16, map.width - 16]) { const a = M3.fit('abribus', 4, 2.6, 1.6, { tol: 0.3 }); a.position.set(x, 1.3, -2.6); mapGroup.add(a); }
+    if (has3('abribus') && map.id === 'parking' && !PK) for (const x of [16, map.width - 16]) { const a = M3.fit('abribus', 4, 2.6, 1.6, { tol: 0.3 }); a.position.set(x, 1.3, -2.6); mapGroup.add(a); }
     // zones de départ
     map.spawns.forEach((sp, i) => {
       const ring = new THREE.Mesh(new THREE.RingGeometry(sp.r - 0.15, sp.r, 48), new THREE.MeshBasicMaterial({ color: TEAM[i].color, transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
@@ -947,6 +959,7 @@
     $('#app').classList.toggle('capture', !!battle.zone);
     hideBanner();
     for (const u of battle.units) { makeOperator(u); unitById[u.id] = u; }
+    if (RENDU) RENDU.applyEnv();
     $('#journal').innerHTML = ''; $('#ticker').innerHTML = ''; $('#killfeed').innerHTML = '';
     $('#result').classList.add('hidden');
     if (!opts.replayInputs && !MANUAL && cam.mode !== SETTINGS.cam && ['director', 'follow', 'sat', 'free'].includes(SETTINGS.cam)) { cam.mode = SETTINGS.cam; document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === cam.mode)); }
@@ -1351,7 +1364,7 @@
       renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix();
       const cx = m.width / 2, cz = m.depth / 2, r = Math.max(m.width, m.depth);
       camera.position.set(cx - r * 0.34, r * 0.2, cz + r * 0.46); camera.lookAt(cx + r * 0.04, 0, cz - r * 0.08);
-      syncMeshes(1); renderer.render(scene, camera); const url = renderer.domElement.toDataURL('image/jpeg', 0.85);
+      syncMeshes(1); if (RENDU) RENDU.render(); else renderer.render(scene, camera); const url = renderer.domElement.toDataURL('image/jpeg', 0.85);
       renderer.setSize(size.x || 1, size.y || 1, false); camera.aspect = asp; camera.updateProjectionMatrix(); cam.init = false;
       return url;
     } catch (e) { return null; }
@@ -1383,12 +1396,12 @@
 
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
-    if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) renderer.setSize(w, h, false);
+    if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); if (RENDU) RENDU.setSize(w, h); }
     camera.aspect = w / h; camera.updateProjectionMatrix();
   }
   // secousse de caméra (explosions) : décalage aléatoire qui s'amortit
   function applyShake() { if (!cam.shake || cam.shake < 0.01) return; const k = cam.shake * 0.25; camera.position.x += (Math.random() - 0.5) * k; camera.position.y += (Math.random() - 0.5) * k; camera.position.z += (Math.random() - 0.5) * k; cam.shake *= 0.86; }
-  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); updateSteam(MANUAL ? 0.2 : frameDt + 0.003); if (battle.zone) updateZone(); renderer.render(scene, camera); updateLabels(); updateRosters(); }
+  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); updateSteam(MANUAL ? 0.2 : frameDt + 0.003); if (battle.zone) updateZone(); if (OT.Parking) OT.Parking.tick(performance.now() / 1000); if (RENDU) RENDU.render(); else renderer.render(scene, camera); updateLabels(); updateRosters(); }
 
   // musique dynamique : plus présente quand les échanges de tirs s'intensifient, en retrait pendant la progression
   let lastMusicAdj = 0, musicLevel = 0.7;

@@ -15,7 +15,7 @@
       try {
         new Loader().parse(b64ToBuf(M[n]), '', (g) => {
           const sc = g.scene; sc.updateMatrixWorld(true);
-          sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.userData.keep = true; if (o.material) { o.material.side = THREE.FrontSide; if (o.material.color) o.material.color.multiplyScalar(0.92); } } });
+          sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.userData.keep = true; if (o.material) { o.material.side = THREE.FrontSide; if (o.material.color) o.material.color.multiplyScalar(n === 'fusil' ? 1 : 0.8); o.material.roughness = Math.max(o.material.roughness || 0, 0.55); } } });
           S.scenes[n] = sc; S.boxes[n] = new THREE.Box3().setFromObject(sc); delete M[n]; done();
         }, (e) => { console.warn('modèle ' + n + ' :', e); done(); });
       } catch (e) { console.warn('modèle ' + n + ' :', e); done(); }
