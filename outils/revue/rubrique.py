@@ -115,6 +115,9 @@ crit(id='genou_attaque', partie='bas', lib='Flexion du genou à la pose du pied 
      val=lambda r: r['bilan'].get('genouAttaque'), ok=None, mineur=None, cle=(),
      bornes=lambda e: ((0, 18), (-4, 28)) if 'garde_basse' in e and 'course' not in e else ((3, 28), (0, 38)) if 'course' not in e else ((8, 38), (3, 48)),
      pourquoi='Marche normale : genou presque tendu à l\'attaque (≈ 5°), puis 15-20° en mise en charge ; marche tactique en visant : genoux un peu plus fléchis ; course : ≈ 20°.', src='Normal gait FRCS (genou 5° à l\'attaque, 20° en mise en charge, 60° en oscillation) ; FM 3-06.11 §3-23b (genoux légèrement fléchis)', vues=['profil', 'piedsProfil'])
+crit(id='genou_envers', partie='bas', lib='Genou à l\'envers : angle entre le sens du genou et l\'avant du bassin (°, max ; jambe fléchie > 8°)', quand=lambda e: True,
+     val=lambda r: stat_ou(r, ['genouSensG', 'genouSensD'], 'max', max), ok=(0, 75), mineur=(0, 100), cle=('genouSensG', 'genouSensD', 'max'),
+     pourquoi='Un genou ne plie que vers l\'avant. Genou qui pointe en arrière avec le tibia replié sous la hanche = jambe cassée, visible immédiatement de profil (signalé par l\'utilisateur en jeu).', src='Anatomie du genou (charnière, flexion vers l\'arrière du tibia uniquement)', vues=['profil', 'profilG', 'piedsProfil'])
 crit(id='genou_hyperextension', partie='bas', lib='Genou en hyperextension (°, < 0 = genou en arrière)', quand=lambda e: True,
      val=lambda r: stat_ou(r, ['genouG', 'genouD'], 'min', min), ok=(-3, 999), mineur=(-8, 999), cle=('genouG', 'genouD', 'min'),
      pourquoi='Un genou ne se plie pas à l\'envers ; une jambe « cassée » vers l\'arrière se voit tout de suite de profil.', src='Anatomie (extension du genou 0 à -5° au plus)', vues=['profil', 'piedsProfil'])

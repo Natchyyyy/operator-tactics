@@ -147,6 +147,7 @@
     const dep = vit > 0.15 ? new THREE.Vector3(vel.x, 0, vel.z).normalize() : avantG.clone();   // direction de déplacement (ou de face)
     const lat = new THREE.Vector3().crossVectors(up, dep).normalize();                            // gauche du déplacement
     // --- pieds : points de semelle, hauteur au sol, orientation
+    let fwB = null;
     for (const [c, s] of [['Left', 'G'], ['Right', 'D']]) {
       const S = R.semelle[c]; if (!S) continue;
       const ft = O[c + 'Foot'], toe = O[c + 'ToeBase'];
@@ -161,7 +162,14 @@
       const H = P[c + 'UpLeg'], K = P[c + 'Leg'], A = P[c + 'Foot'];
       const flex = 180 - ang(H.clone().sub(K), A.clone().sub(K)), fw = dir.lengthSq() > 1e-6 ? dir.clone().normalize() : dep;
       const ka = K.clone().sub(H), ha = A.clone().sub(H); const hors = ka.clone().sub(ha.clone().multiplyScalar(ka.dot(ha) / Math.max(1e-9, ha.dot(ha))));
-      m['genou' + s] = hors.dot(fw) < -0.005 && flex > 1 && flex < 20 ? -flex : flex;   // (signe seulement près de la jambe tendue : au-delà, un genou plié « à l'envers » se verrait de toute façon)
+      // sens du genou dans le repère du BASSIN : angle entre la direction où pointe le genou (écart du genou à la ligne
+      // hanche → cheville) et l'avant du bassin. Un genou plie toujours vers l'avant : > 100° = genou à l'envers.
+      { const bl = P.LeftUpLeg.clone().sub(P.RightUpLeg); bl.y = 0; const bav = new THREE.Vector3().crossVectors(bl, new THREE.Vector3(0, 1, 0)).normalize();
+        const axe = ha.clone().normalize(), bp = bav.clone().addScaledVector(axe, -bav.dot(axe));
+        m['genouSens' + s] = flex > 8 && hors.length() > 0.01 && bp.lengthSq() > 1e-6 ? ang(hors, bp) : 0;
+        m['genouArriere' + s] = hors.dot(bav);   // m : > 0 genou devant la ligne hanche → cheville (selon l'avant du bassin)
+        fwB = bav; }
+      m['genou' + s] = m['genouArriere' + s] < -0.005 && flex > 1 && flex < 20 ? -flex : flex;   // (hyperextension : jambe presque tendue, genou en arrière selon l'avant du bassin)   // (signe seulement près de la jambe tendue : au-delà, un genou plié « à l'envers » se verrait de toute façon)
       m['genouDevantOrteil' + s] = K.clone().sub(bout).dot(fw);                                    // > 0 : genou au-delà du bout du pied
     }
     // écart des pieds / genoux perpendiculaire au déplacement (< 0 : croisés), et dans le repère du bassin
