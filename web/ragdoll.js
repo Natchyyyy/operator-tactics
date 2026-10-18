@@ -44,8 +44,8 @@
   const P = {
     pas: 1 / 60, sousPasMax: 6, iterations: 24, gravite: -9.81,
     amortLin: 0.08, amortAng: 0.45, frottementArt: 3.0,           // frottement des articulations (1/s, vitesse angulaire relative)
-    tonique: 0.2, relache: 0.2, flechit: 0.5, flechitT: 0.22,                                     // phase tonique (s) puis relâchement (s)
-    impulsion: { tete: 6, torse: 18, membre: 12, bras: 6 },        // N·s (exagéré par rapport au réel, lisible à l'écran)
+    tonique: 0.2, relache: 0.2, flechit: 0.45, flechitT: 0.18,                                     // phase tonique (s) puis relâchement (s)
+    impulsion: { tete: 9, torse: 26, membre: 12, bras: 6 }, bascule: 9,        // N·s (exagéré par rapport au réel, lisible à l'écran)
     souffle: 340,                                                    // explosion : N·s à 1 m (réparti selon les masses)
     vMax: 14, wMax: 28, repos: 0.12, reposT: 0.45, dureeMax: 7,
   };
@@ -258,7 +258,7 @@
       const fl = perpA(Mo.plie['bras' + c] || F, Db), axe = new T.Vector3().crossVectors(Db, fl).normalize();
       lien('bras' + c, 'avbras' + c, { charniere: axe, limites: [[mix(Db, Math.cos(1.3), fl, Math.sin(1.3)), Df, 1.33]], force: 0.8, frot: 2 });
       const Dc = Mo.D['cuisse' + c], Dj = Mo.D['jambe' + c];
-      lien('bassin', 'cuisse' + c, { limites: [[mix(Dc, Math.cos(0.42), F, Math.sin(0.42)), Dc, 0.98], [F, F, 1.9]], force: 0.55, flex: [new T.Vector3().crossVectors(Dc, F).normalize(), 0.5] });
+      lien('bassin', 'cuisse' + c, { limites: [[mix(Dc, Math.cos(0.42), F, Math.sin(0.42)), Dc, 0.98], [F, F, 1.9]], force: 0.55, flex: [new T.Vector3().crossVectors(Dc, F).normalize(), 0.3] });
       const arr = perpA(F.clone().negate(), Dc), axeG = new T.Vector3().crossVectors(Dc, arr).normalize();
       lien('cuisse' + c, 'jambe' + c, { charniere: axeG, limites: [[mix(Dc, Math.cos(1.22), arr, Math.sin(1.22)), Dj, 1.26]], force: 0.5, flex: [axeG, 1.1] });
     }
@@ -332,7 +332,10 @@
     // (le corps tourne un peu sur lui-même en tombant, sens tiré au sort)
     corps[IDX.bassin].angularVelocity.y += (r.graine - 0.5) * 2.4; corps[IDX.torse].angularVelocity.y += (r.graine - 0.5) * 3;
     b.applyImpulse(dir.scale(j), pt);
-    if (cible === 'tete') corps[IDX.torse].applyImpulse(dir.scale(P.impulsion.tete * 0.4), new C.Vec3(0, 0.1, 0));
+    if (cible === 'tete') corps[IDX.torse].applyImpulse(dir.scale(P.impulsion.tete * 0.5), new C.Vec3(0, 0.12, 0));
+    // bascule : le bassin part aussi un peu dans le sens du tir (horizontal) ; le corps passe par-dessus ses appuis au lieu
+    // de s'asseoir sur place (balle au torse ou à la tête ; une jambe touchée plie surtout)
+    if (!/jambe|cuisse|bras/.test(cible)) { const hz = Math.hypot(dir.x, dir.z) || 1; corps[IDX.bassin].applyImpulse(new C.Vec3(dir.x / hz * P.bascule, 0, dir.z / hz * P.bascule), new C.Vec3(0, 0, 0)); }
     r.cible = cible;
     r.tonique = loc === 'tête' ? 0.06 : P.tonique;
   }
@@ -384,7 +387,7 @@
       let kf = 0;
       if (j.flex) {
         const lead = j.nom.endsWith(r.graine < 0.5 ? 'G' : 'D'), t0 = lead ? 0 : 0.07, T1 = r.elan > 1.5 ? 0.08 : P.flechitT;
-        kf = r.t >= t0 && r.t < t0 + T1 ? P.flechit * (lead ? 1 : 0.4) : 0;
+        kf = r.t >= t0 && r.t < t0 + T1 ? P.flechit * (lead ? 1 : 0.25) : 0;
       }
       if ((ton > 0 && j.force > 0) || kf > 0) {
         qa.set(a.quaternion.x, a.quaternion.y, a.quaternion.z, a.quaternion.w); qb.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
