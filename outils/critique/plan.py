@@ -13,6 +13,9 @@ P = lambda x, z: (M + x * S, M + z * S)
 # sol : zones nues en rouge
 for x, z, dist in d['naked']:
     if dist > 6: a = min(200, int((dist - 6) * 40 + 60)); g.rectangle([*P(x - .5, z - .5), *P(x + .5, z + .5)], fill=(200, 40, 40, a))
+# zone roulable (voiture) atteinte depuis chaque accès : vert (accès 1), bleu-vert (accès 2), …
+RC = [(60, 200, 90, 45), (60, 170, 200, 45), (200, 200, 60, 45), (200, 90, 200, 45)]
+for x, z, c in d.get('reach', []): g.rectangle([*P(x - .25, z - .25), *P(x + .25, z + .25)], fill=RC[(c - 1) % 4])
 # grille 5 m
 for x in range(0, W + 1, 5): g.line([P(x, 0), P(x, D)], fill=(60, 64, 70) if x % 10 else (80, 86, 94), width=1); g.text((P(x, 0)[0] - 6, M - 18), str(x), font=F(11), fill=(150, 150, 150))
 for z in range(0, D + 1, 5): g.line([P(0, z), P(W, z)], fill=(60, 64, 70) if z % 10 else (80, 86, 94), width=1); g.text((M - 26, P(0, z)[1] - 6), str(z), font=F(11), fill=(150, 150, 150))
@@ -81,10 +84,12 @@ y = M + D * S + 30; L = [((70, 120, 210), 'véhicules (flèche = capot)'), ((170
      ((150, 110, 160), 'bennes, clims, tri'), ((170, 170, 170), 'grillage'), ((70, 72, 78), "murs d'enceinte")]
 for i, (col, t) in enumerate(L):
     x = M + (i % 4) * 300; yy = y + (i // 4) * 22; g.rectangle([x, yy, x + 16, yy + 14], fill=col); g.text((x + 22, yy - 1), t, font=F(14), fill=(220, 220, 220))
-g.text((M, y + 50), "contour blanc épais = bloque la vue debout (h ≥ 1,55 m) · rouge au sol = > 6 m du couvert le plus proche · jaune = lignes de vue > 40 m · points blancs = points de couverture"
+g.text((M, y + 50), "contour blanc épais = bloque la vue debout (h ≥ 1,55 m) · rouge au sol = > 6 m du couvert le plus proche · jaune = lignes de vue > 40 m · points blancs = points de couverture · vert pâle = zone roulable en voiture depuis l'entrée"
        + (" · magenta = peinture de web/parking.js" if peint else ''), font=F(13), fill=(200, 200, 200))
 g.text((M, y + 72), f"{d['name']} — {W} × {D} m · {len(d['obs'])} obstacles · lignes de vue > 40 m : {d['nLines']} · chevauchements : {len(d['overlaps'])}", font=FB(14), fill=(255, 255, 255))
 g.text((M, 14), "NORD (z = 0) en haut · BLEU à l'ouest regarde vers l'est : sa GAUCHE est le NORD (à vérifier en 3D)", font=FB(14), fill=(255, 255, 255))
 img.save(out)
+print('accès (graine, cases atteintes ; négatif = même zone que l\'accès n°) :', d.get('comps'))
+for v in d.get('stuck', []): print('véhicule inaccessible (n\'a pas pu se garer là) :', v)
 for ov in d['overlaps']: print('chevauchement :', ov)
 nk = [n for n in d['naked'] if n[2] > 6]; print(f"cases > 6 m d'un couvert : {len(nk)} ; lignes de vue > 40 m : {d['nLines']} ; plus longue {d['lines'][0][4] if d['lines'] else 0} m")

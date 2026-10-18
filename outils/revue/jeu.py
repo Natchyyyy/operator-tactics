@@ -9,6 +9,7 @@
 import asyncio, argparse, json, os, sys, time, datetime, base64
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import rubrique
+from verrou import verrou
 from playwright.async_api import async_playwright
 RACINE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 os.environ.setdefault('PLAYWRIGHT_BROWSERS_PATH', '/opt/pw-browsers')
@@ -71,21 +72,28 @@ window.ECH = { img: 0, cat: {}, seg: {}, fin: [], pires: [], actif: true, garde:
 async def main(a):
     out = os.path.join(RACINE, a.sortie or os.path.join('captures', 'revue', datetime.datetime.now().strftime('jeu_%m%d_%H%M'))); os.makedirs(out, exist_ok=True)
     url = f"http://127.0.0.1:8765/web/index.html?manual=1&mode=free&hd=0&fx=0"
-    async with async_playwright() as p:
-        br = await p.chromium.launch(args=GL); pg = await br.new_page(viewport={'width': 480, 'height': 300}); errs = []
+    async def ouvrir(p, taille):
+        br = await p.chromium.launch(args=GL); pg = await br.new_page(viewport={'width': taille[0], 'height': taille[1]})
         pg.on('pageerror', lambda e: errs.append(str(e)))
         await pg.add_init_script(INIT)
-        await pg.goto(url, timeout=240000)
-        await pg.wait_for_function('window.PRET && OT.Modeles3D.ready && OT.Soldat3D.ready', timeout=600000)
-        await pg.add_script_tag(path=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'metriques.js'))
-        await pg.evaluate(f"API.start({{mapId: {json.dumps(a.carte)}, seed: {a.graine}, conditions: 'jour'}})")
-        await pg.evaluate(ECH)
-        t0 = time.time(); fini = False
-        for i in range(0, a.pas, 50):
-            r = await pg.evaluate(f"(() => {{ for (let j = 0; j < {min(50, a.pas - i)}; j++) {{ if (API.battle().over) return 'fin'; API.stepFine({a.k}); }} return API.battle().t; }})()")
-            if r == 'fin': fini = True; break
-        print(f'simulation : {i + 50} pas, {time.time() - t0:.0f} s' + (' (bataille finie)' if fini else ''), flush=True)
-        cat = await pg.evaluate('ECH.cat'); seg = await pg.evaluate('ECH.bilans()')
+        with verrou('chargement du jeu'):
+            await pg.goto(url, timeout=240000)
+            await pg.wait_for_function('window.PRET && OT.Modeles3D.ready && OT.Soldat3D.ready', timeout=600000)
+            await pg.add_script_tag(path=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'metriques.js'))
+            await pg.evaluate(f"API.start({{mapId: {json.dumps(a.carte)}, seed: {a.graine}, conditions: 'jour'}})")
+            await pg.evaluate(ECH)
+        return br, pg
+    errs = []
+    async with async_playwright() as p:
+        br, pg = await ouvrir(p, (480, 300))
+        t0 = time.time(); fini = False; i = 0
+        # blocs courts sous le verrou partagé (les autres agents passent entre deux blocs)
+        while i < a.pas and not fini:
+            n = min(a.bloc, a.pas - i)
+            with verrou(): r = await pg.evaluate(f"(() => {{ for (let j = 0; j < {n}; j++) {{ if (API.battle().over) return 'fin'; API.stepFine({a.k}); }} return API.battle().t; }})()")
+            i += n; fini = r == 'fin'
+        print(f'simulation : {i} pas, {time.time() - t0:.0f} s' + (' (bataille finie)' if fini else ''), flush=True)
+        with verrou(): cat = await pg.evaluate('ECH.cat'); seg = await pg.evaluate('ECH.bilans()')
         await br.close()
     # notation par segment (rubrique du banc ; on associe la catégorie à l'état du banc le plus proche)
     MAP = {'patrouille_avant': 'patrouille', 'marche_visee_avant': 'marche_visee', 'marche_visee_diag': 'marche_visee_diagG', 'marche_visee_lateral': 'pas_chasse_G', 'marche_visee_diagArr': 'recul_diagD', 'marche_visee_recul': 'recul_vise',
@@ -113,6 +121,10 @@ async def main(a):
     for (c, i), g in sorted(agg.items(), key=lambda kv: -(kv[1]['majeur'] * 3 + kv[1]['mineur']) / max(1, kv[1]['n']) * cat.get(kv[0][0], {'n': 1})['n']):
         if g['majeur'] + g['mineur'] == 0: continue
         p = g['pire']; L.append(f"- **{c}** `{i}` ({g['partie']}) : {g['majeur']} majeurs + {g['mineur']} mineurs / {g['n']} segments ; pire {p['valeur']:.3g} ({p['cs']}, image {p['img0']}, attendu {g['ok']}) — {g['lib']}")
+    def ecrire():
+        open(os.path.join(out, 'jeu.md'), 'w').write('\n'.join(L))
+        json.dump({'categories': cat, 'verdicts': [{k: v[k] for k in v if k not in ('quand',)} for v in verd]}, open(os.path.join(out, 'jeu.json'), 'w'), default=str)
+    ecrire(); print(os.path.join(out, 'jeu.md'), flush=True)
     # preuves : 2e passe déterministe (même graine), on s'arrête à l'image du pire cas et on rend un gros plan
     choix = []
     if a.preuves:
@@ -127,26 +139,24 @@ async def main(a):
         choix.sort(key=lambda v: v['img'])
         if choix:
             async with async_playwright() as p:
-                br = await p.chromium.launch(args=GL); pg = await br.new_page(viewport={'width': 560, 'height': 560})
-                await pg.add_init_script(INIT); await pg.goto(url, timeout=240000)
-                await pg.wait_for_function('window.PRET && OT.Modeles3D.ready && OT.Soldat3D.ready', timeout=600000)
-                await pg.add_script_tag(path=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'metriques.js'))
-                await pg.evaluate(f"API.start({{mapId: {json.dumps(a.carte)}, seed: {a.graine}, conditions: 'jour'}})"); await pg.evaluate(ECH)
+                br, pg = await ouvrir(p, (560, 560))
                 os.makedirs(os.path.join(out, 'preuves'), exist_ok=True)
                 for v in choix:
-                    await pg.evaluate(f"(() => {{ while (ECH.img < {v['img']} && !API.battle().over) API.stepFine({a.k}); }})()")
+                    while True:
+                        with verrou(): r = await pg.evaluate(f"(() => {{ for (let j = 0; j < {a.bloc} && ECH.img < {v['img']} && !API.battle().over; j++) API.stepFine({a.k}); return ECH.img >= {v['img']} || API.battle().over; }})()")
+                        if r: break
                     for nom, yaw in (('face', 'Math.PI / 2 - m.yaw'), ('cote', 'Math.atan2(Math.sin(m.yaw), -Math.cos(m.yaw))')):
-                        await pg.evaluate(f"(() => {{ const u = API.battle().units.find(x => x.callsign === {json.dumps(v['cs'])}), m = API.meshes()[u.id]; ECH.dessin = true; ECH.actif = false; const g = m.group.position; API.look(g.x, g.z, {yaw}, 0.25, 3.2, 0.9); ECH.actif = true; ECH.dessin = false; return 0; }})()")
-                        f = os.path.join(out, 'preuves', f"{v['img']:05d}_{v['cs']}_{v['id']}_{nom}.png"); await pg.screenshot(path=f, timeout=400000); v.setdefault('preuves', []).append(f)
+                        with verrou(): await pg.evaluate(f"(() => {{ const u = API.battle().units.find(x => x.callsign === {json.dumps(v['cs'])}), m = API.meshes()[u.id]; ECH.dessin = true; ECH.actif = false; const g = m.group.position; API.look(g.x, g.z, {yaw}, 0.25, 3.2, 0.9); ECH.actif = true; ECH.dessin = false; return 0; }})()")
+                        f = os.path.join(out, 'preuves', f"{v['img']:05d}_{v['cs']}_{v['id']}_{nom}.png")
+                        with verrou(): await pg.screenshot(path=f, timeout=400000)
+                        v.setdefault('preuves', []).append(f)
                     print('preuve', v['categorie'], v['id'], v['cs'], v['img'], flush=True)
                 await br.close()
         L += ['', '## Preuves rendues (2e passe, même graine)', '']
         for v in choix: L.append(f"- {v['categorie']} `{v['id']}` {v['cs']} image {v['img']} : {v['valeur']:.3g} (attendu {v['ok']}) → " + ', '.join(f'`{x}`' for x in v.get('preuves', [])))
-    open(os.path.join(out, 'jeu.md'), 'w').write('\n'.join(L))
-    json.dump({'categories': cat, 'verdicts': [{k: v[k] for k in v if k not in ('quand',)} for v in verd]}, open(os.path.join(out, 'jeu.json'), 'w'), default=str)
-    print(os.path.join(out, 'jeu.md'))
+        ecrire()
     if errs: print('erreurs de page :', errs[:5])
 
 ap = argparse.ArgumentParser(); ap.add_argument('--carte', default='parking'); ap.add_argument('--graine', type=int, default=3); ap.add_argument('--pas', type=int, default=900)
-ap.add_argument('--k', type=int, default=3); ap.add_argument('--sortie'); ap.add_argument('--preuves', type=int, default=0)
+ap.add_argument('--k', type=int, default=3); ap.add_argument('--bloc', type=int, default=60); ap.add_argument('--sortie'); ap.add_argument('--preuves', type=int, default=0)
 asyncio.run(main(ap.parse_args()))

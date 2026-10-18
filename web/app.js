@@ -921,7 +921,15 @@
     // que la nominale est au-dessus, c'est ce plafond, pas un démarrage : on marche)
     a.lentT = u.moving && v > 0.15 && v <= 1.45 ? (a.lentT || 0) + dt : 0;
     const course = (u.speed ? u.speed() : v) > 1.45 && !(a.lentT > 0.25) && !!m.clips.Pas_Avant_Course;
-    if (dirMarche) { jambes = 0; a.recule = false; a.piedsYaw = m.yaw; }
+    // arrêt : la démarche continue ~0,3 s en ralentissant (le pied en l'air finit son pas et se pose, les pieds d'appui restent
+    // cloués) au lieu de couper net ; si le soldat repart entre-temps (arrêts d'un pas de simulation en fin de bond, écartement
+    // d'un allié), aucune transition du tout. Pas si l'état de visée change (le haut du corps doit réagir tout de suite).
+    const viseNow = !!(aiming || u.preaim);
+    const grace = !dirMarche && a.marcheVu && u.alive && m.marche && !crouch && !(u.reloading > 0) && !u.throwing && !battle.over && viseNow === a.viseVu && (a.graceT = (a.graceT || 0) + dt) < 0.3;
+    if (dirMarche) { a.graceT = 0; a.vGr = v; a.viseVu = viseNow; } else if (grace) a.vGr *= Math.exp(-dt * 7);
+    a.marcheVu = dirMarche || grace;
+    const vM = dirMarche ? v : a.vGr || 0;
+    if (dirMarche || grace) { jambes = 0; a.recule = false; a.piedsYaw = m.yaw; }
     m.jambesCible = u.alive ? jambes : 0;
     const loco = (n) => { const nat = m.loco[n] || 1; m.play(n, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)), fade: 0.2 });
       const act = m.mixer.existingAction(m.clips[n]); if (act) a.phase = act.time / (m.clips[n].duration || 1) * 2 * Math.PI; };   // phase des pas (sons)
@@ -941,7 +949,7 @@
         m.playLegs(lj, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)) }); legs = true;
       } else { const n = crouch ? 'Kneeling_Reload' : 'Standing_Reload'; m.play(n, { speed: rs }); }
     }
-    else if (dirMarche) {
+    else if (dirMarche || grace) {
       const vise = aiming || u.preaim || !m.clips.Walk_Low_Haut;
       // (marche attend la direction par rapport au groupe, c.-à-d. à la visée : on rajoute la correction du corps retirée plus haut)
       let haut = course ? (vise ? 'Run_and_Shoot_Haut' : 'Run_Low_Haut') : (vise ? 'Walk_Aim_Haut' : 'Walk_Low_Haut'), avant = course ? 'Pas_Avant_Course' : vise ? 'Pas_Avant_Aim' : 'Pas_Avant_Low', mix = null;
@@ -950,12 +958,12 @@
         // cadence, elle en est tirée). Marche et course ne se mélangent PAS (appuis à contretemps : mesuré, à 50/50 le pied
         // d'appui glissait de 1,2 m/s) : on passe de l'une à l'autre (fondu ~0,15 s), avec hystérésis
         const sm = (x, a0, a1) => { const t = Math.max(0, Math.min(1, (x - a0) / (a1 - a0))); return t * t * (3 - 2 * t); };
-        a.trot = a.trot ? a.vLis > 1.8 : a.vLis > 1.95;
+        if (!grace) a.trot = a.trot ? a.vLis > 1.8 : a.vLis > 1.95;
         const kR = m.clips.Pas_Run ? sm(a.vLis, 2.7, 3.7) : 0;
         mix = a.trot ? { Pas_Trot: 1 - kR, Pas_Run: kR } : { Pas_Avant_Low: 1 }; avant = 'Pas_Avant_Low';
         haut = a.trot && m.clips.Trot_Low_Haut ? 'Trot_Low_Haut' : 'Walk_Low_Haut';
       }
-      const ph = m.marche(ecart + (m.body ? m.body.rotation.y : 0), v, dt, haut, avant, mix);
+      const ph = m.marche(ecart + (m.body ? m.body.rotation.y : 0), vM, dt, haut, avant, mix);
       a.phase = ph * 2 * Math.PI;
     }
     else if (u.moving && v > 0.15) {

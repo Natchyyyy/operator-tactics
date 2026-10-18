@@ -824,15 +824,346 @@
       g.traverse(o => { if (o.isMesh) o.castShadow = true; }); return g; };
     for (const [x, z, r] of [[W * 0.42, -2.6, 0.4], [W * 0.46, -2.9, 0.9], [-2.6, D * 0.8, 2.1], [W + 2.5, D * 0.15, -0.6]]) { const c = cart(); c.position.set(x, 0.14, z); c.rotation.y = r; group.add(c); }
   }
+  // ---------------------------------------------------------------------------------------------
+  // Pièces d'un vrai parking (dessinées par programme) : station de lavage, guérite, poste électrique, borne de recharge,
+  // aspirateurs, haies, totem des tarifs, points de tri, clôtures de chantier bâchées, benne à gravats, portails à barrière,
+  // local à poubelles ; et des replis quand un modèle Meshy manque (benne, palettes, armoire, clim, grillage…)
+  // ---------------------------------------------------------------------------------------------
+  const std = (k, color, rough, metal, extra) => mat(k, () => new T.MeshStandardMaterial(Object.assign({ color, roughness: rough === undefined ? 0.7 : rough, metalness: metal || 0 }, extra || {})));
+  // une boîte w × h × d (centre x, y, z) ajoutée au groupe g
+  function bx(g, w, h, d, m, x, y, z, ry) { const b = new T.Mesh(new T.BoxGeometry(w, h, d), m); b.position.set(x || 0, y || 0, z || 0); if (ry) b.rotation.y = ry; g.add(b); return b; }
+  function cyl(g, r, h, m, x, y, z, seg) { const c = new T.Mesh(new T.CylinderGeometry(r, r, h, seg || 12), m); c.position.set(x || 0, y || 0, z || 0); g.add(c); return c; }
+  // un panneau (texte sur fond) : plan texturé, double face si back
+  function panneau(g, w, h, draw, x, y, z, ry, emiss) {
+    const c = document.createElement('canvas'); c.width = Math.round(256 * Math.max(1, w / h)); c.height = 256; draw(c.getContext('2d'), c.width, c.height);
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 8;
+    const m = new T.MeshStandardMaterial({ map: t, roughness: 0.45, emissive: emiss ? 0xffffff : 0x000000, emissiveMap: emiss ? t : null, emissiveIntensity: 0 });
+    if (emiss) NIGHT.mats.push(m);
+    const p = new T.Mesh(new T.PlaneGeometry(w, h), m); p.position.set(x, y, z); p.rotation.y = ry || 0; g.add(p); return p;
+  }
+  const txt = (q, s, x, y, font, col, align) => { q.font = font; q.fillStyle = col; q.textAlign = align || 'center'; q.textBaseline = 'middle'; q.fillText(s, x, y); };
+  // ---- couleurs de carrosserie (voitures garées : pas toutes blanches)
+  const PAL = [0x34373b, 0xa3a8ad, 0xefede8, 0x8a1d1d, 0x22324e, 0x33402f, 0xbfae8c, 0x56595e, 0x6b2430, 0x41607c, 0xd9d7d0, 0x1d1e20];
+  const tintCache = {};
+  function teinter(g, k) {
+    const col = new T.Color(PAL[((Math.floor(k) % PAL.length) + PAL.length) % PAL.length]).convertSRGBToLinear();
+    const f = Math.min(1.6, 1 / Math.max(0.25, Math.max(col.r, col.g, col.b)) * 0.95);   // garder des teintes franches sur une carrosserie claire
+    g.traverse(m => {
+      if (!m.isMesh || !m.material || Array.isArray(m.material) || !m.material.color) return;
+      const key = m.material.uuid + '|' + k % PAL.length;
+      m.material = tintCache[key] || (tintCache[key] = (() => { const c = m.material.clone(); c.color.multiply(col).multiplyScalar(Math.min(f, 1.25)); return c; })());
+    });
+    return g;
+  }
+  // ---- textures : carrelage (station de lavage), briques, grillage, feuillage de haie
+  function tilesDet() {
+    if (texCache.carreau) return texCache.carreau;
+    const N = 512, R = rng(808), c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), H = new Float32Array(N * N);
+    const s = N / 6;   // 6 carreaux de 20 cm par tuile de 1,2 m
+    for (let j = 0; j < 6; j++) for (let i = 0; i < 6; i++) { const t = 0.86 + R() * 0.1; g.fillStyle = `rgb(${Math.round(232 * t)},${Math.round(236 * t)},${Math.round(238 * t)})`; g.fillRect(i * s + 2, j * s + 2, s - 4, s - 4); }
+    g.fillStyle = '#8e9294'; for (let k = 0; k <= 6; k++) { g.fillRect(k * s - 2, 0, 4, N); g.fillRect(0, k * s - 2, N, 4); }
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) H[y * N + x] = ((x % s) < 3 || (y % s) < 3) ? 0 : 1;
+    for (let k = 0; k < 220; k++) { const x = R() * N, y = R() * N, r = 4 + R() * 26; const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(90,80,60,0.12)'); gr.addColorStop(1, 'rgba(90,80,60,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
+    return (texCache.carreau = { map: tex(c, true), normal: tex(normalsFrom(H, N, 1.2), false), meters: 1.2 });
+  }
+  function brickDet(tone) {
+    const key = 'brique' + (tone || ''); if (texCache[key]) return texCache[key];
+    const N = 512, R = rng(tone === 'sombre' ? 515 : 513), c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), H = new Float32Array(N * N);
+    const bw = N / 4, bh = N / 16;   // briques de 22 × 7 cm (tuile de 0,9 m)
+    g.fillStyle = tone === 'sombre' ? '#6d625a' : '#8f8578'; g.fillRect(0, 0, N, N);
+    const base = tone === 'sombre' ? [104, 52, 40] : [142, 72, 52];
+    for (let r = 0; r < 16; r++) for (let k = -1; k < 5; k++) {
+      const x0 = k * bw + (r % 2) * bw / 2, y0 = r * bh, t = 0.75 + R() * 0.4, burnt = R() < 0.1 ? 0.6 : 1;
+      g.fillStyle = `rgb(${Math.round(base[0] * t * burnt)},${Math.round(base[1] * t * burnt)},${Math.round(base[2] * t * burnt)})`; g.fillRect(x0 + 3, y0 + 3, bw - 6, bh - 6);
+      for (let y = Math.max(0, y0 + 3); y < Math.min(N, y0 + bh - 3); y++) for (let x = Math.max(0, x0 + 3); x < Math.min(N, x0 + bw - 3); x++) H[y * N + x] = 1;
+    }
+    for (let k = 0; k < 3000; k++) { g.fillStyle = `rgba(${R() < 0.5 ? '30,20,15' : '200,170,150'},${R() * 0.12})`; g.fillRect(R() * N, R() * N, 2, 2); }
+    for (let k = 0; k < 40; k++) { const x = R() * N, L = 40 + R() * 200; const gr = g.createLinearGradient(0, 0, 0, L); gr.addColorStop(0, 'rgba(40,30,25,0.18)'); gr.addColorStop(1, 'rgba(40,30,25,0)'); g.fillStyle = gr; g.fillRect(x, 0, 3 + R() * 8, L); }
+    return (texCache[key] = { map: tex(c, true), normal: tex(normalsFrom(H, N, 2.2), false), meters: 0.9 });
+  }
+  function grillageMat() { return mat('grillage', () => {
+    const N = 128, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'); g.clearRect(0, 0, N, N);
+    g.strokeStyle = 'rgba(170,176,180,1)'; g.lineWidth = 3; for (let k = -N; k < 2 * N; k += 32) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + N, N); g.stroke(); g.beginPath(); g.moveTo(k + N, 0); g.lineTo(k, N); g.stroke(); }
+    const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 8;
+    return new T.MeshStandardMaterial({ map: t, alphaTest: 0.5, transparent: false, side: T.DoubleSide, metalness: 0.7, roughness: 0.4, color: 0xd0d4d6 }); }); }
+  function feuillageMat() { return mat('haieFeuilles', () => {
+    const N = 256, R = rng(31), c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), H = new Float32Array(N * N);
+    g.fillStyle = '#2c3d1f'; g.fillRect(0, 0, N, N);
+    for (let k = 0; k < 2600; k++) { const x = R() * N, y = R() * N, r = 2 + R() * 5, l = R(); g.fillStyle = `rgb(${Math.round(45 + l * 50)},${Math.round(68 + l * 60)},${Math.round(30 + l * 25)})`; g.beginPath(); g.ellipse(x, y, r, r * 0.6, R() * 3, 0, 7); g.fill();
+      for (let yy = Math.floor(y - r); yy < y + r; yy++) for (let xx = Math.floor(x - r); xx < x + r; xx++) { const i = (((yy % N) + N) % N) * N + (((xx % N) + N) % N); H[i] = Math.max(H[i], l); } }
+    const d = { map: tex(c, true), normal: tex(normalsFrom(H, N, 3), false), meters: 0.8 };
+    return worldMat(d, { roughness: 0.95, bump: 1.5 }); }); }
+  // ---- station de lavage : parois carrelées, local technique, muret entre les pistes (le toit et les portiques : laverie())
+  function lavage(o) {
+    const K = M3(), g = new T.Group(), n = o.name, H = o.h;
+    const carreau = mat('carreauLavage', () => worldMat(tilesDet(), { roughness: 0.35, bump: 0.6 }));
+    const bleu = std('bleuLavage', 0x1f5fa8, 0.45, 0.2), jaune = std('jauneChasse', 0xe0b21e, 0.5, 0.3);
+    if (n === 'lavage paroi') {
+      bx(g, o.w, 1.0, o.d, K.betonClair, 0, -H / 2 + 0.5, 0);
+      bx(g, o.w - 0.04, H - 1.0, o.d, carreau, 0, -H / 2 + 1.0 + (H - 1.0) / 2, 0);
+      bx(g, o.w + 0.04, 0.45, o.d, bleu, 0, H / 2 - 0.4, 0);
+      for (const s of [-1, 1]) { const r = cyl(g, 0.06, o.d - 0.4, jaune, s * (o.w / 2 + 0.07), -H / 2 + 0.55, 0, 10); r.rotation.x = Math.PI / 2; }   // chasse-roues
+      for (const s of [-1, 1]) for (const z of [-o.d / 2 + 0.6, o.d / 2 - 0.6]) bx(g, 0.04, 0.3, 0.08, K.metal, s * (o.w / 2 + 0.03), 0.1, z);   // supports de lance
+    } else if (n === 'lavage local') {
+      bx(g, o.w, H, o.d, std('bardageLavage', 0xe9ecee, 0.55, 0.2), 0, 0, 0);
+      bx(g, o.w + 0.04, 0.45, o.d + 0.04, bleu, 0, H / 2 - 0.4, 0);
+      bx(g, 1.0, 2.1, 0.06, K.metalSombre, 0, -H / 2 + 1.05, -o.d / 2 - 0.02);   // porte de service au nord
+      panneau(g, 0.9, 0.3, (q, w, h) => { q.fillStyle = '#c62828'; q.fillRect(0, 0, w, h); txt(q, 'PRIVÉ', w / 2, h / 2, 'bold 150px Arial', '#fff'); }, 0, 0.75, -o.d / 2 - 0.06, Math.PI);
+      for (let k = 0; k < 3; k++) bx(g, 0.5, 0.25, 0.04, std('ventLavage', 0x9aa0a4, 0.5, 0.6), -0.7 + k * 0.7, H / 2 - 1.0, -o.d / 2 - 0.03);
+      // monnayeurs (un par piste, sur les faces est et ouest) : boîtier inox, écran, fente, boutons de programme
+      for (const s of [-1, 1]) {
+        const t = new T.Group(); bx(t, 0.12, 1.1, 0.6, std('inox', 0xb8bcc0, 0.25, 0.9), 0, 0, 0);
+        bx(t, 0.02, 0.2, 0.3, std('ecranMonnayeur', 0x0b1418, 0.2, 0, { emissive: 0x2d8a6a, emissiveIntensity: 0.7 }), 0.065, 0.3, 0);
+        for (let b = 0; b < 4; b++) bx(t, 0.03, 0.07, 0.07, [jaune, bleu, std('boutonRouge', 0xc0392b, 0.4), std('boutonVert', 0x2e8b57, 0.4)][b], 0.07, 0.05 - b * 0.12, 0.18);
+        t.position.set(s * (o.w / 2 + 0.06), -H / 2 + 1.25, o.d / 2 - 0.7); if (s < 0) t.rotation.y = Math.PI; g.add(t);
+        panneau(g, 1.6, 0.8, (q, w, h) => { q.fillStyle = '#f4f6f8'; q.fillRect(0, 0, w, h); q.fillStyle = '#1f5fa8'; q.fillRect(0, 0, w, 60); txt(q, 'PISTE ' + (s < 0 ? '1' : '2'), w / 2, 32, 'bold 44px Arial', '#fff');
+          ['1  PRÉLAVAGE', '2  LAVAGE HP', '3  MOUSSE', '4  RINÇAGE'].forEach((l, i) => txt(q, l, 40, 95 + i * 40, 'bold 30px Arial', '#1d2a36', 'left')); txt(q, '2 € · 4 min', w - 30, 230, 'bold 30px Arial', '#c62828', 'right'); },
+          s * (o.w / 2 + 0.01), 0.35, o.d / 2 - 2.0, s * Math.PI / 2);
+      }
+    } else {   // muret entre les pistes : béton, chaperon carrelé, chasse-roues
+      bx(g, o.w, H - 0.08, o.d, K.betonClair, 0, -0.04, 0); bx(g, o.w + 0.06, 0.08, o.d + 0.06, carreau, 0, H / 2 - 0.04, 0);
+      for (const s of [-1, 1]) { const r = cyl(g, 0.06, o.d - 0.3, jaune, s * (o.w / 2 + 0.07), -H / 2 + 0.45, 0, 10); r.rotation.x = Math.PI / 2; }
+    }
+    return g;
+  }
+  // toit de la station de lavage, enseigne, portiques de prélavage, perches de lance, grilles d'évacuation (décor au-dessus et
+  // au sol : rien dans le passage)
+  function laverie(map, group) {
+    const P = map.obstacles.filter(o => /^lavage/.test(o.name || '')); if (!P.length) return;
+    const x0 = Math.min(...P.map(o => o.x)), x1 = Math.max(...P.map(o => o.x + o.w)), z0 = Math.min(...P.map(o => o.z)), z1 = Math.max(...P.map(o => o.z + o.d)), H = Math.max(...P.map(o => o.h));
+    const K = M3(), g = new T.Group(), cx = (x0 + x1) / 2, W = x1 - x0 + 1.0, D = z1 - z0 + 1.2;
+    const bleu = std('bleuLavage', 0x1f5fa8, 0.45, 0.2);
+    bx(g, W, 0.22, D, std('toitLavage', 0xdfe3e6, 0.5, 0.4), cx, H + 0.11, (z0 + z1) / 2);
+    bx(g, W - 0.1, 0.03, D - 0.1, std('sousToit', 0xb7bdc2, 0.4, 0.6), cx, H - 0.01, (z0 + z1) / 2);
+    for (const s of [-1, 1]) {   // bandeau d'enseigne au nord et au sud (nom inventé), éclairé la nuit
+      const z = s < 0 ? z0 - 0.6 : z1 + 0.6;
+      bx(g, W, 0.7, 0.08, bleu, cx, H + 0.45, z);
+      panneau(g, W * 0.62, 0.55, (q, w, h) => { q.fillStyle = '#1f5fa8'; q.fillRect(0, 0, w, h); txt(q, 'AQUANOVA  ·  LAVAGE HAUTE PRESSION  ·  24 h / 24', w / 2, h / 2 + 4, 'bold 120px Arial', '#ffffff'); }, cx, H + 0.45, z + s * 0.045, s < 0 ? Math.PI : 0, true);
+      for (const k of [0, 1]) panneau(g, 0.5, 0.5, (q, w, h) => { q.fillStyle = '#ffd23f'; q.fillRect(0, 0, w, h); txt(q, String(k + 1), w / 2, h / 2 + 8, 'bold 200px Arial', '#1f5fa8'); }, x0 + 2.4 + k * (x1 - x0 - 4.8), H - 0.4, z + s * 0.05 - s * 0.6, s < 0 ? Math.PI : 0, true);
+    }
+    // pistes : entre les parois (on prend les vides entre les pièces, le long de x)
+    const xs = P.filter(o => o.name !== 'lavage muret').map(o => [o.x, o.x + o.w]).sort((a, b) => a[0] - b[0]), pistes = [];
+    for (let k = 0; k + 1 < xs.length; k++) if (xs[k + 1][0] - xs[k][1] > 2.5) pistes.push([xs[k][1], xs[k + 1][0]]);
+    const tube = std('tubeInox', 0xc4c8cc, 0.25, 0.9), tuyau = std('tuyauNoir', 0x151515, 0.6);
+    for (const [a, b] of pistes) {
+      const m = (a + b) / 2;
+      // portique de prélavage à l'entrée nord : deux montants contre les parois, traverse à buses
+      for (const x of [a + 0.08, b - 0.08]) cyl(g, 0.05, H - 0.2, tube, x, (H - 0.2) / 2, z0 + 0.5, 10);
+      const tr = cyl(g, 0.05, b - a - 0.16, tube, m, H - 0.25, z0 + 0.5, 10); tr.rotation.z = Math.PI / 2;
+      for (let k = 0; k < 6; k++) bx(g, 0.05, 0.08, 0.05, K.metalSombre, a + 0.4 + k * (b - a - 0.8) / 5, H - 0.33, z0 + 0.5);
+      // perche tournante au plafond et lance qui pend
+      const boom = bx(g, 0.08, 0.08, 2.6, tube, m, H - 0.15, (z0 + z1) / 2 + 0.6);
+      const hose = cyl(g, 0.025, 1.3, tuyau, m, H - 0.8, (z0 + z1) / 2 + 1.85, 8);
+      // grilles d'évacuation au sol, au milieu de la piste ; néons
+      const gr = new T.Mesh(new T.BoxGeometry(0.4, 0.02, z1 - z0 - 1.5), grateMat()); gr.position.set(m, 0.012, (z0 + z1) / 2); gr.receiveShadow = true; g.add(gr);
+      const neon = bx(g, 0.12, 0.04, 1.2, std('neonLavage', 0xffffff, 0.3, 0, { emissive: 0xe8f4ff, emissiveIntensity: 0 }), m, H - 0.05, (z0 + z1) / 2); NIGHT.mats.push(neon.material);
+      void boom; void hose;
+    }
+    g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); group.add(g);
+    lights.push(new T.Vector3(cx, H - 0.3, (z0 + z1) / 2));
+  }
+  // ---- haie taillée dans une jardinière, totem des tarifs
+  function haie(o) {
+    const K = M3(), g = new T.Group(), ph = 0.45;
+    bx(g, o.w, ph, o.d, K.betonClair, 0, -o.h / 2 + ph / 2, 0);
+    const geo = new T.BoxGeometry(o.w - 0.12, o.h - ph + 0.05, o.d - 0.12, Math.max(2, Math.round(o.w * 3)), 4, Math.max(2, Math.round(o.d * 3))), p = geo.attributes.position, R = rng(Math.floor(o.x * 7 + o.z * 3));
+    for (let i = 0; i < p.count; i++) { const y = p.getY(i), k = y > 0 ? 0.06 : 0.035; p.setXYZ(i, p.getX(i) + (R() - 0.5) * k, y + (y > 0 ? (R() - 0.5) * 0.08 : 0), p.getZ(i) + (R() - 0.5) * k); }
+    geo.computeVertexNormals();
+    const h = new T.Mesh(geo, feuillageMat()); h.position.y = -o.h / 2 + ph + (o.h - ph) / 2 - 0.02; g.add(h);
+    return g;
+  }
+  function totem(o) {
+    const K = M3(), g = new T.Group(), H = o.h;
+    bx(g, o.w, H, o.d, std('totemCadre', 0x2b2f33, 0.45, 0.5), 0, 0, 0);
+    for (const s of [-1, 1]) panneau(g, o.w - 0.16, H - 0.5, (q, w, h) => {
+      q.fillStyle = '#f4f6f8'; q.fillRect(0, 0, w, h); q.fillStyle = '#1f5fa8'; q.fillRect(0, 0, w, h * 0.22);
+      txt(q, 'AQUA', w / 2, h * 0.07, 'bold 40px Arial', '#fff'); txt(q, 'NOVA', w / 2, h * 0.16, 'bold 40px Arial', '#ffd23f');
+      ['LAVAGE', 'HP 2 €', 'MOUSSE', 'ASPI 1 €'].forEach((l, i) => { q.fillStyle = i % 2 ? '#e3e8ee' : '#ffffff'; q.fillRect(6, h * (0.26 + i * 0.17), w - 12, h * 0.15); txt(q, l, w / 2, h * (0.335 + i * 0.17), 'bold 30px Arial', '#1d2a36'); });
+    }, 0, 0.12, s * (o.d / 2 + 0.005), s < 0 ? Math.PI : 0, true);
+    return g;
+  }
+  // ---- aspirateur de la station : colonne, flexible enroulé, col de cygne
+  function aspirateur(o) {
+    const K = M3(), g = new T.Group(), H = o.h;
+    bx(g, o.w, H, o.d, std('aspiCorps', 0x1f5fa8, 0.4, 0.3), 0, 0, 0);
+    bx(g, o.w + 0.02, 0.35, o.d + 0.02, std('inox', 0xb8bcc0, 0.25, 0.9), 0, H / 2 - 0.3, 0);
+    bx(g, 0.02, 0.18, 0.3, std('ecranMonnayeur', 0x0b1418, 0.2, 0, { emissive: 0x2d8a6a, emissiveIntensity: 0.7 }), o.w / 2 + 0.01, H / 2 - 0.3, 0);
+    const neck = cyl(g, 0.04, 1.3, std('inox', 0xb8bcc0, 0.25, 0.9), 0, H / 2 + 0.65, 0, 8);
+    const arm = cyl(g, 0.035, 1.0, neck.material, 0.45, H / 2 + 1.3, 0, 8); arm.rotation.z = Math.PI / 2;
+    const tor = new T.Mesh(new T.TorusGeometry(0.22, 0.035, 8, 20), std('tuyauNoir', 0x151515, 0.6)); tor.position.set(o.w / 2 + 0.05, 0, 0); tor.rotation.y = Math.PI / 2; g.add(tor);
+    return g;
+  }
+  // ---- guérite du gardien (entrée) : bardage blanc, bandeau vitré, toit débordant, enseigne
+  function guerite(o) {
+    const K = M3(), g = new T.Group(), H = o.h, w = o.w, d = o.d;
+    const blanc = std('bardageBlanc', 0xeceeed, 0.5, 0.15);
+    bx(g, w, 1.05, d, blanc, 0, -H / 2 + 0.525, 0);
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) bx(g, 0.1, H - 1.3, 0.1, blanc, x * (w / 2 - 0.05), -H / 2 + 1.05 + (H - 1.3) / 2, z * (d / 2 - 0.05));
+    bx(g, w - 0.1, H - 1.3, d - 0.1, K.verre, 0, -H / 2 + 1.05 + (H - 1.3) / 2, 0);
+    bx(g, w + 0.5, 0.22, d + 0.5, blanc, 0, H / 2 - 0.11, 0); bx(g, w + 0.52, 0.06, d + 0.52, K.metalSombre, 0, H / 2 - 0.25, 0);
+    bx(g, 0.9, 2.0, 0.05, std('porteGuerite', 0xcfd3d5, 0.4, 0.4), 0, -H / 2 + 1.0, d / 2 + 0.03);
+    panneau(g, w * 0.9, 0.3, (q, wd, h) => { q.fillStyle = '#1f5fbf'; q.fillRect(0, 0, wd, h); txt(q, 'P  ACCUEIL', wd / 2, h / 2 + 4, 'bold 120px Arial', '#fff'); }, 0, H / 2 + 0.05, -d / 2 - 0.26, Math.PI, true);
+    bx(g, 0.6, 0.4, 0.35, std('clim', 0xc9cbc8, 0.5, 0.4), w / 2 - 0.4, H / 2 + 0.2, d / 2 - 0.4);
+    return g;
+  }
+  // ---- borne de recharge : socle, écran, câble enroulé
+  function borne(o) {
+    const g = new T.Group(), H = o.h;
+    bx(g, o.w, H, o.d, std('borneBlanc', 0xf2f3f1, 0.35, 0.1), 0, 0, 0);
+    bx(g, o.w + 0.01, 0.3, o.d + 0.01, std('borneVert', 0x2fa36b, 0.4, 0.1), 0, H / 2 - 0.2, 0);
+    bx(g, 0.02, 0.2, 0.26, std('ecranMonnayeur', 0x0b1418, 0.2, 0, { emissive: 0x2d8a6a, emissiveIntensity: 0.7 }), o.w / 2 + 0.01, 0.2, 0);
+    const tor = new T.Mesh(new T.TorusGeometry(0.16, 0.025, 8, 18), std('tuyauNoir', 0x151515, 0.6)); tor.position.set(o.w / 2 + 0.04, -0.15, 0); tor.rotation.y = Math.PI / 2; g.add(tor);
+    return g;
+  }
+  // ---- poste électrique préfabriqué : béton beige, portes métalliques, grilles d'aération, panneau « danger »
+  function poste(o) {
+    const K = M3(), g = new T.Group(), H = o.h;
+    bx(g, o.w, H - 0.2, o.d, mat('posteBeton', () => worldMat(concrete('clair'), { color: 0xd8ceb4, roughness: 0.9, streak: 0.7 })), 0, -0.1, 0);
+    bx(g, o.w + 0.25, 0.2, o.d + 0.25, K.betonClair, 0, H / 2 - 0.1, 0);
+    const porte = std('portePoste', 0x6f7a6c, 0.5, 0.5);
+    for (const s of [-1, 1]) { bx(g, 0.05, 2.0, 0.9, porte, s * (o.w / 2 + 0.02), -H / 2 + 1.05, -0.55); bx(g, 0.05, 2.0, 0.9, porte, s * (o.w / 2 + 0.02), -H / 2 + 1.05, 0.45);
+      for (const z of [-0.55, 0.45]) bx(g, 0.06, 0.35, 0.6, std('grillePoste', 0x2c2f31, 0.6, 0.6), s * (o.w / 2 + 0.03), -H / 2 + 1.8, z);
+      panneau(g, 0.3, 0.3, (q, w, h) => { q.fillStyle = '#f2c200'; q.beginPath(); q.moveTo(w / 2, 8); q.lineTo(w - 8, h - 8); q.lineTo(8, h - 8); q.closePath(); q.fill(); q.strokeStyle = '#111'; q.lineWidth = 10; q.stroke(); txt(q, 'ϟ', w / 2, h * 0.62, 'bold 130px Arial', '#111'); }, s * (o.w / 2 + 0.06), -H / 2 + 1.5, -0.08, s * Math.PI / 2);
+    }
+    return g;
+  }
+  function armoireP(o) { const K = M3(), g = new T.Group(); bx(g, o.w, o.h, o.d, std('armoireGris', 0x9ea3a0, 0.5, 0.3), 0, 0, 0); bx(g, o.w + 0.06, 0.05, o.d + 0.06, K.metalSombre, 0, o.h / 2, 0); bx(g, 0.02, o.h * 0.8, 0.02, K.metalSombre, 0, 0, o.d / 2 + 0.01); return g; }
+  // ---- points de tri : trois colonnes (verre, emballages, papiers), ouvertures, autocollants
+  function colonnes(o) {
+    const g = new T.Group(), along = o.w >= o.d, L = along ? o.w : o.d, n = 3, cw = L / n - 0.15, side = along ? o.d : o.w;
+    const cols = [0x2f6b3a, 0xd9b52b, 0x2a5a9a], noms = ['VERRE', 'EMBALLAGES', 'PAPIERS'];
+    for (let k = 0; k < n; k++) {
+      const c = new T.Group(), m = std('colonne' + k, cols[k], 0.55, 0.05), H = o.h;
+      bx(c, cw, H - 0.25, side - 0.1, m, 0, -0.125, 0);
+      const top = new T.Mesh(new T.CylinderGeometry(cw / 2, cw / 2, side - 0.1, 20, 1, false, 0, Math.PI), m); top.rotation.x = Math.PI / 2; top.rotation.z = Math.PI / 2; top.scale.set(0.5 / (cw / 2) * 0.5, 1, 1); top.position.y = H / 2 - 0.25; c.add(top);
+      for (const s of [-1, 1]) { const hole = new T.Mesh(new T.CircleGeometry(0.11, 18), std('trouColonne', 0x0c0c0c, 0.9)); hole.position.set(0, 0.25, s * ((side - 0.1) / 2 + 0.005)); if (s < 0) hole.rotation.y = Math.PI; c.add(hole);
+        panneau(c, cw * 0.8, 0.22, (q, w, h) => { q.fillStyle = '#fff'; q.fillRect(0, 0, w, h); txt(q, noms[k], w / 2, h / 2 + 4, 'bold 110px Arial', '#222'); }, 0, -0.25, s * ((side - 0.1) / 2 + 0.006), s < 0 ? Math.PI : 0); }
+      const off = -L / 2 + (k + 0.5) * L / n; c.position.set(along ? off : 0, 0, along ? 0 : off); if (!along) c.rotation.y = Math.PI / 2; g.add(c);
+    }
+    return g;
+  }
+  // ---- clôture de chantier : panneaux de grille sur plots, bâche imprimée (opaque) de chaque côté
+  function bacheTex() {
+    if (texCache.bache) return texCache.bache;
+    const c = document.createElement('canvas'); c.width = 1024; c.height = 512; const q = c.getContext('2d');
+    q.fillStyle = '#f2f0ea'; q.fillRect(0, 0, 1024, 512); q.fillStyle = '#e8641b'; q.fillRect(0, 0, 1024, 90); q.fillRect(0, 440, 1024, 72);
+    txt(q, 'TRAVAUX', 512, 50, 'bold 70px Arial', '#fff'); txt(q, 'RÉFECTION DE LA CHAUSSÉE', 512, 190, 'bold 64px Arial', '#2b2b2b');
+    txt(q, 'Parking partiellement fermé', 512, 270, '48px Arial', '#444'); txt(q, 'VOIRIE NOVA · Terrassement · Enrobés', 512, 360, 'bold 40px Arial', '#e8641b');
+    for (let k = 0; k < 2500; k++) { q.fillStyle = `rgba(80,70,50,${Math.random() * 0.06})`; q.fillRect(Math.random() * 1024, Math.random() * 512, 3, 3); }
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 8; return (texCache.bache = t);
+  }
+  function chantierClo(o) {
+    const g = new T.Group(), along = o.w >= o.d, L = along ? o.w : o.d, H = o.h, n = Math.max(1, Math.round(L / 3.4));
+    const tubeM = std('tubeGalva', 0xb4b9bc, 0.35, 0.85), plot = std('plotChantier', 0x8a8c86, 0.9), bm = mat('bacheM', () => new T.MeshStandardMaterial({ map: bacheTex(), roughness: 0.8, side: T.DoubleSide }));
+    for (let k = 0; k < n; k++) {
+      const pl = L / n, off = -L / 2 + (k + 0.5) * pl, p = new T.Group();
+      for (const s of [-1, 1]) { cyl(p, 0.025, H - 0.15, tubeM, s * (pl / 2 - 0.05), 0.05, 0, 8); bx(p, 0.6, 0.14, 0.22, plot, s * pl / 2, -H / 2 + 0.07, 0); }
+      for (const y of [H / 2 - 0.05, -H / 2 + 0.2]) { const t = cyl(p, 0.025, pl - 0.1, tubeM, 0, y, 0, 8); t.rotation.z = Math.PI / 2; }
+      const b = new T.Mesh(new T.PlaneGeometry(pl - 0.14, H - 0.35), bm); b.position.set(0, 0.07, 0); p.add(b);
+      p.position.set(along ? off : 0, 0, along ? 0 : off); if (!along) p.rotation.y = Math.PI / 2; g.add(p);
+    }
+    return g;
+  }
+  // ---- benne à gravats (benne de chantier ouverte, trapèze) et repli pour la benne à ordures
+  function benneGravats(o) {
+    const g = new T.Group(), along = o.w >= o.d, L = along ? o.w : o.d, W = along ? o.d : o.w, H = o.h, m = std('benneJaune', 0xd8a21f, 0.6, 0.35);
+    const shape = new T.Shape(); shape.moveTo(-L / 2 + 0.35, -H / 2); shape.lineTo(L / 2 - 0.35, -H / 2); shape.lineTo(L / 2, H / 2); shape.lineTo(-L / 2, H / 2); shape.closePath();
+    for (const s of [-1, 1]) { const side = new T.Mesh(new T.ShapeGeometry(shape), m); side.material = mat('benneJauneDS', () => { const c = m.clone(); c.side = T.DoubleSide; return c; }); side.position.z = s * W / 2; g.add(side); }
+    bx(g, L - 0.7, 0.06, W, m, 0, -H / 2 + 0.03, 0);
+    for (const s of [-1, 1]) { const e = bx(g, 0.06, H * 1.04, W, m, s * (L / 2 - 0.17), 0, 0); e.rotation.z = -s * Math.atan2(0.35, H); }
+    const R = rng(Math.floor(o.x * 11)), gr = std('gravats', 0x55524c, 0.95);
+    for (let k = 0; k < 26; k++) { const r = 0.12 + R() * 0.22, b = new T.Mesh(new T.DodecahedronGeometry(r, 0), k % 4 ? gr : std('enrobeMorceau', 0x26262a, 0.9)); b.position.set((R() - 0.5) * (L - 0.9), H / 2 - 0.25 + R() * 0.15, (R() - 0.5) * (W - 0.3)); b.rotation.set(R() * 3, R() * 3, R() * 3); g.add(b); }
+    if (!along) g.rotation.y = Math.PI / 2;
+    return g;
+  }
+  function benneP(o) { const g = new T.Group(), m = std('benneVerte', 0x2f5a3a, 0.6, 0.3); bx(g, o.w, o.h - 0.15, o.d, m, 0, -0.075 + 0.0, 0); bx(g, o.w + 0.06, 0.08, o.d + 0.06, std('couvercle', 0x1f2a22, 0.5, 0.2), 0, o.h / 2 - 0.1, 0); for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(g, 0.07, 0.06, std('tuyauNoir', 0x151515, 0.6), sx * (o.w / 2 - 0.15), -o.h / 2 + 0.07, sz * (o.d / 2 - 0.15), 10).rotation.x = Math.PI / 2; return g; }
+  // ---- portail à barrière (entrée à l'ouest, sortie à l'est) dans l'ouverture du mur : bornes, lisses rayées, portique de
+  // limitation de hauteur, îlot central avec distributeur de tickets ou caisse de sortie
+  function portail(o) {
+    const K = M3(), g = new T.Group(), est = /est/.test(o.name), L = o.d, s = est ? -1 : 1;   // s : vers l'intérieur du parking (+x à l'ouest)
+    const y0 = -o.h / 2, jaune = std('jauneBorne', 0xe8b51a, 0.5, 0.3), rayure = mat('lisse', () => { const c = document.createElement('canvas'); c.width = 256; c.height = 16; const q = c.getContext('2d'); for (let k = 0; k < 8; k++) { q.fillStyle = k % 2 ? '#d32020' : '#f4f4f4'; q.fillRect(k * 32, 0, 32, 16); } const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; return new T.MeshStandardMaterial({ map: t, roughness: 0.5 }); });
+    // îlot central (bordure basse), borne et distributeur
+    bx(g, 2.6, 0.12, 0.9, K.betonClair, s * 0.8, y0 + 0.06, 0);
+    for (const lane of [-1, 1]) {
+      const zc = lane * L / 4, bz = lane * 0.3;
+      const post = new T.Group(); bx(post, 0.3, 1.05, 0.35, jaune, 0, 0.525, 0); bx(post, 0.32, 0.06, 0.37, K.metalSombre, 0, 1.06, 0);
+      post.position.set(s * 0.6, y0 + 0.12, bz); g.add(post);
+      const arm = new T.Mesh(new T.BoxGeometry(0.06, 0.08, L / 2 - 0.6), rayure); const lift = (lane > 0) !== est;   // une lisse levée, l'autre baissée
+      const pv = new T.Group(); pv.position.set(s * 0.6, y0 + 1.0, bz); arm.position.z = lane * (L / 4 - 0.3); pv.add(arm); if (lift) pv.rotation.x = lane * -1.25; g.add(pv);
+    }
+    const dist = new T.Group(); bx(dist, 0.5, 1.4, 0.45, std('distributeur', est ? 0x2e5b8c : 0xd0d3d5, 0.4, 0.5), 0, 0.7, 0); bx(dist, 0.02, 0.22, 0.3, std('ecranMonnayeur', 0x0b1418, 0.2, 0, { emissive: 0x2d8a6a, emissiveIntensity: 0.7 }), -s * 0.26, 1.05, 0); bx(dist, 0.62, 0.06, 0.55, K.metalSombre, 0, 1.43, 0);
+    dist.position.set(s * 1.6, y0 + 0.12, 0); g.add(dist);
+    // portique de limitation de hauteur (2,10 m) au-dessus de l'ouverture
+    const pm = std('portique', 0x2b2e31, 0.5, 0.6);
+    for (const z of [-L / 2 - 0.1, L / 2 + 0.1]) bx(g, 0.18, 3.6, 0.18, pm, -s * 0.3, y0 + 1.8, z);
+    bx(g, 0.2, 0.25, L + 0.4, pm, -s * 0.3, y0 + 3.5, 0);
+    const bar = new T.Mesh(new T.BoxGeometry(0.12, 0.2, L - 0.2), rayure); bar.position.set(-s * 0.3, y0 + 2.2, 0); g.add(bar);
+    for (const z of [-L / 3, L / 3]) bx(g, 0.02, 1.2, 0.02, K.metalSombre, -s * 0.3, y0 + 2.9, z);
+    panneau(g, 3.2, 0.5, (q, w, h) => { q.fillStyle = '#1f5fbf'; q.fillRect(0, 0, w, h); txt(q, est ? 'SORTIE' : 'P  ENTRÉE', w * 0.38, h / 2 + 6, 'bold 180px Arial', '#fff'); q.fillStyle = '#fff'; q.beginPath(); q.arc(w * 0.84, h / 2, h * 0.4, 0, 7); q.fill(); txt(q, '2,10 m', w * 0.84, h / 2 + 4, 'bold 66px Arial', '#c62828'); }, -s * 0.18, y0 + 3.1, 0, s > 0 ? Math.PI / 2 : -Math.PI / 2, true);
+    return g;
+  }
+  // ---- local à poubelles : murets en briques sur trois côtés (ouvert au nord, vers la ruelle), conteneurs dedans
+  function localPoubelles(o) {
+    const g = new T.Group(), H = o.h, bm = mat('briqueMur', () => worldMat(brickDet(), { roughness: 0.9, streak: 0.8 })), K = M3(), th = 0.25;
+    bx(g, th, H, o.d, bm, -o.w / 2 + th / 2, 0, 0); bx(g, th, H, o.d, bm, o.w / 2 - th / 2, 0, 0); bx(g, o.w, H, th, bm, 0, 0, o.d / 2 - th / 2);
+    for (const x of [-o.w / 2 + th / 2, o.w / 2 - th / 2]) bx(g, th + 0.06, 0.08, o.d + 0.04, K.betonClair, x, H / 2 + 0.04, 0);
+    bx(g, o.w + 0.04, 0.08, th + 0.06, K.betonClair, 0, H / 2 + 0.04, o.d / 2 - th / 2);
+    const M = root.Modeles3D;
+    for (const k of [0, 1]) { const w = (o.w - 2 * th) / 2 - 0.15, x = -o.w / 2 + th + (k + 0.5) * (o.w - 2 * th) / 2;
+      const b = M && M.ready && M.has('benne') ? M.fit('benne', w, 1.3, 1.3, { tol: 0.3, rot: Math.PI }) : benneP({ w, h: 1.3, d: 1.3 }); b.position.set(x, -H / 2 + 0.65, o.d / 2 - th - 0.8); g.add(b); }
+    return g;
+  }
+  // ---- replis de la ruelle (si ruelle.js n'est pas là) : murs du fond, annexe en briques, muret grillagé, clim au sol
+  function annexeP(o) {
+    const g = new T.Group(), bm = mat('briqueSombre', () => worldMat(brickDet('sombre'), { roughness: 0.9, streak: 1 })), K = M3();
+    bx(g, o.w, o.h, o.d, bm, 0, 0, 0); bx(g, o.w + 0.2, 0.25, o.d + 0.2, K.betonClair, 0, o.h / 2 - 0.12, 0);
+    bx(g, 2.6, 2.8, 0.06, std('rideauMetal', 0x8d9296, 0.45, 0.7), -0.8, -o.h / 2 + 1.4, o.d / 2 + 0.03);
+    bx(g, 1.0, 2.1, 0.06, std('porteService', 0x5a3d2e, 0.6, 0.4), o.w / 2 - 1.2, -o.h / 2 + 1.05, o.d / 2 + 0.03);
+    return g;
+  }
+  function murRuelle(o) { const g = new T.Group(); bx(g, o.w, o.h, o.d, mat('briqueSombre', () => worldMat(brickDet('sombre'), { roughness: 0.9, streak: 1 })), 0, 0, 0); return g; }
+  function cloGrillage(o) {
+    const K = M3(), g = new T.Group(), along = o.w >= o.d, L = along ? o.w : o.d, H = o.h, top = 2.4;
+    bx(g, along ? L : o.w, H, along ? o.d : L, K.betonClair, 0, 0, 0);
+    const gm = grillageMat().clone(); gm.map = gm.map.clone(); gm.map.needsUpdate = true; gm.map.repeat.set(L / 0.6, (top - H) / 0.6);
+    const pl = new T.Mesh(new T.PlaneGeometry(L, top - H), gm); pl.position.y = H / 2 + (top - H) / 2; if (!along) pl.rotation.y = Math.PI / 2; g.add(pl);
+    const post = std('tubeGalva', 0xb4b9bc, 0.35, 0.85), n = Math.max(1, Math.round(L / 2.5));
+    for (let k = 0; k <= n; k++) { const off = -L / 2 + k * L / n; cyl(g, 0.03, top - H + 0.05, post, along ? off : 0, H / 2 + (top - H) / 2, along ? 0 : off, 8); }
+    const rail = cyl(g, 0.025, L, post, 0, top - H / 2 - 0.02, 0, 8); if (along) rail.rotation.z = Math.PI / 2; else rail.rotation.x = Math.PI / 2;
+    return g;
+  }
+  function climP(o) { const g = new T.Group(); bx(g, o.w, o.h, o.d, std('clim', 0xc9cbc8, 0.5, 0.4), 0, 0, 0); const f = new T.Mesh(new T.CylinderGeometry(0.3, 0.3, 0.02, 20), std('grilleClim', 0x2a2c2e, 0.7, 0.5)); f.position.y = o.h / 2 + 0.01; g.add(f); return g; }
+
   // une pièce de la simulation habillée (null : laisser le jeu la dessiner)
   function mesh(o) {
-    const n = o.name || '';
-    if (/^mur (nord|sud|est|ouest)/.test(n)) return wall(o);
+    const n = o.name || '', RU = root.Ruelle, M = root.Modeles3D, has = (k) => M && M.ready && M.has(k);
+    if (RU && RU.mesh) { try { const r = RU.mesh(o); if (r) return r; } catch (e) { console.warn('ruelle :', e); } }
+    if (n === 'mur nord') return murRuelle(o);
+    if (/^mur portail/.test(n)) return portail(o);
+    if (/^mur (sud|est|ouest)/.test(n)) return wall(o);
     if (n.startsWith('centre commercial')) return mall(o);
+    if (n === 'annexe') return annexeP(o);
+    if (n === 'local poubelles') return localPoubelles(o);
+    if (n.startsWith('clôture grillagée')) return cloGrillage(o);
+    if (n.startsWith('clôture de chantier')) return chantierClo(o);
+    if (/^lavage/.test(n)) return lavage(o);
+    if (n === 'haie') return haie(o);
+    if (n === 'totem') return totem(o);
+    if (n === 'aspirateur') return aspirateur(o);
+    if (n === 'guérite') return guerite(o);
+    if (n === 'borne de recharge') return borne(o);
+    if (n === 'poste électrique') return poste(o);
+    if (n === 'colonnes de tri') return colonnes(o);
+    if (n === 'benne à gravats') return benneGravats(o);
+    if (n === 'poteau') { const g = new T.Group(); cyl(g, 0.12, o.h, M3().metalSombre, 0, 0, 0, 12); return g; }
+    if (n === 'clim') return climP(o);
+    if (n === 'armoire' && !has('armoire')) return armoireP(o);
+    if (n === 'benne' && !has('benne')) return benneP(o);
+    if (n.startsWith('palettes') && !has('palettes')) return crates(o);
     if (n.startsWith('abri')) return booth(o);
     if (n.startsWith('muret')) return lowWall(o);
     if (n.startsWith('bac à fleurs')) return planter(o);
-    if (n.startsWith('conteneur')) return (root.Modeles3D && root.Modeles3D.ready && root.Modeles3D.has('conteneur')) ? null : container(o);   // modèle Meshy s'il est chargé
+    if (n.startsWith('conteneur')) return has('conteneur') ? null : container(o);   // modèle Meshy s'il est chargé
     if (n.startsWith('caisses')) return crates(o);
     return null;
   }
@@ -846,5 +1177,5 @@
     if (night) { lightGroup = new T.Group(); for (const p of lights) { const l = new T.PointLight(0xffc98a, 120, 28, 1.6); l.position.copy(p); lightGroup.add(l); } scene.add(lightGroup); }
   }
   function tick(t) { U.time.value = t; }
-  root.Parking = { build, mesh, setConditions, tick, asphalt, concrete, worldMat };
+  root.Parking = { build, mesh, setConditions, tick, asphalt, concrete, worldMat, teinter, brickDet };
 })(window.OT = window.OT || {});

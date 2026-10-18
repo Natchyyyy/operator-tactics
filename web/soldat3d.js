@@ -51,7 +51,9 @@
   // œil droit dans le repère de la tête (m : au-dessus de l'os de la tête, devant, à droite) ; point de visée de l'optique
   // (repère de l'arme : centre de la fenêtre du viseur point rouge) ; garde basse construite (rad : canon vers le bas, vers la
   // gauche ; m : crosse sous / devant le creux de l'épaule)
-  const OEIL = { haut: 0.095, avant: 0.085, cote: 0.032 }, VISEE_OPTIQUE = [0, 0.145, -0.03], GARDE = { pique: 0.6, dedans: 0.15, bas: 0.02, avant: 0 };
+  const OEIL = { haut: 0.095, avant: 0.085, cote: 0.032 }, VISEE_OPTIQUE = [0, 0.145, -0.03], GARDE = { pique: 0.7, dedans: 0.3, bas: 0.0, avant: 0, recul: 0.07 };
+  // creux de l'épaule de la garde basse (m, par rapport à l'articulation de l'épaule : vers le centre, l'avant, le bas)
+  const POCHE = { dedans: 0.06, avant: 0.05, bas: 0.05 };
   S.OEIL = OEIL; S.GARDE = GARDE;
   S.CREUX = CREUX;
   function b64ToBuf(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
@@ -1185,10 +1187,13 @@
         const B = this.bones, tp = V(), tq = new THREE.Quaternion(), ts = V(); weapon.updateMatrixWorld(true);
         const ob = this.osDoigts || (this.osDoigts = {}), os = (n) => ob[n] || (ob[n] = body.getObjectByName(n));
         // fusil hors d'atteinte d'une main (bras tendu à plus de 97 %) : il est rapproché de cette épaule d'autant
+        // place de la main h (monde) ; garde basse : main d'appui un peu plus en arrière sur le garde-main
+        const cibleM = (h, p, q) => { new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, P[h].Hrel).decompose(p, q, V());
+          if (h === 'L' && this.gbK > 0.01) p.add(V().setFromMatrixColumn(weapon.matrixWorld, 2).normalize().multiplyScalar(-GARDE.recul * this.gbK * (1 - (this.epK || 0)))); return p; };
         this.rapproche = 0; if (mains && !seule && B.ra && B.la) for (let it = 0; it < 3; it++) {
           const d = V(); let loin = false;
           for (const [h, arm, fore, hand] of [['R', B.ra, B.rf, B.rh], ['L', B.la, B.lf, B.lh]]) {
-            const Sh = WP(arm), L = Sh.distanceTo(WP(fore)) + WP(fore).distanceTo(WP(hand)), T = V().setFromMatrixPosition(new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, P[h].Hrel)), e = Sh.distanceTo(T) - 0.97 * L;
+            const Sh = WP(arm), L = Sh.distanceTo(WP(fore)) + WP(fore).distanceTo(WP(hand)), T = cibleM(h, V(), new THREE.Quaternion()), e = Sh.distanceTo(T) - 0.97 * L;
             if (e > 0.002) { d.addScaledVector(Sh.sub(T).normalize(), e * k); loin = true; } }
           if (!loin) break;
           this.rapproche = (it ? this.rapproche : 0) + d.length();
@@ -1197,7 +1202,7 @@
         for (const [h, arm, fore, hand] of [['R', B.ra, B.rf, B.rh], ['L', B.la, B.lf, B.lh]]) {
           const D = P[h]; if (!D || !hand || (seule && seule !== h)) continue;
           if (mains && arm && fore) {
-            new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, D.Hrel).decompose(tp, tq, ts);
+            cibleM(h, tp, tq);
             mod(arm); mod(fore); mod(hand);
             const qH = WQ(hand).slerp(tq, k), S0 = WP(arm), E0 = WP(fore), H0 = WP(hand), T = H0.clone().lerp(tp, k);
             const a = S0.distanceTo(E0), b = E0.distanceTo(H0); let c = S0.distanceTo(T); c = Math.min(Math.max(c, Math.abs(a - b) + 1e-4), (a + b) * 0.999);
@@ -1207,7 +1212,8 @@
             const u = E0.clone().sub(S0); u.addScaledVector(dir, -u.dot(dir)); if (u.lengthSq() < 1e-8) u.set(0, -1, 0).addScaledVector(dir, -dir.y); u.normalize();
             const w = new THREE.Vector3().crossVectors(dir, u), Aw = os(D.ordre[2]).position.clone().normalize().applyQuaternion(qH), up = new THREE.Vector3(0, 1, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()));
             const coude = (ph) => C.clone().addScaledVector(u, r * Math.cos(ph)).addScaledVector(w, r * Math.sin(ph));
-            const cout = (ph) => { const E = coude(ph), f = T.clone().sub(E).normalize(); return Math.acos(Math.max(-1, Math.min(1, f.dot(Aw)))) + 0.25 * Math.abs(ph) + 1.5 * Math.max(0, E.clone().sub(C).dot(up) / Math.max(1e-4, r) + 0.2); };
+            const dedans = new THREE.Vector3(h === 'R' ? 1 : -1, 0, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()));   // vers le centre du corps
+            const cout = (ph) => { const E = coude(ph), f = T.clone().sub(E).normalize(); return Math.acos(Math.max(-1, Math.min(1, f.dot(Aw)))) + 0.25 * Math.abs(ph) + 1.5 * Math.max(0, E.clone().sub(C).dot(up) / Math.max(1e-4, r) + 0.2) + 3 * Math.max(0, E.clone().sub(S0).dot(dedans) / a - 0.05); };   // (coude jamais rentré dans le buste)
             let ph = 0, cb = cout(0); for (let x = -2.4; x <= 2.4; x += 0.2) { const cx = cout(x); if (cx < cb) { cb = cx; ph = x; } }
             for (const st of [0.08, 0.03, 0.01]) for (const sg of [-1, 1]) { while (cout(ph + sg * st) < cb) { ph += sg * st; cb = cout(ph); } }
             const sw = this.coudePh || (this.coudePh = {}); ph = sw[h] === undefined ? ph : sw[h] + (ph - sw[h]) * Math.min(1, 0.35); sw[h] = ph;
@@ -1251,7 +1257,8 @@
         if (ea > 0.999) return { q: qA, p: pA };
         // garde basse
         const pq = GARDE.pique, dg = fwd.clone().multiplyScalar(Math.cos(pq) * Math.cos(GARDE.dedans)).addScaledVector(lat, Math.cos(pq) * Math.sin(GARDE.dedans)).addScaledVector(up, -Math.sin(pq));
-        const qL = repere(dg), pL = creux.clone().addScaledVector(up, -GARDE.bas).addScaledVector(fwd, GARDE.avant).sub(butt.clone().applyQuaternion(qL));
+        const poche = sR.clone().addScaledVector(sL.clone().sub(sR).setY(0).normalize(), POCHE.dedans).addScaledVector(new THREE.Vector3().crossVectors(sL.clone().sub(sR).setY(0).normalize(), up), POCHE.avant).addScaledVector(up, -POCHE.bas);
+        const qL = repere(dg), pL = poche.clone().addScaledVector(up, -GARDE.bas).addScaledVector(fwd, GARDE.avant).sub(butt.clone().applyQuaternion(qL));
         return { q: qL.slerp(qA, ea), p: pL.lerp(pA, ea) };
       },
       placeWeapon(twoHands, recoil, mode) {

@@ -20,7 +20,7 @@ description: Revue « AAA » des animations de personnages (soldats, armes, marc
 
 ### 0. Préparer (une fois)
 - Serveur local : `cd /home/claude/operator-tactics && python3 outils/serveur.py . 8765` (en arrière-plan).
-- Machine lente (rendu logiciel, 2 processeurs) : un seul outil de capture à la fois, et des petites images.
+- Machine lente (rendu logiciel, 2 processeurs) : un seul outil de capture à la fois, et des petites images. Les outils prennent d'eux-mêmes le verrou partagé `/tmp/claude-0/lourd.lock` (`verrou.py`) autour de chaque morceau lourd (un état mesuré, une planche, un bloc de 60 pas de simulation) : les autres agents passent entre deux morceaux. Ne pas les relancer sous `flock` en plus (ils attendraient leur propre verrou).
 
 ### 1. Mesurer sur le banc (rapide, environ 3 min pour 2 modèles × 29 états)
 ```
