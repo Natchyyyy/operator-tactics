@@ -1014,8 +1014,8 @@
   .hact::after { content: '→'; position: absolute; right: 30px; top: 26px; font-size: 26px; opacity: .45; transition: transform .18s var(--m-ease), opacity .16s; }
   .hact:hover { transform: translateY(-3px); } .hact:hover::after { opacity: 1; transform: translateX(4px); }
   .hact .hicon { left: 32px; top: 30px; color: var(--m-acc); } .hact .hicon .ico { width: 64px; height: 64px; color: inherit; } .hact .hicon .ico * { fill: currentColor; }
-  .hact .hwm { position: absolute; right: -50px; top: 30px; width: 280px; height: 280px; opacity: .06; pointer-events: none; transition: opacity .2s, transform .3s var(--m-ease); }
-  .hact .hwm .ico { width: 100%; height: 100%; } .hact .hwm .ico * { fill: currentColor; } .hact:hover .hwm { opacity: .12; transform: scale(1.04) rotate(-3deg); } .hact.primary .hwm { color: var(--m-ink); opacity: .09; }
+  .hact .hwm { position: absolute; right: -24px; top: 54px; width: 220px; height: 220px; opacity: .1; pointer-events: none; transition: opacity .2s, transform .3s var(--m-ease); }
+  .hact .hwm .ico { width: 100%; height: 100%; } .hact .hwm .ico * { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; } .hact:hover .hwm { opacity: .16; transform: scale(1.03) rotate(-2deg); } .hact.primary .hwm { color: var(--m-ink); opacity: .16; } .hact.primary:hover .hwm { opacity: .24; }
   .hact b { font-size: 34px; } .hact small { font-size: 16px; line-height: 1.45; }
   .hact.primary { background: linear-gradient(150deg, #52e28e 0%, #34c370 55%, #229655 100%) !important; box-shadow: 0 20px 44px rgba(40,180,100,.26) !important; }
   .hact.primary:hover { background: linear-gradient(150deg, #66ec9c 0%, #3fcf7c 55%, #2aa862 100%) !important; }
@@ -1049,6 +1049,9 @@
   .bc-role .ico { width: 34px; height: 34px; }
   .bc-sub { height: 32px; justify-content: flex-start; padding-left: 26px; background: rgba(0,0,0,.42); font: 700 13px var(--ui); letter-spacing: .24em; color: var(--rc); }
   .bc-art { border-radius: 0; box-shadow: none; background: radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--rc) 26%, #10201f) 0%, #0b1214 62%, #070a0b 100%); }
+  .bc-art .portrait.snap { height: 100%; bottom: 0; filter: drop-shadow(0 12px 18px rgba(0,0,0,.5)); }
+  .bc-art .portrait:not(.snap), .sqc-art .portrait, .oc-art .portrait, .hsq .hsqp img, .tart-team .portrait { filter: contrast(1.22) brightness(1.14) saturate(1.08) drop-shadow(0 6px 8px rgba(0,0,0,.45)); }
+  .sqc-art::after, .oc-art::after, .hsq .hsqp::after { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(90deg, rgba(120,220,255,.14), transparent 28%, transparent 72%, rgba(255,196,140,.12)), linear-gradient(0deg, rgba(4,7,8,.55), transparent 40%); }
   .bc-art::before { background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,.025) 3px 4px); }
   .bc-foot { left: 0; right: 0; bottom: 0; height: 130px; padding: 0 16px 18px 26px; border-radius: 0; background: linear-gradient(0deg, rgba(5,8,9,.94), rgba(5,8,9,0)); font: 700 15px var(--ui); letter-spacing: .16em; }
   .bc-rate { width: 96px; height: 96px; margin: 0; border-radius: 20px; background: rgba(8,12,14,.86); border: 2px solid var(--rc); box-shadow: 0 8px 20px rgba(0,0,0,.5); }
@@ -1058,7 +1061,7 @@
   .trcard .bc-role { top: 6px; right: 8px; width: 38px; height: 38px; border-width: 2px; } .trcard .bc-role .ico { width: 22px; height: 22px; }
   .trcard .bc-sub { height: 26px; padding-left: 16px; font-size: 11px; }
   .trcard .bc-foot { height: 90px; padding: 0 10px 10px 16px; font-size: 11.5px; } .trcard .bc-rate { width: 64px; height: 64px; border-radius: 14px; } .trcard .bc-rate b { font-size: 28px; } .trcard .bc-rate .ico { width: 20px; height: 20px; }
-  .tmside { left: 1716px; width: 184px; } .tmside select { font-family: var(--ui); font-weight: 600; font-size: 12.5px; height: 34px; border-radius: 8px; }
+  .tmside { left: 1716px; width: 184px; } .tmside .tmhint { display: block; margin-top: 2px; font: 500 12px/1.4 var(--ui); letter-spacing: 0; text-transform: none; color: var(--m-mut); } .tmside select { font-family: var(--ui); font-weight: 600; font-size: 12.5px; height: 34px; border-radius: 8px; }
   .tmside .syn { border-radius: 10px; } .tmside .syn span { font-size: 12px; }
   .tmbody select { font-family: var(--ui); border-radius: 8px; }
   .tmbody .lvl { font-size: 14px; }
@@ -1135,20 +1138,20 @@
   .tart-play { color: inherit; } .tart-play .ico * { fill: currentColor; }
   .tile.big { height: 140px; } .tile.big .tart-play .ico { width: 120px; height: 72px; }
   .cvch #hqChallenges { max-height: 320px; }
-  .p3team .tart-team .portrait { width: auto !important; height: 98px !important; bottom: 0; } .p3team .tart-team img:nth-child(1) { left: 34px; } .p3team .tart-team img:nth-child(2) { left: 104px; height: 106px !important; } .p3team .tart-team img:nth-child(3) { left: 174px; }
+  .p3team .tart-team .portrait { width: auto !important; height: 112px !important; bottom: 0; } .p3team .tart-team img:nth-child(1) { left: 34px; } .p3team .tart-team img:nth-child(2) { left: 104px; height: 118px !important; } .p3team .tart-team img:nth-child(3) { left: 174px; }
   .tile.play:disabled { filter: grayscale(.9) brightness(.55); transform: none; }
   .prep3 .p3title { top: 30px; font-family: var(--raw); font-size: 46px; letter-spacing: .02em; }
   .prep3 .p3sub { top: 96px; font-size: 16px; color: var(--m-mut); }
-  .p3slots { top: 262px; gap: 28px; }
+  .p3slots { top: 196px; gap: 30px; }
   .p3slots::before { content: 'Tactiques emportées · trois au maximum'; position: absolute; left: 0; right: 0; top: -38px; text-align: center; font: 700 12px var(--ui); letter-spacing: .26em; text-transform: uppercase; color: var(--m-mut); }
-  .tslot { position: relative; width: 250px; height: 330px; gap: 16px; border-radius: 20px !important; font: 700 15px/1.4 var(--ui) !important; letter-spacing: .12em; color: var(--m-mut) !important; text-shadow: none; background: rgba(255,255,255,.03) !important; border: 2px dashed rgba(255,255,255,.18) !important; box-shadow: none; }
+  .tslot { position: relative; width: 264px; height: 364px; gap: 16px; border-radius: 20px !important; font: 700 15px/1.4 var(--ui) !important; letter-spacing: .12em; color: var(--m-mut) !important; text-shadow: none; background: rgba(255,255,255,.03) !important; border: 2px dashed rgba(255,255,255,.18) !important; box-shadow: none; }
   .tslot:hover { filter: none; transform: translateY(-3px); color: var(--m-txt) !important; border-color: var(--m-acc) !important; background: rgba(78,224,137,.06) !important; }
   .tslot .tsplus { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 300; line-height: 1; color: var(--m-acc); border: 1px solid rgba(78,224,137,.45); background: rgba(78,224,137,.08); }
   .tslot.full { color: #fff !important; background: linear-gradient(180deg, rgba(30,44,40,.92), rgba(10,16,15,.96)) !important; border: 1px solid var(--m-line2) !important; box-shadow: 0 16px 34px rgba(0,0,0,.45); }
   .tslot.full:hover { border-color: rgba(255,130,110,.65) !important; background: linear-gradient(180deg, rgba(48,30,28,.92), rgba(16,10,10,.96)) !important; }
   .tslot.full::after { content: 'Retirer'; position: absolute; left: 0; right: 0; bottom: 14px; font: 700 11px var(--ui); letter-spacing: .24em; text-transform: uppercase; color: #ff9f90; opacity: 0; transition: opacity .16s; } .tslot.full:hover::after { opacity: 1; }
-  .tslot .tsname { font: 800 15px var(--ui); letter-spacing: .14em; } .tslot .tsart img { max-height: 240px; }
-  .p3team { left: 40px; top: auto; bottom: 36px; width: 300px; height: 150px; }
+  .tslot .tsname { font: 800 15px var(--ui); letter-spacing: .14em; } .tslot .tsart img { max-height: 270px; } .tslot .tsvg { font-size: 104px; filter: drop-shadow(0 8px 16px rgba(0,0,0,.5)); }
+  .p3team { left: 40px; top: auto; bottom: 36px; width: 300px; height: 176px; }
   .p3right { right: 40px; top: auto; bottom: 36px; width: auto; flex-direction: row; align-items: stretch; gap: 16px; }
   .shieldbtn { width: 300px; height: 96px; gap: 16px; padding: 0 20px 0 18px !important; border-radius: 18px !important; color: var(--m-txt) !important; background: var(--m-glass2) !important; border: 1px solid var(--m-line2) !important; box-shadow: 0 14px 30px rgba(0,0,0,.4); }
   .shieldbtn:hover { transform: translateY(-3px); border-color: rgba(255,255,255,.32) !important; }
@@ -1158,7 +1161,7 @@
   .tile.p3play { width: 340px; height: 96px; flex-direction: row; }
   .tile.p3play .tart-play { flex: 0 0 104px; } .tile.p3play .tart-play .ico { width: 64px; height: 46px; margin: 0; }
   .tile.p3play b { flex: 1; height: auto; justify-content: flex-start; font-size: 28px; letter-spacing: .26em; background: none; border: 0; }
-  #hq .p3hint { top: 628px; bottom: auto; left: 400px; right: 400px; font-size: 15px; color: var(--m-mut); text-shadow: none; }
+  #hq .p3hint { top: 590px; bottom: auto; left: 400px; right: 400px; font-size: 15px; color: var(--m-mut); text-shadow: none; }
   .p3none { top: 350px; gap: 14px; font: 700 14px var(--ui); letter-spacing: .14em; color: var(--m-mut); }
   .getcards { width: 340px; height: 64px; padding: 0 26px 0 84px !important; border-radius: 32px !important; font: 800 14px var(--ui) !important; letter-spacing: .14em; color: var(--m-ink) !important; background: var(--m-acc-d) !important; border: 0 !important; box-shadow: 0 12px 28px rgba(40,180,100,.25); }
   .getcards:hover { background: var(--m-acc) !important; transform: translateY(-2px); }
@@ -1253,13 +1256,13 @@
   #app.hud3 .tcard.passive { opacity: .85; } #app.hud3 .tcard.off { opacity: .55; }
   #app.hud3 .tcard.enemy { width: 104px; padding: 6px; border-color: rgba(255,90,72,.3); background: linear-gradient(180deg, rgba(40,14,12,.7), rgba(20,8,8,.6)); } #app.hud3 .tcard.enemy .ticon .timg { width: 30px; height: 30px; } #app.hud3 .tcard.enemy .tname { font-size: 11px; }
   /* voies : pastille de voie sur les cartes d'effectif, carte « Rotation », dessins des plans de voies */
-  #app .card .lane { display: inline-block; min-width: 15px; margin-left: 6px; padding: 1px 4px; border-radius: 4px; font: 700 10px/12px var(--ui, sans-serif); letter-spacing: 0; text-align: center; vertical-align: 2px; color: #0b0f14; background: #9aa6b2; }
-  #app .card .lane:empty { display: none; } #app .card .lane.l0 { background: #5ec8e8; } #app .card .lane.l1 { background: #b9c4cf; } #app .card .lane.l2 { background: #f0b45a; }
+  #app .card .lane { position: absolute; left: 34px; top: 4px; z-index: 1; min-width: 16px; padding: 1px 3px; border-radius: 5px; font: 800 10px/13px var(--ui, sans-serif); letter-spacing: 0; text-align: center; color: #0b0f14; background: #9aa6b2; box-shadow: 0 0 0 2px rgba(10,16,24,.85); pointer-events: none; }
+  #app .card .lane:empty, #app #roster1 .lane { display: none; }   /* voies adverses : inconnues du joueur */ #app .card .lane.l0 { background: #5ec8e8; } #app .card .lane.l1 { background: #b9c4cf; } #app .card .lane.l2 { background: #f0b45a; }
   #app .tcard .lanesvg { color: #cfe8d8; }
-  #app .tcard.rotcard { width: auto; cursor: default; } #app .rotcard .tname { margin: 2px 0 5px; }
+  #app .tcard.rotcard, #app.hud3 .tcard.rotcard { width: auto; cursor: default; } #app.hud3 .tcard.rotcard.off { opacity: 1; } #app .rotcard .tname { margin: 2px 0 5px; }
   #app .rotcard .rbtns { display: flex; gap: 5px; } #app .rotcard button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; width: 52px; padding: 4px 2px 3px; border-radius: 8px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #dfe8ef; font: 600 10px/1.1 var(--ui, sans-serif); cursor: pointer; }
   #app .rotcard button:hover { border-color: #6fe3a0; background: rgba(111,227,160,.14); } #app .rotcard button.on { border-color: #6fe3a0; box-shadow: 0 0 0 1px #6fe3a0 inset; }
-  #app .rotcard button .rimg { width: 30px; height: 30px; display: block; color: #cfe8d8; }
+  #app .rotcard button .rimg { width: 34px; height: 34px; display: block; color: #cfe8d8; }
   #app .rotcard button[data-key]::after { content: attr(data-key); position: absolute; left: 3px; top: 3px; width: 13px; height: 13px; border-radius: 3px; background: rgba(255,255,255,.9); color: #0b0f14; font: 700 9px/13px var(--ui, sans-serif); text-align: center; }
   #app .tcard.rotcard.off button { opacity: .45; cursor: default; }
   /* étiquettes au-dessus des soldats : nom fin + losange d'équipe + barre de vie */

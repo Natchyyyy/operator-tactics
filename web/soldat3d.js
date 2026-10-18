@@ -17,9 +17,11 @@
   // fraction de l'écart de hauteur du bassin (pas chassés / marche arrière → marche avant) rattrapée, voir releve()
   const RELEVE = { cote: 0.88, arriere: 0.88 };
   // marche directionnelle en visant : part de l'écart fusil / bassin rattrapée par la torsion du dos (le reste tourne le corps)
-  const DOS_VISEE = 0.65;
+  const DOS_VISEE = 0.5;
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
-  const PENCHE = 0.1;
+  const PENCHE = 0.17;   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
+  // visée à l'arrêt : rotation du bassin et des jambes vers la cible (rad), voir update()
+  const CARRE = 0.61;
   // tangage voulu du canon dans les poses épaulées (rad ; légèrement vers le bas : la cible est à hauteur de poitrine)
   const VISEE_TANGAGE = -0.035;
   const ONCE = { Shot_and_Fall_Forward: 1, Shot_in_the_Back_and_Fall: 1, Over_Shoulder_Throw: 1 };
@@ -30,6 +32,7 @@
   // le garde-main. CREUX : position du creux par rapport à l'articulation de l'épaule droite (m) : vers le centre du
   // corps, vers l'avant, vers le bas.
   // rechargements debout (main droite portée dans la poche de rechargement, voir poche())
+  const REPOS = { Garde_Basse: 1, Rifle_Aim_Turn_Right: 1 };
   const RECHARGE = { Standing_Reload: 1, Standing_Reload_Haut: 1 };
   const EPAULE = { Rifle_Aim_Turn_Right: 1, Walk_Aim: 1, Walk_Aim_Haut: 1, Run_and_Shoot: 1, Run_and_Shoot_Haut: 1, Gunshot_Reaction: 1 };
   const CREUX = { dedans: 0.06, avant: 0.08, bas: 0.03 };
@@ -297,7 +300,7 @@
   //     Rifle_Aim_Turn_Right puis reportée sur le fusil en garde basse ; gauche sur le garde-main, à la même distance ;
   //  4. bras : IK à deux os (épaule → coude → poignet), coudes vers le bas et l'extérieur.
   // Repère du jeu : +Z devant le soldat, −X sa droite, mètres pour un soldat de 1,80 m, pieds à 0.
-  const GB = { paume: [-0.02, 1.17, 0.25], canon: [0.7, -0.62, 0.17], coudeD: [-1, -0.7, -0.25], coudeG: [1, -0.8, -0.1] };
+  const GB = { paume: [-0.1, 1.1, 0.24], canon: [0.45, -0.55, 0.7], coudeD: [-1, -0.7, -0.25], coudeG: [1, -0.8, -0.1] };
   S.GB = GB;
   function gardeBasse(M) {
     const aim = M.clips.Rifle_Aim_Turn_Right; if (!aim) return;
@@ -514,7 +517,13 @@
         if (M.clips[PG] && M.clips[PD] && M.clips[PR] && D[PG] !== undefined && D[PD] !== undefined && D[PR] !== undefined) {
           // pas chassé du côté où l'on va (d'après sa direction mesurée : « Pas_Gauche » va en fait vers la droite)
           const cote = D[PG] * e > 0 ? PG : PD, tc = D[cote], ta = D[avant] || 0;
-          if (Math.abs(e) <= Math.abs(tc)) {
+          // course : si tourner simplement le bassin de la course vers la direction garde une torsion épaules / bassin raisonnable
+          // (≤ ~55°, typiquement en diagonale vers la droite d'un tireur droitier), on court ainsi : appuis nets de la course,
+          // au lieu du pas chassé joué 2 à 3 fois trop vite (pieds qui glissent) ; hystérésis 0,9 / 1,0 rad
+          const twA = wrap(e - ta), torsA = Math.abs(wrap(twA + 0.7 * a0));
+          this.jogTw = avant === 'Pas_Avant_Course' && Math.abs(e) <= Math.abs(tc) && Math.abs(twA) <= 1.35 && torsA < (this.jogTw ? 1.0 : 0.9);
+          if (this.jogTw) { cible[avant] = 1; tau = twA; this.selArr = null; }
+          else if (Math.abs(e) <= Math.abs(tc)) {
             // secteur avant : mélange marche avant / pas chassé, poids tels que la somme des foulées (vecteurs) pointe vers e
             // (ces deux démarches se mélangent bien une fois calées en phase, voir M.decal)
             const wa = Math.abs(Math.sin(tc - e)) / foul(avant), wc = Math.abs(Math.sin(e - ta)) / foul(cote), s = wa + wc || 1;
@@ -523,17 +532,17 @@
             // secteur arrière : pas chassé et marche arrière se mélangent mal (pas qui s'annulent) ; on joue l'un OU l'autre,
             // bassin tourné (tau) vers la direction exacte, en gardant celui qui tord le moins le dos (avec hystérésis ;
             // le changement se fait en fondu par le lissage des poids)
-            const tw = (n) => wrap(e - D[n]), cout = (n) => Math.abs(wrap((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0) + tw(n))) + (n === PR ? 0 : 0.1);   // (+0,1 : vu de face, le pas chassé tourné croise les jambes ; la marche arrière, non)
+            const tw = (n) => wrap(e - D[n]), cout = (n) => Math.abs(wrap((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0) + tw(n) + 0.7 * a0)) + (n === PR ? 0 : 0.1);   // (torsion épaules / bassin prévue : le haut du corps en visée est de profil, ~0,7·a0)   // (+0,1 : vu de face, le pas chassé tourné croise les jambes ; la marche arrière, non)
             // (changer de clip fait tourner le bassin de |psi + tau| d'un clip à l'autre, jusqu'à ~160° : il faut que le gain en
             // vaille la peine, et la bascule se fait alors lentement, ~0,5 s, pour ne pas voir le bassin « tourner sur lui-même »)
-            const hz = (n) => wrap((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0) + Math.max(-1.3, Math.min(1.3, tw(n)))), [nc, no] = this.selArr ? [PR, cote] : [cote, PR];
+            const hz = (n) => wrap((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0) + Math.max(-1.5, Math.min(1.5, tw(n)))), [nc, no] = this.selArr ? [PR, cote] : [cote, PR];
             if (this.selArr == null) this.selArr = cout(PR) < cout(cote);   // (entrée dans le secteur : le meilleur, sans hystérésis)
             else if (cout(no) < cout(nc) - 0.2 - 0.3 * Math.abs(wrap(hz(no) - hz(nc)))) { this.selArr = !this.selArr; this.basculeT = 0.5; }
-            const n = this.selArr ? PR : cote; cible[n] = 1; tau = Math.max(-1.3, Math.min(1.3, tw(n)));
+            const n = this.selArr ? PR : cote; cible[n] = 1; tau = Math.max(-1.5, Math.min(1.5, tw(n)));
           }
         } else cible[avant] = 1;
         // (torsion du bassin au prorata de la couche des jambes : à l'entrée en marche elle monte avec elle)
-        this.jambesCible = tau * Math.min(1, (this.marcheK || 0) + dt / 0.2);
+        this.jambesCible = tau * Math.min(1, (this.marcheK || 0) + dt / 0.35);
         if (!this.blendW) this.blendW = {};
         const bw = this.blendW;
         for (const n in bw) if (!(n in cible)) cible[n] = 0;
@@ -545,7 +554,7 @@
         let fx = 0, fz = 0, fl = 0; for (const n in bw) if (bw[n] > 0) { const L = bw[n] / tot * foul(n), t = D[n] || 0; fx += L * Math.sin(t); fz += L * Math.cos(t); fl += L; }
         this.ph = ((this.ph || 0) + dt * v / Math.max(0.25, (Math.hypot(fx, fz) + fl) / 2)) % 1;
         // entrée en marche : la couche des jambes monte en ~0,2 s (l'animation précédente s'efface pendant ce temps)
-        this.marcheK = Math.min(1, (this.marcheK || 0) + dt / 0.2);
+        this.marcheK = Math.min(1, (this.marcheK || 0) + dt / 0.35);
         let psi = 0;
         for (const n in bw) {
           const a = act(n); if (!a) continue;
@@ -571,7 +580,8 @@
         const enMarche = !!this.blendW && this.blendFrame === frameK;
         // arrêt après une marche / course : les pieds sont « cloués » là où ils étaient affichés (positions monde de l'image
         // précédente, lues AVANT d'effacer les retouches), puis posé() les amène un par un à la pose d'arrêt
-        if (this.blendW && !enMarche && !keepYaw && pieds[0][2] && pieds[1][2]) this.pose0 = { t: 0, lock: pieds.map(l => new THREE.Vector3().setFromMatrixPosition(l[2].matrixWorld)), lockQ: pieds.map(l => { const q = new THREE.Quaternion(); l[2].matrixWorld.decompose(V(), q, V()); return q; }) };
+        const changeRepos = this.clipVu && this.clipVu !== this.clip && REPOS[this.clipVu] && REPOS[this.clip];   // garde basse <-> visée à l'arrêt
+        if ((this.blendW && !enMarche || changeRepos) && !keepYaw && pieds[0][2] && pieds[1][2]) this.pose0 = { t: 0, lock: pieds.map(l => new THREE.Vector3().setFromMatrixPosition(l[2].matrixWorld)), lockQ: pieds.map(l => { const q = new THREE.Quaternion(); l[2].matrixWorld.decompose(V(), q, V()); return q; }) };
         for (const [b, q, p] of mods) { b.quaternion.copy(q); b.position.copy(p); } mods.length = 0;
         if (this.blendW && !enMarche) {   // plus en marche directionnelle : les jambes mélangées s'effacent
           for (const n in this.blendW) { const a = actions[n]; if (a && a.isScheduled() && this.blendW[n] > 0) a.fadeOut(0.3); }
@@ -589,22 +599,28 @@
         let dj = this.jambesCible - this.jambes; while (dj > Math.PI) dj -= 2 * Math.PI; while (dj < -Math.PI) dj += 2 * Math.PI;
         // (sortie de marche directionnelle : la torsion du bassin se défait au rythme du fondu des jambes, pas d'un coup)
         const kj = !enMarche && (this.marcheK || 0) > 0 ? dt * 6 : dt * 14;
-        const vj = enMarche ? 5 : 9;   // (rad/s ; en marche directionnelle le bassin tourne posément)
+        const vj = enMarche ? 5 : (this.marcheK || 0) > 0 ? 3.5 : 9;   // (rad/s ; en marche directionnelle et en sortie de marche, le bassin tourne posément)
         this.jambes += Math.max(-vj * dt, Math.min(vj * dt, dj * Math.min(1, kj)));
-        if (Math.abs(this.jambes) > 0.01 && hipsB && spine3.length) {
-          body.updateMatrixWorld(true); mod(hipsB); twist(hipsB, this.jambes);
-          for (const sb of spine3) { mod(sb); twist(sb, -this.jambes / spine3.length); }
+        // visée à l'arrêt : l'animation est de profil « sur un fil » (pieds l'un derrière l'autre sur l'axe de tir, jambes qui se
+        // confondent vues de face) ; le bassin et les jambes sont tournés de CARRE vers la cible, le dos rattrape (fusil immobile)
+        this.carreK = (this.carreK || 0) + ((this.clip === 'Rifle_Aim_Turn_Right' && !keepYaw ? 1 : 0) - (this.carreK || 0)) * (dt > 0 ? Math.min(1, dt * 6) : 1);
+        const tj = this.jambes + CARRE * this.carreK;
+        if (Math.abs(tj) > 0.01 && hipsB && spine3.length) {
+          body.updateMatrixWorld(true); mod(hipsB); twist(hipsB, tj);
+          for (const sb of spine3) { mod(sb); twist(sb, -tj / spine3.length); }
         }
         // le bassin des pas chassés / de la marche arrière n'est pas orienté comme celui de la marche avant : le dos rattrape
         if (this.dosComp && Math.abs(this.dosComp) > 0.01 && spine3.length) { body.updateMatrixWorld(true); for (const sb of spine3) { mod(sb); twist(sb, -this.dosComp / spine3.length); } }
         // respiration (poses fixes : garde basse, visée) : légère flexion du dos
         if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { mod(spine1); spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
-        if ((this.epK || 0) > 0.01 && !keepYaw) this.penche(this.epK);
+        this.gbK = (this.gbK || 0) + ((this.clip === 'Garde_Basse' || this.clip === 'Walk_Low_Haut' || this.clip === 'Run_Low_Haut' ? 1 : 0) - (this.gbK || 0)) * (dt > 0 ? Math.min(1, dt * 6) : 1);
+        if (Math.max(this.epK || 0, this.gbK) > 0.01 && !keepYaw) this.penche(Math.max(this.epK || 0, this.gbK));
         if (enMarche && (this.marcheK || 0) > 0.05) this.ecarte(this.marcheK, this.coteK || 0, this.arrK || 0);
         const repos = (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right') && !enMarche && !keepYaw;
         if (this.pose0) this.poserPieds(dt, repos);
         this.appui(dt, repos && !this.pose0);
         this.tete(dt, keepYaw ? null : repos || enMarche);
+        this.clipVu = this.clip;
       },
       // Pose des pieds à l'arrêt : au lieu de glisser en 0,3 s vers la pose d'arrêt (fondu), chaque pied reste cloué au sol
       // là où il était puis fait un petit pas (léger lever) jusqu'à sa place : d'abord celui qui était levé, puis l'autre.
@@ -632,12 +648,18 @@
       penche(k) {
         if (!hipsB || spine3.length < 3 || S.sansPenche) return;   // (S.sansPenche : comparaison dans les pages d'outils)
         group.updateMatrixWorld(true);
-        const gq = group.getWorldQuaternion(new THREE.Quaternion()), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
-        const h = WP(spine3[0]), c = WP(spine3[2]), L = Math.max(0.1, h.distanceTo(c)), d = (PENCHE - c.clone().sub(h).dot(fw)) * k;
-        if (d < 0.004) return;   // (seulement vers l'avant : une course déjà penchée n'est pas redressée)
-        const a = Math.max(-0.5, Math.min(0.5, Math.asin(Math.max(-0.9, Math.min(0.9, d / L)))));
+        // repère du CORPS (le tireur est de profil : mesuré selon la visée, c'était surtout une flexion latérale) : latéral = ligne
+        // des épaules, avant = sa normale horizontale ; on vise PENCHE (rad) entre la verticale et bassin → cou
+        const B = this.bones, cou0 = cou || B.head; if (!B.la || !B.ra || !cou0) return;
+        const lat = WP(B.la).sub(WP(B.ra)); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();
+        const fw = new THREE.Vector3().crossVectors(lat, new THREE.Vector3(0, 1, 0)).normalize();
         const axe = (b, ang) => { mod(b); b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(lat, ang); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
-        axe(spine3[0], a * 0.5); axe(spine3[1], a * 0.5); axe(spine3[2], -a);
+        // (les pivots du dos sont au-dessus du bassin : l'angle bassin → cou bouge moins que la rotation ; deux passes)
+        for (let it = 0, tot = 0; it < 2; it++) {
+          const v = WP(cou0).sub(WP(hipsB)), a = Math.min(0.6 - tot, (PENCHE - Math.atan2(v.dot(fw), Math.max(0.05, v.y))) * k * 1.5);
+          if (a < 0.005) return;   // (seulement vers l'avant : une course déjà penchée n'est pas redressée)
+          axe(spine3[0], a * 0.4); axe(spine3[1], a * 0.4); axe(spine3[2], a * 0.2); tot += a;
+        }
       },
       // Pieds jamais croisés (pas chassés et marche arrière « au pistolet » de la bibliothèque : pas très serrés, bottes l'une sur
       // l'autre, genoux qui se touchent) : écart minimal des chevilles le long de la ligne du bassin (les deux pieds poussés
@@ -679,7 +701,7 @@
         const avant = pieds.map(l => WP(l[2])), gq = group.getWorldQuaternion(new THREE.Quaternion());
         const lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq);
         mod(hipsB);
-        const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022); h1.y -= 0.008 * Math.abs(s);
+        const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022).addScaledVector(fw, -0.035 * this.reposK); h1.y -= 0.008 * Math.abs(s);   // (bassin un peu en arrière : poids sur l'avant des pieds)
         hipsB.position.add(hipsB.parent.worldToLocal(h1).sub(hipsB.parent.worldToLocal(h0.clone()))); hipsB.updateMatrixWorld(true);
         const roule = (b, a) => { b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
         roule(hipsB, -s * 0.035); if (spine1) { mod(spine1); roule(spine1, s * 0.03); }
@@ -703,7 +725,7 @@
           }
         }
         this.teteA = (this.teteA || 0) + (want - (this.teteA || 0)) * Math.min(1, dt * 3.5);
-        const H = this.bones.head, kA = actif && neutre ? (this.epK || 0) : 0;
+        const H = this.bones.head, kA = actif && neutre ? Math.max(this.epK || 0, this.gbK || 0) : 0;   // (visée ; garde basse : le dos penché ne doit pas baisser la tête)
         if (kA > 0.01) {
           // En visée, les animations collent la joue sur la crosse (tête roulée vers la droite et penchée sur le fusil) ; notre
           // fusil est plus bas : tête et cou ramenés vers leur pose droite (celle de la garde basse), puis la face tournée vers
@@ -847,7 +869,7 @@
     // position « en bandoulière » = celle de la garde basse, mémorisée par rapport au torse (Spine2)
     if (M.clips.Garde_Basse && f.bones.spine) {
       f.play('Garde_Basse', { time: 0 }); f.update(0); body.updateMatrixWorld(true); f.placeWeapon(true, 0, 'deux'); weapon.updateMatrixWorld(true);
-      if (cou && f.bones.head) { neutre = [cou.quaternion.clone(), f.bones.head.quaternion.clone()]; faceL = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())).applyQuaternion(WQ(f.bones.head).invert()); }
+      if (cou && f.bones.head) { neutre = [cou.quaternion.clone(), f.bones.head.quaternion.clone()]; faceL = new THREE.Vector3(0, 0, 1); }   // (axe +Z local de la tête = le visage ; la tête de la garde basse regarde ~20° vers le bas)
       f.slingLocal = new THREE.Matrix4().copy(f.bones.spine.matrixWorld).invert().multiply(weapon.matrixWorld);
       actions.Garde_Basse.stop(); f.clip = null; f.epK = 0;   // la première animation réelle démarre sans fondu depuis celle-ci
     }

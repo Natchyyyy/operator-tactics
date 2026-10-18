@@ -93,5 +93,16 @@ const V = MAPS.parking.voies;
   check('instantané : voie de chaque opérateur, plan et rotation de chaque équipe', sn.units.every(u => [-1, 0, 1].includes(u.voie)) && sn.teams.length === 2 && sn.teams[0].plan === 'auto');
 }
 
+{
+  // côté QG (game.js) : voie choisie par opérateur et plan équipé → bataille
+  const G = require('../sim/game.js').Game, p = G.newProfile();
+  G.setLane(p, 'op_lynx', 1); G.equipTactic(p, 'tenailles');
+  const b = new Battle({ seed: 2, teams: G.buildTeams(p, OT.DATA.MISSIONS[0]) });
+  const l = b.teams[0].units.find(u => u.def.id === 'op_lynx');
+  check('QG : la voie choisie pour un opérateur et le plan équipé arrivent en bataille', G.planOf(p) === 'tenailles' && G.effectiveDef(p, 'op_lynx').lane === 1 && l.voie === 1 && b.teams[0].plan === 'tenailles' && b.teams[1].plan === 'auto');
+  G.setLane(p, 'op_lynx', null); G.equipTactic(p, 'tenailles');
+  check('QG : sans plan équipé ni voie imposée, répartition automatique', G.planOf(p) === 'auto' && G.effectiveDef(p, 'op_lynx').lane === null);
+}
+
 console.log(`\n${pass}/${pass + fail} vérifications réussies${fail ? '  — ÉCHECS : ' + fail : ''}`);
 process.exit(fail ? 1 : 0);

@@ -1464,8 +1464,9 @@
       el.innerHTML = team.units.map(u => `
         <div class="card" data-id="${u.id}" title="${u.def.unit} — ${u.weapon.name}">
           <span class="role">${OT.Ico ? OT.Ico(u.def.trait === 'leader' ? 'r_leader' : u.def.trait === 'radio' ? 'radio' : ({ assault: 'r_assault', pointman: 'r_pointman', marksman: 'r_marksman', support: 'r_support', breacher: 'r_breacher' })[u.role.id]) : roleIcon[u.role.id]}</span>
+          <span class="lane"></span>
           <div class="cmain">
-            <div class="ctop"><span class="cs">${u.callsign}<span class="lane"></span></span><span class="ammo"></span></div>
+            <div class="ctop"><span class="cs">${u.callsign}</span><span class="ammo"></span></div>
             <div class="hp"><b></b><i></i></div>
             <div class="cbot"><span class="st"></span><span class="status"></span></div>
           </div>

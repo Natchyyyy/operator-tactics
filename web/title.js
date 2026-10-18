@@ -32,7 +32,7 @@
   const RICH = !SOFT || FORCE3D;
   let set = null, setRich = false, setM3 = false;
   function buildSet() {
-    const P = window.Parking, M3 = window.Modeles3D && window.Modeles3D.ready ? window.Modeles3D : null;
+    const P = OT.Parking, M3 = OT.Modeles3D && OT.Modeles3D.ready ? OT.Modeles3D : null;
     const rich = RICH && P && P.mesh && P.worldMat && P.asphalt;
     if (set && (!rich || (setRich && (setM3 || !M3)))) return;   // déjà habillé (ou rien de mieux possible)
     if (set) scene.remove(set); set = new THREE.Group(); setRich = !!rich; setM3 = !!M3; scene.add(set);
@@ -121,7 +121,7 @@
   $('#titleMusic').addEventListener('change', (e) => { if (window.OT_MUSIC) window.OT_MUSIC.set(e.target.checked ? 1 : 0); });
   $('#titleStart').addEventListener('click', () => { hide(); window.HQ.show(); if (window.OT_MUSIC && window.Son) setTimeout(() => Son.boucle('musique_qg', { voie: 'musique', vol: 0.8 * window.OT_MUSIC.get(), fondu: 2.5 }), 600); });
   $('#titleFree').addEventListener('click', () => { hide(); $('#freeBattle').click(); });
-  window.TITLE = { show, hide };
+  window.TITLE = { show, hide, _dbg: () => ({ scene, draw, set: () => set }) };
   // le soldat 3D arrive après l'écran titre : l'escouade est reconstruite avec lui
   if (OT.Soldat3D && OT.Soldat3D.whenReady) OT.Soldat3D.whenReady(() => { if ($('#title').classList.contains('hidden')) return; buildSet(); if (!skinned && RICH) buildSquad(); if (manual) draw(0); });
   const params = new URLSearchParams(location.search);

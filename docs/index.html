@@ -1014,8 +1014,8 @@
   .hact::after { content: '→'; position: absolute; right: 30px; top: 26px; font-size: 26px; opacity: .45; transition: transform .18s var(--m-ease), opacity .16s; }
   .hact:hover { transform: translateY(-3px); } .hact:hover::after { opacity: 1; transform: translateX(4px); }
   .hact .hicon { left: 32px; top: 30px; color: var(--m-acc); } .hact .hicon .ico { width: 64px; height: 64px; color: inherit; } .hact .hicon .ico * { fill: currentColor; }
-  .hact .hwm { position: absolute; right: -50px; top: 30px; width: 280px; height: 280px; opacity: .06; pointer-events: none; transition: opacity .2s, transform .3s var(--m-ease); }
-  .hact .hwm .ico { width: 100%; height: 100%; } .hact .hwm .ico * { fill: currentColor; } .hact:hover .hwm { opacity: .12; transform: scale(1.04) rotate(-3deg); } .hact.primary .hwm { color: var(--m-ink); opacity: .09; }
+  .hact .hwm { position: absolute; right: -24px; top: 54px; width: 220px; height: 220px; opacity: .1; pointer-events: none; transition: opacity .2s, transform .3s var(--m-ease); }
+  .hact .hwm .ico { width: 100%; height: 100%; } .hact .hwm .ico * { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; } .hact:hover .hwm { opacity: .16; transform: scale(1.03) rotate(-2deg); } .hact.primary .hwm { color: var(--m-ink); opacity: .16; } .hact.primary:hover .hwm { opacity: .24; }
   .hact b { font-size: 34px; } .hact small { font-size: 16px; line-height: 1.45; }
   .hact.primary { background: linear-gradient(150deg, #52e28e 0%, #34c370 55%, #229655 100%) !important; box-shadow: 0 20px 44px rgba(40,180,100,.26) !important; }
   .hact.primary:hover { background: linear-gradient(150deg, #66ec9c 0%, #3fcf7c 55%, #2aa862 100%) !important; }
@@ -1049,6 +1049,9 @@
   .bc-role .ico { width: 34px; height: 34px; }
   .bc-sub { height: 32px; justify-content: flex-start; padding-left: 26px; background: rgba(0,0,0,.42); font: 700 13px var(--ui); letter-spacing: .24em; color: var(--rc); }
   .bc-art { border-radius: 0; box-shadow: none; background: radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--rc) 26%, #10201f) 0%, #0b1214 62%, #070a0b 100%); }
+  .bc-art .portrait.snap { height: 100%; bottom: 0; filter: drop-shadow(0 12px 18px rgba(0,0,0,.5)); }
+  .bc-art .portrait:not(.snap), .sqc-art .portrait, .oc-art .portrait, .hsq .hsqp img, .tart-team .portrait { filter: contrast(1.22) brightness(1.14) saturate(1.08) drop-shadow(0 6px 8px rgba(0,0,0,.45)); }
+  .sqc-art::after, .oc-art::after, .hsq .hsqp::after { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(90deg, rgba(120,220,255,.14), transparent 28%, transparent 72%, rgba(255,196,140,.12)), linear-gradient(0deg, rgba(4,7,8,.55), transparent 40%); }
   .bc-art::before { background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,.025) 3px 4px); }
   .bc-foot { left: 0; right: 0; bottom: 0; height: 130px; padding: 0 16px 18px 26px; border-radius: 0; background: linear-gradient(0deg, rgba(5,8,9,.94), rgba(5,8,9,0)); font: 700 15px var(--ui); letter-spacing: .16em; }
   .bc-rate { width: 96px; height: 96px; margin: 0; border-radius: 20px; background: rgba(8,12,14,.86); border: 2px solid var(--rc); box-shadow: 0 8px 20px rgba(0,0,0,.5); }
@@ -1058,7 +1061,7 @@
   .trcard .bc-role { top: 6px; right: 8px; width: 38px; height: 38px; border-width: 2px; } .trcard .bc-role .ico { width: 22px; height: 22px; }
   .trcard .bc-sub { height: 26px; padding-left: 16px; font-size: 11px; }
   .trcard .bc-foot { height: 90px; padding: 0 10px 10px 16px; font-size: 11.5px; } .trcard .bc-rate { width: 64px; height: 64px; border-radius: 14px; } .trcard .bc-rate b { font-size: 28px; } .trcard .bc-rate .ico { width: 20px; height: 20px; }
-  .tmside { left: 1716px; width: 184px; } .tmside select { font-family: var(--ui); font-weight: 600; font-size: 12.5px; height: 34px; border-radius: 8px; }
+  .tmside { left: 1716px; width: 184px; } .tmside .tmhint { display: block; margin-top: 2px; font: 500 12px/1.4 var(--ui); letter-spacing: 0; text-transform: none; color: var(--m-mut); } .tmside select { font-family: var(--ui); font-weight: 600; font-size: 12.5px; height: 34px; border-radius: 8px; }
   .tmside .syn { border-radius: 10px; } .tmside .syn span { font-size: 12px; }
   .tmbody select { font-family: var(--ui); border-radius: 8px; }
   .tmbody .lvl { font-size: 14px; }
@@ -1135,20 +1138,20 @@
   .tart-play { color: inherit; } .tart-play .ico * { fill: currentColor; }
   .tile.big { height: 140px; } .tile.big .tart-play .ico { width: 120px; height: 72px; }
   .cvch #hqChallenges { max-height: 320px; }
-  .p3team .tart-team .portrait { width: auto !important; height: 98px !important; bottom: 0; } .p3team .tart-team img:nth-child(1) { left: 34px; } .p3team .tart-team img:nth-child(2) { left: 104px; height: 106px !important; } .p3team .tart-team img:nth-child(3) { left: 174px; }
+  .p3team .tart-team .portrait { width: auto !important; height: 112px !important; bottom: 0; } .p3team .tart-team img:nth-child(1) { left: 34px; } .p3team .tart-team img:nth-child(2) { left: 104px; height: 118px !important; } .p3team .tart-team img:nth-child(3) { left: 174px; }
   .tile.play:disabled { filter: grayscale(.9) brightness(.55); transform: none; }
   .prep3 .p3title { top: 30px; font-family: var(--raw); font-size: 46px; letter-spacing: .02em; }
   .prep3 .p3sub { top: 96px; font-size: 16px; color: var(--m-mut); }
-  .p3slots { top: 262px; gap: 28px; }
+  .p3slots { top: 196px; gap: 30px; }
   .p3slots::before { content: 'Tactiques emportées · trois au maximum'; position: absolute; left: 0; right: 0; top: -38px; text-align: center; font: 700 12px var(--ui); letter-spacing: .26em; text-transform: uppercase; color: var(--m-mut); }
-  .tslot { position: relative; width: 250px; height: 330px; gap: 16px; border-radius: 20px !important; font: 700 15px/1.4 var(--ui) !important; letter-spacing: .12em; color: var(--m-mut) !important; text-shadow: none; background: rgba(255,255,255,.03) !important; border: 2px dashed rgba(255,255,255,.18) !important; box-shadow: none; }
+  .tslot { position: relative; width: 264px; height: 364px; gap: 16px; border-radius: 20px !important; font: 700 15px/1.4 var(--ui) !important; letter-spacing: .12em; color: var(--m-mut) !important; text-shadow: none; background: rgba(255,255,255,.03) !important; border: 2px dashed rgba(255,255,255,.18) !important; box-shadow: none; }
   .tslot:hover { filter: none; transform: translateY(-3px); color: var(--m-txt) !important; border-color: var(--m-acc) !important; background: rgba(78,224,137,.06) !important; }
   .tslot .tsplus { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 300; line-height: 1; color: var(--m-acc); border: 1px solid rgba(78,224,137,.45); background: rgba(78,224,137,.08); }
   .tslot.full { color: #fff !important; background: linear-gradient(180deg, rgba(30,44,40,.92), rgba(10,16,15,.96)) !important; border: 1px solid var(--m-line2) !important; box-shadow: 0 16px 34px rgba(0,0,0,.45); }
   .tslot.full:hover { border-color: rgba(255,130,110,.65) !important; background: linear-gradient(180deg, rgba(48,30,28,.92), rgba(16,10,10,.96)) !important; }
   .tslot.full::after { content: 'Retirer'; position: absolute; left: 0; right: 0; bottom: 14px; font: 700 11px var(--ui); letter-spacing: .24em; text-transform: uppercase; color: #ff9f90; opacity: 0; transition: opacity .16s; } .tslot.full:hover::after { opacity: 1; }
-  .tslot .tsname { font: 800 15px var(--ui); letter-spacing: .14em; } .tslot .tsart img { max-height: 240px; }
-  .p3team { left: 40px; top: auto; bottom: 36px; width: 300px; height: 150px; }
+  .tslot .tsname { font: 800 15px var(--ui); letter-spacing: .14em; } .tslot .tsart img { max-height: 270px; } .tslot .tsvg { font-size: 104px; filter: drop-shadow(0 8px 16px rgba(0,0,0,.5)); }
+  .p3team { left: 40px; top: auto; bottom: 36px; width: 300px; height: 176px; }
   .p3right { right: 40px; top: auto; bottom: 36px; width: auto; flex-direction: row; align-items: stretch; gap: 16px; }
   .shieldbtn { width: 300px; height: 96px; gap: 16px; padding: 0 20px 0 18px !important; border-radius: 18px !important; color: var(--m-txt) !important; background: var(--m-glass2) !important; border: 1px solid var(--m-line2) !important; box-shadow: 0 14px 30px rgba(0,0,0,.4); }
   .shieldbtn:hover { transform: translateY(-3px); border-color: rgba(255,255,255,.32) !important; }
@@ -1158,7 +1161,7 @@
   .tile.p3play { width: 340px; height: 96px; flex-direction: row; }
   .tile.p3play .tart-play { flex: 0 0 104px; } .tile.p3play .tart-play .ico { width: 64px; height: 46px; margin: 0; }
   .tile.p3play b { flex: 1; height: auto; justify-content: flex-start; font-size: 28px; letter-spacing: .26em; background: none; border: 0; }
-  #hq .p3hint { top: 628px; bottom: auto; left: 400px; right: 400px; font-size: 15px; color: var(--m-mut); text-shadow: none; }
+  #hq .p3hint { top: 590px; bottom: auto; left: 400px; right: 400px; font-size: 15px; color: var(--m-mut); text-shadow: none; }
   .p3none { top: 350px; gap: 14px; font: 700 14px var(--ui); letter-spacing: .14em; color: var(--m-mut); }
   .getcards { width: 340px; height: 64px; padding: 0 26px 0 84px !important; border-radius: 32px !important; font: 800 14px var(--ui) !important; letter-spacing: .14em; color: var(--m-ink) !important; background: var(--m-acc-d) !important; border: 0 !important; box-shadow: 0 12px 28px rgba(40,180,100,.25); }
   .getcards:hover { background: var(--m-acc) !important; transform: translateY(-2px); }
@@ -1252,6 +1255,16 @@
   #app.hud3 .tcard[data-key]::after { content: attr(data-key); position: absolute; left: 7px; top: 7px; width: 18px; height: 18px; border-radius: 5px; background: rgba(255,255,255,.9); color: #0b0f14; font: 700 11px/18px var(--ui); text-align: center; }
   #app.hud3 .tcard.passive { opacity: .85; } #app.hud3 .tcard.off { opacity: .55; }
   #app.hud3 .tcard.enemy { width: 104px; padding: 6px; border-color: rgba(255,90,72,.3); background: linear-gradient(180deg, rgba(40,14,12,.7), rgba(20,8,8,.6)); } #app.hud3 .tcard.enemy .ticon .timg { width: 30px; height: 30px; } #app.hud3 .tcard.enemy .tname { font-size: 11px; }
+  /* voies : pastille de voie sur les cartes d'effectif, carte « Rotation », dessins des plans de voies */
+  #app .card .lane { position: absolute; left: 34px; top: 4px; z-index: 1; min-width: 16px; padding: 1px 3px; border-radius: 5px; font: 800 10px/13px var(--ui, sans-serif); letter-spacing: 0; text-align: center; color: #0b0f14; background: #9aa6b2; box-shadow: 0 0 0 2px rgba(10,16,24,.85); pointer-events: none; }
+  #app .card .lane:empty { display: none; } #app .card .lane.l0 { background: #5ec8e8; } #app .card .lane.l1 { background: #b9c4cf; } #app .card .lane.l2 { background: #f0b45a; }
+  #app .tcard .lanesvg { color: #cfe8d8; }
+  #app .tcard.rotcard, #app.hud3 .tcard.rotcard { width: auto; cursor: default; } #app.hud3 .tcard.rotcard.off { opacity: 1; } #app .rotcard .tname { margin: 2px 0 5px; }
+  #app .rotcard .rbtns { display: flex; gap: 5px; } #app .rotcard button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; width: 52px; padding: 4px 2px 3px; border-radius: 8px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #dfe8ef; font: 600 10px/1.1 var(--ui, sans-serif); cursor: pointer; }
+  #app .rotcard button:hover { border-color: #6fe3a0; background: rgba(111,227,160,.14); } #app .rotcard button.on { border-color: #6fe3a0; box-shadow: 0 0 0 1px #6fe3a0 inset; }
+  #app .rotcard button .rimg { width: 34px; height: 34px; display: block; color: #cfe8d8; }
+  #app .rotcard button[data-key]::after { content: attr(data-key); position: absolute; left: 3px; top: 3px; width: 13px; height: 13px; border-radius: 3px; background: rgba(255,255,255,.9); color: #0b0f14; font: 700 9px/13px var(--ui, sans-serif); text-align: center; }
+  #app .tcard.rotcard.off button { opacity: .45; cursor: default; }
   /* étiquettes au-dessus des soldats : nom fin + losange d'équipe + barre de vie */
   .hud3 #labels .label { gap: 3px; font-family: 'Rajdhani', var(--ui); font-weight: 700; }
   .hud3 #labels .lplate { order: 2; font-size: 12px !important; letter-spacing: .14em; padding: 0; text-shadow: 0 1px 3px rgba(0,0,0,.9), 0 0 8px rgba(0,0,0,.6); }
@@ -1339,7 +1352,7 @@
       <div class="tmside">
         <div class="tmrate"><span>Note de l'escouade</span><b id="squadRating"></b></div>
         <div class="prep">
-          <label>Ordre <select id="selOrder"><option value="assault">Assaut — aller au contact</option><option value="hold">Tenir — se poster, tirer à vue</option><option value="careful">Prudent — de couvert en couvert</option></select></label>
+          <label>Ordre <select id="selOrder"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select><small class="tmhint" id="selOrderDesc"></small></label>
           <label>Formation <select id="selFormation"><option value="">Appliquer…</option><option value="ligne">Ligne (nord, centre, sud, nord, sud)</option><option value="nord">Tout par le nord</option><option value="sud">Tout par le sud</option><option value="coin">Coin (centre renforcé)</option><option value="tenailles">Tenailles (deux par flanc)</option><option value="auto">Automatique</option></select></label>
         </div>
         <div class="syns" id="hqSynergies"></div>
@@ -1497,7 +1510,7 @@
         <li><b>Tactiques</b> (cartes à gauche) : fumigène, drone, soins, mortier… à jouer pendant la bataille, avec un nombre d'emplois et un temps de recharge ; les tactiques passives (exercice, retranchement…) s'appliquent dès le début. L'adversaire joue aussi les siennes (à droite).</li>
         <li><b>Ordres</b> : <i>Assaut</i> (aller au contact), <i>Tenir</i> (se poster, tirer à vue), <i>Prudent</i> (de couvert en couvert). L'ordre d'Alpha se change pendant la bataille.</li>
         <li><b>Caméra</b> : <i>Réalisateur</i> (par défaut) enchaîne les plans comme une retransmission — épaule d'un tireur, vue d'ensemble de l'échange, plan sur chaque explosion ou neutralisation ; <i>Suivre</i> se place derrière un soldat et change de point de vue au gré de l'action ; <i>Sat</i> montre toute la carte ; <i>Libre</i> : glisser pour tourner, molette pour zoomer, clic droit pour déplacer. Espace : pause.</li>
-        <li><b>Clavier</b> (en bataille) : <i>Espace</i> lancer / pause · <i>1 2 3</i> vitesse ×1 ×2 ×4 · <i>A Z E</i> (Q W E en QWERTY) tactiques actives · <i>C</i> caméra suivante · <i>J</i> journal.</li>
+        <li><b>Clavier</b> (en bataille) : <i>Espace</i> lancer / pause · <i>1 2 3</i> vitesse ×1 ×2 ×4 · <i>A Z E</i> (Q W E en QWERTY) tactiques actives · <i>R F V</i> rotation par le nord / le milieu / le sud · <i>C</i> caméra suivante · <i>J</i> journal.</li>
         <li><b>Décor destructible</b> : les caisses et palettes en bois volent en éclats sous les obus, les frappes et parfois les grenades — le couvert disparaît pour le reste de la bataille.</li>
         <li><b>Moral</b> : voir tomber deux camarades tout près en quelques secondes, face à plusieurs ennemis, peut ébranler un opérateur (test de sang-froid) : il décroche 5 s vers un couvert en arrière. Un Meneur proche et le trait Sang-froid aident ; un Meneur ne flanche jamais.</li>
         <li><b>À terre</b> : un opérateur neutralisé autrement que d'une balle dans la tête reste parfois à terre 20 s ; un allié qui ne voit aucun ennemi peut aller le relever (4 s, 2 s pour un Secouriste), une fois par bataille, avec 30 % de sa vie.</li>
@@ -12402,9 +12415,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // fraction de l'écart de hauteur du bassin (pas chassés / marche arrière → marche avant) rattrapée, voir releve()
   const RELEVE = { cote: 0.88, arriere: 0.88 };
   // marche directionnelle en visant : part de l'écart fusil / bassin rattrapée par la torsion du dos (le reste tourne le corps)
-  const DOS_VISEE = 0.65;
+  const DOS_VISEE = 0.5;
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
-  const PENCHE = 0.1;
+  const PENCHE = 0.17;   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
+  // visée à l'arrêt : rotation du bassin et des jambes vers la cible (rad), voir update()
+  const CARRE = 0.61;
   // tangage voulu du canon dans les poses épaulées (rad ; légèrement vers le bas : la cible est à hauteur de poitrine)
   const VISEE_TANGAGE = -0.035;
   const ONCE = { Shot_and_Fall_Forward: 1, Shot_in_the_Back_and_Fall: 1, Over_Shoulder_Throw: 1 };
@@ -12414,6 +12429,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // poignet, coude dans son plan d'origine, mains gardant leur orientation) pour que les paumes restent sur la poignée et
   // le garde-main. CREUX : position du creux par rapport à l'articulation de l'épaule droite (m) : vers le centre du
   // corps, vers l'avant, vers le bas.
+  // rechargements debout (main droite portée dans la poche de rechargement, voir poche())
+  const REPOS = { Garde_Basse: 1, Rifle_Aim_Turn_Right: 1 };
+  const RECHARGE = { Standing_Reload: 1, Standing_Reload_Haut: 1 };
   const EPAULE = { Rifle_Aim_Turn_Right: 1, Walk_Aim: 1, Walk_Aim_Haut: 1, Run_and_Shoot: 1, Run_and_Shoot_Haut: 1, Gunshot_Reaction: 1 };
   const CREUX = { dedans: 0.06, avant: 0.08, bas: 0.03 };
   S.CREUX = CREUX;
@@ -12680,7 +12698,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   //     Rifle_Aim_Turn_Right puis reportée sur le fusil en garde basse ; gauche sur le garde-main, à la même distance ;
   //  4. bras : IK à deux os (épaule → coude → poignet), coudes vers le bas et l'extérieur.
   // Repère du jeu : +Z devant le soldat, −X sa droite, mètres pour un soldat de 1,80 m, pieds à 0.
-  const GB = { paume: [-0.02, 1.17, 0.25], canon: [0.7, -0.62, 0.17], coudeD: [-1, -0.7, -0.25], coudeG: [1, -0.8, -0.1] };
+  const GB = { paume: [-0.1, 1.1, 0.24], canon: [0.45, -0.55, 0.7], coudeD: [-1, -0.7, -0.25], coudeG: [1, -0.8, -0.1] };
   S.GB = GB;
   function gardeBasse(M) {
     const aim = M.clips.Rifle_Aim_Turn_Right; if (!aim) return;
@@ -12897,7 +12915,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         if (M.clips[PG] && M.clips[PD] && M.clips[PR] && D[PG] !== undefined && D[PD] !== undefined && D[PR] !== undefined) {
           // pas chassé du côté où l'on va (d'après sa direction mesurée : « Pas_Gauche » va en fait vers la droite)
           const cote = D[PG] * e > 0 ? PG : PD, tc = D[cote], ta = D[avant] || 0;
-          if (Math.abs(e) <= Math.abs(tc)) {
+          // course : si tourner simplement le bassin de la course vers la direction garde une torsion épaules / bassin raisonnable
+          // (≤ ~55°, typiquement en diagonale vers la droite d'un tireur droitier), on court ainsi : appuis nets de la course,
+          // au lieu du pas chassé joué 2 à 3 fois trop vite (pieds qui glissent) ; hystérésis 0,9 / 1,0 rad
+          const twA = wrap(e - ta), torsA = Math.abs(wrap(twA + 0.7 * a0));
+          this.jogTw = avant === 'Pas_Avant_Course' && Math.abs(e) <= Math.abs(tc) && Math.abs(twA) <= 1.35 && torsA < (this.jogTw ? 1.0 : 0.9);
+          if (this.jogTw) { cible[avant] = 1; tau = twA; this.selArr = null; }
+          else if (Math.abs(e) <= Math.abs(tc)) {
             // secteur avant : mélange marche avant / pas chassé, poids tels que la somme des foulées (vecteurs) pointe vers e
             // (ces deux démarches se mélangent bien une fois calées en phase, voir M.decal)
             const wa = Math.abs(Math.sin(tc - e)) / foul(avant), wc = Math.abs(Math.sin(e - ta)) / foul(cote), s = wa + wc || 1;
@@ -12906,17 +12930,17 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
             // secteur arrière : pas chassé et marche arrière se mélangent mal (pas qui s'annulent) ; on joue l'un OU l'autre,
             // bassin tourné (tau) vers la direction exacte, en gardant celui qui tord le moins le dos (avec hystérésis ;
             // le changement se fait en fondu par le lissage des poids)
-            const tw = (n) => wrap(e - D[n]), cout = (n) => Math.abs(wrap((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0) + tw(n))) + (n === PR ? 0 : 0.1);   // (+0,1 : vu de face, le pas chassé tourné croise les jambes ; la marche arrière, non)
+            const tw = (n) => wrap(e - D[n]), cout = (n) => Math.abs(wrap((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0) + tw(n) + 0.7 * a0)) + (n === PR ? 0 : 0.1);   // (torsion épaules / bassin prévue : le haut du corps en visée est de profil, ~0,7·a0)   // (+0,1 : vu de face, le pas chassé tourné croise les jambes ; la marche arrière, non)
             // (changer de clip fait tourner le bassin de |psi + tau| d'un clip à l'autre, jusqu'à ~160° : il faut que le gain en
             // vaille la peine, et la bascule se fait alors lentement, ~0,5 s, pour ne pas voir le bassin « tourner sur lui-même »)
-            const hz = (n) => wrap((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0) + Math.max(-1.3, Math.min(1.3, tw(n)))), [nc, no] = this.selArr ? [PR, cote] : [cote, PR];
+            const hz = (n) => wrap((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0) + Math.max(-1.5, Math.min(1.5, tw(n)))), [nc, no] = this.selArr ? [PR, cote] : [cote, PR];
             if (this.selArr == null) this.selArr = cout(PR) < cout(cote);   // (entrée dans le secteur : le meilleur, sans hystérésis)
             else if (cout(no) < cout(nc) - 0.2 - 0.3 * Math.abs(wrap(hz(no) - hz(nc)))) { this.selArr = !this.selArr; this.basculeT = 0.5; }
-            const n = this.selArr ? PR : cote; cible[n] = 1; tau = Math.max(-1.3, Math.min(1.3, tw(n)));
+            const n = this.selArr ? PR : cote; cible[n] = 1; tau = Math.max(-1.5, Math.min(1.5, tw(n)));
           }
         } else cible[avant] = 1;
         // (torsion du bassin au prorata de la couche des jambes : à l'entrée en marche elle monte avec elle)
-        this.jambesCible = tau * Math.min(1, (this.marcheK || 0) + dt / 0.2);
+        this.jambesCible = tau * Math.min(1, (this.marcheK || 0) + dt / 0.35);
         if (!this.blendW) this.blendW = {};
         const bw = this.blendW;
         for (const n in bw) if (!(n in cible)) cible[n] = 0;
@@ -12928,7 +12952,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         let fx = 0, fz = 0, fl = 0; for (const n in bw) if (bw[n] > 0) { const L = bw[n] / tot * foul(n), t = D[n] || 0; fx += L * Math.sin(t); fz += L * Math.cos(t); fl += L; }
         this.ph = ((this.ph || 0) + dt * v / Math.max(0.25, (Math.hypot(fx, fz) + fl) / 2)) % 1;
         // entrée en marche : la couche des jambes monte en ~0,2 s (l'animation précédente s'efface pendant ce temps)
-        this.marcheK = Math.min(1, (this.marcheK || 0) + dt / 0.2);
+        this.marcheK = Math.min(1, (this.marcheK || 0) + dt / 0.35);
         let psi = 0;
         for (const n in bw) {
           const a = act(n); if (!a) continue;
@@ -12954,7 +12978,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const enMarche = !!this.blendW && this.blendFrame === frameK;
         // arrêt après une marche / course : les pieds sont « cloués » là où ils étaient affichés (positions monde de l'image
         // précédente, lues AVANT d'effacer les retouches), puis posé() les amène un par un à la pose d'arrêt
-        if (this.blendW && !enMarche && !keepYaw && pieds[0][2] && pieds[1][2]) this.pose0 = { t: 0, lock: pieds.map(l => new THREE.Vector3().setFromMatrixPosition(l[2].matrixWorld)), lockQ: pieds.map(l => { const q = new THREE.Quaternion(); l[2].matrixWorld.decompose(V(), q, V()); return q; }) };
+        const changeRepos = this.clipVu && this.clipVu !== this.clip && REPOS[this.clipVu] && REPOS[this.clip];   // garde basse <-> visée à l'arrêt
+        if ((this.blendW && !enMarche || changeRepos) && !keepYaw && pieds[0][2] && pieds[1][2]) this.pose0 = { t: 0, lock: pieds.map(l => new THREE.Vector3().setFromMatrixPosition(l[2].matrixWorld)), lockQ: pieds.map(l => { const q = new THREE.Quaternion(); l[2].matrixWorld.decompose(V(), q, V()); return q; }) };
         for (const [b, q, p] of mods) { b.quaternion.copy(q); b.position.copy(p); } mods.length = 0;
         if (this.blendW && !enMarche) {   // plus en marche directionnelle : les jambes mélangées s'effacent
           for (const n in this.blendW) { const a = actions[n]; if (a && a.isScheduled() && this.blendW[n] > 0) a.fadeOut(0.3); }
@@ -12972,22 +12997,28 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         let dj = this.jambesCible - this.jambes; while (dj > Math.PI) dj -= 2 * Math.PI; while (dj < -Math.PI) dj += 2 * Math.PI;
         // (sortie de marche directionnelle : la torsion du bassin se défait au rythme du fondu des jambes, pas d'un coup)
         const kj = !enMarche && (this.marcheK || 0) > 0 ? dt * 6 : dt * 14;
-        const vj = enMarche ? 5 : 9;   // (rad/s ; en marche directionnelle le bassin tourne posément)
+        const vj = enMarche ? 5 : (this.marcheK || 0) > 0 ? 3.5 : 9;   // (rad/s ; en marche directionnelle et en sortie de marche, le bassin tourne posément)
         this.jambes += Math.max(-vj * dt, Math.min(vj * dt, dj * Math.min(1, kj)));
-        if (Math.abs(this.jambes) > 0.01 && hipsB && spine3.length) {
-          body.updateMatrixWorld(true); mod(hipsB); twist(hipsB, this.jambes);
-          for (const sb of spine3) { mod(sb); twist(sb, -this.jambes / spine3.length); }
+        // visée à l'arrêt : l'animation est de profil « sur un fil » (pieds l'un derrière l'autre sur l'axe de tir, jambes qui se
+        // confondent vues de face) ; le bassin et les jambes sont tournés de CARRE vers la cible, le dos rattrape (fusil immobile)
+        this.carreK = (this.carreK || 0) + ((this.clip === 'Rifle_Aim_Turn_Right' && !keepYaw ? 1 : 0) - (this.carreK || 0)) * (dt > 0 ? Math.min(1, dt * 6) : 1);
+        const tj = this.jambes + CARRE * this.carreK;
+        if (Math.abs(tj) > 0.01 && hipsB && spine3.length) {
+          body.updateMatrixWorld(true); mod(hipsB); twist(hipsB, tj);
+          for (const sb of spine3) { mod(sb); twist(sb, -tj / spine3.length); }
         }
         // le bassin des pas chassés / de la marche arrière n'est pas orienté comme celui de la marche avant : le dos rattrape
         if (this.dosComp && Math.abs(this.dosComp) > 0.01 && spine3.length) { body.updateMatrixWorld(true); for (const sb of spine3) { mod(sb); twist(sb, -this.dosComp / spine3.length); } }
         // respiration (poses fixes : garde basse, visée) : légère flexion du dos
         if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { mod(spine1); spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
-        if ((this.epK || 0) > 0.01 && !keepYaw) this.penche(this.epK);
+        this.gbK = (this.gbK || 0) + ((this.clip === 'Garde_Basse' || this.clip === 'Walk_Low_Haut' || this.clip === 'Run_Low_Haut' ? 1 : 0) - (this.gbK || 0)) * (dt > 0 ? Math.min(1, dt * 6) : 1);
+        if (Math.max(this.epK || 0, this.gbK) > 0.01 && !keepYaw) this.penche(Math.max(this.epK || 0, this.gbK));
         if (enMarche && (this.marcheK || 0) > 0.05) this.ecarte(this.marcheK, this.coteK || 0, this.arrK || 0);
         const repos = (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right') && !enMarche && !keepYaw;
         if (this.pose0) this.poserPieds(dt, repos);
         this.appui(dt, repos && !this.pose0);
         this.tete(dt, keepYaw ? null : repos || enMarche);
+        this.clipVu = this.clip;
       },
       // Pose des pieds à l'arrêt : au lieu de glisser en 0,3 s vers la pose d'arrêt (fondu), chaque pied reste cloué au sol
       // là où il était puis fait un petit pas (léger lever) jusqu'à sa place : d'abord celui qui était levé, puis l'autre.
@@ -13015,12 +13046,18 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       penche(k) {
         if (!hipsB || spine3.length < 3 || S.sansPenche) return;   // (S.sansPenche : comparaison dans les pages d'outils)
         group.updateMatrixWorld(true);
-        const gq = group.getWorldQuaternion(new THREE.Quaternion()), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
-        const h = WP(spine3[0]), c = WP(spine3[2]), L = Math.max(0.1, h.distanceTo(c)), d = (PENCHE - c.clone().sub(h).dot(fw)) * k;
-        if (d < 0.004) return;   // (seulement vers l'avant : une course déjà penchée n'est pas redressée)
-        const a = Math.max(-0.5, Math.min(0.5, Math.asin(Math.max(-0.9, Math.min(0.9, d / L)))));
+        // repère du CORPS (le tireur est de profil : mesuré selon la visée, c'était surtout une flexion latérale) : latéral = ligne
+        // des épaules, avant = sa normale horizontale ; on vise PENCHE (rad) entre la verticale et bassin → cou
+        const B = this.bones, cou0 = cou || B.head; if (!B.la || !B.ra || !cou0) return;
+        const lat = WP(B.la).sub(WP(B.ra)); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();
+        const fw = new THREE.Vector3().crossVectors(lat, new THREE.Vector3(0, 1, 0)).normalize();
         const axe = (b, ang) => { mod(b); b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(lat, ang); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
-        axe(spine3[0], a * 0.5); axe(spine3[1], a * 0.5); axe(spine3[2], -a);
+        // (les pivots du dos sont au-dessus du bassin : l'angle bassin → cou bouge moins que la rotation ; deux passes)
+        for (let it = 0, tot = 0; it < 2; it++) {
+          const v = WP(cou0).sub(WP(hipsB)), a = Math.min(0.6 - tot, (PENCHE - Math.atan2(v.dot(fw), Math.max(0.05, v.y))) * k * 1.5);
+          if (a < 0.005) return;   // (seulement vers l'avant : une course déjà penchée n'est pas redressée)
+          axe(spine3[0], a * 0.4); axe(spine3[1], a * 0.4); axe(spine3[2], a * 0.2); tot += a;
+        }
       },
       // Pieds jamais croisés (pas chassés et marche arrière « au pistolet » de la bibliothèque : pas très serrés, bottes l'une sur
       // l'autre, genoux qui se touchent) : écart minimal des chevilles le long de la ligne du bassin (les deux pieds poussés
@@ -13062,7 +13099,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const avant = pieds.map(l => WP(l[2])), gq = group.getWorldQuaternion(new THREE.Quaternion());
         const lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq);
         mod(hipsB);
-        const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022); h1.y -= 0.008 * Math.abs(s);
+        const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022).addScaledVector(fw, -0.035 * this.reposK); h1.y -= 0.008 * Math.abs(s);   // (bassin un peu en arrière : poids sur l'avant des pieds)
         hipsB.position.add(hipsB.parent.worldToLocal(h1).sub(hipsB.parent.worldToLocal(h0.clone()))); hipsB.updateMatrixWorld(true);
         const roule = (b, a) => { b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
         roule(hipsB, -s * 0.035); if (spine1) { mod(spine1); roule(spine1, s * 0.03); }
@@ -13086,7 +13123,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           }
         }
         this.teteA = (this.teteA || 0) + (want - (this.teteA || 0)) * Math.min(1, dt * 3.5);
-        const H = this.bones.head, kA = actif && neutre ? (this.epK || 0) : 0;
+        const H = this.bones.head, kA = actif && neutre ? Math.max(this.epK || 0, this.gbK || 0) : 0;   // (visée ; garde basse : le dos penché ne doit pas baisser la tête)
         if (kA > 0.01) {
           // En visée, les animations collent la joue sur la crosse (tête roulée vers la droite et penchée sur le fusil) ; notre
           // fusil est plus bas : tête et cou ramenés vers leur pose droite (celle de la garde basse), puis la face tournée vers
@@ -13102,6 +13139,38 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         if (Math.abs(this.teteA) < 0.005) return;
         mod(cou); twist(cou, this.teteA * 0.4); mod(H); twist(H, this.teteA * 0.6);
       },
+      // Rechargement : l'animation lève le fusil au-dessus du casque, canon vers le ciel, et la main gauche ne va jamais au
+      // chargeur. On impose une position de rechargement : poignée devant la poitrine (~30 cm devant, 12 cm sous Spine2), canon
+      // vers l'avant-bas (20°) un peu en travers (15° vers la gauche), incliné de 25° ; la main droite y est amenée par IK
+      // (orientation comprise : main = arme · prise⁻¹). Entrée / sortie en fondu au début et à la fin du clip (p : 0..1).
+      poche(p, L) {
+        const x = Math.max(0, Math.min(1, p / 0.12, (1 - p) / 0.1)), w = x * x * (3 - 2 * x); if (w < 0.01) return;
+        const B = this.bones, rh = B.rh; group.updateMatrixWorld(true);
+        const gq = group.getWorldQuaternion(new THREE.Quaternion()), sc = group.getWorldScale(V()).x, up = new THREE.Vector3(0, 1, 0);
+        const fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
+        const d = fw.clone().multiplyScalar(Math.cos(0.26)).addScaledVector(lat, Math.sin(0.26)); d.multiplyScalar(Math.cos(-0.35)).addScaledVector(up, Math.sin(-0.35)).normalize();
+        const u = up.clone().addScaledVector(d, -up.dot(d)).normalize(), qW = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(u, d), u, d));
+        qW.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -0.45));
+        const T = WP(B.spine).addScaledVector(fw, 0.3 * sc).addScaledVector(up, -0.12 * sc).addScaledVector(lat, -0.04 * sc);
+        const posW = T.clone().sub((weapon.gripPt || V()).clone().multiplyScalar(sc).applyQuaternion(qW));
+        const Hd = new THREE.Matrix4().compose(posW, qW, new THREE.Vector3(sc, sc, sc)).multiply(new THREE.Matrix4().copy(L).invert());
+        const hp = V(), hq = new THREE.Quaternion(); Hd.decompose(hp, hq, V());
+        const h0 = WP(rh), tq = WQ(rh).slerp(hq, w);
+        ik(B.ra, B.rf, rh, h0.clone().lerp(hp, w).sub(h0));
+        rh.quaternion.copy(WQ(rh.parent).invert().multiply(tq)); rh.updateMatrixWorld(true);
+      },
+      // main gauche pendant le rechargement : va chercher le chargeur neuf au porte-chargeur du gilet (12-45 %), le monte au puits
+      // de chargeur sous le fusil (45-60 %), l'y tient (60-86 %, chargeur() l'enfonce), puis rend la main à l'animation (96 %)
+      mainChargeur(p) {
+        const sm = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+        const w = p < 0.86 ? sm(p / 0.12) : 1 - sm((p - 0.86) / 0.1); if (w < 0.01) return;
+        const B = this.bones, sc = group.getWorldScale(V()).x; weapon.updateMatrixWorld(true); group.updateMatrixWorld(true);
+        const gq = group.getWorldQuaternion(new THREE.Quaternion()), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
+        const poche = WP(B.spine).addScaledVector(fw, 0.17 * sc).addScaledVector(new THREE.Vector3(0, 1, 0), -0.3 * sc).addScaledVector(lat, 0.06 * sc);
+        const well = weapon.localToWorld(weapon.magCenter.clone()), down = weapon.localToWorld(new THREE.Vector3(0, -1, 0)).sub(weapon.localToWorld(V())).normalize();
+        const T = poche.lerp(well.addScaledVector(down, 0.07 * sc), sm((p - 0.45) / 0.15)), palm = B.lm ? WP(B.lh).lerp(WP(B.lm), 0.6) : WP(B.lh);
+        ik(B.la, B.lf, B.lh, T.sub(palm).multiplyScalar(w));
+      },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
       // L'arme est tenue par les PAUMES (entre le poignet et la base des doigts), pas par les poignets : la poignée dans la paume
       // droite, le garde-main dans la paume gauche. L'orientation aligne le segment poignée → garde-main de l'arme (qui n'est
@@ -13116,8 +13185,15 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         group.updateMatrixWorld(true);
         if (mode === 'droite' || mode === 'gauche') {
           const hand = mode === 'gauche' && lh ? lh : rh, L = this.handLocal[mode === 'gauche' && lh ? 'gauche' : 'droite'];
-          if (L) { const mw = new THREE.Matrix4().multiplyMatrices(hand.matrixWorld, L).premultiply(new THREE.Matrix4().copy(group.matrixWorld).invert());
-            mw.decompose(weapon.position, weapon.quaternion, V()); weapon.scale.set(1, 1, 1); return; }
+          if (L) {
+            // rechargement debout : la main droite porte le fusil dans la « poche de rechargement » (voir poche()), la gauche va
+            // au puits de chargeur pendant que chargeur() (app.js) y amène le chargeur neuf
+            const ac = mode === 'droite' && RECHARGE[this.clip] && actions[this.clip], p = ac ? (ac.time / ac.getClip().duration) % 1 : -1;
+            if (p >= 0 && B.ra && B.rf) this.poche(p, L);
+            const mw = new THREE.Matrix4().multiplyMatrices(hand.matrixWorld, L).premultiply(new THREE.Matrix4().copy(group.matrixWorld).invert());
+            mw.decompose(weapon.position, weapon.quaternion, V()); weapon.scale.set(1, 1, 1);
+            if (p >= 0 && lh && B.la && B.lf && weapon.magCenter) this.mainChargeur(p);
+            return; }
           twoHands = false;
         }
         if (mode === 'bandouliere' && this.slingLocal && B.spine) {   // arme en travers du torse (lancer de grenade), mains libres
@@ -13191,7 +13267,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // position « en bandoulière » = celle de la garde basse, mémorisée par rapport au torse (Spine2)
     if (M.clips.Garde_Basse && f.bones.spine) {
       f.play('Garde_Basse', { time: 0 }); f.update(0); body.updateMatrixWorld(true); f.placeWeapon(true, 0, 'deux'); weapon.updateMatrixWorld(true);
-      if (cou && f.bones.head) { neutre = [cou.quaternion.clone(), f.bones.head.quaternion.clone()]; faceL = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())).applyQuaternion(WQ(f.bones.head).invert()); }
+      if (cou && f.bones.head) { neutre = [cou.quaternion.clone(), f.bones.head.quaternion.clone()]; faceL = new THREE.Vector3(0, 0, 1); }   // (axe +Z local de la tête = le visage ; la tête de la garde basse regarde ~20° vers le bas)
       f.slingLocal = new THREE.Matrix4().copy(f.bones.spine.matrixWorld).invert().multiply(weapon.matrixWorld);
       actions.Garde_Basse.stop(); f.clip = null; f.epK = 0;   // la première animation réelle démarre sans fondu depuis celle-ci
     }
@@ -14942,10 +15018,28 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }
   function frame(now) { if (!running) return; requestAnimationFrame(frame); draw((now - t0) / 1000); }
   const manual = new URLSearchParams(location.search).get('manual') === '1' || document.documentElement.classList.contains('manual');
+  // image du soldat pour les grandes cartes de l'écran Équipe : même modèle, même éclairage et même cadrage que la capsule.
+  // Rendue dans le canevas de la capsule puis copiée (le tout dans la même tâche : aucune image intermédiaire n'est affichée).
+  const snaps = {}; let shown = false;
+  function snapshot(profile, id) {
+    const st = profile.operators[id]; if (!st || !(OT.Soldat3D && OT.Soldat3D.ready)) return null;
+    const uni = OT.DATA.UNIFORMS.find(u => u.id === profile.uniform) || OT.DATA.UNIFORMS[0], P = window.HOMEPOSE || POSE;
+    const k = JSON.stringify([id, uni.id, st.weaponId]); if (snaps[k]) return snaps[k];
+    let s3 = null; try { s3 = OT.Soldat3D.create({ modele: 'gign', uniform: uni.uniform, weapon: st.weaponId }); } catch (e) { s3 = null; } if (!s3) return null;
+    s3.play(P.clip, { time: P.t }); s3.update(0); s3.body.rotation.y = (s3.yawFix[P.clip] || 0); s3.placeWeapon(true, 0); s3.group.rotation.y = P.yaw;
+    const W = 340, H = 636, cx = P.cx !== undefined ? P.cx : 0.05;
+    if (fig) fig.group.visible = false; scene.add(s3.group);
+    renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); camera.position.set(cx, 1.0, 5.85); camera.lookAt(cx, 0.9, 0);
+    let url = null; try { renderer.render(scene, camera); url = canvas.toDataURL('image/png'); } catch (e) { url = null; }
+    scene.remove(s3.group); if (fig) fig.group.visible = true;
+    if (shown) draw(0); else { const w = canvas.clientWidth, h = canvas.clientHeight; if (w && h) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); } }
+    return (snaps[k] = url);
+  }
   window.HOMESCENE = {
-    show(profile) { build(profile); if (manual) { draw(0); return; } if (!running) { running = true; requestAnimationFrame(frame); } },
-    hide() { running = false; },
+    show(profile) { shown = true; build(profile); if (manual) { draw(0); return; } if (!running) { running = true; requestAnimationFrame(frame); } },
+    hide() { shown = false; running = false; },
     redraw() { draw(0); },
+    snapshot,
   };
 })();
 
@@ -15146,7 +15240,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // enemy : composition (identifiants d'opérateurs), level : niveau des ennemis, order : leur ordre tactique
   // reward : crédits en cas de victoire (la défaite rapporte une fraction), xp : expérience de base par opérateur engagé
   const MISSIONS = [
-    // une seule carte pour l'instant : le parking du centre commercial ; une seule tactique : le tiroir (bonds alternés)
+    // une seule carte pour l'instant : le parking du centre commercial ; tactiques : le tiroir (bonds alternés) et les plans de voies
     { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille du Groupe Karst traverse le parking du centre commercial. Interceptez-la.', mapId: 'parking', enemy: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal'], level: 0, order: 'careful', enemyTactics: ['tiroir'], reward: 180, xp: 40, difficulty: 1 },
     { id: 'galerie', name: 'Balise de la galerie', desc: 'Les balises de notre agent disparu émettent depuis l\'enclos central du parking. Prenez la zone et tenez-la jusqu\'à 100 %.', mapId: 'parking', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 1, order: 'careful', objective: 'capture', enemyTactics: ['tiroir'], reward: 240, xp: 50, difficulty: 2 },
     { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact entre les voitures. Tenez ou contre-attaquez.', mapId: 'parking', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_fauve'], level: 3, order: 'assault', enemyTactics: ['tiroir'], reward: 300, xp: 60, difficulty: 2 },
@@ -15178,9 +15272,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // Chaque effet est implémenté dans engine.js (useTactic / applyPassiveTactics). active : déclenchée par le joueur
   // (uses : nombre d'emplois par bataille, cooldown en s) ; sinon passive, appliquée au début.
   const TACTICS = {
-    // une seule tactique pour l'instant. Tiroir : l'escouade progresse par bonds alternés — une moitié avance de couvert en couvert
+    // Tiroir : l'escouade progresse par bonds alternés — une moitié avance de couvert en couvert
     // pendant que l'autre, arrêtée, la couvre ; puis les rôles s'inversent (engine.js : recherche « tiroir »).
     tiroir: { id: 'tiroir', name: 'Tiroir', active: false, desc: 'Progression par bonds alternés : une moitié de l\'escouade avance pendant que l\'autre la couvre, arrêtée et prête à tirer, puis on inverse.' },
+    // Plans de voies (plan : [flanc nord, flanc sud], le reste au milieu) : équipé, il fixe la répartition sur les voies au départ
+    // (sans plan : tirage à la graine, 1 ou 2 par flanc) ; relancé en bataille, il redistribue les survivants (engine.js : replan).
+    tenailles: { id: 'tenailles', name: 'Tenailles', active: true, plan: [2, 2], uses: 2, cooldown: 20, desc: 'Plan de voies : deux opérateurs par le flanc nord, deux par le flanc sud, un seul tient le milieu ; on prend l\'adversaire en étau. Relancé en bataille, il redéploie les survivants selon ce plan.' },
+    rush_milieu: { id: 'rush_milieu', name: 'Rush milieu', active: true, plan: [0, 0], uses: 2, cooldown: 20, desc: 'Plan de voies : toute l\'escouade passe par l\'axe central, groupée, pour forcer le passage. Relancé en bataille, il regroupe les survivants au milieu.' },
   };
 
   // ---- DÉFIS -------------------------------------------------------------------------
@@ -15725,12 +15823,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // assignLanes) donne directement le z de sa voie ; au milieu, les opérateurs s'étagent de part et d'autre de l'axe (u.laneDz).
   Battle.prototype.laneOf = function (u) {
     const v = this.map.def.voies, l = u.voie;
-    if (v && l !== undefined && l !== null) return (l < 0 ? v.nord : l > 0 ? v.sud : v.milieu + (u.laneDz || 0)) - this.teams[u.team].spawn.z;
+    if (v && l !== undefined && l !== null) return (l < 0 ? v.nord : l > 0 ? v.sud : v.milieu) + (u.laneDz || 0) - this.teams[u.team].spawn.z;
     return u.def.lane !== undefined && u.def.lane !== null ? u.def.lane * 11 : (u.idx - 2) * 5.5;
   };
   // Répartition sur les voies (une fois, au début) : voie choisie par le joueur (def.lane) sinon automatique. Sur une carte à
-  // voies, chaque escouade d'au moins 4 envoie 1 ou 2 opérateurs sur chaque flanc (plan et opérateurs tirés à la graine),
-  // les autres tiennent l'axe central ; à 3, un seul flanqueur ; en dessous, tout le monde au milieu.
+  // voies, le plan de voies de l'escouade (tactique « plan » équipée : Tenailles, Rush milieu… ; sinon tirage à la graine :
+  // 1 ou 2 opérateurs sur chaque flanc) est complété par les opérateurs sans voie imposée, tirés à la graine ; les autres
+  // tiennent l'axe central (au moins un si possible). À 3, un seul flanqueur ; en dessous, tout le monde au milieu.
   Battle.prototype.assignLanes = function () {
     const v = this.map.def.voies;
     for (const team of this.teams) {
@@ -15738,19 +15837,72 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (!v) continue;
       const auto = team.units.filter(u => u.voie === null && u.role.id !== 'marksman');
       for (let i = auto.length - 1; i > 0; i--) { const j = Math.floor(this.rng.next() * (i + 1)); [auto[i], auto[j]] = [auto[j], auto[i]]; }
+      const n = team.units.filter(u => u.role.id !== 'marksman').length, planId = (team.tacticIds || []).find(id => TACTICS[id].plan);
       const plans = [[1, 1], [2, 1], [1, 2], [2, 2]];
-      const [nN, nS] = auto.length >= 4 ? plans[Math.floor(this.rng.next() * plans.length)] : auto.length === 3 ? (this.rng.next() < 0.5 ? [1, 0] : [0, 1]) : [0, 0];
-      auto.forEach((u, i) => { u.voie = i < nN ? -1 : i < nN + nS ? 1 : 0; });
-      const mid = team.units.filter(u => u.voie === 0 || u.voie === null).sort((a, b) => a.idx - b.idx);
-      mid.forEach((u, k) => { u.voie = 0; u.laneDz = (k - (mid.length - 1) / 2) * 3; });
+      const plan = planId ? TACTICS[planId].plan : n >= 4 ? plans[Math.floor(this.rng.next() * plans.length)] : n === 3 ? (this.rng.next() < 0.5 ? [1, 0] : [0, 1]) : [0, 0];
+      team.plan = planId || 'auto';
+      const fixed = (l) => team.units.filter(u => u.voie === l).length;
+      this.spreadLanes(team, auto, plan[0] - fixed(-1), plan[1] - fixed(1), fixed(0) > 0);
     }
+  };
+  // Répartit units (dans cet ordre) : nN au nord, nS au sud, le reste au milieu (au moins un au milieu sauf midFixed) ;
+  // les opérateurs du milieu s'étagent de part et d'autre de l'axe.
+  Battle.prototype.spreadLanes = function (team, units, nN, nS, midFixed) {
+    nN = Math.max(0, nN); nS = Math.max(0, nS);
+    const cap = Math.max(0, units.length - (midFixed ? 0 : 1));
+    while (nN + nS > cap) { if (nN >= nS) nN--; else nS--; }
+    units.forEach((u, i) => { u.voie = i < nN ? -1 : i < nN + nS ? 1 : 0; });
+    const mid = team.units.filter(u => u.voie === 0 || u.voie === null).sort((a, b) => a.idx - b.idx);
+    mid.forEach((u, k) => { u.voie = 0; u.laneDz = (k - (mid.length - 1) / 2) * 3; });
+  };
+  // Changement de voie en cours de bataille (rotation, nouveau plan) : l'opérateur oublie son flanc en cours et rejoint
+  // d'abord sa nouvelle voie, presque latéralement, avant de reprendre sa progression.
+  Battle.prototype.resetRoute = function (u) {
+    u.flankDone = false; u.rejoin = true; u.zoneSpot = null; u.post = null; u.searchGoal = null; u.searchSince = undefined; u.commitUntil = 0;
+    if (u.goalKind === 'advance' || u.goalKind === 'bound' || u.goalKind === 'cover') this.stop(u);
+  };
+  // Rotation (commande en cours de bataille) : toute l'escouade encore debout (sauf le tireur d'élite, à son poste) passe sur
+  // une autre voie (-1 nord, 0 milieu, 1 sud). Une rotation toutes les 10 s au plus ; pas en ordre « Tenir ».
+  const ROTATION_COOLDOWN = 10;
+  Battle.prototype.canRotate = function (teamIndex, lane) {
+    const team = this.teams[teamIndex];
+    if (!this.map.def.voies) return { ok: false, reason: 'pas de voies sur cette carte' };
+    if (this.over) return { ok: false, reason: 'bataille terminée' };
+    if (![-1, 0, 1].includes(lane)) return { ok: false, reason: 'voie inconnue' };
+    if (team.order === 'hold') return { ok: false, reason: 'ordre « Tenir » : on ne bouge pas' };
+    if (this.t < (team.rotateUntil || 0)) return { ok: false, reason: `recharge (${Math.ceil(team.rotateUntil - this.t)} s)` };
+    if (!team.units.some(u => u.alive && u.role.id !== 'marksman')) return { ok: false, reason: 'aucun opérateur' };
+    return { ok: true };
+  };
+  Battle.prototype.rotate = function (teamIndex, lane) {
+    const can = this.canRotate(teamIndex, lane); if (!can.ok) return can;
+    const team = this.teams[teamIndex], movers = team.units.filter(u => u.alive && u.role.id !== 'marksman');
+    movers.forEach((u, k) => { u.voie = lane; u.laneDz = (k - (movers.length - 1) / 2) * (lane ? 1.8 : 3); this.resetRoute(u); });
+    team.rotateUntil = this.t + ROTATION_COOLDOWN; team.rotation = lane; team.rotations = (team.rotations || 0) + 1;
+    if (team.bound) { team.bound.n++; team.bound.since = this.t; }   // Tiroir : un nouveau bond commence tout de suite (la moitié qui avance part)
+    this.logEvent('rotation', `${team.name} : rotation, toute l'escouade passe ${lane < 0 ? 'par le flanc nord' : lane > 0 ? 'par le flanc sud' : 'par le milieu'}.`, { team: teamIndex, lane });
+    return { ok: true };
+  };
+  // Plan de voies relancé en bataille (tactique « plan ») : les survivants sont redistribués selon le plan.
+  Battle.prototype.replan = function (teamIndex, id) {
+    const team = this.teams[teamIndex], plan = TACTICS[id].plan;
+    const units = team.units.filter(u => u.alive && u.role.id !== 'marksman');
+    for (let i = units.length - 1; i > 0; i--) { const j = Math.floor(this.rng.next() * (i + 1)); [units[i], units[j]] = [units[j], units[i]]; }
+    for (const u of team.units) if (u.alive && u.role.id !== 'marksman') u.voie = null;
+    this.spreadLanes(team, units, plan[0], plan[1], false);
+    for (const u of units) { if (u.voie) u.laneDz = 0; this.resetRoute(u); }
+    team.plan = id; team.rotation = undefined;
+    if (team.bound) { team.bound.n++; team.bound.since = this.t; }
   };
   // Voie de flanc : tant qu'un flanqueur n'est pas arrivé à hauteur de sa destination (la zone, une menace connue), il
   // progresse le long de sa voie ; ensuite il se rabat sur la destination, par le côté (une fois pour toutes).
   // Renvoie le prochain point de la voie, ou null (pas de flanc, ou flanc terminé).
   Battle.prototype.flankWaypoint = function (u, dest, reach) {
-    if (!u.voie || u.flankDone || !this.map.def.voies || this.teams[u.team].order === 'hold') return null;   // « Tenir » : pas de flanc
+    if (!this.map.def.voies || this.teams[u.team].order === 'hold') return null;   // « Tenir » : pas de flanc
     const home = this.teams[u.team].spawn, dirx = Math.sign(this.map.spawns[1 - u.team].x - home.x) || 1;
+    const lz = clamp(home.z + this.laneOf(u), 2, this.map.depth - 2);
+    if (u.rejoin) { if (Math.abs(u.z - lz) > 3) return { x: u.x + dirx * 2, z: lz }; u.rejoin = false; }   // rotation : rejoindre sa voie
+    if (!u.voie || u.flankDone) return null;
     const ahead = (dest.x - u.x) * dirx;
     if (this.teams[u.team].units.filter(a => a.alive).length <= 2) { u.flankDone = true; return null; }   // à deux, on ne se sépare plus
     if (ahead <= reach) {
@@ -15758,7 +15910,6 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       this.logEvent('flank', `${u.callsign} arrive par le flanc ${u.voie < 0 ? 'nord' : 'sud'} et se rabat.`, { unit: u.id, team: u.team, silent: true });
       return null;
     }
-    const lz = clamp(home.z + this.laneOf(u), 2, this.map.depth - 2);
     // loin de sa voie : on la rejoint d'abord (presque latéralement), puis on la suit
     return { x: u.x + dirx * Math.min(ahead - reach + 1, Math.abs(u.z - lz) > 4 ? 4 : 10), z: lz };
   };
@@ -15786,14 +15937,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // Commande du joueur : appliquée et enregistrée (pas, type, équipe, paramètre) pour pouvoir revoir la bataille.
   Battle.prototype.command = function (type, team, arg) {
     if (this.replayQueue) return { ok: false, reason: 'bataille revue : commandes désactivées' };
-    const r = type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : { ok: false };
+    const r = type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : { ok: false };
     if (r && r.ok) this.inputs.push({ tick: this.tick, type, team, arg });
     return r;
   };
   Battle.prototype.step = function () {
     if (this.over) return;
     if (this.replayQueue) while (this.replayQueue.length && this.replayQueue[0].tick === this.tick) {   // revoir : mêmes commandes au même pas
-      const c = this.replayQueue.shift(); if (c.type === 'tactic') this.useTactic(c.team, c.arg); else if (c.type === 'order') this.setOrder(c.team, c.arg); this.inputs.push(c);
+      const c = this.replayQueue.shift(); if (c.type === 'tactic') this.useTactic(c.team, c.arg); else if (c.type === 'order') this.setOrder(c.team, c.arg); else if (c.type === 'rotate') this.rotate(c.team, c.arg); this.inputs.push(c);
     }
     this.t = Math.round((this.t + DT) * 1000) / 1000; this.tick++;
     this.updateTactics();
@@ -16376,7 +16527,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       }
       if (order === 'hold') { this.holdPost(u, threatPos); return; }
       // flanqueur : la menace connue est loin et hors de sa voie → il continue par le flanc jusqu'à sa hauteur, puis se rabat
-      if (nd > 12 && Math.abs(threatPos.z - (home.z + this.laneOf(u))) > 7) {
+      if (nd > 12 && (u.rejoin || Math.abs(threatPos.z - (home.z + this.laneOf(u))) > 7)) {
         const fw = this.flankWaypoint(u, threatPos, 8);
         if (fw && this.flankMove(u, threatPos, fw)) return;
       }
@@ -16432,12 +16583,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     if (order === 'hold') { this.holdPost(u, objective); return; }
     // chaque opérateur avance sur sa propre « voie » (décalage latéral) pour ne pas se regrouper
+    if (u.rejoin) { const fw = this.flankWaypoint(u, objective, 0); if (fw && this.flankMove(u, objective, fw)) return; }   // rotation : rejoindre d'abord sa nouvelle voie
     const lane = this.laneOf(u);
     const dirx = Math.sign(objective.x - home.x) || 1;
     const progress = (u.x - home.x) * dirx;
     const span = Math.abs(objective.x - home.x);
     let gz = clamp(home.z + lane, 2, this.map.depth - 2);
-    const stepLen = u.voie && Math.abs(u.z - gz) > 4 ? 5 : order === 'careful' ? 12 : 22;   // flanqueur loin de sa voie : la rejoindre d'abord
+    if (u.rejoin && Math.abs(u.z - gz) <= 3) u.rejoin = false;                                // rotation : voie rejointe
+    const stepLen = (u.voie || u.rejoin) && Math.abs(u.z - gz) > 4 ? 5 : order === 'careful' ? 12 : 22;   // flanqueur loin de sa voie : la rejoindre d'abord
     let gx = home.x + dirx * Math.min(span - 6, progress + stepLen);
     // Tiroir : bonds alternés le long de sa voie, jusqu'aux abords de la zone adverse
     if (progress < span - 8 && this.tiroir(u, objective, { x: home.x + dirx * (span - 8), z: gz })) return;
@@ -16626,6 +16779,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   Battle.prototype.canUseTactic = function (teamIndex, id) {
     const team = this.teams[teamIndex], st = team.tactics[id], def = TACTICS[id];
     if (!st || !def || !def.active) return { ok: false, reason: 'tactique indisponible' };
+    if (def.plan && !this.map.def.voies) return { ok: false, reason: 'pas de voies sur cette carte' };
     if (st.uses <= 0) return { ok: false, reason: 'plus d\'utilisation' };
     if (this.t < st.cooldownUntil) return { ok: false, reason: `recharge (${(st.cooldownUntil - this.t).toFixed(0)} s)` };
     if (this.over) return { ok: false, reason: 'bataille terminée' };
@@ -16644,6 +16798,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const can = this.canUseTactic(teamIndex, id); if (!can.ok) return can;
     const team = this.teams[teamIndex], st = team.tactics[id], def = TACTICS[id];
     st.uses--; st.used++; st.cooldownUntil = this.t + (def.cooldown || 0);
+    if (def.plan) this.replan(teamIndex, id);   // plan de voies : les survivants sont redistribués selon ce plan
     this.logEvent('tactic', `${team.name} : ${def.name}.`, { team: teamIndex, tactic: id });
     return { ok: true };
   };
@@ -16971,7 +17126,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     return {
       t: this.t, over: this.over,
       zone: this.zone ? { x: this.zone.x, z: this.zone.z, r: this.zone.r, holder: this.zone.holder, contested: this.zone.contested, capture: this.teams.map(t => t.capture) } : null,
-      units: this.units.map(u => ({ id: u.id, team: u.team, callsign: u.callsign, role: u.role.id, throwing: !!u.throwing, blind: this.t < u.blindUntil, x: u.x, z: u.z, facing: u.facing, stance: u.stance, hp: u.hp, maxHp: u.maxHp, status: u.status, alive: u.alive, ammo: u.ammo, mags: u.mags, reloading: u.reloading, state: u.state, suppression: u.suppression, moving: u.moving, target: u.target ? u.target.id : null, visible: u.visible.size, weapon: u.weapon.id })),
+      units: this.units.map(u => ({ id: u.id, team: u.team, callsign: u.callsign, role: u.role.id, throwing: !!u.throwing, blind: this.t < u.blindUntil, x: u.x, z: u.z, facing: u.facing, stance: u.stance, hp: u.hp, maxHp: u.maxHp, status: u.status, alive: u.alive, ammo: u.ammo, mags: u.mags, reloading: u.reloading, state: u.state, suppression: u.suppression, moving: u.moving, target: u.target ? u.target.id : null, visible: u.visible.size, weapon: u.weapon.id, voie: u.voie, flankDone: !!u.flankDone })),
+      teams: this.teams.map(t => ({ plan: t.plan || null, rotation: t.rotation === undefined ? null : t.rotation, rotateIn: Math.max(0, (t.rotateUntil || 0) - this.t) })),
     };
   };
 
@@ -17025,7 +17181,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       career: { battles: 0, wins: 0, losses: 0, draws: 0, kills: 0, losses_units: 0, headshots: 0, streaks: 0, group: 0, revenge: 0, veteran: 0, revives: 0, shots: 0, hits: 0, damage: 0, maps: {}, recent: [] }, missions: {}, challenges: {}, lastSeed: null,
       // méta à la manière des jeux de cartes : nom et insigne d'équipe, uniforme, rang du joueur, tactiques, perks par opérateur
       teamName: 'Alpha', insignia: 'etoile', uniform: 'olive', unlocked: { insignias: ['etoile', 'bouclier'], uniforms: ['olive'] },
-      xp: 0, tactics: { owned: { tiroir: true }, equipped: ['tiroir'] }, perks: {}, packsOpened: 0,
+      xp: 0, tactics: { owned: { tiroir: true, tenailles: true, rush_milieu: true }, equipped: ['tiroir'] }, perks: {}, packsOpened: 0,
       league: null, leagueSeasons: 0, achievements: {}, tacticsUsed: 0,
       headgear: { casque: true, casque_lunettes: true },   // couvre-chefs possédés (communs à tous les opérateurs)
       campaigns: {}, quick: { wins: 0, played: 0 }, freePacks: {}, ops: { wins: 0, captureWins: 0, cleanWins: 0, done: {} },
@@ -17038,8 +17194,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function effectiveDef(profile, id) {
     const base = OPERATORS.find(o => o.id === id); const st = profile.operators[id];
     const level = levelFor(st.xp);
-    // pour l'instant : plaques moyennes pour tous, aucun accessoire, voie d'approche automatique (fonctions désactivées)
-    const def = Object.assign({}, base, { level, weaponId: st.weaponId, armor: 'medium', lane: null, traits: st.traits || [], headgear: st.headgear, attachments: {} });
+    // pour l'instant : plaques moyennes pour tous, aucun accessoire (fonctions désactivées) ; voie d'approche choisie au QG (null : automatique)
+    const def = Object.assign({}, base, { level, weaponId: st.weaponId, armor: 'medium', lane: st.lane === undefined ? null : st.lane, traits: st.traits || [], headgear: st.headgear, attachments: {} });
     const perks = (profile.perks && profile.perks[id]) || {};
     for (const k of STATS) def[k] = Math.min(100, base[k] + level * LEVEL_STAT_BONUS + (perks[k] || 0));
     if (st.wounded) { def.wounded = true; for (const k of STATS) def[k] = Math.round(def[k] * WOUND.statFactor); }   // blessure grave : compétences ÷2
@@ -17232,7 +17388,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const size = rate(0) > target + 4 ? 4 : 5;                     // escouade de recrues face à des vétérans : un adversaire de moins
     const objective = pick(['eliminate', 'eliminate', 'capture', 'capture', 'hold']);
     return { id: 'rapide', name: 'Bataille rapide', quick: true, faction, desc: 'Un adversaire à votre mesure.', mapId: 'parking', enemy: karst.slice(0, size), level,
-      order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: Object.keys(TACTICS), reward: QUICK.reward, xp: QUICK.xp, difficulty: 2,
+      order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: Object.keys(TACTICS).filter(id => !TACTICS[id].plan), reward: QUICK.reward, xp: QUICK.xp, difficulty: 2,
       conditions: pick(['jour', 'jour', 'jour', 'jour', 'jour', 'nuit', 'brouillard', 'pluie']) };
   }
   // niveau de l'adversaire de bataille rapide : l'écart de puissance avec une escouade de recrues, converti en niveaux
@@ -17533,6 +17689,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // ancienne convalescence (indisponible une mission) → blessure grave
       for (const id in p.operators) { const st = p.operators[id]; if (st.recovery > 0) { st.wounded = true; st.woundRest = 0; } delete st.recovery; }
       if (p.achievements === undefined) p.achievements = {}; if (p.tacticsUsed === undefined) p.tacticsUsed = 0;
+      if (p.tactics && p.tactics.owned) for (const id in fresh.tactics.owned) if (!p.tactics.owned[id]) p.tactics.owned[id] = true;   // tactiques de départ ajoutées depuis (plans de voies)
       for (const k of ['teamName', 'insignia', 'uniform', 'unlocked', 'xp', 'tactics', 'perks', 'packsOpened', 'league', 'leagueSeasons', 'headgear', 'campaigns', 'quick', 'freePacks', 'ops']) if (p[k] === undefined) p[k] = fresh[k];
       p.inventory = p.inventory || fresh.inventory; p.inventory.attachments = p.inventory.attachments || {}; p.inventory.weapons = Object.assign({}, fresh.inventory.weapons, p.inventory.weapons); p.inventory.armors = Object.assign({}, fresh.inventory.armors, p.inventory.armors);
       p.squad = p.squad.filter(id => p.operators[id] && p.operators[id].unlocked);
@@ -17854,7 +18011,12 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // ---- Cartes v2 : paquets dessinés (probabilités par type), ouverture plein écran carte par carte, couleurs de rareté -----
   const CARD_TYPE_FR = { operator: 'Recrue', dupe: 'Doublon', tactic: 'Tactique', perk: 'Perk', xp: 'Expérience', credits: 'Crédits', cosmetic: 'Cosmétique' };
   const TYPE_GLYPH = { credits: '¤', cosmetic: '✦', xp: '▲', perk: '✚' };
-  const tacArt = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'cart')) || `<span class="cglyph">${TACTIC_ICON[id] || '◆'}</span>`;
+  // emblèmes dessinés des tactiques sans illustration (hexagone + pictogramme) ; tiroir : deux flèches décalées = bonds alternés
+  const TAC_SVG = {
+    tiroir: '<path d="M36 74 V40 M25 50 L36 37 L47 50" stroke="#eef5f1"/><path d="M64 84 V52 M53 62 L64 49 L75 62" stroke="#4ee089"/><path d="M30 86 H42 M58 30 H70" stroke="#4ee089" stroke-width="3" opacity=".6"/>',
+  };
+  const tacEmblem = (id) => `<span class="cglyph tsvg"><svg viewBox="0 0 100 100" style="display:inline-block;width:1.25em;height:1.25em;vertical-align:middle" aria-hidden="true"><defs><linearGradient id="tg-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d3a2c"/><stop offset="1" stop-color="#0b1511"/></linearGradient></defs><polygon points="50,4 90,27 90,73 50,96 10,73 10,27" fill="url(#tg-${id})" stroke="#4ee089" stroke-width="3" stroke-linejoin="round"/><g fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">${TAC_SVG[id]}</g></svg></span>`;
+  const tacArt = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'cart')) || (TAC_SVG[id] ? tacEmblem(id) : `<span class="cglyph">${TACTIC_ICON[id] || '◆'}</span>`);
   function cardArt(c) {
     const o = c.id && OPERATORS.find(x => x.id === c.id);
     if (c.type === 'tactic') return tacArt(c.id);
@@ -17922,12 +18084,17 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   $('#tmChange').addEventListener('click', () => { cand = null; $('#tmRoster').classList.remove('hidden'); renderRoster(); });
   $('#trClose').addEventListener('click', () => $('#tmRoster').classList.add('hidden'));
   $('#tmHead').addEventListener('click', () => { teamTab = teamTab === 'head' ? 'skills' : 'head'; renderDetail(); });
+  // grande carte : le soldat rendu par la scène de la capsule d'accueil (même modèle, même éclairage) ; sinon le portrait
+  function cardFigure(o) {
+    const url = window.HOMESCENE && window.HOMESCENE.snapshot && profile.operators[o.id] && window.HOMESCENE.snapshot(profile, o.id);
+    return url ? `<img class="portrait full snap" src="${url}" alt="">` : portraitOf(o, true);
+  }
   function bigCardHTML(o, opts = {}) {
     const st = profile.operators[o.id] || {}; const def = Game.effectiveDef(profile, o.id); const rate = Math.round(Game.operatorRating(profile, o.id));
     return `<div class="bc r${o.rarity} ${def.wounded ? 'wounded' : ''} ${st.unlocked ? '' : 'locked'}">
       <div class="bc-top"><b>${esc(o.callsign)}</b><span class="bc-role">${roleIco(o)}</span></div>
       <div class="bc-sub">${esc(ROLES[o.role].name)}${st.unlocked && Game.levelFor(st.xp) ? ' · niv. ' + Game.levelFor(st.xp) : ''}</div>
-      <div class="bc-art">${flagOf(o)}${portraitOf(o, true)}
+      <div class="bc-art">${flagOf(o)}${cardFigure(o)}
         ${st.pendingPromotions && st.pendingPromotions.length ? '<button class="bc-up" data-act="promo-open" title="Promotion à choisir">' + (OT.Ico ? OT.Ico('plus') : '+') + '</button>' : ''}
         ${def.wounded && st.unlocked ? `<div class="bc-wound"><span class="bang">!</span><div><b>Gravement blessé</b><small>repos ${st.woundRest || 0}/${DATA.WOUND.restMissions} · compétences ÷2</small><button class="mini" data-act="treat">Soigner ${Game.treatmentPrice(profile) ? '· ' + Game.treatmentPrice(profile) + ' cr.' : '(gratuit)'}</button></div></div>` : ''}
         ${!st.unlocked ? `<div class="bc-lock">${OT.Ico ? OT.Ico('lock') : ''}<b>${PRICES.operator[o.rarity]} cr.</b></div>` : ''}
@@ -18026,7 +18193,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     $('#hqSynergies').innerHTML = DATA.SYNERGIES.map(sy => { const a = syn.find(x => x.id === sy.id); return `<div class="syn ${a ? 'on' : ''}" title="${esc(sy.desc)}${a ? ' — ' + esc(a.sources.join(', ')) + ' → ' + esc(a.targets.join(', ')) : ''}"><b>${esc(sy.name)}</b><span>${esc(sy.effect)}</span></div>`; }).join('');
     el.querySelectorAll('.sqc[data-id]').forEach(s => s.addEventListener('click', () => { selected = s.dataset.id; render(); }));
     el.querySelectorAll('.sqc[data-empty]').forEach(s => s.addEventListener('click', () => { cand = null; $('#tmRoster').classList.remove('hidden'); renderRoster(); }));
-    $('#selOrder').value = profile.order;
+    $('#selOrder').value = profile.order; { const od = $('#selOrderDesc'); if (od) od.textContent = ORDERS[profile.order].desc; }
     $('#launch').disabled = !Game.squadReady(profile);
     const nw = profile.squad.filter(id => profile.operators[id].wounded).length;
     $('#launchHint').textContent = Game.squadReady(profile) ? `${profile.squad.length < 5 ? `Escouade réduite (${profile.squad.length}). ` : ''}${nw ? `Attention : ${nw} blessé${nw > 1 ? 's' : ''} grave${nw > 1 ? 's' : ''} à demi-capacité. ` : ''}${ORDERS[profile.order].desc}` : 'Il faut au moins 3 opérateurs disponibles pour lancer la mission.';
@@ -18314,6 +18481,19 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     { name: 'Bravo', color: 0xe85a4f, css: '#e85a4f', uniform: 0x6b5a3e, vest: 0x4e4230 },
   ];
   const TACTIC_ICON = { tiroir: '⇅', fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯', frappe: '✈', tete: '☠', camouflage: '🌿', triage: '⛑' };
+  // Voies (nord, milieu, sud) en petit dessin : counts = opérateurs par voie [nord, milieu, sud], hi = voie mise en avant (-1, 0, 1)
+  const LANE_NAMES = { '-1': 'flanc nord', 0: 'milieu', 1: 'flanc sud' }, LANE_LETTER = { '-1': 'N', 0: 'M', 1: 'S' };
+  function laneSvg(counts, hi, cls) {
+    let g = '';
+    [-1, 0, 1].forEach((l, i) => {
+      const y = 12 + i * 12, on = hi === l, n = counts ? counts[i] : 0;
+      g += `<line x1="5" y1="${y}" x2="37" y2="${y}" stroke="${on ? '#6fe3a0' : 'currentColor'}" stroke-opacity="${on ? 1 : 0.35}" stroke-width="${on ? 3.4 : 2.4}" stroke-linecap="round"/>`;
+      g += `<path d="M37 ${y - 4.5} L44 ${y} L37 ${y + 4.5}" fill="${on ? '#6fe3a0' : 'currentColor'}" fill-opacity="${on || n ? 1 : 0.35}"/>`;
+      for (let k = 0; k < n; k++) g += `<circle cx="${30 - k * 6}" cy="${y}" r="3.3" fill="#fff" stroke="#0b0f14" stroke-width="1"/>`;
+    });
+    return `<svg class="${cls || 'timg'} lanesvg" viewBox="0 0 48 48" aria-hidden="true">${g}</svg>`;
+  }
+  TACTIC_ICON.tenailles = laneSvg([2, 1, 2]); TACTIC_ICON.rush_milieu = laneSvg([0, 4, 0], 0);
   const tacIcon = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'timg')) || TACTIC_ICON[id] || '◆';      // icône dessinée si disponible
   const roleImg = (role) => (OT.imgTag && OT.imgTag('role_' + role, 'rimg')) || '';
   const $ = (s) => document.querySelector(s);
@@ -19751,6 +19931,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       el.innerHTML = team.units.map(u => `
         <div class="card" data-id="${u.id}" title="${u.def.unit} — ${u.weapon.name}">
           <span class="role">${OT.Ico ? OT.Ico(u.def.trait === 'leader' ? 'r_leader' : u.def.trait === 'radio' ? 'radio' : ({ assault: 'r_assault', pointman: 'r_pointman', marksman: 'r_marksman', support: 'r_support', breacher: 'r_breacher' })[u.role.id]) : roleIcon[u.role.id]}</span>
+          <span class="lane"></span>
           <div class="cmain">
             <div class="ctop"><span class="cs">${u.callsign}</span><span class="ammo"></span></div>
             <div class="hp"><b></b><i></i></div>
@@ -19777,6 +19958,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       c.querySelector('.st').textContent = u.alive ? (u.reloading > 0 ? 'Recharge' : STATE_FR[u.state] || u.state) : (u.bleedUntil > battle.t ? 'À terre' : 'Hors de combat');
       c.querySelector('.ammo').innerHTML = u.alive ? `<b>${u.ammo}</b><small><u></u>${u.mags}</small>` : '';
       c.querySelector('.status').textContent = `${Math.round(u.hp)} PV · ${STATUS_FR[u.status]}`;
+      { const ln = c.querySelector('.lane'), key = u.alive && u.voie !== undefined && u.voie !== null ? u.voie + (u.flankDone ? 'r' : '') : '';   // voie : N / M / S (↘ : se rabat)
+        if (ln && ln.dataset.k !== key) { ln.dataset.k = key; ln.className = 'lane' + (key ? ' l' + (u.voie + 1) : ''); ln.textContent = key ? LANE_LETTER[u.voie] + (u.flankDone && u.voie ? '↘' : '') : ''; ln.title = key ? `Voie : ${LANE_NAMES[u.voie]}${u.flankDone && u.voie ? ' — arrivé par le flanc, se rabat' : ''}` : ''; } }
     }
     $('#clock').textContent = fmtT(battle.t);
     battle.teams.forEach((team, ti) => {
@@ -19798,7 +19981,16 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const el = $('#tactics' + ti);
       let na = 0; const KEYS = ['A', 'Z', 'E'];
       el.innerHTML = team.tacticIds.map(id => { const t = DATA.TACTICS[id]; const key = ti === 0 && t.active ? KEYS[na++] || '' : ''; return `<div class="tcard ${t.active ? '' : 'passive'} ${ti === 1 ? 'enemy' : ''}" data-tactic="${id}" ${key ? `data-key="${key}"` : ''} title="${escapeHtml(t.desc)}"><div class="ticon">${tacIcon(id)}</div><div class="tname">${escapeHtml(t.name)}</div><div class="tuse"></div><div class="cd"></div></div>`; }).join('');
-      if (ti === 0) el.querySelectorAll('.tcard').forEach(c => c.addEventListener('click', () => {
+      // Rotation : faire passer toute l'escouade par une autre voie, en pleine bataille (touches R / F / V : nord / milieu / sud)
+      if (ti === 0 && battle.map.def.voies) el.insertAdjacentHTML('beforeend', `<div class="tcard rotcard" title="Rotation : toute l'escouade (hors tireur d'élite) passe par la voie choisie. Une rotation toutes les 10 s ; impossible en ordre « Tenir ».">
+        <div class="tname">Rotation</div><div class="rbtns">${[-1, 0, 1].map(l => `<button data-lane="${l}" data-key="${{ '-1': 'R', 0: 'F', 1: 'V' }[l]}" title="${LANE_NAMES[l]}">${laneSvg(null, l, 'rimg')}<span>${{ '-1': 'Nord', 0: 'Milieu', 1: 'Sud' }[l]}</span></button>`).join('')}</div><div class="tuse"></div><div class="cd"></div></div>`);
+      if (ti === 0) el.querySelectorAll('.rotcard button').forEach(bt => bt.addEventListener('click', (e) => {
+        e.stopPropagation(); const lane = +bt.dataset.lane;
+        const r = battle.command('rotate', 0, lane);
+        if (!r.ok) flashBattle(`Rotation : ${r.reason}.`); else { flashBattle(`Rotation : toute l'escouade passe par le ${LANE_NAMES[lane]}.`); pumpLog(); }
+        updateTacticCards();
+      }));
+      if (ti === 0) el.querySelectorAll('.tcard:not(.rotcard)').forEach(c => c.addEventListener('click', () => {
         const id = c.dataset.tactic; if (!DATA.TACTICS[id].active) return;
         const r = battle.command('tactic', 0, id);
         if (!r.ok) flashBattle(`${DATA.TACTICS[id].name} : ${r.reason}.`); else { pumpLog(); for (const ev of battle.drainEvents()) { if (ev.type === 'smoke') addSmoke(ev); if (ev.type === 'heal') addHeal(ev); if (ev.type === 'reco') addReco(ev); if (ev.type === 'barrage_called') addBarrageMarker(ev); } }
@@ -19809,6 +20001,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function updateTacticCards() {
     battle.teams.forEach((team, ti) => {
       $('#tactics' + ti).querySelectorAll('.tcard').forEach(c => {
+        if (c.classList.contains('rotcard')) {   // Rotation : voie en cours, recharge
+          const cd = Math.max(0, (team.rotateUntil || 0) - battle.t), hold = team.order === 'hold';
+          c.querySelector('.tuse').textContent = hold ? 'impossible (Tenir)' : cd > 0 ? `${cd.toFixed(0)} s` : team.rotation !== undefined ? `par le ${LANE_NAMES[team.rotation]}` : 'prête';
+          c.classList.toggle('off', hold || cd > 0);
+          c.querySelectorAll('button').forEach(bt => bt.classList.toggle('on', team.rotation !== undefined && +bt.dataset.lane === team.rotation));
+          c.querySelector('.cd').style.width = cd > 0 ? (100 * (1 - cd / 10)) + '%' : '0';
+          return;
+        }
         const id = c.dataset.tactic, t = DATA.TACTICS[id], st = team.tactics[id];
         if (!t.active) {   // Tiroir : quelle moitié avance en ce moment (bond n°)
           if (id === 'tiroir' && team.bound) { const mv = team.units.filter(u => u.alive && u.boundGroup === team.bound.group).map(u => u.callsign); c.querySelector('.tuse').textContent = team.order === 'hold' ? 'en attente (Tenir)' : mv.length ? `bond ${team.bound.n + 1} : ${mv.join(', ')}` : 'passive'; }
@@ -20034,7 +20234,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   $('#closeJournal').addEventListener('click', () => $('#journalWrap').classList.add('hidden'));
   document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => { setCamMode(b.dataset.cam); if (b.dataset.cam !== 'follow') cam.follow = null; }));
   // raccourcis clavier en bataille (positions physiques des touches : valables en AZERTY comme en QWERTY)
-  // Espace : lancer / pause · 1, 2, 3 : vitesse ×1, ×2, ×4 · A, Z, E : tactiques actives 1 à 3 · C : caméra suivante · J : journal
+  // Espace : lancer / pause · 1, 2, 3 : vitesse ×1, ×2, ×4 · A, Z, E : tactiques actives 1 à 3 · R, F, V : rotation nord / milieu / sud · C : caméra suivante · J : journal
   const CAMS = ['director', 'follow', 'sat', 'free'];
   window.addEventListener('keydown', (e) => {
     if (e.target.matches('input,select,textarea') || $('#app').classList.contains('hidden') || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -20042,7 +20242,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const sp = { Digit1: '1', Digit2: '2', Digit3: '4', Numpad1: '1', Numpad2: '2', Numpad3: '4' }[e.code];
     if (sp) { const b = document.querySelector(`[data-speed="${sp}"]`); if (b) b.click(); return; }
     const ti = { KeyQ: 0, KeyW: 1, KeyE: 2 }[e.code];
-    if (ti !== undefined) { const cards = [...document.querySelectorAll('#tactics0 .tcard')].filter(c => !c.classList.contains('passive')); if (cards[ti]) cards[ti].click(); return; }
+    if (ti !== undefined) { const cards = [...document.querySelectorAll('#tactics0 .tcard')].filter(c => !c.classList.contains('passive') && !c.classList.contains('rotcard')); if (cards[ti]) cards[ti].click(); return; }
+    const rl = { KeyR: -1, KeyF: 0, KeyV: 1 }[e.code];
+    if (rl !== undefined) { const bt = document.querySelector(`#tactics0 .rotcard button[data-lane="${rl}"]`); if (bt) bt.click(); return; }
     if (e.code === 'KeyC') { const i = CAMS.indexOf(cam.mode); const b = document.querySelector(`[data-cam="${CAMS[(i + 1) % CAMS.length]}"]`); if (b) b.click(); return; }
     if (e.code === 'KeyJ') { $('#toggleJournal').click(); }
   });
@@ -20127,7 +20329,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
 
 </script>
 <script>
-// Écran titre : cinq opérateurs de l'escouade en ligne sur un sol sombre, caméra qui glisse lentement ; jingle au premier geste.
+// Écran titre : les cinq opérateurs de l'escouade en V devant un mur de béton tagué, caméra qui glisse lentement ; jingle au premier geste.
 (function () {
   const OT = window.OT; const $ = (s) => document.querySelector(s);
   const canvas = $('#titleScene'); if (!canvas) return;
@@ -20155,11 +20357,39 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   const dustN = 260, dustPos = new Float32Array(dustN * 3); for (let i = 0; i < dustN; i++) dustPos.set([Math.random() * 14 - 5, Math.random() * 4, Math.random() * 8 - 5], i * 3);
   const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
   const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffd9a8, size: 0.035, transparent: true, opacity: 0.55, depthWrite: false })); scene.add(dust);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x1f2328, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-  // quelques caisses et un conteneur pour l'arrière-plan
-  const crate = new THREE.MeshStandardMaterial({ color: 0x46392a, roughness: 1 }), cont = new THREE.MeshStandardMaterial({ color: 0x1d242b, roughness: 0.8, metalness: 0.3 });
-  [[0.3, 0.55, -2.6, 1.1], [5.7, 0.4, -1.8, 0.8], [6.3, 0.4, -2.7, 0.8]].forEach(([x, y, z, sz]) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), crate); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; scene.add(m); });
-  const c = new THREE.Mesh(new THREE.BoxGeometry(6, 2.6, 2.4), cont); c.position.set(3.4, 1.3, -5.6); c.rotation.y = -0.12; c.castShadow = true; scene.add(c);
+  key.target.position.set(3, 0, -1.2); scene.add(key.target); Object.assign(key.shadow.camera, { left: -9, right: 9, top: 7, bottom: -7, near: 0.5, far: 30 }); key.shadow.bias = -0.0004;
+  // décor : sol, mur, caisses, conteneur. Version simple (formes unies) tout de suite ; version habillée (matières du parking :
+  // asphalte, béton à coffrage et tags inventés, caisses en bois, conteneur ou modèles 3D) dès que possible, sauf en rendu logiciel
+  const RICH = !SOFT || FORCE3D;
+  let set = null, setRich = false, setM3 = false;
+  function buildSet() {
+    const P = OT.Parking, M3 = OT.Modeles3D && OT.Modeles3D.ready ? OT.Modeles3D : null;
+    const rich = RICH && P && P.mesh && P.worldMat && P.asphalt;
+    if (set && (!rich || (setRich && (setM3 || !M3)))) return;   // déjà habillé (ou rien de mieux possible)
+    if (set) scene.remove(set); set = new THREE.Group(); setRich = !!rich; setM3 = !!M3; scene.add(set);
+    const put = (o, x, y, z, ry) => { if (!o) return null; o.position.set(x, y, z); o.rotation.y += ry || 0; o.traverse(n => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } }); set.add(o); return o; };
+    if (!rich) {
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x1f2328, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; set.add(ground);
+      const crate = new THREE.MeshStandardMaterial({ color: 0x46392a, roughness: 1 }), cont = new THREE.MeshStandardMaterial({ color: 0x1d242b, roughness: 0.8, metalness: 0.3 });
+      [[0.3, 0.55, -2.6, 1.1], [5.7, 0.4, -1.8, 0.8], [6.3, 0.4, -2.7, 0.8]].forEach(([x, y, z, sz]) => put(new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), crate), x, y, z));
+      put(new THREE.Mesh(new THREE.BoxGeometry(6, 2.6, 2.4), cont), 3.4, 1.3, -5.6, -0.12);
+      return;
+    }
+    // sol d'asphalte (détail en coordonnées du monde, sans tuilage visible)
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), P.worldMat(P.asphalt(), { roughness: 0.94, color: 0x8f8a84 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; set.add(ground);
+    // mur d'enceinte en panneaux de béton, assez haut pour que son arête sorte du cadre ; tags sur la face visible
+    const WH = 5.2; put(P.mesh({ name: 'mur nord', x: 11, z: 4, w: 27, h: WH, d: 0.35 }), 3, WH / 2, -4.6);
+    // conteneur à droite (modèle 3D s'il est chargé), caisses sur palettes, fûts, palettes
+    const fit = (n, w, h, d, opts) => (M3 && M3.has(n) ? M3.fit(n, w, h, d, opts) : null);
+    put(fit('conteneur', 6.1, 2.6, 2.45) || P.mesh({ name: 'conteneur', x: 2, z: 3, w: 6.1, h: 2.6, d: 2.45 }), 8.4, 1.3, -2.9, -0.95);
+    put(P.mesh({ name: 'caisses', x: 3, z: 1, w: 1.3, h: 1.45, d: 1.1 }), 0.1, 0.725, -2.3, 0.18);
+    put(P.mesh({ name: 'caisses', x: 7, z: 2, w: 1.2, h: 1.05, d: 1.0 }), 6.15, 0.525, -1.45, -0.3);
+    put(fit('fut', 0.6, 0.9, 0.6), 5.75, 0.45, -0.35); put(fit('fut', 0.6, 0.9, 0.6), 6.4, 0.45, -0.05, 1.1);
+    put(fit('palettes', 1.2, 0.5, 1.0), -0.9, 0.25, -1.2, 0.5);
+    // coins un peu plus éclairés sur le mur (lampe de chantier hors champ) : les tags et le béton se lisent derrière l'escouade
+    const wash = new THREE.SpotLight(0xffd2a0, 90, 0, 0.7, 0.9, 2); wash.position.set(5.5, 6, 1.5); wash.target.position.set(4, 1.6, -4.6); set.add(wash, wash.target);
+  }
+  buildSet();
   const figs = [];
   function buildSquad() {
     for (const f of figs) scene.remove(f.group); figs.length = 0;
@@ -20206,7 +20436,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (cost > 40) setTimeout(() => { if (running) requestAnimationFrame(frame); }, Math.min(3000, cost * 4)); else requestAnimationFrame(frame);
   }
   function show() {
-    $('#title').classList.remove('hidden'); buildSquad(); running = true; t0 = performance.now();
+    $('#title').classList.remove('hidden'); buildSet(); buildSquad(); running = true; t0 = performance.now();
     if (manual) { running = false; draw(0); } else requestAnimationFrame(frame);   // captures : une seule image, sans boucle
     // carrière en cours : le bouton principal la reprend, avec un rappel (rang, batailles, crédits)
     const p = window.HQ ? window.HQ.profile() : null;
@@ -20222,9 +20452,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   $('#titleMusic').addEventListener('change', (e) => { if (window.OT_MUSIC) window.OT_MUSIC.set(e.target.checked ? 1 : 0); });
   $('#titleStart').addEventListener('click', () => { hide(); window.HQ.show(); if (window.OT_MUSIC && window.Son) setTimeout(() => Son.boucle('musique_qg', { voie: 'musique', vol: 0.8 * window.OT_MUSIC.get(), fondu: 2.5 }), 600); });
   $('#titleFree').addEventListener('click', () => { hide(); $('#freeBattle').click(); });
-  window.TITLE = { show, hide };
+  window.TITLE = { show, hide, _dbg: () => ({ scene, draw, set: () => set }) };
   // le soldat 3D arrive après l'écran titre : l'escouade est reconstruite avec lui
-  if (OT.Soldat3D && OT.Soldat3D.whenReady) OT.Soldat3D.whenReady(() => { if (!skinned && (!SOFT || FORCE3D) && !$('#title').classList.contains('hidden')) { buildSquad(); if (manual) draw(0); } });
+  if (OT.Soldat3D && OT.Soldat3D.whenReady) OT.Soldat3D.whenReady(() => { if ($('#title').classList.contains('hidden')) return; buildSet(); if (!skinned && RICH) buildSquad(); if (manual) draw(0); });
   const params = new URLSearchParams(location.search);
   if (params.get('manual') === '1' || params.get('mode') === 'free' || params.get('skipTitle') === '1') hide(); else { if (window.OT_MUSIC) $('#titleMusic').checked = window.OT_MUSIC.get() > 0; show(); }
 })();

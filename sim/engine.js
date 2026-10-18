@@ -217,6 +217,7 @@
     const team = this.teams[teamIndex], movers = team.units.filter(u => u.alive && u.role.id !== 'marksman');
     movers.forEach((u, k) => { u.voie = lane; u.laneDz = (k - (movers.length - 1) / 2) * (lane ? 1.8 : 3); this.resetRoute(u); });
     team.rotateUntil = this.t + ROTATION_COOLDOWN; team.rotation = lane; team.rotations = (team.rotations || 0) + 1;
+    if (team.bound) { team.bound.n++; team.bound.since = this.t; }   // Tiroir : un nouveau bond commence tout de suite (la moitié qui avance part)
     this.logEvent('rotation', `${team.name} : rotation, toute l'escouade passe ${lane < 0 ? 'par le flanc nord' : lane > 0 ? 'par le flanc sud' : 'par le milieu'}.`, { team: teamIndex, lane });
     return { ok: true };
   };
@@ -229,6 +230,7 @@
     this.spreadLanes(team, units, plan[0], plan[1], false);
     for (const u of units) { if (u.voie) u.laneDz = 0; this.resetRoute(u); }
     team.plan = id; team.rotation = undefined;
+    if (team.bound) { team.bound.n++; team.bound.since = this.t; }
   };
   // Voie de flanc : tant qu'un flanqueur n'est pas arrivé à hauteur de sa destination (la zone, une menace connue), il
   // progresse le long de sa voie ; ensuite il se rabat sur la destination, par le côté (une fois pour toutes).
@@ -919,6 +921,7 @@
     }
     if (order === 'hold') { this.holdPost(u, objective); return; }
     // chaque opérateur avance sur sa propre « voie » (décalage latéral) pour ne pas se regrouper
+    if (u.rejoin) { const fw = this.flankWaypoint(u, objective, 0); if (fw && this.flankMove(u, objective, fw)) return; }   // rotation : rejoindre d'abord sa nouvelle voie
     const lane = this.laneOf(u);
     const dirx = Math.sign(objective.x - home.x) || 1;
     const progress = (u.x - home.x) * dirx;
