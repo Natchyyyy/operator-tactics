@@ -19,7 +19,9 @@
   // marche directionnelle en visant : part de l'écart fusil / bassin rattrapée par la torsion du dos (le reste tourne le corps)
   const DOS_VISEE = 0.65;
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
-  const PENCHE = 0.07;
+  const PENCHE = 0.1;
+  // tangage voulu du canon dans les poses épaulées (rad ; légèrement vers le bas : la cible est à hauteur de poitrine)
+  const VISEE_TANGAGE = -0.035;
   const ONCE = { Shot_and_Fall_Forward: 1, Shot_in_the_Back_and_Fall: 1, Over_Shoulder_Throw: 1 };
   // Fusil épaulé : dans ces animations la crosse doit reposer dans le creux de l'épaule droite. Les animations Mixamo ne l'y
   // mettent pas exactement (le fusil du jeu n'est pas celui de l'animation) : à chaque image, le fusil garde son orientation
@@ -630,8 +632,8 @@
         group.updateMatrixWorld(true);
         const gq = group.getWorldQuaternion(new THREE.Quaternion()), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
         const h = WP(spine3[0]), c = WP(spine3[2]), L = Math.max(0.1, h.distanceTo(c)), d = (PENCHE - c.clone().sub(h).dot(fw)) * k;
-        if (Math.abs(d) < 0.004) return;
-        const a = Math.max(-0.35, Math.min(0.35, Math.asin(Math.max(-0.9, Math.min(0.9, d / L)))));
+        if (d < 0.004) return;   // (seulement vers l'avant : une course déjà penchée n'est pas redressée)
+        const a = Math.max(-0.5, Math.min(0.5, Math.asin(Math.max(-0.9, Math.min(0.9, d / L)))));
         const axe = (b, ang) => { mod(b); b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(lat, ang); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
         axe(spine3[0], a * 0.5); axe(spine3[1], a * 0.5); axe(spine3[2], -a);
       },
@@ -760,11 +762,28 @@
         const Ma = basis(a, new THREE.Vector3(0, 1, 0)), Mb = basis(b, new THREE.Vector3(0, 1, 0));
         const R = Mb.multiply(Ma.transpose());   // rotation qui envoie a sur b (et le haut de l'arme vers le haut)
         weapon.quaternion.setFromRotationMatrix(R);
-        const g = grip.clone().applyQuaternion(weapon.quaternion), barrel = new THREE.Vector3(0, 0, 1).applyQuaternion(weapon.quaternion);
+        let g = grip.clone().applyQuaternion(weapon.quaternion), barrel = new THREE.Vector3(0, 0, 1).applyQuaternion(weapon.quaternion);
         let pos = pR.clone().sub(g);
         // crosse dans le creux de l'épaule (voir EPAULE) : on glisse le fusil, puis les bras suivent
         const k = two && weapon.buttPt && B.ra && B.la ? (this.epK || 0) : 0;
         if (k > 0.01) {
+          // fusil à niveau d'abord : les animations le tiennent de 6 à 17° vers le bas (il visait alors le sol) ; on le relève
+          // autour de la crosse vers VISEE_TANGAGE, les deux mains suivent (IK des bras, mains tournées d'autant)
+          const dp = Math.max(-0.4, Math.min(0.4, (VISEE_TANGAGE - Math.asin(Math.max(-1, Math.min(1, barrel.y)))) * k));
+          if (Math.abs(dp) > 0.005 && lh) {
+            const axe = new THREE.Vector3().crossVectors(barrel, new THREE.Vector3(0, 1, 0)); if (axe.lengthSq() > 1e-6) {
+              axe.normalize(); const qc = new THREE.Quaternion().setFromAxisAngle(axe, dp), buttL = weapon.buttPt.clone().applyQuaternion(weapon.quaternion);
+              const butt0 = pos.clone().add(buttL), q1 = qc.clone().multiply(weapon.quaternion), pos1 = butt0.clone().sub(buttL.clone().applyQuaternion(qc));
+              const pt = (p, q, l) => p.clone().add(l.clone().applyQuaternion(q)), sc = group.getWorldScale(V()).x, gw = group.matrixWorld;
+              const toW = (v) => v.lengthSq() > 1e-12 ? v.clone().transformDirection(gw).multiplyScalar(v.length() * sc) : v.clone();
+              const dG = pt(pos1, q1, grip).sub(pt(pos, weapon.quaternion, grip)), dF = pt(pos1, q1, fore).sub(pt(pos, weapon.quaternion, fore));
+              const gq = group.getWorldQuaternion(new THREE.Quaternion()), qcW = gq.clone().multiply(qc).multiply(gq.clone().invert());
+              for (const [arm, fa, hand, d] of [[B.ra, B.rf, rh, dG], [B.la, B.lf, lh, dF]]) {
+                ik(arm, fa, hand, toW(d)); hand.quaternion.copy(WQ(hand.parent).invert().multiply(qcW).multiply(WQ(hand))); hand.updateMatrixWorld(true);
+              }
+              weapon.quaternion.copy(q1); pos = pos1; g = grip.clone().applyQuaternion(q1); barrel = new THREE.Vector3(0, 0, 1).applyQuaternion(q1);
+            }
+          }
           const sR = loc(B.ra), sL = loc(B.la), up = new THREE.Vector3(0, 1, 0);
           const lat = sL.clone().sub(sR).setY(0).normalize(), fwd = new THREE.Vector3().crossVectors(lat, up).normalize();
           const creux = sR.clone().addScaledVector(lat, CREUX.dedans).addScaledVector(fwd, CREUX.avant).addScaledVector(up, -CREUX.bas);
