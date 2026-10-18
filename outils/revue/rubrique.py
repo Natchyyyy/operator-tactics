@@ -135,8 +135,8 @@ crit(id='torsion', partie='bas', lib='Torsion épaules / bassin (°, max absolu)
      pourquoi='La colonne tourne d\'environ 40-50° au plus entre bassin et épaules ; au-delà le buste est « vissé » sur les hanches.', src='Amplitude de rotation thoraco-lombaire (≈ 40-50°)', vues=['dessus', 'troisQuarts'])
 crit(id='rebond_bassin', partie='bas', lib='Rebond vertical du bassin (m)', quand=lambda e: 'marche' in e and 'accroupi' not in e and 'recharge' not in e,
      val=lambda r: r['bilan'].get('rebond'), ok=None, mineur=None, cle=(),
-     bornes=lambda e: ((0.012, 0.05), (0.005, 0.07)) if 'vise' in e else ((0.02, 0.065), (0.01, 0.085)),
-     pourquoi='Marche : le bassin monte et descend de 4-5 cm ; marche tactique en visant (« glide ») : rebond réduit pour garder le viseur stable.', src='Biomécanique de la marche (excursion verticale du centre de masse ≈ 5 cm) ; FM 3-06.11 §3-15a', vues=['profil'])
+     bornes=lambda e: ((0.008, 0.03), (0.004, 0.04)) if 'vise' in e else ((0.02, 0.065), (0.01, 0.085)),
+     pourquoi='Marche : le bassin monte et descend de 4-5 cm ; marche tactique en visant (« glide ») : rebond ≤ 3 cm pour garder le viseur stable.', src='Biomécanique de la marche (excursion verticale du centre de masse ≈ 5 cm) ; FM 3-06.11 §3-15a ; vraie vidéo (captures/reference_video/) : marche visée, bassin ≤ 3 cm', vues=['profil'])
 crit(id='appui_largeur_arret', partie='bas', lib='Largeur des pieds en visée à l\'arrêt (m)', quand=lambda e: 'arret' in e and 'vise' in e and 'accroupi' not in e,
      val=lambda r: st(r, 'ecartPiedsLarg', 'moy'), ok=(0.22, 0.48), mineur=(0.15, 0.58), cle=('ecartPiedsLarg', 'moy'),
      pourquoi='Position de tir debout : pieds à largeur d\'épaules (≈ 30-40 cm entre chevilles).', src='FM 3-06.11 §3-23b ("Feet are about shoulder-width apart")', vues=['face', 'dessus'])
@@ -150,8 +150,10 @@ crit(id='genoux_flechis_arret', partie='bas', lib='Genoux fléchis en visée à 
 # ------------------------------------------------------------------ HAUT : buste, tête, mains, arme
 crit(id='penche_avant', partie='haut', lib='Buste penché vers l\'avant (°, bassin → cou, moyenne)', quand=lambda e: 'accroupi' not in e and 'recharge' not in e,
      val=lambda r: st(r, 'penche', 'moy'), ok=None, mineur=None, cle=('penche', 'moy'),
-     bornes=lambda e: ((15, 26), (10, 31)) if 'course' in e else ((5, 14), (2, 19)) if 'vise' in e else ((0, 16), (-4, 24)),   # (vidéo de référence : visée 5-12°, course 15-25° ; marges +2°)
-     pourquoi='Tireur : haut du corps légèrement penché vers l\'avant (« nez au-dessus des orteils »), jamais en arrière ; en patrouille, buste presque droit.', src='FM 3-06.11 §3-23b ("upper body is leaned slightly forward") ; ' + "Vidéo de référence de l'utilisateur (visée 5-12°, course 15-25°)", vues=['profil'])
+     bornes=lambda e: (((8, 22), (4, 27)) if ('lateral' in e or 'recul' in e) else ((15, 25), (10, 30))) if 'course' in e
+                      else (((5, 18), (2, 23)) if ('lateral' in e or 'recul' in e) else ((12, 20), (8, 24))) if ('vise' in e and 'marche' in e)
+                      else ((5, 15), (2, 19)) if 'vise' in e else ((0, 16), (-4, 24)),   # (vraie vidéo : visée arrêt 5-15°, marche visée 12-20°, course 15-25° ; pas chassé / recul : pas de référence vidéo, bande élargie)
+     pourquoi='Tireur : haut du corps penché vers l\'avant (« nez au-dessus des orteils »), jamais en arrière ; plus penché en marchant en visant et en courant ; en patrouille, buste presque droit.', src='FM 3-06.11 §3-23b ("upper body is leaned slightly forward") ; vraie vidéo (captures/reference_video/) : visée 5-15°, marche visée 12-20°, course 15-25°', vues=['profil'])
 crit(id='roulis_buste', partie='haut', lib='Inclinaison latérale du buste (°, max absolu)', quand=lambda e: 'recharge' not in e and 'virage' not in e,
      val=lambda r: (lambda a, b: None if a is None else max(abs(a), abs(b)))(st(r, 'roulis', 'min'), st(r, 'roulis', 'max')), ok=(0, 9), mineur=(0, 16), cle=('roulis', 'max'),
      pourquoi='Épaules carrées, pas avachies sur le côté.', src='FM 3-06.11 §3-23b ("Shoulders are square")', vues=['face', 'dos'])
@@ -230,10 +232,23 @@ crit(id='cant_arme', partie='haut', lib='Arme inclinée sur le côté en visée 
      pourquoi='En visée, l\'arme est droite (viseur à 12 h) ; inclinée, le tir part de côté.', src='TC 3-22.9 (cant)', vues=['dos', 'face'])
 
 # ------------------------------------------------------------------ ajouts : vidéo de référence de l'utilisateur + pieds « cassés »
-VID = 'Vidéo de référence de l\'utilisateur (soldat réel : marche en visant et course fusil en main), captures/reference_video/'
+VID = 'vraie vidéo (captures/reference_video/) : soldat réel, marche en visant et course fusil en main'
 def _frames(r, f):
     return [i for i in r['images'] if f(i)]
 def _max(v): return max(v) if v else None
+def _pire(r, cond, cle, f=lambda x: x):
+    """(valeur, instant) de la pire image (max de f(valeur)) parmi celles des deux pieds qui vérifient cond(image, 'G'|'D')"""
+    best = None
+    for s in ('G', 'D'):
+        for i in r['images']:
+            x = i.get(cle + s)
+            if x is None or not cond(i, s): continue
+            if best is None or f(x) > best[0]: best = (f(x), i.get('t'))
+    return best or (None, None)
+# phases du pied (hauteurs au-dessus du sol de référence) : talon posé / pied en l'air / poussée (talon levé, pointe au sol)
+_TALON_BAS = lambda i, s: i.get('talonY' + s, 1) < 0.03
+_EN_LAIR = lambda i, s: i.get('solMin' + s, 0) > 0.03
+_POUSSEE = lambda i, s: i.get('talonY' + s, 0) >= 0.03 and i.get('solMin' + s, 1) <= 0.03
 crit(id='hauteur_talon', partie='bas', lib='Talon le plus haut pendant l\'oscillation (m, « talons aux fesses »)', quand=lambda e: ('marche' in e or 'course' in e) and 'recharge' not in e and 'accroupi' not in e and 'sprint' not in e,
      val=lambda r: stat_ou(r, ['talonYG', 'talonYD'], 'max', max), ok=None, mineur=None, cle=('talonYG', 'talonYD', 'max'),
      bornes=lambda e: ((0, 0.12), (0, 0.18)) if ('vise' in e and 'course' not in e) else ((0, 0.25), (0, 0.32)) if 'course' in e else ((0, 0.25), (0, 0.32)),
@@ -245,14 +260,14 @@ crit(id='ecart_face', partie='bas', lib='Écart des chevilles vu de face (m, moy
 crit(id='valgus_genou', partie='bas', lib='Genou qui rentre vers l\'intérieur (valgus, °, max)', quand=lambda e: 'accroupi' not in e,
      val=lambda r: stat_ou(r, ['valgusG', 'valgusD'], 'max', max), ok=(-99, 8), mineur=(-99, 15), cle=('valgusG', 'valgusD', 'max'),
      pourquoi='Genoux dans l\'axe des pieds ; un genou qui rentre (genoux en X) fait « faible » et instable.', src=VID + ' ; biomécanique (valgus dynamique > 10° = défaut)', vues=['face', 'piedsFace'])
-crit(id='orteil_pied_plat', partie='bas', lib='Orteils relevés quand le talon est bas (°, « orteil d\'elfe »)', quand=lambda e: True,
-     val=lambda r: _max([i['orteilG'] for i in _frames(r, lambda i: i.get('talonLeveG', 1) < 0.03 and i.get('orteilG') is not None)] + [i['orteilD'] for i in _frames(r, lambda i: i.get('talonLeveD', 1) < 0.03 and i.get('orteilD') is not None)]), ok=(-99, 15), mineur=(-99, 25), cle=(),
-     pourquoi='Pied à plat ou en l\'air : les orteils de la botte sont dans le prolongement du pied. Une pointe relevée = chaussure de lutin, se voit de profil.', src='Signalé par l\'utilisateur (captures/reference_video/pieds_trot_*.png)', vues=['piedsProfil', 'profil'])
-crit(id='orteil_poussee', partie='bas', lib='Orteils relevés à la poussée, talon levé (°)', quand=lambda e: True,
-     val=lambda r: _max([i['orteilG'] for i in _frames(r, lambda i: i.get('talonLeveG', 0) >= 0.03 and i.get('orteilG') is not None)] + [i['orteilD'] for i in _frames(r, lambda i: i.get('talonLeveD', 0) >= 0.03 and i.get('orteilD') is not None)]), ok=(-99, 35), mineur=(-99, 45), cle=(),
-     pourquoi='À la poussée, la botte plie aux orteils (talon levé), mais pas au-delà de ~35°.', src='Signalé par l\'utilisateur ; flexion des orteils à la poussée en course', vues=['piedsProfil'])
-crit(id='plantaire_oscillation', partie='bas', lib='Pointe du pied tendue vers le bas en l\'air (flexion plantaire, °, max ; pied à plus de 5 cm du sol)', quand=lambda e: True,
-     val=lambda r: _max([i['plantaireG'] for i in _frames(r, lambda i: i.get('solMinG', 0) > 0.05 and i.get('plantaireG') is not None)] + [i['plantaireD'] for i in _frames(r, lambda i: i.get('solMinD', 0) > 0.05 and i.get('plantaireD') is not None)]), ok=(-99, 30), mineur=(-99, 40), cle=(),
+crit(id='orteil_pied_plat', partie='bas', lib='Orteils pliés (ToeBase / pied, moins la liaison, °, max absolu) talon posé OU pied en l\'air (« orteil d\'elfe »)', quand=lambda e: True,
+     val=lambda r: _pire(r, lambda i, s: _TALON_BAS(i, s) or _EN_LAIR(i, s), 'orteil', abs)[0], t=lambda r: _pire(r, lambda i, s: _TALON_BAS(i, s) or _EN_LAIR(i, s), 'orteil', abs)[1], ok=(0, 10), mineur=(0, 18), cle=(),
+     pourquoi='Talon posé ou pied en l\'air : la botte est rigide, les orteils restent dans le prolongement du pied (≈ 0°). Une pointe relevée = chaussure de lutin, se voit de profil.', src='Signalé par l\'utilisateur (captures/reference_video/pieds_trot_*.png) ; botte de combat à semelle rigide', vues=['piedsProfil', 'profil'])
+crit(id='orteil_poussee', partie='bas', lib='Orteils pliés à la poussée, talon levé et pointe au sol (°, max)', quand=lambda e: True,
+     val=lambda r: _pire(r, _POUSSEE, 'orteil')[0], t=lambda r: _pire(r, _POUSSEE, 'orteil')[1], ok=(-99, 35), mineur=(-99, 45), cle=(),
+     pourquoi='À la poussée seulement, la botte plie aux orteils (talon levé, pointe au sol), jusqu\'à ~35°.', src='Signalé par l\'utilisateur ; flexion des orteils à la poussée en course', vues=['piedsProfil'])
+crit(id='plantaire_oscillation', partie='bas', lib='Pointe du pied tendue vers le bas en l\'air (flexion plantaire vs liaison, °, max ; pied à plus de 5 cm du sol)', quand=lambda e: True,
+     val=lambda r: _pire(r, lambda i, s: i.get('solMin' + s, 0) > 0.05, 'plantaire')[0], t=lambda r: _pire(r, lambda i, s: i.get('solMin' + s, 0) > 0.05, 'plantaire')[1], ok=(-99, 25), mineur=(-99, 30), cle=(),
      pourquoi='En oscillation le pied reste à peu près à angle droit avec le tibia (il se relève même pour passer) ; une pointe tendue = pied de danseuse, botte « froissée ».', src='Signalé par l\'utilisateur ; marche normale : cheville ≈ neutre en oscillation (FRCS)', vues=['piedsProfil'])
 crit(id='botte_deformee', partie='bas', lib='Botte écrasée / étirée : longueur talon ↔ pointe vs liaison (rapport − 1, max absolu)', quand=lambda e: True,
      val=lambda r: (lambda a, b, c2, d: None if a is None else max(abs(a), abs(b), abs(c2 or 0), abs(d or 0)))(st(r, 'botteG', 'min'), st(r, 'botteG', 'max'), st(r, 'botteD', 'min'), st(r, 'botteD', 'max')), ok=(0, 0.08), mineur=(0, 0.12), cle=('botteG', 'botteD', 'max'),

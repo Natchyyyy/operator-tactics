@@ -41,7 +41,7 @@
   // pied en l'air : écart max de la cheville à sa pose de repos (rad) ; pli max des orteils au déroulé (rad)
   const CHEVILLE_MAX = 0.5, ORTEIL_MAX = 0.6;
   // plan du genou (IK des jambes) : écart max à l'avant anatomique vers l'extérieur / l'intérieur (rad)
-  const GENOU_OUT = 1.0, GENOU_IN = 0.45;
+  const GENOU_OUT = 1.0, GENOU_IN = root.GENOU_IN_TEST !== undefined ? root.GENOU_IN_TEST : 0.45;
   // à genou : hauteur du genou arrière posé (os, m), de sa cheville (pointe du pied au sol), cheville du pied avant à plat
   const GENOU = { genou: 0.075, cheville: 0.13, chevilleAv: 0.15, baisse: 0.035 };   // baisse : bassin abaissé (m) pour que le genou arrière touche le sol
   const TROT = { cap: 0.17, s: 0.38, hs: 0.6, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
@@ -554,7 +554,8 @@
     // d'affût très lent de Walk_Fight_Forward ou de la course accroupie de Run_and_Shoot
     // (référence vidéo réelle : base large ~32 cm entre chevilles, pied d'appel bas ~10-12 cm, genoux fléchis tout le pas,
     // bassin plat — rebond ≤ 3 cm ; pas un peu plus courts et plus vifs que la marche normale)
-    if (M.clips.Walking) { const g = foulee(M, M.clips.Walking, 'Pas_Glisse', GLISSE_P.s, 1, 0, 1, OUV_PIED, { cap: GLISSE_P.cap, larg: GLISSE_P.larg, bas: GLISSE_P.bas, bob: GLISSE_P.bob }); if (g) M.clips.Pas_Glisse = g; }
+    const GP = Object.assign({}, GLISSE_P, root.GLISSE_TEST || {});   // (GLISSE_TEST : réglage depuis les pages d'outils)
+    if (M.clips.Walking) { const g = foulee(M, M.clips.Walking, 'Pas_Glisse', GP.s, 1, 0, GP.kp !== undefined ? GP.kp : 1, OUV_PIED, GP); if (g) M.clips.Pas_Glisse = g; }
     // pas moins écartés (les marches de la bibliothèque posent les chevilles à ~27 cm l'une de l'autre, une démarche en
     // « cow-boy » ; marche humaine : 8 à 17 cm, base tactique un peu plus large) : écart moyen ramené à ECART_PAS
     for (const n of ['Pas_Avant_Low']) if (M.clips[n]) { const c = resserre(M, M.clips[n], ECART_PAS); if (c) M.clips[n] = c; }
