@@ -167,7 +167,7 @@
   // enemy : composition (identifiants d'opérateurs), level : niveau des ennemis, order : leur ordre tactique
   // reward : crédits en cas de victoire (la défaite rapporte une fraction), xp : expérience de base par opérateur engagé
   const MISSIONS = [
-    // une seule carte pour l'instant : le parking du centre commercial ; une seule tactique : le tiroir (bonds alternés)
+    // une seule carte pour l'instant : le parking du centre commercial ; tactiques : le tiroir (bonds alternés) et les plans de voies
     { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille du Groupe Karst traverse le parking du centre commercial. Interceptez-la.', mapId: 'parking', enemy: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal'], level: 0, order: 'careful', enemyTactics: ['tiroir'], reward: 180, xp: 40, difficulty: 1 },
     { id: 'galerie', name: 'Balise de la galerie', desc: 'Les balises de notre agent disparu émettent depuis l\'enclos central du parking. Prenez la zone et tenez-la jusqu\'à 100 %.', mapId: 'parking', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 1, order: 'careful', objective: 'capture', enemyTactics: ['tiroir'], reward: 240, xp: 50, difficulty: 2 },
     { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact entre les voitures. Tenez ou contre-attaquez.', mapId: 'parking', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_fauve'], level: 3, order: 'assault', enemyTactics: ['tiroir'], reward: 300, xp: 60, difficulty: 2 },
@@ -199,9 +199,13 @@
   // Chaque effet est implémenté dans engine.js (useTactic / applyPassiveTactics). active : déclenchée par le joueur
   // (uses : nombre d'emplois par bataille, cooldown en s) ; sinon passive, appliquée au début.
   const TACTICS = {
-    // une seule tactique pour l'instant. Tiroir : l'escouade progresse par bonds alternés — une moitié avance de couvert en couvert
+    // Tiroir : l'escouade progresse par bonds alternés — une moitié avance de couvert en couvert
     // pendant que l'autre, arrêtée, la couvre ; puis les rôles s'inversent (engine.js : recherche « tiroir »).
     tiroir: { id: 'tiroir', name: 'Tiroir', active: false, desc: 'Progression par bonds alternés : une moitié de l\'escouade avance pendant que l\'autre la couvre, arrêtée et prête à tirer, puis on inverse.' },
+    // Plans de voies (plan : [flanc nord, flanc sud], le reste au milieu) : équipé, il fixe la répartition sur les voies au départ
+    // (sans plan : tirage à la graine, 1 ou 2 par flanc) ; relancé en bataille, il redistribue les survivants (engine.js : replan).
+    tenailles: { id: 'tenailles', name: 'Tenailles', active: true, plan: [2, 2], uses: 2, cooldown: 20, desc: 'Plan de voies : deux opérateurs par le flanc nord, deux par le flanc sud, un seul tient le milieu ; on prend l\'adversaire en étau. Relancé en bataille, il redéploie les survivants selon ce plan.' },
+    rush_milieu: { id: 'rush_milieu', name: 'Rush milieu', active: true, plan: [0, 0], uses: 2, cooldown: 20, desc: 'Plan de voies : toute l\'escouade passe par l\'axe central, groupée, pour forcer le passage. Relancé en bataille, il regroupe les survivants au milieu.' },
   };
 
   // ---- DÉFIS -------------------------------------------------------------------------

@@ -161,12 +161,13 @@
   // assignLanes) donne directement le z de sa voie ; au milieu, les opérateurs s'étagent de part et d'autre de l'axe (u.laneDz).
   Battle.prototype.laneOf = function (u) {
     const v = this.map.def.voies, l = u.voie;
-    if (v && l !== undefined && l !== null) return (l < 0 ? v.nord : l > 0 ? v.sud : v.milieu + (u.laneDz || 0)) - this.teams[u.team].spawn.z;
+    if (v && l !== undefined && l !== null) return (l < 0 ? v.nord : l > 0 ? v.sud : v.milieu) + (u.laneDz || 0) - this.teams[u.team].spawn.z;
     return u.def.lane !== undefined && u.def.lane !== null ? u.def.lane * 11 : (u.idx - 2) * 5.5;
   };
   // Répartition sur les voies (une fois, au début) : voie choisie par le joueur (def.lane) sinon automatique. Sur une carte à
-  // voies, chaque escouade d'au moins 4 envoie 1 ou 2 opérateurs sur chaque flanc (plan et opérateurs tirés à la graine),
-  // les autres tiennent l'axe central ; à 3, un seul flanqueur ; en dessous, tout le monde au milieu.
+  // voies, le plan de voies de l'escouade (tactique « plan » équipée : Tenailles, Rush milieu… ; sinon tirage à la graine :
+  // 1 ou 2 opérateurs sur chaque flanc) est complété par les opérateurs sans voie imposée, tirés à la graine ; les autres
+  // tiennent l'axe central (au moins un si possible). À 3, un seul flanqueur ; en dessous, tout le monde au milieu.
   Battle.prototype.assignLanes = function () {
     const v = this.map.def.voies;
     for (const team of this.teams) {
@@ -174,19 +175,70 @@
       if (!v) continue;
       const auto = team.units.filter(u => u.voie === null && u.role.id !== 'marksman');
       for (let i = auto.length - 1; i > 0; i--) { const j = Math.floor(this.rng.next() * (i + 1)); [auto[i], auto[j]] = [auto[j], auto[i]]; }
+      const n = team.units.filter(u => u.role.id !== 'marksman').length, planId = (team.tacticIds || []).find(id => TACTICS[id].plan);
       const plans = [[1, 1], [2, 1], [1, 2], [2, 2]];
-      const [nN, nS] = auto.length >= 4 ? plans[Math.floor(this.rng.next() * plans.length)] : auto.length === 3 ? (this.rng.next() < 0.5 ? [1, 0] : [0, 1]) : [0, 0];
-      auto.forEach((u, i) => { u.voie = i < nN ? -1 : i < nN + nS ? 1 : 0; });
-      const mid = team.units.filter(u => u.voie === 0 || u.voie === null).sort((a, b) => a.idx - b.idx);
-      mid.forEach((u, k) => { u.voie = 0; u.laneDz = (k - (mid.length - 1) / 2) * 3; });
+      const plan = planId ? TACTICS[planId].plan : n >= 4 ? plans[Math.floor(this.rng.next() * plans.length)] : n === 3 ? (this.rng.next() < 0.5 ? [1, 0] : [0, 1]) : [0, 0];
+      team.plan = planId || 'auto';
+      const fixed = (l) => team.units.filter(u => u.voie === l).length;
+      this.spreadLanes(team, auto, plan[0] - fixed(-1), plan[1] - fixed(1), fixed(0) > 0);
     }
+  };
+  // Répartit units (dans cet ordre) : nN au nord, nS au sud, le reste au milieu (au moins un au milieu sauf midFixed) ;
+  // les opérateurs du milieu s'étagent de part et d'autre de l'axe.
+  Battle.prototype.spreadLanes = function (team, units, nN, nS, midFixed) {
+    nN = Math.max(0, nN); nS = Math.max(0, nS);
+    const cap = Math.max(0, units.length - (midFixed ? 0 : 1));
+    while (nN + nS > cap) { if (nN >= nS) nN--; else nS--; }
+    units.forEach((u, i) => { u.voie = i < nN ? -1 : i < nN + nS ? 1 : 0; });
+    const mid = team.units.filter(u => u.voie === 0 || u.voie === null).sort((a, b) => a.idx - b.idx);
+    mid.forEach((u, k) => { u.voie = 0; u.laneDz = (k - (mid.length - 1) / 2) * 3; });
+  };
+  // Changement de voie en cours de bataille (rotation, nouveau plan) : l'opérateur oublie son flanc en cours et rejoint
+  // d'abord sa nouvelle voie, presque latéralement, avant de reprendre sa progression.
+  Battle.prototype.resetRoute = function (u) {
+    u.flankDone = false; u.rejoin = true; u.zoneSpot = null; u.post = null; u.searchGoal = null; u.searchSince = undefined; u.commitUntil = 0;
+    if (u.goalKind === 'advance' || u.goalKind === 'bound' || u.goalKind === 'cover') this.stop(u);
+  };
+  // Rotation (commande en cours de bataille) : toute l'escouade encore debout (sauf le tireur d'élite, à son poste) passe sur
+  // une autre voie (-1 nord, 0 milieu, 1 sud). Une rotation toutes les 10 s au plus ; pas en ordre « Tenir ».
+  const ROTATION_COOLDOWN = 10;
+  Battle.prototype.canRotate = function (teamIndex, lane) {
+    const team = this.teams[teamIndex];
+    if (!this.map.def.voies) return { ok: false, reason: 'pas de voies sur cette carte' };
+    if (this.over) return { ok: false, reason: 'bataille terminée' };
+    if (![-1, 0, 1].includes(lane)) return { ok: false, reason: 'voie inconnue' };
+    if (team.order === 'hold') return { ok: false, reason: 'ordre « Tenir » : on ne bouge pas' };
+    if (this.t < (team.rotateUntil || 0)) return { ok: false, reason: `recharge (${Math.ceil(team.rotateUntil - this.t)} s)` };
+    if (!team.units.some(u => u.alive && u.role.id !== 'marksman')) return { ok: false, reason: 'aucun opérateur' };
+    return { ok: true };
+  };
+  Battle.prototype.rotate = function (teamIndex, lane) {
+    const can = this.canRotate(teamIndex, lane); if (!can.ok) return can;
+    const team = this.teams[teamIndex], movers = team.units.filter(u => u.alive && u.role.id !== 'marksman');
+    movers.forEach((u, k) => { u.voie = lane; u.laneDz = lane ? (k - (movers.length - 1) / 2) * 2.5 : (k - (movers.length - 1) / 2) * 3; this.resetRoute(u); });
+    team.rotateUntil = this.t + ROTATION_COOLDOWN; team.rotation = lane; team.rotations = (team.rotations || 0) + 1;
+    this.logEvent('rotation', `${team.name} : rotation, toute l'escouade passe ${lane < 0 ? 'par le flanc nord' : lane > 0 ? 'par le flanc sud' : 'par le milieu'}.`, { team: teamIndex, lane });
+    return { ok: true };
+  };
+  // Plan de voies relancé en bataille (tactique « plan ») : les survivants sont redistribués selon le plan.
+  Battle.prototype.replan = function (teamIndex, id) {
+    const team = this.teams[teamIndex], plan = TACTICS[id].plan;
+    const units = team.units.filter(u => u.alive && u.role.id !== 'marksman');
+    for (let i = units.length - 1; i > 0; i--) { const j = Math.floor(this.rng.next() * (i + 1)); [units[i], units[j]] = [units[j], units[i]]; }
+    for (const u of team.units) if (u.alive && u.role.id !== 'marksman') u.voie = null;
+    this.spreadLanes(team, units, plan[0], plan[1], false);
+    for (const u of units) { if (u.voie) u.laneDz = 0; this.resetRoute(u); }
+    team.plan = id; team.rotation = undefined;
   };
   // Voie de flanc : tant qu'un flanqueur n'est pas arrivé à hauteur de sa destination (la zone, une menace connue), il
   // progresse le long de sa voie ; ensuite il se rabat sur la destination, par le côté (une fois pour toutes).
   // Renvoie le prochain point de la voie, ou null (pas de flanc, ou flanc terminé).
   Battle.prototype.flankWaypoint = function (u, dest, reach) {
-    if (!u.voie || u.flankDone || !this.map.def.voies || this.teams[u.team].order === 'hold') return null;   // « Tenir » : pas de flanc
+    if (!this.map.def.voies || this.teams[u.team].order === 'hold') return null;   // « Tenir » : pas de flanc
     const home = this.teams[u.team].spawn, dirx = Math.sign(this.map.spawns[1 - u.team].x - home.x) || 1;
+    const lz = clamp(home.z + this.laneOf(u), 2, this.map.depth - 2);
+    if (u.rejoin) { if (Math.abs(u.z - lz) > 3) return { x: u.x + dirx * 2, z: lz }; u.rejoin = false; }   // rotation : rejoindre sa voie
+    if (!u.voie || u.flankDone) return null;
     const ahead = (dest.x - u.x) * dirx;
     if (this.teams[u.team].units.filter(a => a.alive).length <= 2) { u.flankDone = true; return null; }   // à deux, on ne se sépare plus
     if (ahead <= reach) {
@@ -194,7 +246,6 @@
       this.logEvent('flank', `${u.callsign} arrive par le flanc ${u.voie < 0 ? 'nord' : 'sud'} et se rabat.`, { unit: u.id, team: u.team, silent: true });
       return null;
     }
-    const lz = clamp(home.z + this.laneOf(u), 2, this.map.depth - 2);
     // loin de sa voie : on la rejoint d'abord (presque latéralement), puis on la suit
     return { x: u.x + dirx * Math.min(ahead - reach + 1, Math.abs(u.z - lz) > 4 ? 4 : 10), z: lz };
   };
@@ -222,14 +273,14 @@
   // Commande du joueur : appliquée et enregistrée (pas, type, équipe, paramètre) pour pouvoir revoir la bataille.
   Battle.prototype.command = function (type, team, arg) {
     if (this.replayQueue) return { ok: false, reason: 'bataille revue : commandes désactivées' };
-    const r = type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : { ok: false };
+    const r = type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : { ok: false };
     if (r && r.ok) this.inputs.push({ tick: this.tick, type, team, arg });
     return r;
   };
   Battle.prototype.step = function () {
     if (this.over) return;
     if (this.replayQueue) while (this.replayQueue.length && this.replayQueue[0].tick === this.tick) {   // revoir : mêmes commandes au même pas
-      const c = this.replayQueue.shift(); if (c.type === 'tactic') this.useTactic(c.team, c.arg); else if (c.type === 'order') this.setOrder(c.team, c.arg); this.inputs.push(c);
+      const c = this.replayQueue.shift(); if (c.type === 'tactic') this.useTactic(c.team, c.arg); else if (c.type === 'order') this.setOrder(c.team, c.arg); else if (c.type === 'rotate') this.rotate(c.team, c.arg); this.inputs.push(c);
     }
     this.t = Math.round((this.t + DT) * 1000) / 1000; this.tick++;
     this.updateTactics();
@@ -812,7 +863,7 @@
       }
       if (order === 'hold') { this.holdPost(u, threatPos); return; }
       // flanqueur : la menace connue est loin et hors de sa voie → il continue par le flanc jusqu'à sa hauteur, puis se rabat
-      if (nd > 12 && Math.abs(threatPos.z - (home.z + this.laneOf(u))) > 7) {
+      if (nd > 12 && (u.rejoin || Math.abs(threatPos.z - (home.z + this.laneOf(u))) > 7)) {
         const fw = this.flankWaypoint(u, threatPos, 8);
         if (fw && this.flankMove(u, threatPos, fw)) return;
       }
@@ -873,7 +924,8 @@
     const progress = (u.x - home.x) * dirx;
     const span = Math.abs(objective.x - home.x);
     let gz = clamp(home.z + lane, 2, this.map.depth - 2);
-    const stepLen = u.voie && Math.abs(u.z - gz) > 4 ? 5 : order === 'careful' ? 12 : 22;   // flanqueur loin de sa voie : la rejoindre d'abord
+    if (u.rejoin && Math.abs(u.z - gz) <= 3) u.rejoin = false;                                // rotation : voie rejointe
+    const stepLen = (u.voie || u.rejoin) && Math.abs(u.z - gz) > 4 ? 5 : order === 'careful' ? 12 : 22;   // flanqueur loin de sa voie : la rejoindre d'abord
     let gx = home.x + dirx * Math.min(span - 6, progress + stepLen);
     // Tiroir : bonds alternés le long de sa voie, jusqu'aux abords de la zone adverse
     if (progress < span - 8 && this.tiroir(u, objective, { x: home.x + dirx * (span - 8), z: gz })) return;
@@ -1062,6 +1114,7 @@
   Battle.prototype.canUseTactic = function (teamIndex, id) {
     const team = this.teams[teamIndex], st = team.tactics[id], def = TACTICS[id];
     if (!st || !def || !def.active) return { ok: false, reason: 'tactique indisponible' };
+    if (def.plan && !this.map.def.voies) return { ok: false, reason: 'pas de voies sur cette carte' };
     if (st.uses <= 0) return { ok: false, reason: 'plus d\'utilisation' };
     if (this.t < st.cooldownUntil) return { ok: false, reason: `recharge (${(st.cooldownUntil - this.t).toFixed(0)} s)` };
     if (this.over) return { ok: false, reason: 'bataille terminée' };
@@ -1080,6 +1133,7 @@
     const can = this.canUseTactic(teamIndex, id); if (!can.ok) return can;
     const team = this.teams[teamIndex], st = team.tactics[id], def = TACTICS[id];
     st.uses--; st.used++; st.cooldownUntil = this.t + (def.cooldown || 0);
+    if (def.plan) this.replan(teamIndex, id);   // plan de voies : les survivants sont redistribués selon ce plan
     this.logEvent('tactic', `${team.name} : ${def.name}.`, { team: teamIndex, tactic: id });
     return { ok: true };
   };
@@ -1407,7 +1461,8 @@
     return {
       t: this.t, over: this.over,
       zone: this.zone ? { x: this.zone.x, z: this.zone.z, r: this.zone.r, holder: this.zone.holder, contested: this.zone.contested, capture: this.teams.map(t => t.capture) } : null,
-      units: this.units.map(u => ({ id: u.id, team: u.team, callsign: u.callsign, role: u.role.id, throwing: !!u.throwing, blind: this.t < u.blindUntil, x: u.x, z: u.z, facing: u.facing, stance: u.stance, hp: u.hp, maxHp: u.maxHp, status: u.status, alive: u.alive, ammo: u.ammo, mags: u.mags, reloading: u.reloading, state: u.state, suppression: u.suppression, moving: u.moving, target: u.target ? u.target.id : null, visible: u.visible.size, weapon: u.weapon.id })),
+      units: this.units.map(u => ({ id: u.id, team: u.team, callsign: u.callsign, role: u.role.id, throwing: !!u.throwing, blind: this.t < u.blindUntil, x: u.x, z: u.z, facing: u.facing, stance: u.stance, hp: u.hp, maxHp: u.maxHp, status: u.status, alive: u.alive, ammo: u.ammo, mags: u.mags, reloading: u.reloading, state: u.state, suppression: u.suppression, moving: u.moving, target: u.target ? u.target.id : null, visible: u.visible.size, weapon: u.weapon.id, voie: u.voie, flankDone: !!u.flankDone })),
+      teams: this.teams.map(t => ({ plan: t.plan || null, rotation: t.rotation === undefined ? null : t.rotation, rotateIn: Math.max(0, (t.rotateUntil || 0) - this.t) })),
     };
   };
 

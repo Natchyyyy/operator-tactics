@@ -2,9 +2,9 @@
 const OT = Object.assign({}, require('../sim/rng.js'), require('../sim/data.js'), require('../sim/map.js'), require('../sim/engine.js'), require('../sim/game.js'));
 const { Game, Battle, DATA } = OT;
 let pass = 0, fail = 0;
-// Fonctions désactivées pour l'instant (une seule classe : assaut ; plaques moyennes pour tous ; aucun accessoire ;
-// voie d'approche automatique) : leurs vérifications sont mises de côté, à réactiver quand elles reviendront.
-const DESACTIVE = ["l'arme et la protection équipées", "la protection lourde ralentit", "formation « nord »", "formation « sud »", "synergies : Commandement", "Guidage radio : +8", "liste des synergies actives", "accessoires : achat unique", "accessoires : +1,5", "protections à acheter"];
+// Fonctions désactivées pour l'instant (une seule classe : assaut ; plaques moyennes pour tous ; aucun accessoire)
+// : leurs vérifications sont mises de côté, à réactiver quand elles reviendront.
+const DESACTIVE = ["l'arme et la protection équipées", "la protection lourde ralentit", "synergies : Commandement", "Guidage radio : +8", "liste des synergies actives", "accessoires : achat unique", "accessoires : +1,5", "protections à acheter"];
 let skip = 0;
 const check = (n, c, i) => { if (DESACTIVE.some(d => n.startsWith(d))) { skip++; console.log('(désactivé) ' + n); return; } if (c) pass++; else fail++; console.log((c ? 'PASS ' : 'FAIL ') + n + (c ? '' : '  -> ' + JSON.stringify(i))); };
 const mem = {}; const storage = { getItem: k => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); }, removeItem: k => { delete mem[k]; } };
@@ -157,7 +157,7 @@ check('Bélier revient dans l\'escouade', Game.toggleSquad(p, 'op_belier') && Ga
   check('rang : Recrue à 0 XP, Opérateur à 150, rang suivant indiqué', Game.rankFor(0) === 0 && Game.rankFor(150) === 1 && Game.xpToNextRank(0) === 150 && Game.xpToNextRank(99999) === null);
   const r0 = Game.teamRating(q); q.operators.op_vautour.xp = 900; q.operators.op_lynx.xp = 900; const r1 = Game.teamRating(q);
   check('la puissance d\'équipe est un nombre lisible qui augmente avec les niveaux', r0 > 20 && r0 < 80 && r1 > r0, [r0, r1]);
-  check('une seule tactique : le Tiroir, possédé et équipé d\'office ; une tactique inconnue est refusée', Object.keys(DATA.TACTICS).join() === 'tiroir' && q.tactics.equipped.join() === 'tiroir' && !Game.equipTactic(q, 'barrage'));
+  check('tactiques : le Tiroir et les plans de voies (Tenailles, Rush milieu), possédés d\'office, Tiroir équipé ; une tactique inconnue est refusée', Object.keys(DATA.TACTICS).join() === 'tiroir,tenailles,rush_milieu' && Object.keys(DATA.TACTICS).every(id => q.tactics.owned[id]) && q.tactics.equipped.join() === 'tiroir' && !Game.equipTactic(q, 'barrage'));
   const mt = DATA.MISSIONS[0], teams = Game.buildTeams(q, mt);
   check('le Tiroir part dans la bataille des deux côtés', teams[0].tactics.join() === 'tiroir' && teams[1].tactics.join() === 'tiroir');
   // paquets : tirage déterministe

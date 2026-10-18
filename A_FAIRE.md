@@ -1,5 +1,14 @@
 # À faire (suivi pour reprendre plus tard)
 
+## Idées notées par l'utilisateur (18/10) — à faire APRÈS la livraison en cours
+- La victoire doit venir des statistiques des opérateurs (cartes obtenues : un bon opérateur vise mieux, tire plus vite…)
+  et surtout de la tactique du joueur EN TEMPS RÉEL, pas de statistiques aléatoires brutes. Idéal : choix tactiques en
+  cours de partie.
+- Balle dans la tête = mort immédiate, pas de réanimation. Sinon, (presque) aucun opérateur ne meurt la première fois :
+  il est mis à terre et un allié peut le relever ; s'il retombe une deuxième fois, il est mort (pas deux fois à terre).
+  État actuel du moteur (`sim/engine.js`, « À terre / relevé ») : tête = mort ; sinon 55 % de chances seulement d'être à
+  terre ; un relevé ne peut plus être mis à terre → il faudra passer de 55 % à (presque) toujours.
+
 ## 18/10 : nouveaux personnages, marche dans toutes les directions, carte asymétrique, nouveaux objets
 - Personnages refaits (vues Gemini → Meshy multi-vues → remaillage 100 k → texture 8K PBR → rig humanoïde avec os des
   doigts → animations « Marchez à gauche avec un pistolet » et « Marcher en arrière avec un pistolet » de la bibliothèque) :

@@ -60,5 +60,39 @@ const V = MAPS.parking.voies;
   check('voies : la voie choisie par le joueur est respectée (sud → z de la voie sud)', l.voie === 1 && Math.abs(c.teams[0].spawn.z + c.laneOf(l) - V.sud) < 1e-9);
 }
 
+{
+  // plans de voies équipés (tactique « plan ») : répartition fixée au départ ; voies imposées comptées dans le plan
+  const lanes = (b, t) => [-1, 1, 0].map(l => b.teams[t].units.filter(u => u.voie === l).length).join('/');
+  const T = (tac) => ({ teams: [{ name: 'A', operators: ops, tactics: tac }, { name: 'B', operators: ops }] });
+  let ok = true; for (let s = 1; s <= 10; s++) { if (lanes(mk(s, T(['tiroir', 'tenailles'])), 0) !== '2/2/1' || lanes(mk(s, T(['rush_milieu'])), 0) !== '0/0/5') ok = false; }
+  check('plans : Tenailles = 2 nord / 2 sud / 1 milieu, Rush milieu = tout le monde au milieu, quelle que soit la graine', ok);
+  const def = Object.assign({}, OT.DATA.OPERATORS.find(o => o.id === 'op_lynx'), { lane: -1 });
+  const c = mk(4, { teams: [{ name: 'A', operators: [def, 'op_vautour', 'op_granit', 'op_bastion', 'op_belier'], tactics: ['tenailles'] }, { name: 'B', operators: ops }] });
+  check('plans : une voie imposée par le joueur compte dans le plan (Lynx au nord + Tenailles → toujours 2/2/1)', c.teams[0].units[0].voie === -1 && lanes(c, 0) === '2/2/1', lanes(c, 0));
+  // relancé en bataille : les survivants sont redistribués, une utilisation consommée
+  const b = mk(5, T(['rush_milieu']));
+  while (b.t < 3) b.step();
+  const r = b.command('tactic', 0, 'rush_milieu');
+  check('plans : relancé en bataille, il redistribue les survivants (Rush milieu → tous au milieu) et consomme une utilisation', r.ok && lanes(b, 0) === '0/0/5' && b.teams[0].tactics.rush_milieu.uses === 1 && b.teams[0].units.every(u => u.voie === 0), lanes(b, 0));
+}
+{
+  // Rotation (commande en bataille) : toute l'escouade passe par le flanc demandé, recharge 10 s, refusée en « Tenir »
+  const b = mk(6);
+  while (b.t < 2) b.step();
+  const r = b.command('rotate', 0, -1), again = b.command('rotate', 0, 1);
+  check('rotation : acceptée, toute l\'escouade (hors tireur d\'élite) passe au nord ; une seconde rotation immédiate est refusée (recharge)', r.ok && !again.ok && b.teams[0].units.every(u => u.voie === -1) && b.snapshot().teams[0].rotation === -1, { r, again });
+  let north = 0; while (b.t < 14 && !b.teams[0].units.some(u => u.visible.size)) b.step();
+  for (const u of b.teams[0].units) if (u.alive && u.z < 15) north++;
+  check('rotation : les opérateurs rejoignent réellement le flanc nord', north >= 4, b.teams[0].units.map(u => u.z.toFixed(0)));
+  const h = mk(6, { teams: [{ name: 'A', order: 'hold', operators: ops }, { name: 'B', operators: ops }] }); h.step();
+  check('rotation : refusée en ordre « Tenir », refusée pour une voie inconnue', !h.command('rotate', 0, 1).ok && !mk(6).command('rotate', 0, 2).ok);
+  // rejouable : mêmes commandes au même pas → même bataille
+  const a = mk(8); while (a.t < 5) a.step(); a.command('rotate', 0, 1); while (a.t < 20) a.step(); a.command('rotate', 0, 0); a.run();
+  const rp = mk(8, { replayInputs: a.inputs }); rp.run();
+  check('rotation : la bataille revue (commandes rejouées au même pas) est identique', a.inputs.length === 2 && JSON.stringify(a.result.teams) === JSON.stringify(rp.result.teams) && a.result.duration === rp.result.duration);
+  const sn = mk(9).snapshot();
+  check('instantané : voie de chaque opérateur, plan et rotation de chaque équipe', sn.units.every(u => [-1, 0, 1].includes(u.voie)) && sn.teams.length === 2 && sn.teams[0].plan === 'auto');
+}
+
 console.log(`\n${pass}/${pass + fail} vérifications réussies${fail ? '  — ÉCHECS : ' + fail : ''}`);
 process.exit(fail ? 1 : 0);
