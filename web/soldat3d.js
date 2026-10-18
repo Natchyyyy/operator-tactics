@@ -72,10 +72,16 @@
     const P = hips.parent.getWorldQuaternion(new THREE.Quaternion()), Pi = P.clone().invert(), up = new THREE.Vector3(0, 1, 0);
     const q = new THREE.Quaternion(), qw = new THREE.Quaternion(), f = new THREE.Vector3();
     const yawOf = (qq) => { qw.copy(P).multiply(qq); f.set(0, 0, 1).applyQuaternion(qw); if (Math.abs(f.y) > 0.9) { f.set(1, 0, 0).applyQuaternion(qw); return Math.atan2(f.x, f.z) - Math.PI / 2; } return Math.atan2(f.x, f.z); };
+    // référence commune : l'orientation du bassin à la première image de la visée (sinon le lancer, dont la première image
+    // est déjà tournée de 90°, faisait pivoter tout le corps au début et à la fin du lancer)
+    const refTr = M.clips.Rifle_Aim_Turn_Right && M.clips.Rifle_Aim_Turn_Right.tracks.find(t => /Hips\.quaternion$/.test(t.name));
+    const y0 = refTr ? yawOf(q.fromArray(refTr.values, 0)) : yawOf(hips.quaternion);
+    // pour aligner d'autres poses (garde basse) sur cette référence
+    M.alignHips = (bone) => { const d = yawOf(bone.quaternion) - y0; bone.quaternion.copy(Pi.clone().multiply(new THREE.Quaternion().setFromAxisAngle(up, -d)).multiply(P).multiply(bone.quaternion)); };
     for (const n of STRAIGHT) {
       const c = M.clips[n]; if (!c) continue;
       const tr = c.tracks.find(t => /Hips\.quaternion$/.test(t.name)); if (!tr) continue;
-      const v = tr.values; const y0 = yawOf(q.fromArray(v, 0));
+      const v = tr.values;
       for (let i = 0; i < v.length; i += 4) {
         q.fromArray(v, i); const d = yawOf(q) - y0;
         // q' = P⁻¹ · Ry(−d) · P · q : on retire la rotation autour de la verticale du monde
@@ -175,7 +181,8 @@
     const pR0 = palm(R), pL0 = palm(L), Qa = fusil(pL0.clone().sub(pR0).normalize()), Qai = Qa.clone().invert();
     const grip = (h) => { const q = WQ(h.hand); return { rel: Qai.clone().multiply(q), off: palm(h).sub(W(h.hand)).applyQuaternion(q.clone().invert()) }; };
     const gR = grip(R), gL = grip(L), span = pL0.distanceTo(pR0);
-    act.stop(); mixer.uncacheAction(aim); restore(); fingers.forEach(([o, q]) => o.quaternion.copy(q)); sc.updateMatrixWorld(true);
+    act.stop(); mixer.uncacheAction(aim); restore(); fingers.forEach(([o, q]) => o.quaternion.copy(q));
+    sc.updateMatrixWorld(true);
     // 2. fusil en garde basse (k : mètres du jeu → unités du modèle)
     const k = RAW_H / HEIGHT, d = new THREE.Vector3().fromArray(GB.canon).normalize();
     const u = new THREE.Vector3(0, 1, 0).addScaledVector(d, -d.y).normalize();
@@ -279,6 +286,7 @@
       bone.quaternion.copy(WQ(bone.parent).invert().multiply(dq.multiply(WQ(bone)))); bone.updateMatrixWorld(true);
     };
     function ik(arm, fore, hand, delta) {
+      mod(arm); mod(fore); mod(hand);
       const qH = WQ(hand), S0 = WP(arm), E0 = WP(fore), H0 = WP(hand), T = H0.clone().add(delta);
       const a = S0.distanceTo(E0), b = E0.distanceTo(H0); let c = S0.distanceTo(T); c = Math.min(Math.max(c, Math.abs(a - b) + 1e-4), (a + b) * 0.999);
       const dir = T.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - b * b) / (2 * a * c)));
@@ -291,7 +299,14 @@
     const UP = new THREE.Vector3(0, 1, 0), qT = new THREE.Quaternion(), qP = new THREE.Quaternion();
     const twist = (bone, ang) => { bone.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(UP, ang); bone.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); bone.updateMatrixWorld(true); };
     const spine3 = [bone('Spine'), bone('Spine1'), bone('Spine2')].filter(Boolean), hipsB = bone('Hips'), spine1 = bone('Spine1');
-    const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true, modele: M.nom, clips: M.clips, yawFix: M.yawFix, loco: M.loco || {}, chuteY: M.chuteY || {}, legClip: null,
+    // Retouches par image (torsion des jambes, respiration, IK de l'épaule, recul) : elles s'ajoutent à la pose du mixer.
+    // PIÈGE three.js : le mixer ne réécrit un os que si sa valeur animée a CHANGÉ depuis l'image précédente ; sur une pose
+    // figée ou un haut du corps statique, nos retouches s'accumulaient d'image en image (torses qui tournaient sans fin).
+    // D'où ce registre : chaque os retouché est remis à sa valeur « mixer » au début de l'image suivante.
+    const mods = [];
+    const mod = (bone) => { if (!bone || bone.userData.modK === frameK) return; bone.userData.modK = frameK; mods.push([bone, bone.quaternion.clone()]); };
+    let frameK = 1;
+    const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true, modele: M.nom, mod, clips: M.clips, yawFix: M.yawFix, loco: M.loco || {}, chuteY: M.chuteY || {}, legClip: null,
       jambes: 0, jambesCible: 0, mode: 'deux', handLocal: { droite: null, gauche: null }, t: 0,
       bones: { rh: bone('RightHand'), lh: bone('LeftHand'), rm: body.getObjectByName('PalmeD'), lm: body.getObjectByName('PalmeG'),
         ra: bone('RightArm'), rf: bone('RightForeArm'), la: bone('LeftArm'), lf: bone('LeftForeArm'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips') },
@@ -319,17 +334,18 @@
       // jambes tournent de cet angle, le dos le rattrape (réparti sur les trois vertèbres) : le torse et l'arme restent vers
       // la cible pendant que les jambes marchent là où le soldat va (pas de côté, recul). Lissé pour ne pas sauter.
       update(dt, keepYaw) {
+        for (const [b, q] of mods) b.quaternion.copy(q); mods.length = 0; frameK++;
         mixer.update(dt); this.t += dt;
         this.epK = (this.epK || 0) + ((EPAULE[this.clip] ? 1 : 0) - (this.epK || 0)) * (dt > 0 ? Math.min(1, dt * 8) : 1);
-        if (!keepYaw) { const tgt = M.yawFix[this.clip] || 0; let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 10); }
+        if (!keepYaw) { const tgt = M.yawFix[this.clip] || 0; let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 5); }   // (lent : les corrections diffèrent d'une pose à l'autre)
         let dj = this.jambesCible - this.jambes; while (dj > Math.PI) dj -= 2 * Math.PI; while (dj < -Math.PI) dj += 2 * Math.PI;
-        this.jambes += Math.max(-6 * dt, Math.min(6 * dt, dj * Math.min(1, dt * 10)));
+        this.jambes += Math.max(-4.5 * dt, Math.min(4.5 * dt, dj * Math.min(1, dt * 8)));
         if (Math.abs(this.jambes) > 0.01 && hipsB && spine3.length) {
-          body.updateMatrixWorld(true); twist(hipsB, this.jambes);
-          for (const sb of spine3) twist(sb, -this.jambes / spine3.length);
+          body.updateMatrixWorld(true); mod(hipsB); twist(hipsB, this.jambes);
+          for (const sb of spine3) { mod(sb); twist(sb, -this.jambes / spine3.length); }
         }
         // respiration (poses fixes : garde basse, visée) : légère flexion du dos
-        if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
+        if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { mod(spine1); spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
       },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
       // L'arme est tenue par les PAUMES (entre le poignet et la base des doigts), pas par les poignets : la poignée dans la paume

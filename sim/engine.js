@@ -512,7 +512,7 @@
   };
   // Mise en joue d'une nouvelle cible : temps d'acquisition selon l'arme et les réflexes ; plus rapide si on la visait il y a peu.
   Battle.prototype.aimAt = function (u, target) {
-    u.target = target; u.burst = 0;
+    u.target = target; u.burst = 0; u.targetAt = this.t;
     let t = u.weapon.aim * (1.3 - (u.def.reflexes / 100) * 0.6) * (has(u, 'fasthands') ? 0.8 : 1);  // Mains sûres
     if (u.att.lunette) t *= 1.15; else if (u.att.holo) t *= 0.9;                                       // accessoire : optique
     if (this.synergy(u, 'freres')) t *= 0.9;                                                            // synergie Frères d'armes
@@ -599,7 +599,10 @@
 
     // choix / maintien de la cible : on garde la dernière cible quelques secondes si on la perd de vue
     if (threats.length > 0) {
-      const target = this.chooseTarget(u, threats);
+      let target = this.chooseTarget(u, threats);
+      // on ne change pas de cible toutes les demi-secondes : la cible en cours est gardée au moins 2 s tant qu'elle est en vue
+      // (sinon le soldat pivote sans arrêt d'un ennemi à l'autre)
+      if (u.target && u.target !== target && u.target.alive && threats.includes(u.target) && this.t - (u.targetAt || -99) < 2) target = u.target;
       if (u.target !== target) this.aimAt(u, target);
       u.targetLostAt = 0;
     } else if (u.target) {

@@ -613,15 +613,18 @@
     const dx = m.cur.x - m.prev.x, dz = m.cur.z - m.prev.z, v = Math.hypot(dx, dz) / DT;
     // direction du déplacement par rapport au corps affiché : les jambes marchent dans cette direction, le torse reste vers la
     // cible. Au-delà de ~100°, on recule : jambes vers l'arrière et cycle lu à l'envers (hystérésis pour ne pas osciller).
+    // direction du déplacement lissée sur ~0,3 s : les petits zigzags du chemin (centre de case, écartement d'un allié)
+    // ne font plus pivoter les jambes dans tous les sens
     let ecart = 0;
-    if (v > 0.15) { ecart = (-Math.atan2(dz, dx) + Math.PI / 2) - m.yaw; while (ecart > Math.PI) ecart -= 2 * Math.PI; while (ecart < -Math.PI) ecart += 2 * Math.PI; }
+    if (v > 0.15 && Math.hypot(a.vx, a.vz) > 0.1) { ecart = (-Math.atan2(a.vz, a.vx) + Math.PI / 2) - m.yaw; while (ecart > Math.PI) ecart -= 2 * Math.PI; while (ecart < -Math.PI) ecart += 2 * Math.PI; }
     const seuil = a.recule ? 1.25 : 1.85; a.recule = v > 0.15 && Math.abs(ecart) > seuil;
     let jambes = a.recule ? ecart + (ecart > 0 ? -Math.PI : Math.PI) : ecart, sens = a.recule ? -1 : 1;
-    if (v > 0.15) a.piedsYaw = m.yaw + jambes;
-    else {   // à l'arrêt, les pieds restent plantés pendant que le torse pivote ; au-delà de ~50°, ils se replacent
-      if (a.piedsYaw === undefined) a.piedsYaw = m.yaw;
+    if (v > 0.15) { a.piedsYaw = m.yaw + jambes; a.stopT = 0; }
+    else {   // à l'arrêt, les pieds restent plantés là où ils étaient (même de côté) pendant que le torse pivote ;
+      // ils se replacent face au torse si l'écart devient grand, ou après un moment immobile
+      if (a.piedsYaw === undefined) a.piedsYaw = m.yaw; a.stopT = (a.stopT || 0) + dt;
       jambes = a.piedsYaw - m.yaw; while (jambes > Math.PI) jambes -= 2 * Math.PI; while (jambes < -Math.PI) jambes += 2 * Math.PI;
-      if (Math.abs(jambes) > 0.9 || crouch) { a.piedsYaw = m.yaw; jambes = 0; }
+      if (Math.abs(jambes) > 1.9 || (a.stopT > 1.2 && Math.abs(jambes) > 0.35) || crouch) { a.piedsYaw = m.yaw; jambes = 0; }
     }
     m.jambesCible = u.alive ? jambes : 0;
     const loco = (n) => { const nat = m.loco[n] || 1; m.play(n, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)), fade: 0.2 });
@@ -653,7 +656,7 @@
     if (!legs) m.playLegs(null);
     if (u.alive) { m.ring.material.opacity = 0.8; a.deadT = 0; m.pose.position.y = 0; }
     m.update(dt, !u.alive);
-    if (m.bones.spine && (a.recoil > 0 || a.flinch > 0)) { m.bones.spine.rotation.x -= a.recoil * 0.05; m.bones.spine.rotation.z += a.flinch * 0.12 * Math.sin(simTime * 30); }
+    if (m.bones.spine && (a.recoil > 0 || a.flinch > 0)) { m.mod(m.bones.spine); m.bones.spine.rotation.x -= a.recoil * 0.05; m.bones.spine.rotation.z += a.flinch * 0.12 * Math.sin(simTime * 30); }
     m.placeWeapon(mode === 'deux', a.recoil, mode);
   }
   function animateOperator(u, m, dt) {
@@ -1033,14 +1036,36 @@
       // orientation : interpolation angulaire courte
       // orientation : on tourne vers la direction simulée à vitesse limitée (pas de demi-tour instantané qui ferait « tourner »
       // le corps sur lui-même quand la cible ou le chemin change brusquement) ; un mort ne pivote plus
-      const want = -m.cur.facing + Math.PI / 2;
+      // vitesse lissée sur ~0,3 s (direction des jambes, et direction du corps quand on marche sans cible : les petits
+      // zigzags du chemin ne font plus pivoter le soldat dans tous les sens) ; un saut > 4 m/s est un replacement, ignoré
+      const an = m.anim, vdx = (m.cur.x - m.prev.x) / DT, vdz = (m.cur.z - m.prev.z) / DT, vinst = Math.hypot(vdx, vdz);
+      const kv = vinst > 4 ? 0 : Math.min(1, frameDt * 5); an.vx = (an.vx || 0) + (vdx - (an.vx || 0)) * kv; an.vz = (an.vz || 0) + (vdz - (an.vz || 0)) * kv;
+      let want = -m.cur.facing + Math.PI / 2;
+      if (u.alive && !u.target && u.moving && vinst > 0.3 && Math.hypot(an.vx, an.vz) > 0.3) want = -Math.atan2(an.vz, an.vx) + Math.PI / 2;
       if (m.yaw === undefined || !isFinite(m.yaw)) m.yaw = want;
       if (u.alive) { let d = want - m.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
-        const maxStep = 7 * frameDt; m.yaw += Math.max(-maxStep, Math.min(maxStep, d * Math.min(1, frameDt * 12))); }
+        const maxStep = 5.5 * frameDt; m.yaw += Math.max(-maxStep, Math.min(maxStep, d * Math.min(1, frameDt * 10))); }
       else if (m.anim.fallYaw !== undefined && (m.anim.deadT || 0) < 1.4) { let d = m.anim.fallYaw - m.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; m.yaw += Math.max(-2.5 * frameDt, Math.min(2.5 * frameDt, d)); }
       m.group.rotation.y = m.yaw;
       animateOperator(u, m, frameDt);
+      if (SPIN.on) spinWatch(u, m);
     }
+  }
+  // Détecteur de « tours sur soi-même » : à chaque image, orientation dans le monde du bassin et du torse (os) de chaque
+  // soldat ; si l'un d'eux cumule plus de 200° de rotation en moins d'une seconde, on garde l'historique de la seconde
+  // (orientation voulue par la simulation, orientation affichée, animation, jambes, correction) pour trouver la cause.
+  const SPIN = { on: false, events: [], hist: {} };
+  const yawOf = (o) => { const d = new THREE.Vector3(0, 0, 1).applyQuaternion(o.getWorldQuaternion(new THREE.Quaternion())); return Math.atan2(d.x, d.z); };
+  const wrapA = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+  function spinWatch(u, m) {
+    if (!m.isSkinned || !m.bones.hips) return;
+    const h = SPIN.hist[u.id] || (SPIN.hist[u.id] = []), t = simTime + Math.min(1, acc / DT) * DT;
+    const rec = { t: +t.toFixed(2), bassin: yawOf(m.bones.hips), torse: m.bones.spine ? yawOf(m.bones.spine) : 0, yaw: m.yaw, facing: m.cur.facing, corr: m.body.rotation.y, jambes: m.jambes, clip: m.clip, alive: u.alive, state: u.state, v: +(Math.hypot(m.cur.x - m.prev.x, m.cur.z - m.prev.z) / DT).toFixed(2) };
+    h.push(rec); while (h.length > 2 && h[0].t < t - 1.0) h.shift();
+    if (h.length < 3) return;
+    let sb = 0, st = 0; for (let i = 1; i < h.length; i++) { sb += Math.abs(wrapA(h[i].bassin - h[i - 1].bassin)); st += Math.abs(wrapA(h[i].torse - h[i - 1].torse)); }
+    const lim = 200 * Math.PI / 180;
+    if ((sb > lim || st > lim) && !(m.spinAt > t - 2)) { m.spinAt = t; SPIN.events.push({ unit: u.callsign, t: rec.t, bassinDeg: Math.round(sb * 57.3), torseDeg: Math.round(st * 57.3), hist: h.map(r => Object.assign({}, r, { bassin: Math.round(r.bassin * 57.3), torse: Math.round(r.torse * 57.3), yaw: Math.round(r.yaw * 57.3), facing: Math.round(r.facing * 57.3), corr: Math.round(r.corr * 57.3), jambes: Math.round(r.jambes * 57.3) })) }); }
   }
 
   function updateLabels() {
@@ -1401,6 +1426,8 @@
   window.API = {
     stats: () => { render(); const i = renderer.info.render; let meshes = 0, mats = new Set(), geos = new Set(); scene.traverse(o => { if (o.isMesh) { meshes++; mats.add(o.material); geos.add(o.geometry); } }); return { calls: i.calls, triangles: i.triangles, meshes, materials: mats.size, geometries: geos.size, shadows: renderer.shadowMap.enabled }; },
     step: (n, dt) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; render(); return battle.t; },
+    // un pas de simulation rendu en k images intermédiaires (comme en temps réel : interpolation entre deux pas)
+    stepFine: (k) => { stepSim(); for (let i = 1; i <= (k || 3); i++) { acc = DT * i / (k || 3); render(); } return battle.t; },
     skip: () => { skipToEnd(); return battle.result; },
     runToEnd: () => { instantResult = true; while (!battle.over) stepSim(); instantResult = false; acc = DT; render(); return battle.result; },
     start: (opts) => { newBattle(opts); render(); return battle.zone || true; },
@@ -1413,6 +1440,8 @@
     useTactic: (id) => battle.command('tactic', 0, id),
     review: () => { review(); return battle.replayQueue.length; },
     meshes: () => meshes, scene: () => scene,
+    spinWatch: (on) => { SPIN.on = on !== false; SPIN.events = []; SPIN.hist = {}; }, spins: () => SPIN.events,
+    setSpeed: (k) => { speed = k; }, play: () => { paused = false; updatePlayButton(); },
     // diagnostic d'animation : pour chaque soldat, vitesse réelle, direction du déplacement par rapport au corps affiché,
     // animation jouée et sa vitesse de lecture (pour mesurer glissements et incohérences d'orientation)
     diag: () => battle.units.map(u => { const m = meshes[u.id]; if (!m || !m.isSkinned) return null;

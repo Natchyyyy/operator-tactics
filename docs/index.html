@@ -7903,10 +7903,16 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const P = hips.parent.getWorldQuaternion(new THREE.Quaternion()), Pi = P.clone().invert(), up = new THREE.Vector3(0, 1, 0);
     const q = new THREE.Quaternion(), qw = new THREE.Quaternion(), f = new THREE.Vector3();
     const yawOf = (qq) => { qw.copy(P).multiply(qq); f.set(0, 0, 1).applyQuaternion(qw); if (Math.abs(f.y) > 0.9) { f.set(1, 0, 0).applyQuaternion(qw); return Math.atan2(f.x, f.z) - Math.PI / 2; } return Math.atan2(f.x, f.z); };
+    // référence commune : l'orientation du bassin à la première image de la visée (sinon le lancer, dont la première image
+    // est déjà tournée de 90°, faisait pivoter tout le corps au début et à la fin du lancer)
+    const refTr = M.clips.Rifle_Aim_Turn_Right && M.clips.Rifle_Aim_Turn_Right.tracks.find(t => /Hips\.quaternion$/.test(t.name));
+    const y0 = refTr ? yawOf(q.fromArray(refTr.values, 0)) : yawOf(hips.quaternion);
+    // pour aligner d'autres poses (garde basse) sur cette référence
+    M.alignHips = (bone) => { const d = yawOf(bone.quaternion) - y0; bone.quaternion.copy(Pi.clone().multiply(new THREE.Quaternion().setFromAxisAngle(up, -d)).multiply(P).multiply(bone.quaternion)); };
     for (const n of STRAIGHT) {
       const c = M.clips[n]; if (!c) continue;
       const tr = c.tracks.find(t => /Hips\.quaternion$/.test(t.name)); if (!tr) continue;
-      const v = tr.values; const y0 = yawOf(q.fromArray(v, 0));
+      const v = tr.values;
       for (let i = 0; i < v.length; i += 4) {
         q.fromArray(v, i); const d = yawOf(q) - y0;
         // q' = P⁻¹ · Ry(−d) · P · q : on retire la rotation autour de la verticale du monde
@@ -8006,7 +8012,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const pR0 = palm(R), pL0 = palm(L), Qa = fusil(pL0.clone().sub(pR0).normalize()), Qai = Qa.clone().invert();
     const grip = (h) => { const q = WQ(h.hand); return { rel: Qai.clone().multiply(q), off: palm(h).sub(W(h.hand)).applyQuaternion(q.clone().invert()) }; };
     const gR = grip(R), gL = grip(L), span = pL0.distanceTo(pR0);
-    act.stop(); mixer.uncacheAction(aim); restore(); fingers.forEach(([o, q]) => o.quaternion.copy(q)); sc.updateMatrixWorld(true);
+    act.stop(); mixer.uncacheAction(aim); restore(); fingers.forEach(([o, q]) => o.quaternion.copy(q));
+    sc.updateMatrixWorld(true);
     // 2. fusil en garde basse (k : mètres du jeu → unités du modèle)
     const k = RAW_H / HEIGHT, d = new THREE.Vector3().fromArray(GB.canon).normalize();
     const u = new THREE.Vector3(0, 1, 0).addScaledVector(d, -d.y).normalize();
@@ -8110,6 +8117,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       bone.quaternion.copy(WQ(bone.parent).invert().multiply(dq.multiply(WQ(bone)))); bone.updateMatrixWorld(true);
     };
     function ik(arm, fore, hand, delta) {
+      mod(arm); mod(fore); mod(hand);
       const qH = WQ(hand), S0 = WP(arm), E0 = WP(fore), H0 = WP(hand), T = H0.clone().add(delta);
       const a = S0.distanceTo(E0), b = E0.distanceTo(H0); let c = S0.distanceTo(T); c = Math.min(Math.max(c, Math.abs(a - b) + 1e-4), (a + b) * 0.999);
       const dir = T.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - b * b) / (2 * a * c)));
@@ -8122,7 +8130,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const UP = new THREE.Vector3(0, 1, 0), qT = new THREE.Quaternion(), qP = new THREE.Quaternion();
     const twist = (bone, ang) => { bone.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(UP, ang); bone.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); bone.updateMatrixWorld(true); };
     const spine3 = [bone('Spine'), bone('Spine1'), bone('Spine2')].filter(Boolean), hipsB = bone('Hips'), spine1 = bone('Spine1');
-    const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true, modele: M.nom, clips: M.clips, yawFix: M.yawFix, loco: M.loco || {}, chuteY: M.chuteY || {}, legClip: null,
+    // Retouches par image (torsion des jambes, respiration, IK de l'épaule, recul) : elles s'ajoutent à la pose du mixer.
+    // PIÈGE three.js : le mixer ne réécrit un os que si sa valeur animée a CHANGÉ depuis l'image précédente ; sur une pose
+    // figée ou un haut du corps statique, nos retouches s'accumulaient d'image en image (torses qui tournaient sans fin).
+    // D'où ce registre : chaque os retouché est remis à sa valeur « mixer » au début de l'image suivante.
+    const mods = [];
+    const mod = (bone) => { if (!bone || bone.userData.modK === frameK) return; bone.userData.modK = frameK; mods.push([bone, bone.quaternion.clone()]); };
+    let frameK = 1;
+    const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true, modele: M.nom, mod, clips: M.clips, yawFix: M.yawFix, loco: M.loco || {}, chuteY: M.chuteY || {}, legClip: null,
       jambes: 0, jambesCible: 0, mode: 'deux', handLocal: { droite: null, gauche: null }, t: 0,
       bones: { rh: bone('RightHand'), lh: bone('LeftHand'), rm: body.getObjectByName('PalmeD'), lm: body.getObjectByName('PalmeG'),
         ra: bone('RightArm'), rf: bone('RightForeArm'), la: bone('LeftArm'), lf: bone('LeftForeArm'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips') },
@@ -8150,17 +8165,18 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // jambes tournent de cet angle, le dos le rattrape (réparti sur les trois vertèbres) : le torse et l'arme restent vers
       // la cible pendant que les jambes marchent là où le soldat va (pas de côté, recul). Lissé pour ne pas sauter.
       update(dt, keepYaw) {
+        for (const [b, q] of mods) b.quaternion.copy(q); mods.length = 0; frameK++;
         mixer.update(dt); this.t += dt;
         this.epK = (this.epK || 0) + ((EPAULE[this.clip] ? 1 : 0) - (this.epK || 0)) * (dt > 0 ? Math.min(1, dt * 8) : 1);
-        if (!keepYaw) { const tgt = M.yawFix[this.clip] || 0; let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 10); }
+        if (!keepYaw) { const tgt = M.yawFix[this.clip] || 0; let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 5); }   // (lent : les corrections diffèrent d'une pose à l'autre)
         let dj = this.jambesCible - this.jambes; while (dj > Math.PI) dj -= 2 * Math.PI; while (dj < -Math.PI) dj += 2 * Math.PI;
-        this.jambes += Math.max(-6 * dt, Math.min(6 * dt, dj * Math.min(1, dt * 10)));
+        this.jambes += Math.max(-4.5 * dt, Math.min(4.5 * dt, dj * Math.min(1, dt * 8)));
         if (Math.abs(this.jambes) > 0.01 && hipsB && spine3.length) {
-          body.updateMatrixWorld(true); twist(hipsB, this.jambes);
-          for (const sb of spine3) twist(sb, -this.jambes / spine3.length);
+          body.updateMatrixWorld(true); mod(hipsB); twist(hipsB, this.jambes);
+          for (const sb of spine3) { mod(sb); twist(sb, -this.jambes / spine3.length); }
         }
         // respiration (poses fixes : garde basse, visée) : légère flexion du dos
-        if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
+        if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { mod(spine1); spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
       },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
       // L'arme est tenue par les PAUMES (entre le poignet et la base des doigts), pas par les poignets : la poignée dans la paume
@@ -9772,7 +9788,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   };
   // Mise en joue d'une nouvelle cible : temps d'acquisition selon l'arme et les réflexes ; plus rapide si on la visait il y a peu.
   Battle.prototype.aimAt = function (u, target) {
-    u.target = target; u.burst = 0;
+    u.target = target; u.burst = 0; u.targetAt = this.t;
     let t = u.weapon.aim * (1.3 - (u.def.reflexes / 100) * 0.6) * (has(u, 'fasthands') ? 0.8 : 1);  // Mains sûres
     if (u.att.lunette) t *= 1.15; else if (u.att.holo) t *= 0.9;                                       // accessoire : optique
     if (this.synergy(u, 'freres')) t *= 0.9;                                                            // synergie Frères d'armes
@@ -9859,7 +9875,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
 
     // choix / maintien de la cible : on garde la dernière cible quelques secondes si on la perd de vue
     if (threats.length > 0) {
-      const target = this.chooseTarget(u, threats);
+      let target = this.chooseTarget(u, threats);
+      // on ne change pas de cible toutes les demi-secondes : la cible en cours est gardée au moins 2 s tant qu'elle est en vue
+      // (sinon le soldat pivote sans arrêt d'un ennemi à l'autre)
+      if (u.target && u.target !== target && u.target.alive && threats.includes(u.target) && this.t - (u.targetAt || -99) < 2) target = u.target;
       if (u.target !== target) this.aimAt(u, target);
       u.targetLostAt = 0;
     } else if (u.target) {
@@ -12508,15 +12527,18 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const dx = m.cur.x - m.prev.x, dz = m.cur.z - m.prev.z, v = Math.hypot(dx, dz) / DT;
     // direction du déplacement par rapport au corps affiché : les jambes marchent dans cette direction, le torse reste vers la
     // cible. Au-delà de ~100°, on recule : jambes vers l'arrière et cycle lu à l'envers (hystérésis pour ne pas osciller).
+    // direction du déplacement lissée sur ~0,3 s : les petits zigzags du chemin (centre de case, écartement d'un allié)
+    // ne font plus pivoter les jambes dans tous les sens
     let ecart = 0;
-    if (v > 0.15) { ecart = (-Math.atan2(dz, dx) + Math.PI / 2) - m.yaw; while (ecart > Math.PI) ecart -= 2 * Math.PI; while (ecart < -Math.PI) ecart += 2 * Math.PI; }
+    if (v > 0.15 && Math.hypot(a.vx, a.vz) > 0.1) { ecart = (-Math.atan2(a.vz, a.vx) + Math.PI / 2) - m.yaw; while (ecart > Math.PI) ecart -= 2 * Math.PI; while (ecart < -Math.PI) ecart += 2 * Math.PI; }
     const seuil = a.recule ? 1.25 : 1.85; a.recule = v > 0.15 && Math.abs(ecart) > seuil;
     let jambes = a.recule ? ecart + (ecart > 0 ? -Math.PI : Math.PI) : ecart, sens = a.recule ? -1 : 1;
-    if (v > 0.15) a.piedsYaw = m.yaw + jambes;
-    else {   // à l'arrêt, les pieds restent plantés pendant que le torse pivote ; au-delà de ~50°, ils se replacent
-      if (a.piedsYaw === undefined) a.piedsYaw = m.yaw;
+    if (v > 0.15) { a.piedsYaw = m.yaw + jambes; a.stopT = 0; }
+    else {   // à l'arrêt, les pieds restent plantés là où ils étaient (même de côté) pendant que le torse pivote ;
+      // ils se replacent face au torse si l'écart devient grand, ou après un moment immobile
+      if (a.piedsYaw === undefined) a.piedsYaw = m.yaw; a.stopT = (a.stopT || 0) + dt;
       jambes = a.piedsYaw - m.yaw; while (jambes > Math.PI) jambes -= 2 * Math.PI; while (jambes < -Math.PI) jambes += 2 * Math.PI;
-      if (Math.abs(jambes) > 0.9 || crouch) { a.piedsYaw = m.yaw; jambes = 0; }
+      if (Math.abs(jambes) > 1.9 || (a.stopT > 1.2 && Math.abs(jambes) > 0.35) || crouch) { a.piedsYaw = m.yaw; jambes = 0; }
     }
     m.jambesCible = u.alive ? jambes : 0;
     const loco = (n) => { const nat = m.loco[n] || 1; m.play(n, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)), fade: 0.2 });
@@ -12548,7 +12570,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (!legs) m.playLegs(null);
     if (u.alive) { m.ring.material.opacity = 0.8; a.deadT = 0; m.pose.position.y = 0; }
     m.update(dt, !u.alive);
-    if (m.bones.spine && (a.recoil > 0 || a.flinch > 0)) { m.bones.spine.rotation.x -= a.recoil * 0.05; m.bones.spine.rotation.z += a.flinch * 0.12 * Math.sin(simTime * 30); }
+    if (m.bones.spine && (a.recoil > 0 || a.flinch > 0)) { m.mod(m.bones.spine); m.bones.spine.rotation.x -= a.recoil * 0.05; m.bones.spine.rotation.z += a.flinch * 0.12 * Math.sin(simTime * 30); }
     m.placeWeapon(mode === 'deux', a.recoil, mode);
   }
   function animateOperator(u, m, dt) {
@@ -12928,14 +12950,36 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // orientation : interpolation angulaire courte
       // orientation : on tourne vers la direction simulée à vitesse limitée (pas de demi-tour instantané qui ferait « tourner »
       // le corps sur lui-même quand la cible ou le chemin change brusquement) ; un mort ne pivote plus
-      const want = -m.cur.facing + Math.PI / 2;
+      // vitesse lissée sur ~0,3 s (direction des jambes, et direction du corps quand on marche sans cible : les petits
+      // zigzags du chemin ne font plus pivoter le soldat dans tous les sens) ; un saut > 4 m/s est un replacement, ignoré
+      const an = m.anim, vdx = (m.cur.x - m.prev.x) / DT, vdz = (m.cur.z - m.prev.z) / DT, vinst = Math.hypot(vdx, vdz);
+      const kv = vinst > 4 ? 0 : Math.min(1, frameDt * 5); an.vx = (an.vx || 0) + (vdx - (an.vx || 0)) * kv; an.vz = (an.vz || 0) + (vdz - (an.vz || 0)) * kv;
+      let want = -m.cur.facing + Math.PI / 2;
+      if (u.alive && !u.target && u.moving && vinst > 0.3 && Math.hypot(an.vx, an.vz) > 0.3) want = -Math.atan2(an.vz, an.vx) + Math.PI / 2;
       if (m.yaw === undefined || !isFinite(m.yaw)) m.yaw = want;
       if (u.alive) { let d = want - m.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
-        const maxStep = 7 * frameDt; m.yaw += Math.max(-maxStep, Math.min(maxStep, d * Math.min(1, frameDt * 12))); }
+        const maxStep = 5.5 * frameDt; m.yaw += Math.max(-maxStep, Math.min(maxStep, d * Math.min(1, frameDt * 10))); }
       else if (m.anim.fallYaw !== undefined && (m.anim.deadT || 0) < 1.4) { let d = m.anim.fallYaw - m.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; m.yaw += Math.max(-2.5 * frameDt, Math.min(2.5 * frameDt, d)); }
       m.group.rotation.y = m.yaw;
       animateOperator(u, m, frameDt);
+      if (SPIN.on) spinWatch(u, m);
     }
+  }
+  // Détecteur de « tours sur soi-même » : à chaque image, orientation dans le monde du bassin et du torse (os) de chaque
+  // soldat ; si l'un d'eux cumule plus de 200° de rotation en moins d'une seconde, on garde l'historique de la seconde
+  // (orientation voulue par la simulation, orientation affichée, animation, jambes, correction) pour trouver la cause.
+  const SPIN = { on: false, events: [], hist: {} };
+  const yawOf = (o) => { const d = new THREE.Vector3(0, 0, 1).applyQuaternion(o.getWorldQuaternion(new THREE.Quaternion())); return Math.atan2(d.x, d.z); };
+  const wrapA = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+  function spinWatch(u, m) {
+    if (!m.isSkinned || !m.bones.hips) return;
+    const h = SPIN.hist[u.id] || (SPIN.hist[u.id] = []), t = simTime + Math.min(1, acc / DT) * DT;
+    const rec = { t: +t.toFixed(2), bassin: yawOf(m.bones.hips), torse: m.bones.spine ? yawOf(m.bones.spine) : 0, yaw: m.yaw, facing: m.cur.facing, corr: m.body.rotation.y, jambes: m.jambes, clip: m.clip, alive: u.alive, state: u.state, v: +(Math.hypot(m.cur.x - m.prev.x, m.cur.z - m.prev.z) / DT).toFixed(2) };
+    h.push(rec); while (h.length > 2 && h[0].t < t - 1.0) h.shift();
+    if (h.length < 3) return;
+    let sb = 0, st = 0; for (let i = 1; i < h.length; i++) { sb += Math.abs(wrapA(h[i].bassin - h[i - 1].bassin)); st += Math.abs(wrapA(h[i].torse - h[i - 1].torse)); }
+    const lim = 200 * Math.PI / 180;
+    if ((sb > lim || st > lim) && !(m.spinAt > t - 2)) { m.spinAt = t; SPIN.events.push({ unit: u.callsign, t: rec.t, bassinDeg: Math.round(sb * 57.3), torseDeg: Math.round(st * 57.3), hist: h.map(r => Object.assign({}, r, { bassin: Math.round(r.bassin * 57.3), torse: Math.round(r.torse * 57.3), yaw: Math.round(r.yaw * 57.3), facing: Math.round(r.facing * 57.3), corr: Math.round(r.corr * 57.3), jambes: Math.round(r.jambes * 57.3) })) }); }
   }
 
   function updateLabels() {
@@ -13296,6 +13340,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   window.API = {
     stats: () => { render(); const i = renderer.info.render; let meshes = 0, mats = new Set(), geos = new Set(); scene.traverse(o => { if (o.isMesh) { meshes++; mats.add(o.material); geos.add(o.geometry); } }); return { calls: i.calls, triangles: i.triangles, meshes, materials: mats.size, geometries: geos.size, shadows: renderer.shadowMap.enabled }; },
     step: (n, dt) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; render(); return battle.t; },
+    // un pas de simulation rendu en k images intermédiaires (comme en temps réel : interpolation entre deux pas)
+    stepFine: (k) => { stepSim(); for (let i = 1; i <= (k || 3); i++) { acc = DT * i / (k || 3); render(); } return battle.t; },
     skip: () => { skipToEnd(); return battle.result; },
     runToEnd: () => { instantResult = true; while (!battle.over) stepSim(); instantResult = false; acc = DT; render(); return battle.result; },
     start: (opts) => { newBattle(opts); render(); return battle.zone || true; },
@@ -13308,6 +13354,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     useTactic: (id) => battle.command('tactic', 0, id),
     review: () => { review(); return battle.replayQueue.length; },
     meshes: () => meshes, scene: () => scene,
+    spinWatch: (on) => { SPIN.on = on !== false; SPIN.events = []; SPIN.hist = {}; }, spins: () => SPIN.events,
+    setSpeed: (k) => { speed = k; }, play: () => { paused = false; updatePlayButton(); },
     // diagnostic d'animation : pour chaque soldat, vitesse réelle, direction du déplacement par rapport au corps affiché,
     // animation jouée et sa vitesse de lecture (pour mesurer glissements et incohérences d'orientation)
     diag: () => battle.units.map(u => { const m = meshes[u.id]; if (!m || !m.isSkinned) return null;

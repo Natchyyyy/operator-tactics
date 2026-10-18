@@ -24,6 +24,19 @@ pieds qui glissaient et 25 % un déplacement de côté avec les jambes de face ;
   mesurés sur le nuage de points (`modeles3d.js arme()`), remplace l'ancien fusil (clé `fusil` de `decor.js`).
 - Outils de contrôle : `outils/vues/arme.html?a=Clip&t=&m=gign|soldat&mode=droite|bandouliere&droite=1` (4 vues, repères
   paumes / bouche / crosse), `clips.html?j=deg&t=` (jambes tournées), `mesure.html` (vitesses, chutes).
+- **Détecteur de tours sur soi-même** (`window.API.spinWatch(true)` puis `spins()`, script `outils/spin_animation.py`,
+  `API.stepFine(k)` = un pas rendu en k images comme en temps réel) : mesure l'orientation des OS (bassin, torse) à chaque
+  image et garde la seconde d'historique quand un corps cumule > 200°. A trouvé la vraie cause des 360° : three.js ne réécrit
+  un os que si sa valeur animée a changé depuis l'image précédente ; sur une pose figée, les retouches par image (torsion
+  des jambes, respiration, recul, IK) s'accumulaient. Correction : registre `mod(bone)` dans `soldat3d.js`, chaque os
+  retouché est remis à sa valeur « mixer » au début de l'image suivante. Toute nouvelle retouche d'os doit passer par `mod`.
+- Le lancer de grenade (première image tournée de 90°) est redressé sur la même référence que la visée : plus de
+  quart de tour au début et à la fin du lancer. Direction du corps en marche sans cible = vitesse lissée (plus de pivots
+  sur les zigzags du chemin) ; à l'arrêt les pieds restent où ils étaient, même de côté, et se replacent après 1,2 s.
+- Reste détecté (5 fois en 45 s) : de vrais demi-tours de la simulation (changement d'ordre : couvert, surveillance),
+  exécutés à 5,5 rad/s ; c'est voulu. Vitesse de rotation du corps : 5,5 rad/s ; correction d'orientation par pose
+  lissée à 5/s.
+- Cible gardée au moins 2 s tant qu'elle est en vue (`u.targetAt`) : plus de pivots incessants d'un ennemi à l'autre.
 - Reste à faire : gros tests complets la nuit (demande de l'utilisateur) ; pas de côté plus naturels avec de vraies
   animations de strafe si on en trouve ; rigging Meshy avec doigts (a échoué deux fois : « réessayez plus tard »).
 
