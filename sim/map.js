@@ -78,7 +78,7 @@
           // ---- MILIEU : station de lavage (deux pistes, local technique au milieu), aspirateurs, véhicules en attente ;
           // devant, l'îlot du totem des tarifs
           box(30.2, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'), box(41.4, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'),
-          box(34.6, 17.9, 2.8, 10.2, 3.3, 'wall', 'lavage local'),
+          box(34.6, 17.9, 2.8, 3.6, 3.3, 'wall', 'lavage local'), box(35.7, 21.5, 0.6, 6.6, 1.1, 'cover', 'lavage muret'),   // local technique au nord, muret entre les pistes
           box(38.8, 12.7, 2.1, 5.2, 2.4, 'wall', 'fourgon'),                     // en attente devant la piste est
           box(31.4, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon'),                     // sortie de la piste ouest, au séchage
           box(33.2, 11.0, 5.4, 1.6, 1.7, 'wall', 'haie'), box(35.3, 11.5, 1.2, 0.5, 3.6, 'wall', 'totem'),
