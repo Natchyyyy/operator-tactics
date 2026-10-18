@@ -36,6 +36,7 @@ ETIQ = {
     'depart_arret': {'transition', 'garde_basse'},
     'depart_arret_vise': {'transition', 'vise'},
     'virage_patrouille': {'marche', 'garde_basse', 'virage'},
+    'jeu_jog_bas_oblique': {'course', 'garde_basse', 'diag'},   # (en jeu seulement : petite course garde basse en diagonale / de côté)
 }
 DEUX_MAINS = lambda e: 'recharge' not in e
 
@@ -106,8 +107,9 @@ crit(id='tibias_se_touchent', partie='bas', lib='Tibias qui s\'interpénètrent 
      val=lambda r: st(r, 'tibias', 'min'), ok=(-0.01, 9), mineur=(-0.035, 9), cle=('tibias', 'min'),
      pourquoi='Deux jambes ne passent pas l\'une dans l\'autre ; c\'est le défaut le plus visible de face.', src='Intégrité du maillage', vues=['piedsFace', 'face'])
 crit(id='largeur_pas', partie='bas', lib='Largeur de pas (m, entre chevilles à la pose du pied)', quand=lambda e: ('marche' in e or 'course' in e) and 'avant' in e and 'recharge' not in e,
-     val=lambda r: r['bilan'].get('largPas'), ok=(0.05, 0.26), mineur=(0.02, 0.33), cle=(),
-     pourquoi='Largeur de pas humaine 8-17 cm ; plus étroit = marche sur un fil (mannequin), plus large = cow-boy.', src='PMC3756042 ; Molina, Small & Neptune 2023 (J. Biomech.)', vues=['dessus', 'piedsFace'])
+     val=lambda r: r['bilan'].get('largPas'), ok=None, mineur=None, cle=(),
+     bornes=lambda e: ((0.20, 0.40), (0.14, 0.46)) if ('vise' in e and 'course' not in e) else ((0.05, 0.26), (0.02, 0.33)),   # (marche visée : base large de la vraie vidéo, cohérente avec ecart_face 28-38 cm)
+     pourquoi='Largeur de pas humaine 8-17 cm en marche normale ; en marche visée, base large (pieds à largeur d\'épaules). Plus étroit = marche sur un fil (mannequin), plus large = cow-boy.', src='PMC3756042 ; Molina, Small & Neptune 2023 (J. Biomech.) ; vraie vidéo (captures/reference_video/) pour la marche visée', vues=['dessus', 'piedsFace'])
 crit(id='longueur_pas', partie='bas', lib='Longueur de pas / longueur humaine attendue à cette vitesse (rapport)', quand=lambda e: 'marche' in e and 'avant' in e and 'recharge' not in e,
      val=_ratio_pas, ok=(0.8, 1.2), mineur=(0.62, 1.38), cle=(),
      pourquoi='À vitesse donnée, l\'humain choisit sa longueur de pas (rapport longueur/cadence ≈ 0,0065 m/(pas/min)) : 1,35 m/s ≈ 0,72 m et 113 pas/min. Trop longs = enjambées molles « au ralenti » ; trop courts = trottinement.', src='Sekiya & Nagasaki 1998 (walk ratio) ; Wikipedia Preferred walking speed (1,4 m/s)', vues=['profil', 'piedsProfil'])
@@ -249,6 +251,8 @@ def _pire(r, cond, cle, f=lambda x: x):
 _TALON_BAS = lambda i, s: i.get('talonY' + s, 1) < 0.03
 _EN_LAIR = lambda i, s: i.get('solMin' + s, 0) > 0.03
 _POUSSEE = lambda i, s: i.get('talonY' + s, 0) >= 0.03 and i.get('solMin' + s, 1) <= 0.03
+# avant-pied : écart total à la liaison (tous sens : relevé, abaissé, tourné de côté) si mesuré, sinon le tangage signé
+_CLE_ORTEIL = lambda r: 'orteilDev' if any('orteilDevG' in i for i in r['images'][:3]) else 'orteil'
 crit(id='hauteur_talon', partie='bas', lib='Talon le plus haut pendant l\'oscillation (m, « talons aux fesses »)', quand=lambda e: ('marche' in e or 'course' in e) and 'recharge' not in e and 'accroupi' not in e and 'sprint' not in e,
      val=lambda r: stat_ou(r, ['talonYG', 'talonYD'], 'max', max), ok=None, mineur=None, cle=('talonYG', 'talonYD', 'max'),
      bornes=lambda e: ((0, 0.12), (0, 0.18)) if ('vise' in e and 'course' not in e) else ((0, 0.25), (0, 0.32)) if 'course' in e else ((0, 0.25), (0, 0.32)),
@@ -260,15 +264,30 @@ crit(id='ecart_face', partie='bas', lib='Écart des chevilles vu de face (m, moy
 crit(id='valgus_genou', partie='bas', lib='Genou qui rentre vers l\'intérieur (valgus, °, max)', quand=lambda e: 'accroupi' not in e,
      val=lambda r: stat_ou(r, ['valgusG', 'valgusD'], 'max', max), ok=(-99, 8), mineur=(-99, 15), cle=('valgusG', 'valgusD', 'max'),
      pourquoi='Genoux dans l\'axe des pieds ; un genou qui rentre (genoux en X) fait « faible » et instable.', src=VID + ' ; biomécanique (valgus dynamique > 10° = défaut)', vues=['face', 'piedsFace'])
-crit(id='orteil_pied_plat', partie='bas', lib='Orteils pliés (ToeBase / pied, moins la liaison, °, max absolu) talon posé OU pied en l\'air (« orteil d\'elfe »)', quand=lambda e: True,
-     val=lambda r: _pire(r, lambda i, s: _TALON_BAS(i, s) or _EN_LAIR(i, s), 'orteil', abs)[0], t=lambda r: _pire(r, lambda i, s: _TALON_BAS(i, s) or _EN_LAIR(i, s), 'orteil', abs)[1], ok=(0, 10), mineur=(0, 18), cle=(),
+crit(id='orteil_pied_plat', partie='bas', lib='Avant-pied tordu (relevé, abaissé ou tourné de côté) vs la liaison, talon posé OU pied en l\'air (°, max ; « orteil d\'elfe », botte en banane)', quand=lambda e: True,
+     val=lambda r: _pire(r, lambda i, s: _TALON_BAS(i, s) or _EN_LAIR(i, s), _CLE_ORTEIL(r), abs)[0], t=lambda r: _pire(r, lambda i, s: _TALON_BAS(i, s) or _EN_LAIR(i, s), _CLE_ORTEIL(r), abs)[1], ok=(0, 10), mineur=(0, 18), cle=(),
      pourquoi='Talon posé ou pied en l\'air : la botte est rigide, les orteils restent dans le prolongement du pied (≈ 0°). Une pointe relevée = chaussure de lutin, se voit de profil.', src='Signalé par l\'utilisateur (captures/reference_video/pieds_trot_*.png) ; botte de combat à semelle rigide', vues=['piedsProfil', 'profil'])
 crit(id='orteil_poussee', partie='bas', lib='Orteils pliés à la poussée, talon levé et pointe au sol (°, max)', quand=lambda e: True,
-     val=lambda r: _pire(r, _POUSSEE, 'orteil')[0], t=lambda r: _pire(r, _POUSSEE, 'orteil')[1], ok=(-99, 35), mineur=(-99, 45), cle=(),
+     val=lambda r: _pire(r, _POUSSEE, _CLE_ORTEIL(r))[0], t=lambda r: _pire(r, _POUSSEE, _CLE_ORTEIL(r))[1], ok=(-99, 35), mineur=(-99, 45), cle=(),
      pourquoi='À la poussée seulement, la botte plie aux orteils (talon levé, pointe au sol), jusqu\'à ~35°.', src='Signalé par l\'utilisateur ; flexion des orteils à la poussée en course', vues=['piedsProfil'])
 crit(id='plantaire_oscillation', partie='bas', lib='Pointe du pied tendue vers le bas en l\'air (flexion plantaire vs liaison, °, max ; pied à plus de 5 cm du sol)', quand=lambda e: True,
      val=lambda r: _pire(r, lambda i, s: i.get('solMin' + s, 0) > 0.05, 'plantaire')[0], t=lambda r: _pire(r, lambda i, s: i.get('solMin' + s, 0) > 0.05, 'plantaire')[1], ok=(-99, 25), mineur=(-99, 30), cle=(),
      pourquoi='En oscillation le pied reste à peu près à angle droit avec le tibia (il se relève même pour passer) ; une pointe tendue = pied de danseuse, botte « froissée ».', src='Signalé par l\'utilisateur ; marche normale : cheville ≈ neutre en oscillation (FRCS)', vues=['piedsProfil'])
+def _pied_ouvert(r):
+    # rotation du pied (axe ACP de la semelle) par rapport à l'avant du bassin, + = pointe vers l'extérieur, pied au sol seulement
+    best = None
+    for s, sg in (('G', 1), ('D', -1)):
+        for i in r['images']:
+            if i.get('piedAz' + s) is None or i.get('bassinAz') is None or i.get('solMin' + s, 1) > 0.03: continue
+            d = (i['piedAz' + s] - i['bassinAz'] + 180) % 360 - 180; v = sg * d
+            if best is None or abs(v) > abs(best[0]): best = (v, i.get('t'))
+    return best or (None, None)
+crit(id='pied_vs_bassin', partie='bas', lib='Pied au sol tourné par rapport au bassin (°, + = pointe vers l\'extérieur, pire image)', quand=lambda e: ('lateral' in e or 'diag' in e or 'recul' in e or 'pivot' in e or 'vise' in e) and 'accroupi' not in e and 'recharge' not in e,
+     val=lambda r: _pied_ouvert(r)[0], t=lambda r: _pied_ouvert(r)[1], ok=(-15, 35), mineur=(-25, 50), cle=(),
+     pourquoi='En pas chassé, en recul ou en visée, les pieds restent tournés vers la menace (pointes 10-30° vers l\'extérieur) ; une pointe tournée à 60-90° dans le sens du pas (pied « en canard ») casse la base de tir et se voit de face et de profil.', src='TC 3-22.9 ch. 9 (lateral movement : pas glissés, pieds vers l\'avant) ; vraie vidéo (captures/reference_video/)', vues=['dessus', 'piedsFace'])
+crit(id='flexion_dorsale', partie='bas', lib='Cheville : flexion dorsale max (pointe relevée vers le tibia, vs liaison, °)', quand=lambda e: 'accroupi' not in e,
+     val=lambda r: (lambda a, b: None if a is None else -min(a, b if b is not None else a))(st(r, 'plantaireG', 'min'), st(r, 'plantaireD', 'min')), ok=(-99, 38), mineur=(-99, 46), cle=('plantaireG', 'plantaireD', 'min'),
+     pourquoi='La cheville se relève de 20° (genou tendu) à 35-40° (genou plié, en charge) au plus ; au-delà, la pointe remonte vers le tibia de façon impossible.', src='Amplitude articulaire de la cheville (flexion dorsale 20° genou tendu, ≈ 35-45° en fente)', vues=['piedsProfil', 'pieds'])
 crit(id='botte_deformee', partie='bas', lib='Botte écrasée / étirée : longueur talon ↔ pointe vs liaison (rapport − 1, max absolu)', quand=lambda e: True,
      val=lambda r: (lambda a, b, c2, d: None if a is None else max(abs(a), abs(b), abs(c2 or 0), abs(d or 0)))(st(r, 'botteG', 'min'), st(r, 'botteG', 'max'), st(r, 'botteD', 'min'), st(r, 'botteD', 'max')), ok=(0, 0.08), mineur=(0, 0.12), cle=('botteG', 'botteD', 'max'),
      pourquoi='Une botte est rigide : sa longueur ne change pas de plus de quelques %. Au-delà de 8 %, le maillage est écrasé par la pose des os du pied.', src='Signalé par l\'utilisateur (captures/reference_video/pieds_trot_*.png)', vues=['piedsProfil', 'pieds'])

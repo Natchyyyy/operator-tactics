@@ -147,7 +147,12 @@ async def main(a):
     # notation par segment (rubrique du banc ; on associe la catégorie à l'état du banc le plus proche)
     MAP = {'patrouille_avant': 'patrouille', 'marche_visee_avant': 'marche_visee', 'marche_visee_diag': 'marche_visee_diagG', 'marche_visee_lateral': 'pas_chasse_G', 'marche_visee_diagArr': 'recul_diagD', 'marche_visee_recul': 'recul_vise',
            'jog_bas_avant': 'jog_bas', 'jog_vise_avant': 'jog_vise', 'sprint': 'sprint', 'accroupi': 'accroupi', 'marche_accroupie': 'marche_accroupie', 'repos_visee': 'repos_visee', 'repos_garde_basse': 'repos_garde_basse',
-           'recharge_arret': 'recharge_arret', 'recharge_marche': 'recharge_marche', 'patrouille_diag': 'virage_patrouille', 'patrouille_lateral': 'virage_patrouille'}
+           'recharge_arret': 'recharge_arret', 'recharge_marche': 'recharge_marche', 'patrouille_diag': 'virage_patrouille', 'patrouille_lateral': 'virage_patrouille',
+           # (catégories latérales / diagonales / arrière : jugées comme telles, pas comme une course avant — sinon angle_pied par
+           # rapport au déplacement donne de faux « pieds à 150° »)
+           'jog_vise_diag': 'jog_vise_diagG', 'jog_vise_lateral': 'jog_vise_lateralD', 'jog_vise_recul': 'jog_vise_recul', 'jog_vise_diagArr': 'jog_vise_recul',
+           'jog_bas_diag': 'jeu_jog_bas_oblique', 'jog_bas_lateral': 'jeu_jog_bas_oblique', 'jog_bas_diagArr': 'jeu_jog_bas_oblique', 'jog_bas_recul': 'jeu_jog_bas_oblique',
+           'patrouille_diagArr': 'virage_patrouille', 'patrouille_recul': 'virage_patrouille'}
     verd = []
     for s in seg:
         e = MAP.get(s['c']) or ('marche_visee_diagG' if s['c'].startswith('marche_visee') else 'jog_vise' if s['c'].startswith('jog_vise') else 'jog_bas' if s['c'].startswith('jog_bas') else None)

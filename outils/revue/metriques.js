@@ -136,7 +136,7 @@
           const v1 = WP(toe).sub(WP(ft)), v2 = tip.clone().sub(WP(toe)), shin = WP(ft).sub(WP(leg));   // (v2 : articulation des orteils → sommet le plus en avant de la botte. L'os Toe_End du modèle gign pointe sur le CÔTÉ, pas vers l'avant : inutilisable)
           const angOrteil = (a, b, n) => { const a1 = a.clone().normalize(), a2 = b.clone().normalize(), sd = new THREE.Vector3().crossVectors(a1, n).normalize(); return Math.atan2(new THREE.Vector3().crossVectors(a1, a2).dot(sd), a1.dot(a2)) * D; };   // (angle signé autour de l'axe latéral du pied, + = orteils relevés ; vérifié sur le banc le 18/10)
           R.semelle[c] = { talon: loc(ft, talon), plante: loc(toe, plante), bout: loc(toe, bout), pointe: loc(toe, tip), sol0: 0, axeBind: +(Math.atan2(axe.dot(side), axe.dot(dir)) * D).toFixed(1), axe: axe.clone().applyQuaternion(WQ(ft).invert()),
-            hautPied: upB.clone().applyQuaternion(WQ(ft).invert()), orteil0: angOrteil(v1, v2, upB), cheville0: ang(shin, v1),
+            hautPied: upB.clone().applyQuaternion(WQ(ft).invert()), orteil0: angOrteil(v1, v2, upB), cheville0: ang(shin, v1), avantPied0: v2.clone().normalize().applyQuaternion(WQ(ft).invert()),
             iTalon: talon.idx, iPointe: tip.idx, dBotte0: talon.distanceTo(tip) };
         }
       } finally { bonesAll.forEach((b, i) => { b.position.copy(sauve[i][0]); b.quaternion.copy(sauve[i][1]); b.scale.copy(sauve[i][2]); }); f.body.updateMatrixWorld(true); }
@@ -200,7 +200,10 @@
       // orteils relevés : angle signé (axe latéral du pied) entre l'avant-pied (ToeBase → bout de la botte) et le pied (Foot → ToeBase), moins la liaison
       { const te = O[c + 'Toe_End'], up2 = S.hautPied ? S.hautPied.clone().applyQuaternion(WQ(ft)) : new THREE.Vector3(0, 1, 0);
         const a1 = P[c + 'ToeBase'].clone().sub(P[c + 'Foot']).normalize(), a2 = pointe.clone().sub(P[c + 'ToeBase']).normalize();   // (a2 : vers le bout de la botte, solidaire de l'os des orteils)
-        m['orteil' + s] = (() => { const sd = new THREE.Vector3().crossVectors(a1, up2).normalize(); return Math.atan2(new THREE.Vector3().crossVectors(a1, a2).dot(sd), a1.dot(a2)) * D; })() - (S.orteil0 || 0);
+        m['orteil' + s] = wrap((() => { const sd = new THREE.Vector3().crossVectors(a1, up2).normalize(); return Math.atan2(new THREE.Vector3().crossVectors(a1, a2).dot(sd), a1.dot(a2)) * D; })() - (S.orteil0 || 0));
+        // avant-pied tordu dans N'IMPORTE quel sens (relevé, abaissé ou tourné de côté) : angle entre l'avant-pied et sa direction de
+        // liaison dans le repère du pied (≥ 0). (Le clip de visée à l'arrêt tourne les orteils de ~70° sur le côté : invisible en tangage seul.)
+        if (S.avantPied0) m['orteilDev' + s] = ang(a2, S.avantPied0.clone().applyQuaternion(WQ(ft)));
         // flexion plantaire de la cheville (+ = pointe du pied vers le bas, par rapport à la liaison). (Signe vérifié le 18/10 en
         // tournant l'os du pied sur le banc : l'angle tibia / pied DIMINUE quand la pointe descend ; la version précédente avait le
         // signe inverse et mesurait la flexion dorsale.)

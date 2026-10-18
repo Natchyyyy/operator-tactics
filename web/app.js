@@ -271,13 +271,13 @@
     return p;
   }
   function inObstacle(p, pad) { for (const o of battle.map.obstacles) if (p.y < o.h + pad && p.x > o.x - pad && p.x < o.x + o.w + pad && p.z > o.z - pad && p.z < o.z + o.d + pad) return true; return false; }
-  function segFree(a, b) {   // fraction libre du segment a → b (1 : aucun obstacle ne le coupe)
+  function segFree(a, b, low) {   // fraction libre du segment a → b (1 : aucun obstacle ne le coupe) ; low : boîtes abaissées d'autant
     let tmin = 1; const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
     for (const o of battle.map.obstacles) {
-      if (Math.min(a.y, b.y) > o.h) continue;
+      const h = o.h - (low || 0); if (Math.min(a.y, b.y) > h) continue;
       let t0 = 0, t1 = 1;
       const slab = (p, d, lo, hi) => { if (Math.abs(d) < 1e-6) return p >= lo && p <= hi; let u = (lo - p) / d, v = (hi - p) / d; if (u > v) { const w = u; u = v; v = w; } t0 = Math.max(t0, u); t1 = Math.min(t1, v); return t0 <= t1; };
-      if (slab(a.x, dx, o.x, o.x + o.w) && slab(a.z, dz, o.z, o.z + o.d) && slab(a.y, dy, -1, o.h) && t0 < tmin) tmin = t0;
+      if (slab(a.x, dx, o.x, o.x + o.w) && slab(a.z, dz, o.z, o.z + o.d) && slab(a.y, dy, -1, h) && t0 < tmin) tmin = t0;
     }
     return tmin;
   }
@@ -289,16 +289,25 @@
   // note d'un cadrage : -1 si la caméra est dans un obstacle, hors du terrain ou face à un mur ; sinon part des sujets visibles
   // (boîtes de la simulation ET décor dessiné : dans un mur, sous un toit, juste au-dessus d'un toit → -1 ; soft : le tireur
   // voit sa cible selon la simulation, on ne teste plus que le décor dessiné ; p : position réelle de la caméra si fournie)
+  // (soft : la boîte d'un obstacle bas compte 0,35 m plus basse — le tireur tire par-dessus — mais une caisse, un local, un fourgon
+  // entre la caméra et la cible la cachent toujours)
   function subjectSeen(p, e, soft) {
-    for (const y of [e.y, e.y + 0.3]) { const q = V3(e.x, y, e.z); if ((soft || segFree(p, q) > 0.995) && (!OCC.use || occRay(p, q, 0.45) >= 1)) return true; }   // tête ou haut du casque
+    for (const y of [e.y, e.y + 0.3]) { const q = V3(e.x, y, e.z); if ((OCC.use ? segFree(p, q, soft ? 0.35 : 0) > 0.995 : soft || segFree(p, q) > 0.995) && (!OCC.use || occRay(p, q, 0.45) >= 1)) return true; }   // tête ou haut du casque
     return false;
+  }
+  // le sujet est-il dans le cadre (marge de 6 %) pour une caméra en p qui vise look avec cette focale ?
+  function inFrame(p, look, fov, e) {
+    const fw = look.clone().sub(p).normalize(), rt = new THREE.Vector3(-fw.z, 0, fw.x).normalize(), up = new THREE.Vector3().crossVectors(rt, fw), d = V3(e.x, e.y + 0.15, e.z).sub(p);
+    const z = d.dot(fw); if (z < 0.6) return false;
+    const th = Math.tan(THREE.MathUtils.degToRad(fov / 2)) * 0.94, tw = th * (camera.aspect || 16 / 9);
+    return Math.abs(d.dot(rt) / z) < tw && Math.abs(d.dot(up) / z) < th;
   }
   function shotQuality(f, at, soft, s) {
     const p = at || f.pos, mp = battle.map; occEnsure();
     if (p.y < 0.5 || inObstacle(p, 0.4) || p.x < 0.6 || p.z < 0.6 || p.x > mp.width - 0.6 || p.z > mp.depth - 0.6 || (OCC.use && (occBad(p) || dynBad(p, s)))) return -1;
     const L = p.distanceTo(f.look); if (Math.min(segFree(p, f.look), OCC.use ? occRay(p, f.look) : 1) * L < Math.min(3.5, L * 0.5)) return -1;
     if (!f.pts.length) return 1;
-    let q = 0; for (const e of f.pts) if (e && subjectSeen(p, e, soft) && !(OCC.use && s && unitScreens(p, e, s))) q++;
+    let q = 0; for (const e of f.pts) if (e && subjectSeen(p, e, soft) && !(OCC.use && s && unitScreens(p, e, s)) && (!OCC.use || inFrame(p, f.look, f.fov, e))) q++;
     return q / f.pts.length;
   }
   // occultants mobiles : un autre soldat collé à l'objectif (son dos remplit l'image) ou entre la caméra et le sujet tout
@@ -366,8 +375,11 @@
       // espace devant le regard : vers sa cible s'il en a une (il peut reculer en tirant), sinon dans le sens de la marche
       const tg = u.target && u.target.alive && meshes[u.target.id] ? meshes[u.target.id].group.position : null, tl = tg ? Math.hypot(tg.x - P.x, tg.z - P.z) : 0;
       const f0 = tl > 0.5 ? new THREE.Vector2((tg.x - P.x) / tl, (tg.z - P.z) / tl) : sp > 0.2 ? new THREE.Vector2(m.anim.vx / sp, m.anim.vz / sp) : new THREE.Vector2(Math.cos(u.facing), Math.sin(u.facing));
-      const dd = smoothDir(s, 'dir', f0.x, f0.y, 1.4, dt), dx = dd.x, dz = dd.y, ca = Math.cos(s.ang || 0), sa = Math.sin(s.ang || 0);
-      const nx = (-dz * ca - dx * sa) * side, nz = (dx * ca - dz * sa) * side, R = s.dd || 3.8;   // côté, angle (trois-quarts arrière / avant), distance
+      // demi-tour du soldat : la caméra reste de son côté (côté et sens inversés ensemble) au lieu de tourner autour de lui ou
+      // de le traverser ; elle panote vers le nouvel espace devant lui
+      if (dt && s.dir && s.dir.x * f0.x + s.dir.y * f0.y < -0.3) { s.side = -(s.side || 1); s.dir.set(f0.x, f0.y); }
+      const sd = s.side || 1, dd = smoothDir(s, 'dir', f0.x, f0.y, 1.4, dt), dx = dd.x, dz = dd.y, ca = Math.cos(s.ang || 0), sa = Math.sin(s.ang || 0);
+      const nx = (-dz * ca - dx * sa) * sd, nz = (dx * ca - dz * sa) * sd, R = s.dd || 3.8;   // côté, angle (trois-quarts arrière / avant), distance
       s.still = u.moving ? 0 : (s.still || 0) + (dt || 0);
       const pos = V3(P.x + nx * R - dx * 0.7, 1.25, P.z + nz * R - dz * 0.7), look = V3(P.x + dx * 2.1, 0.9, P.z + dz * 2.1);   // regard un peu bas : le soldat reste au-dessus des cartes du HUD
       return { pos, look, pts: [eyeOf(s.id)], fov: 46, st: 0.35, lst: 0.3, pivot: V3(P.x, 1.2, P.z) };
@@ -403,6 +415,12 @@
     }
     return null;
   }
+  // évalue fn avec les soldats 3D avancés de k secondes à leur vitesse actuelle (positions remises aussitôt après)
+  function inFuture(k, fn) {
+    const saved = [];
+    for (const id in meshes) { const m = meshes[id], a = m && m.anim; if (!a || !(a.vx || a.vz)) continue; const P = m.group.position; saved.push([P, P.x, P.z]); P.x += (a.vx || 0) * k; P.z += (a.vz || 0) * k; }
+    try { return fn(); } finally { for (const [P, x, z] of saved) { P.x = x; P.z = z; } }
+  }
   // meilleure variante (côté, angle) d'un plan ; null si aucune n'est assez dégagée
   function bestOf(list, bonus, min) {
     let best = null, bq = min === undefined ? 0.5 : min;
@@ -411,6 +429,10 @@
       s.t0 = DIRECTOR.clock; const f = frameShot(s, 0); if (!f) continue;
       let q = shotQuality(f, null, false, s) + (bonus ? bonus(s) : 0);
       if (q >= 0 && f2 && shotQuality(f2, null, false, s) < 0) q -= 0.5;
+      if (q > 0 && OCC.use && !f.noBoom) {   // et dans 1,2 s, les soldats ayant continué leur course : le sujet passe-t-il derrière un fourgon, un abri ?
+        const q3 = inFuture(1.2, () => { const f3 = frameShot(s, 0); return f3 ? shotQuality(f3, null, false, s) : -1; });
+        if (q3 < q - 0.4) q -= 0.4;
+      }
       if (q >= 0 && OCC.use) q -= clutter(f.pos, f.look, f.fov) * 0.9;   // un mur, un bac ou une carrosserie qui remplit le premier plan
       if (q >= 0 && f.pos.y < 9 && !(f.noBoom && OCC.use)) { const c = clipBoom(f.pivot, f.pos); if (c.y - f.pos.y > 0.4 || c.distanceTo(f.pos) > 0.8) q -= 0.6; }   // la perche devrait se replier ou monter : cadrage dénaturé
       if (q > bq + 1e-6) { bq = q; best = s; }
@@ -465,8 +487,9 @@
     if (!next && !(s && s.forced)) {
       const age = s ? D.clock - s.t0 : 99;
       // jugé depuis la position RÉELLE de la caméra (soft : le tireur voit sa cible selon la simulation ; le décor dessiné compte toujours)
-      if (f) { const q = shotQuality(f, cam.init ? cam.pos : null, f.soft, s); D.masked = q < 0.5 ? D.masked + dt : 0; D.bad = q < 0 ? (D.bad || 0) + dt : 0; }
-      const need = !s ? 'debut' : !f ? 'perdu' : age > s.dur ? 'fin' : (D.bad > 0.2 && age > 0.4) ? 'decor' : (D.masked > 1.2 && age > 2.5) ? 'masque' : (s.kind === 'dolly' && s.still > 1.2 && age > D.minHold) ? 'arret' : (s.kind === 'establish' && D.hist.length > 1 && engagedUnits(1).length && age > D.minHold) ? 'action' : '';
+      if (f) { const q = shotQuality(cam.init ? Object.assign({}, f, { look: cam.look }) : f, cam.init ? cam.pos : null, f.soft, s); D.masked = q < 0.5 ? D.masked + dt : 0; D.gone = q <= 0 && f.pts.length ? (D.gone || 0) + dt : 0; D.bad = q < 0 ? (D.bad || 0) + dt : 0; }
+      // (sujet entièrement caché — la grue n'a pas suffi — : on change de plan dès 0,5 s, passé 2,5 s de plan)
+      const need = !s ? 'debut' : !f ? 'perdu' : age > s.dur ? 'fin' : (D.bad > 0.2 && age > 0.4) ? 'decor' : ((D.masked > 1.2 || D.gone > 0.5) && age > 2.5) ? 'masque' : (s.kind === 'dolly' && s.still > 1.2 && age > D.minHold) ? 'arret' : (s.kind === 'establish' && D.hist.length > 1 && engagedUnits(1).length && age > D.minHold) ? 'action' : '';
       if (need) {
         D.why = need;
         for (const c of pickShot()) { next = bestOf(variants(c)); if (next) break; }
@@ -474,7 +497,7 @@
       }
     }
     if (next) {   // coupe
-      next.t0 = D.clock; cam.shot = s = next; D.masked = 0; D.bad = 0;
+      next.t0 = D.clock; cam.shot = s = next; D.masked = 0; D.bad = 0; D.gone = 0;
       D.hist.push({ id: next.id, kind: next.kind, at: D.clock }); if (D.hist.length > 16) D.hist.shift();
       if (D.log) D.log.push([+simTime.toFixed(1), next.kind, D.why]);
       if (next.kind === 'establish' || next.kind === 'overview') D.lastWide = D.clock;
@@ -485,12 +508,17 @@
     const want = dodge(f.noBoom && OCC.use ? f.pos.clone() : clipBoom(f.pivot, f.pos), f, s);
     const jump = !cam.init || (next || s.fresh) && (cam.pos.distanceTo(want) > 4 || cam.look.clone().sub(cam.pos).normalize().dot(f.look.clone().sub(want).normalize()) < 0.87);
     s.fresh = false;
-    if (jump) { cam.pos.copy(want); cam.look.copy(f.look); D.vel.set(0, 0, 0); D.lvel.set(0, 0, 0); D.fov = f.fov; D.fvel = 0; cam.init = true; }
+    const lookW = frameGuard(jump ? want : cam.pos, f);   // le sujet reste dans le cadre, vu de là où est vraiment la caméra
+    if (jump) { cam.pos.copy(want); cam.look.copy(lookW); D.vel.set(0, 0, 0); D.lvel.set(0, 0, 0); D.fov = f.fov; D.fvel = 0; cam.init = true; }
     else {
-      damp3(cam.pos, want, D.vel, f.st, dt); damp3(cam.look, f.look, D.lvel, f.lst, dt);
+      damp3(cam.pos, want, D.vel, f.st, dt); damp3(cam.look, lookW, D.lvel, f.lst, dt);
       const w = 2 / 0.6, x = w * dt, e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x), c = D.fov - f.fov, tmp = (D.fvel + w * c) * dt; D.fvel = (D.fvel - w * tmp) * e; D.fov = f.fov + (c + tmp) * e;
     }
     pushOut(cam.pos, 0.2);   // même pendant le lissage, jamais dans un obstacle : on glisse le long de sa face la plus proche
+    if (OCC.use && !f.noBoom && cam.pos.y < 3) for (const e of f.pts) {   // ni collée au sujet (il marche vers l'objectif) : repoussée à 1,4 m, en continu
+      if (!e) continue; const dx = cam.pos.x - e.x, dz = cam.pos.z - e.z, d = Math.hypot(dx, dz);
+      if (d < 1.4 && d > 1e-3) { const q = V3(e.x + dx / d * 1.4, cam.pos.y, e.z + dz / d * 1.4); if (!inObstacle(q, 0.2) && !occBad(q)) cam.pos.copy(q); }
+    }
     if (cam.pos.y < 9) inMap(cam.pos, 0.4);
     cam.pos.y = Math.max(0.35, cam.pos.y);
     camera.position.copy(cam.pos); camera.lookAt(cam.look); setFov(D.fov);
@@ -499,11 +527,43 @@
   }
   // pendant un plan, les sujets bougent : si la place voulue touche le décor dessiné (contre un objet, sous un auvent, regard
   // bouché), on cherche tout près une place dégagée (un peu plus haut, un peu plus près du sujet) ; le ressort y glisse
+  // Sujet masqué (un fourgon, un local, un arbre passe entre la caméra et lui) : la caméra monte doucement par-dessus, comme une
+  // grue, et ne redescend qu'après 1,5 s de vue dégagée (pas de va-et-vient) ; s.dl : hauteur ajoutée en cours.
+  // Cadre de sécurité : si un sujet sort du cadre (la caméra suit avec retard, le soldat change de direction), le point visé
+  // pivote juste assez (de la caméra) pour le garder à 72 % du bord ; le ressort du regard rend le mouvement doux.
+  function frameGuard(p, f) {
+    const pts = (f.pts || []).filter(Boolean); if (!OCC.use || f.noBoom || !pts.length) return f.look;
+    const look = f.look.clone(), th = Math.tan(THREE.MathUtils.degToRad(f.fov / 2)), tw = th * (camera.aspect || 16 / 9), limH = Math.atan(0.72 * tw), limV = Math.atan(0.7 * th);
+    for (let it = 0; it < 2; it++) for (const e of pts) {
+      const vx = look.x - p.x, vz = look.z - p.z, dist = Math.hypot(vx, vz); if (dist < 0.3) return f.look;
+      const wx = e.x - p.x, wz = e.z - p.z, hd = Math.hypot(wx, wz); if (hd < 0.5) continue;
+      const aL = Math.atan2(vz, vx); let da = Math.atan2(wz, wx) - aL; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+      if (Math.abs(da) > limH) { const a = aL + da - Math.sign(da) * limH; look.x = p.x + Math.cos(a) * dist; look.z = p.z + Math.sin(a) * dist; }
+      const pL = Math.atan2(look.y - p.y, dist), dp = Math.atan2(e.y + 0.1 - p.y, hd) - pL;
+      if (Math.abs(dp) > limV) look.y = p.y + Math.tan(pL + dp - Math.sign(dp) * limV) * dist;
+    }
+    return look;
+  }
   function dodge(want, f, s) {
     if (!OCC.use || !OCC.g) return want;
-    const ok = (p) => { if (occBad(p) || dynBad(p, s) || inObstacle(p, 0.3)) return false; const L = p.distanceTo(f.look); return occRay(p, f.look) * L >= Math.min(3.5, L * 0.5); };
+    const near = (p) => !f.noBoom && (f.pts || []).some(e => e && Math.hypot(e.x - p.x, e.z - p.z) < 1.5);   // jamais collée au sujet
+    const ok = (p) => { if (occBad(p) || dynBad(p, s) || inObstacle(p, 0.3) || near(p)) return false; const L = p.distanceTo(f.look); return occRay(p, f.look) * L >= Math.min(3.5, L * 0.5); };
+    const pts = (f.pts || []).filter(Boolean), need = f.noBoom ? 0.5 : pts.length > 1 ? 0.5 : 1;
+    const vis = (p) => { if (!pts.length) return true; let n = 0; for (const e of pts) if (subjectSeen(p, e, false) && !unitScreens(p, e, s)) n++; return n / pts.length >= need - 1e-6; };
+    const good = (p) => ok(p) && vis(p), up = (h) => V3(want.x, want.y + h, want.z), D = DIRECTOR;
+    if (s) {
+      const dl = s.dl || 0, maxUp = f.noBoom ? 4 : 2.6;
+      if (dl > 0) {   // déjà relevée : on redescend par paliers quand c'est dégagé plus bas depuis 1,5 s
+        const lower = Math.max(0, dl - 0.7);
+        if (good(up(lower))) { if (D.clock - (s.dlT || 0) > 1.5) { s.dl = lower; s.dlT = D.clock; return up(lower); } }
+        else s.dlT = D.clock;
+        if (good(up(dl))) return up(dl);
+      } else if (good(want)) return want;
+      for (const h of [0.7, 1.4, 2.1, 2.6, 3.3, 4]) { if (h <= dl || h > maxUp) continue; if (good(up(h))) { s.dl = h; s.dlT = D.clock; return up(h); } }
+      if (dl > 0 && ok(up(dl))) return up(dl);
+    }
     if (ok(want)) return want;
-    const P = f.noBoom ? f.look : f.pivot, tries = f.noBoom ? [[1, 1.5], [1, 3], [0.85, 0], [0.85, 2]] : [[1, 0.6], [1, 1.2], [0.8, 0], [0.8, 0.6], [0.62, 0], [0.62, 0.8]];
+    const P = f.noBoom ? f.look : f.pivot, tries = f.noBoom ? [[1, 1.5], [1, 3], [0.85, 0], [0.85, 2]] : [[1, 0.6], [1, 1.2], [0.8, 0], [0.8, 0.6], [0.62, 0], [0.62, 0.8], [1.3, 0], [1.3, 0.6]];
     for (const [k, up] of tries) { const q = V3(P.x + (want.x - P.x) * k, want.y + up, P.z + (want.z - P.z) * k); if (ok(q)) return q; }
     return want;
   }
