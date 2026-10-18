@@ -1,7 +1,10 @@
 // Tests de la ligue solo.
 const OT = Object.assign({}, require('../sim/rng.js'), require('../sim/data.js'), require('../sim/map.js'), require('../sim/engine.js'), require('../sim/game.js'), require('../sim/league.js'));
 const { League, Game, Battle } = OT;
-let pass = 0, fail = 0; const check = (n, c, i) => { if (c) pass++; else fail++; console.log((c ? 'PASS ' : 'FAIL ') + n + (c ? '' : '  -> ' + JSON.stringify(i))); };
+let pass = 0, fail = 0; // La ligue est désactivée pour l'instant (menus cachés) ; avec une seule classe (assaut), l'écart de force entre équipes
+// ne tient plus qu'au niveau : ce contrôle statistique est mis de côté.
+const DESACTIVE = ["sur 4 saisons, les deux équipes fortes"]; let skip = 0;
+const check = (n, c, i) => { if (DESACTIVE.some(d => n.startsWith(d))) { skip++; console.log('(désactivé) ' + n); return; } if (c) pass++; else fail++; console.log((c ? 'PASS ' : 'FAIL ') + n + (c ? '' : '  -> ' + JSON.stringify(i))); };
 const t0 = Date.now();
 const season = League.newSeason(42);
 check('saison neuve : 10 équipes à 0 point, 8 batailles à jouer', Object.keys(season.standings).length === 10 && League.SEASON_BATTLES === 8 && !season.finished);
@@ -38,4 +41,4 @@ check('sur 4 saisons, les deux équipes fortes totalisent plus de points que les
   const formOk = tb.every(r => (r.form || []).length === Math.min(5, r.played) && (r.form || []).every(x => 'vnd'.includes(x))) && me.form.filter(x => x === 'v').length <= me.wins;
   const rt = League.aiRating(League.AI_TEAMS[0], sx, Game.defRating);
   check('forme : les cinq derniers résultats de chaque équipe (v/n/d) ; puissance des équipes IA calculée comme au QG', formOk && rt > 20 && rt < 100, { me: me.form, rt }); }
-console.log(`\n${pass}/${pass + fail} vérifications réussies`); process.exit(fail ? 1 : 0);
+console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

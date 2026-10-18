@@ -28,7 +28,7 @@
     const pool = OPERATORS.filter(o => o.faction === 'karst');
     const picked = []; const roles = new Set();
     // les équipes solides (force ≥ 1) partent toujours avec un tireur d'élite et un appui ; les autres tirent au hasard
-    if (team.strength >= 1) for (const role of ['marksman', 'support']) { const c = pool.filter(o => o.role === role); const o = c[Math.floor(rng.next() * c.length)]; picked.push(o); roles.add(role); }
+    if (team.strength >= 1) for (const role of ['marksman', 'support']) { const c = pool.filter(o => o.role === role && !picked.includes(o)); if (!c.length) continue; const o = c[Math.floor(rng.next() * c.length)]; picked.push(o); roles.add(role); }
     while (picked.length < 5) { const o = pool[Math.floor(rng.next() * pool.length)]; if (picked.includes(o)) continue; if (roles.has(o.role) && picked.length < 4 && rng.next() < 0.7) continue; picked.push(o); roles.add(o.role); }
     const level = Math.max(0, Math.min(10, Math.round((team.strength - 0.7) * 10 + round * 0.25)));
     return picked.map(base => { const d = Object.assign({}, base, { level }); for (const k of ['marksmanship', 'reflexes', 'mobility', 'perception', 'composure', 'endurance']) d[k] = Math.min(100, base[k] + level * 2); return d; });

@@ -130,22 +130,23 @@
   // Inspirations : unités réelles (nom de l'unité), personnages fictifs.
   // rarity : 1 commun, 2 rare, 3 élite — sert au prix de recrutement et à la présentation
   const OPERATORS = [
-    // une seule unité pour l'instant : cinq opérateurs du GIGN (personnages fictifs, aucun insigne réel)
+    // une seule unité pour l'instant : cinq opérateurs du GIGN (personnages fictifs, aucun insigne réel). Pour l'instant une seule
+    // classe (assaut) et une seule protection (plaques moyennes), des deux côtés ; les autres classes reviendront une à une.
     { id: 'op_vautour', callsign: 'Vautour', unit: 'GIGN (France)', role: 'assault',  armor: 'medium', trait: 'fasthands', rarity: 1, marksmanship: 74, reflexes: 70, mobility: 68, perception: 66, composure: 78, endurance: 72 },
-    { id: 'op_lynx',    callsign: 'Lynx',    unit: 'GIGN (France)', role: 'pointman', armor: 'light',  trait: 'eagle',     rarity: 1, marksmanship: 66, reflexes: 84, mobility: 86, perception: 74, composure: 64, endurance: 62 },
-    { id: 'op_granit',  callsign: 'Granit',  unit: 'GIGN (France)', role: 'marksman', armor: 'light',  trait: 'patience',  rarity: 2, marksmanship: 90, reflexes: 60, mobility: 58, perception: 88, composure: 82, endurance: 60 },
-    { id: 'op_bastion', callsign: 'Bastion', unit: 'GIGN (France)', role: 'support',  armor: 'heavy',  trait: 'medic',     rarity: 1, marksmanship: 58, reflexes: 56, mobility: 54, perception: 60, composure: 86, endurance: 90 },
-    { id: 'op_belier',  callsign: 'Bélier',  unit: 'GIGN (France)', role: 'breacher', armor: 'heavy',  trait: 'breach',    rarity: 1, marksmanship: 62, reflexes: 72, mobility: 70, perception: 58, composure: 76, endurance: 84 },
+    { id: 'op_lynx',    callsign: 'Lynx',    unit: 'GIGN (France)', role: 'assault', armor: 'medium',  trait: 'eagle',     rarity: 1, marksmanship: 66, reflexes: 84, mobility: 86, perception: 74, composure: 64, endurance: 62 },
+    { id: 'op_granit',  callsign: 'Granit',  unit: 'GIGN (France)', role: 'assault', armor: 'medium',  trait: 'patience',  rarity: 2, marksmanship: 90, reflexes: 60, mobility: 58, perception: 88, composure: 82, endurance: 60 },
+    { id: 'op_bastion', callsign: 'Bastion', unit: 'GIGN (France)', role: 'assault',  armor: 'medium',  trait: 'medic',     rarity: 1, marksmanship: 58, reflexes: 56, mobility: 54, perception: 60, composure: 86, endurance: 90 },
+    { id: 'op_belier',  callsign: 'Bélier',  unit: 'GIGN (France)', role: 'assault', armor: 'medium',  trait: 'breach',    rarity: 1, marksmanship: 62, reflexes: 72, mobility: 70, perception: 58, composure: 76, endurance: 84 },
 
     // ---- Faction adverse : « Groupe Karst », société militaire privée fictive (non recrutable) ----
     { id: 'k_molosse', callsign: 'Molosse', unit: 'Groupe Karst — section d\'assaut', faction: 'karst', role: 'assault',  armor: 'medium', trait: 'leader',      rarity: 2, marksmanship: 70, reflexes: 70, mobility: 68, perception: 62, composure: 76, endurance: 76 },
-    { id: 'k_vipere',  callsign: 'Vipère',  unit: 'Groupe Karst — éclaireurs',        faction: 'karst', role: 'pointman', armor: 'light',  trait: 'ghost',       rarity: 2, marksmanship: 64, reflexes: 86, mobility: 86, perception: 78, composure: 62, endurance: 60 },
-    { id: 'k_rapace',  callsign: 'Rapace',  unit: 'Groupe Karst — tireurs',           faction: 'karst', role: 'marksman', armor: 'light',  trait: 'patience',    rarity: 3, marksmanship: 90, reflexes: 60, mobility: 58, perception: 88, composure: 82, endurance: 60 },
-    { id: 'k_hyene',   callsign: 'Hyène',   unit: 'Groupe Karst — appui feu',         faction: 'karst', role: 'support',  armor: 'heavy',  trait: 'gunner',      rarity: 2, marksmanship: 58, reflexes: 56, mobility: 54, perception: 60, composure: 86, endurance: 90 },
-    { id: 'k_chacal',  callsign: 'Chacal',  unit: 'Groupe Karst — brèche',            faction: 'karst', role: 'breacher', armor: 'heavy',  trait: 'breach',      rarity: 2, marksmanship: 62, reflexes: 74, mobility: 70, perception: 56, composure: 76, endurance: 84 },
+    { id: 'k_vipere',  callsign: 'Vipère',  unit: 'Groupe Karst — éclaireurs',        faction: 'karst', role: 'assault', armor: 'medium',  trait: 'ghost',       rarity: 2, marksmanship: 64, reflexes: 86, mobility: 86, perception: 78, composure: 62, endurance: 60 },
+    { id: 'k_rapace',  callsign: 'Rapace',  unit: 'Groupe Karst — tireurs',           faction: 'karst', role: 'assault', armor: 'medium',  trait: 'patience',    rarity: 3, marksmanship: 90, reflexes: 60, mobility: 58, perception: 88, composure: 82, endurance: 60 },
+    { id: 'k_hyene',   callsign: 'Hyène',   unit: 'Groupe Karst — appui feu',         faction: 'karst', role: 'assault',  armor: 'medium',  trait: 'gunner',      rarity: 2, marksmanship: 58, reflexes: 56, mobility: 54, perception: 60, composure: 86, endurance: 90 },
+    { id: 'k_chacal',  callsign: 'Chacal',  unit: 'Groupe Karst — brèche',            faction: 'karst', role: 'assault', armor: 'medium',  trait: 'breach',      rarity: 2, marksmanship: 62, reflexes: 74, mobility: 70, perception: 56, composure: 76, endurance: 84 },
     { id: 'k_fauve',   callsign: 'Fauve',   unit: 'Groupe Karst — section d\'assaut', faction: 'karst', role: 'assault',  armor: 'medium', trait: 'runner',      rarity: 2, marksmanship: 72, reflexes: 76, mobility: 78, perception: 66, composure: 66, endurance: 70 },
-    { id: 'k_taipan',  callsign: 'Taïpan',  unit: 'Groupe Karst — tireurs',           faction: 'karst', role: 'marksman', armor: 'medium', trait: 'ambusher',    rarity: 3, marksmanship: 86, reflexes: 62, mobility: 60, perception: 84, composure: 84, endurance: 66 },
-    { id: 'k_bison',   callsign: 'Bison',   unit: 'Groupe Karst — appui feu',         faction: 'karst', role: 'support',  armor: 'heavy',  trait: 'colossus',    rarity: 2, marksmanship: 56, reflexes: 58, mobility: 56, perception: 60, composure: 88, endurance: 92 },
+    { id: 'k_taipan',  callsign: 'Taïpan',  unit: 'Groupe Karst — tireurs',           faction: 'karst', role: 'assault', armor: 'medium', trait: 'ambusher',    rarity: 3, marksmanship: 86, reflexes: 62, mobility: 60, perception: 84, composure: 84, endurance: 66 },
+    { id: 'k_bison',   callsign: 'Bison',   unit: 'Groupe Karst — appui feu',         faction: 'karst', role: 'assault',  armor: 'medium',  trait: 'colossus',    rarity: 2, marksmanship: 56, reflexes: 58, mobility: 56, perception: 60, composure: 88, endurance: 92 },
 
   ];
   // Factions : couleurs d'uniforme (rendu) et nom

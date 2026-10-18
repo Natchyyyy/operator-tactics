@@ -55,7 +55,8 @@
   function effectiveDef(profile, id) {
     const base = OPERATORS.find(o => o.id === id); const st = profile.operators[id];
     const level = levelFor(st.xp);
-    const def = Object.assign({}, base, { level, weaponId: st.weaponId, armor: st.armorId, lane: st.lane, traits: st.traits || [], headgear: st.headgear, attachments: Object.assign({}, st.attachments || {}) });
+    // pour l'instant : plaques moyennes pour tous, aucun accessoire, voie d'approche automatique (fonctions désactivées)
+    const def = Object.assign({}, base, { level, weaponId: st.weaponId, armor: 'medium', lane: null, traits: st.traits || [], headgear: st.headgear, attachments: {} });
     const perks = (profile.perks && profile.perks[id]) || {};
     for (const k of STATS) def[k] = Math.min(100, base[k] + level * LEVEL_STAT_BONUS + (perks[k] || 0));
     if (st.wounded) { def.wounded = true; for (const k of STATS) def[k] = Math.round(def[k] * WOUND.statFactor); }   // blessure grave : compétences ÷2

@@ -2,7 +2,11 @@
 const OT = Object.assign({}, require('../sim/rng.js'), require('../sim/data.js'), require('../sim/map.js'), require('../sim/engine.js'), require('../sim/game.js'));
 const { Game, Battle, DATA } = OT;
 let pass = 0, fail = 0;
-const check = (n, c, i) => { if (c) pass++; else fail++; console.log((c ? 'PASS ' : 'FAIL ') + n + (c ? '' : '  -> ' + JSON.stringify(i))); };
+// Fonctions désactivées pour l'instant (une seule classe : assaut ; plaques moyennes pour tous ; aucun accessoire ;
+// voie d'approche automatique) : leurs vérifications sont mises de côté, à réactiver quand elles reviendront.
+const DESACTIVE = ["l'arme et la protection équipées", "la protection lourde ralentit", "formation « nord »", "formation « sud »", "synergies : Commandement", "Guidage radio : +8", "liste des synergies actives", "accessoires : achat unique", "accessoires : +1,5", "protections à acheter"];
+let skip = 0;
+const check = (n, c, i) => { if (DESACTIVE.some(d => n.startsWith(d))) { skip++; console.log('(désactivé) ' + n); return; } if (c) pass++; else fail++; console.log((c ? 'PASS ' : 'FAIL ') + n + (c ? '' : '  -> ' + JSON.stringify(i))); };
 const mem = {}; const storage = { getItem: k => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); }, removeItem: k => { delete mem[k]; } };
 
 const p = Game.newProfile();
@@ -297,4 +301,4 @@ check('réinitialisation : profil neuf et stockage vidé', Game.reset(storage).c
   const refused = !Game.setArmor(q, 'op_vautour', 'composite'), bought = Game.buyArmor(q, 'composite'), again = !Game.buyArmor(q, 'composite'), set = Game.setArmor(q, 'op_vautour', 'composite');
   const b = new Battle({ seed: 1, teams: [{ operators: [Game.effectiveDef(q, 'op_vautour')] }, { operators: ['k_molosse'] }] });
   check('protections à acheter : refusées avant achat, achetées une fois, portées en bataille', refused && bought && again && set && q.credits === 500 - DATA.PRICES.armor.composite && b.teams[0].units[0].armor.id === 'composite'); }
-console.log(`\n${pass}/${pass + fail} vérifications réussies`); process.exit(fail ? 1 : 0);
+console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);
