@@ -941,22 +941,24 @@
       // (marche attend la direction par rapport au groupe, c.-à-d. à la visée : on rajoute la correction du corps retirée plus haut)
       let haut = course ? (vise ? 'Run_and_Shoot_Haut' : 'Run_Low_Haut') : (vise ? 'Walk_Aim_Haut' : 'Walk_Low_Haut'), avant = course ? 'Pas_Avant_Course' : vise ? 'Pas_Avant_Aim' : 'Pas_Avant_Low', mix = null;
       if (patrouille) {
-        // marche (≤ 1,55 m/s) → petite course (1,95 m/s) → course (≥ 3,7 m/s), même phase ; haut du corps de la petite course
-        // dès qu'elle domine (hystérésis)
+        // marche jusqu'à ~1,9 m/s (marche rapide), puis petite course, qui se mélange à la vraie course de 2,7 à 3,7 m/s (même
+        // cadence, elle en est tirée). Marche et course ne se mélangent PAS (appuis à contretemps : mesuré, à 50/50 le pied
+        // d'appui glissait de 1,2 m/s) : on passe de l'une à l'autre (fondu ~0,15 s), avec hystérésis
         const sm = (x, a0, a1) => { const t = Math.max(0, Math.min(1, (x - a0) / (a1 - a0))); return t * t * (3 - 2 * t); };
-        const kT = sm(a.vLis, 1.55, 1.95), kR = m.clips.Pas_Run ? sm(a.vLis, 2.7, 3.7) : 0;
-        mix = { Pas_Avant_Low: 1 - kT, Pas_Trot: kT * (1 - kR), Pas_Run: kT * kR }; avant = 'Pas_Avant_Low';
-        a.trot = a.trot ? kT > 0.35 : kT > 0.65; haut = a.trot && m.clips.Trot_Low_Haut ? 'Trot_Low_Haut' : 'Walk_Low_Haut';
+        a.trot = a.trot ? a.vLis > 1.8 : a.vLis > 1.95;
+        const kR = m.clips.Pas_Run ? sm(a.vLis, 2.7, 3.7) : 0;
+        mix = a.trot ? { Pas_Trot: 1 - kR, Pas_Run: kR } : { Pas_Avant_Low: 1 }; avant = 'Pas_Avant_Low';
+        haut = a.trot && m.clips.Trot_Low_Haut ? 'Trot_Low_Haut' : 'Walk_Low_Haut';
       }
       const ph = m.marche(ecart + (m.body ? m.body.rotation.y : 0), v, dt, haut, avant, mix);
       a.phase = ph * 2 * Math.PI;
     }
     else if (u.moving && v > 0.15) {
-      if (crouch) loco('Cautious_Crouch_Walk_Forward');
+      if (crouch) loco(m.clips.Accroupi_Marche_Vise ? (aiming || u.preaim ? 'Accroupi_Marche_Vise' : 'Accroupi_Marche_Bas') : 'Cautious_Crouch_Walk_Forward');   // (haut du corps en visée ou garde basse, voir Soldat3D.compositeAccroupi)
       else if (aiming || u.preaim) loco(v > 1.4 ? 'Run_and_Shoot' : 'Walk_Aim');          // ennemi connu : fusil épaulé
       else loco(v > 1.4 ? (m.clips.Run_Low ? 'Run_Low' : 'Run_and_Shoot') : (m.clips.Walk_Low ? 'Walk_Low' : 'Walk_Aim'));   // sinon garde basse
     }
-    else if (crouch) m.play('Kneeling_Reload', { time: 0.06, fade: 0.25 });
+    else if (crouch) { if (m.clips.Accroupi_Vise) m.play(aiming ? 'Accroupi_Vise' : 'Accroupi_Bas', { time: 0, fade: 0.25 }); else m.play('Kneeling_Reload', { time: 0.06, fade: 0.25 }); }
     else if (aiming || !m.clips.Garde_Basse) m.play('Rifle_Aim_Turn_Right', { time: 0, fade: 0.25 });
     else m.play('Garde_Basse', { time: 0, fade: 0.3 });
     if (!legs) m.playLegs(null);
