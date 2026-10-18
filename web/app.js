@@ -225,7 +225,7 @@
       const dd = smoothDir(s, 'dir', f0.x, f0.y, 1.4, dt), dx = dd.x, dz = dd.y, ca = Math.cos(s.ang || 0), sa = Math.sin(s.ang || 0);
       const nx = (-dz * ca - dx * sa) * side, nz = (dx * ca - dz * sa) * side, R = s.dd || 3.8;   // côté, angle (trois-quarts arrière / avant), distance
       s.still = u.moving ? 0 : (s.still || 0) + (dt || 0);
-      const pos = V3(P.x + nx * R - dx * 0.7, 1.25, P.z + nz * R - dz * 0.7), look = V3(P.x + dx * 2.1, 1.05, P.z + dz * 2.1);
+      const pos = V3(P.x + nx * R - dx * 0.7, 1.25, P.z + nz * R - dz * 0.7), look = V3(P.x + dx * 2.1, 0.9, P.z + dz * 2.1);   // regard un peu bas : le soldat reste au-dessus des cartes du HUD
       return { pos, look, pts: [eyeOf(s.id)], fov: 46, st: 0.35, lst: 0.3, pivot: V3(P.x, 1.2, P.z) };
     }
     if (s.kind === 'overview' || s.kind === 'establish') {
@@ -1590,6 +1590,7 @@
   const VOICE_KINDS = new Set(['spot', 'grenade', 'throw', 'down', 'shaken', 'revive_start', 'noammo']);
   let lastVoice = 0;
   function speak(u, text, kind) {
+    return;   // synthèse vocale retirée à la demande de l'utilisateur (insupportable) ; les bulles de texte restent
     if (!SETTINGS.voice || muted || MANUAL || !window.speechSynthesis || !VOICE_KINDS.has(kind) || paused) return;
     const now = performance.now(); if (now - lastVoice < 2200 / Math.min(2, speed)) return; lastVoice = now;
     try {
@@ -1846,7 +1847,7 @@
     skip: () => { skipToEnd(); return battle.result; },
     camShot: (kind, id) => { if (kind === 'shoulder' || kind === 'dolly') { setCamMode('director'); cam.shot = { kind, id, side: 1, until: simTime + 999 }; cam.cutAt = simTime; } else { setCamMode('follow'); cam.follow = id; } render(); for (let i = 0; i < 60; i++) applyCamera(); render(); return [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)); },
     stepRaw: (n) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; return battle.t; },   // sans rendu (outils de capture)
-    dirTrace: (n) => directorTrace(n || 600), dirDebug: () => ({ frameShot, shotQuality, pickShot, variants, bestOf, D: DIRECTOR, camera, cam, renderer }),   // mesure du réalisateur (coupes, durée des plans, caméra masquée, à-coups)
+    dirTrace: (n) => directorTrace(n || 600),   // mesure du réalisateur (coupes, durée des plans, caméra masquée, à-coups)
     runToEnd: () => { instantResult = true; while (!battle.over) stepSim(); instantResult = false; acc = DT; render(); return battle.result; },
     start: (opts) => { newBattle(opts); render(); return battle.zone || true; },
     banner: () => { $('#result').classList.add('hidden'); showBanner(() => showResult()); },

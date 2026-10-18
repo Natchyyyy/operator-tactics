@@ -193,6 +193,7 @@
     }
     let t0 = performance.now();
     R.render = function () {
+      if (!renderer.domElement.width || !renderer.domElement.height) return;   // toile pas encore dimensionnée (page masquée) : rien à dessiner
       const t = (performance.now() - t0) / 1000;
       clouds.material.uniforms.time.value = t; clouds.position.copy(camera.position); night.position.copy(camera.position); if (sky) sky.position.copy(camera.position);
       fitShadow();
