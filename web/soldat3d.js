@@ -15,7 +15,7 @@
   // vitesse « naturelle » de chaque cycle de locomotion (m/s), pour caler les pas sur le déplacement réel
   const LOCO = { Walking: 1.35, Walk_Fight_Forward: 1.1, Running: 3.4, RunFast: 5.2, Run_and_Shoot: 3.2, Cautious_Crouch_Walk_Forward: 0.9, Crawl_Backward: 0.5 };
   // fraction de l'écart de hauteur du bassin (pas chassés / marche arrière → marche avant) rattrapée, voir releve()
-  const RELEVE = { cote: 0.95, arriere: 0.95 };
+  const RELEVE = { cote: 0.88, arriere: 0.88 };
   // marche directionnelle en visant : part de l'écart fusil / bassin rattrapée par la torsion du dos (le reste tourne le corps)
   const DOS_VISEE = 0.65;
   const ONCE = { Shot_and_Fall_Forward: 1, Shot_in_the_Back_and_Fall: 1, Over_Shoulder_Throw: 1 };
@@ -262,7 +262,10 @@
         const P = [[], []];
         for (let i = 0; i < NS; i++) { a.time = ((i / NS + M.phase0[av]) % 1) * A.duration; c.time = ((i / NS + M.phase0[cote] + o / K) % 1) * C.duration; mx.update(0); sc.updateMatrixWorld(true); hips.getWorldPosition(h); feet.forEach((f, j) => { f.getWorldPosition(p); P[j].push([p.x - h.x, p.y, p.z - h.z]); }); }
         let sx = 0, sz = 0; P.forEach(pp => { const ym = Math.min(...pp.map(q => q[1])); for (let i = 0; i < NS; i++) { const q = pp[(i + 1) % NS]; if (pp[i][1] > ym + 0.03) continue; sx -= q[0] - pp[i][0]; sz -= q[2] - pp[i][2]; } });
-        mag.push(Math.hypot(sx, sz));
+        // (et dans la bonne direction : celle de la somme des deux foulées ; un mélange qui avance de travers est écarté)
+        const ta = M.dirPas[av] || 0, tc = M.dirPas[cote] || 0, La = M.loco[av] * A.duration, Lc = M.loco[cote] * C.duration;
+        const err = Math.atan2(sx, sz) - Math.atan2(La * Math.sin(ta) + Lc * Math.sin(tc), La * Math.cos(ta) + Lc * Math.cos(tc));
+        mag.push(Math.hypot(sx, sz) * Math.pow(Math.max(0, Math.cos(err)), 6));
       }
       let best = 0, bv = -1; for (let o = 0; o < K; o++) { const s = 2 * mag[o] + mag[(o + 1) % K] + mag[(o + K - 1) % K]; if (s > bv) { bv = s; best = o; } }
       (M.decal[av] || (M.decal[av] = {}))[cote] = best / K;
@@ -509,16 +512,17 @@
             // secteur avant : mélange marche avant / pas chassé, poids tels que la somme des foulées (vecteurs) pointe vers e
             // (ces deux démarches se mélangent bien une fois calées en phase, voir M.decal)
             const wa = Math.abs(Math.sin(tc - e)) / foul(avant), wc = Math.abs(Math.sin(e - ta)) / foul(cote), s = wa + wc || 1;
-            cible[avant] = wa / s; cible[cote] = wc / s; this.selArr = false;
+            cible[avant] = wa / s; cible[cote] = wc / s; this.selArr = null;
           } else {
             // secteur arrière : pas chassé et marche arrière se mélangent mal (pas qui s'annulent) ; on joue l'un OU l'autre,
             // bassin tourné (tau) vers la direction exacte, en gardant celui qui tord le moins le dos (avec hystérésis ;
             // le changement se fait en fondu par le lissage des poids)
-            const tw = (n) => wrap(e - D[n]), cout = (n) => Math.abs(wrap((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0) + tw(n)));
+            const tw = (n) => wrap(e - D[n]), cout = (n) => Math.abs(wrap((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0) + tw(n))) + (n === PR ? 0 : 0.1);   // (+0,1 : vu de face, le pas chassé tourné croise les jambes ; la marche arrière, non)
             // (changer de clip fait tourner le bassin de |psi + tau| d'un clip à l'autre, jusqu'à ~160° : il faut que le gain en
             // vaille la peine, et la bascule se fait alors lentement, ~0,5 s, pour ne pas voir le bassin « tourner sur lui-même »)
             const hz = (n) => wrap((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0) + Math.max(-1.3, Math.min(1.3, tw(n)))), [nc, no] = this.selArr ? [PR, cote] : [cote, PR];
-            if (cout(no) < cout(nc) - 0.2 - 0.3 * Math.abs(wrap(hz(no) - hz(nc)))) { this.selArr = !this.selArr; this.basculeT = 0.5; }
+            if (this.selArr == null) this.selArr = cout(PR) < cout(cote);   // (entrée dans le secteur : le meilleur, sans hystérésis)
+            else if (cout(no) < cout(nc) - 0.2 - 0.3 * Math.abs(wrap(hz(no) - hz(nc)))) { this.selArr = !this.selArr; this.basculeT = 0.5; }
             const n = this.selArr ? PR : cote; cible[n] = 1; tau = Math.max(-1.3, Math.min(1.3, tw(n)));
           }
         } else cible[avant] = 1;
@@ -622,22 +626,22 @@
         if (!pieds[0][2] || !pieds[1][2]) return;
         group.updateMatrixWorld(true);
         const lat = WP(pieds[0][0]).sub(WP(pieds[1][0])); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();   // vers la gauche du bassin
-        const MIN = (0.1 + 0.07 * k + 0.06 * kr) * K, sep = WP(pieds[0][2]).sub(WP(pieds[1][2])).dot(lat);
+        const MIN = (0.1 + 0.1 * k + 0.06 * kr) * K, sep = WP(pieds[0][2]).sub(WP(pieds[1][2])).dot(lat);
         if (sep < MIN) {   // (surtout le pied levé : celui au sol glisserait)
           const d = Math.min(0.3, MIN - sep), yL = WP(pieds[0][2]).y, yR = WP(pieds[1][2]).y, pl = Math.max(0.1, Math.min(0.9, 0.5 + (yL - yR) * 10));
           ik(pieds[0][0], pieds[0][1], pieds[0][2], lat.clone().multiplyScalar(d * pl)); ik(pieds[1][0], pieds[1][1], pieds[1][2], lat.clone().multiplyScalar(-d * (1 - pl))); }
-        const kg = Math.min(1, k + 0.5 * kr); if (kg * K < 0.05) return;   // (genoux : pas chassés, et un peu la marche arrière)
+        const kg = Math.min(1, k + kr); if (kg * K < 0.05) return;   // (genoux : pas chassés, et un peu la marche arrière)
         // silhouette vue de la direction de visée (axe latéral du groupe, gx = gauche du soldat) : si les genoux s'y croisent
         // ou se touchent, on les tourne davantage vers leur côté, et vers ce côté-là plutôt que selon la ligne du bassin
         const gx = new THREE.Vector3(1, 0, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())); gx.y = 0; gx.normalize();
-        const vueG = WP(pieds[0][1]).sub(WP(pieds[1][1])).dot(gx), serre = Math.max(0, Math.min(1, (0.16 - vueG) / 0.14));
+        const vueG = WP(pieds[0][1]).sub(WP(pieds[1][1])).dot(gx), serre = Math.max(0, Math.min(1, (0.2 - vueG) / 0.15));
         pieds.forEach(([up, lo, ft], i) => {
           const S0 = WP(up), K0 = WP(lo), H0 = WP(ft), ax = H0.clone().sub(S0); if (ax.lengthSq() < 1e-6) return; ax.normalize();
           const kp = K0.clone().sub(S0); kp.addScaledVector(ax, -kp.dot(ax)); if (kp.lengthSq() < 1e-8) return; kp.normalize();
           const out = lat.clone().lerp(gx, serre).multiplyScalar(i ? -1 : 1); out.addScaledVector(ax, -out.dot(ax)); if (out.lengthSq() < 1e-6) return; out.normalize();
           // angle (signé, autour de ax) du genou vers l'extérieur ; on en fait une part (plus grande si les genoux se serrent
-          // dans la silhouette), limitée à 35°
-          let a = Math.atan2(new THREE.Vector3().crossVectors(kp, out).dot(ax), kp.dot(out)); a = Math.max(-0.61, Math.min(0.61, a * (0.45 + 0.45 * serre) * kg * K));
+          // dans la silhouette), limitée à 45°
+          let a = Math.atan2(new THREE.Vector3().crossVectors(kp, out).dot(ax), kp.dot(out)); a = Math.max(-0.79, Math.min(0.79, a * (0.5 + 0.5 * serre) * kg * K));
           if (Math.abs(a) < 0.005) return;
           const qF = WQ(ft); mod(up); mod(ft);
           up.quaternion.copy(WQ(up.parent).invert().multiply(new THREE.Quaternion().setFromAxisAngle(ax, a)).multiply(WQ(up))); up.updateMatrixWorld(true);
