@@ -5,6 +5,10 @@
   let renderer; try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); } catch (e) { return; }
   renderer.setPixelRatio(1); renderer.shadowMap.enabled = true; renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.35;
+  // rendu logiciel (pas de carte graphique) : compiler les shaders des soldats animés bloquerait la page de longues secondes ;
+  // l'écran titre garde alors les figures simples (?titre3d=1 force les soldats 3D, pour les captures)
+  const SOFT = (() => { try { const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); return /swiftshader|llvmpipe|softpipe|software/i.test(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ''); } catch (e) { return false; } })();
+  const FORCE3D = new URLSearchParams(location.search).get('titre3d') === '1';
   const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x2c2521, 9, 26);
   (function sky() {   // crépuscule : horizon orangé derrière l'escouade
     const c = document.createElement('canvas'); c.width = 4; c.height = 256; const g = c.getContext('2d');
@@ -33,7 +37,7 @@
     const profile = window.HQ ? window.HQ.profile() : null;
     const ids = profile ? profile.squad.slice(0, 5) : ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
     const uni = profile ? (OT.DATA.UNIFORMS.find(u => u.id === profile.uniform) || OT.DATA.UNIFORMS[0]) : OT.DATA.UNIFORMS[0];
-    const S3 = OT.Soldat3D && OT.Soldat3D.ready ? OT.Soldat3D : null; skinned = !!S3;
+    const S3 = OT.Soldat3D && OT.Soldat3D.ready && (!SOFT || FORCE3D) ? OT.Soldat3D : null; skinned = !!S3;
     ids.forEach((id, i) => {
       const o = OT.DATA.OPERATORS.find(x => x.id === id); if (!o) return;
       const st = profile ? profile.operators[id] : null;
@@ -91,7 +95,7 @@
   $('#titleFree').addEventListener('click', () => { hide(); $('#freeBattle').click(); });
   window.TITLE = { show, hide };
   // le soldat 3D arrive après l'écran titre : l'escouade est reconstruite avec lui
-  if (OT.Soldat3D && OT.Soldat3D.whenReady) OT.Soldat3D.whenReady(() => { if (!skinned && !$('#title').classList.contains('hidden')) { buildSquad(); if (manual) draw(0); } });
+  if (OT.Soldat3D && OT.Soldat3D.whenReady) OT.Soldat3D.whenReady(() => { if (!skinned && (!SOFT || FORCE3D) && !$('#title').classList.contains('hidden')) { buildSquad(); if (manual) draw(0); } });
   const params = new URLSearchParams(location.search);
   if (params.get('manual') === '1' || params.get('mode') === 'free' || params.get('skipTitle') === '1') hide(); else { if (window.OT_MUSIC) $('#titleMusic').checked = window.OT_MUSIC.get() > 0; show(); }
 })();

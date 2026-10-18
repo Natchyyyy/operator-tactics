@@ -1306,7 +1306,8 @@
   // une caisse qui vole en éclats : le modèle disparaît, des planches volent, quelques débris restent au sol (sans gêner)
   const plankGeo = new THREE.BoxGeometry(0.5, 0.06, 0.14), plankMat = new THREE.MeshStandardMaterial({ color: 0x6b5236, roughness: 1 });
   function destroyDecor(ev) {
-    const m = obstacleMesh.get(ev.obstacle); if (m && m.parent) { m.parent.remove(m); m.geometry.dispose(); }
+    // (les objets Meshy et les caisses du parking sont des groupes qui partagent leur géométrie : on les retire sans la libérer)
+    const m = obstacleMesh.get(ev.obstacle); if (m && m.parent) { m.parent.remove(m); if (m.isMesh && m.geometry && !m.userData.keep) m.geometry.dispose(); }
     for (let i = 0; i < 10; i++) { const p = new THREE.Mesh(plankGeo, plankMat); p.position.set(ev.x + (Math.random() - 0.5) * ev.w, 0.4 + Math.random() * ev.h, ev.z + (Math.random() - 0.5) * ev.d); p.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); p.castShadow = true; scene.add(p);
       fx.push({ obj: p, until: simTime + 30, start: simTime, vel: new THREE.Vector3((Math.random() - 0.5) * 7, 3 + Math.random() * 4, (Math.random() - 0.5) * 7), gravity: 12 }); }
     for (let i = 0; i < 6; i++) { const p = new THREE.Mesh(plankGeo, plankMat); p.position.set(ev.x + (Math.random() - 0.5) * (ev.w + 1), 0.04, ev.z + (Math.random() - 0.5) * (ev.d + 1)); p.rotation.y = Math.random() * 3; decals.add(p); }
