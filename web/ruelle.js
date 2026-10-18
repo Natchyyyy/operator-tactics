@@ -454,7 +454,7 @@
       for (let i = 0; i < 2600; i++) { const v = R(); g.fillStyle = v < 0.35 ? '#1d3214' : v < 0.7 ? '#3d5e2a' : v < 0.92 ? '#557a36' : '#6f9446'; g.beginPath(); g.ellipse(R() * 256, R() * 256, 2 + R() * 4, 1 + R() * 2, R() * 3.14, 0, 7); g.fill(); }
       const hc = canvas(256), hg = hc.getContext('2d'); hg.drawImage(c, 0, 0); const t = tex(c, true, true); t.repeat.set(2, 2);
       const n = normalTex(hc, 2.5); n.repeat.set(2, 2);
-      return new T.MeshStandardMaterial({ map: t, normalMap: n, roughness: 0.9, color: 0xd8e0d0 });
+      return new T.MeshStandardMaterial({ map: t, normalMap: n, roughness: 0.9, color: 0xa9b3a0 });
     });
   }
   function hedge(o) {
