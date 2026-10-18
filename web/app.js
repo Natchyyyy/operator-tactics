@@ -181,6 +181,7 @@
   scene.add(sun); scene.add(sun.target);
   // rendu haut de gamme (rendu.js) : ciel physique, environnement, ombres serrées, post-traitement
   const RENDU = OT.Rendu ? OT.Rendu.create(renderer, scene, camera, sun, hemi) : null;
+  const EFX = OT.Effets ? OT.Effets.create(scene) : null;   // effets de combat (effets.js)
 
   // ---- Conditions (jour, nuit, brouillard, pluie) : lumière, brouillard de distance, pluie ; effets de jeu dans engine.js ----
   const LOOK = {
@@ -711,34 +712,50 @@
   const bloodMat = new THREE.MeshBasicMaterial({ color: 0x8e2a1f });
   const flashMat = new THREE.MeshBasicMaterial({ color: 0xffe59a, transparent: true, opacity: 0.9 });
   const tracerGeo = new THREE.CylinderGeometry(0.018, 0.018, 1, 5), sparkGeo = new THREE.SphereGeometry(0.035, 5, 4), dustGeo = new THREE.SphereGeometry(0.12, 6, 5), flashGeo = new THREE.SphereGeometry(0.11, 7, 6);
+  // normale de la surface touchée : sol, ou face de l'obstacle le plus proche du point d'impact
+  function surfaceNormal(p) {
+    if (p.y < 0.15) return new THREE.Vector3(0, 1, 0);
+    let best = null, bd = 1.5;
+    for (const o of battle.map.obstacles) { if (p.y > o.h + 0.3) continue; const d = Math.hypot(Math.max(o.x - p.x, 0, p.x - (o.x + o.w)), Math.max(o.z - p.z, 0, p.z - (o.z + o.d))); if (d < bd) { bd = d; best = o; } }
+    if (!best) return new THREE.Vector3(0, 1, 0);
+    const o = best, faces = [[p.x - o.x, -1, 0], [o.x + o.w - p.x, 1, 0], [p.z - o.z, 0, -1], [o.z + o.d - p.z, 0, 1], [Math.abs(o.h - p.y), 0, 0, 1]];
+    let f = faces[0]; for (const c of faces) if (Math.abs(c[0]) < Math.abs(f[0])) f = c;
+    return f.length === 4 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(f[1], 0, f[2]);
+  }
+  const BULLET = 140;   // vitesse apparente des traçantes (m/s)
   function addShot(ev, team) {
     const from = new THREE.Vector3(ev.from.x, ev.from.y, ev.from.z), to = new THREE.Vector3(ev.to.x, ev.to.y, ev.to.z);
-    const m = meshes[ev.shooter];
+    const m = meshes[ev.shooter], sh = unitById[ev.shooter];
     if (m) { m.anim.recoil = 1; const mz = m.weapon.localToWorld(m.weapon.muzzle.clone()); from.copy(mz); }
-    const dir = to.clone().sub(from), len = dir.length();
-    // traçante : un segment de ~2,2 m qui parcourt le trajet
-    const tr = new THREE.Mesh(tracerGeo, tracerMats[team]); tr.scale.y = Math.min(2.2, len); tr.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
-    scene.add(tr); fx.push({ obj: tr, kind: 'tracer', from, to, len, t0: simTime, speed: 110, until: simTime + len / 110 + 0.03 });
-    const flash = new THREE.Mesh(flashGeo, flashMat); flash.position.copy(from); flash.scale.setScalar(0.8 + Math.random() * 0.5); scene.add(flash); fx.push({ obj: flash, until: simTime + 0.05 });
-    const arrive = simTime + len / 110;
-    if (ev.hit) {
-      const tm = meshes[ev.target]; if (tm) tm.anim.flinch = 1;
-      for (let i = 0; i < 4; i++) { const b = new THREE.Mesh(sparkGeo, bloodMat); b.position.copy(to); scene.add(b); fx.push({ obj: b, until: arrive + 0.35, start: arrive, vel: new THREE.Vector3((Math.random() - 0.5) * 1.5, Math.random() * 1.2, (Math.random() - 0.5) * 1.5), gravity: 6 }); }
-    } else {
-      // impact : étincelles sur un obstacle, poussière au sol
-      const ground = to.y < 0.15;
-      if (ground) { const d = new THREE.Mesh(dustGeo, dustMat); d.position.set(to.x, 0.1, to.z); scene.add(d); fx.push({ obj: d, until: arrive + 0.5, start: arrive, grow: 2.2 }); }
-      for (let i = 0; i < (ground ? 2 : 4); i++) { const sp = new THREE.Mesh(sparkGeo, sparkMat); sp.position.set(to.x, Math.max(0.05, to.y), to.z); scene.add(sp); fx.push({ obj: sp, until: arrive + 0.3, start: arrive, vel: new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 2.5, (Math.random() - 0.5) * 3), gravity: 9 }); }
+    const dir = to.clone().sub(from), len = dir.length(); dir.normalize();
+    const delay = len / BULLET;
+    if (EFX) {
+      EFX.muzzle(from, dir, !!(sh && sh.weapon.silenced));
+      EFX.tracer(from, to, BULLET, team);
+      if (m && m.weapon.gripPt) {   // douille éjectée à droite de l'arme (fenêtre d'éjection au-dessus de la poignée)
+        const w = m.weapon; w.updateMatrixWorld(true);
+        const port = w.localToWorld(w.gripPt.clone().add(new THREE.Vector3(-0.025, 0.075, 0.1)));
+        const q = w.getWorldQuaternion(new THREE.Quaternion()), right = new THREE.Vector3(-1, 0, 0).applyQuaternion(q), up = new THREE.Vector3(0, 1, 0).applyQuaternion(q), fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+        EFX.casing(port, right, up, fwd);
+      }
+      if (ev.hit) { const tm = meshes[ev.target]; if (tm) tm.anim.flinch = 1; EFX.bloodHit(to, dir, delay); }
+      else { const n = surfaceNormal(to); EFX.impact(to, n, to.y < 0.15 ? 'impact_sol' : impactSound(to), delay); }
+      return;
     }
+    // (sans effets.js) traçante simple
+    const tr = new THREE.Mesh(tracerGeo, tracerMats[team]); tr.scale.y = Math.min(2.2, len); tr.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    scene.add(tr); fx.push({ obj: tr, kind: 'tracer', from, to, len, t0: simTime, speed: 110, until: simTime + len / 110 + 0.03 });
   }
   // effets de tactiques : nappe de fumée, obus, soins, drone
   const smokeMat = new THREE.MeshStandardMaterial({ color: 0xc9c9c4, transparent: true, opacity: 0.55, roughness: 1, depthWrite: false });
   function addSmoke(ev) {
+    if (EFX) { EFX.smoke(ev.x, ev.z, ev.r, Math.max(2, ev.until - simTime)); return; }
     const g = new THREE.Group();
     for (let i = 0; i < 14; i++) { const r = 1.2 + Math.random() * 1.6; const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), smokeMat.clone()); m.position.set(ev.x + (Math.random() - 0.5) * ev.r * 1.6, 0.8 + Math.random() * 1.6, ev.z + (Math.random() - 0.5) * ev.r * 1.6); m.userData.drift = new THREE.Vector3((Math.random() - 0.5) * 0.15, 0.08 + Math.random() * 0.1, (Math.random() - 0.5) * 0.15); g.add(m); }
     scene.add(g); fx.push({ obj: g, kind: 'smoke', until: ev.until, start: simTime });
   }
   function addShell(ev) {
+    if (EFX) { EFX.explosion({ x: ev.x, z: ev.z }); return; }
     const flash = new THREE.Mesh(new THREE.SphereGeometry(1.6, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffb060, transparent: true, opacity: 0.9 })); flash.position.set(ev.x, 0.8, ev.z); scene.add(flash); fx.push({ obj: flash, until: simTime + 0.25, grow: 3 , start: simTime });
     for (let i = 0; i < 10; i++) { const d = new THREE.Mesh(dustGeo, dustMat); d.position.set(ev.x, 0.3, ev.z); d.scale.setScalar(1.5 + Math.random()); scene.add(d); fx.push({ obj: d, until: simTime + 1.6, start: simTime, vel: new THREE.Vector3((Math.random() - 0.5) * 6, 2 + Math.random() * 4, (Math.random() - 0.5) * 6), gravity: 4 }); }
     const scorch = new THREE.Mesh(new THREE.CircleGeometry(2.2, 16), new THREE.MeshBasicMaterial({ color: 0x1a1612, transparent: true, opacity: 0.7 })); scorch.rotation.x = -Math.PI / 2; scorch.position.set(ev.x, 0.02, ev.z); scene.add(scorch); fx.push({ obj: scorch, until: simTime + 60 });
@@ -754,7 +771,12 @@
     scene.add(g); fx.push({ obj: g, kind: 'grenade', start: simTime, flight: ev.flight, from: ev.from, to: ev.to, until: ev.explodeAt, bounced: false });
   }
   function addBlast(ev) {
-    if (ev.kind === 'flash') {
+    if (ev.kind === 'flash' && EFX) {
+      EFX.flashbang({ x: ev.x, z: ev.z }); play('flashbang', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2 });
+      const p = new THREE.Vector3(ev.x, 0.8, ev.z).project(camera); if (p.z < 1 && Math.abs(p.x) < 1 && Math.abs(p.y) < 1) { const wv = $('#whiteout'); wv.classList.remove('on'); wv.offsetWidth; wv.classList.add('on'); }
+    } else if (EFX) {
+      EFX.explosion({ x: ev.x, z: ev.z }); play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.3 }); cam.shake = Math.max(cam.shake || 0, 0.5);
+    } else if (ev.kind === 'flash') {
       const light = new THREE.PointLight(0xffffff, 60, 18); light.position.set(ev.x, 1.2, ev.z); scene.add(light); fx.push({ obj: light, kind: 'flashlight', start: simTime, until: simTime + 0.35 });
       const s = new THREE.Mesh(new THREE.SphereGeometry(0.8, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 })); s.position.set(ev.x, 0.6, ev.z); scene.add(s); fx.push({ obj: s, until: simTime + 0.18, grow: 6, start: simTime });
       for (let i = 0; i < 5; i++) { const d = new THREE.Mesh(dustGeo, dustMat); d.position.set(ev.x, 0.3, ev.z); d.scale.setScalar(2 + Math.random()); scene.add(d); fx.push({ obj: d, until: simTime + 2.2, start: simTime, vel: new THREE.Vector3((Math.random() - 0.5) * 2, 1 + Math.random(), (Math.random() - 0.5) * 2), gravity: 0.3 }); }
@@ -784,6 +806,7 @@
   }
   function updateFx() {
     const dt = Math.max(0, simTime - fxLast); fxLast = simTime;
+    if (EFX) EFX.update(Math.min(0.1, frameDt), camera, sun.color.clone().multiplyScalar(0.55).add(new THREE.Color(0.25, 0.27, 0.3)), scene.fog);
     for (let i = fx.length - 1; i >= 0; i--) {
       const f = fx[i];
       if (f.kind === 'tracer') {
@@ -950,7 +973,7 @@
   const unitById = {};
 
   function newBattle(opts) {
-    clearOperators(); for (const f of fx) scene.remove(f.obj); fx.length = 0; decals.clear(); finale = null; postEnd = 0;
+    clearOperators(); for (const f of fx) scene.remove(f.obj); fx.length = 0; decals.clear(); if (EFX) EFX.clear(); finale = null; postEnd = 0;
     if (!opts.replayInputs) { reviewing = false; $('#app').classList.remove('reviewing'); }
     battle = new Battle(opts); simTime = 0; acc = 0; logIndex = 0; ended = false; fxLast = 0; lastAnimTime = 0; contactPlayed = false; pendingSounds.length = 0;
     for (const k in unitById) delete unitById[k];
@@ -984,10 +1007,12 @@
     play('impact_bois', { x: ev.x, y: 0.6, z: ev.z }, { vol: 1.3, vitesse: 0.8 });
   }
   function addScorch(x, z, r) {   // trace noire d'explosion (grenade, obus, frappe aérienne)
+    if (EFX) return;   // (effets.js : brûlure posée par l'explosion)
     if (decals.children.length > 160) decals.remove(decals.children[0]);
     const m = new THREE.Mesh(bloodGeo, scorchMat); m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6.28; m.position.set(x, 0.022, z); m.scale.set(r, r * (0.8 + Math.random() * 0.3), 1); decals.add(m);
   }
   function addBlood(x, z, r) {
+    if (EFX) { EFX.bloodPool(x + (Math.random() - 0.5) * 0.3, z + (Math.random() - 0.5) * 0.3, r * 2.2); return; }
     if (decals.children.length > 160) decals.remove(decals.children[0]);
     const m = new THREE.Mesh(bloodGeo, stainMat); m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6.28; m.position.set(x + (Math.random() - 0.5) * 0.3, 0.025, z + (Math.random() - 0.5) * 0.3);
     m.scale.set(r * (0.8 + Math.random() * 0.5), r * (0.6 + Math.random() * 0.5), 1); decals.add(m);
@@ -1453,6 +1478,8 @@
     useTactic: (id) => battle.command('tactic', 0, id),
     review: () => { review(); return battle.replayQueue.length; },
     meshes: () => meshes, scene: () => scene,
+    efx: () => EFX,
+    look: (x, z, yaw, pitch, dist, y) => { setCamMode('free'); cam.follow = null; cam.init = false; cam.target.set(x, y === undefined ? 0.9 : y, z); cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; for (let i = 0; i < 30; i++) applyCamera(); render(); return 0; },
     spinWatch: (on) => { SPIN.on = on !== false; SPIN.events = []; SPIN.hist = {}; }, spins: () => SPIN.events,
     setSpeed: (k) => { speed = k; }, play: () => { paused = false; updatePlayButton(); },
     // diagnostic d'animation : pour chaque soldat, vitesse réelle, direction du déplacement par rapport au corps affiché,

@@ -16,7 +16,7 @@
   const GradeShader = {
     uniforms: {
       tDiffuse: { value: null }, time: { value: 0 }, resolution: { value: new T.Vector2(1, 1) },
-      contrast: { value: 1.12 }, saturation: { value: 1.1 }, warm: { value: new T.Vector3(1.07, 1.0, 0.91) }, cool: { value: new T.Vector3(0.94, 0.99, 1.06) },
+      contrast: { value: 1.12 }, saturation: { value: 1.1 }, warm: { value: new T.Vector3(1.07, 1.0, 0.91) }, cool: { value: new T.Vector3(0.98, 1.0, 1.02) },
       vignette: { value: 0.32 }, grain: { value: 0.018 }, aberration: { value: 0.0012 }, exposure: { value: 1.0 },
     },
     vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -69,7 +69,7 @@
   }
   // préréglages d'ambiance par condition : position du soleil, ciel, exposition, brouillard, intensité de l'environnement
   const AMB = {
-    jour:       { elev: 31, azim: 230, turb: 4.5, ray: 1.3, mie: 0.005, g: 0.8, exp: 0.9, sun: [0xffd9a8, 6.0], env: 0.45, fog: [0xb9c3c9, 0.0042], clouds: 0.5, cloudTint: 0xfff4e6, cloudDark: 0x8d97a6, bloom: [0.32, 0.55, 0.92] },
+    jour:       { elev: 31, azim: 230, turb: 4.5, ray: 1.3, mie: 0.005, g: 0.8, exp: 0.9, sun: [0xffd9a8, 5.6], env: 0.75, fog: [0xb9c3c9, 0.0042], clouds: 0.5, cloudTint: 0xfff4e6, cloudDark: 0x8d97a6, bloom: [0.32, 0.55, 0.92] },
     nuit:       { elev: -12, azim: 215, turb: 2, ray: 0.3, mie: 0.002, g: 0.7, exp: 0.9, sun: [0x7d94d6, 0.55], env: 0.18, fog: [0x070a10, 0.016], clouds: 0.62, cloudTint: 0x2a3348, cloudDark: 0x0c1018, bloom: [0.6, 0.6, 0.55], night: true },
     brouillard: { elev: 18, azim: 215, turb: 12, ray: 2.5, mie: 0.02, g: 0.9, exp: 0.7, sun: [0xe8ecf0, 1.0], env: 0.75, fog: [0x9aa1a8, 0.03], clouds: 0.2, cloudTint: 0xdfe3e6, cloudDark: 0x9aa1a8, bloom: [0.25, 0.6, 0.95] },
     pluie:      { elev: 20, azim: 215, turb: 14, ray: 3, mie: 0.02, g: 0.85, exp: 0.7, sun: [0xc8d0dc, 0.9], env: 0.55, fog: [0x47505a, 0.013], clouds: 0.15, cloudTint: 0x6c7580, cloudDark: 0x2c323a, bloom: [0.35, 0.6, 0.9] },
@@ -108,7 +108,7 @@
       // le soleil (ou la lune) : même direction que le ciel, centré sur le terrain
       const c = R.center || new T.Vector3(36, 0, 23), dir = A.night ? new T.Vector3(-0.35, 0.8, 0.45).normalize() : sunDir;
       sun.position.copy(c).addScaledVector(dir, 120); sun.target.position.copy(c); sun.color.setHex(A.sun[0]); sun.intensity = A.sun[1];
-      if (hemi) { hemi.intensity = A.night ? 0.25 : 0.25; }
+      if (hemi) { hemi.intensity = A.night ? 0.25 : 0.45; }
       renderer.toneMappingExposure = A.exp;
       scene.fog = new T.FogExp2(A.fog[0], A.fog[1]);
       scene.background = A.night ? new T.Color(0x05070c) : null;
