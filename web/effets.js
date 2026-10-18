@@ -155,7 +155,7 @@
     let li = 0, now = 0;
     const light = (p, color, inten, dist, dur) => { const L = lights[li]; li = (li + 1) % lights.length; L.l.position.copy(p); L.l.color.setHex(color); L.l.distance = dist; L.i0 = inten; L.l.intensity = inten; L.until = now + dur; L.dur = dur; L.fresh = true; };
     const V = (x, y, z) => new T.Vector3(x, y, z), rnd = (a, b) => a + Math.random() * (b - a);
-    const E = { casings, holes, blood, scorch, sound: null };
+    const E = { casings, holes, blood, scorch, debris, pools: { add, alpha }, sound: null };
     // éclair de bouche : origine p, direction d (unitaire)
     E.muzzle = function (p, d, silenced) {
       if (silenced) { alpha.add({ p: p.clone(), v: d.clone().multiplyScalar(0.6).add(V(0, 0.3, 0)), life: 0.6, size: 0.08, grow: 3, frame: 4 + Math.floor(Math.random() * 4), col: [0.7, 0.7, 0.7], a0: 0.25, drag: 2 }); return; }

@@ -15,6 +15,7 @@ html = html.replace('<script src="three.min.js"></script>', inline('web/three.mi
   .replace('<script src="gltf.js"></script>', inline('web/gltf.js'))
   .replace('<script src="three-addons.js"></script>', inline('web/three-addons.js'))
   .replace('<script src="rendu.js"></script>', inline('web/rendu.js'))
+  .replace('<script src="effets.js"></script>', inline('web/effets.js'))
   .replace('<script src="parking.js"></script>', inline('web/parking.js'))
   .replace('<script src="modeles/soldat.js"></script>', inline('web/modeles/soldat.js'))
   .replace('<script src="modeles/gign.js"></script>', inline('web/modeles/gign.js'))

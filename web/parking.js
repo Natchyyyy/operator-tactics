@@ -342,7 +342,28 @@
     const panel = mat('panneau', () => new T.MeshStandardMaterial({ color: 0x8b9298, roughness: 0.55, metalness: 0.35 }));
     const wallM = new T.Mesh(new T.BoxGeometry(sx(L - 0.1, th - 0.1), o.h - 1.25, sz(L - 0.1, th - 0.1)), panel); wallM.position.y = -o.h / 2 + 0.9 + (o.h - 1.25) / 2; g.add(wallM);
     for (const s of [-1, 1]) { const band = new T.Mesh(new T.BoxGeometry(sx(L - 0.6, 0.05), 0.75, sz(L - 0.6, 0.05)), K.verre); band.position.set(along ? 0 : s * (th / 2 - 0.02), o.h / 2 - 0.85, along ? s * (th / 2 - 0.02) : 0); g.add(band); }
-    const roof = new T.Mesh(new T.BoxGeometry(sx(L + 0.8, th + 0.8), 0.22, sz(L + 0.8, th + 0.8)), K.metalSombre); roof.position.y = o.h / 2 - 0.11; g.add(roof);
+    // toit : dalle gravillonnée gris clair, rive en tôle laquée, acrotère, groupe de clim et ventilations
+    const roofM = mat('toitGravier', () => worldMat(concrete('clair'), { color: 0xa7a59f, roughness: 0.96, bump: 1.6 }));
+    const fasc = mat('rive', () => new T.MeshStandardMaterial({ color: 0x6d757c, roughness: 0.42, metalness: 0.6 }));
+    const RW = sx(L + 0.8, th + 0.8), RD = sz(L + 0.8, th + 0.8);
+    const roof = new T.Mesh(new T.BoxGeometry(RW, 0.16, RD), roofM); roof.position.y = o.h / 2 - 0.14; g.add(roof);
+    const under = new T.Mesh(new T.BoxGeometry(RW - 0.02, 0.06, RD - 0.02), K.metal); under.position.y = o.h / 2 - 0.25; g.add(under);
+    for (const s of [-1, 1]) {
+      const e1 = new T.Mesh(new T.BoxGeometry(RW + 0.04, 0.34, 0.06), fasc); e1.position.set(0, o.h / 2 - 0.09, s * (RD / 2 + 0.01)); g.add(e1);
+      const e2 = new T.Mesh(new T.BoxGeometry(0.06, 0.34, RD + 0.04), fasc); e2.position.set(s * (RW / 2 + 0.01), o.h / 2 - 0.09, 0); g.add(e2);
+    }
+    const R = rng(Math.floor(o.x * 31 + o.z * 17));
+    const clim = mat('clim', () => new T.MeshStandardMaterial({ color: 0xc9cbc8, roughness: 0.5, metalness: 0.4 }));
+    const grille = mat('grilleClim', () => new T.MeshStandardMaterial({ color: 0x2a2c2e, roughness: 0.7, metalness: 0.5 }));
+    for (let k = 0; k < 2; k++) {
+      const u = (k ? 0.22 : -0.25) * L, box = new T.Group();
+      const c = new T.Mesh(new T.BoxGeometry(1.0, 0.62, 0.7), clim); c.position.y = 0.31; box.add(c);
+      const fan = new T.Mesh(new T.CylinderGeometry(0.25, 0.25, 0.02, 20), grille); fan.position.y = 0.63; box.add(fan);
+      const ped = new T.Mesh(new T.BoxGeometry(1.1, 0.08, 0.8), K.metal); ped.position.y = 0.04; box.add(ped);
+      box.position.set(along ? u : (R() - 0.5) * 0.3, o.h / 2 - 0.06, along ? (R() - 0.5) * 0.3 : u); box.rotation.y = along ? 0 : Math.PI / 2; g.add(box);
+    }
+    for (let k = 0; k < 3; k++) { const v = new T.Mesh(new T.CylinderGeometry(0.09, 0.09, 0.4, 12), clim); const u = (R() - 0.5) * (L - 1.5); v.position.set(along ? u : (R() - 0.5) * (th - 0.4), o.h / 2 + 0.14, along ? (R() - 0.5) * (th - 0.4) : u); g.add(v);
+      const cap = new T.Mesh(new T.CylinderGeometry(0.16, 0.13, 0.06, 12), clim); cap.position.copy(v.position); cap.position.y += 0.24; g.add(cap); }
     for (let k = -1; k <= 1; k += 2) for (const s of [-1, 1]) { const pole = new T.Mesh(new T.BoxGeometry(0.12, o.h, 0.12), K.metal); pole.position.set(along ? k * (L / 2 - 0.1) : s * (th / 2 + 0.02), 0, along ? s * (th / 2 + 0.02) : k * (L / 2 - 0.1)); g.add(pole); }
     return g;
   }

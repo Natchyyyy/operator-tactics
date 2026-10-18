@@ -892,55 +892,72 @@
   // ---------------------------------------------------------------------------------------------
   // Boucle : simulation à vitesse réglable, interpolation des positions entre deux pas
   // ---------------------------------------------------------------------------------------------
-  // ---- Zone de capture : grille d'hexagones au sol (couleur de l'équipe qui la tient), disque et contour --------------
+  // ---- Marquages tactiques au sol : projection holographique en shader (anneau net + halo, tirets qui tournent,
+  // trame d'hexagones, arc de progression de la capture). Additif, sans écriture de profondeur.
+  const HOLO_VS = 'varying vec2 vP; uniform float uR; void main(){ vP = (uv * 2.0 - 1.0) * (uR + 0.6); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
+  const HOLO_FS = `uniform vec3 uCol, uPCol; uniform float uR, uT, uProg, uHex, uA, uFill;
+    varying vec2 vP;
+    float hexD(vec2 p){ p = abs(p); return max(dot(p, vec2(0.8660254, 0.5)), p.y); }
+    void main(){
+      float d = length(vP), aa = fwidth(d) * 1.2;
+      if (d > uR + 0.55) discard;
+      float ang = atan(vP.x, vP.y); float a01 = ang / 6.2831853 + 0.5;
+      float edge = 1.0 - smoothstep(0.045 - aa, 0.045 + aa, abs(d - uR));
+      float glow = exp(-abs(d - uR) * 7.0) * 0.45 * step(d, uR + 0.5);
+      float dash = step(0.5, fract(a01 * floor(uR * 5.0) + uT * 0.04)) * (1.0 - smoothstep(0.022 - aa, 0.022 + aa, abs(d - (uR - 0.32))));
+      float fill = smoothstep(uR * 0.15, uR, d) * step(d, uR) * uFill;
+      float hex = 0.0;
+      if (uHex > 0.5) { vec2 q = vP / 1.15; vec2 s = vec2(1.0, 1.7320508); vec2 a = mod(q, s) - s * 0.5, b = mod(q - s * 0.5, s) - s * 0.5; vec2 g = dot(a, a) < dot(b, b) ? a : b;
+        float e = 0.5 - hexD(g.yx); float w = fwidth(e); hex = (1.0 - smoothstep(0.02 - w, 0.02 + w, e)) * step(d, uR - 0.4) * (0.25 + 0.75 * smoothstep(0.0, uR, d)); }
+      float sweep = pow(fract(a01 - uT * 0.12), 6.0) * step(d, uR) * smoothstep(uR * 0.2, uR, d) * 0.35;
+      float pr = (1.0 - smoothstep(0.07 - aa, 0.07 + aa, abs(d - (uR + 0.24)))) * step(a01, uProg);
+      float prBg = (1.0 - smoothstep(0.07 - aa, 0.07 + aa, abs(d - (uR + 0.24)))) * 0.18;
+      vec3 c = uCol * (edge * 1.6 + glow + dash * 0.9 + fill * 0.2 + hex * 0.3 + sweep) + uPCol * pr * 1.8 + vec3(0.6) * prBg * (1.0 - step(a01, uProg)) * uHex;
+      gl_FragColor = vec4(c * uA, 1.0);
+    }`;
+  function groundHolo(r, opts) {
+    opts = opts || {};
+    const mat = new THREE.ShaderMaterial({ vertexShader: HOLO_VS, fragmentShader: HOLO_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, extensions: { derivatives: true },
+      uniforms: { uCol: { value: new THREE.Color(opts.color || 0xe8d36a) }, uPCol: { value: new THREE.Color(0xffffff) }, uR: { value: r }, uT: { value: 0 }, uProg: { value: 0 },
+        uHex: { value: opts.hex ? 1 : 0 }, uA: { value: opts.alpha === undefined ? 1 : opts.alpha }, uFill: { value: opts.fill === undefined ? 1 : opts.fill } } });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry((r + 0.6) * 2, (r + 0.6) * 2), mat); m.rotation.x = -Math.PI / 2; m.renderOrder = 3; m.userData.holo = true;
+    return m;
+  }
   let zoneGroup = null, zoneMats = null;
   function buildZone() {
-    if (zoneGroup) { zoneGroup.traverse(o => { if (o.isMesh) o.geometry.dispose(); }); scene.remove(zoneGroup); zoneGroup = null; }
+    if (zoneGroup) { zoneGroup.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } }); scene.remove(zoneGroup); zoneGroup = null; zoneMats = null; }
     const z = battle.zone; if (!z) return;
-    zoneGroup = new THREE.Group(); zoneGroup.position.set(z.x, 0, z.z);
-    const s = 1.05, w = 0.07, pos = [], idx = [];
-    const quad = (ax, az, bx, bz) => { const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz), nx = -dz / L * w, nz = dx / L * w, i = pos.length / 3;
-      pos.push(ax + nx, 0, az + nz, bx + nx, 0, bz + nz, bx - nx, 0, bz - nz, ax - nx, 0, az - nz); idx.push(i, i + 1, i + 2, i, i + 2, i + 3); };
-    const R = Math.ceil(z.r / s) + 1;
-    for (let q = -R; q <= R; q++) for (let r = -R; r <= R; r++) {
-      const cx = s * 1.5 * q, cz = s * Math.sqrt(3) * (r + q / 2);
-      if (Math.hypot(cx, cz) > z.r - s * 0.6) continue;
-      const pts = []; for (let k = 0; k < 6; k++) { const a = Math.PI / 3 * k; pts.push([cx + Math.cos(a) * s * 0.9, cz + Math.sin(a) * s * 0.9]); }
-      for (let k = 0; k < 6; k++) quad(pts[k][0], pts[k][1], pts[(k + 1) % 6][0], pts[(k + 1) % 6][1]);
-    }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
-    zoneMats = { hex: new THREE.MeshBasicMaterial({ color: 0xe8d36a, transparent: true, opacity: 0.75, depthWrite: false }),
-      disc: new THREE.MeshBasicMaterial({ color: 0xe8d36a, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide }),
-      ring: new THREE.MeshBasicMaterial({ color: 0xe8d36a, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }) };
-    const hex = new THREE.Mesh(g, zoneMats.hex); hex.position.y = 0.035; hex.renderOrder = 2; zoneGroup.add(hex);
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(z.r, 48), zoneMats.disc); disc.rotation.x = -Math.PI / 2; disc.position.y = 0.03; zoneGroup.add(disc);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(z.r - 0.12, z.r + 0.12, 64), zoneMats.ring); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; zoneGroup.add(ring);
+    zoneGroup = new THREE.Group(); zoneGroup.position.set(z.x, 0.03, z.z);
+    const h = groundHolo(z.r, { hex: true, alpha: 0.9 }); zoneGroup.add(h); zoneMats = h.material;
     scene.add(zoneGroup);
   }
   function updateZone() {
     const z = battle.zone; if (!z || !zoneMats) return;
     const col = z.contested ? 0xffffff : z.holder === 0 ? TEAM[0].color : z.holder === 1 ? TEAM[1].color : 0xe8d36a;
-    const pulse = 0.55 + 0.35 * Math.sin(performance.now() / (z.contested ? 120 : 420));
-    zoneMats.hex.color.setHex(col); zoneMats.ring.color.setHex(col); zoneMats.disc.color.setHex(col);
-    zoneMats.hex.opacity = z.holder === null ? 0.55 : pulse; zoneMats.disc.opacity = z.holder === null ? 0.05 : 0.12;
+    const U = zoneMats.uniforms, t = performance.now() / 1000;
+    U.uCol.value.lerp(new THREE.Color(col), 0.08); U.uT.value = t;
+    const lead = z.holder !== null && z.holder !== undefined ? z.holder : (battle.teams[0].capture >= battle.teams[1].capture ? 0 : 1);
+    U.uProg.value = Math.min(1, (battle.teams[lead].capture || 0) / 100); U.uPCol.value.setHex(TEAM[lead].color);
+    U.uA.value = z.contested ? 0.75 + 0.25 * Math.sin(t * 9) : 0.85;
   }
-  // ---- Emblème peint au sol de chaque zone de départ (grand cercle + insigne de l'équipe) ------------------------------
+  // ---- Zones de départ : marquage holographique discret (anneau en tirets + insigne au centre) --------------------
   let emblemGroup = null;
   function buildSpawnEmblems() {
     if (emblemGroup) { emblemGroup.traverse(o => { if (o.isMesh) { o.geometry.dispose(); if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); scene.remove(emblemGroup); }
     emblemGroup = new THREE.Group();
     battle.teams.forEach((team, ti) => {
+      const h = groundHolo(team.spawn.r + 1, { color: TEAM[ti].color, alpha: 0.4, fill: 0.5 }); h.position.set(team.spawn.x, 0.025, team.spawn.z); emblemGroup.add(h);
       const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
       const col = '#' + TEAM[ti].color.toString(16).padStart(6, '0');
-      g.strokeStyle = col; g.lineWidth = 16; g.globalAlpha = 0.9; g.beginPath(); g.arc(128, 128, 112, 0, Math.PI * 2); g.stroke();
-      g.fillStyle = col; g.globalAlpha = 0.85; g.font = 'bold 140px "Segoe UI Symbol", "Noto Sans Symbols", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(insigniaGlyph(team), 128, 136);
-      const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
-      const size = team.spawn.r * 2 + 4;
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.6, depthWrite: false }));
-      m.rotation.x = -Math.PI / 2; m.rotation.z = ti === 0 ? -Math.PI / 2 : Math.PI / 2; m.position.set(team.spawn.x, 0.025, team.spawn.z); emblemGroup.add(m);
+      g.fillStyle = col; g.font = 'bold 150px "Segoe UI Symbol", "Noto Sans Symbols", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(insigniaGlyph(team), 128, 136);
+      const tex = new THREE.CanvasTexture(c); tex.anisotropy = 8;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
+      m.rotation.x = -Math.PI / 2; m.rotation.z = ti === 0 ? -Math.PI / 2 : Math.PI / 2; m.position.set(team.spawn.x, 0.03, team.spawn.z); emblemGroup.add(m);
     });
     scene.add(emblemGroup);
   }
+  function updateHolos() { if (emblemGroup) { const t = performance.now() / 1000; emblemGroup.traverse(o => { if (o.userData.holo) o.material.uniforms.uT.value = t; }); } }
   // ---- Bannière de fin (« ALPHA L'EMPORTE ! ») sur l'image figée, avant l'écran de résultat ------------------------
   let bannerTimer = null;
   // Plan final : à la fin d'une bataille regardée, la caméra tourne lentement autour de la dernière neutralisation,
@@ -1426,7 +1443,7 @@
   }
   // secousse de caméra (explosions) : décalage aléatoire qui s'amortit
   function applyShake() { if (!cam.shake || cam.shake < 0.01) return; const k = cam.shake * 0.25; camera.position.x += (Math.random() - 0.5) * k; camera.position.y += (Math.random() - 0.5) * k; camera.position.z += (Math.random() - 0.5) * k; cam.shake *= 0.86; }
-  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); updateSteam(MANUAL ? 0.2 : frameDt + 0.003); if (battle.zone) updateZone(); if (OT.Parking) OT.Parking.tick(performance.now() / 1000); if (RENDU) RENDU.render(); else renderer.render(scene, camera); updateLabels(); updateRosters(); }
+  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); updateSteam(MANUAL ? 0.2 : frameDt + 0.003); if (battle.zone) updateZone(); updateHolos(); if (OT.Parking) OT.Parking.tick(performance.now() / 1000); if (RENDU) RENDU.render(); else renderer.render(scene, camera); updateLabels(); updateRosters(); }
 
   // musique dynamique : plus présente quand les échanges de tirs s'intensifient, en retrait pendant la progression
   let lastMusicAdj = 0, musicLevel = 0.7;
@@ -1467,6 +1484,7 @@
     // un pas de simulation rendu en k images intermédiaires (comme en temps réel : interpolation entre deux pas)
     stepFine: (k) => { stepSim(); for (let i = 1; i <= (k || 3); i++) { acc = DT * i / (k || 3); render(); } return battle.t; },
     skip: () => { skipToEnd(); return battle.result; },
+    stepRaw: (n) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; return battle.t; },   // sans rendu (outils de capture)
     runToEnd: () => { instantResult = true; while (!battle.over) stepSim(); instantResult = false; acc = DT; render(); return battle.result; },
     start: (opts) => { newBattle(opts); render(); return battle.zone || true; },
     banner: () => { $('#result').classList.add('hidden'); showBanner(() => showResult()); },
