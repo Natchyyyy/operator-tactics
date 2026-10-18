@@ -974,7 +974,7 @@
         if (cp && Math.hypot(cp.x - target.x, cp.z - target.z) < d - 3 && this.setGoal(u, cp.x, cp.z, 'close')) { u.state = 'closing'; u.stance = 'stand'; u.rushUntil = this.t + 3; return; }
       }
       // tir inefficace à cette distance (cible trop loin) : se rapprocher de couvert en couvert, sans descendre sous ~8 m
-      if (!effective && !pinned && !covering) {
+      if (!effective && !pinned && !covering && !beingShot && u.suppression < 0.4) {   // on ne quitte pas son couvert sous le feu
         const cp = this.findCover(u, target, 16, { towards: target, minRange: MIN_CLOSE });
         let g = null;
         if (cp && Math.hypot(cp.x - target.x, cp.z - target.z) < d - 2) g = cp;
