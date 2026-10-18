@@ -19,9 +19,9 @@
   scene.add(new THREE.HemisphereLight(0xb8c8d8, 0x3a3630, 1.4));
   const key = new THREE.DirectionalLight(0xffe2b0, 3.2); key.position.set(3, 6, 4); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); scene.add(key);
   const rim = new THREE.DirectionalLight(0x5a8fd8, 1.6); rim.position.set(-4, 3, -3); scene.add(rim);
-  const sunset = new THREE.DirectionalLight(0xff9a50, 1.8); sunset.position.set(2, 1.5, -8); scene.add(sunset);   // contre-jour orangé
+  const sunset = new THREE.DirectionalLight(0xff9a50, 1.3); sunset.position.set(2, 1.5, -8); scene.add(sunset);   // contre-jour orangé
   const front = new THREE.DirectionalLight(0xcfe0ff, 1.1); front.position.set(1, 2.5, 9); scene.add(front);   // débouche les visages et les tenues sombres
-  const pool = new THREE.SpotLight(0xffe6c0, 140, 0, 0.45, 0.75, 2); pool.position.set(3, 7.5, 3.5); pool.target.position.set(3, 0, -0.4); scene.add(pool, pool.target);   // flaque de lumière sur l'escouade
+  const pool = new THREE.SpotLight(0xfff2e2, 130, 0, 0.45, 0.75, 2); pool.position.set(3, 7.5, 3.5); pool.target.position.set(3, 0, -0.4); scene.add(pool, pool.target);   // flaque de lumière sur l'escouade
   // poussière en suspension dans la lumière
   const dustN = 260, dustPos = new Float32Array(dustN * 3); for (let i = 0; i < dustN; i++) dustPos.set([Math.random() * 14 - 5, Math.random() * 4, Math.random() * 8 - 5], i * 3);
   const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
@@ -44,14 +44,14 @@
       put(new THREE.Mesh(new THREE.BoxGeometry(6, 2.6, 2.4), cont), 3.4, 1.3, -5.6, -0.12);
       return;
     }
-    // sol d'asphalte (détail en coordonnées du monde, sans tuilage visible)
+    // dalle de béton (détail en coordonnées du monde, sans tuilage visible)
     scene.fog.color.setHex(0x15120f); scene.fog.near = 7; scene.fog.far = 21;   // brume sombre : le fond se perd dans la pénombre
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), P.worldMat(P.asphalt(), { roughness: 0.94, color: 0x444d57 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; set.add(ground);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), P.worldMat(P.concrete(), { roughness: 0.9, color: 0x6c7277, bump: 0.6 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; set.add(ground);
     // mur d'enceinte en panneaux de béton, assez haut pour que son arête sorte du cadre ; tags sur la face visible
     const WH = 6, wall = put(P.mesh({ name: 'mur nord', x: 11, z: 4, w: 34, h: WH, d: 0.35 }), -2.5, WH / 2, -6.4);
     // tags : un seul gardé, en hauteur au-dessus de l'escouade (ni derrière le titre, ni derrière les têtes)
     if (wall) { const tags = []; wall.traverse(n => { if (n.isMesh && n.material && n.material.polygonOffset && n.material.transparent) tags.push(n); });
-      tags.forEach((n, i) => { if (i) n.parent.remove(n); else { n.position.x = 6.4; n.position.y = 0.55; n.scale.setScalar(0.85); } }); }
+      tags.forEach((n, i) => { if (i) n.parent.remove(n); else { n.position.x = 6.4; n.position.y = 0.55; n.scale.setScalar(0.85); n.material.opacity = 0.8; n.material.color.setScalar(0.72); } }); }
     // conteneur à droite (modèle 3D s'il est chargé), caisses sur palettes, fûts, palettes
     const fit = (n, w, h, d, opts) => (M3 && M3.has(n) ? M3.fit(n, w, h, d, opts) : null);
     put(fit('conteneur', 6.1, 2.6, 2.45) || P.mesh({ name: 'conteneur', x: 2, z: 3, w: 6.1, h: 2.6, d: 2.45 }), 8.4, 1.3, -2.9, -0.95);
@@ -121,7 +121,7 @@
   $('#titleMusic').addEventListener('change', (e) => { if (window.OT_MUSIC) window.OT_MUSIC.set(e.target.checked ? 1 : 0); });
   $('#titleStart').addEventListener('click', () => { hide(); window.HQ.show(); if (window.OT_MUSIC && window.Son) setTimeout(() => Son.boucle('musique_qg', { voie: 'musique', vol: 0.8 * window.OT_MUSIC.get(), fondu: 2.5 }), 600); });
   $('#titleFree').addEventListener('click', () => { hide(); $('#freeBattle').click(); });
-  window.TITLE = { show, hide, _dbg: () => ({ scene, draw, set: () => set }) };
+  window.TITLE = { show, hide };
   // le soldat 3D arrive après l'écran titre : l'escouade est reconstruite avec lui
   if (OT.Soldat3D && OT.Soldat3D.whenReady) OT.Soldat3D.whenReady(() => { if ($('#title').classList.contains('hidden')) return; buildSet(); if (!skinned && RICH) buildSquad(); if (manual) draw(0); });
   const params = new URLSearchParams(location.search);

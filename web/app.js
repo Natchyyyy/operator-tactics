@@ -220,9 +220,10 @@
       const m = meshes[s.id], u = unitById[s.id]; if (!m || !u || !u.alive) return null;
       const P = m.group.position, sp = Math.hypot(m.anim.vx || 0, m.anim.vz || 0);
       const f0 = sp > 0.2 ? new THREE.Vector2(m.anim.vx / sp, m.anim.vz / sp) : new THREE.Vector2(Math.cos(u.facing), Math.sin(u.facing));
-      const dd = smoothDir(s, 'dir', f0.x, f0.y, 1.4, dt), dx = dd.x, dz = dd.y, nx = -dz * side, nz = dx * side;
+      const dd = smoothDir(s, 'dir', f0.x, f0.y, 1.4, dt), dx = dd.x, dz = dd.y, ca = Math.cos(s.ang || 0), sa = Math.sin(s.ang || 0);
+      const nx = (-dz * ca - dx * sa) * side, nz = (dx * ca - dz * sa) * side, R = s.dd || 3.8;   // côté, angle (trois-quarts arrière / avant), distance
       s.still = u.moving ? 0 : (s.still || 0) + (dt || 0);
-      const pos = V3(P.x + nx * 3.8 - dx * 0.7, 1.25, P.z + nz * 3.8 - dz * 0.7), look = V3(P.x + dx * 2.1, 1.05, P.z + dz * 2.1);
+      const pos = V3(P.x + nx * R - dx * 0.7, 1.25, P.z + nz * R - dz * 0.7), look = V3(P.x + dx * 2.1, 1.05, P.z + dz * 2.1);
       return { pos, look, pts: [eyeOf(s.id)], fov: 46, st: 0.35, lst: 0.3, pivot: V3(P.x, 1.2, P.z) };
     }
     if (s.kind === 'overview' || s.kind === 'establish') {
@@ -259,13 +260,21 @@
   // meilleure variante (côté, angle) d'un plan ; null si aucune n'est assez dégagée
   function bestOf(list, bonus, min) {
     let best = null, bq = min === undefined ? 0.5 : min;
-    for (const s of list) { s.t0 = DIRECTOR.clock; const f = frameShot(s, 0); if (!f) continue; const q = shotQuality(f) + (bonus ? bonus(s) : 0); if (q > bq + 1e-6) { bq = q; best = s; } }
+    for (const s of list) {
+      s.t0 = DIRECTOR.clock; const f = frameShot(s, 0); if (!f) continue;
+      let q = shotQuality(f) + (bonus ? bonus(s) : 0);
+      if (q >= 0 && f.pos.y < 9) { const c = clipBoom(f.pivot, f.pos); if (c.y - f.pos.y > 0.4 || c.distanceTo(f.pos) > 0.8) q -= 0.6; }   // la perche devrait se replier ou monter : cadrage dénaturé
+      if (q > bq + 1e-6) { bq = q; best = s; }
+    }
     return best;
   }
   function variants(s) {
     const out = [], sides = s.side ? [s.side] : [1, -1];
     const yaws = s.kind === 'capture' ? [0, 1.57, 3.14, 4.71] : s.kind === 'overview' || s.kind === 'establish' ? [0, 0.45, -0.45] : [0];
-    for (const side of sides) for (const y of yaws) out.push(Object.assign({}, s, { side, yaw: (s.yaw || 0) + y }));
+    for (const side of sides) for (const y of yaws) {
+      if (s.kind === 'dolly') { for (const [ang, dd] of [[0, 3.8], [0.45, 3.4], [-0.45, 3.4], [0, 2.7]]) out.push(Object.assign({}, s, { side, ang, dd })); continue; }
+      out.push(Object.assign({}, s, { side, yaw: (s.yaw || 0) + y }));
+    }
     return out;
   }
   function eventShot(ev) {
@@ -340,7 +349,7 @@
     for (let i = 0; i < n && !battle.over; i++) {
       stepSim();
       for (let k = 1; k <= 3; k++) {
-        acc = DT * k / 3; syncMeshes(k / 3); applyCamera(); R.frames++;
+        acc = DT * k / 3; syncMeshes(k / 3); frameDt = DT / 3; updateFx(); applyCamera(); R.frames++;   // (effets vieillis comme en temps réel)
         const p = camera.position.clone(), v = p.clone().sub(p0), cut = cam.shot !== ref || v.length() > 2.5;
         if (cut) { const kind = typeof ref === 'object' && ref ? ref.kind : String(ref); R.cuts++; R.holds.push(+(simTime - tCut).toFixed(1)); R.kinds[kind] = (R.kinds[kind] || 0) + 1; ref = cam.shot; tCut = simTime; v0.set(0, 0, 0); }
         else { R.maxStep = Math.max(R.maxStep, v.length()); if (v.length() > 0.6) (R.big = R.big || []).push([+simTime.toFixed(1), cam.shot && cam.shot.kind, +v.length().toFixed(2)]); if (nf++) R.jerk += v.clone().sub(v0).length(); v0.copy(v); }

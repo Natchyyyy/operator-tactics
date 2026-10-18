@@ -1233,7 +1233,8 @@
   #rewards .rwtop { height: 64px; padding-right: 40px; font-size: 26px; background: linear-gradient(180deg, rgba(12,16,18,.95), rgba(8,11,12,.84)); border-bottom: 1px solid rgba(255,255,255,.07); }
   #rewards .rwtop::before { content: 'Récompenses de mission'; position: absolute; left: 50%; transform: translateX(-50%); font: 800 15px var(--ui); letter-spacing: .3em; text-transform: uppercase; color: var(--m-txt); }
   #rewards .rwtop .ico { width: 30px; height: 30px; } #rewards .rwtop b { font-family: var(--raw); min-width: 0; }
-  #rewards .rwteam .bang { left: 14px; top: 14px; transform: rotate(45deg) scale(.8); }
+  #rewards .rwteam .bang { left: auto; right: 16px; top: 16px; transform: rotate(45deg) scale(.8); }
+  #rewards .rwteam .tart-team .portrait { width: auto !important; height: 132px !important; bottom: 0; } #rewards .rwteam .tart-team img:nth-child(1) { left: 44px; } #rewards .rwteam .tart-team img:nth-child(2) { left: 118px; height: 142px !important; } #rewards .rwteam .tart-team img:nth-child(3) { left: 192px; }
   #rewards .rwp { --rc: var(--m-gold); } #rewards .rwp.violet { --rc: #a970ff; } #rewards .rwp.red { --rc: #ff6a55; } #rewards .rwp.orange { --rc: #ffa94a; }
   #rewards .rwp { border-radius: 20px; overflow: hidden; box-shadow: 0 30px 70px rgba(0,0,0,.55); border: 1px solid var(--m-line2); }
   #rewards .rwp header { width: auto; height: 58px; padding-left: 28px; clip-path: none; font: 800 15px var(--ui); letter-spacing: .28em; color: var(--rc) !important; background: linear-gradient(90deg, color-mix(in srgb, var(--rc) 20%, rgba(14,18,20,.96)), rgba(14,18,20,.96)) !important; border-bottom: 1px solid var(--m-line) !important; box-shadow: inset 4px 0 0 var(--rc); }
@@ -18913,9 +18914,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const m = meshes[s.id], u = unitById[s.id]; if (!m || !u || !u.alive) return null;
       const P = m.group.position, sp = Math.hypot(m.anim.vx || 0, m.anim.vz || 0);
       const f0 = sp > 0.2 ? new THREE.Vector2(m.anim.vx / sp, m.anim.vz / sp) : new THREE.Vector2(Math.cos(u.facing), Math.sin(u.facing));
-      const dd = smoothDir(s, 'dir', f0.x, f0.y, 1.4, dt), dx = dd.x, dz = dd.y, nx = -dz * side, nz = dx * side;
+      const dd = smoothDir(s, 'dir', f0.x, f0.y, 1.4, dt), dx = dd.x, dz = dd.y, ca = Math.cos(s.ang || 0), sa = Math.sin(s.ang || 0);
+      const nx = (-dz * ca - dx * sa) * side, nz = (dx * ca - dz * sa) * side, R = s.dd || 3.8;   // côté, angle (trois-quarts arrière / avant), distance
       s.still = u.moving ? 0 : (s.still || 0) + (dt || 0);
-      const pos = V3(P.x + nx * 3.8 - dx * 0.7, 1.25, P.z + nz * 3.8 - dz * 0.7), look = V3(P.x + dx * 2.1, 1.05, P.z + dz * 2.1);
+      const pos = V3(P.x + nx * R - dx * 0.7, 1.25, P.z + nz * R - dz * 0.7), look = V3(P.x + dx * 2.1, 1.05, P.z + dz * 2.1);
       return { pos, look, pts: [eyeOf(s.id)], fov: 46, st: 0.35, lst: 0.3, pivot: V3(P.x, 1.2, P.z) };
     }
     if (s.kind === 'overview' || s.kind === 'establish') {
@@ -18952,13 +18954,21 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // meilleure variante (côté, angle) d'un plan ; null si aucune n'est assez dégagée
   function bestOf(list, bonus, min) {
     let best = null, bq = min === undefined ? 0.5 : min;
-    for (const s of list) { s.t0 = DIRECTOR.clock; const f = frameShot(s, 0); if (!f) continue; const q = shotQuality(f) + (bonus ? bonus(s) : 0); if (q > bq + 1e-6) { bq = q; best = s; } }
+    for (const s of list) {
+      s.t0 = DIRECTOR.clock; const f = frameShot(s, 0); if (!f) continue;
+      let q = shotQuality(f) + (bonus ? bonus(s) : 0);
+      if (q >= 0 && f.pos.y < 9) { const c = clipBoom(f.pivot, f.pos); if (c.y - f.pos.y > 0.4 || c.distanceTo(f.pos) > 0.8) q -= 0.6; }   // la perche devrait se replier ou monter : cadrage dénaturé
+      if (q > bq + 1e-6) { bq = q; best = s; }
+    }
     return best;
   }
   function variants(s) {
     const out = [], sides = s.side ? [s.side] : [1, -1];
     const yaws = s.kind === 'capture' ? [0, 1.57, 3.14, 4.71] : s.kind === 'overview' || s.kind === 'establish' ? [0, 0.45, -0.45] : [0];
-    for (const side of sides) for (const y of yaws) out.push(Object.assign({}, s, { side, yaw: (s.yaw || 0) + y }));
+    for (const side of sides) for (const y of yaws) {
+      if (s.kind === 'dolly') { for (const [ang, dd] of [[0, 3.8], [0.45, 3.4], [-0.45, 3.4], [0, 2.7]]) out.push(Object.assign({}, s, { side, ang, dd })); continue; }
+      out.push(Object.assign({}, s, { side, yaw: (s.yaw || 0) + y }));
+    }
     return out;
   }
   function eventShot(ev) {
@@ -19033,7 +19043,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (let i = 0; i < n && !battle.over; i++) {
       stepSim();
       for (let k = 1; k <= 3; k++) {
-        acc = DT * k / 3; syncMeshes(k / 3); applyCamera(); R.frames++;
+        acc = DT * k / 3; syncMeshes(k / 3); frameDt = DT / 3; updateFx(); applyCamera(); R.frames++;   // (effets vieillis comme en temps réel)
         const p = camera.position.clone(), v = p.clone().sub(p0), cut = cam.shot !== ref || v.length() > 2.5;
         if (cut) { const kind = typeof ref === 'object' && ref ? ref.kind : String(ref); R.cuts++; R.holds.push(+(simTime - tCut).toFixed(1)); R.kinds[kind] = (R.kinds[kind] || 0) + 1; ref = cam.shot; tCut = simTime; v0.set(0, 0, 0); }
         else { R.maxStep = Math.max(R.maxStep, v.length()); if (v.length() > 0.6) (R.big = R.big || []).push([+simTime.toFixed(1), cam.shot && cam.shot.kind, +v.length().toFixed(2)]); if (nf++) R.jerk += v.clone().sub(v0).length(); v0.copy(v); }
@@ -20576,9 +20586,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   scene.add(new THREE.HemisphereLight(0xb8c8d8, 0x3a3630, 1.4));
   const key = new THREE.DirectionalLight(0xffe2b0, 3.2); key.position.set(3, 6, 4); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); scene.add(key);
   const rim = new THREE.DirectionalLight(0x5a8fd8, 1.6); rim.position.set(-4, 3, -3); scene.add(rim);
-  const sunset = new THREE.DirectionalLight(0xff9a50, 1.8); sunset.position.set(2, 1.5, -8); scene.add(sunset);   // contre-jour orangé
+  const sunset = new THREE.DirectionalLight(0xff9a50, 1.3); sunset.position.set(2, 1.5, -8); scene.add(sunset);   // contre-jour orangé
   const front = new THREE.DirectionalLight(0xcfe0ff, 1.1); front.position.set(1, 2.5, 9); scene.add(front);   // débouche les visages et les tenues sombres
-  const pool = new THREE.SpotLight(0xffe6c0, 140, 0, 0.45, 0.75, 2); pool.position.set(3, 7.5, 3.5); pool.target.position.set(3, 0, -0.4); scene.add(pool, pool.target);   // flaque de lumière sur l'escouade
+  const pool = new THREE.SpotLight(0xfff2e2, 130, 0, 0.45, 0.75, 2); pool.position.set(3, 7.5, 3.5); pool.target.position.set(3, 0, -0.4); scene.add(pool, pool.target);   // flaque de lumière sur l'escouade
   // poussière en suspension dans la lumière
   const dustN = 260, dustPos = new Float32Array(dustN * 3); for (let i = 0; i < dustN; i++) dustPos.set([Math.random() * 14 - 5, Math.random() * 4, Math.random() * 8 - 5], i * 3);
   const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
@@ -20601,14 +20611,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       put(new THREE.Mesh(new THREE.BoxGeometry(6, 2.6, 2.4), cont), 3.4, 1.3, -5.6, -0.12);
       return;
     }
-    // sol d'asphalte (détail en coordonnées du monde, sans tuilage visible)
+    // dalle de béton (détail en coordonnées du monde, sans tuilage visible)
     scene.fog.color.setHex(0x15120f); scene.fog.near = 7; scene.fog.far = 21;   // brume sombre : le fond se perd dans la pénombre
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), P.worldMat(P.asphalt(), { roughness: 0.94, color: 0x444d57 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; set.add(ground);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), P.worldMat(P.concrete(), { roughness: 0.9, color: 0x6c7277, bump: 0.6 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; set.add(ground);
     // mur d'enceinte en panneaux de béton, assez haut pour que son arête sorte du cadre ; tags sur la face visible
     const WH = 6, wall = put(P.mesh({ name: 'mur nord', x: 11, z: 4, w: 34, h: WH, d: 0.35 }), -2.5, WH / 2, -6.4);
     // tags : un seul gardé, en hauteur au-dessus de l'escouade (ni derrière le titre, ni derrière les têtes)
     if (wall) { const tags = []; wall.traverse(n => { if (n.isMesh && n.material && n.material.polygonOffset && n.material.transparent) tags.push(n); });
-      tags.forEach((n, i) => { if (i) n.parent.remove(n); else { n.position.x = 6.4; n.position.y = 0.55; n.scale.setScalar(0.85); } }); }
+      tags.forEach((n, i) => { if (i) n.parent.remove(n); else { n.position.x = 6.4; n.position.y = 0.55; n.scale.setScalar(0.85); n.material.opacity = 0.8; n.material.color.setScalar(0.72); } }); }
     // conteneur à droite (modèle 3D s'il est chargé), caisses sur palettes, fûts, palettes
     const fit = (n, w, h, d, opts) => (M3 && M3.has(n) ? M3.fit(n, w, h, d, opts) : null);
     put(fit('conteneur', 6.1, 2.6, 2.45) || P.mesh({ name: 'conteneur', x: 2, z: 3, w: 6.1, h: 2.6, d: 2.45 }), 8.4, 1.3, -2.9, -0.95);
@@ -20678,7 +20688,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   $('#titleMusic').addEventListener('change', (e) => { if (window.OT_MUSIC) window.OT_MUSIC.set(e.target.checked ? 1 : 0); });
   $('#titleStart').addEventListener('click', () => { hide(); window.HQ.show(); if (window.OT_MUSIC && window.Son) setTimeout(() => Son.boucle('musique_qg', { voie: 'musique', vol: 0.8 * window.OT_MUSIC.get(), fondu: 2.5 }), 600); });
   $('#titleFree').addEventListener('click', () => { hide(); $('#freeBattle').click(); });
-  window.TITLE = { show, hide, _dbg: () => ({ scene, draw, set: () => set }) };
+  window.TITLE = { show, hide };
   // le soldat 3D arrive après l'écran titre : l'escouade est reconstruite avec lui
   if (OT.Soldat3D && OT.Soldat3D.whenReady) OT.Soldat3D.whenReady(() => { if ($('#title').classList.contains('hidden')) return; buildSet(); if (!skinned && RICH) buildSquad(); if (manual) draw(0); });
   const params = new URLSearchParams(location.search);
