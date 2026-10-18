@@ -6,7 +6,9 @@
   const TACTIC_ICON = { fumigene: '💨', reco: '📡', soins: '✚', barrage: '💥', drill: '🛡', blitz: '⚡', retranche: '🧱', discipline: '🎯', frappe: '✈', tete: '☠', camouflage: '🌿', triage: '⛑' };
   const $ = (s) => document.querySelector(s);
   const STAT_FR = { marksmanship: 'Tir', reflexes: 'Réflexes', mobility: 'Mobilité', perception: 'Perception', composure: 'Sang-froid', endurance: 'Endurance' };
-  const LANE_FR = { '-1': 'Nord', '0': 'Centre', '1': 'Sud', 'null': 'Auto' };
+  const LANE_FR = { '-1': 'Nord', '0': 'Milieu', '1': 'Sud', 'null': 'Auto' };
+  const LANE_ABBR = { '-1': 'N', '0': 'M', '1': 'S', 'null': 'A' };
+  const laneOf = (st) => (st && st.lane !== undefined && st.lane !== null ? st.lane : null);
   const RARITY_FR = { 1: 'Commun', 2: 'Rare', 3: 'Élite' };
   const roleIcon = { assault: 'AS', pointman: 'PT', marksman: 'TE', support: 'AP', breacher: 'BR' };
 
@@ -199,6 +201,10 @@
   // emblèmes dessinés des tactiques sans illustration (hexagone + pictogramme) ; tiroir : deux flèches décalées = bonds alternés
   const TAC_SVG = {
     tiroir: '<path d="M36 74 V40 M25 50 L36 37 L47 50" stroke="#eef5f1"/><path d="M64 84 V52 M53 62 L64 49 L75 62" stroke="#4ee089"/><path d="M30 86 H42 M58 30 H70" stroke="#4ee089" stroke-width="3" opacity=".6"/>',
+    // tenailles : deux flèches courbes par les flancs qui se referment sur l'objectif
+    tenailles: '<circle cx="50" cy="30" r="6" fill="#ff8a70" stroke="none"/><path d="M30 82 C22 58 26 42 40 33 M31 42 L40 33 L42 45" stroke="#eef5f1"/><path d="M70 82 C78 58 74 42 60 33 M69 42 L60 33 L58 45" stroke="#4ee089"/>',
+    // rush milieu : trois flèches qui convergent vers l'axe central puis percent
+    rush_milieu: '<path d="M50 84 V28 M39 40 L50 27 L61 40" stroke="#eef5f1"/><path d="M27 80 L42 62 M73 80 L58 62" stroke="#4ee089"/><path d="M20 52 H30 M70 52 H80" stroke="#4ee089" stroke-width="3" opacity=".55"/>',
   };
   const tacEmblem = (id) => `<span class="cglyph tsvg"><svg viewBox="0 0 100 100" style="display:inline-block;width:1.25em;height:1.25em;vertical-align:middle" aria-hidden="true"><defs><linearGradient id="tg-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d3a2c"/><stop offset="1" stop-color="#0b1511"/></linearGradient></defs><polygon points="50,4 90,27 90,73 50,96 10,73 10,27" fill="url(#tg-${id})" stroke="#4ee089" stroke-width="3" stroke-linejoin="round"/><g fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">${TAC_SVG[id]}</g></svg></span>`;
   const tacArt = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'cart')) || (TAC_SVG[id] ? tacEmblem(id) : `<span class="cglyph">${TACTIC_ICON[id] || '◆'}</span>`);
@@ -348,6 +354,7 @@
     else if (teamTab === 'equip') html = st.unlocked ? `
       <div class="equip">
         <label>Arme <select id="selWeapon">${role.weapons.map(id => `<option value="${id}" ${id === st.weaponId ? 'selected' : ''} ${profile.inventory.weapons[id] ? '' : 'disabled'}>${WEAPONS[id].name}${profile.inventory.weapons[id] ? '' : ' (armurerie : ' + PRICES.weapon[id] + ' cr.)'}</option>`).join('')}</select></label>
+        <div class="lanerow"><span class="lanelbl">Voie</span><div class="lanepick" role="radiogroup" aria-label="Voie de l’opérateur">${[null, -1, 0, 1].map(v => `<button class="${laneOf(st) === v ? 'on' : ''}" data-lane="${v}" role="radio" aria-checked="${laneOf(st) === v}">${LANE_FR[String(v)]}</button>`).join('')}</div><small class="lanehint">${laneOf(st) === null ? 'Auto : la voie est choisie pendant la bataille.' : 'Passe par la voie ' + LANE_FR[String(laneOf(st))].toLowerCase() + ' du terrain.'}</small></div>
         <div class="wspec">Dégâts ${w.damage} · portée ${w.range} m · ${w.rpm} c/min · chargeur ${w.mag} · rechargement ${w.reload} s · précision ${Math.round(w.accuracy * 100)} %${w.minRange ? ` · pénalisé sous ${w.minRange} m` : ''}</div>
         <div class="wspec"><b>Protection</b> : Plaques moyennes (III) — absorbe ${Math.round(ARMORS.medium.torso * 100)} % au torse, ${Math.round(ARMORS.medium.head * 100)} % à la tête · vitesse × ${ARMORS.medium.mobility}</div>
         <div class="contract ${Game.contractExpired(profile, o.id) ? 'bad' : ''}">Contrat : ${st.tours > 0 ? `${st.tours} mission${st.tours > 1 ? 's' : ''} restante${st.tours > 1 ? 's' : ''}` : 'expiré'} · renouvellement ${Game.renewPrice(profile, o.id)} cr. (+${CONTRACT.tours[o.rarity]} missions)${st.dupes ? ` · ${st.dupes} doublon${st.dupes > 1 ? 's' : ''}` : ''} <button class="mini" data-renew="${o.id}" ${profile.credits >= Game.renewPrice(profile, o.id) ? '' : 'disabled'}>Renouveler</button></div>
@@ -359,6 +366,7 @@
     const rb = $('#hqDetail').querySelector('[data-renew]'); if (rb) rb.addEventListener('click', () => { if (Game.renewContract(profile, o.id)) { flash('Contrat renouvelé.'); saveNow(); render(); } else flash('Crédits insuffisants.'); });
     if (st.unlocked && teamTab === 'equip') {
       $('#selWeapon').addEventListener('change', (e) => { Game.setWeapon(profile, o.id, e.target.value); saveNow(); render(); });
+      $('#hqDetail').querySelectorAll('[data-lane]').forEach(b => b.addEventListener('click', () => { const v = b.dataset.lane === 'null' ? null : parseInt(b.dataset.lane, 10); Game.setLane(profile, o.id, v); saveNow(); render(); }));
     }
     if (!$('#tmRoster').classList.contains('hidden')) renderCandidate();
   }
@@ -370,7 +378,7 @@
       const id = profile.squad[i];
       if (!id) { slots.push('<div class="sqc empty" data-empty="1"><div class="sqc-name">Libre</div><div class="sqc-art">' + (OT.Ico ? OT.Ico('plus') : '+') + '</div></div>'); continue; }
       const o = OPERATORS.find(x => x.id === id), st = profile.operators[id];
-      slots.push(`<div class="sqc slot r${o.rarity} ${selected === id ? 'sel' : ''} ${st.wounded ? 'wounded' : ''}" data-id="${id}"><div class="sqc-name">${esc(o.callsign)}</div><div class="sqc-art">${flagOf(o)}${portraitOf(o)}${st.wounded ? '<span class="bang">!</span>' : ''}</div><div class="sqc-rate ${st.wounded ? 'bad' : ''}"><b>${Math.round(Game.operatorRating(profile, id))}</b>${roleIco(o)}</div></div>`);
+      slots.push(`<div class="sqc slot r${o.rarity} ${selected === id ? 'sel' : ''} ${st.wounded ? 'wounded' : ''}" data-id="${id}"><div class="sqc-name">${esc(o.callsign)}</div><div class="sqc-art">${flagOf(o)}${portraitOf(o)}${st.wounded ? '<span class="bang">!</span>' : ''}</div><div class="sqc-rate ${st.wounded ? 'bad' : ''}"><b>${Math.round(Game.operatorRating(profile, id))}</b>${roleIco(o)}</div><span class="sqc-lane ${laneOf(st) === null ? 'auto' : ''}" title="Voie : ${LANE_FR[String(laneOf(st))]}">${LANE_ABBR[String(laneOf(st))]}</span></div>`);
     }
     el.innerHTML = slots.join('');
     $('#squadRating').textContent = profile.squad.length ? Game.teamRating(profile) : '—';

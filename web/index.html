@@ -1064,6 +1064,15 @@
   .tmside { left: 1716px; width: 184px; } .tmside .tmhint { display: block; margin-top: 2px; font: 500 12px/1.4 var(--ui); letter-spacing: 0; text-transform: none; color: var(--m-mut); } .tmside select { font-family: var(--ui); font-weight: 600; font-size: 12.5px; height: 34px; border-radius: 8px; }
   .tmside .syn { border-radius: 10px; } .tmside .syn span { font-size: 12px; }
   .tmbody select { font-family: var(--ui); border-radius: 8px; }
+  .lanerow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+  .lanelbl { font: 700 14px var(--ui); letter-spacing: .1em; text-transform: uppercase; color: #fff; min-width: 60px; }
+  .lanepick { display: inline-flex; padding: 3px; gap: 3px; border-radius: 12px; background: rgba(0,0,0,.4); border: 1px solid var(--m-line2); }
+  .lanepick button { height: 34px; min-width: 84px; padding: 0 14px; border: 0; border-radius: 9px; background: transparent; color: var(--m-mut); font: 700 12.5px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+  .lanepick button:hover { color: var(--m-txt); background: rgba(255,255,255,.07); }
+  .lanepick button.on { background: var(--m-acc-d); color: var(--m-ink); box-shadow: 0 4px 14px rgba(40,180,100,.25); }
+  .tmbody .lanehint { flex-basis: 100%; font: 500 13px var(--ui); color: var(--m-mut); margin-left: 74px; }
+  .sqc-lane { position: absolute; left: 12px; bottom: 12px; z-index: 2; width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font: 800 16px var(--ui); color: var(--m-ink); background: var(--m-acc-d); box-shadow: 0 4px 12px rgba(0,0,0,.45); }
+  .sqc-lane.auto { color: var(--m-mut); background: rgba(8,12,14,.86); border: 1px solid var(--m-line2); }
   .tmbody .lvl { font-size: 14px; }
   .ybtn { height: 48px; border-radius: 24px !important; padding: 0 26px 0 56px !important; font-size: 13px !important; background: var(--m-acc-d) !important; color: var(--m-ink) !important; box-shadow: 0 10px 26px rgba(40,180,100,.22); }
   .ybtn:hover { background: var(--m-acc) !important; filter: none; transform: translateY(-2px); } .ybtn .ico { color: inherit; }

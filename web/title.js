@@ -45,20 +45,17 @@
       return;
     }
     // sol d'asphalte (détail en coordonnées du monde, sans tuilage visible)
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), P.worldMat(P.asphalt(), { roughness: 0.94, color: 0x8f8a84 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; set.add(ground);
+    scene.fog.color.setHex(0x15120f); scene.fog.near = 7; scene.fog.far = 21;   // brume sombre : le fond se perd dans la pénombre
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), P.worldMat(P.asphalt(), { roughness: 0.94, color: 0x6a6c6e })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; set.add(ground);
     // mur d'enceinte en panneaux de béton, assez haut pour que son arête sorte du cadre ; tags sur la face visible
-    const WH = 5.2; put(P.mesh({ name: 'mur nord', x: 11, z: 4, w: 27, h: WH, d: 0.35 }), 3, WH / 2, -4.6);
+    const WH = 6; put(P.mesh({ name: 'mur nord', x: 11, z: 4, w: 34, h: WH, d: 0.35 }), 3, WH / 2, -6.4);
     // conteneur à droite (modèle 3D s'il est chargé), caisses sur palettes, fûts, palettes
     const fit = (n, w, h, d, opts) => (M3 && M3.has(n) ? M3.fit(n, w, h, d, opts) : null);
     put(fit('conteneur', 6.1, 2.6, 2.45) || P.mesh({ name: 'conteneur', x: 2, z: 3, w: 6.1, h: 2.6, d: 2.45 }), 8.4, 1.3, -2.9, -0.95);
-    put(P.mesh({ name: 'caisses', x: 3, z: 1, w: 1.3, h: 1.45, d: 1.1 }), 0.1, 0.725, -2.3, 0.18);
     put(P.mesh({ name: 'caisses', x: 7, z: 2, w: 1.2, h: 1.05, d: 1.0 }), 6.15, 0.525, -1.45, -0.3);
     put(fit('fut', 0.6, 0.9, 0.6), 5.75, 0.45, -0.35); put(fit('fut', 0.6, 0.9, 0.6), 6.4, 0.45, -0.05, 1.1);
     put(fit('palettes', 1.2, 0.5, 1.0), -0.9, 0.25, -1.2, 0.5);
-    // coins un peu plus éclairés sur le mur (lampe de chantier hors champ) : les tags et le béton se lisent derrière l'escouade
-    const wash = new THREE.SpotLight(0xffd2a0, 90, 0, 0.7, 0.9, 2); wash.position.set(5.5, 6, 1.5); wash.target.position.set(4, 1.6, -4.6); set.add(wash, wash.target);
   }
-  buildSet();
   const figs = [];
   function buildSquad() {
     for (const f of figs) scene.remove(f.group); figs.length = 0;

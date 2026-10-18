@@ -1252,7 +1252,7 @@
   #app.hud3 .tcard.enemy { width: 104px; padding: 6px; border-color: rgba(255,90,72,.3); background: linear-gradient(180deg, rgba(40,14,12,.7), rgba(20,8,8,.6)); } #app.hud3 .tcard.enemy .ticon .timg { width: 30px; height: 30px; } #app.hud3 .tcard.enemy .tname { font-size: 11px; }
   /* voies : pastille de voie sur les cartes d'effectif, carte « Rotation », dessins des plans de voies */
   #app .card .lane { position: absolute; left: 34px; top: 4px; z-index: 1; min-width: 16px; padding: 1px 3px; border-radius: 5px; font: 800 10px/13px var(--ui, sans-serif); letter-spacing: 0; text-align: center; color: #0b0f14; background: #9aa6b2; box-shadow: 0 0 0 2px rgba(10,16,24,.85); pointer-events: none; }
-  #app .card .lane:empty { display: none; } #app .card .lane.l0 { background: #5ec8e8; } #app .card .lane.l1 { background: #b9c4cf; } #app .card .lane.l2 { background: #f0b45a; }
+  #app .card .lane:empty, #app #roster1 .lane { display: none; }   /* voies adverses : inconnues du joueur */ #app .card .lane.l0 { background: #5ec8e8; } #app .card .lane.l1 { background: #b9c4cf; } #app .card .lane.l2 { background: #f0b45a; }
   #app .tcard .lanesvg { color: #cfe8d8; }
   #app .tcard.rotcard, #app.hud3 .tcard.rotcard { width: auto; cursor: default; } #app.hud3 .tcard.rotcard.off { opacity: 1; } #app .rotcard .tname { margin: 2px 0 5px; }
   #app .rotcard .rbtns { display: flex; gap: 5px; } #app .rotcard button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; width: 52px; padding: 4px 2px 3px; border-radius: 8px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #dfe8ef; font: 600 10px/1.1 var(--ui, sans-serif); cursor: pointer; }
@@ -12410,7 +12410,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // marche directionnelle en visant : part de l'écart fusil / bassin rattrapée par la torsion du dos (le reste tourne le corps)
   const DOS_VISEE = 0.5;
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
-  const PENCHE = 0.17;   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
+  const PENCHE = 0.21;   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
   // visée à l'arrêt : rotation du bassin et des jambes vers la cible (rad), voir update()
   const CARRE = 0.61;
   // tangage voulu du canon dans les poses épaulées (rad ; légèrement vers le bas : la cible est à hauteur de poitrine)
@@ -12994,7 +12994,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         this.jambes += Math.max(-vj * dt, Math.min(vj * dt, dj * Math.min(1, kj)));
         // visée à l'arrêt : l'animation est de profil « sur un fil » (pieds l'un derrière l'autre sur l'axe de tir, jambes qui se
         // confondent vues de face) ; le bassin et les jambes sont tournés de CARRE vers la cible, le dos rattrape (fusil immobile)
-        this.carreK = (this.carreK || 0) + ((this.clip === 'Rifle_Aim_Turn_Right' && !keepYaw ? 1 : 0) - (this.carreK || 0)) * (dt > 0 ? Math.min(1, dt * 6) : 1);
+        this.carreK = (this.carreK || 0) + (((this.clip === 'Rifle_Aim_Turn_Right' || this.clip === 'Standing_Reload') && !keepYaw ? 1 : 0) - (this.carreK || 0)) * (dt > 0 ? Math.min(1, dt * 6) : 1);
         const tj = this.jambes + CARRE * this.carreK;
         if (Math.abs(tj) > 0.01 && hipsB && spine3.length) {
           body.updateMatrixWorld(true); mod(hipsB); twist(hipsB, tj);
@@ -13043,13 +13043,25 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         // des épaules, avant = sa normale horizontale ; on vise PENCHE (rad) entre la verticale et bassin → cou
         const B = this.bones, cou0 = cou || B.head; if (!B.la || !B.ra || !cou0) return;
         const lat = WP(B.la).sub(WP(B.ra)); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();
-        const fw = new THREE.Vector3().crossVectors(lat, new THREE.Vector3(0, 1, 0)).normalize();
+        // direction : 30 % normale des épaules, 70 % axe de visée (le tireur étant de profil, sinon il penche vers sa droite)
+        const fwG = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())); fwG.y = 0; fwG.normalize();
+        const fw = new THREE.Vector3().crossVectors(lat, new THREE.Vector3(0, 1, 0)).normalize().multiplyScalar(0.3).addScaledVector(fwG, 0.7).normalize();
+        lat.crossVectors(new THREE.Vector3(0, 1, 0), fw).normalize();
         const axe = (b, ang) => { mod(b); b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(lat, ang); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
-        // (les pivots du dos sont au-dessus du bassin : l'angle bassin → cou bouge moins que la rotation ; deux passes)
-        for (let it = 0, tot = 0; it < 2; it++) {
-          const v = WP(cou0).sub(WP(hipsB)), a = Math.min(0.6 - tot, (PENCHE - Math.atan2(v.dot(fw), Math.max(0.05, v.y))) * k * 1.5);
-          if (a < 0.005) return;   // (seulement vers l'avant : une course déjà penchée n'est pas redressée)
-          axe(spine3[0], a * 0.4); axe(spine3[1], a * 0.4); axe(spine3[2], a * 0.2); tot += a;
+        // trois passes : (1) le haut du dos n'est jamais voûté au-delà de ~17° (Spine2 → cou ; certaines animations le sont déjà :
+        // on redresse Spine2 d'autant), (2) l'inclinaison bassin → cou est amenée à PENCHE par le BAS du dos (Spine, Spine1)
+        // (les pivots du dos sont au-dessus du bassin : l'angle bougeant moins que la rotation, on itère)
+        // (0) charnière de hanche : le bassin bascule vers l'avant (jusqu'à ~7°), les pieds restent en place (IK des jambes,
+        // orientation gardée) ; elle fait pencher tout le buste d'un coup, sans voûter le dos
+        const cible = this.clip === 'Rifle_Aim_Turn_Right' ? 0.3 : PENCHE;
+        if (pieds[0][2] && pieds[1][2]) { const v0 = WP(cou0).sub(WP(hipsB)), hg = Math.max(0, Math.min(0.12, (cible - Math.atan2(v0.dot(fw), Math.max(0.05, v0.y))) * 0.5 * k));
+          if (hg > 0.004) { const pf = pieds.map(l => [WP(l[2]), WQ(l[2])]); axe(hipsB, hg);
+            pieds.forEach(([up, lo, ft], i) => { const d = pf[i][0].clone().sub(WP(ft)); if (d.lengthSq() > 1e-10) ik(up, lo, ft, d); mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(pf[i][1])); ft.updateMatrixWorld(true); }); } }
+        for (let it = 0, tot = 0; it < 3; it++) {
+          const w2 = WP(cou0).sub(WP(spine3[2])), h2 = Math.atan2(w2.dot(fw), Math.max(0.05, w2.y)); if (h2 > 0.3) axe(spine3[2], -(h2 - 0.3) * k);
+          const v = WP(cou0).sub(WP(hipsB)), a = Math.min(0.6 - tot, (cible - Math.atan2(v.dot(fw), Math.max(0.05, v.y))) * k * 1.5);   // (visée à l'arrêt : l'animation a le poids sur l'arrière, on penche plus)
+          if (a < 0.005) continue;   // (seulement vers l'avant : une course déjà penchée n'est pas redressée)
+          axe(spine3[0], a * 0.55); axe(spine3[1], a * 0.45); tot += a;
         }
       },
       // Pieds jamais croisés (pas chassés et marche arrière « au pistolet » de la bibliothèque : pas très serrés, bottes l'une sur
@@ -13068,14 +13080,15 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         // silhouette vue de la direction de visée (axe latéral du groupe, gx = gauche du soldat) : si les genoux s'y croisent
         // ou se touchent, on les tourne davantage vers leur côté, et vers ce côté-là plutôt que selon la ligne du bassin
         const gx = new THREE.Vector3(1, 0, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())); gx.y = 0; gx.normalize();
-        const vueG = WP(pieds[0][1]).sub(WP(pieds[1][1])).dot(gx), serre = Math.max(0, Math.min(1, (0.2 - vueG) / 0.15));
+        const vueG = WP(pieds[0][1]).sub(WP(pieds[1][1])).dot(gx), sepG = WP(pieds[0][1]).sub(WP(pieds[1][1])).dot(lat);
+        const serreV = Math.max(0, Math.min(1, (0.2 - vueG) / 0.15)), serre = Math.max(serreV, Math.min(1, Math.max(0, (0.18 - sepG) / 0.15)));
         pieds.forEach(([up, lo, ft], i) => {
           const S0 = WP(up), K0 = WP(lo), H0 = WP(ft), ax = H0.clone().sub(S0); if (ax.lengthSq() < 1e-6) return; ax.normalize();
           const kp = K0.clone().sub(S0); kp.addScaledVector(ax, -kp.dot(ax)); if (kp.lengthSq() < 1e-8) return; kp.normalize();
-          const out = lat.clone().lerp(gx, serre).multiplyScalar(i ? -1 : 1); out.addScaledVector(ax, -out.dot(ax)); if (out.lengthSq() < 1e-6) return; out.normalize();
+          const out = lat.clone().lerp(gx, serreV * 0.7 * Math.abs(lat.dot(gx))).multiplyScalar(i ? -1 : 1);   // (bassin très tourné : l'axe du groupe serait dans le sens du pas) out.addScaledVector(ax, -out.dot(ax)); if (out.lengthSq() < 1e-6) return; out.normalize();
           // angle (signé, autour de ax) du genou vers l'extérieur ; on en fait une part (plus grande si les genoux se serrent
           // dans la silhouette), limitée à 45°
-          let a = Math.atan2(new THREE.Vector3().crossVectors(kp, out).dot(ax), kp.dot(out)); a = Math.max(-0.79, Math.min(0.79, a * (0.5 + 0.5 * serre) * kg * K));
+          let a = Math.atan2(new THREE.Vector3().crossVectors(kp, out).dot(ax), kp.dot(out)); const lim = 0.79 + 0.41 * serre; a = Math.max(-lim, Math.min(lim, a * (0.5 + 0.5 * serre) * kg * K));
           if (Math.abs(a) < 0.005) return;
           const qF = WQ(ft); mod(up); mod(ft);
           up.quaternion.copy(WQ(up.parent).invert().multiply(new THREE.Quaternion().setFromAxisAngle(ax, a)).multiply(WQ(up))); up.updateMatrixWorld(true);
@@ -13092,7 +13105,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const avant = pieds.map(l => WP(l[2])), gq = group.getWorldQuaternion(new THREE.Quaternion());
         const lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq);
         mod(hipsB);
-        const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022).addScaledVector(fw, -0.035 * this.reposK); h1.y -= 0.008 * Math.abs(s);   // (bassin un peu en arrière : poids sur l'avant des pieds)
+        const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022).addScaledVector(fw, -0.05 * this.reposK); h1.y -= 0.008 * Math.abs(s);   // (bassin un peu en arrière : poids sur l'avant des pieds)
         hipsB.position.add(hipsB.parent.worldToLocal(h1).sub(hipsB.parent.worldToLocal(h0.clone()))); hipsB.updateMatrixWorld(true);
         const roule = (b, a) => { b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
         roule(hipsB, -s * 0.035); if (spine1) { mod(spine1); roule(spine1, s * 0.03); }
@@ -13126,7 +13139,15 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           const cible = new THREE.Vector3(Math.sin(y) * Math.cos(p), Math.sin(p), Math.cos(y) * Math.cos(p));
           const tourne = (b, part) => { const face = faceL.clone().applyQuaternion(WQ(H)).normalize(), q = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(face, cible), part * kA);
             b.quaternion.copy(WQ(b.parent).invert().multiply(q).multiply(WQ(b))); b.updateMatrixWorld(true); };
-          tourne(cou, 0.4); tourne(H, 1);
+          // cou redressé (60 % vers la verticale : le dos penché l'entraîne), puis visage vers la cible, puis roulis : le haut de
+          // la tête (axe +Y local) ramené vers la verticale autour de l'axe du visage (tête droite, pas couchée sur la crosse)
+          { const v = WP(H).sub(WP(cou)).normalize(), up = new THREE.Vector3(0, 1, 0), q = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(v, v.clone().lerp(up, 0.6).normalize()), kA);
+            cou.quaternion.copy(WQ(cou.parent).invert().multiply(q).multiply(WQ(cou))); cou.updateMatrixWorld(true); }
+          tourne(H, 1);
+          { const qh = WQ(H), fa = faceL.clone().applyQuaternion(qh).normalize(), u = new THREE.Vector3(0, 1, 0).applyQuaternion(qh), up = new THREE.Vector3(0, 1, 0).addScaledVector(fa, -fa.y);
+            if (up.lengthSq() > 1e-4) { up.normalize(); u.addScaledVector(fa, -u.dot(fa)).normalize();
+              const ang = Math.atan2(new THREE.Vector3().crossVectors(u, up).dot(fa), u.dot(up)) * kA, qr = new THREE.Quaternion().setFromAxisAngle(fa, ang);
+              H.quaternion.copy(WQ(H.parent).invert().multiply(qr).multiply(qh)); H.updateMatrixWorld(true); } }
           return;
         }
         if (Math.abs(this.teteA) < 0.005) return;
@@ -13223,7 +13244,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         if (k > 0.01) {
           // fusil à niveau d'abord : les animations le tiennent de 6 à 17° vers le bas (il visait alors le sol) ; on le relève
           // autour de la crosse vers VISEE_TANGAGE, les deux mains suivent (IK des bras, mains tournées d'autant)
-          const dp = Math.max(-0.4, Math.min(0.4, (VISEE_TANGAGE - Math.asin(Math.max(-1, Math.min(1, barrel.y)))) * k));
+          const dp = Math.max(-0.7, Math.min(0.7, (VISEE_TANGAGE - Math.asin(Math.max(-1, Math.min(1, barrel.y)))) * k));
           if (Math.abs(dp) > 0.005 && lh) {
             const axe = new THREE.Vector3().crossVectors(barrel, new THREE.Vector3(0, 1, 0)); if (axe.lengthSq() > 1e-6) {
               axe.normalize(); const qc = new THREE.Quaternion().setFromAxisAngle(axe, dp), buttL = weapon.buttPt.clone().applyQuaternion(weapon.quaternion);
@@ -17238,6 +17259,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (eq.length >= 3) return false;
     eq.push(id); return true;
   }
+  // Plan de voies de départ (pour l'écran d'avant-bataille) : la première tactique « plan » équipée, sinon 'auto' (tirage à la graine).
+  // Voies imposées par le joueur (operators[id].lane) : comptées dans le plan, les autres opérateurs le complètent.
+  function planOf(profile) { return (profile.tactics.equipped || []).find(id => TACTICS[id] && TACTICS[id].plan) || 'auto'; }
   // ---- Paquets de cartes -----------------------------------------------------------------
   // rng : fonction () → [0,1) (injectable pour les tests). Renvoie la liste des cartes obtenues, déjà appliquées au profil.
   function openPack(profile, packId, rng) {
@@ -17691,7 +17715,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }
   function reset(storage) { try { storage.removeItem(SAVE_KEY); } catch (e) { /* rien */ } return newProfile(); }
 
-  root.Game = { buyArmor, SAVE_VERSION, migrate, buyAttachment, setAttachment, attachmentFits, dailyContracts, applyDaily, achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, swapSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
+  root.Game = { buyArmor, SAVE_VERSION, migrate, buyAttachment, setAttachment, attachmentFits, dailyContracts, applyDaily, achievementProgress, ACHIEVEMENT_PROGRESS, newProfile, levelFor, isWounded, defRating, quickLevel, squadSynergies, campaignUnlocked, campaignMission, missionUnlocked, campaignProgress, quickBattle, applyModes, xpToNext, effectiveDef, enemyDef, buildTeams, battleOptions, objectiveLabel, buyWeapon, canEquipWeapon, setWeapon, setArmor, setLane, toggleSquad, swapSquad, squadReady, isAvailable, treat, TREATMENT_PRICE, recruit, treatmentPrice, contractExpired, renewPrice, renewContract, offerPromotion, choosePromotion, checkAchievements, ACHIEVEMENT_CHECKS, applyFormation, planOf, computeRewards, applyRewards, checkChallenges, CHALLENGE_CHECKS, LEAGUE_MISSION, rankFor, xpToNextRank, operatorRating, teamRating, equipTactic, openPack, setCustomization, buyHeadgear, setHeadgear, HEADGEAR_PRICES, STAT_FR, save, load, reset, STATS, SAVE_KEY };
 })(typeof module !== 'undefined' ? module.exports : (window.OT = window.OT || {}),
    typeof module !== 'undefined' ? require('./data.js') : (window.OT = window.OT || {}));
 
@@ -20382,7 +20406,6 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // coins un peu plus éclairés sur le mur (lampe de chantier hors champ) : les tags et le béton se lisent derrière l'escouade
     const wash = new THREE.SpotLight(0xffd2a0, 90, 0, 0.7, 0.9, 2); wash.position.set(5.5, 6, 1.5); wash.target.position.set(4, 1.6, -4.6); set.add(wash, wash.target);
   }
-  buildSet();
   const figs = [];
   function buildSquad() {
     for (const f of figs) scene.remove(f.group); figs.length = 0;
