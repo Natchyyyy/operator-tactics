@@ -44,7 +44,7 @@
   const P = {
     pas: 1 / 60, sousPasMax: 6, iterations: 24, gravite: -9.81,
     amortLin: 0.08, amortAng: 0.45, frottementArt: 3.0, frottementSol: 0.5,           // frottement des articulations (1/s, vitesse angulaire relative)
-    tonique: 0.2, relache: 0.2, flechit: 0.45, flechitT: 0.14, tenue: 0.7,                                     // phase tonique (s) puis relâchement (s)
+    releve: 1.1, tonique: 0.2, relache: 0.2, flechit: 0.45, flechitT: 0.14, tenue: 0.7,                                     // phase tonique (s) puis relâchement (s)
     impulsion: { tete: 9, torse: 26, membre: 12, bras: 6 }, bascule: 14,        // N·s (exagéré par rapport au réel, lisible à l'écran)
     souffle: 340,                                                    // explosion : N·s à 1 m (réparti selon les masses)
     vMax: 14, wMax: 28, repos: 0.12, reposT: 0.45, dureeMax: 7,
@@ -162,11 +162,11 @@
   // flaque(x, z) : facultatif, appelé une fois quand le corps s'est posé (sang sous le bassin)
   R.mort = function (u, m, battle, flaque) {
     if (!R.dispo() || !m || !m.isSkinned || !m.skinned || u.alive) return false;
-    if (battle && u.bleedUntil > battle.t) return false;   // à terre (peut être relevé) : animations
+    // (mort ou à terre : même chute physique ; à terre, le corps posé respire et peut être relevé, voir releve)
     if (battle !== battleRef) { reinit(); battleRef = battle; }
     let loc = null; if (battle && battle.log) for (let i = battle.log.length - 1; i >= Math.max(0, battle.log.length - 40); i--) { const e = battle.log[i]; if (e.kind === 'down' && e.enemy === u.id) { loc = e.loc || null; break; } }
     if (m.anim) delete m.anim.fallYaw;   // (le jeu ne fait plus pivoter le groupe : le corps figé ne doit pas tourner)
-    m.rag = { etat: 'attente', attente: 0, loc, flaque: flaque || null, dir: null, t0: battle ? battle.t : 0, u, map: battle && battle.map, graine: hash(u.id + ':' + (battle ? battle.t.toFixed(2) : '0')) };
+    m.rag = { etat: 'attente', attente: 0, loc, flaque: flaque || null, u, dir: null, t0: battle ? battle.t : 0, u, map: battle && battle.map, graine: hash(u.id + ':' + (battle ? battle.t.toFixed(2) : '0')) };
     return true;
   };
   // balle qui a tué (événement « shot » touché) : direction (monde, normalisée) et délai de vol de la traçante
@@ -281,6 +281,7 @@
         arme = { body: null, c, sc, d, rel: Mf.invert().multiply(w.matrixWorld) };
       }
     }
+    if (m.weapon) r.armeVivant = [m.weapon.position.clone(), m.weapon.quaternion.clone(), m.weapon.scale.clone()];   // (en main, pour le relevé)
     Object.assign(r, { etat: 'physique', corps, art, arme, k, Mo, centres, x0: u.x, z0: u.z, t: 0, calme: 0, sauve: sauverOs(m), fige: false });
     impulsions(r, u, m);
     r.lacher = r.tonique < 0.1 ? 0.04 : 0.16 + r.graine * 0.16;
@@ -458,7 +459,7 @@
   // Renvoie vrai si le ragdoll gère ce soldat (le jeu ne joue alors pas l'animation de chute).
   R.anime = function (u, m, dt) {
     const r = m.rag; if (!r) return false;
-    if (u.alive) { liberer(m); return false; }
+    if (u.alive) { releverDebut(u, m); return false; }   // relevé par un allié : le jeu reprend ses animations, fondu (releveOs)
     if (r.etat === 'attente') {
       if (!R.dispo()) { m.rag = null; if (r.flaque) r.flaque(u.x, u.z); return false; }
       // (le dernier mort d'une bataille : le jeu est arrêté, dt = 0 ; on avance au ralenti comme etape)
@@ -475,7 +476,61 @@
     if (!r.fige) { appliquer(r, m); if (r.aFiger) { figer(r); } }
     else if (!r.posee && !r.erreur) { appliquer(r, m); }
     r.posee = r.fige;
+    if (r.fige && !r.erreur) respirer(u, r, m, dt > 0 ? dt : dtFin);
     return true;
+  };
+  // À terre (corps posé, figé) : légère respiration du buste et de la tête tant que le blessé peut être relevé ; quand il
+  // meurt (saignement), la respiration s'éteint sur ~1,5 s avec un dernier affaissement du buste
+  function respirer(u, r, m, dt) {
+    const sk = m.skinned.skeleton, os = (n) => sk.bones.find(b => nomOs(b.name) === n);
+    if (!r.resp) { r.resp = ['Spine1', 'Spine2', 'Neck'].map(os).filter(Boolean).map(b => [b, b.quaternion.clone()]); r.ampl = 0; r.tr = 0; }
+    const vivant = battleRef && u.bleedUntil > battleRef.t;
+    if (!vivant && r.ampl <= 0.001 && r.finResp) return;
+    r.tr += dt; r.ampl = vivant ? Math.min(1, r.ampl + dt) : Math.max(0, r.ampl - dt / 1.5);
+    const exp = vivant ? 0 : (1 - r.ampl);   // (dernière expiration : le buste s'affaisse un peu)
+    if (!vivant && r.ampl <= 0.001) r.finResp = true;
+    const s = Math.sin(r.tr * 2 * Math.PI / 3.2) * r.ampl;   // (~19 respirations par minute, souffle court)
+    const q = new THREE.Quaternion(), X = new THREE.Vector3(1, 0, 0);
+    r.resp.forEach(([b, q0], i) => { q.setFromAxisAngle(X, (i === 2 ? 0.02 : 0.028) * s - 0.03 * exp * (i < 2 ? 1 : 0)); b.quaternion.copy(q0).multiply(q); });
+    sk.bones[0].parent && sk.bones[0].updateMatrixWorld(true);
+  }
+  // Relevé : la pose allongée (os tels que posés par la physique) se fond en ~1,1 s dans l'animation que le jeu choisit
+  // (accroupi : le relevé sort accroupi) ; le corps glisse de là où il est tombé jusqu'à la position simulée, le groupe
+  // étant tourné vers sa nouvelle direction, la pose allongée est contre-tournée d'autant (pose.rotation) pendant le fondu.
+  // L'arme passe du sol aux mains un peu plus tard.
+  function releverDebut(u, m) {
+    const r = m.rag;
+    // (placeWeapon part de l'orientation actuelle du fusil : on lui rend sa dernière position « en main », pas celle du fondu)
+    if (r.etat === 'releve') { const w = m.weapon, c = r.armeCible; if (w && c) { w.position.copy(c[0]); w.quaternion.copy(c[1]); w.scale.copy(c[2]); } return; }
+    if (r.etat !== 'physique' || r.erreur) { m.rag = null; return; }
+    if (!r.fige) { appliquer(r, m); figer(r); }
+    const snap = [], w = m.weapon;
+    m.body.traverse(o => { if (o.isBone) snap.push([o, o.quaternion.clone(), o.position.clone()]); });
+    if (w) w.updateMatrixWorld(true);
+    const arme = w ? w.matrixWorld.clone() : null;   // (dans le monde : l'arme au sol ne tourne pas avec le groupe)
+    // (le mixeur n'écrit un os que si sa valeur a changé : on lui rend les os tels qu'il les avait laissés)
+    for (const [o, q, p] of r.sauve) { o.quaternion.copy(q); o.position.copy(p); }
+    Object.assign(r, { etat: 'releve', tb: 0, snap, snapArme: arme, yaw0: m.group.rotation.y, resp: null, armeCible: r.armeVivant || null });
+    if (w && r.armeVivant) { w.position.copy(r.armeVivant[0]); w.quaternion.copy(r.armeVivant[1]); w.scale.copy(r.armeVivant[2]); }
+  }
+  const lisse = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+  // (appelée par le jeu après l'animation ET l'arme placée : la cible du fondu comprend les bras recalés sur l'arme)
+  R.releve = function (u, m, dt) {
+    const r = m.rag; if (!r || r.etat !== 'releve' || !u.alive) return;
+    r.tb += dt; const k = lisse(r.tb / P.releve);
+    for (const [o, q, p] of r.snap) { m.mod(o); o.quaternion.slerpQuaternions(q, o.quaternion.clone(), k); o.position.lerpVectors(p, o.position.clone(), k); }
+    let d = r.yaw0 - m.group.rotation.y; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+    m.pose.rotation.y = d * (1 - k);
+    // arme : reste au sol (fixe dans le monde) puis rejoint les mains pendant la seconde moitié du fondu
+    const w = m.weapon, A = r.snapArme, ka = lisse((r.tb - 0.3 * P.releve) / (0.55 * P.releve));
+    if (w) r.armeCible = [w.position.clone(), w.quaternion.clone(), w.scale.clone()];
+    if (w && A && ka < 1) {
+      m.group.updateMatrixWorld(true);
+      const L = new THREE.Matrix4().copy(m.group.matrixWorld).invert().multiply(A), p = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3(); L.decompose(p, q, sc);
+      w.position.lerpVectors(p, w.position.clone(), ka); w.quaternion.slerpQuaternions(q, w.quaternion.clone(), ka); w.scale.lerpVectors(sc, w.scale.clone(), ka);
+    }
+    m.body.updateMatrixWorld(true); if (w) w.updateMatrixWorld(true);
+    if (r.tb >= P.releve) { m.pose.rotation.y = 0; m.rag = null; }
   };
   const _M = root.THREE ? new THREE.Matrix4() : null, _S = root.THREE ? new THREE.Matrix4() : null, _P = root.THREE ? new THREE.Matrix4() : null;
   const _p = root.THREE ? new THREE.Vector3() : null, _s = root.THREE ? new THREE.Vector3() : null, _one = root.THREE ? new THREE.Vector3(1, 1, 1) : null;

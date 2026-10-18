@@ -1004,6 +1004,7 @@
       }
     }
     m.placeWeapon(mode === 'deux', a.recoil, mode);
+    if (m.rag && OT.Ragdoll) OT.Ragdoll.releve(u, m, dt);   // relevé après un ragdoll : fondu depuis la pose allongée
     chargeur(u, m, a);
   }
   // Chargeur pendant le rechargement : il tombe de l'arme, un neuf apparaît dans la main gauche, puis rejoint le puits
