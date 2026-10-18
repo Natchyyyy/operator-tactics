@@ -190,7 +190,9 @@
     m.teteAz = azim(face); m.teteTangage = Math.asin(Math.max(-1, Math.min(1, face.y))) * D;
     const fx = face.clone().setY(0).normalize(), latT = new THREE.Vector3().crossVectors(fx, up).normalize();
     m.teteRoulis = Math.atan2(-hautTete.dot(latT), hautTete.y) * D;   // + : penchée vers sa droite
-    const oeil = P.headfront ? P.headfront.clone() : P.Head.clone().addScaledVector(face, 0.09).addScaledVector(up, 0.03);
+    // œil DROIT (tireur droitier, œil directeur) : centre du visage décalé de 3,2 cm vers sa droite (demi-écart pupillaire)
+    const oeil = (P.headfront ? P.headfront.clone() : P.Head.clone().addScaledVector(face, 0.09).addScaledVector(up, 0.03)).addScaledVector(latT, 0.032)
+      .addScaledVector(P.headfront ? hautTete : up, P.headfront ? 0.065 : 0).addScaledVector(face, P.headfront ? -0.02 : 0);   // (l'os headfront est à hauteur de bouche : calé à l'œil sur la vue « tete » du banc)
     m.oeil = oeil;
     // --- bras : coudes, poignets
     for (const [c, s] of [['Right', 'D'], ['Left', 'G']]) {

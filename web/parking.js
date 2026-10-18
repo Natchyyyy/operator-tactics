@@ -715,11 +715,11 @@
     for (let k = -3; k <= 3; k++) dash((gate ? gate.x + gate.w / 2 : W / 2) + k * 0.9, D + 3, 0.45, 3.6);   // passage piéton devant l'entrée
     for (let k = -3; k <= 3; k++) dash(-10 + k * 1.1, D + 2, 0.55, 3.8);
     // lampadaires le long des trottoirs (ouest, sud, est) et dans le parking (îlots, milieu des rangées)
-    const lampAt = (x, z, rot, y) => { const l = streetLamp(); l.position.set(x, y === undefined ? 0.14 : y, z); l.rotation.y = rot; l.traverse(o => { if (o.isMesh) o.castShadow = true; }); group.add(l); const p = l.userData.lightAt.clone().applyAxisAngle(new T.Vector3(0, 1, 0), rot).add(l.position); lights.push(p); };
+    const lampAt = (x, z, rot, y, k) => { const l = streetLamp(); l.position.set(x, y === undefined ? 0.14 : y, z); l.rotation.y = rot; l.traverse(o => { if (o.isMesh) o.castShadow = true; }); group.add(l); const p = l.userData.lightAt.clone().applyAxisAngle(new T.Vector3(0, 1, 0), rot).add(l.position); if (k) p.k = k; lights.push(p); };
     for (let x = -6; x <= W + 6; x += 14) if (!gate || Math.abs(x - gate.x - gate.w / 2) > 6) lampAt(x, D + 3.2, Math.PI / 2);
     for (let z = 6; z <= D - 6; z += 14) { lampAt(-3.2, z, Math.PI); lampAt(W + 3.2, z, 0); }
-    for (const [x0, z0, n] of MK.rangees) { lampAt(x0 + 5, z0 + 2.5 * Math.floor(n / 2), 0, 0); lampAt(x0 + 5, z0 + 2.5 * Math.floor(n / 2), Math.PI, 0); }
-    for (const o of OB.filter(o => o.name === 'bac à fleurs' && o.w * o.d > 4)) lampAt(o.x + 0.4, o.z + o.d / 2, 0, o.h);
+    for (const [x0, z0, n] of MK.rangees) { lampAt(x0 + 5, z0 + 2.5 * Math.floor(n / 2), 0, 0, 260); lampAt(x0 + 5, z0 + 2.5 * Math.floor(n / 2), Math.PI, 0, 260); }   // dans le parking : flaques de lumière bien visibles la nuit
+    for (const o of OB.filter(o => o.name === 'bac à fleurs' && o.w * o.d > 4)) lampAt(o.x + 0.4, o.z + o.d / 2, 0, o.h, 260);
     // immeubles autour (au nord, derrière les arrières de boutiques de la ruelle : plus hauts, plus loin)
     const R = rng(2026), tones = ['brique', 'pierre', 'creme', 'brique', 'sable', 'pierre', 'brique', 'gris'];
     const place = (x, z, w, d, h, s) => { const b = building(w, h, d, tones[Math.floor(R() * tones.length)], s); b.position.set(x, 0.14, z); group.add(b); };
@@ -1042,7 +1042,7 @@
       };
     });
     group.add(g); void etat;
-    lights.push(new T.Vector3(cx, H - 0.3, (z0 + z1) / 2));
+    const lw = new T.Vector3(cx, H - 0.3, (z0 + z1) / 2); lw.k = 18; lights.push(lw);   // éclairage d'auvent, doux (pas d'éblouissement sur la zone)
   }
   // ---- haie taillée dans une jardinière, totem des tarifs
   function haie(o) {
@@ -1356,7 +1356,7 @@
     U.wet.value = id === 'pluie' ? 1 : id === 'brouillard' ? 0.35 : 0;
     if (root.Ruelle && root.Ruelle.setConditions) try { root.Ruelle.setConditions(id); } catch (e) { console.warn('ruelle :', e); }
     if (lightGroup) { scene.remove(lightGroup); lightGroup = null; }
-    if (night) { lightGroup = new T.Group(); for (const p of lights) { const l = new T.PointLight(0xffc98a, 120, 28, 1.6); l.position.copy(p); lightGroup.add(l); } scene.add(lightGroup); }
+    if (night) { lightGroup = new T.Group(); for (const p of lights) { const l = new T.PointLight(0xffc98a, p.k || 120, p.k > 150 ? 22 : 28, 1.6); l.position.copy(p); lightGroup.add(l); } scene.add(lightGroup); }
   }
   function tick(t) { U.time.value = t; }
   root.Parking = { build, mesh, setConditions, tick, asphalt, concrete, worldMat, teinter, brickDet };

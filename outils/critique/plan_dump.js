@@ -69,11 +69,16 @@ for (const [sx, sz] of seeds) {
 }
 // véhicules garés : atteignables ? (une case roulable atteinte à moins de 1,6 m de leur boîte, du côté de l'arrière si o.dir)
 const stuck = [];
+// le véhicule est-il dans une place peinte (rangée double ou place le long d'un mur) ? sinon il est garé en long : accès par le côté
+const MQ = def.marquage || {}, baies = [];
+for (const [x0, z0, n] of MQ.rangees || []) baies.push([x0, z0, 10, 2.5 * n]);
+for (const [x, z, n, sx, sz] of MQ.murs || []) baies.push(sx ? [x, z, sx * n, 5] : [x, z, 5, sz * n]);
+const enBaie = (o) => { const cx = o.x + o.w / 2, cz = o.z + o.d / 2; return baies.some(([x, z, w, d]) => cx > x && cx < x + w && cz > z && cz < z + d); };
 for (const o of O) if (VEH.test(o.name)) {
   let ok = false;
   for (let j = Math.max(0, Math.floor((o.z - 1.8) / CS)); j < Math.min(CH, Math.ceil((o.z + o.d + 1.8) / CS)) && !ok; j++) for (let i = Math.max(0, Math.floor((o.x - 1.8) / CS)); i < Math.min(CW, Math.ceil((o.x + o.w + 1.8) / CS)) && !ok; i++) {
     if (!reach[j * CW + i]) continue; const x = (i + 0.5) * CS, z = (j + 0.5) * CS;
-    if (o.dir !== undefined && o.w >= o.d) { const rear = o.dir > 0 ? o.x : o.x + o.w; if (Math.abs(x - rear) > 1.7 || z < o.z - 0.5 || z > o.z + o.d + 0.5 || (x - rear) * o.dir > 0.2) continue; }
+    if (o.dir !== undefined && o.w >= o.d && enBaie(o)) { const rear = o.dir > 0 ? o.x : o.x + o.w; if (Math.abs(x - rear) > 1.7 || z < o.z - 0.5 || z > o.z + o.d + 0.5 || (x - rear) * o.dir > 0.2) continue; }
     ok = true;
   }
   if (!ok) stuck.push([o.name, +o.x.toFixed(1), +o.z.toFixed(1)]);

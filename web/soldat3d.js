@@ -32,7 +32,7 @@
   // écart moyen des chevilles en marche (m)
   const ECART_PAS = 0.21;
   // à genou : hauteur du genou arrière posé (os, m), de sa cheville (pointe du pied au sol), cheville du pied avant à plat
-  const GENOU = { genou: 0.075, cheville: 0.13, chevilleAv: 0.15 };
+  const GENOU = { genou: 0.075, cheville: 0.13, chevilleAv: 0.15, baisse: 0.035 };   // baisse : bassin abaissé (m) pour que le genou arrière touche le sol
   const TROT = { s: 0.38, hs: 0.5, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
   const PENCHE = 0.21;
@@ -286,7 +286,7 @@
   // IK des jambes cuite dans un clip (30 clés/s) : pour chaque image, cible(i, H, A, Aq) donne la position monde voulue de
   // chaque cheville (A, Aq : cheville et orientation d'origine ; H : bassin) ; dyH(i) : montée du bassin (m, unités du
   // modèle). Genou dans son plan, pied gardant son orientation monde. Renvoie le nouveau clip (jambes seules) et l'erreur max.
-  function jambesIK(M, src, nom, cible, dyH) {
+  function jambesIK(M, src, nom, cible, dyH, libre) {   // libre : pas de règle sur le plan du genou (à genou)
     const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
     const hips = b('Hips'), L = [['LeftUpLeg', 'LeftLeg', 'LeftFoot'], ['RightUpLeg', 'RightLeg', 'RightFoot']].map(l => l.map(b)), toes = [b('LeftToeBase'), b('RightToeBase')];
     if (!hips || L.some(l => l.some(x => !x)) || !toes[0] || !toes[1]) return null;
@@ -310,7 +310,7 @@
         let c = S0.distanceTo(Tj); c = Math.min(Math.max(c, Math.abs(a - bb) + 1e-4), (a + bb) * 0.997);
         const dir = Tj.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - bb * bb) / (2 * a * c)));
         const p = E0.clone().sub(S0); p.addScaledVector(dir, -p.dot(dir));
-        { const fd = W(toes[j]).sub(W(ft)); fd.y = 0; fd.addScaledVector(dir, -fd.dot(dir)); if (fd.lengthSq() > 1e-8) { fd.normalize(); const pd = p.dot(fd), pl = p.length(); if (pd < 0) p.addScaledVector(fd, -pd + 0.02 * RAW_H / HEIGHT); else if (pl < 0.02 * RAW_H / HEIGHT) p.addScaledVector(fd, 0.02 * RAW_H / HEIGHT - pl); } }
+        if (!libre) { const fd = W(toes[j]).sub(W(ft)); fd.y = 0; fd.addScaledVector(dir, -fd.dot(dir)); if (fd.lengthSq() > 1e-8) { fd.normalize(); const pd = p.dot(fd), pl = p.length(); if (pd < 0) p.addScaledVector(fd, -pd + 0.02 * RAW_H / HEIGHT); else if (pl < 0.02 * RAW_H / HEIGHT) p.addScaledVector(fd, 0.02 * RAW_H / HEIGHT - pl); } }
         if (p.lengthSq() < 1e-10) p.set(0, 0, 1); p.normalize();
         const E1 = S0.clone().addScaledVector(dir, a * cosA).addScaledVector(p, a * Math.sqrt(1 - cosA * cosA));
         turn(up, E0.clone().sub(S0), E1.sub(S0)); const E2 = W(lo); turn(lo, W(ft).sub(E2), Tj.clone().sub(E2));
@@ -392,11 +392,11 @@
         const hz = Math.sqrt(Math.max(0, bb * bb - (AY - K) ** 2)); out[r] = Nt.clone().addScaledVector(sh, hz); out[r].y = AY;
         // orteils au sol : le pied tourne autour de la cheville pour que sa pointe touche le sol
         const T = W(L[r][3]), fv = T.clone().sub(A[r]), len = fv.length(), h = Math.hypot(fv.x, fv.z);
-        if (len > 1e-4 && h > 1e-4) { const y1 = Math.max(-len * 0.98, tR + 0.012 * k - AY), h1 = Math.sqrt(len * len - y1 * y1), f1 = new THREE.Vector3(fv.x / h * h1, y1, fv.z / h * h1);
+        if (len > 1e-4 && h > 1e-4) { const y1 = Math.max(-len * 0.98, tR - 0.004 * k - AY), h1 = Math.sqrt(len * len - y1 * y1), f1 = new THREE.Vector3(fv.x / h * h1, y1, fv.z / h * h1);
           Aq[r] = new THREE.Quaternion().setFromUnitVectors(fv.clone().normalize(), f1.normalize()).multiply(Aq[r]); } }
       // pied avant : posé à plat (on le descend de ce qu'il flotte)
       { const T = W(L[f][3]), fl = Math.min(T.y - tR, A[f].y - GENOU.chevilleAv * k); if (fl > 0) out[f].y -= fl; }
-      return out; });
+      return out; }, () => -GENOU.baisse * k, true);
     if (!legs) return;
     const noms = new Set(legs.tracks.map(t => t.name));
     M.clips.Kneeling_Reload = new THREE.AnimationClip('Kneeling_Reload', src.duration, src.tracks.filter(t => !noms.has(t.name)).concat(legs.tracks));
@@ -927,7 +927,7 @@
       const dir = T.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - b * b) / (2 * a * c)));
       const p = E0.clone().sub(S0); p.addScaledVector(dir, -p.dot(dir));
       const fd = toe ? WP(toe).sub(H0) : new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())); fd.y = 0; fd.addScaledVector(dir, -fd.dot(dir));
-      if (fd.lengthSq() > 1e-8) { fd.normalize(); const pd = p.dot(fd), pl = p.length(); if (pd < -0.005) p.copy(fd); else if (pl < 0.015) p.addScaledVector(fd, 0.015 - pl); }   // (genou en arrière → vers l'avant ; presque tendu → plan des orteils ; sinon son plan d'origine)
+      if (fd.lengthSq() > 1e-8 && E0.y > H0.y + 0.05) { fd.normalize(); const pd = p.dot(fd), pl = p.length(); if (pd < -0.005) p.copy(fd); else if (pl < 0.015) p.addScaledVector(fd, 0.015 - pl); }   // (genou en arrière → vers l'avant ; presque tendu → plan des orteils ; sinon son plan d'origine)
       if (p.lengthSq() < 1e-8) p.set(0, 0, 1); p.normalize();
       const E1 = S0.clone().addScaledVector(dir, a * cosA).addScaledVector(p, a * Math.sqrt(1 - cosA * cosA));
       turn(up, E0.clone().sub(S0), E1.sub(S0)); const E2 = WP(lo); turn(lo, WP(ft).sub(E2), T.sub(E2));
@@ -1372,6 +1372,10 @@
           const Dl = M.prise.L, n = Dl.ordre[2], mid = (this.osDoigts && this.osDoigts[n]) || body.getObjectByName(n), cible = WP(B.lh).add(T.clone().sub(palm));
           const base = (a, nn) => { const x = a.clone().normalize(), y = nn.clone().addScaledVector(x, -nn.dot(x)).normalize(); return new THREE.Matrix4().makeBasis(x, y, new THREE.Vector3().crossVectors(x, y)); };
           const Aw = cible.clone().sub(WP(B.la)).normalize(), qP = new THREE.Quaternion().setFromRotationMatrix(base(Aw, fw.clone().negate().addScaledVector(lat, -1)).multiply(base(mid.position.clone(), Dl.N).transpose()));
+          // au puits : la main peut tourner autour de l'axe du chargeur ; on la tourne pour qu'elle prolonge le bras (poignet droit)
+          { const A = mid.position.clone().normalize().applyQuaternion(tq), F = cible.clone().sub(WP(B.la)).normalize(), a1 = A.addScaledVector(down, -A.dot(down)), f1 = F.addScaledVector(down, -F.dot(down));
+            if (a1.lengthSq() > 1e-4 && f1.lengthSq() > 1e-4) { a1.normalize(); f1.normalize(); const ang = Math.max(-1.2, Math.min(1.2, Math.atan2(new THREE.Vector3().crossVectors(a1, f1).dot(down), a1.dot(f1))));
+              tq.premultiply(new THREE.Quaternion().setFromAxisAngle(down, ang)); } }
           this.poserBras('L', B.la, B.lf, B.lh, cible, qP.slerp(tq, ins), w, Dl); }
         else ik(B.la, B.lf, B.lh, T.sub(palm).multiplyScalar(w));
       },
@@ -1601,6 +1605,10 @@
           const w = procW * (M.prise && !S.sansPrise ? pk : 1); weapon.quaternion.slerp(Pp.q, w); pos.lerp(Pp.p, w); }
         barrel.set(0, 0, 1).applyQuaternion(weapon.quaternion);
         weapon.position.copy(pos).addScaledVector(barrel, -(recoil || 0) * 0.04);
+        // recul : la bouche se relève un peu (~2°) autour de la crosse, les mains suivent (tenir)
+        if ((recoil || 0) > 0.01 && weapon.buttPt && !S.sansPrise) { const ax = new THREE.Vector3().crossVectors(barrel, new THREE.Vector3(0, 1, 0)); if (ax.lengthSq() > 1e-6) {
+          ax.normalize(); const qr = new THREE.Quaternion().setFromAxisAngle(ax, recoil * 0.035), bL = weapon.buttPt.clone().applyQuaternion(weapon.quaternion), b0 = weapon.position.clone().add(bL);
+          weapon.quaternion.premultiply(qr); weapon.position.copy(b0.sub(bL.applyQuaternion(qr))); } }
         // mains à leur place sur le fusil, doigts refermés dessus (voir calculerPrise) ; index sur la détente en tir
         { const kk = this.majPrise(tient);
           this.detK = (this.detK || 0) + (((recoil || 0) > 0.02 || ((this.epK || 0) > 0.6 && this.regard) ? 1 : 0) - (this.detK || 0)) * kk;

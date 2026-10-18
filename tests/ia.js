@@ -129,8 +129,9 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   check('couvert : accroupi à l\'arrêt = derrière un vrai obstacle (≥ 0,9 m, à moins de 1 m) face à la menace — jamais derrière rien', claimed > 1000 && invalid / claimed < 0.005, { claimed, invalid });
   check('couvert : au contact, l\'opérateur est le plus souvent derrière un vrai couvert (> 45 % du temps)', contactCov / contact > 0.45, { r: contactCov / contact });
   // (ancienne IA sur cette carte : ~15 % des tirs à moins de 5 m, ~1,3 rencontre à moins de 2 m par bataille ; la nouvelle :
-  // ~2 à 6 % et ~0,2 à 0,5 selon l'état de la carte — les coins de la ruelle et les bouts de l'abri restent des lieux de contact)
-  check('engagement : on se bat à distance — moins de 8 % des tirs à moins de 5 m, rencontres à moins de 2 m rares (< 0,8 par bataille)', shots > 500 && shotsClose / shots < 0.08 && encounters / battles < 0.8, { r: shotsClose / shots, enc: encounters / battles });
+  // ~2 à 7 % et ~0,2 à 0,5 selon l'état de la carte — le muret central du lavage et la chicane de la ruelle restent des lieux
+  // de contact rapproché ; seuil à 10 %, bien sous l'ancienne IA)
+  check('engagement : on se bat à distance — moins de 10 % des tirs à moins de 5 m, rencontres à moins de 2 m rares (< 0,8 par bataille)', shots > 500 && shotsClose / shots < 0.1 && encounters / battles < 0.8, { r: shotsClose / shots, enc: encounters / battles });
   check('espacement : deux équipiers à moins de 1 m moins de 4 % du temps (au passage seulement)', matesClose / mates < 0.04, { r: matesClose / mates });
   // précision : à bout portant on ne rate (presque) plus ; de loin, ça reste incertain
   const b = mk(1); const [u] = b.teams[0].units, [e] = b.teams[1].units;

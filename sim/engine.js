@@ -1067,6 +1067,12 @@
           if (cp && this.setGoal(u, cp.x, cp.z, 'close')) { u.state = 'closing'; u.stance = 'stand'; if (this.t - (u.lastFlankLog || -99) > 15) { u.lastFlankLog = this.t; this.logEvent('flank', `${u.callsign} contourne ${target.callsign}, à couvert.`, { unit: u.id, team: u.team }); } return; }
         }
       }
+      // face à face à moins de 4 m de part et d'autre d'un muret : on ne reste pas échanger des tirs à bout portant, on
+      // décroche vers un couvert à distance de combat (une fois toutes les 8 s au plus)
+      if (cover && d < 4 && order !== 'hold' && this.t < (u.rushUntil || 0) === false && this.t - (u.breakAt || -99) > 8) {
+        const cp = this.findCover(u, target, 12, { minRange: MIN_CLOSE, requireShoot: true, towards: home }) || this.findCover(u, target, 12, { minRange: MIN_CLOSE, towards: home });
+        if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.breakAt = this.t; u.state = 'fallback'; u.stance = 'stand'; return; }
+      }
       // pas de vrai couvert face à la menace : en prendre un d'où l'on tire, à distance de combat (on ne s'approche pas sous
       // ~8 m pour se mettre à l'abri) ; trop près et rien autour : décrocher vers un couvert plus en arrière
       if (!cover) {

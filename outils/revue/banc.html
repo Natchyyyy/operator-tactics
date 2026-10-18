@@ -193,7 +193,7 @@ function planche(modele, etatId, opts) {
     c.f.group.updateMatrixWorld(true); if (!c.f.group.parent) R.sc.add(c.f.group);
     const m = REVUE.mesurer(c.f, { cible: c.p.vise ? c.cible : null, vel: c.vel });
     const pts = opts.marques ? [[m.detente, 0xffdd00], [m.poignee, 0x33ff66], [c.f.weapon && c.f.weapon.forePt && c.f.weapon.localToWorld(c.f.weapon.forePt.clone()), 0x33ccff], [m.creux, 0xff33cc, 0.012], [m.crosse, 0xff8800, 0.01],
-      [m.talonG, 0xff3333, 0.012], [m.planteG, 0xff3333, 0.012], [m.boutG, 0xff3333, 0.012], [m.talonD, 0x3399ff, 0.012], [m.planteD, 0x3399ff, 0.012], [m.boutD, 0x3399ff, 0.012]] : [];
+      [m.oeil, 0xffffff, 0.006], [m.talonG, 0xff3333, 0.012], [m.planteG, 0xff3333, 0.012], [m.boutG, 0xff3333, 0.012], [m.talonD, 0x3399ff, 0.012], [m.planteD, 0x3399ff, 0.012], [m.boutD, 0x3399ff, 0.012]] : [];
     marquer(R, pts);
     vues.forEach((vn, j) => { const V0 = VUES[vn]; placerCam(R, c.f, V0); if (V0.sansCorps) c.f.body.visible = false; R.r.render(R.sc, R.cam); c.f.body.visible = true; cx.drawImage(R.r.domElement, gauche + j * tw, ent + 16 + k * th); });
     cx.fillStyle = '#eee'; cx.fillText('t=' + t.toFixed(2) + 's', 4, ent + 16 + k * th + 14); cx.fillText((c.f.clip || '').slice(0, 11), 4, ent + 16 + k * th + 28);
