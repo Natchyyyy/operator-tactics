@@ -50,10 +50,13 @@ for (let j = 0; j < CH; j++) for (let i = 0; i < CW; i++) {
   const x = (i + 0.5) * CS, z = (j + 0.5) * CS; let ok = x > 1.05 && z > 1.05 && x < W - 1.05 && z < D - 1.05;
   for (const o of O) { if (!ok) break; if (/^mur portail/.test(o.name)) continue; const dx = Math.max(o.x - x, 0, x - (o.x + o.w)), dz = Math.max(o.z - z, 0, z - (o.z + o.d)); if (Math.hypot(dx, dz) < 1.05) ok = false; }
   // les portails : l'ouverture dans le mur d'enceinte compte comme roulable jusqu'au bord
-  for (const o of O) if (/^mur portail/.test(o.name) && z > o.z + 1.05 && z < o.z + o.d - 1.05 && (x < 2 || x > W - 2)) { let free = true; for (const q of O) { if (/^mur/.test(q.name)) continue; const dx = Math.max(q.x - x, 0, x - (q.x + q.w)), dz = Math.max(q.z - z, 0, z - (q.z + q.d)); if (Math.hypot(dx, dz) < 1.05) free = false; } if (free) ok = true; }
+  for (const o of O) if (/^mur portail/.test(o.name) && (o.w >= o.d ? (x > o.x + 1.05 && x < o.x + o.w - 1.05 && (z < 2 || z > D - 2)) : (z > o.z + 1.05 && z < o.z + o.d - 1.05 && (x < 2 || x > W - 2)))) { let free = true; for (const q of O) { if (/^mur/.test(q.name)) continue; const dx = Math.max(q.x - x, 0, x - (q.x + q.w)), dz = Math.max(q.z - z, 0, z - (q.z + q.d)); if (Math.hypot(dx, dz) < 1.05) free = false; } if (free) ok = true; }
   drv[j * CW + i] = ok ? 1 : 0;
 }
-const seeds = []; for (const o of O) if (/^mur portail/.test(o.name)) seeds.push([o.x < 0 ? 0.75 : W - 0.75, o.z + o.d / 2]);
+const seeds = []; for (const o of O) if (/^mur portail/.test(o.name)) {
+  if (o.w >= o.d) seeds.push([o.x + o.w / 2, o.z < D / 2 ? 0.75 : D - 0.75]);    // portail dans un mur nord / sud
+  else seeds.push([o.x < W / 2 ? 0.75 : W - 0.75, o.z + o.d / 2]);              // portail dans un mur ouest / est
+}
 for (const a of def.acces || []) seeds.push(a);
 const comps = []; // composantes atteintes depuis chaque accès
 for (const [sx, sz] of seeds) {

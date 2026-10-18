@@ -42,7 +42,8 @@
   const MAPS = {
     parking: {
       id: 'parking', name: 'Parking du centre commercial', width: 72, depth: 46,
-      spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
+      spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 67, z: 23, r: 3.5 } ],
+      acces: [[47.5, 45.5]],   // entrée-sortie des voitures (vérification de circulation)
       capture: { x: 36, z: 23, r: 6 },  // la station de lavage : deux pistes ouvertes au nord et au sud, local technique au milieu
       asymetrique: true,
       // z des trois voies d'approche, routes de l'IA : nord le long de la façade du centre commercial (quai de livraison,
@@ -59,11 +60,12 @@
       // lavage (zone à prendre). Pas symétrique : l'équilibre est vérifié en jouant des centaines de batailles.
       obstacles: [].concat(
         [
-          box(-1, -1, 74, 1, 3.2, 'wall', 'mur nord'), box(-1, 46, 74, 1, 3.2, 'wall', 'mur sud'),
-          box(-1, 0, 1, 18, 3.2, 'wall', 'mur ouest'), box(-1, 28, 1, 18, 3.2, 'wall', 'mur ouest'),
-          box(72, 0, 1, 18, 3.2, 'wall', 'mur est'), box(72, 28, 1, 18, 3.2, 'wall', 'mur est'),
-          // entrée (ouest) et sortie (est) du parking : barrières levantes dans l'ouverture du mur
-          box(-1, 18, 1, 10, 1.1, 'wall', 'mur portail ouest'), box(72, 18, 1, 10, 1.1, 'wall', 'mur portail est'),
+          // limites : au nord les arrières des immeubles (ruelle), à l'ouest et à l'est des murs de clôture (graffitis), au sud
+          // le muret à grille de la rue, ouvert sur l'entrée-sortie des voitures (barrières levantes)
+          box(-1, -1, 74, 1, 3.2, 'wall', 'mur nord'), box(-1, 46, 45, 1, 3.2, 'wall', 'mur sud'), box(51, 46, 22, 1, 3.2, 'wall', 'mur sud'),
+          box(-1, 0, 1, 46, 3.2, 'wall', 'mur ouest'), box(72, 0, 1, 46, 3.2, 'wall', 'mur est'),
+          box(44, 46, 7, 1, 1.1, 'wall', 'mur portail sud'),
+          box(46.9, 42.4, 1.6, 1.8, 2.5, 'wall', 'guérite'),                     // guérite du gardien, sur l'îlot entre l'entrée et la sortie
           // ---- NORD : ruelle de service à l'arrière des immeubles en briques (portes de service, escaliers de secours),
           // séparée du parking par un muret surmonté d'un grillage (on voit à travers), avec deux passages.
           // Au milieu, une chicane : l'annexe en briques d'un immeuble avance dans la ruelle, en face le local à poubelles.
@@ -84,18 +86,18 @@
           box(33.2, 11.0, 5.4, 1.6, 1.7, 'wall', 'haie'), box(35.3, 11.5, 1.2, 0.5, 3.6, 'wall', 'totem'),
           box(26.0, 21.3, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(24.2, 23.0, 4.4, 1.9, 1.4, 'cover', 'voiture'),
           box(45.4, 22.0, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(43.4, 23.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'),
-          // ---- OUEST : entrée (guérite du gardien), places le long du mur ouest avec borne de recharge
-          box(9.4, 21.9, 2.2, 2.2, 2.6, 'wall', 'guérite'),
+          // ---- OUEST : caisse automatique, places le long du mur ouest avec borne de recharge
+          box(9.4, 21.9, 2.2, 2.2, 2.6, 'wall', 'caisse automatique'),      // caisse piétons sous auvent, sur son îlot
           box(0.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), box(0.2, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon'),
           box(0.2, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
-          // ---- EST : sortie (poste électrique), places le long du mur est
-          box(59.9, 23.6, 2.8, 3.2, 2.6, 'wall', 'poste électrique'), box(60.4, 27.2, 1.0, 0.5, 1.4, 'cover', 'armoire'),
+          // ---- EST : poste électrique sur son îlot, places le long du mur est
+          box(61.0, 23.4, 2.4, 3.2, 2.6, 'wall', 'poste électrique'), box(61.7, 26.9, 1.0, 0.5, 1.4, 'cover', 'armoire'),   // sur un îlot planté en bord de parking
           box(66.6, 11.0, 5.2, 2.1, 2.4, 'wall', 'fourgon'), box(67.3, 13.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'), box(66.6, 29.4, 5.2, 2.1, 2.4, 'wall', 'fourgon'),
           // ---- SUD : places le long du mur de la rue, kiosque à pizzas, arrêt de la navette, points de tri
           box(8.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), box(16.1, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'),
           box(23.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'),
           box(21.2, 33.8, 2.4, 2.4, 3.0, 'wall', 'kiosque'),
-          box(30, 39.7, 12, 2.6, 3.0, 'wall', 'bus'), box(32.4, 38.0, 4.2, 1.5, 2.5, 'wall', 'abribus'), box(45.2, 36.1, 5.2, 2.1, 2.4, 'wall', 'fourgon'),   // quai de la navette : abri sur l'îlot, bus le long
+          box(30, 39.7, 12, 2.6, 3.0, 'wall', 'bus'), box(32.4, 38.0, 4.2, 1.5, 2.5, 'wall', 'abribus'), box(44.2, 38.6, 2.1, 5.2, 2.4, 'wall', 'fourgon'),   // quai de la navette (abri sur l'îlot, bus le long) ; fourgon arrêté à la barrière d'entrée
           box(13.8, 33.8, 4.6, 1.6, 1.7, 'wall', 'colonnes de tri'),
           // ---- SUD-EST : partie du parking fermée pour réfection de l'enrobé (séparateurs, clôtures de chantier bâchées,
           // conteneurs du chantier, benne à gravats, palettes de bordures, sacs de sable qui lestent les panneaux, fût)

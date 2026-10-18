@@ -196,6 +196,7 @@ function duel(opts) {
   // suppression : un opérateur sous le feu voit sa précision baisser
   const b = results[0].b; const u = b.units[0], e = b.teams[1].units[0];
   u.x = 2; u.z = 2; e.x = 22; e.z = 2; u.moving = false; e.moving = false; u.stance = 'stand'; e.stance = 'stand';
+  u.status = 'ok'; u.burst = 0;   // tireur remis en état (la bataille est terminée : il a pu finir blessé, la comparaison serait faussée)
   u.suppression = 0; const p0 = b.hitChance(u, e, 20).p; u.suppression = 0.9; const p1 = b.hitChance(u, e, 20).p; u.suppression = 0;
   check('la suppression réduit la chance de toucher', p1 < p0 * 0.8, { p0, p1 });
   u.status = 'critical'; const p2 = b.hitChance(u, e, 20).p; u.status = 'ok';
