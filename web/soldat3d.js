@@ -1573,6 +1573,12 @@
             }
             const mw = new THREE.Matrix4().multiplyMatrices(hand.matrixWorld, L).premultiply(new THREE.Matrix4().copy(group.matrixWorld).invert());
             mw.decompose(weapon.position, weapon.quaternion, V()); weapon.scale.set(1, 1, 1);
+            // fin du rechargement (24 derniers %) : le fusil quitte la poche pour sa place de garde basse / visée, la main droite
+            // reste sur la poignée ; la gauche revient sous le garde-main (mainChargeur) — poignets moins tordus qu'en reprenant
+            // le garde-main sur un fusil encore dans la poche
+            if (p >= 0 && M.prise && weapon.isMeshy && B.la && B.head && !S.sansProc) { const xs = Math.max(0, Math.min(1, (p - 0.76) / 0.2)), fin = xs * xs * (3 - 2 * xs);
+              if (fin > 0.001) { const inv = new THREE.Matrix4().copy(group.matrixWorld).invert(), Pp = this.poseArme((o) => o.getWorldPosition(V()).applyMatrix4(inv), inv);
+                weapon.quaternion.slerp(Pp.q, fin); weapon.position.lerp(Pp.p, fin); weapon.updateMatrixWorld(true); this.tenir(1, true, 'R'); } }
             if (p >= 0 && lh && B.la && B.lf && weapon.magCenter) this.mainChargeur(p);
             // fin du rechargement : la main gauche revient à sa place sous le garde-main ; le fusil est mémorisé pour la reprise
             if (p >= 0 && M.prise && !S.sansPrise) { const xs = Math.max(0, Math.min(1, (p - 0.76) / 0.18)), fin = xs * xs * (3 - 2 * xs); if (fin > 0.01) this.tenir(fin, !weapon.magCenter, 'L'); }   // (doigts ; la main elle-même est menée par mainChargeur)
