@@ -1183,12 +1183,21 @@
       if (this.t - u.repathAt > 0.5) { const g = u.goal; u.goal = null; if (!this.setGoal(u, g.x, g.z, u.goalKind)) this.stop(u); }
       return;
     }
-    // séparation douce entre alliés : on se décale au lieu de se bloquer mutuellement
+    // séparation douce entre alliés : on se décale pour passer à côté (à ~1 m), sans jamais freiner sa marche — la poussée
+    // qui s'opposerait à l'avance est retirée, et un camarade pile sur le chemin est contourné par le côté (sinon les deux
+    // restaient collés : poussée et pas s'annulaient)
+    const mx = d > 1e-6 ? (wp.x - u.x) / d : 0, mz = d > 1e-6 ? (wp.z - u.z) / d : 0;
     for (const a of this.alliesOf(u)) {
       if (!a.alive) continue;
       const dd = Math.hypot(a.x - nx, a.z - nz);
-      if (dd < 1.0 && dd > 1e-6) {
-        const push = (1.0 - dd) * 0.5, px = nx + (nx - a.x) / dd * push, pz = nz + (nz - a.z) / dd * push;
+      if (dd < 1.1 && dd > 1e-6) {
+        let qx = (nx - a.x) / dd, qz = (nz - a.z) / dd;
+        const along = qx * mx + qz * mz;
+        if (along < 0) {
+          qx -= along * mx; qz -= along * mz; const L = Math.hypot(qx, qz);
+          if (L < 0.3) { const sd = ((a.x - u.x) * mz - (a.z - u.z) * mx) >= 0 ? 1 : -1; qx = -mz * sd; qz = mx * sd; } else { qx /= L; qz /= L; }
+        }
+        const push = (1.1 - dd) * 0.5, px = nx + qx * push, pz = nz + qz * push;
         if (!this.map.insideObstacle(px, pz) && this.map.inBounds(px, pz)) { nx = px; nz = pz; }
       }
     }

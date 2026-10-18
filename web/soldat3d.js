@@ -23,6 +23,9 @@
   const RELEVE = { cote: 0.88, arriere: 0.88 };
   // marche directionnelle en visant : part de l'écart fusil / bassin rattrapée par la torsion du dos (le reste tourne le corps)
   const DOS_VISEE = 0.5;
+  // petite course de patrouille tirée de « Running » (voir foulee()) : foulée × s, levée des pieds × hs, bassin remonté (part)
+  // dos : part du mouvement de la colonne de la course ajoutée à la garde basse (Trot_Low)
+  const TROT = { s: 0.55, hs: 0.75, rise: 0.5, dos: 0.45 };
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
   const PENCHE = 0.21;   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
   // visée à l'arrêt : rotation du bassin et des jambes vers la cible (rad), voir update()
@@ -149,7 +152,7 @@
     // mesuré par rapport à sa pose moyenne. Avant, le haut du corps restait figé : « un balai dans le dos ».
     const DOS = /(Spine|Spine1|Spine2|Neck)\.quaternion$/, POIDS = { Spine: 1, Spine1: 0.9, Spine2: 0.75, Neck: -0.5 };
     const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), qm = new THREE.Quaternion(), qi = new THREE.Quaternion();
-    for (const [nom, src, alt, ampli] of [['Walk_Low', 'Walking', 'Walk_Fight_Forward', 1], ['Run_Low', 'Run_and_Shoot', 'Running', 2.2]]) {
+    for (const [nom, src, alt, ampli] of [['Walk_Low', 'Walking', 'Walk_Fight_Forward', 1], ['Run_Low', 'Run_and_Shoot', 'Running', 2.2], ['Trot_Low', 'Running', 'Walking', TROT.dos]]) {
       const base = M.clips[src] || M.clips[alt]; if (!base) continue;
       const tracks = base.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone());
       for (const t of gb.tracks) {
@@ -244,6 +247,80 @@
     const out = new THREE.AnimationClip(nom, best.p, tr.map((t, j) => new t.constructor(t.name, times, vals[j])));
     out.userData = { t1: best.t1, p: best.p, ecart: best.d }; return out;
   }
+  // IK des jambes cuite dans un clip (30 clés/s) : pour chaque image, cible(i, H, A, Aq) donne la position monde voulue de
+  // chaque cheville (A, Aq : cheville et orientation d'origine ; H : bassin) ; dyH(i) : montée du bassin (m, unités du
+  // modèle). Genou dans son plan, pied gardant son orientation monde. Renvoie le nouveau clip (jambes seules) et l'erreur max.
+  function jambesIK(M, src, nom, cible, dyH) {
+    const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
+    const hips = b('Hips'), L = [['LeftUpLeg', 'LeftLeg', 'LeftFoot'], ['RightUpLeg', 'RightLeg', 'RightFoot']].map(l => l.map(b));
+    if (!hips || L.some(l => l.some(x => !x))) return null;
+    const W = (o) => o.getWorldPosition(new THREE.Vector3()), WQ = (o) => o.getWorldQuaternion(new THREE.Quaternion());
+    const clip = new THREE.AnimationClip(nom, src.duration, src.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone()));
+    const mixer = new THREE.AnimationMixer(sc), act = mixer.clipAction(clip); act.play();
+    const N = Math.max(4, Math.round(clip.duration * 30)), dur = clip.duration;
+    const tous = [hips].concat(L[0], L[1]), sauve = tous.map(o => [o.quaternion.clone(), o.position.clone()]);
+    const turn = (bone, from, to) => { const dq = new THREE.Quaternion().setFromUnitVectors(from.normalize(), to.normalize()); bone.quaternion.copy(WQ(bone.parent).invert().multiply(dq.multiply(WQ(bone)))); bone.updateMatrixWorld(true); };
+    const times = [], hp = [], qs = L.map(l => l.map(() => [])); let err = 0;
+    for (let i = 0; i <= N; i++) {
+      tous.forEach((o, j) => { o.quaternion.copy(sauve[j][0]); o.position.copy(sauve[j][1]); });
+      mixer.setTime(i < N ? i / N * dur : 0); sc.updateMatrixWorld(true);
+      tous.forEach((o, j) => { sauve[j][0].copy(o.quaternion); sauve[j][1].copy(o.position); });
+      const H = W(hips), A = L.map(l => W(l[2])), Aq = L.map(l => WQ(l[2])), T = cible(i % N, H, A, Aq), dy = dyH ? dyH(i % N) : 0;
+      if (dy) { const p0 = hips.parent.worldToLocal(H.clone()), p1 = hips.parent.worldToLocal(H.clone().add(new THREE.Vector3(0, dy, 0))); hips.position.add(p1.sub(p0)); hips.updateMatrixWorld(true); }
+      L.forEach(([up, lo, ft], j) => {
+        const Tj = T[j], S0 = W(up), E0 = W(lo), a = S0.distanceTo(E0), bb = E0.distanceTo(W(ft));
+        let c = S0.distanceTo(Tj); c = Math.min(Math.max(c, Math.abs(a - bb) + 1e-4), (a + bb) * 0.999);
+        const dir = Tj.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - bb * bb) / (2 * a * c)));
+        const p = E0.clone().sub(S0); p.addScaledVector(dir, -p.dot(dir)); if (p.lengthSq() < 1e-10) p.set(0, 0, 1); p.normalize();
+        const E1 = S0.clone().addScaledVector(dir, a * cosA).addScaledVector(p, a * Math.sqrt(1 - cosA * cosA));
+        turn(up, E0.clone().sub(S0), E1.sub(S0)); const E2 = W(lo); turn(lo, W(ft).sub(E2), Tj.clone().sub(E2));
+        ft.quaternion.copy(WQ(ft.parent).invert().multiply(Aq[j])); ft.updateMatrixWorld(true);
+        err = Math.max(err, W(ft).distanceTo(Tj));
+      });
+      times.push(i / N * dur); hp.push(...hips.position.toArray()); L.forEach((l, j) => l.forEach((o, k) => qs[j][k].push(...o.quaternion.toArray())));
+    }
+    tous.forEach((o, j) => { o.quaternion.copy(sauve[j][0]); o.position.copy(sauve[j][1]); });
+    mixer.stopAllAction(); mixer.uncacheRoot(sc); sc.updateMatrixWorld(true);
+    const nm = (o) => THREE.PropertyBinding.sanitizeNodeName(o.name), neuves = [new THREE.VectorKeyframeTrack(nm(hips) + '.position', times, hp)];
+    L.forEach((l, j) => l.forEach((o, k) => neuves.push(new THREE.QuaternionKeyframeTrack(nm(o) + '.quaternion', times, qs[j][k]))));
+    const noms = new Set(neuves.map(t => t.name));
+    clip.tracks = clip.tracks.filter(t => !noms.has(t.name)).concat(neuves); clip.resetDuration(); clip.duration = dur;
+    clip.userData = { err: err * HEIGHT / RAW_H }; return clip;
+  }
+  // Petite course de patrouille (« Pas_Trot ») tirée de la vraie course (« Running », athlétique : 4,6 m/s, foulée de 3 m) :
+  // foulée raccourcie (« stride warping » : position avant / arrière des chevilles par rapport au bassin × s, autour de leur
+  // position moyenne), pieds levés moins haut (× hs) et bassin un peu remonté (jambes moins écartées → moins fléchies).
+  // Même cadence que la course : vitesse naturelle ≈ s × 4,6 m/s. Droit, souple, pieds dans l'axe : un trot de patrouille,
+  // pas la course accroupie « au fusil » (Run_and_Shoot) qui faisait un petit trottinement de crabe sans ennemi en vue.
+  function foulee(M, src, nom, s, hs, rise) {
+    const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n), hips = b('Hips'), F = [b('LeftFoot'), b('RightFoot')];
+    if (!src || !hips || !F[0] || !F[1]) return null;
+    const mixer = new THREE.AnimationMixer(sc); mixer.clipAction(src).play();
+    const N = Math.max(4, Math.round(src.duration * 30)), W = (o) => o.getWorldPosition(new THREE.Vector3());
+    let gy = 1e9, mz = 0; const ech = [];
+    for (let i = 0; i < N; i++) { mixer.setTime(i / N * src.duration); sc.updateMatrixWorld(true); const H = W(hips), A = F.map(W); ech.push([H, A]); A.forEach(a => { gy = Math.min(gy, a.y); mz += (a.z - H.z) / (2 * N); }); }
+    mixer.stopAllAction(); mixer.uncacheRoot(sc); sc.updateMatrixWorld(true);
+    const cib = (H, a) => new THREE.Vector3(a.x, gy + (a.y - gy) * hs, H.z + mz + s * (a.z - H.z - mz));
+    // montée du bassin : longueur bassin → cheville d'appui conservée en moyenne (part « rise »)
+    let mont = 0; for (const [H, A] of ech) { const j = A[0].y < A[1].y ? 0 : 1, d0 = H.distanceTo(A[j]), h0 = Math.hypot(A[j].x - H.x, A[j].z - H.z), t = cib(H, A[j]), h1 = Math.hypot(t.x - H.x, t.z - H.z); mont += (Math.sqrt(Math.max(0, d0 * d0 - h1 * h1)) - Math.sqrt(Math.max(0, d0 * d0 - h0 * h0))) / N; }
+    const dy = mont * rise;
+    return jambesIK(M, src, nom, (i, H, A) => { const H0 = H.clone(); return A.map(a => cib(H0, a)); }, () => dy);
+  }
+  // Pieds au sol : la plupart des cycles de la bibliothèque « flottent » (la pointe la plus basse du cycle 1 à 6 cm au-dessus
+  // du sol, mesuré). On descend (ou remonte) le bassin de tout le clip pour que la pointe la plus basse soit à sa hauteur de
+  // repos (pose de garde basse). Renvoie le décalage appliqué (m, jeu).
+  function aterrir(M, clip, repos) {
+    const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n), hips = b('Hips'), T = [b('LeftToeBase'), b('RightToeBase')];
+    if (!clip || !hips || !T[0] || !T[1]) return 0;
+    const mixer = new THREE.AnimationMixer(sc); mixer.clipAction(clip).play(); let m = 1e9; const N = Math.max(8, Math.round(clip.duration * 60));
+    for (let i = 0; i < N; i++) { mixer.setTime(i / N * clip.duration); sc.updateMatrixWorld(true); for (const t of T) m = Math.min(m, t.getWorldPosition(new THREE.Vector3()).y); }
+    const H = hips.getWorldPosition(new THREE.Vector3()); mixer.stopAllAction(); mixer.uncacheRoot(sc); sc.updateMatrixWorld(true);
+    const dy = repos - m; if (Math.abs(dy) < 0.002) return 0;
+    const d = hips.parent.worldToLocal(H.clone().add(new THREE.Vector3(0, dy, 0))).sub(hips.parent.worldToLocal(H.clone()));
+    const tr = clip.tracks.find(t => /Hips\.position$/.test(t.name)); if (!tr) return 0;
+    const i0 = clip.tracks.indexOf(tr), nt = tr.clone(), v = nt.values; for (let i = 0; i < v.length; i += 3) { v[i] += d.x; v[i + 1] += d.y; v[i + 2] += d.z; }
+    clip.tracks[i0] = nt; return dy * HEIGHT / RAW_H;
+  }
   function directions(M) {
     const G = M.clips.Walk_Left_with_Gun, B = M.clips.Walk_Backward_with_Gun; if (!G || !B) return;
     const legs = (c, nom) => c && new THREE.AnimationClip(nom, c.duration, c.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone()));
@@ -273,14 +350,21 @@
     // course (petites foulées, ~1,5 à 3 m/s) : mêmes pas chassés / marche arrière, mais la marche avant est la course de
     // « Run_and_Shoot » (jambes de Run_Low aussi) ; hauts du corps de la course (visée ou garde basse qui balance)
     M.clips.Pas_Avant_Course = legs(M.clips.Run_and_Shoot, 'Pas_Avant_Course');
-    for (const n of ['Walk_Aim', 'Walk_Low', 'Run_and_Shoot', 'Run_Low']) { const c = M.clips[n]; if (c) { M.clips[n + '_Haut'] = new THREE.AnimationClip(n + '_Haut', c.duration, c.tracks.filter(t => !JAMBES.test(t.name)).map(t => t.clone())); } }
+    // patrouille (pas d'ennemi connu) : marche → petite course → course, mélangées selon la vitesse (voir marche())
+    const TR = Object.assign({}, TROT, root.TROT_TEST || {});
+    if (M.clips.Running) { const t = foulee(M, M.clips.Running, 'Pas_Trot', TR.s, TR.hs, TR.rise); if (t) { M.clips.Pas_Trot = t; M.trotErr = t.userData.err; } M.clips.Pas_Run = legs(M.clips.Running, 'Pas_Run'); }
+    // pieds au sol (pointe la plus basse du cycle à sa hauteur de repos)
+    { const sc = M.gltf.scene, gb = M.clips.Garde_Basse, T = ['LeftToeBase', 'RightToeBase'].map(n => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n));
+      if (gb && T[0] && T[1]) { const mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true); const repos = Math.min(...T.map(t => t.getWorldPosition(new THREE.Vector3()).y)); mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true);
+        M.solDy = {}; for (const n of ['Pas_Avant_Low', 'Pas_Avant_Aim', 'Pas_Avant_Course', 'Pas_Trot', 'Pas_Run', 'Pas_Gauche', 'Pas_Droite', 'Pas_Arriere']) if (M.clips[n]) M.solDy[n] = +aterrir(M, M.clips[n], repos).toFixed(3); } }
+    for (const n of ['Walk_Aim', 'Walk_Low', 'Run_and_Shoot', 'Run_Low', 'Trot_Low']) { const c = M.clips[n]; if (c) { M.clips[n + '_Haut'] = new THREE.AnimationClip(n + '_Haut', c.duration, c.tracks.filter(t => !JAMBES.test(t.name)).map(t => t.clone())); } }
     if (M.yawFix.Walk_Aim !== undefined) M.yawFix.Walk_Aim_Haut = M.yawFix.Walk_Aim;
     M.dirs = true;
   }
   // Vitesse « naturelle » de chaque cycle de locomotion (m/s, pour un soldat de 1,80 m) : pendant l'appui, le pied recule
   // par rapport au bassin à la vitesse du sol. Le jeu lit l'animation à (vitesse réelle / vitesse naturelle) : plus de pieds
   // qui glissent. Mesurée sur les pieds, car les animations Meshy n'ont pas de déplacement de racine fiable.
-  const LOCOS = ['Walk_Fight_Forward', 'Walk_Aim', 'Walk_Low', 'Run_and_Shoot', 'Run_Low', 'Cautious_Crouch_Walk_Forward', 'Walking', 'Running', 'Pas_Avant_Aim', 'Pas_Avant_Low', 'Pas_Avant_Course', 'Pas_Gauche', 'Pas_Droite', 'Pas_Arriere'];
+  const LOCOS = ['Walk_Fight_Forward', 'Walk_Aim', 'Walk_Low', 'Run_and_Shoot', 'Run_Low', 'Cautious_Crouch_Walk_Forward', 'Walking', 'Running', 'Pas_Avant_Aim', 'Pas_Avant_Low', 'Pas_Avant_Course', 'Pas_Gauche', 'Pas_Droite', 'Pas_Arriere', 'Pas_Trot', 'Pas_Run', 'Trot_Low'];
   function mesureLoco(M) {
     const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
     const hips = b('Hips'), feet = [b('LeftToeBase'), b('RightToeBase')]; if (!hips || !feet[0] || !feet[1]) return;
@@ -306,7 +390,7 @@
     // suffit pas (dans un pas chassé, le pied gauche est tantôt celui qui mène, tantôt celui qui suit). On essaie 20
     // décalages et on garde celui où le mélange 50/50 avance le plus franchement (pas qui s'annulent = démarche incohérente).
     M.decal = {};
-    for (const av of ['Pas_Avant_Aim', 'Pas_Avant_Low', 'Pas_Avant_Course']) for (const cote of ['Pas_Gauche', 'Pas_Droite']) {
+    for (const av of ['Pas_Avant_Aim', 'Pas_Avant_Low', 'Pas_Avant_Course', 'Pas_Trot']) for (const cote of ['Pas_Gauche', 'Pas_Droite']) {
       const A = M.clips[av], C = M.clips[cote]; if (!A || !C) continue;
       const mx = new THREE.AnimationMixer(sc), a = mx.clipAction(A), c = mx.clipAction(C); a.play(); c.play(); a.setEffectiveWeight(0.5); c.setEffectiveWeight(0.5); a.timeScale = 0; c.timeScale = 0;
       const K = 20, NS = 24, mag = [], h = new THREE.Vector3(), p = new THREE.Vector3();
@@ -439,11 +523,11 @@
   // du majeur. Main droite : paume sur le flanc droit de la poignée, doigts vers l'avant autour de la poignée, jointures au
   // bord avant ; main gauche : sous le garde-main, doigts vers la droite qui remontent sur son flanc droit, pouce à gauche.
   const PRISE = {
-    R: { A: [0.15, -0.3, 0.94], N: [1, 0, 0], mcp: [-0.028, -0.035, -0.145],
+    R: { A: [0.035, -0.413, 0.91], N: [0.998, 0.069, -0.007], mcp: [-0.044, -0.047, -0.141],
       // cibles du bout des doigts (index : tendu le long de la carcasse, au-dessus du pontet ; pouce : flanc gauche, sous la carcasse)
       cibles: { 0: { p: [0.026, -0.008, -0.14], f1: [-0.4, 1.4], f2: 1.2 }, 1: { p: [-0.027, 0.008, -0.075], f1: [-0.4, 0.8], f2: 0.4, reg: 0.02 } },
       detente: { p: [-0.004, -0.014, -0.088], f1: [-0.2, 1.4], f2: 1.6 } },
-    L: { A: [-0.95, 0.2, 0.25], N: [0.2, 1, 0], mcp: [-0.036, 0.026, 0.15],
+    L: { A: [-0.948, 0.2, 0.249], N: [0.2, 0.979, -0.022], mcp: [-0.036, 0.022, 0.142],
       cibles: { 0: { p: [0.04, 0.07, 0.2], f1: [-0.4, 1.2], f2: 1.0 } } },
   };
   S.PRISE = PRISE;
@@ -687,7 +771,9 @@
       // Orientation : la visée de « Walk_Aim_Haut » tient le fusil ~50° à gauche du bassin de la marche avant. Le dos en
       // rattrape la part DOS_VISEE (torsion), le reste tourne tout le corps (this.yawM) ; les pieds, eux, vont toujours dans
       // la direction du déplacement grâce au mélange.
-      marche(ecart, v, dt, haut, avant) {
+      // mix (facultatif) : la part « marche avant » répartie entre plusieurs cycles avant ({ Pas_Avant_Low: 0.3, Pas_Trot: 0.7 },
+      // somme 1 : marche → petite course → course selon la vitesse), tous calés sur la même phase
+      marche(ecart, v, dt, haut, avant, mix) {
         const D = M.dirPas || {}, foul = (n) => Math.max(0.2, (M.loco[n] || 1) * (M.clips[n] ? M.clips[n].duration : 1));   // m par cycle
         // (a0 lissé sur ~0,2 s comme le fondu des hauts du corps : passer de la visée à la garde basse, ou de la marche à la
         // course, ne fait plus sauter la torsion du dos)
@@ -725,6 +811,7 @@
             const n = this.selArr ? PR : cote; cible[n] = 1; tau = Math.max(-1.5, Math.min(1.5, tw(n)));
           }
         } else cible[avant] = 1;
+        if (mix) { const wa = cible[avant] || 0; cible[avant] = 0; for (const n in mix) if (M.clips[n] && M.loco[n]) cible[n] = (cible[n] || 0) + wa * mix[n]; }
         // (torsion du bassin au prorata de la couche des jambes : à l'entrée en marche elle monte avec elle)
         this.jambesCible = tau * Math.min(1, (this.marcheK || 0) + dt / 0.35);
         if (!this.blendW) this.blendW = {};
@@ -753,7 +840,9 @@
         }
         while (psi > Math.PI) psi -= 2 * Math.PI; while (psi < -Math.PI) psi += 2 * Math.PI;
         this.dosM = psi + a0; this.yawM = B; this.blendFrame = frameK; this.coteK = tot > 0 ? ((bw[PG] || 0) + (bw[PD] || 0)) / tot : 0; this.arrK = tot > 0 ? (bw[PR] || 0) / tot : 0;
-        this.play(haut, { time: ((this.ph + (M.phase0[avant] || 0)) % 1), fade: 0.25 });
+        // (haut du corps calé sur la phase de SES jambes d'origine : celles du clip dont il est tiré, sinon la marche avant)
+        const hb = haut.replace(/_Haut$/, ''), ph0 = M.phase0[hb] !== undefined ? M.phase0[hb] : (M.phase0[avant] || 0);
+        this.play(haut, { time: ((this.ph + ph0) % 1), fade: 0.25 });
         return this.ph;
       },
       // keepYaw : garder la correction actuelle (chute : on ne fait pas pivoter un corps qui tombe)
