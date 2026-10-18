@@ -148,7 +148,16 @@
         const a = ((i - 2) / 2) * 1.1, r = sp.r * (i % 2 ? 0.9 : 0.5);
         const laneZ = this.laneOf(u);
         let x = sp.x + Math.cos(a + face + Math.PI) * r * 0.6, z = sp.z + laneZ * 0.25 + ((i % 3) - 1) * 0.9;
-        const free = this.map.nearestFree(x, z); if (free) { const c = this.map.centerOf(free.c, free.r); x = c.x; z = c.z; }
+        // case libre la plus proche qui ne soit pas déjà prise par un équipier (à moins de 1,5 m) : deux opérateurs ne
+        // commencent jamais au même endroit (deux points voulus voisins tombaient sur la même case)
+        const taken = (px, pz) => team.units.slice(0, i).some(a => Math.hypot(a.x - px, a.z - pz) < 1.5);
+        const c0 = this.map.cellOf(x, z); let best = null, bd = Infinity;
+        for (let ring = 0; ring < 8 && !best; ring++) for (let dc = -ring; dc <= ring; dc++) for (let dr = -ring; dr <= ring; dr++) {
+          if (Math.max(Math.abs(dc), Math.abs(dr)) !== ring || this.map.isBlocked(c0.c + dc, c0.r + dr)) continue;
+          const p = this.map.centerOf(c0.c + dc, c0.r + dr), d = Math.hypot(p.x - x, p.z - z);
+          if (!taken(p.x, p.z) && d < bd - 1e-9) { bd = d; best = p; }
+        }
+        if (best) { x = best.x; z = best.z; }
         u.x = x; u.z = z; u.facing = face; u.home = { x, z };
         u.lastProgress = { x, z, t: 0 };
       });
@@ -686,6 +695,7 @@
       const dt = Math.hypot(cx - threat.x, cz - threat.z);
       if (opts.minRange && dt < opts.minRange) continue; // trop près de la menace (arme, ou distance de combat voulue)
       if (others.some(o => Math.hypot(o.x - cx, o.z - cz) < o.lim)) continue;
+      if (this.nearCorpse(cx, cz)) continue;                                          // pas les pieds dans un corps
       let s = 10 - d * 0.6;
       if (opts.towards) s -= Math.hypot(cx - opts.towards.x, cz - opts.towards.z) * 0.25;
       if (opts.preferDist) s -= Math.abs(dt - opts.preferDist) * 0.08;
@@ -718,6 +728,12 @@
   // Écarter un point de destination des équipiers : si un allié s'y trouve ou s'y rend (à moins de 2,5 m), on vise à côté,
   // en travers de la marche (2,5 puis 4 m, d'un côté puis de l'autre) — deux opérateurs ne marchent plus vers le même point
   // (la même position connue d'un ennemi, le même milieu de chemin) pour s'y retrouver collés.
+  // un corps (opérateur hors de combat, tous camps) à moins de 0,7 m de ce point ? (la poupée de chiffon finit à 0,1–1,5 m
+  // du point de chute : on garde ~0,8 m autour)
+  Battle.prototype.nearCorpse = function (x, z) {
+    for (const a of this.units) if (!a.alive && Math.hypot(a.x - x, a.z - z) < 0.7) return a;
+    return null;
+  };
   Battle.prototype.spreadGoal = function (u, x, z) {
     const crowd = (px, pz) => { let n = 0; for (const a of this.alliesOf(u)) { if (!a.alive) continue; if (Math.hypot(a.x - px, a.z - pz) < 2.5) n++; if (a.goal && Math.hypot(a.goal.x - px, a.goal.z - pz) < 2.5) n++; } return n; };
     if (!crowd(x, z)) return { x, z };
@@ -734,6 +750,7 @@
     const req = { x, z };
     if (u.goal && u.goalReq && Math.hypot(u.goalReq.x - x, u.goalReq.z - z) < 0.6 && u.path) { u.goalKind = kind; return true; }
     if (kind === 'advance' || kind === 'search') ({ x, z } = this.spreadGoal(u, x, z));
+    if (kind !== 'revive') { const c = this.nearCorpse(x, z); if (c) { const dx = x - c.x, dz = z - c.z, L = Math.hypot(dx, dz); const k = L > 1e-3 ? 0.9 / L : 0; const px = L > 1e-3 ? c.x + dx * k : x + 0.9, pz = L > 1e-3 ? c.z + dz * k : z; if (this.map.inBounds(px, pz) && !this.map.insideObstacle(px, pz)) { x = px; z = pz; } } }
     if (u.goal && Math.hypot(u.goal.x - x, u.goal.z - z) < 0.6 && u.path) { u.goalKind = kind; u.goalReq = req; return true; }
     let path = this.map.findPath(u.x, u.z, x, z);
     if (!path) { u.path = null; u.goal = null; return false; }
@@ -1313,17 +1330,18 @@
     // qui s'opposerait à l'avance est retirée, et un camarade pile sur le chemin est contourné par le côté (sinon les deux
     // restaient collés : poussée et pas s'annulaient)
     const mx = d > 1e-6 ? (wp.x - u.x) / d : 0, mz = d > 1e-6 ? (wp.z - u.z) / d : 0;
-    for (const a of this.alliesOf(u)) {
-      if (!a.alive) continue;
-      const dd = Math.hypot(a.x - nx, a.z - nz);
-      if (dd < 1.1 && dd > 1e-6) {
+    // les corps (tous camps, point de chute ; rayon 0,8 m) se contournent de la même façon — sauf pour aller relever un blessé
+    for (const a of this.units) {
+      if (a === u || (a.alive ? a.team !== u.team : u.goalKind === 'revive')) continue;
+      const R = a.alive ? 1.1 : 0.8, dd = Math.hypot(a.x - nx, a.z - nz);
+      if (dd < R && dd > 1e-6) {
         let qx = (nx - a.x) / dd, qz = (nz - a.z) / dd;
         const along = qx * mx + qz * mz;
         if (along < 0) {
           qx -= along * mx; qz -= along * mz; const L = Math.hypot(qx, qz);
           if (L < 0.3) { const sd = ((a.x - u.x) * mz - (a.z - u.z) * mx) >= 0 ? 1 : -1; qx = -mz * sd; qz = mx * sd; } else { qx /= L; qz /= L; }
         }
-        const push = (1.1 - dd) * 0.5, px = nx + qx * push, pz = nz + qz * push;
+        const push = (R - dd) * 0.5, px = nx + qx * push, pz = nz + qz * push;
         if (!this.map.insideObstacle(px, pz) && this.map.inBounds(px, pz)) { nx = px; nz = pz; }
       }
     }

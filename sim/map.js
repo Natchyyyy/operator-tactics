@@ -51,6 +51,17 @@
       // z des trois voies d'approche, routes de l'IA : nord par la ruelle (derrière le grillage), milieu à travers les rangées
       // de voitures et la station de lavage, sud le long du muret de la rue (quai de la navette, kiosque, chantier).
       voies: { nord: 5.5, milieu: 23, sud: 34 },
+      // positions clés (pour les ordres du joueur : « tenir » une position) : par paires en miroir, chaque camp a la sienne.
+      // x, z : où se tient l'opérateur (case libre, collé à un couvert d'au moins 0,9 m) ; r : rayon « tenue » ; menace :
+      // direction d'où vient la menace (radians, atan2(dz, dx)), le couvert est de ce côté ; voie : -1 nord, 0 milieu, 1 sud
+      positionsCles: [
+        { id: 'lavage-ouest', nom: 'Piste 1 du lavage', x: 34.4, z: 25.0, r: 2.5, menace: 0, voie: 0 },
+        { id: 'lavage-est', nom: 'Piste 2 du lavage', x: 37.6, z: 25.0, r: 2.5, menace: Math.PI, voie: 0 },
+        { id: 'ruelle-ouest', nom: 'Caisses de la ruelle', x: 27.9, z: 8.2, r: 2.5, menace: 0, voie: -1 },
+        { id: 'ruelle-est', nom: 'Palettes de la ruelle', x: 39.1, z: 3.2, r: 2.5, menace: Math.PI, voie: -1 },
+        { id: 'quai-ouest', nom: 'Jardinière du quai (ouest)', x: 29.9, z: 34.7, r: 2.5, menace: 0, voie: 1 },
+        { id: 'quai-est', nom: 'Jardinière du quai (est)', x: 42.1, z: 34.7, r: 2.5, menace: Math.PI, voie: 1 },
+      ],
       // marquage au sol (rendu seulement) : rangées doubles [x0, z0, places], places le long des murs [x, z, places, pas en x, pas en z]
       marquage: { rangees: [[13, 17, 6], [49, 17, 6]], murs: [[7.6, 41, 7, 2.5, 0], [0, 10.8, 2, 0, 2.5], [0, 29.5, 4, 0, 2.5], [67, 10.8, 2, 0, 2.5], [67, 29.5, 2, 0, 2.5]] },
       // Un vrai parking de centre-ville, à l'arrière des boutiques de la Grand-Rue, vu du ciel : au nord la ruelle de service
@@ -107,7 +118,7 @@
           cap(box(8.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1), cap(box(16.1, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),
           cap(box(18.0, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1), cap(box(20.5, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
           cap(box(23.0, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
-          box(21.2, 33.8, 2.4, 2.4, 3.0, 'wall', 'kiosque'), box(48.4, 33.8, 2.4, 2.4, 2.4, 'wall', 'consigne colis'),
+          box(21.2, 33.8, 2.4, 2.4, 3.0, 'wall', 'kiosque'), box(48.4, 33.8, 1.2, 3.0, 2.1, 'wall', 'consigne colis'),
           box(30, 39.7, 12, 2.6, 3.0, 'wall', 'bus'), box(33.9, 38.0, 4.2, 1.5, 2.5, 'wall', 'abribus'),
           box(31.6, 38.1, 1.8, 1.3, 0.9, 'cover', 'bac à fleurs'), box(38.6, 38.1, 1.8, 1.3, 0.9, 'cover', 'bac à fleurs'),
           ...bac(30.4, 34.0, 1.8, 1.4), ...bac(39.8, 34.0, 1.8, 1.4),            // jardinières du passage piéton

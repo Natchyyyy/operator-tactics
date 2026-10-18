@@ -319,10 +319,18 @@
           gl_FragColor = vec4(refl * 0.85 * k / max(a, 1e-3), m * a);
         }`,
     };
-    const r = new X.Reflector(new T.PlaneGeometry(W, D), { shader, textureWidth: 1024, textureHeight: 1024, clipBias: 0.003, multisample: 4 });
+    const r = new X.Reflector(new T.PlaneGeometry(W, D), { shader, textureWidth: 512, textureHeight: 512, clipBias: 0.003, multisample: 0 });   // reflet flou de flaque : demi-résolution, sans MSAA
     r.material.transparent = true; r.material.depthWrite = false;
     r.rotation.x = -Math.PI / 2; r.position.set(W / 2, 0.004, D / 2); r.userData.keep = true; r.renderOrder = 1;
-    const ob = r.onBeforeRender; r.onBeforeRender = function (renderer, scene, camera) { if (scene.overrideMaterial || camera.isOrthographicCamera) return; const rt = renderer.getRenderTarget(); if (rt && rt.__reflet) return; ob.call(this, renderer, scene, camera); };
+    // coût : la réflexion redessine toute la scène. On la met à jour une image sur deux, et pas du tout en vue haute
+    // (caméra au-dessus de 12 m : les reflets ne se voient presque plus, la texture précédente reste)
+    let img = 0; const ob = r.onBeforeRender;
+    r.onBeforeRender = function (renderer, scene, camera) {
+      if (scene.overrideMaterial || camera.isOrthographicCamera) return; const rt = renderer.getRenderTarget(); if (rt && rt.__reflet) return;
+      if (camera.position.y > 12 && r.userData.deja) return;
+      if ((img++ & 1) && r.userData.deja) return;
+      r.userData.deja = true; ob.call(this, renderer, scene, camera);
+    };
     r.getRenderTarget().__reflet = true;
     return r;
   }
@@ -555,6 +563,13 @@
     const leaf = mat('buis', () => new T.MeshStandardMaterial({ color: 0x41592c, roughness: 0.9 })), leaf2 = mat('buis2', () => new T.MeshStandardMaterial({ color: 0x5b6b33, roughness: 0.95 })), paille = mat('paille', () => new T.MeshStandardMaterial({ color: 0x8a7a4a, roughness: 1 }));
     const R = rng(Math.floor(o.x * 13 + o.z * 7)), n = Math.round((o.w * o.d) * 5);
     for (let k = 0; k < n; k++) { const r = 0.07 + R() * 0.11, b = new T.Mesh(new T.IcosahedronGeometry(r, 0), R() < 0.15 ? paille : R() < 0.5 ? leaf2 : leaf); b.position.set((R() - 0.5) * (o.w - 0.3), o.h / 2 - 0.03 + r * 0.3, (R() - 0.5) * (o.d - 0.3)); b.scale.set(1 + R() * 0.6, 0.35 + R() * 0.35, 1 + R() * 0.6); b.rotation.y = R() * 6; b.castShadow = true; g.add(b); }
+    // du volume : arbustes bas (boules irrégulières de 30 à 55 cm) et touffes de graminées (lames fines)
+    const nb = Math.max(2, Math.round(o.w * o.d * 1.2));
+    for (let k = 0; k < nb; k++) { const r = 0.16 + R() * 0.12, b = new T.Mesh(new T.IcosahedronGeometry(r, 1), R() < 0.5 ? leaf : leaf2); const px = (R() - 0.5) * (o.w - 0.5), pz = (R() - 0.5) * (o.d - 0.5); if (Math.hypot(px, pz) < 0.35) continue; b.position.set(px, o.h / 2 + r * 0.7, pz); b.scale.set(1 + R() * 0.4, 0.9 + R() * 0.6, 1 + R() * 0.4); b.rotation.set(R(), R() * 6, R()); b.castShadow = true; g.add(b); }
+    const lame = mat('graminee', () => new T.MeshStandardMaterial({ color: 0x7d8a45, roughness: 0.9, side: T.DoubleSide }));
+    for (let k = 0; k < nb; k++) { const t = new T.Group(), px = (R() - 0.5) * (o.w - 0.4), pz = (R() - 0.5) * (o.d - 0.4); if (Math.hypot(px, pz) < 0.35) continue;
+      for (let j = 0; j < 7; j++) { const h = 0.3 + R() * 0.3, bl = new T.Mesh(new T.PlaneGeometry(0.035, h), lame); bl.position.y = h / 2; bl.rotation.set((R() - 0.5) * 0.7, R() * 3, (R() - 0.5) * 0.7); t.add(bl); }
+      t.position.set(px, o.h / 2 - 0.02, pz); g.add(t); }
     return g;
   }
   // ---------------------------------------------------------------------------------------------
@@ -1092,6 +1107,20 @@
     bx(g, 0.9, 2.0, 0.05, std('porteGuerite', 0xcfd3d5, 0.4, 0.4), 0, -H / 2 + 1.0, d / 2 + 0.03);
     return g;
   }
+  // ---- consigne à colis (double face) : rangées de petites portes, colonne à écran, bandeau de couleur (marque inventée)
+  function consigne(o) {
+    const g = new T.Group(), along = o.w >= o.d, L = along ? o.w : o.d, th = along ? o.d : o.w, H = o.h, K = M3();
+    const corps = std('consigneCorps', 0xd7dadc, 0.45, 0.4), porte = std('consignePorte', 0xc4c8cb, 0.4, 0.5), vert = std('consigneBande', 0xe0632a, 0.5, 0.2);
+    const inner = new T.Group(); bx(inner, L, H - 0.1, th, corps, 0, -0.05, 0); bx(inner, L + 0.04, 0.28, th + 0.04, vert, 0, H / 2 - 0.2, 0); bx(inner, L + 0.1, 0.08, th + 0.1, K.metalSombre, 0, -H / 2 + 0.04, 0);
+    for (const s of [-1, 1]) {
+      const cols = Math.round(L / 0.45), rows = 5;
+      for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) { if (Math.abs(c - cols / 2 + 0.5) < 0.6) continue;   // colonne de l'écran au milieu
+        const h = r === 0 ? 0.5 : 0.28; bx(inner, L / cols - 0.03, h, 0.02, porte, -L / 2 + (c + 0.5) * L / cols, -H / 2 + 0.2 + (r === 0 ? 0.25 : 0.5 + 0.3 * (r - 1) + 0.14), s * (th / 2 + 0.01)); }
+      bx(inner, 0.32, 0.22, 0.02, std('ecranMonnayeur', 0x0b1418, 0.2, 0, { emissive: 0x2d8a6a, emissiveIntensity: 0.7 }), 0, 0.15, s * (th / 2 + 0.015));
+      panneau(inner, L * 0.7, 0.24, (q, w, h) => { q.fillStyle = '#e0632a'; q.fillRect(0, 0, w, h); txt(q, 'COLIPOINT  ·  retrait 24 h / 24', w / 2, h / 2 + 4, 'bold 100px Arial', '#fff'); }, 0, H / 2 - 0.2, s * (th / 2 + 0.035), s < 0 ? Math.PI : 0, true);
+    }
+    if (!along) inner.rotation.y = Math.PI / 2; g.add(inner); return g;
+  }
   // ---- borne de recharge : socle, écran, câble enroulé
   function borne(o) {
     const g = new T.Group(), H = o.h;
@@ -1280,6 +1309,7 @@
     if (n === 'aspirateur') return aspirateur(o);
     if (n === 'guérite') return guerite(o);
     if (n === 'caisse automatique') return caisseAuto(o);
+    if (n === 'consigne colis') return consigne(o);
     if (n === 'borne de recharge') return borne(o);
     if (n === 'poste électrique') return poste(o);
     if (n === 'colonnes de tri') return colonnes(o);

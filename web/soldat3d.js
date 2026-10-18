@@ -409,11 +409,14 @@
       const ft = b(c + 'Foot'), toe = b(c + 'ToeBase'); if (!ft || !toe) return;
       const A = ft.getWorldPosition(new THREE.Vector3()), T = toe.getWorldPosition(new THREE.Vector3());
       // (sommets bas les plus proches de ce pied)
-      const proches = pts.filter(p => p.y < ymin + 0.03 && Math.hypot(p.x - A.x, p.z - A.z) < 0.25);
-      if (proches.length < 3) return;
+      // (sommets du pied seulement : sous la cheville, à moins de 30 cm de la cheville ou des orteils ; un sommet parasite
+      // loin du pied — maillage HD — donnait une « semelle » 80 cm sous le pied et sol() levait la jambe à l'horizontale)
+      const pied = pts.filter(p => p.y < A.y && (p.distanceTo(A) < 0.3 || p.distanceTo(T) < 0.3)); if (pied.length < 3) return;
+      const ym = Math.min(...pied.map(p => p.y)), proches = pied.filter(p => p.y < ym + 0.03);
+      if (proches.length < 3 || T.y - ym < -0.01 || T.y - ym > 0.12 || A.y - ym < 0.03 || A.y - ym > 0.25) return;
       let talon = proches[0], bout = proches[0]; for (const p of proches) { if (p.z < talon.z) talon = p; if (p.z > bout.z) bout = p; }
       const loc = (o, p) => o.worldToLocal(p.clone());
-      out[j] = { talon: loc(ft, talon), plante: loc(toe, new THREE.Vector3(T.x, ymin, T.z)), bout: loc(toe, bout), sol0: ymin * HEIGHT / RAW_H };
+      out[j] = { talon: loc(ft, talon), plante: loc(toe, new THREE.Vector3(T.x, ym, T.z)), bout: loc(toe, bout), sol0: ym * HEIGHT / RAW_H };
     });
     mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true);
     if (out[0] && out[1]) M.semelle = out;
@@ -1153,8 +1156,8 @@
         if (!M.semelle || !pieds[0][2] || !hipsB) return;
         group.updateMatrixWorld(true); const gy = group.getWorldPosition(V()).y;
         const hs = [0, 1].map(i => { const S = semW(i); return Math.min(S.talon.y, S.plante.y, S.bout.y) - gy; }), hm = Math.max(hs[0], hs[1]);
-        if (hm < -0.003) { mod(hipsB); const h0 = WP(hipsB); hipsB.position.add(hipsB.parent.worldToLocal(h0.clone().setY(h0.y - hm)).sub(hipsB.parent.worldToLocal(h0.clone()))); hipsB.updateMatrixWorld(true); }
-        pieds.forEach(([up, lo, ft], i) => { const S = semW(i), h = Math.min(S.talon.y, S.plante.y, S.bout.y) - gy; if (h < -0.003) ikJambe(up, lo, ft, new THREE.Vector3(0, -h, 0), orteils[i]); });
+        if (hm < -0.003) { mod(hipsB); const h0 = WP(hipsB); hipsB.position.add(hipsB.parent.worldToLocal(h0.clone().setY(h0.y - Math.max(hm, -0.06))).sub(hipsB.parent.worldToLocal(h0.clone()))); hipsB.updateMatrixWorld(true); }
+        pieds.forEach(([up, lo, ft], i) => { const S = semW(i), h = Math.min(S.talon.y, S.plante.y, S.bout.y) - gy; if (h < -0.003) ikJambe(up, lo, ft, new THREE.Vector3(0, Math.min(0.06, -h), 0), orteils[i]); });   // (6 cm au plus : garde-fou)
       },
       // Posture de tir offensive (poses épaulées) : les animations tiennent souvent le buste en arrière (épaules derrière le
       // bassin, poids sur les talons). On mesure de combien la poitrine (Spine2) est en avant du bassin dans la direction de
@@ -1310,7 +1313,7 @@
       // vers l'avant-bas (20°) un peu en travers (15° vers la gauche), incliné de 25° ; la main droite y est amenée par IK
       // (orientation comprise : main = arme · prise⁻¹). Entrée / sortie en fondu au début et à la fin du clip (p : 0..1).
       poche(p, L) {
-        const x = Math.max(0, Math.min(1, p / 0.12, (0.96 - p) / 0.12)), w = x * x * (3 - 2 * x); if (w < 0.01) return;   // (fini un peu avant la fin du clip : la fin du rechargement du jeu tombe à une image près)
+        const x = Math.max(0, Math.min(1, p / 0.12)), w = x * x * (3 - 2 * x); if (w < 0.01) return;   // (pas de sortie : à la fin du rechargement, la reprise à deux mains part de cette poche, voir placeWeapon)
         const B = this.bones, rh = B.rh; group.updateMatrixWorld(true);
         const gq = group.getWorldQuaternion(new THREE.Quaternion()), sc = group.getWorldScale(V()).x, up = new THREE.Vector3(0, 1, 0);
         const fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
@@ -1463,6 +1466,9 @@
             const mw = new THREE.Matrix4().multiplyMatrices(hand.matrixWorld, L).premultiply(new THREE.Matrix4().copy(group.matrixWorld).invert());
             mw.decompose(weapon.position, weapon.quaternion, V()); weapon.scale.set(1, 1, 1);
             if (p >= 0 && lh && B.la && B.lf && weapon.magCenter) this.mainChargeur(p);
+            // fin du rechargement : la main gauche revient à sa place sous le garde-main ; le fusil est mémorisé pour la reprise
+            if (p >= 0 && M.prise && !S.sansPrise) { const xs = Math.max(0, Math.min(1, (p - 0.84) / 0.12)), fin = xs * xs * (3 - 2 * xs); if (fin > 0.01) this.tenir(fin, true, 'L'); }
+            if (mode === 'droite') this.armeDroite = { q: weapon.quaternion.clone(), p: weapon.position.clone() };
             // la main qui porte le fusil garde ses doigts sur la poignée ; la prise à deux mains se défait (reprise en fondu ensuite)
             if (mode === 'droite') this.tenir(1, false, 'R');
             return; }
@@ -1538,8 +1544,10 @@
         // reprise à deux mains (fin de rechargement…) : le fusil part de là où la main droite le portait et rejoint sa place en fondu
         const pk = this.priseK === undefined ? 1 : this.priseK;
         // (sans prise à deux mains dans l'animation : le fusil reste dans la main droite comme à la dernière prise)
-        if ((!two || pk < 0.999) && this.handLocal.droite && M.prise && !S.sansPrise) { const qS = new THREE.Quaternion(), pS = V(); new THREE.Matrix4().multiplyMatrices(rh.matrixWorld, this.handLocal.droite).premultiply(inv).decompose(pS, qS, V());
-          const k2 = two ? pk : 0; weapon.quaternion.copy(qS.slerp(weapon.quaternion, k2)); pos.copy(pS.lerp(pos, k2)); }
+        if (pk > 0.999) this.armeDroite = null;
+        if ((!two || pk < 0.999) && (this.armeDroite || this.handLocal.droite) && M.prise && !S.sansPrise) { const qS = new THREE.Quaternion(), pS = V();
+          if (this.armeDroite) { qS.copy(this.armeDroite.q); pS.copy(this.armeDroite.p); } else new THREE.Matrix4().multiplyMatrices(rh.matrixWorld, this.handLocal.droite).premultiply(inv).decompose(pS, qS, V());
+          const k2 = two || this.armeDroite ? pk : 0; weapon.quaternion.copy(qS.slerp(weapon.quaternion, k2)); pos.copy(pS.lerp(pos, k2)); }
         if (procW > 0.01) { const Pp = this.poseArme(loc, inv);
           // position lissée (ressort ~0,1 s, repère du groupe) : le fusil n'encaisse pas tout le rebond des pas (les bras l'absorbent)
           if (this.tPose !== undefined && this.t > this.tPose && this.pArme && !S.sansLisse) { const dtp = Math.min(0.1, this.t - this.tPose), w0 = 11, e = Pp.p.clone().sub(this.pArme), a = e.multiplyScalar(w0 * w0).addScaledVector(this.vArme, -2 * w0);
@@ -1552,7 +1560,7 @@
         // mains à leur place sur le fusil, doigts refermés dessus (voir calculerPrise) ; index sur la détente en tir
         { const kk = this.majPrise(tient);
           this.detK = (this.detK || 0) + (((recoil || 0) > 0.02 || ((this.epK || 0) > 0.6 && this.regard) ? 1 : 0) - (this.detK || 0)) * kk;
-          if (tient) this.tenir(this.priseK, true); }
+          if (tient || this.armeDroite) this.tenir(this.armeDroite ? 1 : this.priseK, true); }   // (après un rechargement, les mains restent sur le fusil qui rejoint sa place)
         if (tient) {   // mémoire de la prise pour les modes à une main
           weapon.updateMatrixWorld(true);
           this.handLocal.droite = new THREE.Matrix4().copy(rh.matrixWorld).invert().multiply(weapon.matrixWorld);

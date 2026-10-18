@@ -158,6 +158,19 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   check('balles perdues : elles existent en bataille et chacune est journalisée', strays > 0 && logged === strays, { strays, logged, parBataille: strays / battles });
 }
 {
+  // ---- Départ : deux équipiers ne commencent jamais au même endroit (ni ne s'y retrouvent à 1 s) ----
+  let stacked = 0, ex = null;
+  for (let sd = 1; sd <= 120; sd++) {
+    const b = mk(sd), look = () => { for (const t of b.teams) for (let i = 0; i < 5; i++) for (let j = i + 1; j < 5; j++) { const p = t.units[i], q = t.units[j]; if (Math.hypot(p.x - q.x, p.z - q.z) < 0.8) { stacked++; ex = ex || { sd, t: b.t, p: p.id, q: q.id }; } } };
+    look(); while (b.t < 1) b.step(); look();
+  }
+  check('départ : aucun équipier à moins de 0,8 m d\'un autre à t = 0 et t = 1 s (120 graines)', stacked === 0, ex);
+  // ---- Corps : on ne s'arrête pas les pieds dans un opérateur tombé (poupée de chiffon côté rendu) ----
+  let onCorpse = 0, still = 0;
+  for (let sd = 301; sd <= 306; sd++) { const b = mk(sd); while (!b.over) { b.step(); for (const u of b.units) if (u.alive && !u.moving && u.state !== 'reviving') { still++; if (b.units.some(c => !c.alive && Math.hypot(c.x - u.x, c.z - u.z) < 0.5)) onCorpse++; } } }
+  check('corps : un opérateur arrêté ne se tient presque jamais sur un corps (< 0,5 m ; < 0,3 % du temps)', onCorpse / still < 0.003, { onCorpse, still });
+}
+{
   // ---- Ordre « tenir une position clé » (capacité du moteur, pas encore utilisée par l'IA ni l'interface) ----
   // position d'essai : un point de couverture plaqué du côté ouest, couvert face à l'est (la carte définira les vraies)
   const ops = ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
