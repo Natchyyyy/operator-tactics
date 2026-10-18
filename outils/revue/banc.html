@@ -56,7 +56,10 @@ function extraire(src, nom) {
 }
 async function chargerPilote() {
   const src = await (await fetch('../../web/app.js', { cache: 'no-store' })).text();
-  const code = extraire(src, 'animateSkinned') + '\n' + extraire(src, 'chargeur') + '\nreturn { animateSkinned, chargeur };';
+  // syncMeshes (position interpolée, vitesse lissée, lacet du corps) est extraite aussi : le banc tourne le soldat exactement
+  // comme le jeu ; si elle manque (renommée), repli sur une copie simplifiée
+  let sync = ''; try { sync = extraire(src, 'syncMeshes'); } catch (e) { console.warn('banc : syncMeshes introuvable, repli', e); }
+  const code = extraire(src, 'animateSkinned') + '\n' + extraire(src, 'chargeur') + '\n' + sync + '\nfunction animateOperator(u, m, dt) { return animateSkinned(u, m, dt); }\nreturn { animateSkinned, chargeur, syncMeshes: ' + (sync ? 'syncMeshes' : 'null') + ' };';
   const fab = new Function('THREE', 'DT', 'lerp', 'ETAT', '_v1', '_v2', '_v3', 'with (ETAT) { ' + code + ' }');
   PILOTE = { fab, longueur: code.length };
 }
@@ -65,7 +68,7 @@ function nouveau(modele) {
   const f = OT.Soldat3D.create({ modele, uniform: 0x6b5a3e, weapon: 'carbine' });
   f.ring = { material: { opacity: 0.55 } }; f.anim = { crouch: 0, fall: 0, fallDir: 0, recoil: 0, flinch: 0, aim: 0, phase: 0 };
   f.prev = { x: 0, z: 0 }; f.cur = { x: 0, z: 0 }; f.yaw = 0;
-  const ETAT = { battle: { over: false, result: null }, meshes: {} };
+  const ETAT = { battle: { over: false, result: null, units: [] }, meshes: {}, frameDt: 1 / FPS, SPIN: { on: false }, spinWatch() {} };
   const P = PILOTE.fab(THREE, DT, lerp, ETAT, new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3());
   return { f, ETAT, P };
 }
@@ -76,6 +79,7 @@ function jouer(modele, etatId, rappel, opts) {
   const S = nouveau(modele), f = S.f, a = f.anim;
   const u = { id: 'u', alive: true, stance: 'stand', target: null, state: 'advancing', moving: false, reloading: 0, throwing: false, weapon: { reload: 2.6 }, preaim: false, _v: 0, speed() { return this._v; } };
   const cible = { id: 'cible', alive: true, x: 0, z: 10 }; S.ETAT.meshes.cible = { group: { position: new THREE.Vector3(0, 0, 10) } };
+  S.ETAT.battle.units = [u]; S.ETAT.meshes.u = f; f.cur.facing = Math.PI / 2;
   let t = 0, tSim = 0, facing = 0, depAz = 0;   // facing : lacet voulu (rad, convention du groupe : avant = (sin, cos))
   const total = E.seg.reduce((s, x) => s + x[0], 0), dt = 1 / FPS;
   const param = (tt) => { let acc = 0; for (const [d, p] of E.seg) { if (tt < acc + d) return p; acc += d; } return E.seg[E.seg.length - 1][1]; };
@@ -92,22 +96,25 @@ function jouer(modele, etatId, rappel, opts) {
       const az = (p.vise || !u.moving ? facing : depAz) + (p.dir || 0) * Math.PI / 180;
       if (!p.vise && u.moving) { facing = depAz; }
       const ax = p.vise ? facing + (p.dir || 0) * Math.PI / 180 : depAz;
-      f.prev = { x: f.cur.x, z: f.cur.z }; f.cur = { x: f.cur.x + Math.sin(ax) * u._v * DT, z: f.cur.z + Math.cos(ax) * u._v * DT, facing: -facing + Math.PI / 2 };
+      f.prev = { x: f.cur.x, z: f.cur.z, facing: f.cur.facing }; f.cur = { x: f.cur.x + Math.sin(ax) * u._v * DT, z: f.cur.z + Math.cos(ax) * u._v * DT, facing: -facing + Math.PI / 2 };
       // la cible reste à 10 m devant le soldat, à hauteur de poitrine
       cible.x = f.cur.x + Math.sin(facing) * 10; cible.z = f.cur.z + Math.cos(facing) * 10; S.ETAT.meshes.cible.group.position.set(cible.x, 0, cible.z);
       tSim += DT;
     }
-    // image (comme syncMeshes)
+    // image : syncMeshes du jeu (si extraite), sinon copie simplifiée
     const alpha = Math.max(0, Math.min(1, 1 - (tSim - t - dt) / DT));
+    const p = param(t);
+    if (p.tir) { tirT += dt; if (tirT >= p.tir) { tirT = 0; a.recoil = 1; } }
+    const vdx = (f.cur.x - f.prev.x) / DT, vdz = (f.cur.z - f.prev.z) / DT;
+    if (S.P.syncMeshes) { S.ETAT.frameDt = dt; S.P.syncMeshes(alpha); }
+    else {
     const x = f.prev.x + (f.cur.x - f.prev.x) * alpha, z = f.prev.z + (f.cur.z - f.prev.z) * alpha; f.group.position.set(x, 0, z);
-    const vdx = (f.cur.x - f.prev.x) / DT, vdz = (f.cur.z - f.prev.z) / DT, vinst = Math.hypot(vdx, vdz), kv = vinst > 4 ? 0 : Math.min(1, dt * 9);
+    const vinst = Math.hypot(vdx, vdz), kv = vinst > 4 ? 0 : Math.min(1, dt * 9);
     a.vx = (a.vx || 0) + (vdx - (a.vx || 0)) * kv; a.vz = (a.vz || 0) + (vdz - (a.vz || 0)) * kv;
     let want = facing; if (!u.target && u.moving && vinst > 0.3 && Math.hypot(a.vx, a.vz) > 0.3) want = -Math.atan2(a.vz, a.vx) + Math.PI / 2;
     let d = want - f.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; const ms = 5.5 * dt; f.yaw += Math.max(-ms, Math.min(ms, d * Math.min(1, dt * 10)));
     f.group.rotation.y = f.yaw;
-    const p = param(t);
-    if (p.tir) { tirT += dt; if (tirT >= p.tir) { tirT = 0; a.recoil = 1; } }
-    S.P.animateSkinned(u, f, dt);
+    S.P.animateSkinned(u, f, dt); }
     t += dt; img++;
     if (rappel) rappel(img, t, { f, u, p, cible: new THREE.Vector3(cible.x, 1.35, cible.z), vel: new THREE.Vector3(vdx, 0, vdz), tir: a.recoil > 0.9, E });
   }

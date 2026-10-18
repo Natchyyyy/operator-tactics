@@ -1346,7 +1346,10 @@
         // orientation de la main : celle de sa prise sous le garde-main (paume vers le haut, comme pour pousser le chargeur), au
         // lieu de celle de l'animation qui tourne brusquement ; coude choisi pour un poignet peu cassé (poserBras)
         if (M.prise && M.prise.L && !S.sansPrise) { const tq = new THREE.Quaternion(); new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, M.prise.L.Hrel).decompose(V(), tq, V());
-          this.poserBras('L', B.la, B.lf, B.lh, WP(B.lh).add(T.sub(palm)), tq, w, M.prise.L); }
+          const ins = sm((p - 0.45) / 0.15);   // (au porte-chargeur : poignet dans l'axe de l'avant-bras ; au puits : main sous le fusil)
+          this.poserBras('L', B.la, B.lf, B.lh, WP(B.lh).add(T.sub(palm)), WQ(B.lh).slerp(tq, ins), w, M.prise.L);
+          if (ins < 0.99) { const n = M.prise.L.ordre[2], mid = (this.osDoigts && this.osDoigts[n]) || body.getObjectByName(n), A = WP(mid).sub(WP(B.lh)).normalize(), F = WP(B.lh).sub(WP(B.lf)).normalize();
+            const q = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(A, F), w * (1 - ins) * 0.85); B.lh.quaternion.copy(WQ(B.lh.parent).invert().multiply(q).multiply(WQ(B.lh))); B.lh.updateMatrixWorld(true); } }
         else ik(B.la, B.lf, B.lh, T.sub(palm).multiplyScalar(w));
       },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)

@@ -167,8 +167,8 @@
   // enemy : composition (identifiants d'opérateurs), level : niveau des ennemis, order : leur ordre tactique
   // reward : crédits en cas de victoire (la défaite rapporte une fraction), xp : expérience de base par opérateur engagé
   const MISSIONS = [
-    // une seule carte pour l'instant : le parking du centre commercial ; tactiques : le tiroir (bonds alternés) et les plans de voies
-    { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille du Groupe Karst traverse le parking du centre commercial. Interceptez-la.', mapId: 'parking', enemy: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal'], level: 0, order: 'careful', enemyTactics: ['tiroir'], reward: 180, xp: 40, difficulty: 1 },
+    // une seule carte pour l'instant : le parking de la Grand-Rue ; tactiques : le tiroir (bonds alternés) et les plans de voies
+    { id: 'patrouille', name: 'Patrouille accrochée', desc: 'Une patrouille du Groupe Karst traverse le parking de la Grand-Rue. Interceptez-la.', mapId: 'parking', enemy: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal'], level: 0, order: 'careful', enemyTactics: ['tiroir'], reward: 180, xp: 40, difficulty: 1 },
     { id: 'galerie', name: 'Balise de la galerie', desc: 'Les balises de notre agent disparu émettent depuis l\'enclos central du parking. Prenez la zone et tenez-la jusqu\'à 100 %.', mapId: 'parking', enemy: ['k_fauve', 'k_vipere', 'k_hyene', 'k_chacal', 'k_molosse'], level: 1, order: 'careful', objective: 'capture', enemyTactics: ['tiroir'], reward: 240, xp: 50, difficulty: 2 },
     { id: 'assaut', name: 'Assaut frontal', desc: 'Une équipe aguerrie fonce au contact entre les voitures. Tenez ou contre-attaquez.', mapId: 'parking', enemy: ['k_molosse', 'k_rapace', 'k_bison', 'k_chacal', 'k_fauve'], level: 3, order: 'assault', enemyTactics: ['tiroir'], reward: 300, xp: 60, difficulty: 2 },
     { id: 'tenir', name: 'Tenir le parking', desc: 'Tenez 140 secondes face à un assaut : il suffit qu\'un seul opérateur soit encore en état à l\'échéance.', mapId: 'parking', enemy: ['k_molosse', 'k_fauve', 'k_bison', 'k_chacal', 'k_vipere'], level: 2, order: 'assault', objective: 'hold', duration: 140, enemyTactics: ['tiroir'], reward: 360, xp: 70, difficulty: 3 },
@@ -181,7 +181,7 @@
   // prime de participation quand toutes ont été jouées, prime de campagne quand toutes ont été gagnées.
   // Vétéran et Élite rejouent les missions avec un adversaire plus aguerri (niveau +), plus de tactiques, de meilleures primes.
   const CAMPAIGNS = [
-    { id: 'reguliere', name: 'Campagne régulière', desc: 'Six missions contre le Groupe Karst sur le parking du centre commercial.',
+    { id: 'reguliere', name: 'Campagne régulière', desc: 'Six missions contre le Groupe Karst sur le parking de la Grand-Rue.',
       missions: ['patrouille', 'galerie', 'assaut', 'tenir', 'parking', 'elite'],
       levelBonus: 0, rewardMul: 1, participation: 200, completion: 500, unlock: null },
   ];
