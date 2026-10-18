@@ -70,7 +70,7 @@
   S.OEIL = OEIL; S.GARDE = GARDE;
   S.CREUX = CREUX;
   function b64ToBuf(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
-  // Repère de paume : un point fixe dans chaque main, à la base des doigts (le squelette du GIGN n'a pas d'os de doigts).
+  // Repère de paume : un point fixe dans chaque main, à la base des doigts (les doigts eux-mêmes sont posés par calculerPrise).
   // La paume = 60 % du poignet vers ce point.
   const PALME = [0, 0.135, 0];
   function load() {
@@ -1425,14 +1425,6 @@
           this.poserBras('L', B.la, B.lf, B.lh, cible, qP.slerp(tq, ins), w, Dl); }
         else ik(B.la, B.lf, B.lh, T.sub(palm).multiplyScalar(w));
       },
-      // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
-      // L'arme est tenue par les PAUMES (entre le poignet et la base des doigts), pas par les poignets : la poignée dans la paume
-      // droite, le garde-main dans la paume gauche. L'orientation aligne le segment poignée → garde-main de l'arme (qui n'est
-      // pas parallèle au canon : la poignée est sous l'axe) sur le segment paume droite → paume gauche ; le dessus de l'arme
-      // reste vers le haut. Une seule main (lancer, victoire) : l'arme suit l'axe de la main droite.
-      // mode : 'deux' (prise à deux mains, voir ci-dessus) ; 'droite' / 'gauche' : l'arme reste solidaire de cette main, dans
-      // la position relative qu'elle avait à la dernière prise à deux mains (rechargement : la main gauche va au chargeur ;
-      // lancer : l'arme pend à la main gauche) ; 'sol' : posée à plat au sol près de la main droite (soldat à terre) puis figée.
       // Bras h (épaule arm → coude fore → poignet hand) : poignet amené en tp (monde) et main orientée en tq, poids k. Le coude est
       // choisi sur le cercle de ses positions possibles : avant-bras aligné sur la main (poignet peu cassé), proche de la pose de
       // l'animation, assez bas (garde basse plus bas qu'en visée), jamais rentré dans le buste ; la moitié de la torsion de la main
@@ -1530,7 +1522,7 @@
         const qL = repere(dg), pL = poche.clone().addScaledVector(up, -GARDE.bas).addScaledVector(fwd, GARDE.avant).sub(butt.clone().applyQuaternion(qL));
         return { q: qL.slerp(qA, ea), p: pL.lerp(pA, ea) };
       },
-      // poids de la prise à deux mains (priseK, fondu ~0,15 s) ; renvoie le coefficient de lissage de l'image
+      // poids de la prise à deux mains (priseK, ressort ~0,3 s) ; renvoie le coefficient de lissage de l'image
       majPrise(tient) {
         const dt = Math.max(0, Math.min(0.1, this.t - (this.tPrise === undefined ? this.t : this.tPrise))), deja = this.tPrise === this.t && this.priseK !== undefined; this.tPrise = this.t;
         const kk = dt > 0 ? Math.min(1, dt * 8) : deja && this.t > 0 ? 0 : 1;   // (deux appels dans la même image : un seul pas de lissage)
@@ -1539,6 +1531,14 @@
         else if (dt > 0) { const w = 14, x = this.priseK, v = this.priseV || 0, a = w * w * (c - x) - 2 * w * v; this.priseV = v + a * dt; this.priseK = Math.max(0, Math.min(1, x + this.priseV * dt)); if (this.priseK === 0 || this.priseK === 1) this.priseV = 0; }
         return kk;
       },
+      // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
+      // L'arme est tenue par les PAUMES (entre le poignet et la base des doigts), pas par les poignets : la poignée dans la paume
+      // droite, le garde-main dans la paume gauche. L'orientation aligne le segment poignée → garde-main de l'arme (qui n'est
+      // pas parallèle au canon : la poignée est sous l'axe) sur le segment paume droite → paume gauche ; le dessus de l'arme
+      // reste vers le haut. Une seule main (lancer, victoire) : l'arme suit l'axe de la main droite.
+      // mode : 'deux' (prise à deux mains, voir ci-dessus) ; 'droite' / 'gauche' : l'arme reste solidaire de cette main, dans
+      // la position relative qu'elle avait à la dernière prise à deux mains (rechargement : la main gauche va au chargeur ;
+      // lancer : l'arme pend à la main gauche) ; 'sol' : posée à plat au sol près de la main droite (soldat à terre) puis figée.
       placeWeapon(twoHands, recoil, mode) {
         const B = this.bones, rh = B.rh, lh = B.lh; if (!rh) return;
         mode = mode || (twoHands ? 'deux' : 'droite');
