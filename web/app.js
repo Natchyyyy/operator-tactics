@@ -82,7 +82,7 @@
   // est validée avant la coupe (pas dans un obstacle, sujet visible, objectif non bouché par un mur) puis surveillée
   // (sujet masqué plus d'une seconde → autre plan) ; tout mouvement est amorti par un ressort critique (aucun à-coup),
   // la focale aussi ; la perche (clipBoom) empêche de traverser voitures et murs.
-  const DIRECTOR = { eventShot: null, pending: null, clock: 0, lastT: null, battle: null, t0: 0, lastWide: -99, hist: [], vel: new THREE.Vector3(), lvel: new THREE.Vector3(), fov: 50, fvel: 0, masked: 0, minHold: 3.5 };
+  const DIRECTOR = { smokes: [], eventShot: null, pending: null, clock: 0, lastT: null, battle: null, t0: 0, lastWide: -99, hist: [], vel: new THREE.Vector3(), lvel: new THREE.Vector3(), fov: 50, fvel: 0, masked: 0, minHold: 3.5 };
   function directorEvent(kind, x, z) {   // appelée sur une explosion ou une neutralisation : traitée à l'image suivante
     if (cam.mode !== 'director' || kind === 'revive') return;
     DIRECTOR.pending = { kind, x, z, at: simTime };
@@ -184,9 +184,10 @@
       if (o.visible === false || skip.has(o)) return;
       if (o.isMesh && o.geometry && o.geometry.attributes.position && !o.isSkinnedMesh) {
         const mats = Array.isArray(o.material) ? o.material : [o.material];
-        const ghost = mats.every(m => !m || m.visible === false || m.blending === THREE.AdditiveBlending || (m.transparent && !o.onBeforeRender.length && (m.opacity < 0.5 || m.depthWrite === false)));   // hologrammes, reflets, vitres fantômes
+        const ghost = mats.every(m => !m || m.visible === false || m.blending === THREE.AdditiveBlending);   // hologrammes, halos
+        const thin = mats.every(m => m && (m.alphaTest > 0 || (m.transparent && (m.opacity < 0.5 || m.depthWrite === false))));   // ajouré, translucide (grillage, bâche légère)
         if (!ghost) {
-          mval = o.userData.keep && o.onBeforeRender.length ? 2 : mats.some(m => m && m.alphaTest > 0) ? 3 : 1;   // 2 : s'efface vu d'en haut (toit de la station de lavage) ; 3 : ajouré (grillage)
+          mval = o.userData.keep && o.onBeforeRender.length ? 2 : thin ? 3 : 1;   // 2 : s'efface vu d'en haut (toit de la station de lavage) ; 3 : on voit au travers (compte pour placer la caméra)
           if (mval === 2) { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); bb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); OCC.fadeTop = Math.max(OCC.fadeTop, bb.max.y); }
           if (o.isInstancedMesh) for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, IM); addGeo(o.geometry, M.multiplyMatrices(o.matrixWorld, IM)); }
           else addGeo(o.geometry, o.matrixWorld);
@@ -292,13 +293,43 @@
     for (const y of [e.y, e.y + 0.3]) { const q = V3(e.x, y, e.z); if ((soft || segFree(p, q) > 0.995) && (!OCC.use || occRay(p, q, 0.45) >= 1)) return true; }   // tête ou haut du casque
     return false;
   }
-  function shotQuality(f, at, soft) {
+  function shotQuality(f, at, soft, s) {
     const p = at || f.pos, mp = battle.map; occEnsure();
-    if (p.y < 0.5 || inObstacle(p, 0.4) || p.x < 0.6 || p.z < 0.6 || p.x > mp.width - 0.6 || p.z > mp.depth - 0.6 || (OCC.use && occBad(p))) return -1;
+    if (p.y < 0.5 || inObstacle(p, 0.4) || p.x < 0.6 || p.z < 0.6 || p.x > mp.width - 0.6 || p.z > mp.depth - 0.6 || (OCC.use && (occBad(p) || dynBad(p, s)))) return -1;
     const L = p.distanceTo(f.look); if (Math.min(segFree(p, f.look), OCC.use ? occRay(p, f.look) : 1) * L < Math.min(3.5, L * 0.5)) return -1;
     if (!f.pts.length) return 1;
-    let q = 0; for (const e of f.pts) if (e && subjectSeen(p, e, soft)) q++;
+    let q = 0; for (const e of f.pts) if (e && subjectSeen(p, e, soft) && !(OCC.use && s && unitScreens(p, e, s))) q++;
     return q / f.pts.length;
+  }
+  // occultants mobiles : un autre soldat collé à l'objectif (son dos remplit l'image) ou entre la caméra et le sujet tout
+  // près d'elle ; caméra dans un nuage de fumigène
+  const subjIds = (s) => s ? [s.id, s.tid, s.kid, s.vid] : [];
+  function dynBad(p, s) {
+    const ids = subjIds(s);
+    for (const u of battle.units) { const m = meshes[u.id]; if (!m || ids.includes(u.id)) continue; const P = m.group.position; if (p.y < 2.3 && Math.hypot(P.x - p.x, P.z - p.z) < 0.95) return 4; }
+    for (const k of DIRECTOR.smokes) if (simTime < k.until && p.y < 4.5 && Math.hypot(k.x - p.x, k.z - p.z) < k.r + 1.2) return 5;
+    return 0;
+  }
+  function unitScreens(p, e, s) {   // un autre soldat coupe le regard dans les 5 premiers mètres
+    const ids = subjIds(s), dx = e.x - p.x, dz = e.z - p.z, L2 = dx * dx + dz * dz || 1;
+    for (const u of battle.units) {
+      const m = meshes[u.id]; if (!m || ids.includes(u.id)) continue; const P = m.group.position;
+      const t = Math.max(0, Math.min(1, ((P.x - p.x) * dx + (P.z - p.z) * dz) / L2)); if (t * Math.sqrt(L2) > 5 || t > 0.9) continue;
+      const y = p.y + (e.y - p.y) * t; if (y > (u.alive ? 1.85 : 0.5)) continue;
+      if (Math.hypot(p.x + dx * t - P.x, p.z + dz * t - P.z) < 0.38) return true;
+    }
+    return false;
+  }
+  // encombrement du premier plan : part du cadre bouchée par du décor à moins de 2,5 m (grille de 4 × 3 rayons)
+  function clutter(p, look, fov) {
+    if (!OCC.g) return 0;
+    const fw = look.clone().sub(p).normalize(), rt = new THREE.Vector3().crossVectors(fw, new THREE.Vector3(0, 1, 0)).normalize(), up = new THREE.Vector3().crossVectors(rt, fw);
+    const th = Math.tan(THREE.MathUtils.degToRad(fov / 2)), tw = th * (camera.aspect || 16 / 9); let n = 0;
+    for (const sx of [-0.75, -0.25, 0.25, 0.75]) for (const sy of [-0.6, 0, 0.6]) {
+      const d = fw.clone().addScaledVector(rt, sx * tw).addScaledVector(up, sy * th).normalize(), q = p.clone().addScaledVector(d, 2.5);
+      if (q.y > 0.35 && occRay(p, q) < 1) n++;
+    }
+    return n / 12;
   }
   // cadrage d'un plan à l'instant présent : position, point visé, sujets à garder visibles, focale, amortissement, pivot de perche
   function frameShot(s, dt) {
@@ -378,8 +409,9 @@
     for (const s of list) {
       s.t0 = DIRECTOR.clock - 1.6; const f2 = OCC.use ? frameShot(s, 0) : null;   // le même plan 1,6 s plus tard (grue qui descend, travelling, rotation)
       s.t0 = DIRECTOR.clock; const f = frameShot(s, 0); if (!f) continue;
-      let q = shotQuality(f) + (bonus ? bonus(s) : 0);
-      if (q >= 0 && f2 && shotQuality(f2) < 0) q -= 0.5;
+      let q = shotQuality(f, null, false, s) + (bonus ? bonus(s) : 0);
+      if (q >= 0 && f2 && shotQuality(f2, null, false, s) < 0) q -= 0.5;
+      if (q >= 0 && OCC.use) q -= clutter(f.pos, f.look, f.fov) * 0.9;   // un mur, un bac ou une carrosserie qui remplit le premier plan
       if (q >= 0 && f.pos.y < 9 && !(f.noBoom && OCC.use)) { const c = clipBoom(f.pivot, f.pos); if (c.y - f.pos.y > 0.4 || c.distanceTo(f.pos) > 0.8) q -= 0.6; }   // la perche devrait se replier ou monter : cadrage dénaturé
       if (q > bq + 1e-6) { bq = q; best = s; }
     }
@@ -414,7 +446,7 @@
   }
   function directorCamera() {
     const D = DIRECTOR, dt = dirTick();
-    if (D.battle !== battle) { D.battle = battle; D.t0 = D.clock; D.lastWide = -99; D.hist.length = 0; D.pending = null; cam.shot = null; }
+    if (D.battle !== battle) { D.battle = battle; D.smokes = []; D.t0 = D.clock; D.lastWide = -99; D.hist.length = 0; D.pending = null; cam.shot = null; }
     let s = cam.shot && typeof cam.shot === 'object' ? cam.shot : null;
     if (s && s.t0 === undefined) { s.t0 = D.clock; s.forced = true; s.dur = 1e9; s.fresh = true; }   // plan imposé (API.camShot)
     let next = null;
@@ -433,8 +465,8 @@
     if (!next && !(s && s.forced)) {
       const age = s ? D.clock - s.t0 : 99;
       // jugé depuis la position RÉELLE de la caméra (soft : le tireur voit sa cible selon la simulation ; le décor dessiné compte toujours)
-      if (f) { const q = shotQuality(f, cam.init ? cam.pos : null, f.soft); D.masked = q < 0.5 ? D.masked + dt : 0; D.bad = q < 0 ? (D.bad || 0) + dt : 0; }
-      const need = !s ? 'debut' : !f ? 'perdu' : age > s.dur ? 'fin' : (D.bad > 0.35 && age > 0.5) ? 'decor' : (D.masked > 1.2 && age > 2.5) ? 'masque' : (s.kind === 'dolly' && s.still > 1.2 && age > D.minHold) ? 'arret' : (s.kind === 'establish' && D.hist.length > 1 && engagedUnits(1).length && age > D.minHold) ? 'action' : '';
+      if (f) { const q = shotQuality(f, cam.init ? cam.pos : null, f.soft, s); D.masked = q < 0.5 ? D.masked + dt : 0; D.bad = q < 0 ? (D.bad || 0) + dt : 0; }
+      const need = !s ? 'debut' : !f ? 'perdu' : age > s.dur ? 'fin' : (D.bad > 0.2 && age > 0.4) ? 'decor' : (D.masked > 1.2 && age > 2.5) ? 'masque' : (s.kind === 'dolly' && s.still > 1.2 && age > D.minHold) ? 'arret' : (s.kind === 'establish' && D.hist.length > 1 && engagedUnits(1).length && age > D.minHold) ? 'action' : '';
       if (need) {
         D.why = need;
         for (const c of pickShot()) { next = bestOf(variants(c)); if (next) break; }
@@ -450,7 +482,7 @@
     }
     if (!f) { if (s && s.forced) { cam.shot = null; } return; }
     // 3) mouvement : coupe franche au changement de plan (sauf si le nouveau cadre est tout proche : on glisse), puis ressort
-    const want = dodge(f.noBoom && OCC.use ? f.pos.clone() : clipBoom(f.pivot, f.pos), f);
+    const want = dodge(f.noBoom && OCC.use ? f.pos.clone() : clipBoom(f.pivot, f.pos), f, s);
     const jump = !cam.init || (next || s.fresh) && (cam.pos.distanceTo(want) > 4 || cam.look.clone().sub(cam.pos).normalize().dot(f.look.clone().sub(want).normalize()) < 0.87);
     s.fresh = false;
     if (jump) { cam.pos.copy(want); cam.look.copy(f.look); D.vel.set(0, 0, 0); D.lvel.set(0, 0, 0); D.fov = f.fov; D.fvel = 0; cam.init = true; }
@@ -467,9 +499,9 @@
   }
   // pendant un plan, les sujets bougent : si la place voulue touche le décor dessiné (contre un objet, sous un auvent, regard
   // bouché), on cherche tout près une place dégagée (un peu plus haut, un peu plus près du sujet) ; le ressort y glisse
-  function dodge(want, f) {
+  function dodge(want, f, s) {
     if (!OCC.use || !OCC.g) return want;
-    const ok = (p) => { if (occBad(p) || inObstacle(p, 0.3)) return false; const L = p.distanceTo(f.look); return occRay(p, f.look) * L >= Math.min(3.5, L * 0.5); };
+    const ok = (p) => { if (occBad(p) || dynBad(p, s) || inObstacle(p, 0.3)) return false; const L = p.distanceTo(f.look); return occRay(p, f.look) * L >= Math.min(3.5, L * 0.5); };
     if (ok(want)) return want;
     const P = f.noBoom ? f.look : f.pivot, tries = f.noBoom ? [[1, 1.5], [1, 3], [0.85, 0], [0.85, 2]] : [[1, 0.6], [1, 1.2], [0.8, 0], [0.8, 0.6], [0.62, 0], [0.62, 0.8]];
     for (const [k, up] of tries) { const q = V3(P.x + (want.x - P.x) * k, want.y + up, P.z + (want.z - P.z) * k); if (ok(q)) return q; }
@@ -482,10 +514,10 @@
       R.cur = { s, kind: s.kind, why: why || '', t: +simTime.toFixed(1), n: 0, vis: 0, bad: 0, blocked: 0, sim: 0 };
     }
     const c = R.cur; c.n++;
-    const b = occBad(p); if (b) { c.bad++; R.badKinds[b] = (R.badKinds[b] || 0) + 1; }
+    const b = occBad(p) || dynBad(p, s); if (b) { c.bad++; R.badKinds[b] = (R.badKinds[b] || 0) + 1; }
     if (inObstacle(p, 0)) c.sim++;
     const pts = (f.pts || []).filter(Boolean); let seen = 0;
-    for (const e of pts) if (occRay(p, e, 0.45) >= 1 || occRay(p, V3(e.x, e.y + 0.3, e.z), 0.45) >= 1) seen++;
+    for (const e of pts) if ((occRay(p, e, 0.45) >= 1 || occRay(p, V3(e.x, e.y + 0.3, e.z), 0.45) >= 1) && !unitScreens(p, e, s)) seen++;
     c.vis += pts.length ? seen / pts.length : 1; if (pts.length && seen < pts.length) c.blocked++;
     const L = p.distanceTo(f.look); if (occRay(p, f.look) * L < Math.min(3.5, L * 0.5)) c.wall = (c.wall || 0) + 1;
   }
@@ -1274,6 +1306,7 @@
   // effets de tactiques : nappe de fumée, obus, soins, drone
   const smokeMat = new THREE.MeshStandardMaterial({ color: 0xc9c9c4, transparent: true, opacity: 0.55, roughness: 1, depthWrite: false });
   function addSmoke(ev) {
+    DIRECTOR.smokes = DIRECTOR.smokes.filter(k => k.until > simTime); DIRECTOR.smokes.push({ x: ev.x, z: ev.z, r: ev.r || 3, until: ev.until });   // le réalisateur évite de poser la caméra dans la fumée
     if (EFX) { EFX.smoke(ev.x, ev.z, ev.r, Math.max(2, ev.until - simTime)); return; }
     const g = new THREE.Group();
     for (let i = 0; i < 14; i++) { const r = 1.2 + Math.random() * 1.6; const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), smokeMat.clone()); m.position.set(ev.x + (Math.random() - 0.5) * ev.r * 1.6, 0.8 + Math.random() * 1.6, ev.z + (Math.random() - 0.5) * ev.r * 1.6); m.userData.drift = new THREE.Vector3((Math.random() - 0.5) * 0.15, 0.08 + Math.random() * 0.1, (Math.random() - 0.5) * 0.15); g.add(m); }

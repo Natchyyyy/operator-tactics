@@ -35,6 +35,8 @@
   const RECUL = 1.45;
   // ouverture des pieds en marche / course (rad, pointe vers l'extérieur ; réel : 5 à 10°)
   const OUV_PIED = 0.12;
+  // pied en l'air : écart max de la cheville à sa pose de repos (rad) ; pli max des orteils au déroulé (rad)
+  const CHEVILLE_MAX = 0.5, ORTEIL_MAX = 0.6;
   // plan du genou (IK des jambes) : écart max à l'avant anatomique vers l'extérieur / l'intérieur (rad)
   const GENOU_OUT = 1.0, GENOU_IN = 0.45;
   // à genou : hauteur du genou arrière posé (os, m), de sa cheville (pointe du pied au sol), cheville du pied avant à plat
@@ -43,7 +45,8 @@
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
   const PENCHE = 0.21;
   // visée : angle (rad) entre la ligne des épaules et la face (0 = carré, ~1,3 = de profil comme les visées Mixamo), voir penche()
-  const BIAIS = 0.5;   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
+  const BIAIS = 0.5;
+  const COURSE_BAS = { Trot_Low_Haut: 1, Run_Low_Haut: 1, Run_Low: 1 };   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
   // visée à l'arrêt : rotation du bassin et des jambes vers la cible (rad), voir update()
   const CARRE = 0.61;
   // tangage voulu du canon dans les poses épaulées (rad ; légèrement vers le bas : la cible est à hauteur de poitrine)
@@ -72,6 +75,7 @@
   // creux de l'épaule de la garde basse (m, par rapport à l'articulation de l'épaule : vers le centre, l'avant, le bas)
   const POCHE = { dedans: 0.06, avant: 0.05, bas: 0.05 };
   S.OEIL = OEIL; S.GARDE = GARDE;
+  const AVANCE_APPUI = 0;   // visée : main d'appui avancée sur le garde-main (m) ; 0 : les bras du modèle sont déjà tendus (plus loin, le fusil recule vers l'œil)
   S.CREUX = CREUX;
   function b64ToBuf(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
   // Repère de paume : un point fixe dans chaque main, à la base des doigts (les doigts eux-mêmes sont posés par calculerPrise).
@@ -315,6 +319,16 @@
   // modèle). Genou dans son plan, pied gardant son orientation monde. Renvoie le nouveau clip (jambes seules) et l'erreur max.
   // ouv (rad, facultatif) : orientation des pieds (axe talon → plante du maillage) ramenée à ouv vers l'extérieur du sens de la
   // marche (+Z du modèle) : les cycles posaient le pied pointe en dedans de 15 à 33° (mesuré, « pieds de pigeon »)
+  // Pose de repos des pieds (garde basse) : rotations locales cheville (par rapport au tibia) et orteils (par rapport au pied),
+  // hauteur des os des orteils au sol ; référence des contraintes de cheville / d'orteils de jambesIK
+  function reposPieds(M) {
+    if (M._rp) return M._rp;
+    const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n), gb = M.clips.Garde_Basse; if (!gb) return null;
+    const mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true);
+    const F = ['LeftFoot', 'RightFoot'].map(b), T = ['LeftToeBase', 'RightToeBase'].map(b), E = ['LeftToe_End', 'RightToe_End'].map(b);
+    M._rp = { pied: F.map(o => o.quaternion.clone()), orteil: T.map(o => o.quaternion.clone()), tR: Math.min(...T.map(o => o.getWorldPosition(new THREE.Vector3()).y)), bout: !!(E[0] && E[1]) };
+    mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true); return M._rp;
+  }
   function jambesIK(M, src, nom, cible, dyH, libre, ouv) {   // libre : pas de règle sur le plan du genou (à genou)
     const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
     const hips = b('Hips'), L = [['LeftUpLeg', 'LeftLeg', 'LeftFoot'], ['RightUpLeg', 'RightLeg', 'RightFoot']].map(l => l.map(b)), toes = [b('LeftToeBase'), b('RightToeBase')];
@@ -323,9 +337,10 @@
     const clip = new THREE.AnimationClip(nom, src.duration, src.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone()));
     const mixer = new THREE.AnimationMixer(sc), act = mixer.clipAction(clip); act.play();
     const N = Math.max(4, Math.round(clip.duration * 30)), dur = clip.duration;
-    const tous = [hips].concat(L[0], L[1]), sauve = tous.map(o => [o.quaternion.clone(), o.position.clone()]);
+    const tous = [hips].concat(L[0], L[1], toes), sauve = tous.map(o => [o.quaternion.clone(), o.position.clone()]);
+    const RP = reposPieds(M), bouts = [b('LeftToe_End'), b('RightToe_End')], kR = RAW_H / HEIGHT, UP = new THREE.Vector3(0, 1, 0);
     const turn = (bone, from, to) => { const dq = new THREE.Quaternion().setFromUnitVectors(from.normalize(), to.normalize()); bone.quaternion.copy(WQ(bone.parent).invert().multiply(dq.multiply(WQ(bone)))); bone.updateMatrixWorld(true); };
-    const times = [], hp = [], qs = L.map(l => l.map(() => [])); let err = 0;
+    const times = [], hp = [], qs = L.map(l => l.map(() => [])), qt = [[], []]; let err = 0;
     for (let i = 0; i <= N; i++) {
       tous.forEach((o, j) => { o.quaternion.copy(sauve[j][0]); o.position.copy(sauve[j][1]); });
       mixer.setTime(i < N ? i / N * dur : 0); sc.updateMatrixWorld(true);
@@ -345,13 +360,26 @@
         turn(up, E0.clone().sub(S0), E1.sub(S0)); const E2 = W(lo); turn(lo, W(ft).sub(E2), Tj.clone().sub(E2));
         ft.quaternion.copy(WQ(ft.parent).invert().multiply(Aq[j])); ft.updateMatrixWorld(true);
         err = Math.max(err, W(ft).distanceTo(Tj));
+        if (RP) {
+          // cheville : pied en l'air jamais « cassé » (pointe à la verticale, pied replié) : au plus CHEVILLE_MAX de sa pose de
+          // repos par rapport au tibia, la limite se relâchant en douceur quand le pied approche du sol (il doit s'y poser)
+          const hT = W(toes[j]).y - RP.tR, wA = Math.max(0, Math.min(1, (hT - 0.02 * kR) / (0.06 * kR))), lim = CHEVILLE_MAX + (1 - wA * wA * (3 - 2 * wA)) * Math.PI;
+          if (!libre) { const d = RP.pied[j].clone().invert().multiply(ft.quaternion), ang = 2 * Math.acos(Math.min(1, Math.abs(d.w))); if (ang > lim) { ft.quaternion.copy(RP.pied[j].clone().slerp(ft.quaternion, lim / ang)); ft.updateMatrixWorld(true); } }
+          // orteils : une botte est rigide. Pose de repos (droits) ; ils ne plient qu'au déroulé (talon levé, pointe au sol) :
+          // assez pour que le bout reste au sol, ORTEIL_MAX au plus. (L'animation les relevait pied à plat : « bottes de lutin »)
+          const to = toes[j]; to.quaternion.copy(RP.orteil[j]); to.updateMatrixWorld(true);
+          if (RP.bout && bouts[j]) { const v = W(bouts[j]).sub(W(to)), hb = W(to).y - RP.tR, h = Math.hypot(v.x, v.z);
+            if (v.y < 0 && h > 1e-5 && hb < 0.05 * kR) { const th = Math.min(libre ? 1.05 : ORTEIL_MAX, Math.atan2(-v.y, h)) * Math.max(0, Math.min(1, 1 - hb / (0.05 * kR))), ax = new THREE.Vector3().crossVectors(v, UP).normalize();
+              to.quaternion.copy(WQ(to.parent).invert().multiply(new THREE.Quaternion().setFromAxisAngle(ax, th)).multiply(WQ(to))); to.updateMatrixWorld(true); } }
+        }
       });
-      times.push(i / N * dur); hp.push(...hips.position.toArray()); L.forEach((l, j) => l.forEach((o, k) => qs[j][k].push(...o.quaternion.toArray())));
+      times.push(i / N * dur); hp.push(...hips.position.toArray()); L.forEach((l, j) => l.forEach((o, k) => qs[j][k].push(...o.quaternion.toArray()))); toes.forEach((o, j) => qt[j].push(...o.quaternion.toArray()));
     }
     tous.forEach((o, j) => { o.quaternion.copy(sauve[j][0]); o.position.copy(sauve[j][1]); });
     mixer.stopAllAction(); mixer.uncacheRoot(sc); sc.updateMatrixWorld(true);
     const nm = (o) => THREE.PropertyBinding.sanitizeNodeName(o.name), neuves = [new THREE.VectorKeyframeTrack(nm(hips) + '.position', times, hp)];
     L.forEach((l, j) => l.forEach((o, k) => neuves.push(new THREE.QuaternionKeyframeTrack(nm(o) + '.quaternion', times, qs[j][k]))));
+    if (RP) toes.forEach((o, j) => neuves.push(new THREE.QuaternionKeyframeTrack(nm(o) + '.quaternion', times, qt[j])));
     const noms = new Set(neuves.map(t => t.name));
     clip.tracks = clip.tracks.filter(t => !noms.has(t.name)).concat(neuves); clip.resetDuration(); clip.duration = dur;
     clip.userData = { err: err * HEIGHT / RAW_H }; return clip;
@@ -528,6 +556,9 @@
     for (const n of ['Walk_Aim', 'Walk_Low', 'Run_and_Shoot', 'Run_Low', 'Trot_Low']) { const c = M.clips[n]; if (c) { M.clips[n + '_Haut'] = new THREE.AnimationClip(n + '_Haut', c.duration, c.tracks.filter(t => !JAMBES.test(t.name)).map(t => t.clone())); } }
     if (M.yawFix.Walk_Aim !== undefined) M.yawFix.Walk_Aim_Haut = M.yawFix.Walk_Aim;
     try { genou(M); } catch (e) { console.warn('soldat 3D (genou) :', e); }
+    // marche accroupie : mêmes contraintes de pied (botte rigide, cheville jamais cassée, pieds ouverts) cuites dans le cycle
+    { const cw = M.clips.Cautious_Crouch_Walk_Forward; if (cw) { const c = jambesIK(M, cw, cw.name, (i, H, A) => A.map(a => a.clone()), null, false, OUV_PIED);
+      if (c) { const noms = new Set(c.tracks.map(t => t.name)); M.clips.Cautious_Crouch_Walk_Forward = new THREE.AnimationClip(cw.name, cw.duration, cw.tracks.filter(t => !noms.has(t.name)).concat(c.tracks)); } } }
     M.dirs = true;
   }
   // Vitesse « naturelle » de chaque cycle de locomotion (m/s, pour un soldat de 1,80 m) : pendant l'appui, le pied recule
@@ -695,6 +726,7 @@
     { n: 'pontetAv', c: [-0.002, -0.016, -0.062], h: [0.006, 0.016, 0.004], r: 0.003 },
     { n: 'detente', c: [-0.002, -0.012, -0.098], h: [0.003, 0.009, 0.003], r: 0.002 },
     { n: 'chargeur', c: [-0.002, -0.06, 0.0025], h: [0.015, 0.06, 0.043], r: 0.008 },
+    { n: 'puits', c: [-0.002, -0.025, -0.012], h: [0.027, 0.026, 0.062], r: 0.008 },
     { n: 'gardeMain', c: [-0.0025, 0.0675, 0.1825], h: [0.0285, 0.0365, 0.1125], r: 0.012 },
     { n: 'crosse', c: [-0.002, 0.02, -0.33], h: [0.022, 0.05, 0.1], r: 0.01 },
   ];
@@ -719,7 +751,7 @@
   const PRISE = {
     R: { A: [0.303, 0.024, 0.953], N: [0.87, 0.401, -0.287], mcp: [-0.044, -0.049, -0.127],
       // cibles du bout des doigts (index : tendu le long de la carcasse, au-dessus du pontet ; pouce : flanc gauche, sous la carcasse)
-      cibles: { 0: { ferme: [0.6, 1, 0.8], max: [1.2, 1.3, 1.2] }, 1: { p: [-0.036, 0.004, 0], auto: true, f1: [-0.45, 0.8], f2: 0.3, reg: 0.03, ecart: 0.5 } },
+      cibles: { 0: { ferme: [0.6, 1, 0.8], max: [1.2, 1.3, 1.2] }, 1: { p: [-0.043, 0.008, 0], auto: true, f1: [-0.45, 0.8], f2: 0.3, reg: 0.03, ecart: 0.5 } },
       detente: { p: [-0.004, -0.014, -0.088], f1: [-0.15, 1.4], f2: 1.6 } },
     L: { A: [-0.816, 0.149, 0.559], N: [0.106, 0.988, -0.109], mcp: [-0.036, 0.002, 0.174],
       cibles: { 0: { p: [0.04, 0.07, 0.2], f1: [-0.15, 1.2], f2: 1.0 } } },
@@ -1273,7 +1305,8 @@
         // (les pivots du dos sont au-dessus du bassin : l'angle bougeant moins que la rotation, on itère)
         // (0) charnière de hanche : le bassin bascule vers l'avant (jusqu'à ~7°), les pieds restent en place (IK des jambes,
         // orientation gardée) ; elle fait pencher tout le buste d'un coup, sans voûter le dos
-        const cible = this.clip === 'Rifle_Aim_Turn_Right' ? 0.3 : PENCHE;
+        // (visée : « nez au-dessus des orteils » ; course en garde basse : buste nettement penché, comme un coureur)
+        const cible = this.clip === 'Rifle_Aim_Turn_Right' ? 0.44 : COURSE_BAS[this.clip] ? 0.42 : (this.epK || 0) > 0.5 ? PENCHE + 0.12 : PENCHE;
         if (pieds[0][2] && pieds[1][2]) { const v0 = WP(cou0).sub(WP(hipsB)), hg = Math.max(0, Math.min(0.12, (cible - Math.atan2(v0.dot(fw), Math.max(0.05, v0.y))) * 0.5 * k));
           if (hg > 0.004) { const pf = pieds.map(l => [WP(l[2]), WQ(l[2])]); axe(hipsB, hg);
             pieds.forEach(([up, lo, ft], i) => { const d = pf[i][0].clone().sub(WP(ft)); if (d.lengthSq() > 1e-10) ikJambe(up, lo, ft, d, orteils[i]); mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(pf[i][1])); ft.updateMatrixWorld(true); }); } }
@@ -1296,7 +1329,8 @@
         if (!pieds[0][2] || !pieds[1][2]) return;
         group.updateMatrixWorld(true);
         const lat = WP(pieds[0][0]).sub(WP(pieds[1][0])); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();   // vers la gauche du bassin
-        const MIN = (0.1 + 0.1 * k + 0.06 * kr) * K, sep = WP(pieds[0][2]).sub(WP(pieds[1][2])).dot(lat);
+        const MIN = (0.15 + 0.05 * k + 0.06 * kr) * K,   // (chevilles à 15 cm au moins : les bottes ne se touchent jamais)
+         sep = WP(pieds[0][2]).sub(WP(pieds[1][2])).dot(lat);
         if (sep < MIN) {   // (surtout le pied levé : celui au sol glisserait)
           const d = Math.min(0.3, MIN - sep), yL = WP(pieds[0][2]).y, yR = WP(pieds[1][2]).y, pl = Math.max(0.1, Math.min(0.9, 0.5 + (yL - yR) * 10));
           ikJambe(pieds[0][0], pieds[0][1], pieds[0][2], lat.clone().multiplyScalar(d * pl), orteils[0]); ikJambe(pieds[1][0], pieds[1][1], pieds[1][2], lat.clone().multiplyScalar(-d * (1 - pl)), orteils[1]); }
@@ -1494,7 +1528,8 @@
         // fusil hors d'atteinte d'une main (bras tendu à plus de 97 %) : il est rapproché de cette épaule d'autant
         // place de la main h (monde) ; garde basse : main d'appui un peu plus en arrière sur le garde-main
         const cibleM = (h, p, q) => { new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, P[h].Hrel).decompose(p, q, V());
-          if (h === 'L' && this.gbK > 0.01) p.add(V().setFromMatrixColumn(weapon.matrixWorld, 2).normalize().multiplyScalar(-GARDE.recul * this.gbK * (1 - (this.epK || 0)))); return p; };
+          // (visée : main d'appui loin devant sur le garde-main, bras presque tendu ; garde basse : un peu en arrière)
+          if (h === 'L') { const gl = (this.epK || 0) * AVANCE_APPUI - GARDE.recul * (this.gbK || 0) * (1 - (this.epK || 0)); if (Math.abs(gl) > 1e-4) p.add(V().setFromMatrixColumn(weapon.matrixWorld, 2).normalize().multiplyScalar(gl)); } return p; };
         this.rapproche = 0; if (mains && !seule && B.ra && B.la) for (let it = 0; it < 3; it++) {
           const d = V(); let loin = false;
           for (const [h, arm, fore, hand] of [['R', B.ra, B.rf, B.rh], ['L', B.la, B.lf, B.lh]]) {
