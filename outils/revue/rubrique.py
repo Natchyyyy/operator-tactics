@@ -77,8 +77,8 @@ def crit(**k): C.append(k)
 crit(id='pied_dans_sol', partie='bas', lib='Semelle enfoncée dans le sol (m, point le plus bas)', quand=lambda e: True,
      val=lambda r: stat_ou(r, ['solMinG', 'solMinD'], 'min', min), ok=(-0.015, 9), mineur=(-0.035, 9), cle=('solMinG', 'solMinD', 'min'),
      pourquoi='Une botte repose SUR le sol ; enfoncée de plus de 1,5 cm, la semelle disparaît dans le béton (visible en gros plan, ombre de contact fausse).', src='Contact au sol (bon sens + toute animation AAA : foot IK sur le sol)', vues=['piedsFace', 'piedsProfil'])
-crit(id='pied_flotte_arret', partie='bas', lib='Pied qui flotte à l\'arrêt (m, hauteur max du point le plus bas)', quand=lambda e: 'arret' in e and 'pivot' not in e,
-     val=lambda r: stat_ou(r, ['solMinG', 'solMinD'], 'max', max), ok=(-9, 0.025), mineur=(-9, 0.05), cle=('solMinG', 'solMinD', 'max'),
+crit(id='pied_flotte_arret', partie='bas', lib='Pied en l\'air à l\'arrêt (s, plus longue durée au-dessus de 2,5 cm ; un pas de replacement dure < 0,4 s)', quand=lambda e: 'arret' in e and 'pivot' not in e,
+     val=lambda r: max(r['bilan'].get('enLairG', 0), r['bilan'].get('enLairD', 0)), ok=(0, 0.45), mineur=(0, 0.9), cle=('solMinG', 'solMinD', 'max'),
      pourquoi='Debout immobile, les deux pieds portent le poids : aucun ne doit décoller.', src='FM 3-06.11 §3-23b (pieds à largeur d\'épaules, poids réparti)', vues=['piedsFace', 'piedsProfil'])
 for s, nm in (('G', 'gauche'), ('D', 'droit')):
     crit(id='glisse_' + s, partie='bas', lib=f'Glissement du pied {nm} pendant l\'appui (m/s moyen)', quand=lambda e: 'marche' in e or 'course' in e or 'transition' in e or 'pivot' in e,
@@ -147,7 +147,7 @@ crit(id='penche_avant', partie='haut', lib='Buste penché vers l\'avant (°, bas
 crit(id='roulis_buste', partie='haut', lib='Inclinaison latérale du buste (°, max absolu)', quand=lambda e: 'recharge' not in e and 'virage' not in e,
      val=lambda r: (lambda a, b: None if a is None else max(abs(a), abs(b)))(st(r, 'roulis', 'min'), st(r, 'roulis', 'max')), ok=(0, 9), mineur=(0, 16), cle=('roulis', 'max'),
      pourquoi='Épaules carrées, pas avachies sur le côté.', src='FM 3-06.11 §3-23b ("Shoulders are square")', vues=['face', 'dos'])
-crit(id='paume_poignee', partie='haut', lib='Paume droite ↔ surface de l\'arme (m, max)', quand=DEUX_MAINS,
+crit(id='paume_poignee', partie='haut', lib='Paume droite ↔ arme (m, max ; ligne poignet → jointures, moins 1,5 cm d\'épaisseur de main)', quand=DEUX_MAINS,
      val=lambda r: st(r, 'paumeD_surface', 'max'), ok=(-0.01, 0.03), mineur=(-0.02, 0.055), cle=('paumeD_surface', 'max'),
      pourquoi='La main forte tient la poignée haut et fermement ; un écart = main qui flotte à côté de l\'arme.', src='TC 3-22.9 ch. 8 (firing hand grip)', vues=['mainD', 'mainDdessous'])
 crit(id='paume_garde_main', partie='haut', lib='Paume gauche ↔ surface de l\'arme (m, max)', quand=DEUX_MAINS,
@@ -165,7 +165,7 @@ crit(id='doigts_poignee', partie='haut', lib='Main droite : majeur / annulaire /
 crit(id='doigts_garde_main', partie='haut', lib='Main gauche : bouts des doigts sur le garde-main (m, médiane des 5 doigts, max dans le temps)', quand=DEUX_MAINS,
      val=lambda r: _plie([sorted([i.get('doigtG' + d, 1) for d in ('Thumb', 'Index', 'Middle', 'Ring', 'Pinky')])[2] for i in r['images'] if i.get('doigtGIndex') is not None], max), ok=(-1, 0.03), mineur=(-1, 0.05), cle=(),
      pourquoi='La main d\'appui enveloppe le garde-main (ou le pince en « C ») : la plupart des doigts touchent l\'arme.', src='TC 3-22.9 ch. 6', vues=['mainG', 'mainGdessous'])
-crit(id='index_hors_detente', partie='haut', lib='Index : courbure quand on ne tire pas (°, somme des 3 articulations ; 0 = tendu le long de la carcasse)', quand=lambda e: DEUX_MAINS(e) and 'tir' not in e,
+crit(id='index_hors_detente', partie='haut', lib='Index : courbure quand on ne tire pas (°, somme des 3 articulations, moins celle de la pose de liaison ; 0 = tendu)', quand=lambda e: DEUX_MAINS(e) and 'tir' not in e,
      val=lambda r: st(r, 'courbeDIndex', 'max'), ok=(0, 50), mineur=(0, 80), cle=('courbeDIndex', 'max'),
      pourquoi='Règle de sécurité n° 3 : doigt tendu le long de la carcasse, hors du pontet, tant qu\'on ne tire pas. Un index replié = doigt sur la détente ou enroulé sur la poignée.', src='TC 3-22.9 p. 1-3 ("Keep finger straight and off the trigger until ready to fire")', vues=['mainD', 'mainDdessous'])
 crit(id='index_sur_detente_tir', partie='haut', lib='Index ↔ détente en tirant (m, max ; détente estimée)', quand=lambda e: 'tir' in e,

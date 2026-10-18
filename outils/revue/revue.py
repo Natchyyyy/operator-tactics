@@ -92,7 +92,7 @@ async def cmd_revue(a):
             ins = sorted(c['instants']); chemin = os.path.join(out, 'preuves', f'{m}_{e}.png')
             try:
                 with verrou(): r = await pg.evaluate(f'BANC.planche({json.dumps(m)}, {json.dumps(e)}, {json.dumps({"vues": c["vues"], "instants": ins, "marques": True, "tw": 220, "th": 260})})')
-                sauver_png(r['url'], chemin); c['chemin'] = chemin
+                sauver_png(r['url'], chemin); c['chemin'] = os.path.relpath(chemin, RACINE).replace(os.sep, '/')   # (relatif : lisible sur toutes les machines)
             except Exception as ex:
                 msg = str(ex).split('\n')[0][:300]; echecs.append((m, e, 'planche : ' + msg)); print(f'ÉCHEC planche {m}/{e} : {msg}', flush=True); continue
             print(f'preuve {chemin} ({time.time() - t0:.0f} s)', flush=True)

@@ -67,6 +67,11 @@
       R.nomsDoigts = R.nomsDoigts || {}; R.nomsDoigts[c] = [ip].concat(autres).map(k => ch[k][0].name.replace(/^mixamorig:?/, ''));
     }
     R.os.headfront = f.body.getObjectByName('headfront');
+    // courbure de chaque doigt dans la pose de liaison (positions de liaison = inverses des boneInverses)
+    if (f.skinned) { const sk = f.skinned.skeleton, bp = (o) => { const i = sk.bones.indexOf(o); return i < 0 ? null : new THREE.Vector3().setFromMatrixPosition(sk.boneInverses[i].clone().invert()); };
+      R.courbeLiaison = {};
+      for (const c of ['Right', 'Left']) for (const d of DOIGTS) { const q = [R.os[c + 'Hand'], R.os[c + d + 1], R.os[c + d + 2], R.os[c + d + 3], R.os[c + d + 4]].map(o => o && bp(o)); if (q.some(x => !x)) continue;
+        R.courbeLiaison[c + d] = ang(q[1].clone().sub(q[0]), q[2].clone().sub(q[1])) + ang(q[2].clone().sub(q[1]), q[3].clone().sub(q[2])) + ang(q[3].clone().sub(q[2]), q[4].clone().sub(q[3])); } }
     f.group.updateMatrixWorld(true);
     // capsules : rayon = 75e centile de la distance des sommets (os dominant) à leur segment
     const sk = f.skinned;
@@ -216,14 +221,24 @@
       m.paumeG_long = pGl.z - fl.z;                                         // position le long de l'arme (+ vers la bouche)
       m.paumeG_avantPoignee = pGl.z - w.gripPt.z;                           // m devant la poignée
       const dPG = distArme(f, R, pG, 0.12); m.paumeG_surface = dPG ? dPG.d : null;
-      const dPD = distArme(f, R, pD, 0.12); m.paumeD_surface = dPD ? dPD.d : null;
+      const dPD = distArme(f, R, pD, 0.12); m.paumeD_point = dPD ? dPD.d : null;
+      // paume ↔ arme : points de la ligne poignet → jointures (50, 65, 80 %), le plus proche de l'arme, moins la demi-épaisseur
+      // de la main (~1,5 cm). (Le point « 60 % poignet → PalmeD » tombe derrière la poignée sur une grande main.)
+      for (const [c, k] of [['Right', 'paumeD_surface'], ['Left', 'paumeG_contact']]) {
+        const bs = ['Index', 'Middle', 'Ring', 'Pinky'].map(d => P[c + d + 1]).filter(Boolean); if (bs.length !== 4) continue;
+        const kn = bs.reduce((a, b) => a.add(b), V()).multiplyScalar(0.25), wr = P[c + 'Hand']; let best = null;
+        for (const t of [0.5, 0.65, 0.8]) { const r = distArme(f, R, wr.clone().lerp(kn, t), 0.12); if (r && (best === null || r.d < best)) best = r.d; }
+        m[k] = best === null ? null : best - 0.015;
+      }
       // bouts des doigts ↔ surface de l'arme
       for (const [c, s] of [['Right', 'D'], ['Left', 'G']]) for (const d of DOIGTS) {
         const tip = O[c + d + 4]; if (!tip) continue; const r = distArme(f, R, P[c + d + 4], 0.1);
         m['doigt' + s + d] = r ? r.d : null;
         // courbure du doigt (somme des angles aux 3 articulations, 0 = tendu)
         const p1 = P[c + d + 1], p2 = P[c + d + 2], p3 = P[c + d + 3], p4 = P[c + d + 4];
-        if (p1 && p2 && p3 && p4) m['courbe' + s + d] = ang(p2.clone().sub(p1), p3.clone().sub(p2)) + ang(p3.clone().sub(p2), p4.clone().sub(p3)) + (P[c + 'Hand'] ? ang(p1.clone().sub(P[c + 'Hand']), p2.clone().sub(p1)) : 0);
+        if (p1 && p2 && p3 && p4) { m['courbe' + s + d] = ang(p2.clone().sub(p1), p3.clone().sub(p2)) + ang(p3.clone().sub(p2), p4.clone().sub(p3)) + (P[c + 'Hand'] ? ang(p1.clone().sub(P[c + 'Hand']), p2.clone().sub(p1)) : 0);
+          // (moins la courbure de la pose de liaison : la ligne des métacarpiens de ce squelette est en biais, ~30° « au repos »)
+          if (R.courbeLiaison && R.courbeLiaison[c + d] !== undefined) m['courbe' + s + d] -= R.courbeLiaison[c + d]; }
       }
       if (R.arme && R.arme.detente && P.RightIndex4) { const dt = L2W(R.arme.detente); m.indexDetente = P.RightIndex4.distanceTo(dt); m.detente = dt;
         const il = w.worldToLocal(P.RightIndex4.clone()); m.indexHautDetente = il.y - R.arme.detente.y; m.indexAvantDetente = il.z - R.arme.detente.z; }
@@ -299,6 +314,8 @@
         out['glisseParAppui' + s] = phases.length ? Math.max(...phases.map(p => p[1])) : 0;   // m perdus sur l'appui le pire
         out['appuis' + s] = phases.length;
       }
+      // plus longue durée d'un pied en l'air (> 2,5 cm) : à l'arrêt, un petit pas de replacement dure < 0,4 s
+      for (const s of ['G', 'D']) { let cur = 0, mx = 0; for (const f of F) { if ((f['solMin' + s] || 0) > 0.025) { cur += f.dt; mx = Math.max(mx, cur); } else cur = 0; } out['enLair' + s] = mx; }
       // poses de pied (attaques) : le pied passe de levé à posé
       const att = [];
       for (const s of ['G', 'D']) { let leve = false; for (let i = 0; i < F.length; i++) { const y = F[i]['solMin' + s]; if (y === undefined) continue; if (y > bas[s] + 0.05) leve = true; else if (leve && y < bas[s] + SOL) { leve = false; att.push({ i, s, t: F.slice(0, i + 1).reduce((x, f) => x + f.dt, 0), p: F[i]['cheville' + s].clone(), genou: F[i]['genou' + s], ...F[i] }); } } }

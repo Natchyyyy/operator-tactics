@@ -43,9 +43,9 @@
   // réglages
   const P = {
     pas: 1 / 60, sousPasMax: 6, iterations: 24, gravite: -9.81,
-    amortLin: 0.08, amortAng: 0.45, frottementArt: 3.0,           // frottement des articulations (1/s, vitesse angulaire relative)
-    tonique: 0.2, relache: 0.2, flechit: 0.45, flechitT: 0.18,                                     // phase tonique (s) puis relâchement (s)
-    impulsion: { tete: 9, torse: 26, membre: 12, bras: 6 }, bascule: 9,        // N·s (exagéré par rapport au réel, lisible à l'écran)
+    amortLin: 0.08, amortAng: 0.45, frottementArt: 3.0, frottementSol: 0.5,           // frottement des articulations (1/s, vitesse angulaire relative)
+    tonique: 0.2, relache: 0.2, flechit: 0.45, flechitT: 0.14, tenue: 0.7,                                     // phase tonique (s) puis relâchement (s)
+    impulsion: { tete: 9, torse: 26, membre: 12, bras: 6 }, bascule: 14,        // N·s (exagéré par rapport au réel, lisible à l'écran)
     souffle: 340,                                                    // explosion : N·s à 1 m (réparti selon les masses)
     vMax: 14, wMax: 28, repos: 0.12, reposT: 0.45, dureeMax: 7,
   };
@@ -104,7 +104,7 @@
     W.broadphase = new C.SAPBroadphase(W); W.solver.iterations = P.iterations; W.solver.tolerance = 1e-4; W.allowSleep = false;
     W.quatNormalizeFast = false; W.quatNormalizeSkip = 0;
     matCorps = new C.Material('corps'); matSol = new C.Material('sol'); matArme = new C.Material('arme');
-    W.addContactMaterial(new C.ContactMaterial(matCorps, matSol, { friction: 0.75, restitution: 0, contactEquationStiffness: 1e7, contactEquationRelaxation: 3 }));
+    W.addContactMaterial(new C.ContactMaterial(matCorps, matSol, { friction: P.frottementSol, restitution: 0, contactEquationStiffness: 1e7, contactEquationRelaxation: 3 }));
     W.addContactMaterial(new C.ContactMaterial(matArme, matSol, { friction: 0.5, restitution: 0.12 }));
     const sol = new C.Body({ mass: 0, material: matSol, collisionFilterGroup: G_SOL, collisionFilterMask: G_CORPS | G_ARME });
     sol.addShape(new C.Plane()); sol.quaternion.setFromEuler(-Math.PI / 2, 0, 0); W.addBody(sol);
@@ -244,7 +244,10 @@
       const cible = qa.invert().multiply(qb);
       // flex : pendant la phase tonique, la cible plie l'articulation (genoux, hanches : les jambes cèdent, le corps s'affaisse)
       const flex = opt.flex ? new T.Quaternion().setFromAxisAngle(opt.flex[0], opt.flex[1]).multiply(cible) : null;
-      art.push({ a, b, cons, cible, flex, force: opt.force || 1, frot: opt.frot || 1, nom: cn, pA, pB });
+      const e = { a, b, cons, cible, flex, force: opt.force || 1, frot: opt.frot || 1, nom: cn, pA, pB };
+      // genoux : moteur de la charnière (résolu avec les contraintes : il porte vraiment le poids du corps)
+      if (opt.genou) { e.hc = cons[0]; e.axP = new C.Vec3(opt.genou[0].x, opt.genou[0].y, opt.genou[0].z); e.axC = new C.Vec3(opt.genou[1].x, opt.genou[1].y, opt.genou[1].z); e.flex0 = angleGenou(e); e.hc.enableMotor(); e.hc.setMotorMaxForce(0); }
+      art.push(e);
     };
     const mix = (v1, c1, v2, c2) => v1.clone().multiplyScalar(c1).addScaledVector(v2, c2).normalize();
     const perpA = (v, d) => v.clone().addScaledVector(d, -v.dot(d)).normalize();
@@ -260,7 +263,7 @@
       const Dc = Mo.D['cuisse' + c], Dj = Mo.D['jambe' + c];
       lien('bassin', 'cuisse' + c, { limites: [[mix(Dc, Math.cos(0.42), F, Math.sin(0.42)), Dc, 0.98], [F, F, 1.9]], force: 0.55, flex: [new T.Vector3().crossVectors(Dc, F).normalize(), 0.3] });
       const arr = perpA(F.clone().negate(), Dc), axeG = new T.Vector3().crossVectors(Dc, arr).normalize();
-      lien('cuisse' + c, 'jambe' + c, { charniere: axeG, limites: [[mix(Dc, Math.cos(1.22), arr, Math.sin(1.22)), Dj, 1.26]], force: 0.5, flex: [axeG, 1.1] });
+      lien('cuisse' + c, 'jambe' + c, { charniere: axeG, limites: [[mix(Dc, Math.cos(1.1), arr, Math.sin(1.1)), Dj, 1.14]], force: 0.5, flex: [axeG, 1.1], genou: [Dc, Dj] });
     }
     // arme : détachée, solide à part (boîte de son maillage)
     let arme = null;
@@ -335,7 +338,10 @@
     if (cible === 'tete') corps[IDX.torse].applyImpulse(dir.scale(P.impulsion.tete * 0.5), new C.Vec3(0, 0.12, 0));
     // bascule : le bassin part aussi un peu dans le sens du tir (horizontal) ; le corps passe par-dessus ses appuis au lieu
     // de s'asseoir sur place (balle au torse ou à la tête ; une jambe touchée plie surtout)
-    if (!/jambe|cuisse|bras/.test(cible)) { const hz = Math.hypot(dir.x, dir.z) || 1; corps[IDX.bassin].applyImpulse(new C.Vec3(dir.x / hz * P.bascule, 0, dir.z / hz * P.bascule), new C.Vec3(0, 0, 0)); }
+    // (appliquée en haut du buste : pousser le bassin ferait au contraire basculer le buste vers le tireur)
+    if (!/jambe|cuisse|bras/.test(cible)) { const hz = Math.hypot(dir.x, dir.z) || 1; corps[IDX.torse].applyImpulse(new C.Vec3(dir.x / hz * P.bascule, 0, dir.z / hz * P.bascule), new C.Vec3(0, 0.12, 0)); }
+    // tête et buste touchés : le dos et le cou ne retiennent presque rien (le haut du corps part en arrière tout de suite)
+    r.dosMou = cible === 'tete' || cible === 'torse' || cible === 'ventre';
     r.cible = cible;
     r.tonique = loc === 'tête' ? 0.06 : P.tonique;
   }
@@ -384,19 +390,27 @@
       // jambes qui cèdent : un genou se déverrouille d'abord (côté tiré au sort), l'autre un peu après et à moitié, pendant
       // ~0,2 s seulement (un corps inerte aux genoux tendus basculerait d'un bloc ou se plierait aux hanches comme un pantin) ;
       // soldat lancé (> 1,5 m/s) : presque rien, son élan le fait tomber en avant
-      let kf = 0;
+      // l'autre jambe garde un reste de tonus (~0,45 s) : le corps bascule par-dessus elle au lieu de s'asseoir sur place
+      let kf = 0, garde = false;
       if (j.flex) {
-        const lead = j.nom.endsWith(r.graine < 0.5 ? 'G' : 'D'), t0 = lead ? 0 : 0.07, T1 = r.elan > 1.5 ? 0.08 : P.flechitT;
-        kf = r.t >= t0 && r.t < t0 + T1 ? P.flechit * (lead ? 1 : 0.25) : 0;
+        const lead = j.nom.endsWith(r.graine < 0.5 ? 'G' : 'D'), T1 = r.elan > 1.5 ? 0.08 : P.flechitT;
+        if (lead) kf = r.t < T1 ? P.flechit : 0;
+        else { garde = true; kf = P.tenue * (r.t < 0.3 ? 1 : Math.max(0, 1 - (r.t - 0.3) / 0.15)) * (r.elan > 1.5 ? 0.3 : 1); }
+      }
+      if (j.hc) {   // genou : vitesse de flexion visée (flexion + = rotation + autour de l'axe ; le moteur vise −vitesse)
+        if (kf > 0) { const cible = garde ? j.flex0 : Math.min(1.7, j.flex0 + 0.75), v = Math.max(-8, Math.min(8, (cible - angleGenou(j)) * 12)); j.hc.setMotorSpeed(-v); j.hc.setMotorMaxForce(kf * 900); }
+        else j.hc.setMotorMaxForce(0);
+        kf = 0; if (!(ton > 0 && j.force > 0)) { /* frottement seul */ }
       }
       if ((ton > 0 && j.force > 0) || kf > 0) {
         qa.set(a.quaternion.x, a.quaternion.y, a.quaternion.z, a.quaternion.w); qb.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
-        const cib = j.flex && kf > 0 ? _qc.copy(j.cible).slerp(j.flex, Math.min(1, r.t / 0.1)) : j.cible;
+        const cib = j.flex && kf > 0 && !garde ? _qc.copy(j.cible).slerp(j.flex, Math.min(1, r.t / 0.1)) : j.cible;
         qe.copy(qa).multiply(cib).multiply(qb.invert()); if (qe.w < 0) { qe.x = -qe.x; qe.y = -qe.y; qe.z = -qe.z; qe.w = -qe.w; }
         const ang = 2 * Math.acos(Math.min(1, qe.w)), sn = Math.sqrt(Math.max(1e-12, 1 - qe.w * qe.w));
         if (ang > 1e-4) des.set(qe.x / sn, qe.y / sn, qe.z / sn).multiplyScalar(Math.min(ang, 0.8) / 0.07);
         const blessure = r.cible && (j.nom === r.cible || (r.cible.startsWith('jambe') && j.nom === r.cible.replace('jambe', 'cuisse'))) ? 0.15 : 1;
-        k = Math.max(k, 0.55 * ton * j.force * blessure, kf);
+        const mou = r.dosMou && (j.nom === 'ventre' || j.nom === 'torse' || j.nom === 'tete') ? 0.25 : 1;
+        k = Math.max(k, 0.55 * ton * j.force * blessure * mou, kf);
       }
       const dw = des.sub(wr).multiplyScalar(k);
       const ia = moyInv(a), ib = moyInv(b), J = dw.multiplyScalar(1 / (ia + ib));
@@ -405,6 +419,8 @@
     }
     void _w;
   }
+  const _ga = root.CANNON ? null : null;
+  function angleGenou(e) { const wa = e.a.vectorToWorldFrame(e.axP), wb = e.b.vectorToWorldFrame(e.axC); return Math.acos(Math.max(-1, Math.min(1, wa.dot(wb) / (wa.length() * wb.length())))); }
   function moyInv(b) { const e = b.invInertiaWorld.elements; return (e[0] + e[4] + e[8]) / 3; }
   function apresPas(r, dt) {
     r.t += dt;

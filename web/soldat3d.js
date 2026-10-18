@@ -90,13 +90,28 @@
         return /swiftshader|llvmpipe|softpipe|software/i.test(r || ''); } catch (e) { return false; } })();
     S.logiciel = LOGICIEL;
     const HDok = /^https?:/.test(location.protocol) && !/[?&]hd=0/.test(location.search) && !LOGICIEL;
+    // niveau de détail « loin » du personnage HD (hd/<nom>_lod.glb, ~40 000 triangles, mêmes os ; voir lod() plus bas)
+    const HDNOMS = new Set();
+    const chargerLod = (M, Loader) => {
+      const OHD = window.OT_HD, nom = M.nom;
+      if (!HDNOMS.has(nom) || (OHD && !OHD.fichiers[nom + '_lod.glb'])) return Promise.resolve();
+      const glb = () => fetch('hd/' + nom + '_lod.glb').then(r => r.ok && !/text\/html/.test(r.headers.get('content-type') || '') ? r.arrayBuffer() : null).catch(() => null);
+      const json = () => fetch('hd/' + nom + '_lod.json').then(r => r.ok ? r.json() : null).then(j => j && j.glb ? b64ToBuf(j.glb) : null).catch(() => null);
+      const t = new Promise(r => setTimeout(() => r(null), 15000));
+      return Promise.race([OHD && OHD.json ? json() : glb().then(b => b && b.byteLength > 1000 ? b : json()), t]).then(b => new Promise(res => {
+        if (!b || b.byteLength < 1000) return res();
+        new Loader().parse(b, '', (g) => { let sm = null; g.scene.updateMatrixWorld(true); g.scene.traverse(o => { if (o.isSkinnedMesh && !sm) sm = o; });
+          if (sm) M.lod = { geo: sm.geometry, noms: sm.skeleton.bones.map(x => x.name), inv: sm.skeleton.boneInverses, bind: sm.bindMatrix.clone() };
+          res(); }, () => res());
+      }));
+    };
     const source = (nom) => {
       const OHD = window.OT_HD;   // fichiers HD publiés (build.js) : on ne demande pas un fichier absent
       if (!HDok || (OHD && !OHD.fichiers[nom + '_hd.glb'])) return Promise.resolve(b64ToBuf(MOD[nom]));
       const glb = () => fetch('hd/' + nom + '_hd.glb').then(r => r.ok && !/text\/html/.test(r.headers.get('content-type') || '') ? r.arrayBuffer() : null).catch(() => null);
       const json = () => fetch('hd/' + nom + '_hd.json').then(r => r.ok ? r.json() : null).then(j => j && j.glb ? b64ToBuf(j.glb) : null).catch(() => null);
       const t = new Promise(r => setTimeout(() => r(null), 25000));
-      return Promise.race([OHD && OHD.json ? json() : glb().then(b => b && b.byteLength > 1000 ? b : json()), t]).then(b => { if (b && b.byteLength > 1000) { S.hdMaillage = (S.hdMaillage || 0) + 1; return b; } return b64ToBuf(MOD[nom]); });
+      return Promise.race([OHD && OHD.json ? json() : glb().then(b => b && b.byteLength > 1000 ? b : json()), t]).then(b => { if (b && b.byteLength > 1000) { S.hdMaillage = (S.hdMaillage || 0) + 1; HDNOMS.add(nom); return b; } return b64ToBuf(MOD[nom]); });
     };
     for (const nom of todo) {
       source(nom).then((buf) => {
@@ -113,7 +128,7 @@
             if (hb) { const r = new THREE.Object3D(); r.name = n; r.position.fromArray(PALME); hb.add(r); }
           }
           try { straighten(M); composite(M); measure(M); } catch (e) { console.warn('soldat 3D (composite) :', e); }
-          S.modeles[nom] = M; delete MOD[nom]; finish();
+          S.modeles[nom] = M; delete MOD[nom]; chargerLod(M, Loader).then(finish, finish);
         }, (e) => { console.warn('soldat 3D ' + nom + ' :', e); finish(); });
       }).catch((e) => { console.warn('soldat 3D ' + nom + ' :', e); finish(); });
     }
@@ -634,6 +649,8 @@
       detente: { p: [-0.004, -0.014, -0.088], f1: [-0.2, 1.4], f2: 1.6 } },
     L: { A: [-0.816, 0.149, 0.559], N: [0.19, 0.982, 0.015], mcp: [-0.036, 0.01, 0.168],
       cibles: { 0: { p: [0.04, 0.07, 0.2], f1: [-0.4, 1.2], f2: 1.0 } } },
+    // places propres à un modèle (mêmes champs, remplacent ceux du dessus) : les mains n'ont pas la même forme
+    gign: { R: { A: [0.209, 0.261, 0.943], N: [0.934, 0.232, -0.271], mcp: [-0.04, -0.051, -0.119] }, L: { A: [-0.822, 0.089, 0.563], N: [0.074, 0.996, -0.051], mcp: [-0.028, 0.012, 0.168] } },
   };
   S.PRISE = PRISE;
   function calculerPrise(f, W) {
@@ -673,7 +690,7 @@
       // place de la main sur l'arme (repère de l'arme) : axe poignet → jointure du majeur A, normale de la paume N, jointure
       // du majeur au point « mcp » (voir PRISE) ; l'échelle est celle de la main dans le jeu
       f.body.updateMatrixWorld(true); const sH = V(); Wi.clone().multiply(H.matrixWorld).decompose(V(), new THREE.Quaternion(), sH);
-      const Pc = PRISE[side === 'Right' ? 'R' : 'L'], base = (a, n) => { const x = a.clone().normalize(), y = n.clone().addScaledVector(x, -n.dot(x)).normalize(); return new THREE.Matrix4().makeBasis(x, y, new THREE.Vector3().crossVectors(x, y)); };
+      const Pc = Object.assign({}, PRISE[side === 'Right' ? 'R' : 'L'], (PRISE[W && W.nom] || {})[side === 'Right' ? 'R' : 'L']), base = (a, n) => { const x = a.clone().normalize(), y = n.clone().addScaledVector(x, -n.dot(x)).normalize(); return new THREE.Matrix4().makeBasis(x, y, new THREE.Vector3().crossVectors(x, y)); };
       const Rm = base(new THREE.Vector3().fromArray(Pc.A), new THREE.Vector3().fromArray(Pc.N)).multiply(base(M1.clone(), N).transpose());
       const qR = new THREE.Quaternion().setFromRotationMatrix(Rm), mcpW = M1.clone().multiply(sH).applyQuaternion(qR);
       const Hrel = new THREE.Matrix4().compose(new THREE.Vector3().fromArray(Pc.mcp).sub(mcpW), qR, sH);
@@ -715,9 +732,9 @@
         const C = new THREE.Vector3().fromArray(cible), cout = (th) => { const ms = fk(k, th), d = Math.min(...dSeg(k, th, ms));
           return p.copy(bout[k]).applyMatrix4(ms[2]).distanceTo(C) + 6 * Math.max(0, -d - 0.002) + (o.reg || 0.004) * (Math.abs(th[1]) + Math.abs(th[2])) + 0.004 * Math.abs(th[3]); };
         let best = null;
-        for (let a = o.f1[0]; a <= o.f1[1]; a += 0.1) for (let e = -0.6; e <= 0.6; e += 0.1) for (let c = 0; c <= o.f2; c += 0.12) { const th = [a, c, c * 0.8, e], v = cout(th); if (!best || v < best[0]) best = [v, th]; }
+        for (let a = o.f1[0]; a <= o.f1[1]; a += 0.1) for (let e = -0.35; e <= 0.35; e += 0.07) for (let c = 0; c <= o.f2; c += 0.12) { const th = [a, c, c * 0.8, e], v = cout(th); if (!best || v < best[0]) best = [v, th]; }
         let th = best[1], v = best[0];
-        for (const st of [0.05, 0.02, 0.008]) for (let it = 0; it < 12; it++) { let mieux = false; for (let i = 0; i < 4; i++) for (const sg of [-1, 1]) { const t2 = th.slice(); t2[i] += sg * st; if (i < 3 && t2[i] < -0.3) continue; const v2 = cout(t2); if (v2 < v) { v = v2; th = t2; mieux = true; } } if (!mieux) break; }
+        for (const st of [0.05, 0.02, 0.008]) for (let it = 0; it < 12; it++) { let mieux = false; for (let i = 0; i < 4; i++) for (const sg of [-1, 1]) { const t2 = th.slice(); t2[i] += sg * st; if (i < 3 && t2[i] < -0.3 || i === 3 && Math.abs(t2[i]) > 0.35) continue; const v2 = cout(t2); if (v2 < v) { v = v2; th = t2; mieux = true; } } if (!mieux) break; }
         return th;
       };
       const R = side === 'Right', res = { Hrel, glisse, N, ordre: ordre.map(c => chaines[c][0].name), doigts: [], dmin: [], err: [] };
@@ -797,6 +814,21 @@
     }
     return (matCache[key] = m);
   }
+  // Niveau de détail : au-delà de LOD_D mètres de la caméra, le maillage HD (~100 000 triangles) est remplacé par sa version
+  // allégée, liée au MÊME squelette (animations et IK ne coûtent rien de plus) et au même matériau ; un THREE.LOD choisit
+  // à chaque image selon la distance (hystérésis 15 %, pas de clignotement). Les ombres suivent le niveau affiché.
+  const LOD_D = 11;
+  function lod(sk, L) {
+    const bones = L.noms.map(n => sk.skeleton.bones.find(b => b.name === n)); if (bones.some(b => !b)) return null;
+    const m = new THREE.SkinnedMesh(L.geo, sk.material); m.name = (sk.name || 'corps') + '_lod';
+    m.castShadow = sk.castShadow; m.receiveShadow = sk.receiveShadow; m.frustumCulled = false;
+    m.bind(new THREE.Skeleton(bones, L.inv), L.bind);
+    const node = new THREE.LOD(), parent = sk.parent; node.name = 'lodCorps';
+    node.position.copy(sk.position); node.quaternion.copy(sk.quaternion); node.scale.copy(sk.scale);
+    parent.add(node); parent.remove(sk); sk.position.set(0, 0, 0); sk.quaternion.identity(); sk.scale.set(1, 1, 1);
+    node.addLevel(sk, 0, 0.15); node.addLevel(m, LOD_D, 0.15);
+    return m;
+  }
   function cloneSkinned(src) {
     const c = src.clone(true), bones = {}; c.traverse(o => { if (o.isBone) bones[o.name] = o; });
     c.traverse(o => { if (o.isSkinnedMesh) { const sk = o.skeleton; o.bind(new THREE.Skeleton(sk.bones.map(b => bones[b.name]), sk.boneInverses), o.bindMatrix); } });
@@ -811,6 +843,7 @@
     const group = new THREE.Group(), pose = new THREE.Group(); group.add(pose);
     const body = cloneSkinned(M.gltf.scene); body.scale.setScalar(HEIGHT / RAW_H); pose.add(body);
     let skinned = null; body.traverse(n => { if (n.isSkinnedMesh) { skinned = n; n.material = tintedMaterial(n.material, TEINTE[M.nom] ? o.uniform : null, M.nom); } });
+    if (skinned && M.lod) try { lod(skinned, M.lod); } catch (e) { console.warn('soldat 3D (LOD) :', e); }
     const bone = (n) => body.getObjectByName('mixamorig:' + n) || body.getObjectByName('mixamorig' + n);
     const weapon = o.weapon ? ((root.Modeles3D && root.Modeles3D.arme()) || root.Figure.makeWeapon(o.weapon, o.attachments)) : new THREE.Group(); if (!weapon.muzzle) weapon.muzzle = new THREE.Vector3(0, 0, 0.6);
     group.add(weapon);
@@ -1362,7 +1395,9 @@
       majPrise(tient) {
         const dt = Math.max(0, Math.min(0.1, this.t - (this.tPrise === undefined ? this.t : this.tPrise))), deja = this.tPrise === this.t && this.priseK !== undefined; this.tPrise = this.t;
         const kk = dt > 0 ? Math.min(1, dt * 8) : deja && this.t > 0 ? 0 : 1;   // (deux appels dans la même image : un seul pas de lissage)
-        this.priseK = (this.priseK === undefined ? 1 : this.priseK) + ((tient ? 1 : 0) - (this.priseK === undefined ? 1 : this.priseK)) * kk;
+        // ressort amorti critique (~0,3 s, départ en douceur : pas d'à-coup des mains au début / à la fin d'un rechargement)
+        const c = tient ? 1 : 0; if (this.priseK === undefined || (dt === 0 && kk === 1)) { this.priseK = this.priseK === undefined ? 1 : c; this.priseV = 0; }
+        else if (dt > 0) { const w = 14, x = this.priseK, v = this.priseV || 0, a = w * w * (c - x) - 2 * w * v; this.priseV = v + a * dt; this.priseK = Math.max(0, Math.min(1, x + this.priseV * dt)); if (this.priseK === 0 || this.priseK === 1) this.priseV = 0; }
         return kk;
       },
       placeWeapon(twoHands, recoil, mode) {
@@ -1376,11 +1411,18 @@
             // au puits de chargeur pendant que chargeur() (app.js) y amène le chargeur neuf
             const ac = mode === 'droite' && RECHARGE[this.clip] && actions[this.clip], p = ac ? (ac.time / ac.getClip().duration) % 1 : -1;
             if (p >= 0 && B.ra && B.rf) this.poche(p, L);
+            // sortie de la prise à deux mains en fondu : les mains partent de leur place sur le fusil (placé comme en visée / garde
+            // basse) au lieu de sauter à la pose de l'animation
+            this.majPrise(false);
+            if (this.priseK > 0.01 && M.prise && weapon.isMeshy && B.la && B.head && !S.sansProc) {
+              const inv = new THREE.Matrix4().copy(group.matrixWorld).invert(), Pp = this.poseArme((o) => o.getWorldPosition(V()).applyMatrix4(inv), inv);
+              weapon.quaternion.copy(Pp.q); weapon.position.copy(Pp.p); weapon.updateMatrixWorld(true); this.tenir(this.priseK, true);
+            }
             const mw = new THREE.Matrix4().multiplyMatrices(hand.matrixWorld, L).premultiply(new THREE.Matrix4().copy(group.matrixWorld).invert());
             mw.decompose(weapon.position, weapon.quaternion, V()); weapon.scale.set(1, 1, 1);
             if (p >= 0 && lh && B.la && B.lf && weapon.magCenter) this.mainChargeur(p);
             // la main qui porte le fusil garde ses doigts sur la poignée ; la prise à deux mains se défait (reprise en fondu ensuite)
-            this.majPrise(false); if (mode === 'droite') this.tenir(1, false, 'R');
+            if (mode === 'droite') this.tenir(1, false, 'R');
             return; }
           twoHands = false;
         }
