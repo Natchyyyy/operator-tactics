@@ -696,10 +696,13 @@
       const nm = o.name || '';
       const pkm = PK && PK.mesh(o);
       if (pkm) mesh = pkm;
-      else if (has3('berline') && nm.startsWith('voiture')) {
-        mesh = M3.fit(i % 3 === 1 && has3('pickup') ? 'pickup' : 'berline', o.w, o.h, o.d, { flip: i % 2 === 0, tol: 0.3 });
+      else if (has3('berline') && nm.startsWith('voiture')) {   // o.dir : sens du capot (modèles : capot vers −x) ; o.teinte : couleur de carrosserie
+        const flipV = o.dir !== undefined ? (o.w >= o.d ? o.dir > 0 : o.dir < 0) : i % 2 === 0;
+        mesh = M3.fit(/pick-up/.test(nm) && has3('pickup') ? 'pickup' : 'berline', o.w, o.h, o.d, { flip: flipV, tol: 0.3 });
+        if (PK && PK.teinter) PK.teinter(mesh, o.teinte !== undefined ? o.teinte : i);
       } else if (has3('fourgon') && nm.startsWith('fourgon')) {
-        mesh = M3.fit('fourgon', o.w, o.h, o.d, { flip: i % 2 === 0, tol: 0.3 });
+        mesh = M3.fit('fourgon', o.w, o.h, o.d, { flip: o.dir !== undefined ? (o.w >= o.d ? o.dir > 0 : o.dir < 0) : i % 2 === 0, tol: 0.3 });
+        if (PK && PK.teinter) PK.teinter(mesh, o.teinte !== undefined ? o.teinte : 100 + i);
       } else if (has3('bus') && nm.startsWith('bus')) {
         mesh = M3.fit('bus', o.w, o.h, o.d, { tol: 0.35 });
       } else if (has3('barriere') && nm.startsWith('barrière')) {
@@ -709,21 +712,23 @@
       } else if (has3('fut') && nm.startsWith('fût')) {
         mesh = new THREE.Group(); const two = Math.max(o.w, o.d) > 1.2;   // un ou deux fûts dans la boîte
         for (let j = 0; j < (two ? 2 : 1); j++) { const r = Math.min(o.w, o.d) * 0.95, p = M3.fit('fut', r, o.h, r, { byHeight: true, rot: i + j }); if (two) { const off = (j - 0.5) * Math.max(o.w, o.d) * 0.48; p.position.set(o.w >= o.d ? off : 0, 0, o.w >= o.d ? 0 : off); } mesh.add(p); }
-      } else if (has3('kiosque') && nm.startsWith('kiosque')) {
-        mesh = M3.fit('kiosque', o.w, o.h, o.d, { tol: 0.3, rot: o.x > map.width / 2 ? Math.PI / 2 : -Math.PI / 2 });
-      } else if (has3('arbre') && nm.startsWith('palmier')) {   // arbre d'alignement (sa grille de pied disparaît dans le bac)
+      } else if (has3('kiosque') && nm.startsWith('kiosque')) {   // rideau du kiosque (face +z du modèle) tourné vers o.face (radians), sinon vers le nord
+        mesh = M3.fit('kiosque', o.w, o.h, o.d, { tol: 0.3, rot: o.face !== undefined ? o.face : Math.PI });
+      } else if (has3('abribus') && nm.startsWith('abribus')) {   // côté ouvert (face +z du modèle) vers le bus, au sud
+        mesh = M3.fit('abribus', o.w, o.h, o.d, { tol: 0.3 });
+      } else if (has3('arbre') && /^(arbre|palmier)/.test(nm)) {   // arbre d'alignement (sa grille de pied disparaît dans le bac)
         mesh = M3.fit('arbre', 3, 6.4 + (i % 3) * 0.5, 3, { byHeight: true, rot: i * 1.7 }); mesh.position.y = 0;
         mesh.children[0].position.y = -o.h / 2 - 0.8;   // pied enfoncé : la dalle à grille (plus large que le bac) passe sous le sol, le corset reste dans le bac
       } else if (has3('palettes') && nm.startsWith('palettes')) {
         mesh = M3.fit('palettes', o.w, o.h, o.d, { tol: 0.35, rot: (i % 4) * Math.PI / 2 });
       } else if (has3('conteneur') && nm.startsWith('conteneur')) {
         mesh = M3.fit('conteneur', o.w, o.h, o.d, { tol: 0.3, flip: i % 2 === 0 });
-      } else if (has3('palmier') && nm.startsWith('palmier')) {
+      } else if (has3('palmier') && /^(arbre|palmier)/.test(nm)) {
         mesh = M3.fit('palmier', 3, 6.2 + (i % 3) * 0.6, 3, { byHeight: true, rot: i }); mesh.position.y = 0;
         mesh.children[0].position.y = -o.h / 2;
       } else if (D3 && /^(voiture|fourgon|bus)/.test(nm)) {
         mesh = D3.car(o, i, nm.startsWith('voiture') ? 'car' : nm.startsWith('bus') ? 'bus' : 'van');
-      } else if (D3 && nm.startsWith('palmier')) {
+      } else if (D3 && /^(arbre|palmier)/.test(nm)) {
         mesh = D3.palm(o, i);
       } else if (D3 && nm.startsWith('barrière')) {
         mesh = D3.jersey(o);
