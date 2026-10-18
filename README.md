@@ -4,9 +4,33 @@ Jeu tactique militaire à collectionner : deux escouades de cinq opérateurs s'a
 l'issue dépend uniquement des événements simulés (perception, déplacements, tirs, dégâts, décisions individuelles).
 
 ## Lancer
-- Page jouable : `dist/index.html` (une seule page autonome, three.js inclus) — ou la version artifact `dist/artifact.html`.
+- Page jouable : `dist/index.html` (page légère + fichiers `dist/p/`, à servir en http) ; hors ligne : `dist/complet.html`
+  (le jeu entier en un seul fichier) ; en ligne : `docs/index.html` via raw.githack.com ; claude.ai : `dist/artifact.html`.
 - Développement : `python3 outils/serveur.py . 8765` puis http://127.0.0.1:8765/web/index.html
 - Assembler : `node build.js`
+
+## Construction et publication
+La limite d'un artifact claude.ai est de 16 Mo pour la page (et 16 Mo par fichier texte, 15 Mo par fichier binaire, types
+web standard seulement, 255 fichiers et 64 Mo par envoi, 511 fichiers et 256 Mo par version). `node build.js` lit la liste
+des `<script src>` de `web/index.html` (ajouter un script là-bas suffit, `build.js` n'a pas à être modifié) et produit :
+| Fichier | Contenu |
+|---|---|
+| `dist/index.html`, `docs/index.html`, `dist/artifact.html` | page légère (~0,3 Mo) : interface HTML/CSS + chargeur `web/chargeur.js` (barre de progression sur l'écran titre) |
+| `p/three.min.js`, `p/three-addons.js`, `p/<lib>.js` | bibliothèques (`three*.js`, `web/vendor/*.js` + licence), exécutées en premier |
+| `p/modeles-<nom>.js` | modèles 3D inclus en base64 (`web/modeles/*.js`) |
+| `p/sons.js` | sons inclus (bloc `<!--SONS-->…<!--/SONS-->` de `web/index.html`), remis dans la page pour `lecteur.js` |
+| `p/jeu.js` | tous les autres scripts, dans l'ordre (le chargeur les exécute un par un) |
+| `dist/complet.html` | tout en un seul fichier (hors ligne, file://) — non publié, non versionné |
+| `dist/hd`, `docs/hd` / `dist/hdart` | haute définition (`web/hd`) ; pour l'artifact les `.glb` deviennent des `.json` base64 publiés sous `hd/` |
+| `dist/publier.json` | chemin publié → fichier source de chaque fichier de l'artifact, tailles, contrôles, lots d'envoi |
+- Le chargeur télécharge les fichiers en parallèle (`p/x.js?v=<empreinte>` : une republication ne sert jamais une vieille
+  version en cache) et les exécute dans l'ordre. Fichier requis manquant : message en français sur l'écran titre ; fichier
+  marqué `data-optionnel` (ex. moteur physique) ou sons : on continue sans. Haute définition : chargée ensuite, avec repli.
+- Publier l'artifact : `node outils/publier.js` donne les lots à envoyer (seulement les fichiers changés ; `--tout` pour
+  tout), chacun en un appel avec `file_path` = `dist/artifact.html` ; après succès `node outils/publier.js --fait`.
+- Ajouter des fichiers : script → `<script src>` dans `web/index.html` ; bibliothèque → `web/vendor/<nom>.js`
+  (+ `<nom>.LICENSE`) ; modèle inclus → `web/modeles/<nom>.js` ; gros fichiers chargés à la demande (modèles, textures,
+  sons supplémentaires) → `web/hd/`, lus par `fetch('hd/<fichier>')` avec repli (un `.glb` est publié en `hd/<nom>.json`).
 
 ## Organisation
 | Dossier | Contenu |

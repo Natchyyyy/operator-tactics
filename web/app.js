@@ -906,7 +906,9 @@
       // ils se replacent face au torse si l'écart devient grand, ou après un moment immobile
       if (a.piedsYaw === undefined) a.piedsYaw = m.yaw; a.stopT = (a.stopT || 0) + dt;
       jambes = a.piedsYaw - m.yaw; while (jambes > Math.PI) jambes -= 2 * Math.PI; while (jambes < -Math.PI) jambes += 2 * Math.PI;
-      if (Math.abs(jambes) > 1.9 || (a.stopT > 1.2 && Math.abs(jambes) > 0.35) || crouch) { a.piedsYaw = m.yaw; jambes = 0; }
+      // (au-delà de ~40° de torsion, ou après 1,2 s, les pieds se replacent par deux petits pas, comme un vrai pivot : avant,
+      // la torsion allait jusqu'à 110° puis les pieds tournaient d'un coup en glissant au sol)
+      if (Math.abs(jambes) > 0.7 || (a.stopT > 1.2 && Math.abs(jambes) > 0.25) || crouch) { a.piedsYaw = m.yaw; jambes = 0; if (!crouch && m.repas) m.repas(); }
     }
     // marche (pas la course, pas accroupi) : jambes directionnelles (soldat3d.marche) quand le modèle a les pas chassés
     // marche OU course (petites foulées) directionnelles jusqu'à 3,2 m/s ; au-delà (sprint) l'ancienne méthode. Marche ou
@@ -931,7 +933,8 @@
     const vM = dirMarche ? v : a.vGr || 0;
     if (dirMarche || grace) { jambes = 0; a.recule = false; a.piedsYaw = m.yaw; }
     m.jambesCible = u.alive ? jambes : 0;
-    const loco = (n) => { const nat = m.loco[n] || 1; m.play(n, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)), fade: 0.2 });
+    m.verrouPieds = false;   // (loco() : pieds d'appui cloués et jamais croisés aussi hors marche directionnelle, voir Soldat3D.verrou)
+    const loco = (n) => { const nat = m.loco[n] || 1; m.play(n, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)), fade: 0.2 }); m.verrouPieds = true;
       const act = m.mixer.existingAction(m.clips[n]); if (act) a.phase = act.time / (m.clips[n].duration || 1) * 2 * Math.PI; };   // phase des pas (sons)
     let mode = 'deux', legs = false;
     if (!u.alive) {
@@ -953,6 +956,11 @@
       const vise = aiming || u.preaim || !m.clips.Walk_Low_Haut;
       // (marche attend la direction par rapport au groupe, c.-à-d. à la visée : on rajoute la correction du corps retirée plus haut)
       let haut = course ? (vise ? 'Run_and_Shoot_Haut' : 'Run_Low_Haut') : (vise ? 'Walk_Aim_Haut' : 'Walk_Low_Haut'), avant = course ? 'Pas_Avant_Course' : vise ? 'Pas_Avant_Aim' : 'Pas_Avant_Low', mix = null;
+      if (vise && m.clips.Pas_Glisse) {
+        // en visant : marche « glissée » (genoux fléchis, talon-pointe) jusqu'à ~2,3 m/s, course épaulée au-delà (hystérésis)
+        if (!grace) a.courseV = a.courseV ? a.vLis > 2.2 : a.vLis > 2.45;
+        if (a.courseV) { avant = 'Pas_Avant_Course'; haut = 'Run_and_Shoot_Haut'; } else { avant = 'Pas_Glisse'; haut = 'Walk_Aim_Haut'; }
+      }
       if (patrouille) {
         // marche jusqu'à ~1,9 m/s (marche rapide), puis petite course, qui se mélange à la vraie course de 2,7 à 3,7 m/s (même
         // cadence, elle en est tirée). Marche et course ne se mélangent PAS (appuis à contretemps : mesuré, à 50/50 le pied

@@ -1578,10 +1578,35 @@
       e.suppression = clamp(e.suppression + u.weapon.suppress * 0.55 * (cover ? 0.7 : 1) * far * (has(u, 'gunner') ? 1.2 : 1), 0, 1);
       const spread = 0.4 + d * 0.03;
       to = { x: e.x + this.rng.gauss() * spread, y: e.chestY() + this.rng.gauss() * 0.5, z: e.z + this.rng.gauss() * spread };
+      // balle perdue : un autre adversaire collé à la ligne de tir (à côté de la cible ou derrière elle) peut la prendre
+      const v = this.strayVictim(u, e, d);
+      if (v) { this.emit({ type: 'shot', shooter: u.id, target: v.id, from, to: { x: v.x, y: v.chestY(), z: v.z }, hit: true, stray: true }); this.applyHit(u, v, dist2(u, v), true); return; }
     }
     this.emit({ type: 'shot', shooter: u.id, target: e.id, from, to, hit });
   };
-  Battle.prototype.applyHit = function (u, e, d) {
+  // Balle perdue (tir manqué) : parmi les ADVERSAIRES du tireur autres que la cible (jamais un allié : pas de tir ami), le
+  // premier qui se tient à moins de 0,5 m de la trajectoire, à hauteur de la cible ou au-delà (jusqu'à 25 m derrière), sans
+  // obstacle entre le tireur et lui. Chance 30 à 50 % selon qu'il frôle ou coupe la trajectoire. Plus une escouade est
+  // groupée, plus les tirs manqués sur l'un touchent l'autre.
+  Battle.prototype.strayVictim = function (u, e, d) {
+    if (d < 1e-6) return null;
+    const dx = (e.x - u.x) / d, dz = (e.z - u.z) / d;
+    let best = null, bt = Infinity;
+    for (const c of this.teams[e.team].units) {
+      if (c === e || !c.alive) continue;
+      const rx = c.x - u.x, rz = c.z - u.z, t = rx * dx + rz * dz;
+      if (t < d - 1.2 || t > d + 25) continue;
+      const off = Math.abs(rx * dz - rz * dx); if (off >= 0.5) continue;
+      if (t < bt) { bt = t; best = { c, off }; }
+    }
+    if (!best) return null;
+    const c = best.c;
+    if (!this.map.hasLOS(u.x, u.eyeY() - 0.15, u.z, c.x, c.chestY(), c.z)) return null;   // le couvert arrête la balle
+    if (!this.rng.chance(0.3 + 0.2 * (1 - best.off / 0.5))) return null;
+    u.stats.strays = (u.stats.strays || 0) + 1;
+    return c;
+  };
+  Battle.prototype.applyHit = function (u, e, d, stray) {
     const w = u.weapon;
     const r = d / w.range;
     let fall = r <= 0.3 ? 1 : (r <= 1 ? 1 - (r - 0.3) / 0.7 * (1 - w.falloff) : Math.max(0.3 * w.falloff, w.falloff - (r - 1) * 0.7 * w.falloff));
@@ -1601,7 +1626,7 @@
     u.stats.hits++; u.stats.damageDealt += dmg; e.stats.damageTaken += dmg; if (loc === 'tête') u.stats.headshots++;
     e.hitBy[u.id] = this.t;
     const absorbed = Math.round(w.damage * fall * mult * prot * 10) / 10;
-    let text = `${u.callsign} touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV`;
+    let text = stray ? `Balle perdue : ${u.callsign} manque sa cible et touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV` : `${u.callsign} touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV`;
     if (absorbed > 0) text += ` (${absorbed} absorbés : ${e.armor.name})`;
     const prevStatus = e.status;
     if (e.hp <= 0) {
@@ -1617,13 +1642,13 @@
       if ((e.def.level || 0) > (u.def.level || 0)) u.stats.veteran++;
       e.downedBy = u;
       text += bleeding ? ` — ${e.callsign} est à terre (un allié peut le relever).` : ` — ${e.callsign} est hors de combat.`;
-      this.logEvent('down', text, { unit: u.id, enemy: e.id, team: u.team, dmg, loc });
+      this.logEvent('down', text, { unit: u.id, enemy: e.id, team: u.team, dmg, loc, stray: !!stray });
       this.emit({ type: 'down', unit: e.id });
       return;
     }
     e.status = e.hp <= e.maxHp * 0.2 ? 'critical' : (e.hp <= e.maxHp * 0.5 ? 'wounded' : 'ok');
     if (e.status !== prevStatus) text += e.status === 'critical' ? ` — ${e.callsign} est gravement blessé.` : ` — ${e.callsign} est blessé.`;
-    this.logEvent('hit', text, { unit: u.id, enemy: e.id, team: u.team, dmg, loc, hpBefore: before, hpAfter: e.hp });
+    this.logEvent('hit', text, { unit: u.id, enemy: e.id, team: u.team, dmg, loc, hpBefore: before, hpAfter: e.hp, stray: !!stray });
   };
 
   // ---- Fin de bataille -----------------------------------------------------------------

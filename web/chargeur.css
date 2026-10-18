@@ -1,0 +1,9 @@
+  /* ---- Chargeur (web/chargeur.js, pages publiées seulement) : barre de progression à la place des boutons de l'écran titre ---- */
+  html.ot-charge .titleBtns { display: none; }
+  #otCharge { margin-top: 18px; max-width: 440px; }
+  #otCharge .ocBar { height: 6px; background: rgba(255,255,255,.12); border-radius: 3px; overflow: hidden; }
+  #otCharge .ocBar i { display: block; height: 100%; width: 0; background: #c9b67a; transition: width .25s; }
+  #otCharge .ocTxt { margin-top: 8px; font-size: 12.5px; color: #9aa6b2; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+  #otCharge.erreur .ocBar i { background: #d0563c; }
+  #otCharge.erreur .ocTxt { color: #f2a593; max-width: 560px; line-height: 1.45; letter-spacing: 0; font-size: 14px; }
+  #otCharge.flottant { position: fixed; left: 24px; right: 24px; bottom: 24px; z-index: 99; }

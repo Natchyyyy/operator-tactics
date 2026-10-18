@@ -1,54 +1,109 @@
-// Assemble une seule page autonome : dist/index.html (three.js + simulation + interface inclus).
-const fs = require('fs'), path = require('path');
-const root = __dirname;
+// Construction des pages du jeu à partir de web/index.html (voir README, « Construction et publication »).
+//  - dist/complet.html : le jeu en UN seul fichier autonome (tous les scripts, modèles et sons inclus) — hors ligne, file://.
+//  - dist/index.html, docs/index.html : page légère (interface + chargeur web/chargeur.js) ; le reste est dans p/ à côté :
+//      p/three.min.js, p/three-addons.js, p/<lib>.js (web/vendor/)  bibliothèques, exécutées en premier
+//      p/modeles-<nom>.js                                           modèles 3D en base64 (web/modeles/)
+//      p/sons.js                                                    sons inclus (bloc <!--SONS--> de web/index.html)
+//      p/jeu.js                                                     tous les autres scripts, dans l'ordre de web/index.html
+//  - dist/artifact.html : la même page légère sans squelette, pour claude.ai ; dist/publier.json : fichiers à publier avec.
+//  - hd/ : modèles et textures haute définition (web/hd) ; dist/hdart : les .glb en base64 dans des .json (artifacts).
+// Les scripts sont lus dans web/index.html : ajouter un <script src> là-bas suffit (data-optionnel : son échec n'est pas bloquant).
+const fs = require('fs'), path = require('path'), crypto = require('crypto');
+const root = __dirname, R = (p) => path.join(root, p);
 require('./outils/images_js.js');   // régénère web/images.js à partir de web/img
-let html = fs.readFileSync(path.join(root, 'web/index.html'), 'utf8');
-const inline = (src) => () => `<script>\n${fs.readFileSync(path.join(root, src), 'utf8')}\n</script>`; // fonction : évite les motifs $& de String.replace
-html = html.replace('<script src="three.min.js"></script>', inline('web/three.min.js'))
-  .replace('<script src="police.js"></script>', inline('web/police.js'))
-  .replace('<script src="fond.js"></script>', inline('web/fond.js'))
-  .replace('<script src="emblemes.js"></script>', inline('web/emblemes.js'))
-  .replace('<script src="icones.js"></script>', inline('web/icones.js'))
-  .replace('<script src="medailles.js"></script>', inline('web/medailles.js'))
-  .replace('<script src="lecteur.js"></script>', inline('web/lecteur.js'))
-  .replace('<script src="figure.js"></script>', inline('web/figure.js'))
-  .replace('<script src="gltf.js"></script>', inline('web/gltf.js'))
-  .replace('<script src="three-addons.js"></script>', inline('web/three-addons.js'))
-  .replace('<script src="rendu.js"></script>', inline('web/rendu.js'))
-  .replace('<script src="effets.js"></script>', inline('web/effets.js'))
-  .replace('<script src="ruelle.js"></script>', inline('web/ruelle.js'))
-  .replace('<script src="parking.js"></script>', inline('web/parking.js'))
-  .replace('<script src="modeles/soldat.js"></script>', inline('web/modeles/soldat.js'))
-  .replace('<script src="modeles/gign.js"></script>', inline('web/modeles/gign.js'))
-  .replace('<script src="modeles/decor.js"></script>', inline('web/modeles/decor.js'))
-  .replace('<script src="modeles3d.js"></script>', inline('web/modeles3d.js'))
-  .replace('<script src="soldat3d.js"></script>', inline('web/soldat3d.js'))
-  .replace('<script src="decor.js"></script>', inline('web/decor.js'))
-  .replace('<script src="portrait.js"></script>', inline('web/portrait.js'))
-  .replace('<script src="images.js"></script>', inline('web/images.js'))
-  .replace('<script src="homescene.js"></script>', inline('web/homescene.js'))
-  .replace('<script src="../sim/rng.js"></script>', inline('sim/rng.js'))
-  .replace('<script src="../sim/data.js"></script>', inline('sim/data.js'))
-  .replace('<script src="../sim/map.js"></script>', inline('sim/map.js'))
-  .replace('<script src="../sim/engine.js"></script>', inline('sim/engine.js'))
-  .replace('<script src="../sim/game.js"></script>', inline('sim/game.js'))
-  .replace('<script src="../sim/league.js"></script>', inline('sim/league.js'))
-  .replace('<script src="hq.js"></script>', inline('web/hq.js'))
-  .replace('<script src="app.js"></script>', inline('web/app.js'))
-  .replace('<script src="title.js"></script>', inline('web/title.js'));
-if (/<script src=/.test(html)) throw new Error('un script externe reste dans la page');
-fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
-fs.writeFileSync(path.join(root, 'dist/index.html'), html);
-// copie pour GitHub Pages (Settings → Pages → branche main, dossier /docs : GitHub ne publie que la racine ou /docs)
-fs.mkdirSync(path.join(root, 'docs'), { recursive: true }); fs.writeFileSync(path.join(root, 'docs/index.html'), html);
-// Variante « artifact » : le contenu sans squelette (doctype/html/head/body), titre et style en tête.
-const m = html.match(/<title>[\s\S]*?<\/style>/), body = html.match(/<body>([\s\S]*)<\/body>/);
-if (!m || !body) throw new Error('structure de page inattendue');
-fs.writeFileSync(path.join(root, 'dist/artifact.html'), m[0] + '\n' + body[1].trim() + '\n');
-// versions haute définition (modèles, textures) publiées à côté de la page : copiées dans dist/hd et docs/hd
-{ const src = path.join(root, 'web/hd'); if (fs.existsSync(src)) for (const dst of ['dist/hd', 'docs/hd']) { fs.mkdirSync(path.join(root, dst), { recursive: true });
-  for (const f of fs.readdirSync(src)) { const a = path.join(src, f), b = path.join(root, dst, f); if (!fs.existsSync(b) || fs.statSync(b).size !== fs.statSync(a).size) fs.copyFileSync(a, b); } } }
-// pour l'hébergement des artifacts (pas de .glb servi) : dist/hdart, les .glb en base64 dans des .json, les .jpg tels quels
-{ const src = path.join(root, 'web/hd'), dst = path.join(root, 'dist/hdart'); if (fs.existsSync(src)) { fs.mkdirSync(dst, { recursive: true });
-  for (const f of fs.readdirSync(src)) { const a = path.join(src, f); if (f.endsWith('.glb')) fs.writeFileSync(path.join(dst, f.replace(/\.glb$/, '.json')), JSON.stringify({ glb: fs.readFileSync(a).toString('base64') })); else fs.copyFileSync(a, path.join(dst, f)); } } }
-console.log('dist/index.html :', (html.length / 1024).toFixed(0), 'Ko ; dist/artifact.html écrit');
+const lire = (p) => fs.readFileSync(R(p), 'utf8');
+const ecrire = (p, data) => { fs.mkdirSync(path.dirname(R(p)), { recursive: true }); const tmp = R(p) + '.tmp' + process.pid; fs.writeFileSync(tmp, data); fs.renameSync(tmp, R(p)); };   // écriture atomique (captures en cours)
+const empreinte = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 10);
+const octets = (s) => Buffer.byteLength(s, 'utf8');
+
+const source = lire('web/index.html');
+const corps = source.match(/<body>([\s\S]*)<\/body>/), tete = source.match(/<title>[\s\S]*?<\/style>/);
+if (!corps || !tete) throw new Error('web/index.html : structure de page inattendue (<title>…</style>, <body>…</body>)');
+// ---- inventaire : bloc des sons et scripts du corps de page, dans l'ordre
+const sonsM = corps[1].match(/<!--SONS-->\s*<script type="text\/plain" id="sons-data">([\s\S]*?)<\/script>\s*<!--\/SONS-->/);
+const corpsSansSons = sonsM ? corps[1].replace(sonsM[0], () => '') : corps[1];
+const scripts = []; let nInline = 0;
+for (const m of corpsSansSons.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)) {
+  const attrs = m[1], src = (attrs.match(/\bsrc="([^"]+)"/) || [])[1], type = (attrs.match(/\btype="([^"]+)"/) || [])[1];
+  if (type && !/javascript/.test(type)) throw new Error('web/index.html : script de type « ' + type + ' » non géré : ' + m[0].slice(0, 80));
+  if (src) {
+    const fichier = path.posix.normalize('web/' + src); if (!fs.existsSync(R(fichier))) throw new Error('web/index.html : script introuvable ' + fichier);
+    const genre = /^(three\.min|three-addons)\.js$/.test(src) || /^vendor\//.test(src) ? 'vendor' : /^modeles\//.test(src) ? 'modele' : 'jeu';
+    scripts.push({ tag: m[0], src, nom: fichier, code: lire(fichier), opt: /\bdata-optionnel\b/.test(attrs), genre });
+  } else scripts.push({ tag: m[0], nom: 'web/index.html#' + (++nInline), code: m[2], genre: 'jeu', inline: true });
+}
+for (const s of scripts) if (/<\/script/i.test(s.code)) throw new Error(s.nom + ' contient « </script » : impossible de l\'inclure dans une page');
+if (/<script\b[^>]*\bsrc=/.test(source.slice(0, source.indexOf('<body>')))) throw new Error('web/index.html : <script src> dans <head> non géré');
+
+// ---- 1. page complète en un seul fichier (ordre d'origine)
+let complet = source;
+for (const s of scripts) if (!s.inline) complet = complet.replace(s.tag, () => `<script>\n${s.code}\n</script>`);
+ecrire('dist/complet.html', complet);
+
+// ---- 2. fichiers séparés (p/) et page légère
+const parties = [], annexes = [];   // annexes : licences des bibliothèques, publiées à côté
+for (const s of scripts.filter(s => s.genre === 'vendor')) {
+  parties.push({ f: 'p/' + path.basename(s.nom), contenu: s.code, opt: s.opt });
+  const lic = s.nom.replace(/\.js$/, '.LICENSE'); if (fs.existsSync(R(lic))) annexes.push({ f: 'p/' + path.basename(lic) + '.txt', contenu: lire(lic) });
+}
+for (const s of scripts.filter(s => s.genre === 'modele')) parties.push({ f: 'p/modeles-' + path.basename(s.nom), contenu: s.code, opt: s.opt });
+if (sonsM) parties.push({ f: 'p/sons.js', opt: true, contenu: '// Sons inclus du jeu (bloc <!--SONS--> de web/index.html), remis dans la page pour web/lecteur.js.\n' +
+  '(function () { const s = document.createElement("script"); s.type = "text/plain"; s.id = "sons-data"; s.text = ' + JSON.stringify(sonsM[1]) + '; document.body.appendChild(s); })();\n' });
+const jeu = scripts.filter(s => s.genre === 'jeu');
+parties.push({ f: 'p/jeu.js', decoupe: true, contenu: '// Scripts du jeu Operator Tactics réunis par build.js (sources : web/, sim/). Le chargeur les exécute un par un.' +
+  jeu.map(s => `\n;//@@OT ${s.nom}@@\n` + s.code).join('') + '\n' });
+for (const p of parties) { p.v = empreinte(p.contenu); p.o = octets(p.contenu); }
+const manifeste = { version: empreinte(parties.map(p => p.v).join()), parties: parties.map(p => Object.assign({ f: p.f, v: p.v, o: p.o }, p.opt ? { opt: 1 } : {}, p.decoupe ? { decoupe: 1 } : {})) };
+const chargeur = lire('web/chargeur.js').replace('/*MANIFESTE*/null', () => JSON.stringify(manifeste));
+let corpsLeger = corpsSansSons; for (const s of scripts) corpsLeger = corpsLeger.replace(s.tag, () => '');
+corpsLeger = corpsLeger.split('\n').filter(l => l.trim()).join('\n');
+const styleLeger = tete[0].replace(/<\/style>$/, () => lire('web/chargeur.css') + '</style>');
+const corpsFinal = corpsLeger + `\n<script>\n${chargeur}\n</script>\n`;
+const page = source.slice(0, source.indexOf(tete[0])) + styleLeger + source.slice(source.indexOf(tete[0]) + tete[0].length, source.indexOf('<body>')) + '<body>\n' + corpsFinal + '</body>\n</html>\n';
+for (const dst of ['dist', 'docs']) {
+  const garder = new Set([...parties, ...annexes].map(p => path.basename(p.f)));
+  if (fs.existsSync(R(dst + '/p'))) for (const f of fs.readdirSync(R(dst + '/p'))) if (!garder.has(f)) fs.rmSync(R(dst + '/p/' + f));   // fichiers retirés
+  for (const p of [...parties, ...annexes]) { const b = R(dst + '/' + p.f); if (!fs.existsSync(b) || fs.readFileSync(b, 'utf8') !== p.contenu) ecrire(dst + '/' + p.f, p.contenu); }
+  ecrire(dst + '/index.html', page);   // en dernier : la page ne référence que des fichiers déjà écrits
+}
+// variante « artifact » : sans squelette (doctype/html/head/body), titre et style en tête — le publieur ajoute le squelette
+ecrire('dist/artifact.html', styleLeger + '\n' + corpsFinal);
+
+// ---- 3. haute définition : web/hd copié dans dist/hd et docs/hd ; dist/hdart pour les artifacts (.glb → .json base64)
+const hdSrc = R('web/hd'), hdFichiers = fs.existsSync(hdSrc) ? fs.readdirSync(hdSrc).filter(f => !f.startsWith('.')) : [];
+for (const dst of ['dist/hd', 'docs/hd']) { fs.mkdirSync(R(dst), { recursive: true });
+  for (const f of fs.readdirSync(R(dst))) if (!hdFichiers.includes(f)) fs.rmSync(R(dst + '/' + f));   // fichiers retirés de web/hd
+  for (const f of hdFichiers) { const a = path.join(hdSrc, f), b = R(dst + '/' + f); if (!fs.existsSync(b) || fs.statSync(b).size !== fs.statSync(a).size || fs.statSync(b).mtimeMs < fs.statSync(a).mtimeMs) fs.copyFileSync(a, b); } }
+const hdart = (f) => f.replace(/\.glb$/, '.json');
+{ fs.mkdirSync(R('dist/hdart'), { recursive: true }); const noms = new Set(hdFichiers.map(hdart));
+  for (const f of fs.readdirSync(R('dist/hdart'))) if (!noms.has(f)) fs.rmSync(R('dist/hdart/' + f));
+  for (const f of hdFichiers) { const a = path.join(hdSrc, f), b = R('dist/hdart/' + hdart(f)); if (fs.existsSync(b) && fs.statSync(b).mtimeMs >= fs.statSync(a).mtimeMs) continue;
+    if (f.endsWith('.glb')) ecrire('dist/hdart/' + hdart(f), JSON.stringify({ glb: fs.readFileSync(a).toString('base64') })); else fs.copyFileSync(a, b); } }
+
+// ---- 4. manifeste de publication (artifact claude.ai) : chemin publié → fichier source, contrôles de taille et de type
+const TYPES = { js: 'text/javascript', json: 'application/json', txt: 'text/plain', css: 'text/css', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
+  ogg: 'audio/ogg', mp3: 'audio/mpeg', wav: 'audio/wav', woff2: 'font/woff2' };
+const TEXTE = /^(js|json|txt|css)$/, MAX_TEXTE = 16e6, MAX_BIN = 15e6, MAX_PAGE = 16e6, MAX_VERSION = 256e6, MAX_FICHIERS = 511, LOT_FICHIERS = 250, LOT_OCTETS = 60e6;
+const fichiersPub = [...parties, ...annexes].map(p => ({ publie: p.f, source: 'dist/' + p.f }))
+  .concat(hdFichiers.map(f => ({ publie: 'hd/' + hdart(f), source: 'dist/hdart/' + hdart(f) })));
+const problemes = [];
+for (const e of fichiersPub) { const ext = e.publie.split('.').pop().toLowerCase(); e.octets = fs.statSync(R(e.source)).size; e.type = TYPES[ext] || null;
+  e.sha = crypto.createHash('sha1').update(fs.readFileSync(R(e.source))).digest('hex').slice(0, 12);   // outils/publier.js : fichiers changés depuis la dernière publication
+  if (!e.type) problemes.push(e.publie + ' : type non publiable (.' + ext + ')');
+  else if (e.octets > (TEXTE.test(ext) ? MAX_TEXTE : MAX_BIN)) problemes.push(e.publie + ' : ' + (e.octets / 1e6).toFixed(1) + ' Mo, au-delà de la limite par fichier'); }
+const taillePage = fs.statSync(R('dist/artifact.html')).size, totalPub = fichiersPub.reduce((s, e) => s + e.octets, 0) + taillePage;
+if (taillePage > MAX_PAGE) problemes.push('dist/artifact.html : ' + (taillePage / 1e6).toFixed(1) + ' Mo, au-delà de 16 Mo');
+if (totalPub > MAX_VERSION) problemes.push('total publié ' + (totalPub / 1e6).toFixed(0) + ' Mo, au-delà de 256 Mo par version');
+if (fichiersPub.length + 1 > MAX_FICHIERS) problemes.push(fichiersPub.length + 1 + ' fichiers, au-delà de 511 par version');
+// lots : le premier porte tout ce que la page exige (p/), les suivants la haute définition ; ≤ 250 fichiers et ≤ 60 Mo chacun
+const lots = []; let lot = null;
+for (const e of fichiersPub) { const coeur = e.publie.startsWith('p/');
+  if (!lot || (!coeur && (lot.n >= LOT_FICHIERS || lot.octets + e.octets > LOT_OCTETS))) lots.push(lot = { n: 0, octets: 0, files: {} });
+  lot.files[e.publie] = R(e.source); lot.n++; lot.octets += e.octets; }
+ecrire('dist/publier.json', JSON.stringify({ page: R('dist/artifact.html'), octets_page: taillePage, version: manifeste.version, total_octets: totalPub, fichiers: fichiersPub.length + 1,
+  problemes, lots, liste: fichiersPub }, null, 1) + '\n');
+
+const ko = (n) => (n / 1024).toFixed(0) + ' Ko', mo = (n) => (n / 1048576).toFixed(1) + ' Mo';
+console.log('page légère (dist/index.html, docs/index.html, dist/artifact.html) :', ko(octets(page)), '; dist/complet.html :', mo(octets(complet)));
+console.log('p/ :', parties.map(p => path.basename(p.f) + ' ' + ko(p.o)).join(', '));
+console.log('publication : ' + (fichiersPub.length + 1) + ' fichiers, ' + mo(totalPub) + ' en ' + lots.length + ' lot(s) → dist/publier.json' + (problemes.length ? '\nPROBLÈMES DE PUBLICATION :\n  ' + problemes.join('\n  ') : ''));

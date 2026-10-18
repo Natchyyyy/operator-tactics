@@ -169,6 +169,58 @@
     for (const s of [-1, 1]) { const b = add(q, new T.BoxGeometry(0.04, 0.04, 0.85), k.acierNoir, s * 0.65, 2.32, 0.38); b.rotation.x = -0.62; }
     const l = add(q, new T.SphereGeometry(0.09, 10, 8), k.lampe, 0, 2.42, 0.1); if (!LAMPES.includes(k.lampe)) LAMPES.push(k.lampe);
   }
+  // enseigne de boutique (nom inventé) : caisson lumineux, lettres claires sur fond de couleur
+  function signTex(name, sub, bg, fg) {
+    const key = 'ens' + name; if (CACHE[key]) return CACHE[key];
+    const W = 1024, H = 256, c = canvas(W, H), g = c.getContext('2d');
+    g.fillStyle = bg; g.fillRect(0, 0, W, H); g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 8; g.strokeRect(14, 14, W - 28, H - 28);
+    g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 118px Georgia, "Times New Roman", serif'; g.fillText(name, W / 2, sub ? 108 : H / 2 + 6);
+    if (sub) { g.font = 'italic 46px Georgia, serif'; g.fillText(sub, W / 2, 200); }
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 8; return (CACHE[key] = t);
+  }
+  // entrée « clients » à l'arrière d'une boutique (côté parking) : porte vitrée double, vitrine, store en toile à
+  // lambrequin, enseigne lumineuse, appliques ; c'est la tache de lumière chaude de la ruelle
+  function shopEntrance(g, x, y0, z, shop) {
+    const k = K(), q = new T.Group(); q.position.set(x, y0, z); g.add(q);
+    const alu = mat('ralu', () => new T.MeshStandardMaterial({ color: 0x3a3c3e, roughness: 0.4, metalness: 0.8 }));
+    const vitre = mat('rvitrine', () => new T.MeshStandardMaterial({ color: 0x2c3a40, roughness: 0.05, metalness: 0.7, emissive: 0xffc27a, emissiveIntensity: 0.08 }));
+    vitre.userData.jour = 0.08; vitre.userData.nuit = 0.7; if (!LAMPES.includes(vitre)) LAMPES.push(vitre);
+    add(q, new T.BoxGeometry(2.9, 2.5, 0.06), alu, 0, 1.25 + 0.15, 0.03);
+    add(q, new T.PlaneGeometry(1.7, 2.2), vitre, -0.45, 1.27, 0.065);                 // portes vitrées
+    add(q, new T.PlaneGeometry(0.95, 1.5), vitre, 0.9, 1.6, 0.065);                   // vitrine
+    for (const xx of [-1.3, -0.45, 0.4, 1.38]) add(q, new T.BoxGeometry(0.06, 2.4, 0.06), alu, xx, 1.35, 0.08);
+    add(q, new T.BoxGeometry(2.9, 0.06, 0.06), alu, 0, 2.38, 0.08);
+    for (const xx of [-0.6, -0.3]) add(q, new T.BoxGeometry(0.03, 0.5, 0.05), mat('rpoignee', () => new T.MeshStandardMaterial({ color: 0xb8b8b4, roughness: 0.3, metalness: 0.9 })), xx, 1.15, 0.12);
+    add(q, new T.BoxGeometry(3.3, 0.15, 0.9), k.beton, 0, 0.075, 0.45);              // seuil / marche
+    add(q, new T.BoxGeometry(1.2, 0.015, 0.7), mat('rtapis', () => new T.MeshStandardMaterial({ color: 0x2b2522, roughness: 1 })), -0.45, 0.16, 0.5);
+    // store en toile : pente, joues, lambrequin
+    const toile = mat('rtoile' + shop.toile, () => new T.MeshStandardMaterial({ color: shop.toile, roughness: 0.85, side: T.DoubleSide }));
+    const aw = new T.Mesh(new T.PlaneGeometry(3.4, 1.35), toile); aw.position.set(0, 2.95, 0.58); aw.rotation.x = -Math.PI / 2 + 0.55; aw.castShadow = aw.receiveShadow = true; q.add(aw);
+    add(q, new T.BoxGeometry(3.4, 0.28, 0.02), toile, 0, 2.55, 1.15);
+    for (const s of [-1, 1]) { const side = new T.Mesh(new T.ShapeGeometry(new T.Shape([new T.Vector2(0, 0), new T.Vector2(1.15, -0.62), new T.Vector2(1.15, -0.9), new T.Vector2(0, -0.28)])), toile); side.position.set(s * 1.7, 3.25, 0.0); side.rotation.y = -Math.PI / 2; side.castShadow = true; q.add(side); }
+    for (const s of [-1, 1]) add(q, cyl(0.015, 1.2, 6), k.acierNoir, s * 1.68, 2.9, 0.58).rotation.x = Math.PI / 2 - 0.55;
+    // enseigne lumineuse au-dessus du store
+    const sm = new T.MeshStandardMaterial({ map: signTex(shop.nom, shop.sous, shop.fond, shop.lettres), emissive: 0xffffff, emissiveMap: signTex(shop.nom, shop.sous, shop.fond, shop.lettres), emissiveIntensity: 0.15, roughness: 0.4 });
+    sm.userData.jour = 0.15; sm.userData.nuit = 1.3; LAMPES.push(sm);
+    add(q, new T.BoxGeometry(3.0, 0.8, 0.14), alu, 0, 3.75, 0.07);
+    add(q, new T.PlaneGeometry(2.9, 0.72), sm, 0, 3.75, 0.145);
+    for (const s of [-1, 1]) { add(q, new T.BoxGeometry(0.12, 0.2, 0.12), alu, s * 1.85, 2.6, 0.08); add(q, new T.SphereGeometry(0.07, 10, 8), k.lampe, s * 1.85, 2.48, 0.12); }
+    if (!LAMPES.includes(k.lampe)) LAMPES.push(k.lampe);
+  }
+  // bac à graisse de restaurant (cuve fermée sur roulettes) à côté de la porte de service
+  function greaseBin(g, x, y0, z) {
+    const k = K(), q = new T.Group(); q.position.set(x, y0, z); g.add(q);
+    const m = mat('rgraisse', () => new T.MeshStandardMaterial({ color: 0x4e5a63, roughness: 0.55, metalness: 0.5 }));
+    add(q, new T.BoxGeometry(1.2, 0.95, 0.75), m, 0, 0.6, 0.45); add(q, new T.BoxGeometry(1.24, 0.06, 0.8), k.acierNoir, 0, 1.1, 0.45);
+    for (const s of [-1, 1]) for (const t of [-1, 1]) { const w = add(q, cyl(0.06, 0.04, 10), k.acierNoir, s * 0.5, 0.07, 0.45 + t * 0.28); w.rotation.z = Math.PI / 2; }
+    add(q, new T.BoxGeometry(1.3, 0.01, 0.9), mat('rgraisseSol', () => new T.MeshStandardMaterial({ color: 0x1a1612, roughness: 0.25, transparent: true, opacity: 0.6, depthWrite: false })), 0, 0.006, 0.5);
+  }
+  // compteurs de gaz : nourrice jaune et deux compteurs sur la façade
+  function gasMeters(g, x, y0, z) {
+    const k = K(), jaune = mat('rgaz', () => new T.MeshStandardMaterial({ color: 0xc9a21e, roughness: 0.5, metalness: 0.4 }));
+    add(g, cyl(0.035, 1.4, 8), jaune, x, y0 + 0.7, z + 0.12); const h = add(g, cyl(0.03, 1.0, 8), jaune, x + 0.5, y0 + 1.4, z + 0.12); h.rotation.z = Math.PI / 2;
+    for (const dx of [0.25, 0.75]) add(g, new T.BoxGeometry(0.3, 0.32, 0.2), k.galva, x + dx, y0 + 1.1, z + 0.14);
+  }
   // rideau métallique de quai (porte de livraison) avec son coffre et ses coulisses
   function shutter(g, x, y0, z, w, h, ry) {
     const k = K(), q = new T.Group(); q.position.set(x, y0, z); q.rotation.y = ry || 0; g.add(q);
@@ -246,11 +298,14 @@
       const wx = x0 + 0.7 + step * (i + 0.5), wy = y0 + 4.9 + f * 3.2;
       if (opts.escalier && Math.abs(wx - opts.escalier) < 1.9 && f < 2) { windowAt(g, wx, wy, 0, R, wins); continue; }
       windowAt(g, wx, wy, 0, R, wins);
-      if (R() < 0.3 && f < 2) wallAC(g, wx, wy - 1.1, 0, R);
+      if (R() < 0.3 && f < 2 && !(opts.boutique && Math.abs(wx - opts.boutique[0]) < 2.6)) wallAC(g, wx, wy - 1.1, 0, R);
     }
     // rez-de-chaussée : portes, rideau, compteurs, petites fenêtres hautes grillagées
     for (const dx of opts.portes || []) { backDoor(g, dx, y0, 0, R); if (R() < 0.6) meters(g, dx + 1.4, y0, 0, R); }
     if (opts.rideau) shutter(g, opts.rideau[0], y0, 0, opts.rideau[1], 3.0);
+    if (opts.boutique) shopEntrance(g, opts.boutique[0], y0, 0, opts.boutique[1]);
+    if (opts.graisse !== undefined) greaseBin(g, opts.graisse, y0, 0);
+    if (opts.gaz !== undefined) gasMeters(g, opts.gaz, y0, 0);
     for (const hx of opts.hautes || []) { add(g, new T.BoxGeometry(0.9, 0.5, 0.02), k.verre, hx, y0 + 2.9, 0.01); for (let i = -2; i <= 2; i++) add(g, cyl(0.01, 0.5, 5), k.acierNoir, hx + i * 0.18, y0 + 2.9, 0.06); }
     if (opts.escalier) fireEscape(g, opts.escalier, y0, 0, Math.min(h - 3.4, 6.2), R);
     downspout(g, x1 - 0.25, y0, 0, h);
@@ -269,14 +324,14 @@
     const B = [
       [-6, 9, 10.2, 'rouge', 11, { portes: [3.0], hautes: [6.2], escalier: 6.5, tags: [[1.2, 2.6]] }],
       [9, 18.5, 13.4, 'brun', 12, { portes: [16.2], rideau: [11.6, 3.0], hautes: [14.6] }],
-      [18.5, 28.5, 8.6, 'peint', 13, { portes: [25.0], hautes: [21.5], tags: [[21.2, 3.0]] }],
+      [18.5, 28.5, 8.6, 'peint', 13, { portes: [20.4], graisse: 21.9, boutique: [25.75, { nom: "Marlow's Diner", sous: 'Breakfast all day', fond: '#1f4a35', lettres: '#f3ead2', toile: 0x234d36 }], tags: [[19.6, 1.6]] }],
       [28.5, 39, 12.2, 'rouge', 14, { escalier: 33.5, hautes: [38.0] }],
-      [39, 49.5, 9.8, 'jaune', 15, { portes: [47.4], hautes: [44.2], tags: [[42.0, 2.4]] }],
+      [39, 49.5, 9.8, 'jaune', 15, { portes: [41.6], gaz: 43.0, boutique: [48.0, { nom: 'Fenwick Books', sous: 'New & used', fond: '#5a1f26', lettres: '#f1e3c4', toile: 0x6a2129 }], tags: [[44.6, 2.2]] }],
       [49.5, 60, 13.0, 'brun', 16, { portes: [57.6], escalier: 54.2, hautes: [51.5] }],
       [60, 78, 10.6, 'rouge', 17, { portes: [65.2], rideau: [70.0, 3.2], hautes: [62.6], tags: [[67.5, 2.8]] }],
     ];
     for (const [x0, x1, h, tone, seed, opts] of B) {
-      const o2 = Object.assign({}, opts); for (const k of ['portes', 'hautes']) if (o2[k]) o2[k] = o2[k].map(X);
+      const o2 = Object.assign({}, opts); if (o2.boutique) o2.boutique = [X(o2.boutique[0]), o2.boutique[1]]; for (const k of ['graisse', 'gaz']) if (o2[k] !== undefined) o2[k] = X(o2[k]); for (const k of ['portes', 'hautes']) if (o2[k]) o2[k] = o2[k].map(X);
       if (o2.rideau) o2.rideau = [X(o2.rideau[0]), o2.rideau[1]]; if (o2.escalier) o2.escalier = X(o2.escalier); if (o2.tags) o2.tags = o2.tags.map(([a, b]) => [X(a), b]);
       building(f, X(x0), X(x1), h, tone, seed, y0, o2);
     }
@@ -407,6 +462,6 @@
     for (let i = 0; i < 7; i++) { const x = 2 + R() * 68, z = 0.35 + R() * 0.4; if (!free(x, z, 0.4)) continue; const c = new T.Mesh(new T.BoxGeometry(0.5 + R() * 0.3, 0.02, 0.4 + R() * 0.3), k.carton); c.position.set(x, 0.012, z + 0.3); c.rotation.y = R() * 3; c.receiveShadow = true; group.add(c); }
     for (let i = 0; i < 4; i++) { const x = 3 + R() * 66, z = 0.3; if (!free(x, z, 0.35)) continue; const c = new T.Mesh(new T.BoxGeometry(0.45, 0.4, 0.35), k.carton); c.position.set(x, 0.2, z + 0.2); c.rotation.y = (R() - 0.5) * 0.5; c.castShadow = c.receiveShadow = true; group.add(c); }
   }
-  function setConditions(id) { for (const m of LAMPES) m.emissiveIntensity = id === 'nuit' ? 3 : 0; }
+  function setConditions(id) { const n = id === 'nuit'; for (const m of LAMPES) m.emissiveIntensity = n ? (m.userData.nuit || 3) : (m.userData.jour || 0); }
   root.Ruelle = { build, mesh, setConditions };
 })(window.OT = window.OT || {});

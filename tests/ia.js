@@ -136,4 +136,23 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   const p = (d, moving) => { u.x = 8; u.z = 20; e.x = 8 + d; e.z = 20; u.moving = !!moving; e.moving = !!moving; u.suppression = 0; u.burst = 0; return b.hitChance(u, e, d).p; };
   check('précision : à 1–2 m on touche presque à coup sûr même en mouvement (> 0,75), la chance décroît avec la distance, et reste incertaine à 40 m (< 0,3)', p(1.5, true) > 0.75 && p(3, true) > 0.5 && p(1.5) > p(5) && p(5) > p(15) && p(15) >= p(40) && p(40) < 0.3, { p1: p(1.5, true), p3: p(3, true), p5: p(5), p15: p(15), p40: p(40) });
 }
+{
+  // ---- Balles perdues : un tir manqué peut toucher un autre adversaire collé à la trajectoire (jamais un allié du tireur) ----
+  const b = mk(2); b.map.obstacles = [];
+  const [u, mate] = b.teams[0].units, [e, e2] = b.teams[1].units;
+  const rate = (setup) => { let n = 0; for (let k = 0; k < 2000; k++) { setup(); if (b.strayVictim(u, e, Math.hypot(e.x - u.x, e.z - u.z))) n++; } return n / 2000; };
+  const base = () => { u.x = 8; u.z = 20; e.x = 20; e.z = 20; mate.x = 8; mate.z = 30; e2.x = 8; e2.z = 40; };
+  const behind = rate(() => { base(); e2.x = 23; e2.z = 20.1; });           // juste derrière la cible, sur la trajectoire
+  const beside = rate(() => { base(); e2.x = 20; e2.z = 20.45; });          // à côté de la cible, frôle la trajectoire
+  const apart = rate(() => { base(); e2.x = 20; e2.z = 22.5; });            // à 2,5 m de côté
+  const ally = rate(() => { base(); mate.x = 23; mate.z = 20.1; });          // un allié du tireur derrière la cible : jamais
+  b.map.obstacles = [{ x: 21, z: 19, w: 0.6, d: 2, h: 2.4, kind: 'wall', name: 'mur' }];
+  const walled = rate(() => { base(); e2.x = 23; e2.z = 20.1; });           // un mur entre la cible et lui : la balle s'y arrête
+  check('balles perdues : un adversaire sur la trajectoire derrière la cible est touché 30–50 % des tirs manqués, celui qui la frôle moins, rien à 2,5 m, jamais un allié, jamais à travers un mur',
+    behind > 0.4 && behind < 0.55 && beside > 0.25 && beside < behind && apart === 0 && ally === 0 && walled === 0, { behind, beside, apart, ally, walled });
+  // en bataille : ça arrive, c'est journalisé (« Balle perdue »), et les dégâts passent par le même calcul (localisation, protection)
+  let strays = 0, logged = 0, battles = 0;
+  for (let sd = 201; sd <= 206; sd++) { const x = mk(sd); x.run(); battles++; strays += x.units.reduce((s, v) => s + (v.stats.strays || 0), 0); logged += x.log.filter(l => l.stray && /^Balle perdue/.test(l.text) && ['tête', 'torse', 'membre'].includes(l.loc)).length; }
+  check('balles perdues : elles existent en bataille et chacune est journalisée', strays > 0 && logged === strays, { strays, logged, parBataille: strays / battles });
+}
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);
