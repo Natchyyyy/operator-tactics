@@ -626,7 +626,7 @@
       // visée et on penche le bas du dos (Spine, Spine1) pour l'amener à PENCHE m devant ; Spine2 est contre-tourné d'autant :
       // la poitrine avance sans basculer, le fusil reste à niveau sur la cible (la tête est redressée ensuite par tete()).
       penche(k) {
-        if (!hipsB || spine3.length < 3) return;
+        if (!hipsB || spine3.length < 3 || S.sansPenche) return;   // (S.sansPenche : comparaison dans les pages d'outils)
         group.updateMatrixWorld(true);
         const gq = group.getWorldQuaternion(new THREE.Quaternion()), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
         const h = WP(spine3[0]), c = WP(spine3[2]), L = Math.max(0.1, h.distanceTo(c)), d = (PENCHE - c.clone().sub(h).dot(fw)) * k;
