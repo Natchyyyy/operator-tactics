@@ -64,8 +64,10 @@
     const idxOs = (n) => bones.findIndex(b => nomOs(b.name) === n);
     const lie = (n) => { const i = idxOs(n); return i < 0 ? null : new T.Vector3().setFromMatrixPosition(new T.Matrix4().copy(sk.boneInverses[i]).invert()); };
     const box = SEGS.map(() => new T.Box3()), sous = SEGS.map(() => new Map());   // sous : boîte par os (nom), repère de liaison
+    // (maillage principal seulement : le niveau de détail « loin » du personnage HD a des positions quantifiées, décodées
+    // dans son shader — ses sommets bruts donneraient des boîtes de plusieurs kilomètres)
     m.body.traverse(o => {
-      if (!o.isSkinnedMesh || !o.skeleton) return;
+      if (o !== m.skinned || !o.skeleton) return;
       const g = o.geometry, pos = g.attributes.position, si = g.attributes.skinIndex, sw = g.attributes.skinWeight; if (!pos || !si || !sw) return;
       const map = o.skeleton.bones.map(b => segNom(b)), v = new T.Vector3();
       const pas = Math.max(1, Math.floor(pos.count / 40000));   // (modèle HD ~100 000 sommets : un sur deux ou trois suffit)
@@ -278,7 +280,7 @@
         arme = { body: null, c, sc, d, rel: Mf.invert().multiply(w.matrixWorld) };
       }
     }
-    Object.assign(r, { etat: 'physique', corps, art, arme, k, Mo, centres, t: 0, calme: 0, sauve: sauverOs(m), fige: false });
+    Object.assign(r, { etat: 'physique', corps, art, arme, k, Mo, centres, x0: u.x, z0: u.z, t: 0, calme: 0, sauve: sauverOs(m), fige: false });
     impulsions(r, u, m);
     r.lacher = r.tonique < 0.1 ? 0.04 : 0.16 + r.graine * 0.16;
     ragdolls.add(r); R.stats.morts++;
@@ -362,7 +364,7 @@
     if (battleRef && battleRef.map) for (const [o, b] of obstacles) if (battleRef.map.obstacles.indexOf(o) < 0) { W.removeBody(b); obstacles.delete(o); }
     let sous = 0;
     W.__acc = (W.__acc || 0) + dt;
-    while (W.__acc >= P.pas && sous < P.sousPasMax) { for (const r of ragdolls) if (!r.fige) moteurs(r, P.pas); W.step(P.pas); W.__acc -= P.pas; sous++; }
+    while (W.__acc >= P.pas && sous < P.sousPasMax) { for (const r of ragdolls) if (!r.fige) moteurs(r, P.pas); W.step(P.pas); for (const r of ragdolls) if (!r.fige) bornes(r); W.__acc -= P.pas; sous++; }
     if (sous >= P.sousPasMax) W.__acc = 0;
     // interpolation entre les deux derniers pas (affichage fluide à toute fréquence d'image)
     const a = W.__acc / P.pas;
@@ -422,17 +424,22 @@
   const _ga = root.CANNON ? null : null;
   function angleGenou(e) { const wa = e.a.vectorToWorldFrame(e.axP), wb = e.b.vectorToWorldFrame(e.axC); return Math.acos(Math.max(-1, Math.min(1, wa.dot(wb) / (wa.length() * wb.length())))); }
   function moyInv(b) { const e = b.invInertiaWorld.elements; return (e[0] + e[4] + e[8]) / 3; }
-  function apresPas(r, dt) {
-    r.t += dt;
-    let vmax = 0, bad = false;
+  // à chaque pas : vitesses bornées ; un corps qui « explose » (vitesse absurde, NaN, parti à plusieurs mètres) est
+  // abandonné : le soldat reprend l'animation de chute (voir R.anime)
+  function bornes(r) {
+    const p0 = r.corps[0].position;
     for (const b of r.corps) {
       const v = b.velocity.length(), w = b.angularVelocity.length();
-      if (!isFinite(v) || !isFinite(w) || !isFinite(b.position.y)) { bad = true; break; }
+      if (!isFinite(v) || !isFinite(w) || !isFinite(b.position.y) || v > 40 || b.position.y > 6 || Math.hypot(b.position.x - r.x0, b.position.z - r.z0) > 8 || b.position.distanceTo(p0) > 2.5) { r.erreur = true; return; }
       if (v > P.vMax) b.velocity.scale(P.vMax / v, b.velocity);
       if (w > P.wMax) b.angularVelocity.scale(P.wMax / w, b.angularVelocity);
-      vmax = Math.max(vmax, v, w * 0.15);
     }
-    if (bad) { r.erreur = true; figer(r); return; }
+  }
+  function apresPas(r, dt) {
+    r.t += dt;
+    let vmax = 0;
+    for (const b of r.corps) vmax = Math.max(vmax, b.velocity.length(), b.angularVelocity.length() * 0.15);
+    if (r.erreur) { R.stats.abandons = (R.stats.abandons || 0) + 1; figer(r); return; }
     r.calme = vmax < P.repos ? r.calme + dt : 0;
     if ((r.t > 1 && r.calme > P.reposT) || r.t > P.dureeMax) r.aFiger = true;
   }
@@ -454,6 +461,10 @@
       r.attente -= dt;
       if (r.attente > 0) { m.update(dt, false); m.placeWeapon(true, 0, 'deux'); return true; }
       if (!demarrer(u, m)) return false;
+    }
+    if (r.etat === 'physique' && r.erreur) {   // abandon : os remis dans la pose de la mort, animation de chute
+      for (const [o, q, p] of r.sauve) { o.quaternion.copy(q); o.position.copy(p); }
+      r.etat = 'abandon'; return false;
     }
     if (r.etat !== 'physique') return false;
     if (!r.fige) { appliquer(r, m); if (r.aFiger) { figer(r); } }
