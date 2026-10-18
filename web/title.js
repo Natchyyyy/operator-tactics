@@ -67,7 +67,11 @@
     const dp = dustGeo.attributes.position.array; for (let i = 0; i < dp.length; i += 3) { dp[i] += 0.002; dp[i + 1] += Math.sin(t + i) * 0.0008; if (dp[i] > 9) dp[i] = -5; } dustGeo.attributes.position.needsUpdate = true;
     renderer.render(scene, camera);
   }
-  function frame(now) { if (!running) return; requestAnimationFrame(frame); draw((now - t0) / 1000); }
+  // machine lente (rendu logiciel, vieux portable) : si une image coûte cher, on espace les suivantes pour ne pas bloquer la page
+  function frame(now) {
+    if (!running) return; const s = performance.now(); draw((now - t0) / 1000); const cost = performance.now() - s;
+    if (cost > 40) setTimeout(() => { if (running) requestAnimationFrame(frame); }, Math.min(3000, cost * 4)); else requestAnimationFrame(frame);
+  }
   function show() {
     $('#title').classList.remove('hidden'); buildSquad(); running = true; t0 = performance.now();
     if (manual) { running = false; draw(0); } else requestAnimationFrame(frame);   // captures : une seule image, sans boucle

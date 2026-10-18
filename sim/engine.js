@@ -813,7 +813,7 @@
       if (order === 'hold') { this.holdPost(u, threatPos); return; }
       // flanqueur : la menace connue est loin et hors de sa voie → il continue par le flanc jusqu'à sa hauteur, puis se rabat
       if (nd > 12 && Math.abs(threatPos.z - (home.z + this.laneOf(u))) > 7) {
-        const fw = this.flankWaypoint(u, threatPos, 3);
+        const fw = this.flankWaypoint(u, threatPos, 8);
         if (fw && this.flankMove(u, threatPos, fw)) return;
       }
       if (nd > 6 && u.status !== 'critical' && this.tiroir(u, threatPos, threatPos)) return;   // Tiroir : bonds alternés vers la menace
