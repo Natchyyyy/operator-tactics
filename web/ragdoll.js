@@ -586,6 +586,57 @@
     return { t: +r.t.toFixed(2), ecart: +ecart.toFixed(3), bas: +bas.toFixed(3), fige: r.fige, erreur: !!r.erreur, cible: r.cible || null, creationMs: +(r.msCreation || 0).toFixed(1) };
   };
   R.actifs = () => ragdolls.size;
+  // ---- Celui qui relève un blessé (affichage seulement : la simulation garde ses positions) --------------------------------
+  // Le blessé est tombé en ragdoll, parfois à ~1 m de sa position simulée ; le sauveteur, lui, s'agenouille à la position
+  // simulée et finissait sur le corps. Pendant le relevé (u.reviving), sa racine AFFICHÉE glisse en ~0,4 s vers un point à
+  // 0,6 m du bassin du corps, sur le côté le plus proche de lui (perpendiculaire à l'axe bassin → tête), face au corps ;
+  // elle revient à la position simulée quand le relevé se termine ou est interrompu. Décalage limité à 1,2 m : au-delà,
+  // c'est le corps (figé) qui glisse un peu vers sa position simulée, en 0,5 s.
+  const REANIM = { cote: 0.62, versTete: 0.12, max: 1.2, t: 0.4, glisse: 0.5 };
+  R.reanimateur = function (u, m, dt, unites, maillages) {
+    const e = m.reani || (m.reani = { w: 0, off: new THREE.Vector3(), yaw: 0 });
+    let cible = false;
+    if (!u.reviving) e.cote = false;
+    if (u.alive && u.reviving && unites && maillages) {
+      const a = unites[u.reviving.id], ma = a && maillages[a.id], r = ma && ma.rag;
+      if (a && !a.alive && r && r.etat === 'physique' && r.fige && ma.bones && ma.bones.hips && ma.bones.head) {
+        const P = ma.bones.hips.getWorldPosition(new THREE.Vector3()), H = ma.bones.head.getWorldPosition(new THREE.Vector3());
+        const ax = new THREE.Vector3(H.x - P.x, 0, H.z - P.z); if (ax.lengthSq() < 1e-4) ax.set(1, 0, 0); ax.normalize();
+        let n = new THREE.Vector3(-ax.z, 0, ax.x); if (n.x * (u.x - P.x) + n.z * (u.z - P.z) < 0) n.negate();
+        // (côté le plus proche, sauf si un bras ou une jambe du corps y est étendu : genoux du sauveteur dedans ; l'autre côté
+        // s'il est plus dégagé ; puis on recule jusqu'à ~0,22 m de dégagement pour les genoux)
+        if (!r.osCorps) { r.osCorps = []; ma.body.traverse(o => { if (o.isBone && /mixamorig/.test(o.name) && !/Hand.|_End|Top/.test(o.name)) r.osCorps.push(o.getWorldPosition(new THREE.Vector3())); }); }
+        const degage = (sp, nn) => { let d = 9; for (const c of r.osCorps) for (const k of [0.15, 0.4]) d = Math.min(d, Math.hypot(sp.x - nn.x * k - c.x, sp.z - nn.z * k - c.z)); return d; };
+        const essai = (nn) => { let c = REANIM.cote, sp; for (let i = 0; i < 6; i++, c += 0.1) { sp = P.clone().addScaledVector(nn, c).addScaledVector(ax, REANIM.versTete); if (degage(sp, nn) >= 0.22) break; } return { sp, nn, d: degage(sp, nn), c }; };
+        let best = e.cote && e.cible === a.id ? essai(e.nn) : null;
+        if (!best) { const A = essai(n), B = essai(n.clone().negate()); best = A.c <= B.c + 0.15 ? A : B; e.nn = best.nn; e.cote = true; e.cible = a.id; }
+        n = best.nn; const spot = best.sp; spot.y = 0;
+        const off = new THREE.Vector3(spot.x - u.x, 0, spot.z - u.z);
+        // (trop loin : le corps glisse de l'excédent vers le sauveteur, une seule fois, en 0,5 s ; le point suit le corps)
+        if (!r.glisse) glisserCorps(ma, r, off.length() > REANIM.max ? off.clone().negate().setLength(off.length() - REANIM.max + 0.05) : null);
+        else glisserCorps(ma, r, null, dt);
+        if (off.length() > REANIM.max) off.setLength(REANIM.max);
+        e.off.copy(off); e.yaw = Math.atan2(-n.x, -n.z); cible = true;
+      }
+    }
+    e.w = cible ? Math.min(1, e.w + dt / REANIM.t) : Math.max(0, e.w - dt / REANIM.t);
+    if (e.w <= 0) return;
+    const k = lisse(e.w);
+    m.group.position.x += e.off.x * k; m.group.position.z += e.off.z * k;
+    let d = e.yaw - m.group.rotation.y; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+    m.group.rotation.y += d * k;
+  };
+  // corps trop loin du sauveteur : il glisse (bassin, os racine) de d (monde) en REANIM.glisse secondes
+  function glisserCorps(ma, r, d, dt) {
+    const hips = ma.bones.hips;
+    if (!r.glisse) {
+      r.glisse = { t: 0, base: hips.position.clone(), dl: null };
+      if (d && d.length() > 0.02) { const M3 = new THREE.Matrix3().setFromMatrix4(new THREE.Matrix4().copy(hips.parent.matrixWorld).invert()); r.glisse.dl = d.clone().applyMatrix3(M3); }
+      return;
+    }
+    const g = r.glisse; if (!g.dl || g.t >= REANIM.glisse) return;
+    g.t = Math.min(REANIM.glisse, g.t + (dt || 0)); hips.position.copy(g.base).addScaledVector(g.dl, lisse(g.t / REANIM.glisse)); hips.updateMatrixWorld(true); r.osCorps = null;
+  }
   // mesures des modèles faites à l'avance, au repos (sinon ~30 ms à la première mort)
   R.prechauffer = function () {
     if (!R.dispo() || !OT.Soldat3D || !OT.Soldat3D.ready) return;

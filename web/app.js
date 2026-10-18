@@ -890,6 +890,8 @@
   const lerp = (a, b, k) => a + (b - a) * k;
   function animateSkinned(u, m, dt) {
     const a = m.anim, clipSpeed = (n) => (m.clips[n] || {}).duration || 1;
+    // sauveteur : racine affichée à côté du corps du blessé (ragdoll.js ; la simulation garde sa position)
+    if (OT.Ragdoll) OT.Ragdoll.reanimateur(u, m, dt, unitById, meshes);
     // mort en ragdoll physique (ragdoll.js) : le corps n'est plus animé
     if (m.rag && OT.Ragdoll && OT.Ragdoll.anime(u, m, dt)) { m.ring.material.opacity = Math.max(0.15, m.ring.material.opacity - dt); chargeur(u, m, a); return; }
     a.recoil = Math.max(0, a.recoil - dt * 10); a.flinch = Math.max(0, a.flinch - dt * 4);
