@@ -48,9 +48,9 @@
       // z des trois voies d'approche, routes de l'IA : nord le long de la façade du centre commercial (quai de livraison,
       // parvis, drive), milieu à travers les rangées de voitures et la station de lavage, sud le long du mur de la rue
       // (arrêt de bus, kiosque, chantier).
-      voies: { nord: 9, milieu: 23, sud: 38 },
+      voies: { nord: 5.5, milieu: 23, sud: 37 },
       // marquage au sol (rendu seulement) : rangées doubles [x0, z0, places], places le long des murs [x, z, places, pas en x, pas en z]
-      marquage: { rangees: [[13, 13, 8], [49, 13, 8]], murs: [[7.6, 41, 9, 2.5, 0], [0, 29.5, 4, 0, 2.5], [67, 6.9, 4, 0, 2.5], [67, 28.6, 2, 0, 2.5]] },
+      marquage: { rangees: [[13, 17, 6], [49, 17, 6]], murs: [[7.6, 41, 7, 2.5, 0], [0, 29.5, 4, 0, 2.5], [67, 10.8, 2, 0, 2.5], [67, 28.9, 2, 0, 2.5]] },
       // Un vrai parking de centre commercial, vu du ciel : au nord la façade (entrée, parvis planté, quai de livraison à
       // l'ouest, « drive » à l'est), au sud le mur de la rue (places le long du mur, arrêt de la navette, kiosque à pizzas, et
       // à l'est une partie du parking fermée pour travaux), à l'ouest l'entrée à barrière (guérite), à l'est la sortie (poste
@@ -64,58 +64,55 @@
           box(72, 0, 1, 18, 3.2, 'wall', 'mur est'), box(72, 28, 1, 18, 3.2, 'wall', 'mur est'),
           // entrée (ouest) et sortie (est) du parking : barrières levantes dans l'ouverture du mur
           box(-1, 18, 1, 10, 1.1, 'wall', 'mur portail ouest'), box(72, 18, 1, 10, 1.1, 'wall', 'mur portail est'),
-          // ---- NORD : façade du centre commercial (avancée de l'entrée), parvis
-          box(26, 0, 20, 5, 6.0, 'wall', 'centre commercial'),
-          box(33.2, 5.1, 5.2, 2.1, 2.4, 'wall', 'fourgon'),                      // livreur arrêté au dépose-minute devant l'entrée
-          // quai de livraison (nord-ouest) : quai surélevé contre la façade, camion à quai, palettes et rolls, benne
-          box(5, 0, 16, 2, 1.2, 'cover', 'quai de chargement'),
-          box(11.2, 2, 2.3, 5.6, 2.4, 'wall', 'fourgon (livraison)'),
-          box(15.4, 2.3, 1.2, 1.2, 1.0, 'cover', 'palettes'), box(17.1, 2.5, 1.2, 1.2, 0.75, 'cover', 'palettes'),
-          box(19.0, 2.2, 1.7, 0.8, 1.5, 'cover', 'rolls'),
-          box(0.6, 0.5, 2.0, 1.4, 1.3, 'cover', 'benne'),
-          // drive (nord-est) : auvent sur trois places, fourgon de livraison des courses, rolls
-          box(57.8, 0.4, 2.3, 5.6, 2.4, 'wall', 'fourgon (drive)'),
-          box(61, 0.6, 0.8, 1.7, 1.5, 'cover', 'rolls'), box(62.2, 0.6, 0.8, 1.7, 1.5, 'cover', 'rolls'),
-          box(53.7, 5.7, 0.3, 0.3, 4.6, 'wall', 'poteau'), box(61.5, 5.7, 0.3, 0.3, 4.6, 'wall', 'poteau'), box(69.3, 5.7, 0.3, 0.3, 4.6, 'wall', 'poteau'),
-          // abris à chariots au bout des rangées (côté entrée)
-          box(20.8, 8.4, 1.8, 4.4, 2.3, 'wall', 'abri à chariots'), box(49.4, 8.4, 1.8, 4.4, 2.3, 'wall', 'abri à chariots'),   // parois pleines (affiches) sur les grands côtés
-          // ---- MILIEU : station de lavage (deux pistes, local technique au milieu), aspirateurs, voitures en attente
+          // ---- NORD : ruelle de service à l'arrière des immeubles en briques (portes de service, escaliers de secours),
+          // séparée du parking par un muret surmonté d'un grillage (on voit à travers), avec deux passages.
+          // Au milieu, une chicane : l'annexe en briques d'un immeuble avance dans la ruelle, en face le local à poubelles.
+          box(9, 10.5, 15, 0.3, 0.8, 'cover', 'clôture grillagée'), box(27.5, 10.5, 19, 0.3, 0.8, 'cover', 'clôture grillagée'),
+          box(50, 10.5, 13, 0.3, 0.8, 'cover', 'clôture grillagée'),
+          box(30, 0, 7, 7.0, 5.0, 'wall', 'annexe'), box(39, 6.6, 4, 3.9, 2.0, 'wall', 'local poubelles'),
+          box(12, 0.9, 5.2, 2.1, 2.4, 'wall', 'fourgon'), box(56, 8.2, 5.2, 2.1, 2.4, 'wall', 'fourgon'),
+          box(0.5, 0.4, 2.0, 1.4, 1.3, 'cover', 'benne'), box(20, 8.8, 2.0, 1.4, 1.3, 'cover', 'benne'), box(52.5, 0.4, 2.0, 1.4, 1.3, 'cover', 'benne'),
+          box(7.6, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'), box(26.3, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'), box(61.5, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'),
+          box(23.2, 0.4, 1.2, 1.2, 1.0, 'cover', 'palettes'), box(45.6, 0.4, 1.2, 1.2, 1.3, 'cover', 'caisses'),
+          box(66.2, 7.6, 1.2, 1.2, 1.5, 'cover', 'caisses'), box(3.6, 8.4, 1.2, 1.2, 1.0, 'cover', 'palettes'),
+          // ---- MILIEU : station de lavage (deux pistes, local technique au milieu), aspirateurs, véhicules en attente ;
+          // devant, l'îlot du totem des tarifs
           box(30.2, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'), box(41.4, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'),
           box(34.6, 17.9, 2.8, 10.2, 3.3, 'wall', 'lavage local'),
           box(38.8, 12.7, 2.1, 5.2, 2.4, 'wall', 'fourgon'),                     // en attente devant la piste est
           box(31.4, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon'),                     // sortie de la piste ouest, au séchage
+          box(33.2, 11.0, 5.4, 1.6, 1.7, 'wall', 'haie'), box(35.3, 11.5, 1.2, 0.5, 3.6, 'wall', 'totem'),
           box(26.0, 21.3, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(24.2, 23.0, 4.4, 1.9, 1.4, 'cover', 'voiture'),
           box(45.4, 22.0, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(43.4, 23.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'),
-          // ---- OUEST : entrée (guérite du gardien), places le long du mur ouest avec bornes de recharge
+          // ---- OUEST : entrée (guérite du gardien), places le long du mur ouest avec borne de recharge
           box(9.4, 21.9, 2.2, 2.2, 2.6, 'wall', 'guérite'),
           box(0.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), box(0.2, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon'),
           box(0.2, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
           // ---- EST : sortie (poste électrique), places le long du mur est
-          box(60.4, 23.6, 2.8, 3.2, 2.6, 'wall', 'poste électrique'), box(60.8, 27.2, 1.0, 0.5, 1.4, 'cover', 'armoire'),
-          box(66.6, 8.2, 5.2, 2.1, 2.4, 'wall', 'fourgon'), box(67.3, 13.3, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'), box(66.6, 29.4, 5.2, 2.1, 2.4, 'wall', 'fourgon'),
+          box(59.9, 23.6, 2.8, 3.2, 2.6, 'wall', 'poste électrique'), box(60.4, 27.2, 1.0, 0.5, 1.4, 'cover', 'armoire'),
+          box(66.6, 11.0, 5.2, 2.1, 2.4, 'wall', 'fourgon'), box(67.3, 13.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'), box(66.6, 29.4, 5.2, 2.1, 2.4, 'wall', 'fourgon'),
           // ---- SUD : places le long du mur de la rue, kiosque à pizzas, arrêt de la navette, points de tri
           box(8.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), box(16.1, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'),
           box(23.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'),
-          box(19.6, 37.4, 2.4, 2.4, 3.0, 'wall', 'kiosque'),
-          box(30, 39.6, 12, 2.6, 3.0, 'wall', 'bus'), box(32.4, 37.6, 4.2, 1.5, 2.5, 'wall', 'abribus'),   // quai de la navette : abri sur l'îlot, bus le long
-          box(1.6, 43.6, 4.6, 1.6, 1.7, 'wall', 'colonnes de tri'),
-          // ---- SUD-EST : partie du parking fermée pour réfection de l'enrobé (séparateurs, clôtures de chantier, bungalow
-          // de chantier, benne à gravats, palettes de bordures, sacs de sable qui lestent les panneaux, fûts d'émulsion)
+          box(44.6, 33.8, 2.4, 2.4, 3.0, 'wall', 'kiosque'),
+          box(30, 39.7, 12, 2.6, 3.0, 'wall', 'bus'), box(32.4, 38.0, 4.2, 1.5, 2.5, 'wall', 'abribus'), box(24, 36.1, 5.2, 2.1, 2.4, 'wall', 'fourgon'),   // quai de la navette : abri sur l'îlot, bus le long
+          box(19.2, 33.8, 4.6, 1.6, 1.7, 'wall', 'colonnes de tri'),
+          // ---- SUD-EST : partie du parking fermée pour réfection de l'enrobé (séparateurs, clôtures de chantier bâchées,
+          // conteneurs du chantier, benne à gravats, palettes de bordures, sacs de sable qui lestent les panneaux, fût)
           box(52.5, 34.2, 5.5, 0.6, 0.95, 'cover', 'barrière'), box(61, 34.2, 5, 0.6, 0.95, 'cover', 'barrière'),
-          box(51.9, 34.8, 0.3, 2.4, 2.0, 'wall', 'clôture de chantier'), box(51.9, 41.2, 0.3, 4.8, 2.0, 'wall', 'clôture de chantier'),   // bâches imprimées sur les grilles
-          box(59.4, 39.0, 2.4, 6.0, 2.6, 'wall', 'conteneur'),                  // conteneur de stockage du chantier
-          box(65.6, 43.4, 6, 2.4, 2.6, 'wall', 'conteneur'),
+          box(51.9, 34.8, 0.3, 2.4, 2.0, 'wall', 'clôture de chantier'), box(51.9, 41.2, 0.3, 4.8, 2.0, 'wall', 'clôture de chantier'),
+          box(59.4, 39.0, 2.4, 6.0, 2.6, 'wall', 'conteneur'), box(65.6, 43.4, 6, 2.4, 2.6, 'wall', 'conteneur'),
           box(54.2, 43.4, 2.6, 1.7, 1.3, 'cover', 'benne à gravats'),
           box(56.2, 37.4, 1.2, 1.2, 0.9, 'cover', 'palettes'), box(57.7, 38.4, 1.2, 1.2, 0.9, 'cover', 'palettes'),
           box(62.8, 37.0, 2.4, 1.0, 0.8, 'cover', 'sacs de sable'),
           box(67.4, 37.6, 1.4, 0.7, 1.1, 'cover', 'fût'),
         ],
-        // îlots plantés aux bouts des rangées et sur le parvis
-        bac(13.6, 11.3, 4, 1.5), bac(18.4, 11.3, 2.0, 1.5), [box(13.6, 33.4, 4.6, 1.5, 1.7, 'wall', 'haie')], [box(53.8, 11.3, 4.4, 1.5, 1.7, 'wall', 'haie')], [box(49.4, 33.4, 2.8, 1.4, 1.7, 'wall', 'haie')],
-        bac(22.6, 5.8, 1.6, 1.6), bac(27.8, 5.8, 1.6, 1.6), bac(42.4, 5.8, 1.6, 1.6), bac(48.6, 5.8, 1.6, 1.6),
-        // rangées de places (ouest : x 13–23 ; est : x 49–59), du nord (z 13) au sud (z 33)
-        rangee(13, 13, 'vv..fvm.', '.fv..v.f', [0, 3, 5, 1, 6, 2, 4, 7, 0, 5]),
-        rangee(49, 13, 'v.fp..fv', 'f.v..v.v', [2, 6, 0, 4, 1, 7, 3, 5, 6, 2])
+        // îlots plantés aux bouts des rangées (jardinières avec arbre, ou haies taillées)
+        bac(13.6, 15.4, 4.4, 1.4), bac(18.6, 15.4, 4.0, 1.4), [box(13.6, 32.2, 4.6, 1.4, 1.7, 'wall', 'haie')], bac(18.8, 32.2, 3.0, 1.4),
+        bac(49.4, 15.4, 4.0, 1.4), [box(54.0, 15.4, 4.6, 1.4, 1.7, 'wall', 'haie')], [box(49.4, 32.2, 2.8, 1.4, 1.7, 'wall', 'haie')], bac(54.4, 32.2, 4.0, 1.4),
+        // rangées de places (ouest : x 13–23 ; est : x 49–59), du nord (z 17) au sud (z 32)
+        rangee(13, 17, 'vf.vm.', '.v.fvv', [0, 3, 5, 1, 6, 2, 4, 7, 0, 5]),
+        rangee(49, 17, 'v.vf.p', 'f..v.v', [2, 6, 0, 4, 1, 7, 3, 5, 6, 2])
       ),
     },
   };

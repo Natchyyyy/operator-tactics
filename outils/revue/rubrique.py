@@ -21,6 +21,10 @@ ETIQ = {
     'jog_bas': {'course', 'garde_basse', 'avant'},
     'jog_vise': {'course', 'vise', 'avant'},
     'sprint': {'course', 'sprint', 'garde_basse', 'avant'},
+    'jog_vise_diagG': {'course', 'vise', 'diag'},
+    'jog_vise_lateralD': {'course', 'vise', 'lateral'},
+    'jog_vise_recul': {'course', 'vise', 'recul'},
+    'jog_bas_rapide': {'course', 'garde_basse', 'avant'},
     'accroupi': {'arret', 'accroupi', 'vise'},
     'marche_accroupie': {'marche', 'accroupi', 'vise', 'avant'},
     'recharge_arret': {'arret', 'recharge'},
@@ -143,8 +147,8 @@ crit(id='penche_avant', partie='haut', lib='Buste penché vers l\'avant (°, bas
 crit(id='roulis_buste', partie='haut', lib='Inclinaison latérale du buste (°, max absolu)', quand=lambda e: 'recharge' not in e and 'virage' not in e,
      val=lambda r: (lambda a, b: None if a is None else max(abs(a), abs(b)))(st(r, 'roulis', 'min'), st(r, 'roulis', 'max')), ok=(0, 9), mineur=(0, 16), cle=('roulis', 'max'),
      pourquoi='Épaules carrées, pas avachies sur le côté.', src='FM 3-06.11 §3-23b ("Shoulders are square")', vues=['face', 'dos'])
-crit(id='paume_poignee', partie='haut', lib='Paume droite ↔ poignée (m, max)', quand=DEUX_MAINS,
-     val=lambda r: st(r, 'paumeD_poignee', 'max'), ok=(0, 0.02), mineur=(0, 0.04), cle=('paumeD_poignee', 'max'),
+crit(id='paume_poignee', partie='haut', lib='Paume droite ↔ surface de l\'arme (m, max)', quand=DEUX_MAINS,
+     val=lambda r: st(r, 'paumeD_surface', 'max'), ok=(-0.01, 0.03), mineur=(-0.02, 0.055), cle=('paumeD_surface', 'max'),
      pourquoi='La main forte tient la poignée haut et fermement ; un écart = main qui flotte à côté de l\'arme.', src='TC 3-22.9 ch. 8 (firing hand grip)', vues=['mainD', 'mainDdessous'])
 crit(id='paume_garde_main', partie='haut', lib='Paume gauche ↔ surface de l\'arme (m, max)', quand=DEUX_MAINS,
      val=lambda r: st(r, 'paumeG_surface', 'max'), ok=(-0.01, 0.03), mineur=(-0.02, 0.055), cle=('paumeG_surface', 'max'),

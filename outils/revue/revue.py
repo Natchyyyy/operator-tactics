@@ -148,18 +148,39 @@ def cmd_comparer(a):
     print(f'\nAMÉLIORÉ ({len(mieux)}) :'); [print(f"  {k}: {da[k]['niveau']} {fmt(da[k]['valeur'])} → {db[k]['niveau']} {fmt(db[k]['valeur'])}") for k in mieux]
     print(f'\nRÉGRESSIONS ({len(pire)}) :'); [print(f"  {k}: {da[k]['niveau']} {fmt(da[k]['valeur'])} → {db[k]['niveau']} {fmt(db[k]['valeur'])}") for k in pire]
 
+async def cmd_apercu(a):
+    """planche d'ensemble : une ligne par état (1 instant), mêmes vues ; assemblée avec PIL"""
+    from PIL import Image
+    tw, th = map(int, a.taille.split('x'))
+    async with async_playwright() as p:
+        br, pg, errs = await page_banc(p)
+        etats = a.etats.split(',') if a.etats else await pg.evaluate('Object.keys(BANC.ETATS)')
+        tmp = []; t = time.time()
+        for e in etats:
+            r = await pg.evaluate(f'BANC.planche({json.dumps(a.modele)}, {json.dumps(e)}, {json.dumps({"vues": a.vues.split(","), "n": 1, "tw": tw, "th": th, "marques": a.marques})})')
+            f = os.path.join(RACINE, 'captures', 'revue', '_tmp_' + e + '.png'); sauver_png(r['url'], f); tmp.append(f)
+        await br.close()
+    ims = [Image.open(f) for f in tmp]; W = max(i.width for i in ims); H = sum(i.height for i in ims)
+    out = Image.new('RGB', (W, H), (21, 25, 28)); y = 0
+    for i in ims: out.paste(i, (0, y)); y += i.height
+    chemin = a.sortie or os.path.join(RACINE, 'captures', 'revue', f'apercu_{a.modele}.png'); out.save(chemin)
+    for f in tmp: os.remove(f)
+    print(chemin, f'({time.time() - t:.0f} s)')
+
 async def cmd_etats(a):
     async with async_playwright() as p:
         br, pg, errs = await page_banc(p)
         print(json.dumps(await pg.evaluate('({etats: Object.fromEntries(Object.entries(BANC.ETATS).map(([k, v]) => [k, v.nom])), vues: Object.keys(BANC.VUES)})'), indent=1, ensure_ascii=False))
         await br.close()
 
-ap = argparse.ArgumentParser(); sp = ap.add_subparsers(dest='cmd', required=True)
-r = sp.add_parser('revue'); r.add_argument('--modeles', default='gign,soldat'); r.add_argument('--etats'); r.add_argument('--preuves', type=int, default=14); r.add_argument('--sortie')
-pl = sp.add_parser('planche'); pl.add_argument('--modele', default='gign'); pl.add_argument('--etat', required=True); pl.add_argument('--vues', default='face,profil,dos,troisQuarts')
-pl.add_argument('--n', type=int, default=4); pl.add_argument('--instants'); pl.add_argument('--marques', action='store_true'); pl.add_argument('--taille', default='200x260'); pl.add_argument('--sortie')
-c = sp.add_parser('comparer'); c.add_argument('avant'); c.add_argument('apres')
-sp.add_parser('etats')
-a = ap.parse_args()
-if a.cmd == 'comparer': cmd_comparer(a)
-else: asyncio.run({'revue': cmd_revue, 'planche': cmd_planche, 'etats': cmd_etats}[a.cmd](a))
+if __name__ == '__main__':
+    ap = argparse.ArgumentParser(); sp = ap.add_subparsers(dest='cmd', required=True)
+    r = sp.add_parser('revue'); r.add_argument('--modeles', default='gign,soldat'); r.add_argument('--etats'); r.add_argument('--preuves', type=int, default=14); r.add_argument('--sortie')
+    pl = sp.add_parser('planche'); pl.add_argument('--modele', default='gign'); pl.add_argument('--etat', required=True); pl.add_argument('--vues', default='face,profil,dos,troisQuarts')
+    pl.add_argument('--n', type=int, default=4); pl.add_argument('--instants'); pl.add_argument('--marques', action='store_true'); pl.add_argument('--taille', default='200x260'); pl.add_argument('--sortie')
+    ape = sp.add_parser('apercu'); ape.add_argument('--modele', default='gign'); ape.add_argument('--etats'); ape.add_argument('--vues', default='face,profil,dessus,mainD,piedsProfil'); ape.add_argument('--taille', default='180x220'); ape.add_argument('--marques', action='store_true'); ape.add_argument('--sortie')
+    c = sp.add_parser('comparer'); c.add_argument('avant'); c.add_argument('apres')
+    sp.add_parser('etats')
+    a = ap.parse_args()
+    if a.cmd == 'comparer': cmd_comparer(a)
+    else: asyncio.run({'revue': cmd_revue, 'planche': cmd_planche, 'etats': cmd_etats, 'apercu': cmd_apercu}[a.cmd](a))

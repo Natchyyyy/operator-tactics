@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Revue d'animation EN JEU : lance une vraie bataille (dist/index.html, mode manuel, sans rendu WebGL pendant l'échantillonnage)
+# Revue d'animation EN JEU : lance une vraie bataille (web/index.html, mode manuel, sans rendu WebGL pendant l'échantillonnage)
 # et mesure, image par image, chaque soldat avec outils/revue/metriques.js (les mêmes mesures que le banc).
 #   python3 outils/revue/jeu.py [--carte parking] [--graine 3] [--pas 900] [--k 3] [--sortie captures/revue/jeu_X] [--preuves 6]
 # --pas : pas de simulation (0,1 s) ; --k : images par pas (3 = 30 i/s). Produit :
@@ -63,7 +63,8 @@ window.ECH = { img: 0, cat: {}, seg: {}, fin: [], pires: [], actif: true, garde:
     }
     return out;
   };
-  R.render = () => { if (E.actif) E.echant(); };
+  E.orig = R.render; E.dessin = false;
+  R.render = () => { if (E.actif) E.echant(); if (E.dessin) E.orig.call(R); };
 })();
 """
 
@@ -112,6 +113,35 @@ async def main(a):
     for (c, i), g in sorted(agg.items(), key=lambda kv: -(kv[1]['majeur'] * 3 + kv[1]['mineur']) / max(1, kv[1]['n']) * cat.get(kv[0][0], {'n': 1})['n']):
         if g['majeur'] + g['mineur'] == 0: continue
         p = g['pire']; L.append(f"- **{c}** `{i}` ({g['partie']}) : {g['majeur']} majeurs + {g['mineur']} mineurs / {g['n']} segments ; pire {p['valeur']:.3g} ({p['cs']}, image {p['img0']}, attendu {g['ok']}) — {g['lib']}")
+    # preuves : 2e passe déterministe (même graine), on s'arrête à l'image du pire cas et on rend un gros plan
+    choix = []
+    if a.preuves:
+        from revue import instant
+        segs = {(s['cs'], s['i0']): s for s in seg}
+        for v in sorted([v for v in verd if v['niveau'] == 'majeur'], key=lambda v: -min(v['ecart'], 50)):
+            if any(c['categorie'] == v['categorie'] and c['id'] == v['id'] for c in choix): continue
+            S = segs.get((v['cs'], v['img0']))
+            if not S: continue
+            v['img'] = int(instant({'bilan': S['bilan'], 'images': S['images']}, v)); choix.append(v)
+            if len(choix) >= a.preuves: break
+        choix.sort(key=lambda v: v['img'])
+        if choix:
+            async with async_playwright() as p:
+                br = await p.chromium.launch(args=GL); pg = await br.new_page(viewport={'width': 560, 'height': 560})
+                await pg.add_init_script(INIT); await pg.goto(url, timeout=240000)
+                await pg.wait_for_function('window.PRET && OT.Modeles3D.ready && OT.Soldat3D.ready', timeout=600000)
+                await pg.add_script_tag(path=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'metriques.js'))
+                await pg.evaluate(f"API.start({{mapId: {json.dumps(a.carte)}, seed: {a.graine}, conditions: 'jour'}})"); await pg.evaluate(ECH)
+                os.makedirs(os.path.join(out, 'preuves'), exist_ok=True)
+                for v in choix:
+                    await pg.evaluate(f"(() => {{ while (ECH.img < {v['img']} && !API.battle().over) API.stepFine({a.k}); }})()")
+                    for nom, yaw in (('face', 'Math.PI / 2 - m.yaw'), ('cote', 'Math.atan2(Math.sin(m.yaw), -Math.cos(m.yaw))')):
+                        await pg.evaluate(f"(() => {{ const u = API.battle().units.find(x => x.callsign === {json.dumps(v['cs'])}), m = API.meshes()[u.id]; ECH.dessin = true; ECH.actif = false; const g = m.group.position; API.look(g.x, g.z, {yaw}, 0.25, 3.2, 0.9); ECH.actif = true; ECH.dessin = false; return 0; }})()")
+                        f = os.path.join(out, 'preuves', f"{v['img']:05d}_{v['cs']}_{v['id']}_{nom}.png"); await pg.screenshot(path=f, timeout=400000); v.setdefault('preuves', []).append(f)
+                    print('preuve', v['categorie'], v['id'], v['cs'], v['img'], flush=True)
+                await br.close()
+        L += ['', '## Preuves rendues (2e passe, même graine)', '']
+        for v in choix: L.append(f"- {v['categorie']} `{v['id']}` {v['cs']} image {v['img']} : {v['valeur']:.3g} (attendu {v['ok']}) → " + ', '.join(f'`{x}`' for x in v.get('preuves', [])))
     open(os.path.join(out, 'jeu.md'), 'w').write('\n'.join(L))
     json.dump({'categories': cat, 'verdicts': [{k: v[k] for k in v if k not in ('quand',)} for v in verd]}, open(os.path.join(out, 'jeu.json'), 'w'), default=str)
     print(os.path.join(out, 'jeu.md'))

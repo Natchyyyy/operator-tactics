@@ -27,6 +27,10 @@ async def main():
         # ---- Écran titre puis quartier général ----
         check("la page s'ouvre sur l'écran titre (scène 3D)", await pg.is_visible("#title") and await pg.evaluate("() => !!document.querySelector('#titleScene')"))
         await pg.click("#titleStart"); await pg.wait_for_timeout(600)
+        # le son : le premier geste (ce clic) démarre le contexte audio ET décode les sons inclus, sans appel explicite à Son.charger()
+        try: await pg.wait_for_function("() => Son.etat().contexte === 'running' && Son.etat().sons > 10", timeout=20000)
+        except Exception: pass
+        et = await pg.evaluate("() => Son.etat()"); check("le premier clic démarre le son : contexte actif, sons décodés sans erreur", et["contexte"] == "running" and et["sons"] > 10 and not et["echecs"], et)
         gd = await pg.evaluate("() => !document.querySelector('#guide').classList.contains('hidden')")
         check("première visite : le guide s'ouvre au QG", gd)
         for _ in range(5): await pg.click("#gNext")
@@ -166,6 +170,9 @@ async def main():
         # « Résultat immédiat » : même résultat que la simulation complète de la même graine
         sk = await pg.evaluate("() => { const b = window.API.battle(); const ref = new OT.Battle(b.opts).run(); document.querySelector('#skip').click(); const r = window.API.battle().result; return [!!r, r && r.winner === ref.winner && r.duration === ref.duration, !document.querySelector('#result').classList.contains('hidden')]; }")
         check("« Résultat immédiat » donne le même résultat que la simulation complète et ouvre l'écran de résultat", sk == [True, True, True], sk)
+        # de bout en bout : une bataille jouée par le jeu fait entendre des coups de feu (lecteur → play() → Son.jouer)
+        tirs = await pg.evaluate("() => { const n = () => Object.entries(Son.etat().joues).filter(([k]) => /^tir/.test(k)).reduce((a, [, v]) => a + v, 0); const n0 = n(); window.OT_MUTE && window.OT_MUTE.set(false); API.start({ mapId: 'parking', seed: 3 }); for (let i = 0; i < 120 && n() === n0; i++) API.stepRaw(10); return [n() - n0, Son.etat().contexte]; }")
+        check("en bataille, les coups de feu sont réellement joués", tirs[0] > 0 and tirs[1] == "running", tirs)
         son = await pg.evaluate("async () => { if (typeof Son === 'undefined') return 'pas de lecteur'; Son.init(); await Son.charger(); return [Son.jouer('tir_fusil'), Son.jouer('impact_metal'), Son.jouer('impact_bois'), Son.jouer('impact_sol'), Son.jouer('pas'), Son.jouer('recharge'), Son.jouer('victoire'), Son.jouer('musique_titre')].every(Boolean) && await Son.boucle('musique_qg', { voie: 'musique', vol: .5 }); }")
         check("les bruitages et musiques se décodent et se jouent", son is True, son)
         check("aucune erreur JavaScript", not errs, errs[:5])

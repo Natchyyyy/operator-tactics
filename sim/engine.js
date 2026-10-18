@@ -602,10 +602,27 @@
   // la ligne des yeux de la menace vers ses hanches ('partial' : le buste dépasse ; 'full' : caché même à hauteur visée).
   const COVER_NEAR = 1.0, COVER_MIN_H = 0.9, HUG = 0.55;
   const edgeDist = (x, z, o) => Math.hypot(Math.max(o.x - x, 0, x - (o.x + o.w)), Math.max(o.z - z, 0, z - (o.z + o.d)));
+  // obstacles assez hauts proches d'un point : grille de cases de 2 m (reconstruite si le décor change)
+  Battle.prototype.nearObstacles = function (x, z) {
+    const obs = this.map.obstacles; let g = this.obsGrid;
+    if (!g || g.ref !== obs || g.len !== obs.length) {
+      const S = 2, cols = Math.ceil(this.map.width / S) + 1, rows = Math.ceil(this.map.depth / S) + 1, cells = new Array(cols * rows);
+      for (let i = 0; i < cells.length; i++) cells[i] = [];
+      for (const o of obs) {
+        if (o.h < COVER_MIN_H) continue;
+        const c0 = Math.max(0, Math.floor((o.x - COVER_NEAR) / S)), c1 = Math.min(cols - 1, Math.floor((o.x + o.w + COVER_NEAR) / S));
+        const r0 = Math.max(0, Math.floor((o.z - COVER_NEAR) / S)), r1 = Math.min(rows - 1, Math.floor((o.z + o.d + COVER_NEAR) / S));
+        for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) cells[r * cols + c].push(o);
+      }
+      g = this.obsGrid = { ref: obs, len: obs.length, S, cols, rows, cells };
+    }
+    const c = clamp(Math.floor(x / g.S), 0, g.cols - 1), r = clamp(Math.floor(z / g.S), 0, g.rows - 1);
+    return g.cells[r * g.cols + c];
+  };
   Battle.prototype.coverAt = function (x, z, tx, tz, standing) {
     let best = null;
-    for (const o of this.map.obstacles) {
-      if (o.h < COVER_MIN_H || edgeDist(x, z, o) > COVER_NEAR) continue;
+    for (const o of this.nearObstacles(x, z)) {
+      if (edgeDist(x, z, o) > COVER_NEAR) continue;
       if (!segmentHitsBox(tx, EYE.stand, tz, x, 0.5, z, o)) continue;
       if (segmentHitsBox(tx, EYE.stand, tz, x, standing ? CHEST.stand : CHEST.crouch, z, o)) return { level: 'full', obstacle: o };
       best = { level: 'partial', obstacle: o };
@@ -614,7 +631,7 @@
   };
   // un obstacle assez haut tout contre soi (sans menace connue : s'accroupir contre lui a un sens, en terrain nu non)
   Battle.prototype.besideObstacle = function (x, z) {
-    for (const o of this.map.obstacles) if (o.h >= COVER_MIN_H && edgeDist(x, z, o) <= COVER_NEAR) return o;
+    for (const o of this.nearObstacles(x, z)) if (edgeDist(x, z, o) <= COVER_NEAR) return o;
     return null;
   };
   // La menace principale d'un opérateur : l'ennemi vu le plus proche, sinon celui qui vient de lui tirer dessus,
@@ -659,35 +676,36 @@
     for (const e of this.enemiesOf(u)) { const k = u.knowledge[e.id]; if (e.alive && k && this.t - k.t < 12) { const dk = Math.hypot(k.x - u.x, k.z - u.z); others.push({ x: k.x, z: k.z, lim: Math.min(MIN_CLOSE, dk - 1.5) }); } }
     for (const c0 of this.map.coverPoints) {
       if (Math.abs(c0.x - u.x) > maxDist + 1 || Math.abs(c0.z - u.z) > maxDist + 1) continue;
-      const h = this.hug(c0), cp = { x: h.hx, z: h.hz, obstacle: h.obstacle };
-      const d = dist2(u, cp); if (d > maxDist) continue;
-      const cv = this.coverAt(cp.x, cp.z, threat.x, threat.z, true);
-      if (!cv) continue;
-      if (others.some(o => Math.hypot(o.x - cp.x, o.z - cp.z) < o.lim)) continue;
-      // depuis ce point debout, puis-je voir la menace ? (sinon c'est une cachette, pas une position de tir)
-      const canShoot = this.map.hasLOS(cp.x, EYE.stand, cp.z, threat.x, CHEST.stand, threat.z);
-      if (opts.requireShoot && !canShoot) continue;
-      if (opts.flank && this.map.coverFrom(opts.flank.x, opts.flank.z, cp.x, cp.z, opts.flank.stance === 'stand')) continue; // la cible y serait encore couverte
-      const dt = Math.hypot(cp.x - threat.x, cp.z - threat.z);
-      let s = 10 - d * 0.6;
-      if (cv.level === 'partial') s += 3; else s += 1.5;
-      if (canShoot) s += opts.wantShoot === false ? 0 : 4;
+      const h = this.hug(c0), cx = h.hx, cz = h.hz;
+      const d = Math.hypot(cx - u.x, cz - u.z); if (d > maxDist) continue;
+      const dt = Math.hypot(cx - threat.x, cz - threat.z);
       if (opts.minRange && dt < opts.minRange) continue; // trop près de la menace (arme, ou distance de combat voulue)
-      if (opts.towards) s -= Math.hypot(cp.x - opts.towards.x, cp.z - opts.towards.z) * 0.25;
+      if (others.some(o => Math.hypot(o.x - cx, o.z - cz) < o.lim)) continue;
+      let s = 10 - d * 0.6;
+      if (opts.towards) s -= Math.hypot(cx - opts.towards.x, cz - opts.towards.z) * 0.25;
       if (opts.preferDist) s -= Math.abs(dt - opts.preferDist) * 0.08;
       // ne pas prendre un couvert occupé, visé ou réservé par un allié ; garder ses distances (une grenade, une rafale) ;
       // ne pas se placer derrière un allié (on ne pourrait pas tirer sans le toucher)
       let occupied = false;
       for (const a of this.alliesOf(u)) {
         if (!a.alive) continue;
-        const da = Math.hypot(a.x - cp.x, a.z - cp.z), dg = a.goal ? Math.hypot(a.goal.x - cp.x, a.goal.z - cp.z) : 99;
-        if (da < 2.4 || dg < 2.4 || (a.post && Math.hypot(a.post.x - cp.x, a.post.z - cp.z) < 2.4)) { occupied = true; break; }
+        const da = Math.hypot(a.x - cx, a.z - cz), dg = a.goal ? Math.hypot(a.goal.x - cx, a.goal.z - cz) : 99;
+        if (da < 2.4 || dg < 2.4 || (a.post && Math.hypot(a.post.x - cx, a.post.z - cz) < 2.4)) { occupied = true; break; }
         const near = Math.min(da, dg); if (near < 5) s -= (5 - near) * 0.8;
-        if (segDist(a.goal || a, cp, threat) < 0.6) s -= 4;
+        if (segDist(a.goal || a, { x: cx, z: cz }, threat) < 0.6) s -= 4;
       }
       if (occupied) continue;
+      if (s + 3 + (opts.wantShoot === false ? 0 : 4) + 0.05 <= bestScore) continue;   // ne peut plus battre le meilleur : on s'épargne les rayons
+      const cv = this.coverAt(cx, cz, threat.x, threat.z, true);
+      if (!cv) continue;
+      // depuis ce point debout, puis-je voir la menace ? (sinon c'est une cachette, pas une position de tir)
+      const canShoot = this.map.hasLOS(cx, EYE.stand, cz, threat.x, CHEST.stand, threat.z);
+      if (opts.requireShoot && !canShoot) continue;
+      if (opts.flank && this.map.coverFrom(opts.flank.x, opts.flank.z, cx, cz, opts.flank.stance === 'stand')) continue; // la cible y serait encore couverte
+      if (cv.level === 'partial') s += 3; else s += 1.5;
+      if (canShoot) s += opts.wantShoot === false ? 0 : 4;
       s += this.rng.next() * 0.05; // départage aléatoire des ex æquo (sinon l'ordre de la liste favoriserait un côté)
-      if (s > bestScore) { bestScore = s; best = cp; }
+      if (s > bestScore) { bestScore = s; best = { x: cx, z: cz, obstacle: h.obstacle }; }
     }
     return best;
   };

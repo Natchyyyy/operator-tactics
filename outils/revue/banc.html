@@ -24,8 +24,12 @@ const ETATS = {
   pas_chasse_D:       { seg: [[4.0, { v: 1.0, vise: 1, dir: -90 }]], fen: [1.8, 4.0], nom: 'Pas chassé vers la droite' },
   recul_vise:         { seg: [[4.0, { v: 1.0, vise: 1, dir: 180 }]], fen: [1.8, 4.0], nom: 'Recul en visant' },
   recul_diagD:        { seg: [[4.0, { v: 1.0, vise: 1, dir: -135 }]], fen: [1.8, 4.0], nom: 'Recul diagonal droite' },
-  jog_bas:            { seg: [[4.0, { v: 2.6 }]], fen: [1.8, 4.0], nom: 'Petite course garde basse' },
-  jog_vise:           { seg: [[4.0, { v: 2.6, vise: 1 }]], fen: [1.8, 4.0], nom: 'Petite course en visant' },
+  jog_bas:            { seg: [[4.0, { v: 2.1 }]], fen: [1.8, 4.0], nom: 'Petite course garde basse (2,1 m/s : l\'allure la plus fréquente en jeu)' },
+  jog_vise:           { seg: [[4.0, { v: 1.7, vise: 1 }]], fen: [1.8, 4.0], nom: 'Petite course en visant (1,7 m/s)' },
+  jog_vise_diagG:     { seg: [[4.0, { v: 1.7, vise: 1, dir: 45 }]], fen: [1.8, 4.0], nom: 'Petite course visée diagonale avant gauche' },
+  jog_vise_lateralD:  { seg: [[4.0, { v: 1.6, vise: 1, dir: -90 }]], fen: [1.8, 4.0], nom: 'Petite course visée vers la droite' },
+  jog_vise_recul:     { seg: [[4.0, { v: 1.7, vise: 1, dir: 180 }]], fen: [1.8, 4.0], nom: 'Recul rapide en visant (1,7 m/s)' },
+  jog_bas_rapide:     { seg: [[4.0, { v: 2.6 }]], fen: [1.8, 4.0], nom: 'Course garde basse 2,6 m/s' },
   sprint:             { seg: [[4.0, { v: 4.6 }]], fen: [1.8, 4.0], nom: 'Sprint' },
   accroupi:           { seg: [[3.0, { v: 0, accroupi: 1, vise: 1 }]], fen: [1.2, 3.0], nom: 'Accroupi (à couvert)' },
   marche_accroupie:   { seg: [[4.0, { v: 0.9, accroupi: 1, vise: 1 }]], fen: [1.8, 4.0], nom: 'Marche accroupie' },
@@ -162,7 +166,8 @@ function marquer(R, pts) {
 // opts : { vues: [...], instants: [t, ...] (s) ou n: nombre d'instants répartis dans la fenêtre, tw, th, marques: bool, titre }
 function planche(modele, etatId, opts) {
   opts = opts || {}; const E = ETATS[etatId], vues = opts.vues || ['face', 'profil', 'dos', 'troisQuarts'];
-  const n = opts.n || 4, inst = opts.instants || Array.from({ length: n }, (_, i) => E.fen[0] + (E.fen[1] - E.fen[0]) * (i + 0.5) / n);
+  // (instants au nombre d'or dans la fenêtre : jamais espacés d'un cycle exact, sinon on revoit la même pose)
+  const n = opts.n || 4, inst = opts.instants || Array.from({ length: n }, (_, i) => E.fen[0] + (E.fen[1] - E.fen[0]) * ((0.13 + i * 0.618034) % 1)).sort((a, b) => a - b);
   const tw = opts.tw || 200, th = opts.th || 260, ent = 18, gauche = 70;
   const cv = document.createElement('canvas'); cv.width = gauche + tw * vues.length; cv.height = ent + 16 + th * inst.length; const cx = cv.getContext('2d');
   cx.fillStyle = '#15191c'; cx.fillRect(0, 0, cv.width, cv.height); cx.fillStyle = '#eee'; cx.font = 'bold 13px sans-serif';
