@@ -29,7 +29,7 @@ Fiabilité de chaque critère :
 | id | Mesure | OK | Toléré | Pourquoi (réel) |
 |---|---|---|---|---|
 | `pied_dans_sol` [sûr] | point le plus bas de la semelle | ≥ -1,5 cm | ≥ -3,5 cm | La botte repose sur le sol. |
-| `pied_flotte_arret` [sûr] | à l'arrêt, hauteur max du point le plus bas | ≤ 2,5 cm | ≤ 5 cm | Immobile, les deux pieds portent le poids (FM 3-06.11 §3-23b). |
+| `pied_flotte_arret` [sûr] | à l'arrêt, plus longue durée d'un pied à plus de 2,5 cm du sol | ≤ 0,45 s | ≤ 0,9 s | Immobile, les deux pieds portent le poids (FM 3-06.11 §3-23b) ; un pas de replacement (< 0,4 s) est normal. |
 | `glisse_G/D` [estimé : détection d'appui] | vitesse moyenne du point de semelle au sol pendant l'appui | ≤ 0,06 m/s | ≤ 0,14 | Un pied d'appui ne bouge pas (adhérence). Les images où le pied bas va plus vite que le corps sont de l'oscillation au ras du sol : comptées dans `rase`. |
 | `glisse_appui_G/D` | distance perdue sur l'appui le pire | ≤ 3 cm | ≤ 7 cm | idem |
 | `patine_G/D` [sûr] | patinage pondéré par la hauteur (Zhang 2018) | ≤ 0,05 m/s | ≤ 0,11 | idem, sans seuil d'appui |
@@ -40,8 +40,9 @@ Fiabilité de chaque critère :
 | `longueur_pas` | longueur de pas / longueur attendue (walk ratio) | 0,8-1,2 | 0,62-1,38 | Trop long = enjambées molles, trop court = trottinement. |
 | `cadence_course` | pas/min en course | 140-190 | 125-205 | Une course légère tourne à 150-180 pas/min. Plus vite, on allonge la foulée. |
 | `genou_attaque` | flexion du genou à la pose du pied | marche 0-18°, marche visée 3-28°, course 8-38° | ±10° | FRCS. FM 3-06.11 : genoux fléchis en tactique. |
-| `genou_hyperextension` | genou presque tendu mais en arrière de la ligne hanche → cheville | ≥ -3° | ≥ -8° | Anatomie. |
-| `angle_pied` | angle pied / déplacement en appui (+ = pointe vers l'extérieur) | -6 à 22° | -14 à 32° | Les pieds suivent le déplacement, ouverts de 5 à 10°. |
+| `genou_envers` [sûr] | angle entre le sens où pointe le genou (écart à la ligne hanche → cheville) et l'avant du **bassin**, jambe fléchie > 8° | ≤ 75° | ≤ 100° | Un genou ne plie que vers l'avant. Au-delà de 100° : jambe « cassée » (signalée par l'utilisateur en jeu ; souvent une seule image sur la jambe arrière). |
+| `genou_hyperextension` | jambe presque tendue (< 20°), genou en arrière de la ligne hanche → cheville selon l'avant du bassin | ≥ -3° | ≥ -8° | Anatomie. |
+| `angle_pied` | angle pied / déplacement en appui, pied à plat seulement (+ = pointe vers l'extérieur) | -6 à 22° | -14 à 32° | Les pieds suivent le déplacement, ouverts de 5 à 10°. |
 | `bassin_vs_deplacement` | bassin / déplacement, marche avant sans visée | ≤ 20° | ≤ 35° | Bassin face au déplacement (±4-5°). |
 | `torsion` | épaules / bassin | ≤ 45° | ≤ 62° | Rotation de la colonne. |
 | `rebond_bassin` | rebond vertical du bassin | marche 2-6,5 cm, visée 1,2-5 cm | — | Centre de masse ≈ 5 cm. En marche tactique, le rebond est réduit pour garder le viseur stable. |
@@ -55,17 +56,18 @@ Fiabilité de chaque critère :
 |---|---|---|---|---|
 | `penche_avant` | inclinaison bassin → cou vers l'avant | visée et course 5-22°, sinon 0-16° | ±4-8° | « Upper body leaned slightly forward », jamais en arrière. |
 | `roulis_buste` | inclinaison latérale | ≤ 9° | ≤ 16° | « Shoulders are square ». |
-| `paume_poignee` [sûr] | paume droite ↔ surface de l'arme | ≤ 3 cm | ≤ 5,5 cm | Main forte sur la poignée. |
+| `paume_poignee` [sûr] | ligne poignet → jointures (50/65/80 %) ↔ surface de l'arme, moins 1,5 cm d'épaisseur de main | ≤ 3 cm | ≤ 5,5 cm | Main forte sur la poignée. |
 | `paume_garde_main` [sûr] | paume gauche ↔ surface de l'arme | ≤ 3 cm | ≤ 5,5 cm | Main d'appui qui serre le garde-main (Vortex). |
 | `paume_garde_main_pos` | main d'appui, distance devant la poignée | 17-42 cm | 12-50 cm | Sur le garde-main : ni sur le chargeur, ni au-delà de la bouche. |
 | `doigts_dans_arme` [sûr, à la normale du maillage près] | distance signée min des bouts de doigts | ≥ -4 mm | ≥ -12 mm | Un doigt ne traverse pas le métal. |
 | `doigts_poignee` | majeur, annulaire et auriculaire droits ↔ arme | ≤ 2,5 cm | ≤ 4,5 cm | Trois doigts enroulés sur la poignée. |
 | `doigts_garde_main` | médiane des 5 doigts gauches ↔ arme | ≤ 3 cm | ≤ 5 cm | La main enveloppe le garde-main. |
-| `index_hors_detente` | courbure de l'index (somme de 3 angles) quand on ne tire pas | ≤ 50° | ≤ 80° | TC 3-22.9 règle 3. |
+| `index_hors_detente` | courbure de l'index (somme de 3 angles, MOINS celle de la pose de liaison) quand on ne tire pas | ≤ 50° | ≤ 80° | TC 3-22.9 règle 3. |
 | `index_sur_detente_tir` [estimé : point de détente] | bout de l'index ↔ détente en tirant | ≤ 2,5 cm | ≤ 4,5 cm | TC 3-22.9 fig. 8-2. |
 | `erreur_visee` [sûr] | angle canon / (bouche → cible) | arrêt ≤ 2,5°, mobile ≤ 4° | 6° / 9° | À 10 m, 3° d'erreur font 50 cm. |
 | `crosse_epaule` [estimé : creux] | plaque de couche ↔ creux de l'épaule | ≤ 6 cm | ≤ 9 cm | FM 3-06.11 §3-15a, §3-23a. Creux pris 11 cm vers le centre depuis l'articulation de l'épaule, 6 cm devant (entre deltoïde et clavicule). |
-| `oeil_ligne_visee` [estimé : œil = os headfront] | œil ↔ plan vertical du canon | ≤ 3,5 cm | ≤ 7 cm | Joue sur la crosse, œil derrière le viseur (TC 3-22.9 fig. 6-1). |
+| `oeil_ligne_visee` [estimé : œil DROIT = os headfront + 7,2 cm vers le haut, 3,2 cm vers la droite] | œil droit ↔ plan vertical du canon | ≤ 3,5 cm | ≤ 7 cm | Joue sur la crosse, œil derrière le viseur (TC 3-22.9 fig. 6-1). |
+| `oeil_hauteur` [estimé : œil ±2 cm] | œil droit au-dessus de l'axe du canon | 3-11 cm | 0-15 cm | Viseur point rouge ≈ 6,5 cm au-dessus de l'axe : plus haut = fusil sous le menton, l'œil ne voit pas dans le viseur. |
 | `tete_vs_canon` [sûr] | lacet tête / canon en visée | ≤ 12° | ≤ 22° | « Swing the muzzle as they turn their head ». |
 | `tete_tangage` | tangage de la tête | ≤ 22° | ≤ 35° | Tête haute, on balaie la zone. |
 | `tete_figee` [réglé] | vitesse angulaire max de la tête en marche | ≥ 4°/s | ≥ 1°/s | La tête est stabilisée sans être soudée au monde. |
@@ -85,3 +87,6 @@ Fiabilité de chaque critère :
 - **Glissement** : un pied qui rase le sol en oscillation n'est pas un appui. Les images où le pied bas va plus vite que le corps sont exclues. `patine_*` sert de contrôle sans seuil.
 - **Doigts** : reconnus par leur position. Les noms d'os Meshy sont permutés ; ne jamais se fier au nom.
 - **Banc ≠ jeu** : le banc rejoue `animateSkinned()` de app.js, mais ses vitesses et directions sont choisies. Les vitesses réelles se lisent avec `jeu.py`. La vérité de terrain, c'est le jeu.
+- **Sens du genou** : mesuré dans le repère du bassin (pas du pied : sur la pointe ou sur la jambe arrière, l'axe du pied n'a plus de sens). Les retournements durent souvent UNE image : regarder la bande de profil image par image (`jeu.py --suivre NOM --de I --a J`), pas seulement 4 instants.
+- **Œil** : l'os `headfront` des modèles Meshy est à hauteur de bouche ; l'œil droit est estimé 7,2 cm plus haut et 3,2 cm à droite. Vérifier avec `--marques` (point blanc) sur la vue `tete`.
+- **Yeux du banc** : le banc rejoue `syncMeshes()` du jeu (lacet du corps) et une cible affichée qui bouge à chaque image, comme en jeu. Une cible qui ne bouge qu'aux pas de simulation (0,1 s) fabriquait de faux à-coups de 10 000 °/s².

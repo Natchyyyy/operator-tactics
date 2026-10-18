@@ -89,17 +89,30 @@
         if (cle === 'piedG' || cle === 'piedD' || isToe) pts[(cle === 'piedG' || /^Left/.test(nm)) ? 'piedG' : 'piedD'].push([v.clone(), nm]);
       }
       for (const k in dists) { const a = dists[k].sort((x, y) => x - y); R.rayons[k] = a[Math.floor(a.length * (k === 'tronc' || k === 'tete' ? 0.6 : 0.5))];}   // (médiane : les sommets des hanches / fesses gonflent le 75e centile)
-      // semelle : talon (point le plus en arrière parmi les plus bas) et bout du pied (le plus en avant), dans le repère de leur os
-      for (const [cle, c] of [['piedG', 'Left'], ['piedD', 'Right']]) {
-        const P = pts[cle]; if (!P.length) continue;
-        const ft = R.os[c + 'Foot'], toe = R.os[c + 'ToeBase'], dir = WP(toe).sub(WP(ft)); dir.y = 0; dir.normalize();
-        const ymin = Math.min(...P.map(p => p[0].y)), bas = P.filter(p => p[0].y < ymin + 0.025);
-        let talon = bas[0][0], bout = bas[0][0];
-        for (const [p] of bas) { if (p.dot(dir) < talon.dot(dir)) talon = p; if (p.dot(dir) > bout.dot(dir)) bout = p; }
-        let tip = P[0][0]; for (const [p] of P) if (p.dot(dir) > tip.dot(dir)) tip = p;   // bout de la botte (même s'il n'est pas le plus bas)
-        const loc = (o, p) => o.worldToLocal(p.clone());
-        R.semelle[c] = { talon: loc(ft, talon), plante: loc(toe, WP(toe).setY(ymin)), bout: loc(toe, bout), pointe: loc(toe, tip), sol0: ymin - f.group.position.y };
-      }
+      // semelle : talon, plante, bout et pointe de chaque botte, calculés dans la POSE DE LIAISON (pieds à plat), puis gardés
+      // dans le repère de leur os. (Calculés dans la pose courante, un pied en l'air pointe en bas donnait un « talon » sur les
+      // orteils et une direction du pied fausse.)
+      const bonesAll = sk.skeleton.bones, sauve = bonesAll.map(b => [b.position.clone(), b.quaternion.clone(), b.scale.clone()]);
+      try {
+        sk.skeleton.pose(); f.body.updateMatrixWorld(true);
+        const vb = V(), upB = WP(R.os.Head).sub(WP(R.os.LeftFoot)).normalize();
+        for (const c of ['Left', 'Right']) {
+          const ft = R.os[c + 'Foot'], toe = R.os[c + 'ToeBase']; if (!ft || !toe) continue;
+          const iF = bonesAll.indexOf(ft), iT = bonesAll.indexOf(toe), iE = bonesAll.indexOf(R.os[c + 'Toe_End']);
+          const pts2 = [];
+          for (let i = 0; i < N; i++) { let bi = 0, bw = -1; for (let j = 0; j < 4; j++) { const w = sw.getComponent(i, j); if (w > bw) { bw = w; bi = si.getComponent(i, j); } }
+            if (bi !== iF && bi !== iT && bi !== iE) continue; sk.getVertexPosition(i, vb); pts2.push(vb.clone().applyMatrix4(sk.matrixWorld)); }
+          if (!pts2.length) continue;
+          const dir = WP(toe).sub(WP(ft)); dir.addScaledVector(upB, -dir.dot(upB)).normalize();
+          const hmin = Math.min(...pts2.map(p => p.dot(upB))), bas = pts2.filter(p => p.dot(upB) < hmin + 0.02);
+          let talon = bas[0], bout = bas[0], tip = pts2[0];
+          for (const p of bas) { if (p.dot(dir) < talon.dot(dir)) talon = p; if (p.dot(dir) > bout.dot(dir)) bout = p; }
+          for (const p of pts2) if (p.dot(dir) > tip.dot(dir)) tip = p;
+          const plante = WP(toe).addScaledVector(upB, hmin - WP(toe).dot(upB));
+          const loc = (o, p) => o.worldToLocal(p.clone());
+          R.semelle[c] = { talon: loc(ft, talon), plante: loc(toe, plante), bout: loc(toe, bout), pointe: loc(toe, tip), sol0: 0 };
+        }
+      } finally { bonesAll.forEach((b, i) => { b.position.copy(sauve[i][0]); b.quaternion.copy(sauve[i][1]); b.scale.copy(sauve[i][2]); }); f.body.updateMatrixWorld(true); }
     }
     // triangles de l'arme dans son repère, rangés dans une grille (cases de 2 cm) pour les distances doigt ↔ arme
     const w = f.weapon; if (w) {
@@ -155,7 +168,7 @@
       m['talon' + s] = talon; m['plante' + s] = plante; m['bout' + s] = bout;
       m['solMin' + s] = Math.min(talon.y, plante.y, bout.y, pointe.y) - g0;                  // < 0 : pied dans le sol
       m['talonY' + s] = talon.y - g0; m['boutY' + s] = Math.min(bout.y, pointe.y) - g0;
-      const dir = bout.clone().sub(talon); dir.y = 0; m['piedAz' + s] = azim(dir);
+      const dir = pointe.clone().sub(talon); dir.y = 0;   // (talon → bout de la botte : « bout » n'est que le point bas le plus en avant, il peut être près du talon) m['piedAz' + s] = azim(dir);
       m['piedVsDep' + s] = wrap(azim(dir) - azim(dep));                                         // angle de progression du pied
       m['cheville' + s] = P[c + 'Foot'];
       // genou : flexion (0 = jambe tendue), signe < 0 = hyperextension (genou en arrière de la ligne hanche → cheville)

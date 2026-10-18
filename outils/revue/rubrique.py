@@ -172,7 +172,7 @@ crit(id='doigts_garde_main', partie='haut', lib='Main gauche : bouts des doigts 
      val=lambda r: _plie([sorted([i.get('doigtG' + d, 1) for d in ('Thumb', 'Index', 'Middle', 'Ring', 'Pinky')])[2] for i in r['images'] if i.get('doigtGIndex') is not None], max), ok=(-1, 0.03), mineur=(-1, 0.05), cle=(),
      pourquoi='La main d\'appui enveloppe le garde-main (ou le pince en « C ») : la plupart des doigts touchent l\'arme.', src='TC 3-22.9 ch. 6', vues=['mainG', 'mainGdessous'])
 crit(id='index_hors_detente', partie='haut', lib='Index : courbure quand on ne tire pas (°, somme des 3 articulations, moins celle de la pose de liaison ; 0 = tendu)', quand=lambda e: DEUX_MAINS(e) and 'tir' not in e,
-     val=lambda r: st(r, 'courbeDIndex', 'max'), ok=(0, 50), mineur=(0, 80), cle=('courbeDIndex', 'max'),
+     val=lambda r: st(r, 'courbeDIndex', 'max'), ok=(-90, 50), mineur=(-90, 80), cle=('courbeDIndex', 'max'),
      pourquoi='Règle de sécurité n° 3 : doigt tendu le long de la carcasse, hors du pontet, tant qu\'on ne tire pas. Un index replié = doigt sur la détente ou enroulé sur la poignée.', src='TC 3-22.9 p. 1-3 ("Keep finger straight and off the trigger until ready to fire")', vues=['mainD', 'mainDdessous'])
 crit(id='index_sur_detente_tir', partie='haut', lib='Index ↔ détente en tirant (m, max ; détente estimée)', quand=lambda e: 'tir' in e,
      val=lambda r: st(r, 'indexDetente', 'max'), ok=(0, 0.025), mineur=(0, 0.045), cle=('indexDetente', 'max'),

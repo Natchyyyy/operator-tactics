@@ -44,6 +44,8 @@ python3 outils/revue/jeu.py --pas 900 --preuves 6 --sortie captures/revue/jeu_NO
 ```
 - Ce que ça donne : quelle part du temps chaque état occupe vraiment (et à quelle vitesse, avec quelle animation), les mêmes mesures sur chaque soldat et chaque image, et des gros plans rendus des pires cas (2e passe identique grâce à la graine).
 - `--alarmes 10` : dès qu'une image dépasse un seuil « majeur » instantané (pied dans le sol, jambes qui se traversent, doigts dans l'arme, poignet cassé, canon hors cible, tête hors de l'axe, canon en travers, canon sur soi, arme dans le torse, torsion), un gros plan (face + côté) est rendu sur l'image même : `jeu_NOM/alarmes/*.jpg`. Pas de 2e passe nécessaire.
+- Une **bande de profil** d'un soldat qui trottine est rendue à chaque passage (`bande_trot_profil.jpg`, sens des genoux écrit sous chaque image, en rouge si > 100°). La regarder à chaque revue.
+- Pour un défaut signalé (« Lynx, vers 4 s ») : `--suivre Lynx --de 120 --a 150 --tous 1` rend ce soldat image par image, de côté ET de face. Les séries image par image (genoux, pieds, canon, poignets) sont dans `jeu.json` → `series`.
 - Toujours commencer par la **répartition** : les plaintes du joueur portent sur ce qu'il voit le plus souvent.
   - Exemple : la « marche de patrouille » était en fait un petit trot à 2 m/s, présent 34 % du temps.
   - Exemple : la couverture (accroupi) occupait 24 % du temps.
