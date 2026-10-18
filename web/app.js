@@ -80,6 +80,29 @@
     return lead ? { kind: 'shoulder', id: lead.id, until: simTime + 5 } : { kind: 'squad', until: simTime + 5, yaw: 0.5 };
   }
   function centroid(list) { const n = list.length || 1; return { x: list.reduce((s, u) => s + u.x, 0) / n, z: list.reduce((s, u) => s + u.z, 0) / n }; }
+  // Perche de caméra : la caméra ne traverse ni murs ni voitures. On lance le segment pivot → caméra contre les boîtes
+  // des obstacles (élargies de 0,3 m) ; si un obstacle coupe la vue, on essaie plus haut (par-dessus), sinon on
+  // rapproche la caméra juste devant l'obstacle.
+  function boomHit(px, py, pz, qx, qy, qz) {
+    let tmin = 1; const dx = qx - px, dy = qy - py, dz = qz - pz, pad = 0.3;
+    for (const o of battle.map.obstacles) {
+      const top = o.h + 0.15; if (Math.min(py, qy) > top) continue;
+      if (px > o.x - pad && px < o.x + o.w + pad && pz > o.z - pad && pz < o.z + o.d + pad && py < top) continue;   // pivot collé à l'obstacle : on l'ignore
+      let t0 = 0, t1 = 1;
+      const slab = (p, d, lo, hi) => { if (Math.abs(d) < 1e-6) return p >= lo && p <= hi; let a = (lo - p) / d, b = (hi - p) / d; if (a > b) { const t = a; a = b; b = t; } t0 = Math.max(t0, a); t1 = Math.min(t1, b); return t0 <= t1; };
+      if (slab(px, dx, o.x - pad, o.x + o.w + pad) && slab(pz, dz, o.z - pad, o.z + o.d + pad) && slab(py, dy, -1, top) && t0 < tmin) tmin = t0;
+    }
+    return tmin;
+  }
+  function clipBoom(pivot, want) {
+    const L = pivot.distanceTo(want); if (L < 0.01) return want;
+    for (const lift of [0, 0.8, 1.8, 3]) {
+      const qy = want.y + lift, t = boomHit(pivot.x, pivot.y, pivot.z, want.x, qy, want.z);
+      if (t >= 1) return new THREE.Vector3(want.x, qy, want.z);
+      if (lift === 3) { const k = Math.max(0.12, t - 0.25 / L); return new THREE.Vector3(pivot.x + (want.x - pivot.x) * k, pivot.y + (want.y - pivot.y) * k, pivot.z + (want.z - pivot.z) * k); }
+    }
+    return want;
+  }
   function placeCam(want, look, k) {
     if (!cam.init || k >= 1) { cam.pos.copy(want); cam.look.copy(look); cam.init = true; }
     else { cam.pos.lerp(want, k); cam.look.lerp(look, k * 1.4); }
@@ -99,10 +122,16 @@
     const k = simTime - (cam.cutAt || 0) < 0.05 ? 1 : 0.08;   // coupe franche au changement de plan, puis suivi doux
     if (s.kind === 'shoulder') {
       const m = meshes[s.id]; if (!m) { cam.shot = null; return; }
-      const yaw = m.group.rotation.y, fx = Math.cos(-(yaw - Math.PI / 2)), fz = Math.sin(-(yaw - Math.PI / 2)), px = m.group.position.x, pz = m.group.position.z;
-      // un peu à droite de l'épaule, au-dessus, regard loin devant
-      const rx = -fz * 0.9, rz = fx * 0.9;
-      placeCam(new THREE.Vector3(px - fx * 3.4 + rx, 2.3, pz - fz * 3.4 + rz), new THREE.Vector3(px + fx * 9, 1.2, pz + fz * 9), k);
+      const yaw = m.group.rotation.y; let fx = Math.cos(-(yaw - Math.PI / 2)), fz = Math.sin(-(yaw - Math.PI / 2)); const px = m.group.position.x, pz = m.group.position.z;
+      // juste derrière l'épaule droite, à hauteur des yeux : on voit le profil du casque et l'arme, regard vers la cible
+      const u = unitById[s.id], tg = u && u.target && u.target.alive ? u.target : null;
+      if (tg) { const L = Math.hypot(tg.x - px, tg.z - pz) || 1; fx = (tg.x - px) / L; fz = (tg.z - pz) / L; }   // dans l'axe du tir
+      if (!cam.shDir) cam.shDir = new THREE.Vector2(fx, fz); if (k >= 1) cam.shDir.set(fx, fz); else cam.shDir.lerp(new THREE.Vector2(fx, fz), 0.06).normalize();
+      fx = cam.shDir.x; fz = cam.shDir.y; const rx = -fz * 0.55, rz = fx * 0.55;
+      const look = tg ? new THREE.Vector3(tg.x, 1.15, tg.z) : new THREE.Vector3(px + fx * 9, 1.35, pz + fz * 9);
+      const pivot = new THREE.Vector3(px + rx * 0.5, 1.65, pz + rz * 0.5);
+      placeCam(clipBoom(pivot, new THREE.Vector3(px - fx * 1.55 + rx, 1.82, pz - fz * 1.55 + rz)), look, k);
+      camera.position.copy(cam.pos = clipBoom(pivot, cam.pos)); camera.lookAt(cam.look);
       cam.target.set(px, 0, pz); return;
     }
     const list = s.kind === 'overview' ? engagedUnits() : battle.teams[0].units.filter(u => u.alive);
@@ -132,9 +161,11 @@
         const yaw = m.group.rotation.y; // orientation du soldat (rotation.y = -facing + π/2)
         const fx = Math.cos(-(yaw - Math.PI / 2)), fz = Math.sin(-(yaw - Math.PI / 2));
         const px = m.group.position.x, pz = m.group.position.z;
-        const want = new THREE.Vector3(px - fx * 5.2, 2.6, pz - fz * 5.2), look = new THREE.Vector3(px + fx * 7, 1.1, pz + fz * 7);
+        const pivot = new THREE.Vector3(px, 1.6, pz);
+        const want = clipBoom(pivot, new THREE.Vector3(px - fx * 4.4 - fz * 0.5, 2.4, pz - fz * 4.4 + fx * 0.5)), look = new THREE.Vector3(px + fx * 7, 1.1, pz + fz * 7);
         if (!cam.init) { cam.pos.copy(want); cam.look.copy(look); cam.init = true; }
         cam.pos.lerp(want, 0.08); cam.look.lerp(look, 0.12);
+        cam.pos.copy(clipBoom(pivot, cam.pos));   // même pendant le lissage, jamais à travers un obstacle
         camera.position.copy(cam.pos); camera.lookAt(cam.look);
         cam.target.set(px, 0, pz);
         return;
@@ -1484,6 +1515,7 @@
     // un pas de simulation rendu en k images intermédiaires (comme en temps réel : interpolation entre deux pas)
     stepFine: (k) => { stepSim(); for (let i = 1; i <= (k || 3); i++) { acc = DT * i / (k || 3); render(); } return battle.t; },
     skip: () => { skipToEnd(); return battle.result; },
+    camShot: (kind, id) => { if (kind === 'shoulder') { setCamMode('director'); cam.shot = { kind: 'shoulder', id, until: simTime + 999 }; cam.cutAt = simTime; } else { setCamMode('follow'); cam.follow = id; } render(); for (let i = 0; i < 60; i++) applyCamera(); render(); return [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)); },
     stepRaw: (n) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; return battle.t; },   // sans rendu (outils de capture)
     runToEnd: () => { instantResult = true; while (!battle.over) stepSim(); instantResult = false; acc = DT; render(); return battle.result; },
     start: (opts) => { newBattle(opts); render(); return battle.zone || true; },
