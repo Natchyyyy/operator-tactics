@@ -1,0 +1,60 @@
+C:\Users\enjua\AppData\Local\Programs\Python\Python312\pythonw.exe C:\Users\enjua\Documents\operator-tactics-pc\pc\lanceur_gpu.py tests/verif_page.py http://127.0.0.1:8765/dist/index.html?fx=0&hd=0
+
+PASS la page s'ouvre sur l'écran titre (scène 3D)
+PASS le premier clic démarre le son : contexte actif, sons décodés sans erreur
+PASS première visite : le guide s'ouvre au QG
+PASS le guide se referme à la dernière page et ne revient plus
+PASS « Entrer au quartier général » ouvre le QG
+PASS les portraits 3D des cinq opérateurs du GIGN sont rendus
+PASS 300 crédits et 5 opérateurs débloqués au départ
+PASS la puissance d'équipe est affichée (nombre)
+PASS accueil : escouade de 5 avec portraits ; saison, succès, crédits, cartes et tenue mis de côté
+PASS un clic sur un membre de l'escouade ouvre sa fiche
+PASS le bouton ⚙ ouvre les réglages
+PASS la vitesse par défaut est retenue
+PASS export puis import rend la même carrière ; un fichier invalide est refusé
+PASS une seule arme proposée : le fusil d'assaut
+PASS la formation « nord » assigne la voie nord
+PASS la progression est sauvegardée dans le navigateur
+PASS l'écran « VS » présente les deux équipes avant la bataille
+PASS la mission ouvre l'écran de bataille
+PASS mission de campagne : briefing affiché (nom de la mission), bataille en attente
+PASS « Commencer la mission » ferme le briefing et lance la bataille
+PASS la tactique Tiroir d'Alpha est affichée en bataille
+PASS Lynx porte le fusil d'assaut dans la bataille
+PASS l'ennemi de la mission est celui annoncé (ordre Prudent, 4 opérateurs)
+PASS le Tiroir est en place (moitiés d'escouade, bonds comptés)
+PASS l'ordre d'Alpha changé en cours de bataille est appliqué et journalisé
+PASS l'écran de récompenses s'affiche au retour (total et XP de rang)
+PASS retour au QG : crédits de mission ajoutés selon l'issue réelle (plus défis éventuels)
+PASS le rang progresse (XP joueur > 0)
+PASS chaque opérateur engagé a gagné de l'expérience et une bataille à son compteur
+PASS après rechargement, la progression est conservée
+PASS onglet Jouer : 6 missions de campagne, les suivantes verrouillées, une seule campagne, finale signalée
+PASS la bataille rapide passe par l'écran VS avec un objectif tiré au sort
+PASS après une bataille rapide, le compteur de batailles rapides avance
+PASS la page a un titre
+PASS la scène 3D est là (canvas WebGL)
+PASS 10 cartes d'opérateurs affichées
+PASS 10 étiquettes 3D
+PASS la bataille se joue jusqu'au bout en temps réel (1 s réelles pour 178 s simulées à 4×)
+PASS la bannière de fin apparaît d'abord, au nom du vainqueur
+PASS l'écran de résultat s'affiche
+PASS le titre du résultat correspond au vainqueur calculé
+PASS l'état d'équipe affiché (%) est celui du résultat
+PASS neutralisations + 5 spéciaux affichés (tête, séries, groupe, revanches, vétérans)
+PASS 10 lignes dans les tableaux de résultat
+PASS les barres d'état des équipes correspondent au résultat
+PASS le journal contient le début et la fin de l'engagement
+PASS « Revoir la bataille » rejoue exactement la même bataille
+PASS journal = statistiques (touchés par balle ; éclats journalisés à part)
+PASS « Rejouer cette graine » relance la même graine
+PASS le sélecteur d'ordre modifie la simulation
+PASS raccourcis clavier : 3 → vitesse ×4, C → caméra suivante
+PASS « Résultat immédiat » donne le même résultat que la simulation complète et ouvre l'écran de résultat
+PASS en bataille, les coups de feu sont réellement joués
+PASS le paquet de sons complémentaire (hd/sons_hd.json : ambiances longues) est chargé
+PASS les bruitages et musiques se décodent et se jouent
+PASS aucune erreur JavaScript
+
+56/56 vérifications réussies

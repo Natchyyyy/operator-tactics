@@ -1,0 +1,85 @@
+node tests/verify.js
+
+PASS 40 batailles se terminent avec un résultat
+PASS aucune règle de tir / déplacement violée pendant ces batailles
+PASS le tir de suppression existe et ne fait jamais de dégâts (compté dans les tirs, jamais dans les touchés)
+PASS temps de calcul raisonnable (< 3 s par bataille)
+   durées : min 39 s, moyenne 72 s, max 206 s
+   victoires : Alpha 16, Bravo 24, égalités 0
+PASS journal = événements (touchés, neutralisations, rechargements, dégâts, vainqueur)
+PASS même graine → même journal
+PASS graine différente → bataille différente
+PASS un mur plein bloque la vue et les tirs (0 tir en 20 s)
+PASS … et la carte confirme que le rayon traverse un obstacle
+PASS à découvert, les deux opérateurs se repèrent et tirent
+PASS un couvert bas cache une cible accroupie mais pas debout
+PASS la cible debout derrière les caisses est en couvert partiel
+PASS sans obstacle entre les deux, pas de couvert
+PASS un chargeur vide impose un rechargement de la durée prévue
+PASS les plaques lourdes réduisent les dégâts au torse par rapport au gilet léger (carabine)
+PASS les plaques lourdes ralentissent (vitesse réelle plus faible à mobilité égale)
+PASS fusil à pompe : très efficace à 5 m, quasi inutile à 40 m
+PASS fusil de précision : meilleur que la carabine à 70 m, pénalisé à 5 m
+PASS la cadence et le chargeur diffèrent réellement (mitrailleuse : 100 coups, rechargement long)
+PASS dégâts par balle : fusil de précision > carabine > pistolet-mitrailleur
+PASS ordre « Tenir » : l'équipe parcourt nettement moins de distance qu'en « Assaut »
+PASS ordre « Tenir » : aucun opérateur ne s'éloigne à plus de 25 m de sa zone de départ
+PASS ordre « Prudent » : comportement intermédiaire ou différent
+PASS « Tenir » contre « Tenir » : la bataille se termine quand même (limite de temps / décision)
+PASS un chemin valide contourne le bâtiment (plus long que la ligne droite, sans traverser d'obstacle)
+PASS une destination à l'intérieur d'un obstacle est ramenée à la case libre la plus proche
+PASS un opérateur « bloqué » dans un obstacle en ressort sans planter la simulation
+PASS équipe sans munitions : zéro tir, et la bataille se conclut
+PASS … le journal signale la pénurie
+PASS la suppression réduit la chance de toucher
+PASS une blessure grave réduit la chance de toucher et la vitesse
+PASS objectif « tenir » : fin à l'échéance, victoire du défenseur s'il reste quelqu'un
+PASS un PM silencieux ne s'entend pas à 24 m derrière un mur, un PM classique si
+PASS la deuxième carte (Place du marché) se joue de bout en bout
+PASS setOrder change l'ordre et le journalise
+PASS après « Tenir » en cours de route, l'escouade reste près de là où elle était (< 22 m en 20 s)
+PASS … alors qu'en restant en « Assaut » elle marche davantage sur la même période (5 batailles)
+PASS un ordre inconnu ou identique est refusé
+PASS Mains sûres : rechargement 35 % plus court
+PASS Sprinteur : 15 % plus rapide
+PASS Colosse : +10 PV et plaques lourdes moins pénalisantes
+PASS Patience : +25 % sur le premier tir posé seulement
+PASS Tir d'opportunité : pénalité cible mobile réduite de moitié (×0,9 au lieu de ×0,8)
+PASS Œil de lynx repère plus souvent, Fantôme est repéré moins souvent (à 40 m)
+PASS Sang-froid : la suppression retombe 50 % plus vite
+PASS résultat : spéciaux agrégés (tête, séries, revanches, vétérans, groupe) et état d'équipe en %
+PASS capture (parking) : zone sur l'axe de symétrie, centre accessible, assez de place pour 5 opérateurs
+PASS capture (entrepot) : zone sur l'axe de symétrie, centre accessible, assez de place pour 5 opérateurs
+PASS capture (place) : zone sur l'axe de symétrie, centre accessible, assez de place pour 5 opérateurs
+PASS capture (raffinerie) : zone sur l'axe de symétrie, centre accessible, assez de place pour 5 opérateurs
+PASS capture (gare) : zone sur l'axe de symétrie, centre accessible, assez de place pour 5 opérateurs
+PASS capture : 2 opérateurs seuls dans la zone → +2 %/s
+PASS capture : zone disputée → aucune progression
+PASS capture : 100 % → victoire de l'équipe qui tient la zone, même avec tous les adversaires debout
+PASS capture : 12 batailles réelles se terminent, la zone est occupée dans la plupart
+PASS neutralisation de groupe : comptée avec un allié qui a touché la cible il y a 2 s, pas 9 s
+PASS grenades : dotation par rôle (assaut 1 frag, pointe 1 incapacitante, brèche 1+1, appui et tireur aucune)
+PASS grenade : dégâts décroissants à 1,5 m, rien derrière un mur, rien au-delà du rayon
+PASS grenade : la suppression atteint aussi ceux qui sont à l'abri (le bruit, le souffle)
+PASS grenade : la neutralisation est créditée au lanceur
+PASS incapacitante : aveugle celui qui voit l'éclair (aucun repérage, précision ×0,25), pas celui derrière le mur
+PASS grenade : l'adversaire qui la voit tomber s'éloigne avant l'explosion
+PASS en bataille : des grenades sont lancées, jamais vers un allié proche, jamais en tirant
+PASS revoir : la bataille rejouée est identique (vainqueur, durée, journal, chaque opérateur), commandes du joueur comprises
+PASS revoir : les commandes sont refusées pendant la revue
+PASS Grenadier : une grenade à fragmentation de plus que le même rôle sans le trait
+PASS Vigie : entend les pas d'un ennemi en mouvement à 9 m derrière un mur (un autre éclaireur non)
+PASS Secouriste : soigne un allié proche jusqu'à 70 %, pas un allié à 9 m
+PASS à terre : un allié rejoint le blessé et le relève avec 30 % de sa vie ; Secouriste plus rapide ; pas de relève sans saignement
+PASS à terre : jamais après une balle dans la tête, environ une fois sur deux sinon
+PASS accessoires : lunette +12 % au-delà de 25 m (rien de près), holographique +6 % de près, poignée et compensateur
+PASS moral : un opérateur peu sang-froid flanche plus souvent qu'un appui Sang-froid ; le Meneur jamais ; rien sans pertes récentes
+PASS décor destructible : la caisse disparaît, sa case se libère, la vue passe ; la carte suivante est intacte ; les murs ne cèdent pas
+PASS camouflage : tenue urbaine en ville, désert à la raffinerie, nuit de nuit (×0,9) ; ailleurs ×1 ; l'adversaire sans tenue ×1
+PASS conditions : à 40 m, repéré de jour, invisible de nuit et dans le brouillard, trahi de nuit par l'éclair de son arme
+PASS conditions : déterministes, et elles changent réellement la bataille
+PASS symétrie : points de couverture en miroir sur les cartes symétriques (le parking est volontairement asymétrique)
+PASS équité (eliminate) : escouades identiques sur les 5 cartes, ni l'ouest ni l'est favorisé (35–65 %)
+PASS équité (capture) : escouades identiques sur les 5 cartes, ni l'ouest ni l'est favorisé (35–65 %)
+
+79/79 vérifications réussies

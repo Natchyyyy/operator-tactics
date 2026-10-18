@@ -1,0 +1,20 @@
+C:\Users\enjua\AppData\Local\Programs\Python\Python312\pythonw.exe C:\Users\enjua\Documents\operator-tactics-pc\pc\lanceur_gpu.py outils/revue/revue.py revue --sortie C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue
+
+mesures gign : 30 états (28 s)
+mesures soldat : 30 états (56 s)
+preuve C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\preuves\soldat_recharge_marche.png (56 s)
+preuve C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\preuves\soldat_recharge_arret.png (56 s)
+preuve C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\preuves\soldat_repos_visee.png (56 s)
+preuve C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\preuves\soldat_guet.png (57 s)
+preuve C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\preuves\soldat_depart_arret_vise.png (57 s)
+preuve C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\preuves\soldat_tir_arret.png (57 s)
+preuve C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\preuves\soldat_demi_tour.png (57 s)
+preuve C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\preuves\gign_jog_vise_diagG.png (57 s)
+preuve C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\preuves\soldat_jog_vise_diagG.png (57 s)
+preuve C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\preuves\gign_jog_vise_lateralD.png (57 s)
+preuve C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\preuves\soldat_jog_vise_lateralD.png (58 s)
+preuve C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\preuves\gign_pas_chasse_G.png (58 s)
+preuve C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\preuves\soldat_marche_visee_diagG.png (58 s)
+preuve C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\preuves\soldat_pas_chasse_G.png (58 s)
+
+2269 OK, 264 mineurs, 260 majeurs → C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-01\revue\rapport.md

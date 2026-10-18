@@ -1,0 +1,23 @@
+node tests/voies.js
+
+PASS voies : chaque escouade envoie 1 ou 2 opérateurs sur chaque flanc, au moins un tient le milieu
+PASS voies : le plan (1-1, 2-1, 1-2, 2-2) et les flanqueurs varient avec la graine
+PASS voies : même graine, même répartition
+PASS voies : avant le contact, les flanqueurs sont sur leur flanc (nord / sud), le milieu reste au milieu
+PASS voies (capture) : les flanqueurs arrivent par le flanc puis se rabattent sur la zone
+PASS voies : ordre « Tenir », aucun point de flanc
+PASS voies : la voie choisie par le joueur est respectée (sud → z de la voie sud)
+PASS plans : Tenailles = 2 nord / 2 sud / 1 milieu, Rush milieu = tout le monde au milieu, quelle que soit la graine
+PASS plans : une voie imposée par le joueur compte dans le plan (Lynx au nord + Tenailles → toujours 2/2/1)
+PASS plans : relancé en bataille, il redistribue les survivants (Rush milieu → tous au milieu) et consomme une utilisation
+PASS rotation : acceptée, toute l'escouade (hors tireur d'élite) passe au nord ; une seconde rotation immédiate est refusée (recharge)
+PASS rotation : les opérateurs rejoignent réellement le flanc nord
+PASS rotation : refusée en ordre « Tenir », refusée pour une voie inconnue
+PASS rotation : la bataille revue (commandes rejouées au même pas) est identique
+PASS instantané : voie de chaque opérateur, plan et rotation de chaque équipe
+PASS QG : la voie choisie pour un opérateur et le plan équipé arrivent en bataille
+PASS QG : sans plan équipé ni voie imposée, répartition automatique
+PASS allure : pleine vitesse jusqu'à 30°, ≤ 2,0 m/s à 45°, 1,4 à 90°, 1,8 à reculons ; la marche lente n'est pas touchée
+PASS allure : en pas chassé (cible sur le côté), ~1,4 m/s au lieu de sa pleine vitesse
+
+19/19 vérifications réussies

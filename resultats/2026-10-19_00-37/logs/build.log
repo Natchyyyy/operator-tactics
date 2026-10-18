@@ -1,0 +1,6 @@
+node build.js
+
+web/images.js : 15 images, 245 Ko
+page légère (dist/index.html, docs/index.html, dist/artifact.html) : 350 Ko ; dist/complet.html : 14.5 Mo
+p/ : three.min.js 652 Ko, three-addons.js 160 Ko, cannon-es.js 339 Ko, modeles-soldat.js 3002 Ko, modeles-gign.js 2688 Ko, modeles-decor.js 4616 Ko, sons.js 1516 Ko, jeu.js 1518 Ko
+publication : 44 fichiers, 135.3 Mo en 3 lot(s) → dist/publier.json

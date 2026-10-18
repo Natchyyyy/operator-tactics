@@ -1,0 +1,104 @@
+{
+ "complet_hd": {
+  "chargement_s": 4.3,
+  "chargement_complet_s": 5.5,
+  "ressources_manquantes": [],
+  "erreurs_page": [],
+  "console_erreurs": [],
+  "maillages_visibles": 847,
+  "triangles_scene": 2017944,
+  "debut_ensemble": {
+   "ms_moyen": 14.13,
+   "ms_median": 14,
+   "ms_p95": 17.2,
+   "ips_equivalent": 71,
+   "largeur": 1920,
+   "hauteur": 1080
+  },
+  "t40_ensemble": {
+   "ms_moyen": 20.59,
+   "ms_median": 20.8,
+   "ms_p95": 24.6,
+   "ips_equivalent": 49,
+   "largeur": 1920,
+   "hauteur": 1080
+  },
+  "t40_epaule": {
+   "ms_moyen": 23.26,
+   "ms_median": 19.3,
+   "ms_p95": 27.2,
+   "ips_equivalent": 43,
+   "largeur": 1920,
+   "hauteur": 1080
+  }
+ },
+ "simple_hd": {
+  "chargement_s": 5.9,
+  "chargement_complet_s": 7.0,
+  "ressources_manquantes": [
+   "échec http://127.0.0.1:8765/docs/p/three-addons.js?v=b2f534370d",
+   "échec http://127.0.0.1:8765/docs/p/cannon-es.js?v=548025ed5d"
+  ],
+  "erreurs_page": [],
+  "console_erreurs": [],
+  "maillages_visibles": 847,
+  "triangles_scene": 2017944,
+  "debut_ensemble": {
+   "ms_moyen": 9.1,
+   "ms_median": 9,
+   "ms_p95": 11.3,
+   "ips_equivalent": 110,
+   "largeur": 1920,
+   "hauteur": 1080
+  },
+  "t40_ensemble": {
+   "ms_moyen": 15.3,
+   "ms_median": 15.5,
+   "ms_p95": 19.8,
+   "ips_equivalent": 65,
+   "largeur": 1920,
+   "hauteur": 1080
+  },
+  "t40_epaule": {
+   "ms_moyen": 13.31,
+   "ms_median": 13.5,
+   "ms_p95": 17,
+   "ips_equivalent": 75,
+   "largeur": 1920,
+   "hauteur": 1080
+  }
+ },
+ "simple_leger": {
+  "chargement_s": 4.4,
+  "chargement_complet_s": 5.5,
+  "ressources_manquantes": [],
+  "erreurs_page": [],
+  "console_erreurs": [],
+  "maillages_visibles": 497,
+  "triangles_scene": 1016871,
+  "debut_ensemble": {
+   "ms_moyen": 9.37,
+   "ms_median": 9.3,
+   "ms_p95": 11.7,
+   "ips_equivalent": 107,
+   "largeur": 1920,
+   "hauteur": 1080
+  },
+  "t40_ensemble": {
+   "ms_moyen": 9.79,
+   "ms_median": 9.5,
+   "ms_p95": 11.7,
+   "ips_equivalent": 102,
+   "largeur": 1920,
+   "hauteur": 1080
+  },
+  "t40_epaule": {
+   "ms_moyen": 9.92,
+   "ms_median": 9.8,
+   "ms_p95": 13.1,
+   "ips_equivalent": 101,
+   "largeur": 1920,
+   "hauteur": 1080
+  }
+ }
+}

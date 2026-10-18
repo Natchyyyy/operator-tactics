@@ -1,0 +1,27 @@
+C:\Users\enjua\AppData\Local\Programs\Python\Python312\python.exe C:\Users\enjua\Documents\operator-tactics-pc\pc\lanceur_gpu.py outils/capture.py http://127.0.0.1:8765/docs/index.html?manual=1&mode=free&hd=1&seed=3 C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-07\carte_nuit\v --taille 1920x1080 --attendre window.PRET --etape wait:8000 --etape js:(() => { const s = document.querySelector('#condSel'); s.value = 'nuit'; document.querySelector('#newBattle').click(); return 'conditions : ' + document.querySelector('#app').dataset.cond; })() --etape wait:4000 --etape js:(() => { const c = document.querySelector('canvas#scene'); document.querySelectorAll('body *').forEach(e => { if (e !== c && !e.contains(c)) e.style.visibility = 'hidden'; }); return 0; })() --etape js:API.look(36.0, 23.0, 0.6, 1.0, 72) --etape wait:400 --etape shot --etape js:API.look(36.0, 23.0, 3.75, 1.0, 72) --etape wait:400 --etape shot --etape js:API.look(36.0, 23.0, 0.0, 1.5, 85) --etape wait:400 --etape shot --etape js:API.look(6, 22, 1.57, 0.08, 6, 1.6) --etape wait:400 --etape shot --etape js:API.look(66, 22, -1.57, 0.08, 6, 1.6) --etape wait:400 --etape shot --etape js:API.look(26, 5, 3.14159, 0.08, 6, 1.6) --etape wait:400 --etape shot --etape js:API.look(36, 38, 3.14, 0.08, 6, 1.6) --etape wait:400 --etape shot --etape js:API.step(400) --etape js:API.look(36.0, 23.0, 0.6, 1.0, 72) --etape wait:300 --etape shot
+
+page prête en 4.8 s
+js → conditions : nuit
+C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-07\carte_nuit\v-0.png (0.4 s)
+C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-07\carte_nuit\v-1.png (0.3 s)
+C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-07\carte_nuit\v-2.png (0.3 s)
+C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-07\carte_nuit\v-3.png (0.4 s)
+C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-07\carte_nuit\v-4.png (0.4 s)
+C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-07\carte_nuit\v-5.png (0.5 s)
+C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-07\carte_nuit\v-6.png (0.4 s)
+js → 40
+C:\Users\enjua\Documents\operator-tactics-pc\resultats\2026-10-19_01-07\carte_nuit\v-7.png (0.4 s)
+console.warning: Scripts "build/three.js" and "build/three.min.js" are deprecated with r150+, and will be removed with r160. Please use ES Modules or alternatives: https://threejs.org/docs/index.html#manual/en/introduction/Installation
+console.warning: Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently
+console.warning: Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently
+console.warning: Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently
+console.warning: Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently
+console.warning: Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently
+console.warning: THREE.WebGLProgram: Program Info Log: (70,9-26): warning X3577: value cannot be NaN, isnan() may not be necessary.  /Gis may force isnan() to be performed
+console.warning: THREE.WebGLProgram: Program Info Log: (81,9-22): warning X3577: value cannot be NaN, isnan() may not be necessary.  /Gis may force isnan() to be performed
+(81,9-22): warning X3577: value cannot be NaN, isnan() may not be necessary.  /Gis may force isnan() to be performed
+(81,9-22): warning X3577: value cannot be NaN, isnan() may not be necessary.  /Gis may force isnan() to be performed
+(81,9-22): warning X3577: value cannot be NaN, isnan() may not be necessary.  /Gis may force isnan() to be performed
+(81,9-22): warning X3577: value cannot be NaN, isnan() may not be necessary.  /Gis may force isnan() to be performed
+(81,9-22): warning X3577: value cannot be NaN, isnan() may not be necessary.  /Gis may force isnan() to be performed
+(81,9-22): warning X3577: value cannot be NaN, isnan() may not be necessary.  /Gis may force isnan() to be performed

@@ -1,0 +1,9 @@
+# Versions figées pour la machine du PC (Python 3.12 de la tâche planifiée).
+# Navigateurs liés à playwright 1.64.0 : chromium-1248 et chromium_headless_shell-1248 (dans %LOCALAPPDATA%\ms-playwright).
+# Réinstaller : python -m pip install -r pc/requirements.txt puis python -m playwright install chromium
+playwright==1.64.0
+greenlet==3.5.6
+pyee==14.0.0
+typing_extensions==4.16.0
+pillow==13.0.0
+numpy==2.5.4

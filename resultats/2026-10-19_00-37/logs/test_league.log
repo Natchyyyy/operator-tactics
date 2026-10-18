@@ -1,0 +1,15 @@
+node tests/league.js
+
+PASS saison neuve : 10 équipes à 0 point, 8 batailles à jouer
+PASS 8 journées simulées (joueur + 4 matchs IA chacune) en moins de 40 s (machine de test lente)
+PASS pas deux fois le même adversaire dans trois journées consécutives
+PASS le joueur a joué 8 fois, les IA entre 7 et 15 fois (8 journées, l'une d'elles reste parfois sans match)
+PASS cohérence : 2 points distribués par match, somme des différences nulle
+PASS classement trié par points puis différence
+PASS tous classés (≥ 3 matchs)
+PASS prime de fin de saison : participation comprise, podium selon le rang
+PASS la saison est déterministe (graine)
+(désactivé) sur 4 saisons, les deux équipes fortes totalisent plus de points que les deux faibles
+PASS forme : les cinq derniers résultats de chaque équipe (v/n/d) ; puissance des équipes IA calculée comme au QG
+
+10/10 vérifications réussies (1 mises de côté : fonctions désactivées)

@@ -1,0 +1,95 @@
+node tests/game.js
+
+PASS profil neuf : 5 opérateurs débloqués, escouade complète, 300 crédits
+PASS niveau 0 au départ, 100 XP pour le niveau 1
+PASS une seule arme : le fusil d'assaut pour tous, toute autre arme refusée
+PASS changer de protection
+(désactivé) l'arme et la protection équipées sont celles de la bataille
+(désactivé) la protection lourde ralentit réellement Lynx
+PASS niveau 4 : +8 à chaque statistique, plafonné à 100
+PASS les statistiques bonifiées sont utilisées par le moteur (PV, précision)
+PASS formation « nord » : les objectifs de marche visent le couloir nord
+PASS formation « sud » : les objectifs de marche visent le couloir sud
+PASS escouade : retirer un opérateur, à 4 l'escouade peut partir
+PASS recrutement refusé pour un opérateur déjà débloqué
+PASS échanger un membre de l'escouade le remplace à la même place (et refuse un déjà présent)
+PASS Bélier revient dans l'escouade
+PASS la mission fixe l'ordre et le niveau de l'ennemi
+PASS les crédits gagnés dépendent de l'issue, des neutralisations et des spéciaux (plus les défis)
+PASS l'expérience de chacun découle de ses actions réelles (dégâts, neutralisations, survie)
+PASS carrière détaillée : tirs à la tête, terrain, dernière bataille enregistrés
+PASS progression des succès : [valeur, objectif] bornée ; null pour les succès d'un seul coup
+PASS la carrière est mise à jour
+PASS les opérateurs neutralisés reviennent gravement blessés (et restent déployables)
+PASS blessure grave : toutes les compétences divisées par deux
+PASS blessure grave : points de vie réduits d'un quart en bataille
+PASS blessure grave : la note de l'opérateur baisse
+PASS les soins guérissent contre des crédits (gratuits seulement s'il reste moins de 3 opérateurs valides)
+PASS on ne soigne pas un opérateur en bonne santé
+PASS une escouade de 3 opérateurs peut partir, pas de 2
+PASS une bataille à 3 contre 5 se joue jusqu'au bout
+PASS le repos guérit en 2 missions
+PASS un blessé engagé en mission ne compte pas de repos
+PASS sans opérateur valide ni crédits, les soins sont gratuits jusqu'à 3 valides
+PASS ancienne sauvegarde : la convalescence devient une blessure grave
+(désactivé) synergies : Commandement (Meneur → Radio, Appui), Guidage (Radio → tireur, appui, brèche), Appui-feu (Appui → Assaut, Pointe)
+(désactivé) Guidage radio : +8 % de précision, perdu quand le radio tombe
+PASS Commandement : dégâts subis −10 % tant que le Meneur est debout
+(désactivé) liste des synergies actives de l'équipe
+PASS Frères d'armes : les opérateurs du GIGN sont liés ; perdu quand plus aucun autre n'est debout ; affiché au QG
+PASS « Sans perte » accordé sur une victoire sans neutralisé, crédits ajoutés
+PASS un défi ne se gagne qu'une fois
+PASS aucun défi sur une défaite
+PASS « À trois » exige une escouade de trois
+PASS « Œil du tireur » : 3 neutralisations par un tireur d'élite
+PASS applyRewards renvoie la liste des défis accomplis (éventuellement vide)
+PASS rang : Recrue à 0 XP, Opérateur à 150, rang suivant indiqué
+PASS la puissance d'équipe est un nombre lisible qui augmente avec les niveaux
+PASS tactiques : le Tiroir et les plans de voies (Tenailles, Rush milieu), possédés d'office, Tiroir équipé ; une tactique inconnue est refusée
+PASS le Tiroir part dans la bataille des deux côtés
+PASS un paquet trop cher est refusé
+PASS un paquet standard donne 3 cartes et coûte 150 crédits
+PASS une carte perk ajoute +2 à la statistique effective de l'opérateur
+PASS 60 paquets : perks plafonnés à +10, profil cohérent (sauvegardable)
+PASS personnalisation : nom d'équipe, insigne possédé seulement
+PASS les opérateurs de départ ont un contrat de 24 missions
+PASS une mission consomme un tour de contrat ; à zéro l'opérateur est signalé et indisponible
+PASS le renouvellement coûte selon la rareté et redonne des missions
+PASS l'historique de l'opérateur garde ses batailles (mission, issue, neutralisations, dégâts)
+PASS une carte opérateur en doublon fusionne : perk +2 (ou crédits) et contrat +4
+PASS au niveau 5, une promotion propose deux traits que l'opérateur n'a pas
+PASS le trait choisi devient actif dans la simulation
+PASS un trait non proposé est refusé
+PASS succès « Première victoire » accordé une seule fois
+PASS succès « Sans une égratignure » : victoire avec 5 opérateurs > 90 %
+PASS sauvegarde puis rechargement identiques
+PASS sans sauvegarde : null (le jeu repart d'un profil neuf)
+PASS sauvegarde corrompue : null, sans planter
+PASS succès « Première victoire » : +100 crédits réellement versés, libellé affiché
+PASS succès « Dix victoires » : le béret rouge est débloqué
+PASS un succès n'est accordé qu'une fois
+PASS une seule campagne, ouverte d'emblée, toutes ses missions sur le parking
+PASS campagne : seule la première mission est ouverte au départ
+PASS campagne : la mission suivante s'ouvre dès que la précédente a été jouée (gagnée ou non)
+PASS campagne finie et gagnée : primes de participation et de campagne versées (une fois)
+PASS primes de campagne non versées deux fois
+PASS bataille rapide : 4 ou 5 opérateurs Karst, carte et objectif valides, adversaire un peu sous votre puissance
+PASS bataille rapide : une escouade aguerrie affronte un adversaire de plus haut niveau
+PASS une bataille rapide se joue jusqu'au bout
+PASS bataille rapide : 5e victoire → paquet standard offert
+PASS un paquet offert s'ouvre sans payer
+PASS opération Tempête : 25e victoire → +800 crédits et un paquet élite offert, captures et victoires propres comptées
+PASS stockage indisponible : la sauvegarde échoue proprement
+PASS réinitialisation : profil neuf et stockage vidé
+PASS contrats du jour : trois contrats distincts, même tirage pour une même date, tirages variés selon les jours
+PASS contrats du jour : progression cumulée, payés une seule fois quand l'objectif est atteint
+(désactivé) accessoires : achat unique, montage seulement sur une arme compatible, effets dans la bataille (chargeur +50 %, silencieux)
+(désactivé) accessoires : +1,5 de note par accessoire monté
+PASS sauvegarde v1 migrée : version à jour, accessoires et carrière détaillée ajoutés, données conservées
+PASS sauvegarde d'une version plus récente : refusée (le QG la met de côté au lieu de l'écraser)
+PASS contenu : 5 opérateurs du GIGN, une seule carte (parking), adversaire Karst seulement
+PASS bataille rapide : Karst, parking, Tiroir
+PASS sauvegarde v2 migrée : recrues et Delta retirées, une arme, le Tiroir, crédits et progression gardés
+(désactivé) protections à acheter : refusées avant achat, achetées une fois, portées en bataille
+
+83/83 vérifications réussies (8 mises de côté : fonctions désactivées)

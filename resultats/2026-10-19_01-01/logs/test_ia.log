@@ -1,0 +1,35 @@
+node tests/ia.js
+
+(désactivé) tiroir : l'escouade est partagée en deux moitiés, le tireur d'élite reste en appui
+PASS tiroir : les rôles s'inversent plusieurs fois (bonds alternés) et le journal le dit
+PASS tiroir : la moitié qui couvre reste arrêtée, celle qui avance se déplace
+PASS tiroir : des opérateurs sont en couverture (face à la menace, arrêtés)
+PASS tiroir : désactivé quand l'ordre est « Tenir »
+PASS sans la tactique : pas de tiroir
+PASS tiroir : 10 batailles réelles se terminent
+PASS allié dans la ligne de tir : détecté
+PASS allié dans la ligne de tir : aucun coup tiré
+PASS allié écarté : le tir reprend
+PASS en bataille : aucun tir avec un allié sur la trajectoire
+PASS espacement : deux opérateurs arrêtés à moins de 1,2 m l'un de l'autre restent rares (< 3 %)
+PASS soutien : l'ennemi qui tire sur un allié est préféré à un ennemi équivalent
+PASS à terre : un opérateur neutralisé ne se déplace plus jamais
+PASS couvert : accroupi à l'arrêt = derrière un vrai obstacle (≥ 0,9 m, à moins de 1 m) face à la menace — jamais derrière rien
+PASS couvert : au contact, l'opérateur est le plus souvent derrière un vrai couvert (> 45 % du temps)
+PASS engagement : on se bat à distance — moins de 10 % des tirs à moins de 5 m, rencontres à moins de 2 m rares (< 0,8 par bataille)
+PASS espacement : deux équipiers à moins de 1 m moins de 4 % du temps (au passage seulement)
+PASS précision : à 1–2 m on touche presque à coup sûr même en mouvement (> 0,75), la chance décroît avec la distance, et reste incertaine à 40 m (< 0,3)
+PASS balles perdues : un adversaire sur la trajectoire derrière la cible est touché 30–50 % des tirs manqués, celui qui la frôle moins, rien à 2,5 m, jamais un allié, jamais à travers un mur
+PASS balles perdues : en vraies batailles, chacune est journalisée (compteur = journal)
+PASS balles perdues : en tir réel, l'adversaire derrière la cible prend des balles perdues, journalisées « Balle perdue : … », dégâts au calcul normal (tête / torse / membre)
+PASS départ : aucun équipier à moins de 0,8 m d'un autre à t = 0 et t = 1 s (120 graines)
+PASS corps : un opérateur arrêté ne se tient presque jamais sur un corps (< 0,5 m ; < 0,3 % du temps)
+PASS position clé : ordre refusé pour une position inconnue, accepté et journalisé sinon
+PASS position clé : les opérateurs désignés la rejoignent, l'un sur le point, l'autre à côté (jamais l'un sur l'autre), et y restent
+PASS position clé : « X tient la position clé « Essai » » au journal ; les autres opérateurs ne sont pas concernés
+PASS position clé : l'ordre s'annule (pos: null)
+PASS position clé : la bataille revue avec l'ordre est identique
+PASS position clé : celles de la carte (6) sont libres, joignables des deux camps et couvertes face à leur menace
+PASS position clé : sans ordre, aucun opérateur n'en reçoit (l'IA ne les dispute pas d'elle-même)
+
+30/30 vérifications réussies (1 mises de côté : fonctions désactivées)
