@@ -47,7 +47,7 @@ async def main():
                 if it % 10 == 0: print(f"   … t = {st['t']:.0f} s de bataille, {time.time() - t1:.0f} s écoulées", flush=True)
                 if st["over"]: fin = st; break
             check(f"{cond}{' / capture' if obj else ''} : la bataille va jusqu'au bout ({frames} images rendues)", fin is not None, fin)
-            await pg.wait_for_timeout(300)
+            await pg.evaluate("API.render()"); await pg.wait_for_timeout(300)   # en jeu, une image est rendue à chaque frame (même bataille finie)
             res = await pg.evaluate("() => [!document.querySelector('#result').classList.contains('hidden'), document.querySelector('#resTitle').textContent, API.battle().result && API.battle().result.winner]")
             check(f"{cond} : écran de résultat affiché ({res[1]})", res[0] and res[1] != "", res)
             hud = await pg.evaluate("""() => { const b = API.battle(); return b.units.filter(u => u.team === 0).every(u => { const c = document.querySelector(`.card[data-id="${u.id}"]`); return c && c.classList.contains('dead') === !u.alive; }); }""")

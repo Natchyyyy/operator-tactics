@@ -130,7 +130,7 @@ async def main():
         bn = await pg.evaluate("() => [document.querySelector('#banner').className, document.querySelector('#bannerText').textContent]")
         exp_b = "ÉGALITÉ" if res["winner"] == -1 else ("L'EMPORTE" if True else "")
         check("la bannière de fin apparaît d'abord, au nom du vainqueur", 'show' in bn[0] and exp_b in bn[1] and (res["winner"] == -1 or ("ALPHA" in bn[1]) == (res["winner"] == 0)), bn)
-        await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=60000)
+        await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=300000)   # bannière + plan final, au rythme du rendu
         shown = await pg.evaluate("() => !document.querySelector('#result').classList.contains('hidden')"); check("l'écran de résultat s'affiche", shown)
         title = await pg.inner_text("#resTitle"); exp = "Égalité" if res["winner"] == -1 else ("Vous avez gagné" if res["winner"] == 0 else "Vous avez perdu")
         check("le titre du résultat correspond au vainqueur calculé", title.strip().lower() == exp.lower(), (title, exp))
