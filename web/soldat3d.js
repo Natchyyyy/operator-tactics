@@ -27,6 +27,9 @@
   // dos : part du mouvement de la colonne de la course ajoutée à la garde basse (Trot_Low)
   // marche en visant : bassin abaissé (m) par rapport à la marche naturelle
   const GLISSE = 0.03;
+  // marche en visant (Pas_Glisse) : foulée × s, cheville levée au plus ~cap (m), demi-écart des chevilles larg (m), bassin
+  // abaissé de bas (m), part gardée du rebond du bassin
+  const GLISSE_P = { s: 0.85, cap: 0.09, larg: 0.16, bas: 0.06, bob: 0.35 };
   // visée debout : flexion des genoux visée (rad)
   const GENOUX_VISEE = 0.38;
   // écart moyen des chevilles en marche (m)
@@ -41,7 +44,7 @@
   const GENOU_OUT = 1.0, GENOU_IN = 0.45;
   // à genou : hauteur du genou arrière posé (os, m), de sa cheville (pointe du pied au sol), cheville du pied avant à plat
   const GENOU = { genou: 0.075, cheville: 0.13, chevilleAv: 0.15, baisse: 0.035 };   // baisse : bassin abaissé (m) pour que le genou arrière touche le sol
-  const TROT = { s: 0.38, hs: 0.5, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
+  const TROT = { cap: 0.17, s: 0.38, hs: 0.6, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
   const PENCHE = 0.21;
   // visée : angle (rad) entre la ligne des épaules et la face (0 = carré, ~1,3 = de profil comme les visées Mixamo), voir penche()
@@ -389,15 +392,21 @@
   // position moyenne), pieds levés moins haut (× hs) et bassin un peu remonté (jambes moins écartées → moins fléchies).
   // Même cadence que la course : vitesse naturelle ≈ s × 4,6 m/s. Droit, souple, pieds dans l'axe : un trot de patrouille,
   // pas la course accroupie « au fusil » (Run_and_Shoot) qui faisait un petit trottinement de crabe sans ennemi en vue.
-  function foulee(M, src, nom, s, hs, rise, kp0, ouv) {
+  // P (facultatif) : cap (m : hauteur des chevilles au-dessus de leur plus bas plafonnée en douceur — pied d'appel bas),
+  // larg (m : demi-écart moyen visé des chevilles), bas (m : bassin abaissé, genoux fléchis), bob (part gardée du rebond
+  // vertical du bassin)
+  function foulee(M, src, nom, s, hs, rise, kp0, ouv, P) {
+    P = P || {};
     const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n), hips = b('Hips'), F = [b('LeftFoot'), b('RightFoot')];
     if (!src || !hips || !F[0] || !F[1]) return null;
     const mixer = new THREE.AnimationMixer(sc); mixer.clipAction(src).play();
     const N = Math.max(4, Math.round(src.duration * 30)), W = (o) => o.getWorldPosition(new THREE.Vector3());
-    let gy = 1e9, mz = 0; const ech = [];
-    for (let i = 0; i < N; i++) { mixer.setTime(i / N * src.duration); sc.updateMatrixWorld(true); const H = W(hips), A = F.map(W); ech.push([H, A]); A.forEach(a => { gy = Math.min(gy, a.y); mz += (a.z - H.z) / (2 * N); }); }
+    let gy = 1e9, mz = 0, hy = 0; const ech = [], mx = [0, 0];
+    for (let i = 0; i < N; i++) { mixer.setTime(i / N * src.duration); sc.updateMatrixWorld(true); const H = W(hips), A = F.map(W); ech.push([H, A]); hy += H.y / N; A.forEach((a, j) => { gy = Math.min(gy, a.y); mz += (a.z - H.z) / (2 * N); mx[j] += (a.x - H.x) / N; }); }
     mixer.stopAllAction(); mixer.uncacheRoot(sc); sc.updateMatrixWorld(true);
-    const cib = (H, a) => new THREE.Vector3(a.x, gy + (a.y - gy) * hs, H.z + mz + s * (a.z - H.z - mz));
+    const kk = RAW_H / HEIGHT, capK = P.cap ? P.cap * kk : 0;
+    const cib = (H, a, j) => { const hh = (a.y - gy) * hs, x = P.larg && j !== undefined ? a.x - mx[j] + Math.sign(mx[j]) * P.larg * kk : a.x;
+      return new THREE.Vector3(x, gy + (capK ? capK * Math.tanh(hh / capK) : hh), H.z + mz + s * (a.z - H.z - mz)); };
     // montée du bassin : longueur bassin → cheville d'appui conservée en moyenne (part « rise »)
     let mont = 0; for (const [H, A] of ech) { const j = A[0].y < A[1].y ? 0 : 1, d0 = H.distanceTo(A[j]), h0 = Math.hypot(A[j].x - H.x, A[j].z - H.z), t = cib(H, A[j]), h1 = Math.hypot(t.x - H.x, t.z - H.z); mont += (Math.sqrt(Math.max(0, d0 * d0 - h1 * h1)) - Math.sqrt(Math.max(0, d0 * d0 - h0 * h0))) / N; }
     const dy = mont * rise;
@@ -407,13 +416,13 @@
     if (gb && toes[0]) { const mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true); const f = W(toes[0]).sub(W(F[0])); p0 = Math.atan2(-f.y, Math.hypot(f.x, f.z)); tR = Math.min(W(toes[0]).y, W(toes[1]).y); mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true); }
     const kp = kp0 !== undefined ? kp0 : TROT.kp, up = new THREE.Vector3(0, 1, 0), k = RAW_H / HEIGHT;
     return jambesIK(M, src, nom, (i, H, A, Aq) => {
-      const H0 = H.clone(), out = A.map(a => cib(H0, a)), fr = [null, null];
+      const H0 = H.clone(), out = A.map((a, j) => cib(H0, a, j)), fr = [null, null];
       if (toes[0] && toes[1]) A.forEach((a, j) => { const f = W(toes[j]).sub(a), h = Math.hypot(f.x, f.z), len = f.length(); if (h < 1e-4) return; const p = Math.atan2(-f.y, h), np = kp < 1 ? p0 + (p - p0) * kp : p;
         const fh = new THREE.Vector3(f.x / h, 0, f.z / h), f1 = fh.clone().multiplyScalar(Math.cos(np)).addScaledVector(up, -Math.sin(np)); Aq[j] = new THREE.Quaternion().setFromUnitVectors(f.clone().normalize(), f1).multiply(Aq[j]); fr[j] = f1.multiplyScalar(len); });
       // pied d'appui (le plus bas, près du sol) : sa plante posée au sol (hauteur de repos des orteils) une fois le pied redressé
       if (tR !== null && fr[0] && fr[1]) { const j = out[0].y + fr[0].y < out[1].y + fr[1].y ? 0 : 1, ty = out[j].y + fr[j].y, w = Math.max(0, Math.min(1, 1 - (ty - tR) / (0.08 * k)));
         if (w > 0) out[j].y += (tR - ty) * w; }
-      return out; }, () => dy, false, ouv);
+      return out; }, (i) => dy - (P.bas || 0) * kk + (P.bob !== undefined ? (P.bob - 1) * (ech[i][0].y - hy) : 0), false, ouv);
   }
   // Pieds au sol : la plupart des cycles de la bibliothèque « flottent » (la pointe la plus basse du cycle 1 à 6 cm au-dessus
   // du sol, mesuré). On descend (ou remonte) le bassin de tout le clip pour que la pointe la plus basse soit à sa hauteur de
@@ -539,14 +548,16 @@
     M.clips.Pas_Avant_Course = legs(M.clips.Run_and_Shoot, 'Pas_Avant_Course');
     // patrouille (pas d'ennemi connu) : marche → petite course → course, mélangées selon la vitesse (voir marche())
     const TR = Object.assign({}, TROT, root.TROT_TEST || {});
-    if (M.clips.Running) { const t = foulee(M, M.clips.Running, 'Pas_Trot', TR.s, TR.hs, TR.rise, undefined, OUV_PIED); if (t) { M.clips.Pas_Trot = t; M.trotErr = t.userData.err; } M.clips.Pas_Run = legs(M.clips.Running, 'Pas_Run'); }
+    if (M.clips.Running) { const t = foulee(M, M.clips.Running, 'Pas_Trot', TR.s, TR.hs, TR.rise, undefined, OUV_PIED, { cap: TR.cap }); if (t) { M.clips.Pas_Trot = t; M.trotErr = t.userData.err; } M.clips.Pas_Run = legs(M.clips.Running, 'Pas_Run'); }
     // marche en visant (« Pas_Glisse ») : la marche naturelle, bassin abaissé de GLISSE m (genoux fléchis, pieds aux mêmes
     // places) : la marche « glissée » d'un tireur qui progresse arme épaulée (talon-pointe, buste stable), au lieu du pas
     // d'affût très lent de Walk_Fight_Forward ou de la course accroupie de Run_and_Shoot
-    if (M.clips.Walking) { const g = jambesIK(M, M.clips.Walking, 'Pas_Glisse', (i, H, A) => A.map(a => a.clone()), () => -GLISSE * RAW_H / HEIGHT); if (g) M.clips.Pas_Glisse = g; }
+    // (référence vidéo réelle : base large ~32 cm entre chevilles, pied d'appel bas ~10-12 cm, genoux fléchis tout le pas,
+    // bassin plat — rebond ≤ 3 cm ; pas un peu plus courts et plus vifs que la marche normale)
+    if (M.clips.Walking) { const g = foulee(M, M.clips.Walking, 'Pas_Glisse', GLISSE_P.s, 1, 0, 1, OUV_PIED, { cap: GLISSE_P.cap, larg: GLISSE_P.larg, bas: GLISSE_P.bas, bob: GLISSE_P.bob }); if (g) M.clips.Pas_Glisse = g; }
     // pas moins écartés (les marches de la bibliothèque posent les chevilles à ~27 cm l'une de l'autre, une démarche en
     // « cow-boy » ; marche humaine : 8 à 17 cm, base tactique un peu plus large) : écart moyen ramené à ECART_PAS
-    for (const n of ['Pas_Avant_Low', 'Pas_Glisse']) if (M.clips[n]) { const c = resserre(M, M.clips[n], ECART_PAS); if (c) M.clips[n] = c; }
+    for (const n of ['Pas_Avant_Low']) if (M.clips[n]) { const c = resserre(M, M.clips[n], ECART_PAS); if (c) M.clips[n] = c; }
     // genoux jamais « en arrière » (voir jambesIK) dans les cycles qui ne sont pas déjà passés par l'IK
     for (const n of ['Pas_Avant_Low', 'Pas_Run', 'Pas_Gauche', 'Pas_Droite', 'Pas_Avant_Aim', 'Pas_Avant_Course']) if (M.clips[n]) { const c = jambesIK(M, M.clips[n], n, (i, H, A) => A.map(a => a.clone()), null, false, /^Pas_(Gauche|Droite)$/.test(n) ? undefined : OUV_PIED); if (c) M.clips[n] = c; }
     // pieds au sol (pointe la plus basse du cycle à sa hauteur de repos)
