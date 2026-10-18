@@ -50,7 +50,7 @@
       asymetrique: true,
       // z des trois voies d'approche, routes de l'IA : nord par la ruelle (derrière le grillage), milieu à travers les rangées
       // de voitures et la station de lavage, sud le long du muret de la rue (quai de la navette, kiosque, chantier).
-      voies: { nord: 5.5, milieu: 23, sud: 37 },
+      voies: { nord: 5.5, milieu: 23, sud: 36 },
       // marquage au sol (rendu seulement) : rangées doubles [x0, z0, places], places le long des murs [x, z, places, pas en x, pas en z]
       marquage: { rangees: [[13, 17, 6], [49, 17, 6]], murs: [[7.6, 41, 7, 2.5, 0], [0, 29.5, 4, 0, 2.5], [67, 10.8, 2, 0, 2.5], [67, 28.9, 2, 0, 2.5]] },
       // Un vrai parking de centre-ville, à l'arrière des boutiques de la Grand-Rue, vu du ciel : au nord la ruelle de service

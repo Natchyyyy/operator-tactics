@@ -44,8 +44,8 @@
   const P = {
     pas: 1 / 60, sousPasMax: 6, iterations: 24, gravite: -9.81,
     amortLin: 0.08, amortAng: 0.45, frottementArt: 3.0,           // frottement des articulations (1/s, vitesse angulaire relative)
-    tonique: 0.22, relache: 0.3,                                     // phase tonique (s) puis relâchement (s)
-    impulsion: { tete: 10, torse: 28, membre: 15, bras: 8 },        // N·s (exagéré par rapport au réel, lisible à l'écran)
+    tonique: 0.22, relache: 0.3, flechit: 0.55, flechitT: 0.45,                                     // phase tonique (s) puis relâchement (s)
+    impulsion: { tete: 6, torse: 18, membre: 12, bras: 6 },        // N·s (exagéré par rapport au réel, lisible à l'écran)
     souffle: 340,                                                    // explosion : N·s à 1 m (réparti selon les masses)
     vMax: 14, wMax: 28, repos: 0.12, reposT: 0.45, dureeMax: 7,
   };
@@ -240,23 +240,26 @@
       }
       cons.forEach(c => W.addConstraint(c));
       const qa = new T.Quaternion(a.quaternion.x, a.quaternion.y, a.quaternion.z, a.quaternion.w), qb = new T.Quaternion(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
-      art.push({ a, b, cons, cible: qa.invert().multiply(qb), force: opt.force || 1, nom: cn, pA, pB });
+      const cible = qa.invert().multiply(qb);
+      // flex : pendant la phase tonique, la cible plie l'articulation (genoux, hanches : les jambes cèdent, le corps s'affaisse)
+      const flex = opt.flex ? new T.Quaternion().setFromAxisAngle(opt.flex[0], opt.flex[1]).multiply(cible) : null;
+      art.push({ a, b, cons, cible, flex, force: opt.force || 1, frot: opt.frot || 1, nom: cn, pA, pB });
     };
     const mix = (v1, c1, v2, c2) => v1.clone().multiplyScalar(c1).addScaledVector(v2, c2).normalize();
     const perpA = (v, d) => v.clone().addScaledVector(d, -v.dot(d)).normalize();
-    lien('bassin', 'ventre', { limites: [[U, U, 0.38], [F, F, 0.4]], force: 1 });
-    lien('ventre', 'torse', { limites: [[U, U, 0.36], [F, F, 0.38]], force: 1 });
+    lien('bassin', 'ventre', { limites: [[U, U, 0.3], [F, F, 0.36]], force: 1 });
+    lien('ventre', 'torse', { limites: [[U, U, 0.3], [F, F, 0.36]], force: 1 });
     lien('torse', 'tete', { limites: [[U, U, 0.8], [F, F, 1.05]], force: 0.6 });
     for (const [c, sg] of [['G', 1], ['D', -1]]) {
       const Db = Mo.D['bras' + c], Df = Mo.D['avbras' + c], sL = L.clone().multiplyScalar(sg);
       const centre = mix(U.clone().negate().multiplyScalar(0.5).addScaledVector(sL, 0.75), 1, F, 0.35);
-      lien('torse', 'bras' + c, { limites: [[centre, Db, 1.75], [F, F, 2.1]], force: 0.8 });
+      lien('torse', 'bras' + c, { limites: [[centre, Db, 1.75], [F, F, 2.1]], force: 0.8, frot: 2.2 });
       const fl = perpA(Mo.plie['bras' + c] || F, Db), axe = new T.Vector3().crossVectors(Db, fl).normalize();
-      lien('bras' + c, 'avbras' + c, { charniere: axe, limites: [[mix(Db, Math.cos(1.3), fl, Math.sin(1.3)), Df, 1.33]], force: 0.8 });
+      lien('bras' + c, 'avbras' + c, { charniere: axe, limites: [[mix(Db, Math.cos(1.3), fl, Math.sin(1.3)), Df, 1.33]], force: 0.8, frot: 2 });
       const Dc = Mo.D['cuisse' + c], Dj = Mo.D['jambe' + c];
-      lien('bassin', 'cuisse' + c, { limites: [[mix(Dc, Math.cos(0.6), F, Math.sin(0.6)), Dc, 1.15], [F, F, 1.9]], force: 0.55 });
+      lien('bassin', 'cuisse' + c, { limites: [[mix(Dc, Math.cos(0.42), F, Math.sin(0.42)), Dc, 0.98], [F, F, 1.9]], force: 0.55, flex: [new T.Vector3().crossVectors(Dc, F).normalize(), 0.8] });
       const arr = perpA(F.clone().negate(), Dc), axeG = new T.Vector3().crossVectors(Dc, arr).normalize();
-      lien('cuisse' + c, 'jambe' + c, { charniere: axeG, limites: [[mix(Dc, Math.cos(1.22), arr, Math.sin(1.22)), Dj, 1.26]], force: 0.5 });
+      lien('cuisse' + c, 'jambe' + c, { charniere: axeG, limites: [[mix(Dc, Math.cos(1.22), arr, Math.sin(1.22)), Dj, 1.26]], force: 0.5, flex: [axeG, 1.7] });
     }
     // arme : détachée, solide à part (boîte de son maillage)
     let arme = null;
@@ -266,20 +269,30 @@
       if (bb) {
         const p = new T.Vector3(), q = new T.Quaternion(), sc = new T.Vector3(); w.matrixWorld.decompose(p, q, sc);
         const c = bb.getCenter(new T.Vector3()), d = bb.getSize(new T.Vector3()).multiplyScalar(0.5).multiply(sc);
-        const ab = new C.Body({ mass: 3.4, material: matArme, linearDamping: 0.05, angularDamping: 0.3, collisionFilterGroup: G_ARME, collisionFilterMask: G_SOL | G_OBS, allowSleep: false });
-        ab.addShape(new C.Box(new C.Vec3(Math.max(0.015, d.x), Math.max(0.015, d.y), Math.max(0.015, d.z))));
-        const cw = c.clone().applyMatrix4(w.matrixWorld); ab.position.set(cw.x, Math.max(cw.y, d.y + 0.02), cw.z); ab.quaternion.set(q.x, q.y, q.z, q.w);
-        const vm = corps[IDX.avbrasD].velocity; ab.velocity.set(vm.x, vm.y, vm.z);
-        ab.angularVelocity.set((r.graine - 0.5) * 3, (r.graine * 7 % 1 - 0.5) * 3, 0);
-        ab.previousPosition.copy(ab.position); ab.interpolatedPosition.copy(ab.position); ab.previousQuaternion.copy(ab.quaternion); ab.interpolatedQuaternion.copy(ab.quaternion);
-        W.addBody(ab); arme = { body: ab, c, sc };
+        // tenue par la main droite (avant-bras) pendant la phase tonique, lâchée ensuite (voir lacherArme)
+        const fb = corps[IDX.avbrasD], Mf = new T.Matrix4().compose(new T.Vector3(fb.position.x, fb.position.y, fb.position.z), new T.Quaternion(fb.quaternion.x, fb.quaternion.y, fb.quaternion.z, fb.quaternion.w), new T.Vector3(1, 1, 1));
+        arme = { body: null, c, sc, d, rel: Mf.invert().multiply(w.matrixWorld) };
       }
     }
     Object.assign(r, { etat: 'physique', corps, art, arme, k, Mo, centres, t: 0, calme: 0, sauve: sauverOs(m), fige: false });
     impulsions(r, u, m);
+    r.lacher = r.tonique < 0.1 ? 0.04 : 0.16 + r.graine * 0.16;
     ragdolls.add(r); R.stats.morts++;
     r.msCreation = performance.now() - t0;
     return true;
+  }
+  // l'arme quitte la main : solide à part, à la vitesse de la main
+  function lacherArme(r) {
+    const C = root.CANNON, T = THREE, A = r.arme, fb = r.corps[IDX.avbrasD];
+    const M = new T.Matrix4().compose(new T.Vector3(fb.position.x, fb.position.y, fb.position.z), new T.Quaternion(fb.quaternion.x, fb.quaternion.y, fb.quaternion.z, fb.quaternion.w), new T.Vector3(1, 1, 1)).multiply(A.rel);
+    const p = new T.Vector3(), q = new T.Quaternion(), sc = new T.Vector3(); M.decompose(p, q, sc);
+    const ab = new C.Body({ mass: 3.4, material: matArme, linearDamping: 0.05, angularDamping: 0.3, collisionFilterGroup: G_ARME, collisionFilterMask: G_SOL | G_OBS, allowSleep: false });
+    ab.addShape(new C.Box(new C.Vec3(Math.max(0.015, A.d.x), Math.max(0.015, A.d.y), Math.max(0.015, A.d.z))));
+    const cw = A.c.clone().applyMatrix4(M); ab.position.set(cw.x, Math.max(cw.y, Math.min(A.d.x, A.d.y, A.d.z) + 0.01), cw.z); ab.quaternion.set(q.x, q.y, q.z, q.w);
+    const rr = new C.Vec3(cw.x - fb.position.x, cw.y - fb.position.y, cw.z - fb.position.z), v = fb.velocity.vadd(fb.angularVelocity.cross(rr));
+    ab.velocity.copy(v); ab.angularVelocity.copy(fb.angularVelocity).scale(0.6, ab.angularVelocity);
+    ab.previousPosition.copy(ab.position); ab.interpolatedPosition.copy(ab.position); ab.previousQuaternion.copy(ab.quaternion); ab.interpolatedQuaternion.copy(ab.quaternion);
+    W.addBody(ab); A.body = ab; A.sc = sc;
   }
   const boites = new WeakMap();
   function boiteLocale(w) {
@@ -341,27 +354,35 @@
     const a = W.__acc / P.pas;
     for (const r of ragdolls) if (!r.fige) {
       for (const b of r.corps) { b.previousPosition.lerp(b.position, a, b.interpolatedPosition); b.previousQuaternion.slerp(b.quaternion, a, b.interpolatedQuaternion); b.interpolatedQuaternion.normalize(); }
-      if (r.arme) { const b = r.arme.body; b.previousPosition.lerp(b.position, a, b.interpolatedPosition); b.previousQuaternion.slerp(b.quaternion, a, b.interpolatedQuaternion); b.interpolatedQuaternion.normalize(); }
+      if (r.arme && !r.arme.body && r.t + sous * P.pas >= r.lacher) lacherArme(r);
+      if (r.arme && r.arme.body) { const b = r.arme.body; b.previousPosition.lerp(b.position, a, b.interpolatedPosition); b.previousQuaternion.slerp(b.quaternion, a, b.interpolatedQuaternion); b.interpolatedQuaternion.normalize(); }
       if (sous) apresPas(r, sous * P.pas);
     }
     const ms = performance.now() - t0; R.stats.pas += sous; R.stats.ms += ms; R.stats.msMax = Math.max(R.stats.msMax, ms); R.stats.dernier = ms;
   };
   // phase tonique (les articulations tirent vers la pose de la mort, puis relâchent) et frottement des articulations
   const _w = root.THREE ? new THREE.Vector3() : null;
+  const _qc = root.THREE ? new THREE.Quaternion() : null;
   function moteurs(r, h) {
     const T = THREE, qa = new T.Quaternion(), qb = new T.Quaternion(), qe = new T.Quaternion();
     const ton = r.t < r.tonique ? 1 : Math.max(0, 1 - (r.t - r.tonique) / P.relache);
     for (const j of r.art) {
       const a = j.a, b = j.b;
       const wr = new T.Vector3(b.angularVelocity.x - a.angularVelocity.x, b.angularVelocity.y - a.angularVelocity.y, b.angularVelocity.z - a.angularVelocity.z);
-      let des = new T.Vector3(), k = 1 - Math.exp(-P.frottementArt * h);   // part de la vitesse relative retirée (frottement)
-      if (ton > 0 && j.force > 0) {
+      let des = new T.Vector3(), k = 1 - Math.exp(-P.frottementArt * j.frot * h);   // part de la vitesse relative retirée (frottement)
+      // jambes qui cèdent : genoux et hanches poussés vers la flexion pendant ~0,5 s, quelle que soit la mort (même une balle
+      // dans la tête : un corps inerte aux genoux tendus basculerait d'un bloc ou se plierait aux hanches comme un pantin)
+      // (tant que le bassin est haut, jusqu'à ~1 s : le corps s'affaisse sur les genoux puis tombe)
+      if (j === r.art[0]) r.debout = r.t < P.flechitT || (r.debout !== false && r.t < 1 && r.corps[0].position.y > 0.5);
+      const kf = j.flex ? P.flechit * (r.debout ? 1 : 0) : 0;
+      if ((ton > 0 && j.force > 0) || kf > 0) {
         qa.set(a.quaternion.x, a.quaternion.y, a.quaternion.z, a.quaternion.w); qb.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
-        qe.copy(qa).multiply(j.cible).multiply(qb.invert()); if (qe.w < 0) { qe.x = -qe.x; qe.y = -qe.y; qe.z = -qe.z; qe.w = -qe.w; }
+        const cib = j.flex ? _qc.copy(j.cible).slerp(j.flex, Math.min(1, r.t / 0.15)) : j.cible;
+        qe.copy(qa).multiply(cib).multiply(qb.invert()); if (qe.w < 0) { qe.x = -qe.x; qe.y = -qe.y; qe.z = -qe.z; qe.w = -qe.w; }
         const ang = 2 * Math.acos(Math.min(1, qe.w)), sn = Math.sqrt(Math.max(1e-12, 1 - qe.w * qe.w));
         if (ang > 1e-4) des.set(qe.x / sn, qe.y / sn, qe.z / sn).multiplyScalar(Math.min(ang, 0.8) / 0.07);
         const blessure = r.cible && (j.nom === r.cible || (r.cible.startsWith('jambe') && j.nom === r.cible.replace('jambe', 'cuisse'))) ? 0.15 : 1;
-        k = Math.max(k, 0.55 * ton * j.force * blessure);
+        k = Math.max(k, 0.55 * ton * j.force * blessure, kf);
       }
       const dw = des.sub(wr).multiplyScalar(k);
       const ia = moyInv(a), ib = moyInv(b), J = dw.multiplyScalar(1 / (ia + ib));
@@ -389,7 +410,7 @@
     if (r.fige) return; r.fige = true;
     for (const j of r.art) for (const c of j.cons) W && W.removeConstraint(c);
     for (const b of r.corps) W && W.removeBody(b);
-    if (r.arme && W) W.removeBody(r.arme.body);
+    if (r.arme && r.arme.body && W) W.removeBody(r.arme.body);
     ragdolls.delete(r);
   }
 
@@ -427,9 +448,10 @@
       bone.updateMatrixWorld(true);
     }
     if (r.arme) {
-      const w = m.weapon, b = r.arme.body, pos = b.interpolatedPosition || b.position, qu = b.interpolatedQuaternion || b.quaternion;
+      const w = m.weapon, tenue = !r.arme.body, b = tenue ? r.corps[IDX.avbrasD] : r.arme.body, pos = b.interpolatedPosition || b.position, qu = b.interpolatedQuaternion || b.quaternion;
       _q.set(qu.x, qu.y, qu.z, qu.w); _p.set(pos.x, pos.y, pos.z);
-      _S.compose(_p, _q, r.arme.sc); _M.makeTranslation(-r.arme.c.x, -r.arme.c.y, -r.arme.c.z); _S.multiply(_M);
+      if (tenue) _S.compose(_p, _q, _one).multiply(r.arme.rel);
+      else { _S.compose(_p, _q, r.arme.sc); _M.makeTranslation(-r.arme.c.x, -r.arme.c.y, -r.arme.c.z); _S.multiply(_M); }
       w.parent.updateWorldMatrix(true, false); _P.copy(w.parent.matrixWorld).invert().multiply(_S); _P.decompose(w.position, w.quaternion, w.scale);
       w.updateMatrixWorld(true);
     }

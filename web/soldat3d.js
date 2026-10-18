@@ -608,7 +608,7 @@
       // cibles du bout des doigts (index : tendu le long de la carcasse, au-dessus du pontet ; pouce : flanc gauche, sous la carcasse)
       cibles: { 0: { p: [0.026, -0.008, -0.14], f1: [-0.4, 1.4], f2: 1.2 }, 1: { p: [-0.027, 0.008, -0.075], f1: [-0.4, 0.8], f2: 0.4, reg: 0.02 } },
       detente: { p: [-0.004, -0.014, -0.088], f1: [-0.2, 1.4], f2: 1.6 } },
-    L: { A: [-0.948, 0.2, 0.249], N: [0.2, 0.979, -0.022], mcp: [-0.036, 0.022, 0.142],
+    L: { A: [-0.816, 0.149, 0.559], N: [0.19, 0.982, 0.015], mcp: [-0.036, 0.01, 0.168],
       cibles: { 0: { p: [0.04, 0.07, 0.2], f1: [-0.4, 1.2], f2: 1.0 } } },
   };
   S.PRISE = PRISE;

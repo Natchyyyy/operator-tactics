@@ -67,8 +67,10 @@ OT.Soldat3D.whenReady(() => {
       while (t < TEMPS[c] - 1e-6) pas();
       S.forEach((e, k) => {
         for (const o of S) o.f.group.visible = o === e;
-        const cx = e.x0, cz = (e.s.v ? 1.2 : 0) - 0.4;
-        cam.position.set(cx + 4.3 * Math.sin(az), 1.6, cz + 4.3 * Math.cos(az)); cam.lookAt(cx, 0.65, cz);
+        // cadrage : sur le bassin (corps physique s'il existe), à la hauteur du sol
+        const rb = e.f.rag && e.f.rag.corps && e.f.rag.corps[0], hp = rb ? rb.position : e.f.group.position;
+        const cx = hp.x, cz = hp.z;
+        cam.position.set(cx + 4.6 * Math.sin(az), 1.7, cz + 4.6 * Math.cos(az)); cam.lookAt(cx, 0.6, cz);
         dl.position.set(cx + 3, 8, cz + 4); dl.target.position.set(cx, 0, cz);
         const x = c * TA, y = H - (k + 1) * TA; r.setViewport(x, y, TA, TA); r.setScissor(x, y, TA, TA); r.render(sc, cam);
       });

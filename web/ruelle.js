@@ -446,6 +446,42 @@
     for (let i = 0; i < Math.floor(L / 6); i++) decal(wallG, grimeTex(200 + i + Math.round(o.x), 6, o.h, []), 6, o.h, -L / 2 + 3 + i * 6, 0, 0.152, 0, 0.8);
     return g;
   }
+  // haie taillée dans une jardinière en béton : bac de 0,5 m, feuillage en touffes irrégulières (sphères déformées par
+  // un bruit, rognées à la boîte de la simulation : dessus et côtés taillés mais pas plats), texture de feuilles
+  function leafMat() {
+    return mat('rfeuilles', () => {
+      const c = canvas(256), g = c.getContext('2d'), R = rng(77); g.fillStyle = '#2f4a22'; g.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 2600; i++) { const v = R(); g.fillStyle = v < 0.35 ? '#1d3214' : v < 0.7 ? '#3d5e2a' : v < 0.92 ? '#557a36' : '#6f9446'; g.beginPath(); g.ellipse(R() * 256, R() * 256, 2 + R() * 4, 1 + R() * 2, R() * 3.14, 0, 7); g.fill(); }
+      const hc = canvas(256), hg = hc.getContext('2d'); hg.drawImage(c, 0, 0); const t = tex(c, true, true); t.repeat.set(2, 2);
+      const n = normalTex(hc, 2.5); n.repeat.set(2, 2);
+      return new T.MeshStandardMaterial({ map: t, normalMap: n, roughness: 0.9, color: 0xd8e0d0 });
+    });
+  }
+  function hedge(o) {
+    const k = K(), g = new T.Group(), y0 = -o.h / 2, base = 0.5, R = rng(Math.round(o.x * 13 + o.z * 7));
+    const bac = mat('rbac', () => new T.MeshStandardMaterial({ color: 0x9c978d, roughness: 0.9 }));
+    add(g, boxW(o.w, base, o.d, TILE), bac, 0, y0 + base / 2, 0);
+    add(g, new T.BoxGeometry(o.w + 0.06, 0.06, o.d + 0.06), k.chaperon, 0, y0 + base + 0.03, 0);
+    const hx = o.w / 2 - 0.06, hz = o.d / 2 - 0.06, top = o.h / 2, bot = y0 + base;
+    const along = o.w >= o.d, L = along ? o.w : o.d, n = Math.max(2, Math.round(L / 0.45));
+    for (let i = 0; i < n; i++) for (const side of [-1, 1]) {
+      const u = -L / 2 + (i + 0.5) * L / n + (R() - 0.5) * 0.15, v = side * (along ? o.d : o.w) * 0.2, r = 0.42 + R() * 0.14;
+      const gq = new T.SphereGeometry(r, 14, 10), pa = gq.attributes.position, p = new T.Vector3(), cx = along ? u : v, cz = along ? v : u, cy = bot + 0.55 + R() * 0.15;
+      for (let j = 0; j < pa.count; j++) {
+        p.fromBufferAttribute(pa, j); const d = 1 + 0.16 * Math.sin(p.x * 17 + seedN(i)) * Math.cos(p.z * 15 + p.y * 11) + (R() - 0.5) * 0.08; p.multiplyScalar(d);
+        let X = cx + p.x, Y = cy + p.y * 1.25, Z = cz + p.z;
+        X = Math.max(-hx, Math.min(hx, X)); Z = Math.max(-hz, Math.min(hz, Z)); Y = Math.max(bot - 0.02, Math.min(top, Y));
+        const e = Math.max(0, (Y - (top - 0.3)) / 0.3), w = 1 - 0.07 * e * e;                       // arêtes du dessus arrondies
+        X *= w; Z = Z * (1 - 0.18 * e * e);
+        const bump = 0.035 * (Math.sin(X * 9.1 + Y * 7.3) + Math.cos(Z * 8.7 - Y * 6.1)) + (R() - 0.5) * 0.03;   // taille irrégulière
+        X -= Math.sign(X) * Math.max(0, bump) * (Math.abs(X) > hx - 0.08 ? 1 : 0); Z -= Math.sign(Z) * Math.max(0, bump) * (Math.abs(Z) > hz * w - 0.08 ? 1 : 0); if (Y > top - 0.05) Y -= Math.max(0, bump);
+        pa.setXYZ(j, X, Y, Z);
+      }
+      gq.computeVertexNormals(); const m = new T.Mesh(gq, leafMat()); m.castShadow = m.receiveShadow = true; g.add(m);
+    }
+    return g;
+  }
+  const seedN = (i) => (i * 1.7) % 6.28;
   // climatiseur posé au sol (groupe extérieur sur dalle)
   function condenser(o) {
     const p = model('clim', o.w, o.h, o.d, { tol: 0.3 }); if (p) return p;
@@ -466,7 +502,8 @@
       if (n.startsWith('clôture grillagée')) return fence(o);
       if (n.startsWith('clim')) return condenser(o);
       if (n === 'benne' && hasM('benne')) return model('benne', o.w, o.h, o.d, { tol: 0.3, rot: o.z < 5 ? Math.PI : 0 });
-      if (n === 'armoire' && hasM('armoire')) return model('armoire', o.w, o.h, o.d, { tol: 0.3 });   // (app.js n'a pas de cas 'armoire' : sans ceci, boîte grise)
+      if (n === 'armoire' && hasM('armoire')) return model('armoire', o.w, o.h, o.d, { tol: 0.3 });
+      if (n === 'haie') return hedge(o);   // (app.js n'a pas de cas 'armoire' : sans ceci, boîte grise)
       if (n.startsWith('caisses') && hasM('caisses')) return model('caisses', o.w, o.h, o.d, { tol: 0.3, rot: Math.round(o.x * 7) % 4 * Math.PI / 2 });
       if (n.startsWith('guérite') && hasM('guerite')) return model('guerite', o.w, o.h, o.d, { tol: 0.25, rot: -Math.PI / 2 });
     } catch (e) { console.warn('ruelle (' + n + ') :', e); }

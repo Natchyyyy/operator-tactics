@@ -1041,7 +1041,16 @@
       // rien d'ici, on resserre (de couvert en couvert) jusqu'à ~10 m
       const los = this.map.hasLOS(u.x, EYE.stand, u.z, threatPos.x, CHEST.stand, threatPos.z);
       if (los || u.moving) u.blindAt = undefined; else if (u.blindAt === undefined) u.blindAt = this.t;
-      if (!los && u.blindAt !== undefined && this.t - u.blindAt > 4) reach = Math.min(reach, MIN_CLOSE + 2);
+      const blindFor = u.blindAt === undefined ? 0 : this.t - u.blindAt;
+      if (!los && blindFor > 4) {
+        // d'abord chercher un couvert voisin d'où l'on voit la position (un angle de tir), sans s'en approcher sous ~8 m ;
+        // sinon resserrer ; aveugle depuis plus de 12 s (l'adversaire attend derrière son obstacle) : aller le chercher
+        if (order !== 'hold' && u.role.id !== 'marksman' && !(u.goal && u.goalKind === 'cover')) {
+          const cp = this.findCover(u, threatPos, 10, { requireShoot: true, minRange: Math.min(MIN_CLOSE, nd - 1), preferDist: clamp(nd, MIN_CLOSE, stand) });
+          if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.6 && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; }
+        }
+        reach = Math.min(reach, blindFor > 12 ? 0 : MIN_CLOSE + 2);
+      }
       // information ancienne (≥ 14 s) : on va VOIR la position, d'un point d'où on la découvre ; vue de près et vide → oubliée
       // (on ne marche plus jusque sur elle) ; sans vue possible, on s'en approche jusqu'à quelques mètres
       if (age >= 14 && nd <= MIN_CLOSE + 3) {
