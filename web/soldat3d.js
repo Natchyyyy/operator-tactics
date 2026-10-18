@@ -1493,7 +1493,12 @@
             pos.add(dl);   // les bras ont suivi (à la précision de l'IK près ; les mains sont ensuite remises à leur place, voir tenir)
           }
         }
-        if (procW > 0.01) { const Pp = this.poseArme(loc, inv); weapon.quaternion.slerp(Pp.q, procW); pos.lerp(Pp.p, procW); barrel.set(0, 0, 1).applyQuaternion(weapon.quaternion); }
+        // reprise à deux mains (fin de rechargement…) : le fusil part de là où la main droite le portait et rejoint sa place en fondu
+        const pk = this.priseK === undefined ? 1 : this.priseK;
+        if (tient && pk < 0.999 && this.handLocal.droite && !S.sansPrise) { const qS = new THREE.Quaternion(), pS = V(); new THREE.Matrix4().multiplyMatrices(rh.matrixWorld, this.handLocal.droite).premultiply(inv).decompose(pS, qS, V());
+          weapon.quaternion.copy(qS.slerp(weapon.quaternion, pk)); pos.copy(pS.lerp(pos, pk)); }
+        if (procW > 0.01) { const Pp = this.poseArme(loc, inv), w = procW * (tient ? pk : 1); weapon.quaternion.slerp(Pp.q, w); pos.lerp(Pp.p, w); }
+        barrel.set(0, 0, 1).applyQuaternion(weapon.quaternion);
         weapon.position.copy(pos).addScaledVector(barrel, -(recoil || 0) * 0.04);
         // mains à leur place sur le fusil, doigts refermés dessus (voir calculerPrise) ; index sur la détente en tir
         { const kk = this.majPrise(tient);
