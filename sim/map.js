@@ -114,6 +114,7 @@
           cap(box(25.7, 38.6, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),             // livraison du kiosque
           cap(box(44.2, 38.6, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),             // arrêté à la barrière de sortie
           box(9.4, 34.2, 1.6, 4.6, 1.7, 'wall', 'colonnes de tri'),               // point de tri sur son îlot, dans l'angle sud-ouest
+          ...bac(16.4, 35.8, 1.8, 1.4),                                          // îlot planté au carrefour des allées sud-ouest
           box(52.6, 41.8, 1.2, 1.2, 0.9, 'cover', 'palettes'), box(53.0, 35.4, 1.0, 2.0, 0.9, 'cover', 'sacs de sable'),
           // ---- SUD-EST : partie du parking fermée pour réfection de l'enrobé (séparateurs, clôtures de chantier bâchées,
           // conteneurs du chantier, benne à gravats, palettes de bordures, sacs de sable qui lestent les panneaux, fût)

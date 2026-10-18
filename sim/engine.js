@@ -275,14 +275,14 @@
   // Commande du joueur : appliquée et enregistrée (pas, type, équipe, paramètre) pour pouvoir revoir la bataille.
   Battle.prototype.command = function (type, team, arg) {
     if (this.replayQueue) return { ok: false, reason: 'bataille revue : commandes désactivées' };
-    const r = type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : { ok: false };
+    const r = type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : type === 'tenir' ? this.holdKeyPosition(team, arg && arg.pos, arg && arg.units) : { ok: false };
     if (r && r.ok) this.inputs.push({ tick: this.tick, type, team, arg });
     return r;
   };
   Battle.prototype.step = function () {
     if (this.over) return;
     if (this.replayQueue) while (this.replayQueue.length && this.replayQueue[0].tick === this.tick) {   // revoir : mêmes commandes au même pas
-      const c = this.replayQueue.shift(); if (c.type === 'tactic') this.useTactic(c.team, c.arg); else if (c.type === 'order') this.setOrder(c.team, c.arg); else if (c.type === 'rotate') this.rotate(c.team, c.arg); this.inputs.push(c);
+      const c = this.replayQueue.shift(); if (c.type === 'tactic') this.useTactic(c.team, c.arg); else if (c.type === 'order') this.setOrder(c.team, c.arg); else if (c.type === 'rotate') this.rotate(c.team, c.arg); else if (c.type === 'tenir') this.holdKeyPosition(c.team, c.arg && c.arg.pos, c.arg && c.arg.units); this.inputs.push(c);
     }
     this.t = Math.round((this.t + DT) * 1000) / 1000; this.tick++;
     this.updateTactics();
@@ -849,6 +849,50 @@
     for (const e of threats) { const dg = Math.hypot(u.goal.x - e.x, u.goal.z - e.z); if (dg < lim && dg < dist2(u, e) - 0.5) return true; }
     return false;
   };
+  // ---- Positions clés : ordre « tenir » (capacité moteur, pas encore utilisée par l'IA ni l'interface) ----------------
+  // La carte décrit ses positions clés : map.def.positionsCles = [{ id, nom, x, z, r, menace, voie }] — x, z : point où se
+  // tenir (contre un couvert), r : rayon « tenu », menace : direction (radians) d'où vient le danger (null : l'ennemi le
+  // plus proche), voie : -1 / 0 / 1. L'ordre se donne par battle.command('tenir', équipe, { pos: id, units: [ids] })
+  // (rejoué à l'identique en revue) ; pos: null annule l'ordre pour ces opérateurs.
+  Battle.prototype.keyPositions = function () { return this.map.def.positionsCles || []; };
+  Battle.prototype.keyPosition = function (id) { return this.keyPositions().find(p => p.id === id) || null; };
+  Battle.prototype.holdKeyPosition = function (teamIndex, posId, unitIds) {
+    const team = this.teams[teamIndex]; if (!team || this.over) return { ok: false, reason: 'équipe inconnue ou bataille terminée' };
+    const p = posId === null ? null : this.keyPosition(posId);
+    if (posId !== null && !p) return { ok: false, reason: 'position clé inconnue' };
+    const units = team.units.filter(u => u.alive && (!unitIds || unitIds.includes(u.id) || unitIds.includes(u.def.id)));
+    if (!units.length) return { ok: false, reason: 'aucun opérateur' };
+    units.forEach((u, k) => {
+      if (!p) { u.keyOrder = null; return; }
+      // à plusieurs : le premier sur le point, les suivants à côté (à ~2,5 m, en travers de la menace), jamais l'un sur l'autre
+      let x = p.x, z = p.z;
+      if (k > 0) {
+        const a = (p.menace === null || p.menace === undefined ? 0 : p.menace) + Math.PI / 2, off = 2.5 * Math.ceil(k / 2) * (k % 2 ? 1 : -1);
+        const f = this.map.nearestFree(p.x + Math.cos(a) * off, p.z + Math.sin(a) * off); if (f) { const c = this.map.centerOf(f.c, f.r); x = c.x; z = c.z; }
+      }
+      u.keyOrder = { id: p.id, nom: p.nom || p.id, x, z, r: p.r || 2.5, menace: p.menace, held: false };
+      if (u.goalKind !== 'revive') this.stop(u); u.commitUntil = 0;
+    });
+    if (p) this.logEvent('order', `${team.name} : ${units.map(u => u.callsign).join(', ')} ${units.length > 1 ? 'vont tenir' : 'va tenir'} la position clé « ${p.nom || p.id} ».`, { team: teamIndex, keyPos: p.id });
+    return { ok: true };
+  };
+  // Exécuter l'ordre : rejoindre son point (en tirant en marchant s'il le faut), puis y rester, face à la menace, à couvert
+  // derrière l'obstacle de la position ; on combat de là (debout pour tirer, baissé pour recharger) et on n'en bouge plus.
+  Battle.prototype.followKeyOrder = function (u, threats) {
+    const o = u.keyOrder;
+    if (Math.hypot(o.x - u.x, o.z - u.z) > 0.6) {
+      if (this.setGoal(u, o.x, o.z, 'cover')) { u.state = 'tokey'; u.stance = 'stand'; return; }
+    }
+    this.stop(u);
+    let th = threats.length ? u.target || threats[0] : this.mainThreat(u);
+    if (!th && o.menace !== null && o.menace !== undefined) th = { x: o.x + Math.cos(o.menace) * 20, z: o.z + Math.sin(o.menace) * 20 };
+    if (!o.held) { o.held = true; this.logEvent('keypos', `${u.callsign} tient la position clé « ${o.nom} ».`, { unit: u.id, team: u.team, keyPos: o.id }); }
+    if (!th) { u.state = 'holdkey'; u.stance = 'stand'; return; }
+    if (!u.target || !u.target.alive) u.facing = Math.atan2(th.z - u.z, th.x - u.x);
+    const cover = this.coverAt(u.x, u.z, th.x, th.z, true);
+    if (threats.length) { u.state = 'engage'; u.stance = ((u.reloading > 0 || this.t < (u.burstPauseUntil || 0)) && cover) ? 'crouch' : 'stand'; return; }
+    u.state = 'holdkey'; u.stance = cover ? 'crouch' : 'stand';
+  };
   Battle.prototype.decide = function (u) {
     if (!u.alive) return;
     let order = this.teams[u.team].order;
@@ -899,7 +943,7 @@
       if (threats.length || beingShot) { u.reviving = null; u.state = 'idle'; }
       else { const a = this.unitById(u.reviving.id); if (a) a.rescue = { by: u, t: this.t }; return; }
     }
-    if (!threats.length && !beingShot && u.suppression < 0.4 && !u.throwing && u.state !== 'noammo') {
+    if (!threats.length && !beingShot && u.suppression < 0.4 && !u.throwing && u.state !== 'noammo' && !u.keyOrder) {   // en poste sur ordre : il y reste
       const a = this.downedToRevive(u);
       if (a) {
         a.rescue = { by: u, t: this.t };
@@ -920,6 +964,8 @@
     // grenade : en train de lancer, ou d'esquiver une grenade adverse → rien d'autre
     if (u.throwing || (u.evade && this.t < u.evade.until)) return;
     if (this.tryGrenade(u)) return;
+    // ordre « tenir la position clé » : passe avant tout le reste (l'IA fait ce qu'on lui dit)
+    if (u.keyOrder) { this.followKeyOrder(u, threats); return; }
     // engagement sur un déplacement en cours : on continue (en tirant si possible) sauf si on vient d'être touché, ou si
     // ce déplacement mène droit sur un ennemi en vue (une marche d'approche ne se poursuit pas jusqu'à lui rentrer dedans)
     // Sous le feu (des balles claquent autour de soi depuis le départ), une marche d'approche ou un bond encore long
@@ -1313,7 +1359,7 @@
   // suivant ; l'autre, arrêtée, couvre (face à la menace, prête à tirer). Quand tous ceux qui avancent sont arrivés (ou engagés),
   // les rôles s'inversent. Le tireur d'élite reste en appui (sa propre logique).
   Battle.prototype.tiroirOn = function (u) { const tm = this.teams[u.team]; return this.hasTactic(tm, 'tiroir') && tm.order !== 'hold' && u.boundGroup >= 0; };
-  const BUSY = { engage: 1, pinned: 1, shaken: 1, noammo: 1, reviving: 1, torevive: 1, throw: 1, sidestep: 1, closing: 1, tocover: 1 };
+  const BUSY = { engage: 1, pinned: 1, shaken: 1, noammo: 1, reviving: 1, torevive: 1, throw: 1, sidestep: 1, closing: 1, tocover: 1, tokey: 1, holdkey: 1 };
   Battle.prototype.updateTiroir = function () {
     for (const team of this.teams) {
       if (!this.hasTactic(team, 'tiroir') || team.order === 'hold') continue;

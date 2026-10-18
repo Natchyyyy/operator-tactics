@@ -155,4 +155,31 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   for (let sd = 201; sd <= 206; sd++) { const x = mk(sd); x.run(); battles++; strays += x.units.reduce((s, v) => s + (v.stats.strays || 0), 0); logged += x.log.filter(l => l.stray && /^Balle perdue/.test(l.text) && ['tête', 'torse', 'membre'].includes(l.loc)).length; }
   check('balles perdues : elles existent en bataille et chacune est journalisée', strays > 0 && logged === strays, { strays, logged, parBataille: strays / battles });
 }
+{
+  // ---- Ordre « tenir une position clé » (capacité du moteur, pas encore utilisée par l'IA ni l'interface) ----
+  // position d'essai : un point de couverture plaqué du côté ouest, couvert face à l'est (la carte définira les vraies)
+  const ops = ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
+  const mkK = (seed, o) => { const b = new Battle(Object.assign({ seed, mapId: 'parking', teams: [{ name: 'A', operators: ops, tactics: ['tiroir'] }, { name: 'B', operators: ops, tactics: ['tiroir'] }] }, o || {}));
+    const cp = b.map.coverPoints.filter(c => c.x > 14 && c.x < 30 && b.coverAt(b.hug(c).hx, c.hz, c.hx + 20, c.hz, true)).sort((p1, p2) => Math.abs(p1.z - 23) - Math.abs(p2.z - 23))[0];
+    b.map.def = Object.assign({}, b.map.def, { positionsCles: [{ id: 'essai', nom: 'Essai', x: cp.hx, z: cp.hz, r: 2.5, menace: 0, voie: 0 }] });   // cette bataille seulement
+    return b; };
+  const b = mkK(4); while (b.t < 1) b.step();
+  const bad = b.command('tenir', 0, { pos: 'inconnue', units: ['0:op_lynx'] });
+  const r = b.command('tenir', 0, { pos: 'essai', units: ['0:op_lynx', '0:op_granit'] });
+  const P = b.keyPosition('essai'), [ly, gr] = ['0:op_lynx', '0:op_granit'].map(id => b.unitById(id));
+  let reached = null; let stayed = true;
+  while (b.t < 45 && !b.over) { b.step(); const ok = [ly, gr].every(u => !u.alive || Math.hypot(u.x - u.keyOrder.x, u.z - u.keyOrder.z) < 0.7); if (ok && reached === null) reached = b.t; if (reached !== null && b.t > reached + 1) for (const u of [ly, gr]) if (u.alive && Math.hypot(u.x - P.x, u.z - P.z) > P.r + 2.6) stayed = false; }
+  check('position clé : ordre refusé pour une position inconnue, accepté et journalisé sinon', !bad.ok && r.ok && b.log.some(l => /Lynx, Granit vont tenir la position clé « Essai »/.test(l.text)), { bad, r });
+  check('position clé : les opérateurs désignés la rejoignent, l\'un sur le point, l\'autre à côté (jamais l\'un sur l\'autre), et y restent', reached !== null && stayed && (!ly.alive || !gr.alive || Math.hypot(ly.x - gr.x, ly.z - gr.z) > 1.5), { reached, stayed });
+  check('position clé : « X tient la position clé « Essai » » au journal ; les autres opérateurs ne sont pas concernés', b.log.some(l => l.kind === 'keypos' && /tient la position clé « Essai »/.test(l.text)) && b.teams[0].units.filter(u => u.keyOrder).length === 2);
+  const c = b.command('tenir', 0, { pos: null, units: ['0:op_lynx'] });
+  check('position clé : l\'ordre s\'annule (pos: null)', c.ok && !ly.keyOrder);
+  // rejouable : mêmes commandes au même pas → même bataille
+  const a1 = mkK(9); while (a1.t < 3) a1.step(); a1.command('tenir', 0, { pos: 'essai', units: ['0:op_vautour'] }); a1.run();
+  const a2 = mkK(9, { replayInputs: a1.inputs }); a2.run();
+  check('position clé : la bataille revue avec l\'ordre est identique', JSON.stringify(a1.result.teams) === JSON.stringify(a2.result.teams) && a1.result.duration === a2.result.duration);
+  // sans ordre, rien ne change : l'IA ne court pas d'elle-même aux positions clés
+  const n = mkK(4); n.run();
+  check('position clé : sans ordre, aucun opérateur n\'en reçoit (l\'IA ne les dispute pas d\'elle-même)', n.units.every(u => !u.keyOrder) && !n.log.some(l => l.kind === 'keypos'));
+}
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);
