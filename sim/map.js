@@ -89,8 +89,8 @@
           cap(box(38.8, 12.7, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),                     // en attente devant la piste est
           cap(box(31.4, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1), cap(box(42.4, 29.2, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),   // aire de séchage                     // sortie de la piste ouest, au séchage
           box(33.2, 11.0, 5.4, 1.6, 1.7, 'wall', 'haie'), box(35.3, 11.5, 1.2, 0.5, 3.6, 'wall', 'totem'),
-          box(26.0, 21.3, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(24.2, 23.0, 4.4, 1.9, 1.4, 'cover', 'voiture'),
-          box(45.4, 22.0, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(43.4, 23.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'),
+          box(26.0, 21.3, 0.8, 0.9, 1.9, 'wall', 'aspirateur'), box(24.2, 23.0, 4.4, 1.9, 1.4, 'cover', 'voiture'),
+          box(45.4, 22.0, 0.8, 0.9, 1.9, 'wall', 'aspirateur'), box(43.4, 23.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'),
           // ---- OUEST : caisse automatique, places le long du mur ouest avec borne de recharge
           box(9.4, 21.9, 2.2, 2.2, 2.6, 'wall', 'caisse automatique'),      // caisse piétons sous auvent, sur son îlot
           cap(box(0.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), -1), cap(box(0.2, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon'), -1),

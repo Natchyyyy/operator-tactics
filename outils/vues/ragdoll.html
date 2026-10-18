@@ -19,7 +19,7 @@ const SC = [
   { nom: 'accroupi', clip: 'Accroupi_Vise', loc: 'torse', dir: [0.4, -0.1, -1] },
 ];
 const SEL = q.get('s') ? q.get('s').split(',').map(Number) : SC.map((_, i) => i);
-const TEMPS = (q.get('t') || '0,0.15,0.3,0.5,0.8,1.2,2,3.5').split(',').map(Number);
+const TEMPS = (q.get('t') || '0,0.1,0.2,0.35,0.55,0.8,1.2,2,3.5').split(',').map(Number);
 OT.Soldat3D.whenReady(() => {
   const RAG = OT.Ragdoll, TA = +(q.get('taille') || 180), cols = TEMPS.length, rangs = SEL.length, W = TA * cols, H = TA * rangs;
   const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true; document.body.appendChild(r.domElement);

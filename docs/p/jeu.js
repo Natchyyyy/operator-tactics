@@ -8239,7 +8239,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   const P = {
     pas: 1 / 60, sousPasMax: 6, iterations: 24, gravite: -9.81,
     amortLin: 0.08, amortAng: 0.45, frottementArt: 3.0,           // frottement des articulations (1/s, vitesse angulaire relative)
-    tonique: 0.22, relache: 0.3, flechit: 0.55, flechitT: 0.45,                                     // phase tonique (s) puis relâchement (s)
+    tonique: 0.2, relache: 0.2, flechit: 0.5, flechitT: 0.22,                                     // phase tonique (s) puis relâchement (s)
     impulsion: { tete: 6, torse: 18, membre: 12, bras: 6 },        // N·s (exagéré par rapport au réel, lisible à l'écran)
     souffle: 340,                                                    // explosion : N·s à 1 m (réparti selon les masses)
     vMax: 14, wMax: 28, repos: 0.12, reposT: 0.45, dureeMax: 7,
@@ -8453,9 +8453,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const fl = perpA(Mo.plie['bras' + c] || F, Db), axe = new T.Vector3().crossVectors(Db, fl).normalize();
       lien('bras' + c, 'avbras' + c, { charniere: axe, limites: [[mix(Db, Math.cos(1.3), fl, Math.sin(1.3)), Df, 1.33]], force: 0.8, frot: 2 });
       const Dc = Mo.D['cuisse' + c], Dj = Mo.D['jambe' + c];
-      lien('bassin', 'cuisse' + c, { limites: [[mix(Dc, Math.cos(0.42), F, Math.sin(0.42)), Dc, 0.98], [F, F, 1.9]], force: 0.55, flex: [new T.Vector3().crossVectors(Dc, F).normalize(), 0.8] });
+      lien('bassin', 'cuisse' + c, { limites: [[mix(Dc, Math.cos(0.42), F, Math.sin(0.42)), Dc, 0.98], [F, F, 1.9]], force: 0.55, flex: [new T.Vector3().crossVectors(Dc, F).normalize(), 0.5] });
       const arr = perpA(F.clone().negate(), Dc), axeG = new T.Vector3().crossVectors(Dc, arr).normalize();
-      lien('cuisse' + c, 'jambe' + c, { charniere: axeG, limites: [[mix(Dc, Math.cos(1.22), arr, Math.sin(1.22)), Dj, 1.26]], force: 0.5, flex: [axeG, 1.7] });
+      lien('cuisse' + c, 'jambe' + c, { charniere: axeG, limites: [[mix(Dc, Math.cos(1.22), arr, Math.sin(1.22)), Dj, 1.26]], force: 0.5, flex: [axeG, 1.1] });
     }
     // arme : détachée, solide à part (boîte de son maillage)
     let arme = null;
@@ -8485,9 +8485,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const ab = new C.Body({ mass: 3.4, material: matArme, linearDamping: 0.05, angularDamping: 0.3, collisionFilterGroup: G_ARME, collisionFilterMask: G_SOL | G_OBS, allowSleep: false });
     ab.addShape(new C.Box(new C.Vec3(Math.max(0.015, A.d.x), Math.max(0.015, A.d.y), Math.max(0.015, A.d.z))));
     const cw = A.c.clone().applyMatrix4(M); ab.position.set(cw.x, Math.max(cw.y, Math.min(A.d.x, A.d.y, A.d.z) + 0.01), cw.z); ab.quaternion.set(q.x, q.y, q.z, q.w);
-    const rr = new C.Vec3(cw.x - fb.position.x, cw.y - fb.position.y, cw.z - fb.position.z), v = fb.velocity.vadd(fb.angularVelocity.cross(rr));
-    const lv = v.length(); if (lv > 2.5) v.scale(2.5 / lv, v);   // (pas d'arme lancée en l'air par un bras qui fouette)
-    ab.velocity.copy(v); ab.angularVelocity.copy(fb.angularVelocity).scale(0.5, ab.angularVelocity); const lw = ab.angularVelocity.length(); if (lw > 5) ab.angularVelocity.scale(5 / lw, ab.angularVelocity);
+    // vitesse de la main (sans le fouet du bras) + un peu de hasard ; jamais lancée vers le haut ni loin
+    const g = r.graine, v = new C.Vec3(fb.velocity.x + (g - 0.5) * 0.4, Math.min(0.3, fb.velocity.y), fb.velocity.z + ((g * 7) % 1 - 0.5) * 0.4);
+    const lv = Math.hypot(v.x, v.z); if (lv > 1.8) { v.x *= 1.8 / lv; v.z *= 1.8 / lv; }
+    ab.velocity.copy(v); ab.angularVelocity.set((g - 0.5) * 3, ((g * 3) % 1 - 0.5) * 2, ((g * 5) % 1 - 0.5) * 3);
     ab.previousPosition.copy(ab.position); ab.interpolatedPosition.copy(ab.position); ab.previousQuaternion.copy(ab.quaternion); ab.interpolatedQuaternion.copy(ab.quaternion);
     W.addBody(ab); A.body = ab; A.sc = sc;
   }
@@ -8522,7 +8523,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     else if (r.graine < 0.35) cible = 'ventre';
     const b = corps[IDX[cible]];
     // point d'impact : surface du solide côté tireur, un peu au-dessus du centre (tête : fait basculer en arrière)
-    const pt = new C.Vec3(-dir.x * 0.08, (cible === 'tete' ? 0.05 : 0.06), -dir.z * 0.08);
+    const pt = new C.Vec3(-dir.x * 0.08, (cible === 'tete' ? 0.05 : /torse|ventre/.test(cible) ? 0.13 : 0.06), -dir.z * 0.08);
+    // (le corps tourne un peu sur lui-même en tombant, sens tiré au sort)
+    corps[IDX.bassin].angularVelocity.y += (r.graine - 0.5) * 2.4; corps[IDX.torse].angularVelocity.y += (r.graine - 0.5) * 3;
     b.applyImpulse(dir.scale(j), pt);
     if (cible === 'tete') corps[IDX.torse].applyImpulse(dir.scale(P.impulsion.tete * 0.4), new C.Vec3(0, 0.1, 0));
     r.cible = cible;
@@ -8566,17 +8569,21 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (const j of r.art) {
       const a = j.a, b = j.b;
       const wr = new T.Vector3(b.angularVelocity.x - a.angularVelocity.x, b.angularVelocity.y - a.angularVelocity.y, b.angularVelocity.z - a.angularVelocity.z);
-      // (jambes au sol : frottement faible, des genoux restés en l'air retombent sur le côté)
-      let des = new T.Vector3(), k = 1 - Math.exp(-P.frottementArt * (j.flex && !r.debout ? 0.3 : j.frot) * h);   // part de la vitesse relative retirée (frottement)
-      // jambes qui cèdent : genoux et hanches poussés vers la flexion pendant ~0,5 s, quelle que soit la mort (même une balle
-      // dans la tête : un corps inerte aux genoux tendus basculerait d'un bloc ou se plierait aux hanches comme un pantin)
-      // (tant que le bassin est haut, jusqu'à ~1 s : le corps s'affaisse sur les genoux puis tombe)
-      // (soldat lancé, > 1,5 m/s : son élan le fait tomber en avant, les jambes ne cèdent qu'un instant)
-      if (j === r.art[0]) r.debout = r.elan > 1.5 ? r.t < 0.15 : r.t < P.flechitT || (r.debout !== false && r.t < 1 && r.corps[0].position.y > 0.5);
-      const kf = j.flex ? P.flechit * (r.debout ? 1 : 0) : 0;
+      // frottement des articulations (part de la vitesse angulaire relative retirée) : réduit après la phase tonique (corps
+      // inerte qui s'étale) ; jambes encore plus libres (des genoux restés en l'air retombent sur le côté)
+      const fr = j.frot * (ton > 0 ? 1 : 0.6) * (j.flex && r.t > P.flechitT ? 0.35 : 1);
+      let des = new T.Vector3(), k = 1 - Math.exp(-P.frottementArt * fr * h);
+      // jambes qui cèdent : un genou se déverrouille d'abord (côté tiré au sort), l'autre un peu après et à moitié, pendant
+      // ~0,2 s seulement (un corps inerte aux genoux tendus basculerait d'un bloc ou se plierait aux hanches comme un pantin) ;
+      // soldat lancé (> 1,5 m/s) : presque rien, son élan le fait tomber en avant
+      let kf = 0;
+      if (j.flex) {
+        const lead = j.nom.endsWith(r.graine < 0.5 ? 'G' : 'D'), t0 = lead ? 0 : 0.07, T1 = r.elan > 1.5 ? 0.08 : P.flechitT;
+        kf = r.t >= t0 && r.t < t0 + T1 ? P.flechit * (lead ? 1 : 0.4) : 0;
+      }
       if ((ton > 0 && j.force > 0) || kf > 0) {
         qa.set(a.quaternion.x, a.quaternion.y, a.quaternion.z, a.quaternion.w); qb.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
-        const cib = j.flex ? _qc.copy(j.cible).slerp(j.flex, Math.min(1, r.t / 0.15)) : j.cible;
+        const cib = j.flex && kf > 0 ? _qc.copy(j.cible).slerp(j.flex, Math.min(1, r.t / 0.1)) : j.cible;
         qe.copy(qa).multiply(cib).multiply(qb.invert()); if (qe.w < 0) { qe.x = -qe.x; qe.y = -qe.y; qe.z = -qe.z; qe.w = -qe.w; }
         const ang = 2 * Math.acos(Math.min(1, qe.w)), sn = Math.sqrt(Math.max(1e-12, 1 - qe.w * qe.w));
         if (ang > 1e-4) des.set(qe.x / sn, qe.y / sn, qe.z / sn).multiplyScalar(Math.min(ang, 0.8) / 0.07);
@@ -11851,7 +11858,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       asymetrique: true,
       // z des trois voies d'approche, routes de l'IA : nord par la ruelle (derrière le grillage), milieu à travers les rangées
       // de voitures et la station de lavage, sud le long du muret de la rue (quai de la navette, kiosque, chantier).
-      voies: { nord: 5.5, milieu: 23, sud: 36 },
+      voies: { nord: 5.5, milieu: 23, sud: 34 },
       // marquage au sol (rendu seulement) : rangées doubles [x0, z0, places], places le long des murs [x, z, places, pas en x, pas en z]
       marquage: { rangees: [[13, 17, 6], [49, 17, 6]], murs: [[7.6, 41, 7, 2.5, 0], [0, 29.5, 4, 0, 2.5], [67, 10.8, 2, 0, 2.5], [67, 28.9, 2, 0, 2.5]] },
       // Un vrai parking de centre-ville, à l'arrière des boutiques de la Grand-Rue, vu du ciel : au nord la ruelle de service
