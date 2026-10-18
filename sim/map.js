@@ -22,7 +22,9 @@
       spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
       capture: { x: 36, z: 23, r: 6 },  // l'enclos central, partagé en deux par l'abri : on le prend par ses deux bouts (nord, sud)
       asymetrique: true,
-      voies: { nord: 9, milieu: 23, sud: 37 },   // z des trois voies d'approche (flancs nord et sud, axe central) : routes de l'IA
+      // z des trois voies d'approche, routes de l'IA : flanc nord le long du centre commercial (entre façade et kiosques),
+      // axe central, flanc sud le long du bus (un peu plus écarté que le nord : réglé par les batailles, comme le décor)
+      voies: { nord: 9, milieu: 23, sud: 38 },
       // Tracé en trois voies (nord le long du centre commercial, milieu, sud le long du bus), mais chaque camp a son propre
       // terrain : à l'ouest un conteneur couché au nord et un fourgon au sud ; à l'est un conteneur debout (nord-sud) qui
       // ouvre un angle différent, un conteneur au sud. Le centre (abri, enclos, zone) reste sur l'axe pour l'équité ;
