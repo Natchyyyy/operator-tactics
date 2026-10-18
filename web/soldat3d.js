@@ -27,7 +27,9 @@
   // dos : part du mouvement de la colonne de la course ajoutée à la garde basse (Trot_Low)
   const TROT = { s: 0.45, hs: 0.4, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
-  const PENCHE = 0.21;   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
+  const PENCHE = 0.21;
+  // visée : angle (rad) entre la ligne des épaules et la face (0 = carré, ~1,3 = de profil comme les visées Mixamo), voir penche()
+  const BIAIS = 0.5;   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
   // visée à l'arrêt : rotation du bassin et des jambes vers la cible (rad), voir update()
   const CARRE = 0.61;
   // tangage voulu du canon dans les poses épaulées (rad ; légèrement vers le bas : la cible est à hauteur de poitrine)
@@ -1004,6 +1006,11 @@
         // repère du CORPS (le tireur est de profil : mesuré selon la visée, c'était surtout une flexion latérale) : latéral = ligne
         // des épaules, avant = sa normale horizontale ; on vise PENCHE (rad) entre la verticale et bassin → cou
         const B = this.bones, cou0 = cou || B.head; if (!B.la || !B.ra || !cou0) return;
+        // visée : buste plus de face (les visées Mixamo sont presque de profil, épaules à ~75° de la cible ; tireur moderne :
+        // épaules presque carrées) — le dos tourne pour amener la ligne des épaules à BIAIS (rad) de la face ; le fusil est
+        // placé ensuite (poseArme), les bras suivent
+        { const ek = this.epK || 0; if (ek > 0.01 && !S.sansCarre) { const e = WP(B.la).sub(WP(B.ra)).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()).invert());
+          const d = Math.max(-1, Math.min(1, Math.PI / 2 - BIAIS - Math.atan2(e.x, e.z))) * ek; if (Math.abs(d) > 0.01) for (const sb of spine3) { mod(sb); twist(sb, d / spine3.length); } } }
         const lat = WP(B.la).sub(WP(B.ra)); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();
         // direction : 30 % normale des épaules, 70 % axe de visée (le tireur étant de profil, sinon il penche vers sa droite)
         const fwG = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())); fwG.y = 0; fwG.normalize();
@@ -1025,6 +1032,10 @@
           if (a < 0.005) continue;   // (seulement vers l'avant : une course déjà penchée n'est pas redressée)
           axe(spine3[0], a * 0.55); axe(spine3[1], a * 0.45); tot += a;
         }
+        // roulis : les visées de la bibliothèque penchent le buste sur le côté (10 à 18°) ; ramené à 4° au plus (bas du dos)
+        for (let it = 0; it < 2; it++) { const v = WP(cou0).sub(WP(hipsB)), r = Math.atan2(v.dot(lat), Math.max(0.05, v.y)), ex = r - Math.max(-0.07, Math.min(0.07, r));
+          if (Math.abs(ex) < 0.004) break;
+          for (const [b, part] of [[spine3[0], 0.5], [spine3[1], 0.5]]) { mod(b); b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, ex * part * k); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); } }
       },
       // Pieds jamais croisés (pas chassés et marche arrière « au pistolet » de la bibliothèque : pas très serrés, bottes l'une sur
       // l'autre, genoux qui se touchent) : écart minimal des chevilles le long de la ligne du bassin (les deux pieds poussés
@@ -1106,7 +1117,7 @@
           mod(cou); mod(H); cou.quaternion.slerp(neutre[0], 0.75 * kA); H.quaternion.slerp(neutre[1], 0.75 * kA); cou.updateMatrixWorld(true);
           const fq = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())), y = Math.atan2(fq.x, fq.z) + this.teteA, p = -0.08 - 0.1 * (this.gbK || 0) * (1 - (this.epK || 0));   // (garde basse : regard un peu plus bas)
           // marche : la tête suit un peu chaque pas (±1° de tangage au rythme des pas, ±0,8° de roulis au rythme du cycle)
-          const pas = this.blendW && this.blendFrame === frameK - 1 ? (this.ph || 0) : null, bob = pas === null ? 0 : 0.018 * Math.sin(4 * Math.PI * pas), roul = pas === null ? 0 : 0.014 * Math.sin(2 * Math.PI * pas);
+          const acl = actions[this.clip], pas = this.blendW && this.blendFrame === frameK - 1 ? (this.ph || 0) : acl && M.loco && M.loco[this.clip] && acl.timeScale > 0 ? acl.time / acl.getClip().duration : null, bob = pas === null ? 0 : 0.018 * Math.sin(4 * Math.PI * pas), roul = pas === null ? 0 : 0.014 * Math.sin(2 * Math.PI * pas);
           const cible = new THREE.Vector3(Math.sin(y) * Math.cos(p + bob), Math.sin(p + bob), Math.cos(y) * Math.cos(p + bob));
           // visée : le regard suit le canon (direction donnée par poseArme à l'image précédente)
           if (this.visee && (this.epK || 0) > 0.01) { cible.lerp(this.visee, this.epK).normalize(); if (bob) cible.y += bob; cible.normalize(); }
@@ -1174,12 +1185,13 @@
         const B = this.bones, tp = V(), tq = new THREE.Quaternion(), ts = V(); weapon.updateMatrixWorld(true);
         const ob = this.osDoigts || (this.osDoigts = {}), os = (n) => ob[n] || (ob[n] = body.getObjectByName(n));
         // fusil hors d'atteinte d'une main (bras tendu à plus de 97 %) : il est rapproché de cette épaule d'autant
-        if (mains && !seule && B.ra && B.la) for (let it = 0; it < 3; it++) {
+        this.rapproche = 0; if (mains && !seule && B.ra && B.la) for (let it = 0; it < 3; it++) {
           const d = V(); let loin = false;
           for (const [h, arm, fore, hand] of [['R', B.ra, B.rf, B.rh], ['L', B.la, B.lf, B.lh]]) {
             const Sh = WP(arm), L = Sh.distanceTo(WP(fore)) + WP(fore).distanceTo(WP(hand)), T = V().setFromMatrixPosition(new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, P[h].Hrel)), e = Sh.distanceTo(T) - 0.97 * L;
             if (e > 0.002) { d.addScaledVector(Sh.sub(T).normalize(), e * k); loin = true; } }
           if (!loin) break;
+          this.rapproche = (it ? this.rapproche : 0) + d.length();
           const gi = group.matrixWorld.clone().invert(); weapon.position.add(d.clone().transformDirection(gi).multiplyScalar(d.length() / group.getWorldScale(V()).x)); weapon.updateMatrixWorld(true);
         }
         for (const [h, arm, fore, hand] of [['R', B.ra, B.rf, B.rh], ['L', B.la, B.lf, B.lh]]) {

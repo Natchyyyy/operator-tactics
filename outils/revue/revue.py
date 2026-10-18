@@ -11,6 +11,7 @@
 import asyncio, argparse, json, os, sys, time, base64, datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import rubrique
+from verrou import verrou
 from playwright.async_api import async_playwright
 
 RACINE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -21,7 +22,8 @@ os.environ.setdefault('PLAYWRIGHT_BROWSERS_PATH', '/opt/pw-browsers')
 async def page_banc(p):
     br = await p.chromium.launch(args=GL); pg = await br.new_page(viewport={'width': 400, 'height': 300})
     errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
-    await pg.goto(URL + '?v=' + str(time.time()), timeout=180000); await pg.wait_for_function('window.PRET', timeout=600000)
+    with verrou('chargement du banc'):
+        await pg.goto(URL + '?v=' + str(time.time()), timeout=180000); await pg.wait_for_function('window.PRET', timeout=600000)
     e = await pg.evaluate('window.ERREUR || null')
     if e: raise SystemExit('banc : ' + e)
     return br, pg, errs
@@ -64,7 +66,7 @@ async def cmd_revue(a):
         res = {}; t0 = time.time()
         for m in a.modeles.split(','):
             for e in etats:
-                r = await pg.evaluate(f'BANC.mesurer({json.dumps(m)}, {json.dumps(e)})')
+                with verrou(): r = await pg.evaluate(f'BANC.mesurer({json.dumps(m)}, {json.dumps(e)})')
                 res[(m, e)] = r
             print(f'mesures {m} : {len(etats)} états ({time.time() - t0:.0f} s)', flush=True)
         # notation
@@ -85,7 +87,7 @@ async def cmd_revue(a):
         for (m, e), c in choix.items():
             if not c['instants']: continue
             ins = sorted(c['instants']); chemin = os.path.join(out, 'preuves', f'{m}_{e}.png')
-            r = await pg.evaluate(f'BANC.planche({json.dumps(m)}, {json.dumps(e)}, {json.dumps({"vues": c["vues"], "instants": ins, "marques": True, "tw": 220, "th": 260})})')
+            with verrou(): r = await pg.evaluate(f'BANC.planche({json.dumps(m)}, {json.dumps(e)}, {json.dumps({"vues": c["vues"], "instants": ins, "marques": True, "tw": 220, "th": 260})})')
             sauver_png(r['url'], chemin); c['chemin'] = chemin
             print(f'preuve {chemin} ({time.time() - t0:.0f} s)', flush=True)
         for v in mauvais:
@@ -130,7 +132,8 @@ async def cmd_planche(a):
         br, pg, errs = await page_banc(p)
         o = {'vues': a.vues.split(','), 'n': a.n, 'marques': a.marques, 'tw': tw, 'th': th}
         if a.instants: o['instants'] = [float(x) for x in a.instants.split(',')]
-        t = time.time(); r = await pg.evaluate(f'BANC.planche({json.dumps(a.modele)}, {json.dumps(a.etat)}, {json.dumps(o)})')
+        t = time.time()
+        with verrou(): r = await pg.evaluate(f'BANC.planche({json.dumps(a.modele)}, {json.dumps(a.etat)}, {json.dumps(o)})')
         chemin = a.sortie or os.path.join(RACINE, 'captures', 'revue', f'planche_{a.modele}_{a.etat}.png'); sauver_png(r['url'], chemin)
         print(chemin, f'({time.time() - t:.0f} s)', r['info'])
         if errs: print(errs[:5])
@@ -157,7 +160,7 @@ async def cmd_apercu(a):
         etats = a.etats.split(',') if a.etats else await pg.evaluate('Object.keys(BANC.ETATS)')
         tmp = []; t = time.time()
         for e in etats:
-            r = await pg.evaluate(f'BANC.planche({json.dumps(a.modele)}, {json.dumps(e)}, {json.dumps({"vues": a.vues.split(","), "n": 1, "tw": tw, "th": th, "marques": a.marques})})')
+            with verrou(): r = await pg.evaluate(f'BANC.planche({json.dumps(a.modele)}, {json.dumps(e)}, {json.dumps({"vues": a.vues.split(","), "n": 1, "tw": tw, "th": th, "marques": a.marques})})')
             f = os.path.join(RACINE, 'captures', 'revue', '_tmp_' + e + '.png'); sauver_png(r['url'], f); tmp.append(f)
         await br.close()
     ims = [Image.open(f) for f in tmp]; W = max(i.width for i in ims); H = sum(i.height for i in ims)
