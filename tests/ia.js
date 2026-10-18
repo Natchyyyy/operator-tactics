@@ -152,10 +152,15 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   const walled = rate(() => { base(); e2.x = 23; e2.z = 20.1; });           // un mur entre la cible et lui : la balle s'y arrête
   check('balles perdues : un adversaire sur la trajectoire derrière la cible est touché 30–50 % des tirs manqués, celui qui la frôle moins, rien à 2,5 m, jamais un allié, jamais à travers un mur',
     behind > 0.4 && behind < 0.55 && beside > 0.25 && beside < behind && apart === 0 && ally === 0 && walled === 0, { behind, beside, apart, ally, walled });
-  // en bataille : ça arrive, c'est journalisé (« Balle perdue »), et les dégâts passent par le même calcul (localisation, protection)
-  let strays = 0, logged = 0, battles = 0;
-  for (let sd = 201; sd <= 206; sd++) { const x = mk(sd); x.run(); battles++; strays += x.units.reduce((s, v) => s + (v.stats.strays || 0), 0); logged += x.log.filter(l => l.stray && /^Balle perdue/.test(l.text) && ['tête', 'torse', 'membre'].includes(l.loc)).length; }
-  check('balles perdues : elles existent en bataille et chacune est journalisée', strays > 0 && logged === strays, { strays, logged, parBataille: strays / battles });
+  // en situation de tir réelle (shoot) : la balle perdue passe par le calcul normal (localisation, protection) et se journalise
+  const c = mk(3); c.map.obstacles = [];
+  const [s1] = c.teams[0].units, [t1, t2] = c.teams[1].units;
+  s1.x = 8; s1.z = 20; t1.x = 20; t1.z = 20; t2.x = 22; t2.z = 20.2; for (const v of c.units) if (v !== s1 && v !== t1 && v !== t2) { v.x = 60; v.z = v.team ? 5 : 40; }
+  t2.maxHp = t2.hp = 1e6; t1.maxHp = t1.hp = 1e6;
+  for (let k = 0; k < 300; k++) c.shoot(s1, t1, 12);
+  const sl = c.log.filter(l => l.stray);
+  check('balles perdues : en tir réel, l\'adversaire derrière la cible prend des balles perdues, journalisées « Balle perdue : … », dégâts au calcul normal (tête / torse / membre)',
+    sl.length > 30 && sl.length === s1.stats.strays && sl.every(l => /^Balle perdue : /.test(l.text) && l.enemy === t2.id && ['tête', 'torse', 'membre'].includes(l.loc)) && t2.stats.damageTaken > 0 && t1.stats.damageTaken > 0, { strays: sl.length, stat: s1.stats.strays });
 }
 {
   // ---- Départ : deux équipiers ne commencent jamais au même endroit (ni ne s'y retrouvent à 1 s) ----

@@ -322,14 +322,17 @@
     const r = new X.Reflector(new T.PlaneGeometry(W, D), { shader, textureWidth: 512, textureHeight: 512, clipBias: 0.003, multisample: 0 });   // reflet flou de flaque : demi-résolution, sans MSAA
     r.material.transparent = true; r.material.depthWrite = false;
     r.rotation.x = -Math.PI / 2; r.position.set(W / 2, 0.004, D / 2); r.userData.keep = true; r.renderOrder = 1;
-    // coût : la réflexion redessine toute la scène. On la met à jour une image sur deux, et pas du tout en vue haute
-    // (caméra au-dessus de 12 m : les reflets ne se voient presque plus, la texture précédente reste)
-    let img = 0; const ob = r.onBeforeRender;
+    // coût : la réflexion redessine toute la scène. On ne la refait pas quand la caméra n'a (presque) pas bougé depuis la
+    // dernière fois (une image sur deux au plus dans ce cas), ni en vue haute (au-dessus de 12 m, les reflets ne se voient
+    // presque plus : la texture précédente reste)
+    let img = 0; const ob = r.onBeforeRender, lastP = new T.Vector3(1e9, 0, 0), lastQ = new T.Quaternion();
     r.onBeforeRender = function (renderer, scene, camera) {
       if (scene.overrideMaterial || camera.isOrthographicCamera) return; const rt = renderer.getRenderTarget(); if (rt && rt.__reflet) return;
-      if (camera.position.y > 12 && r.userData.deja) return;
-      if ((img++ & 1) && r.userData.deja) return;
-      r.userData.deja = true; ob.call(this, renderer, scene, camera);
+      const deja = r.userData.deja;
+      if (deja && camera.position.y > 12) return;
+      const calme = camera.position.distanceToSquared(lastP) < 4e-4 && Math.abs(camera.quaternion.dot(lastQ)) > 0.999999;
+      if (deja && calme && (img++ & 1)) return;
+      r.userData.deja = true; lastP.copy(camera.position); lastQ.copy(camera.quaternion); ob.call(this, renderer, scene, camera);
     };
     r.getRenderTarget().__reflet = true;
     return r;

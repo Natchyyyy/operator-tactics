@@ -868,6 +868,10 @@
     const M = S.modeles[o.modele] || S.modeles[S.defaut];
     const group = new THREE.Group(), pose = new THREE.Group(); group.add(pose);
     const body = cloneSkinned(M.gltf.scene); body.scale.setScalar(HEIGHT / RAW_H); pose.add(body);
+    // pose « d'origine » des os = la garde basse (et non la dernière image laissée par les mesures du chargement, la fin de
+    // la chute dans le dos, jambe en l'air) : le mixer complète avec elle tout poids d'animation inférieur à 1 (fondus,
+    // couches de jambes qui s'effacent) ; avec la pose de chute, une jambe pouvait se lever à l'horizontale au repos
+    if (M.clips.Garde_Basse) for (const t of M.clips.Garde_Basse.tracks) { const m = /^(.*)\.(quaternion|position)$/.exec(t.name), o = m && (body.getObjectByName(m[1]) || body.getObjectByName(m[1].replace(/^mixamorig/, 'mixamorig:'))); if (o) o[m[2]].fromArray(t.values, 0); }
     let skinned = null; body.traverse(n => { if (n.isSkinnedMesh) { skinned = n; n.material = tintedMaterial(n.material, TEINTE[M.nom] ? o.uniform : null, M.nom); } });
     if (skinned && M.lod) try { lod(skinned, M.lod); } catch (e) { console.warn('soldat 3D (LOD) :', e); }
     const bone = (n) => body.getObjectByName('mixamorig:' + n) || body.getObjectByName('mixamorig' + n);
@@ -1509,7 +1513,7 @@
         if (two && M.prise && M.prise.R.paumeLoc && !S.sansPrise) pos = pR.clone().add(pL).multiplyScalar(0.5).sub(M.prise.R.paumeLoc.clone().add(M.prise.L.paumeLoc).multiplyScalar(0.5).applyQuaternion(weapon.quaternion));
         // placement du fusil construit (voir poseArme) : visée et garde basse ; ses poids sont ceux des poses épaulées / basses
         const procW = twoHands && mode === 'deux' && pL && M.prise && weapon.isMeshy && weapon.buttPt && B.ra && B.la && B.head && !S.sansProc ? Math.max(this.epK || 0, this.gbK || 0) : 0;
-        const tient = two || procW > 0.5;
+        const tient = two || procW > 0.5 || !!this.armeDroite;
         // crosse dans le creux de l'épaule (voir EPAULE) : on glisse le fusil, puis les bras suivent
         const k = two && weapon.buttPt && B.ra && B.la ? (this.epK || 0) * (1 - procW) : 0;
         if (k > 0.01) {
