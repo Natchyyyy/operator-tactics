@@ -1362,7 +1362,7 @@
     if (night) {
       lightGroup = new T.Group();
       for (const p of lights) {
-        const canopy = p.k && p.k < 60, I = canopy ? 20 : p.k > 150 ? 135 : 105;
+        const canopy = p.k && p.k < 60, I = canopy ? 20 : p.k > 150 ? 160 : 120;
         const l = new T.SpotLight(0xffc98a, I, canopy ? 12 : 26, canopy ? 1.25 : 1.05, canopy ? 0.9 : 0.8, 2);
         l.position.copy(p); l.target.position.set(p.x, 0, p.z); lightGroup.add(l, l.target);
       }
