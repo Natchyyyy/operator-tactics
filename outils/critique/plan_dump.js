@@ -79,8 +79,15 @@ for (const o of O) if (VEH.test(o.name)) {
   if (!ok) stuck.push([o.name, +o.x.toFixed(1), +o.z.toFixed(1)]);
 }
 const reachList = []; for (let k = 0; k < reach.length; k++) if (reach[k]) reachList.push([(k % CW + 0.5) * CS, (((k / CW) | 0) + 0.5) * CS, reach[k]]);
+// couloirs de tir est-ouest : pour chaque z (pas de 0,5 m), le plus long segment libre debout le long de x
+const couloirs = [];
+for (let z = 0.75; z < D; z += 0.5) {
+  let best = 0, bx0 = 0, x0 = 0.5;
+  for (let x = 1; x <= W - 0.5; x += 0.5) { if (map.insideObstacle(x, z) || !map.hasLOS(x0, 1.6, z, x, 1.25, z)) { x0 = x + 0.5; continue; } if (x - x0 > best) { best = x - x0; bx0 = x0; } }
+  if (best >= 45) couloirs.push([+z.toFixed(2), +bx0.toFixed(1), +best.toFixed(1)]);
+}
 console.log(JSON.stringify({
-  comps, stuck, reach: reachList,
+  couloirs, comps, stuck, reach: reachList,
   id, name: def.name, w: W, d: D, spawns: def.spawns, capture: def.capture, voies: def.voies || null, marquage: def.marquage || null,
   obs: O.map(o => ({ x: o.x, z: o.z, w: o.w, d: o.d, h: o.h, kind: o.kind, name: o.name, dir: o.dir, teinte: o.teinte })),
   cover: cp.map(p => [p.x, p.z]), lines: lines.slice(0, 400), nLines: lines.length, naked, overlaps: ov, paths,

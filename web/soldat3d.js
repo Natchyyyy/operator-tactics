@@ -630,7 +630,7 @@
   const PRISE = {
     R: { A: [0.383, -0.386, 0.839], N: [0.913, 0.294, -0.282], mcp: [-0.04, -0.063, -0.129],
       // cibles du bout des doigts (index : tendu le long de la carcasse, au-dessus du pontet ; pouce : flanc gauche, sous la carcasse)
-      cibles: { 0: { p: [0.026, -0.008, -0.14], f1: [-0.4, 1.4], f2: 1.2 }, 1: { p: [-0.027, 0.008, -0.075], f1: [-0.4, 0.8], f2: 0.4, reg: 0.02 } },
+      cibles: { 0: { ferme: [0.6, 1, 0.8], max: [1.2, 1.3, 1.2] }, 1: { p: [-0.036, 0.006, -0.075], f1: [-0.4, 0.8], f2: 0.3, reg: 0.03 } },
       detente: { p: [-0.004, -0.014, -0.088], f1: [-0.2, 1.4], f2: 1.6 } },
     L: { A: [-0.816, 0.149, 0.559], N: [0.19, 0.982, 0.015], mcp: [-0.036, 0.01, 0.168],
       cibles: { 0: { p: [0.04, 0.07, 0.2], f1: [-0.4, 1.2], f2: 1.0 } } },
@@ -724,10 +724,10 @@
       const quats = (k, th) => os[k].map((o, j) => qLoc(k, j, th));
       os.forEach((o3, k) => {
         const c = Pc.cibles && Pc.cibles[k];
-        const th = c ? cibler(k, c.p, c) : fermer(k, [1, 1.15, 0.85], [1.6, 1.9, 1.4]);
+        const th = c && c.ferme ? fermer(k, c.ferme, c.max) : c ? cibler(k, c.p, c) : fermer(k, [1, 1.15, 0.85], [1.6, 1.9, 1.4]);
         res.doigts.push(o3.map((o, j) => [o.b.name, qLoc(k, j, th)])); (res.th || (res.th = [])).push(th);
         res.dmin.push(+(dmin(k, th) * 100).toFixed(2));
-        if (c) res.err.push(+(p.copy(bout[k]).applyMatrix4(fk(k, th)[2]).distanceTo(new THREE.Vector3().fromArray(c.p)) * 100).toFixed(2));
+        if (c && c.p) res.err.push(+(p.copy(bout[k]).applyMatrix4(fk(k, th)[2]).distanceTo(new THREE.Vector3().fromArray(c.p)) * 100).toFixed(2));
       });
       res.paumeLoc = new THREE.Vector3().fromArray(PALME).multiplyScalar(0.6).applyMatrix4(Hrel);
       res.paume = +(gp(0) * 100).toFixed(2); res.bouts = os.map((o3, k) => p.copy(bout[k]).applyMatrix4(fk(k, k < 5 ? (res.th || [])[k] || [0, 0, 0, 0] : 0)[2]).toArray());
@@ -1121,7 +1121,7 @@
         const cible = this.clip === 'Rifle_Aim_Turn_Right' ? 0.3 : PENCHE;
         if (pieds[0][2] && pieds[1][2]) { const v0 = WP(cou0).sub(WP(hipsB)), hg = Math.max(0, Math.min(0.12, (cible - Math.atan2(v0.dot(fw), Math.max(0.05, v0.y))) * 0.5 * k));
           if (hg > 0.004) { const pf = pieds.map(l => [WP(l[2]), WQ(l[2])]); axe(hipsB, hg);
-            pieds.forEach(([up, lo, ft], i) => { const d = pf[i][0].clone().sub(WP(ft)); if (d.lengthSq() > 1e-10) ik(up, lo, ft, d); mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(pf[i][1])); ft.updateMatrixWorld(true); }); } }
+            pieds.forEach(([up, lo, ft], i) => { const d = pf[i][0].clone().sub(WP(ft)); if (d.lengthSq() > 1e-10) ikJambe(up, lo, ft, d, orteils[i]); mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(pf[i][1])); ft.updateMatrixWorld(true); }); } }
         for (let it = 0, tot = 0; it < 3; it++) {
           const w2 = WP(cou0).sub(WP(spine3[2])), h2 = Math.atan2(w2.dot(fw), Math.max(0.05, w2.y)); if (h2 > 0.3) axe(spine3[2], -(h2 - 0.3) * k);
           const v = WP(cou0).sub(WP(hipsB)), a = Math.min(0.6 - tot, (cible - Math.atan2(v.dot(fw), Math.max(0.05, v.y))) * k * 1.5);   // (visée à l'arrêt : l'animation a le poids sur l'arrière, on penche plus)
