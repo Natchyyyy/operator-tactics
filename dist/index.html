@@ -1012,8 +1012,8 @@
   .hact::after { content: '→'; position: absolute; right: 30px; top: 26px; font-size: 26px; opacity: .45; transition: transform .18s var(--m-ease), opacity .16s; }
   .hact:hover { transform: translateY(-3px); } .hact:hover::after { opacity: 1; transform: translateX(4px); }
   .hact .hicon { left: 32px; top: 30px; color: var(--m-acc); } .hact .hicon .ico { width: 64px; height: 64px; color: inherit; } .hact .hicon .ico * { fill: currentColor; }
-  .hact .hwm { position: absolute; right: -40px; bottom: -30px; width: 300px; height: 300px; opacity: .07; pointer-events: none; transition: opacity .2s, transform .3s var(--m-ease); }
-  .hact .hwm .ico { width: 100%; height: 100%; } .hact .hwm .ico * { fill: currentColor; } .hact:hover .hwm { opacity: .12; transform: scale(1.04) rotate(-3deg); } .hact.primary .hwm { color: var(--m-ink); opacity: .12; }
+  .hact .hwm { position: absolute; right: -50px; top: 30px; width: 280px; height: 280px; opacity: .06; pointer-events: none; transition: opacity .2s, transform .3s var(--m-ease); }
+  .hact .hwm .ico { width: 100%; height: 100%; } .hact .hwm .ico * { fill: currentColor; } .hact:hover .hwm { opacity: .12; transform: scale(1.04) rotate(-3deg); } .hact.primary .hwm { color: var(--m-ink); opacity: .09; }
   .hact b { font-size: 34px; } .hact small { font-size: 16px; line-height: 1.45; }
   .hact.primary { background: linear-gradient(150deg, #52e28e 0%, #34c370 55%, #229655 100%) !important; box-shadow: 0 20px 44px rgba(40,180,100,.26) !important; }
   .hact.primary:hover { background: linear-gradient(150deg, #66ec9c 0%, #3fcf7c 55%, #2aa862 100%) !important; }
@@ -1079,7 +1079,7 @@
   .tmroster { left: 160px; top: 60px; width: 1600px; height: 660px; border: 1px solid var(--m-line2); border-radius: 20px; overflow: hidden; background: rgba(9,13,15,.95); backdrop-filter: blur(14px); box-shadow: 0 0 0 3000px rgba(0,0,0,.6), 0 30px 80px rgba(0,0,0,.6); }
   .tmroster:not(.hidden) { animation: mIn .28s var(--m-ease); }
   .trhead { padding: 18px 24px; border-bottom: 1px solid var(--m-line); } .trhead b { font-family: var(--raw); font-size: 30px; }
-  .trbody { grid-template-columns: 1fr 660px; }
+  .trbody { grid-template-columns: 1fr 620px; }
   .trlist { grid-template-columns: repeat(auto-fill, 170px); gap: 18px; padding: 24px; }
   .trdetail { border-left: 1px solid var(--m-line); padding: 22px; }
   .opcard { width: 170px; height: 236px; padding: 0; border: 0; border-radius: 14px; background: #0b1013; box-shadow: 0 10px 22px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.08); transition: transform .18s var(--m-ease), box-shadow .18s; }
@@ -1133,7 +1133,7 @@
   .tart-play { color: inherit; } .tart-play .ico * { fill: currentColor; }
   .tile.big { height: 140px; } .tile.big .tart-play .ico { width: 120px; height: 72px; }
   .cvch #hqChallenges { max-height: 320px; }
-  .p3team .tart-team .portrait { width: auto !important; height: 118px !important; bottom: -2px; } .p3team .tart-team img:nth-child(1) { left: 34px; } .p3team .tart-team img:nth-child(2) { left: 104px; height: 130px !important; } .p3team .tart-team img:nth-child(3) { left: 174px; }
+  .p3team .tart-team .portrait { width: auto !important; height: 98px !important; bottom: 0; } .p3team .tart-team img:nth-child(1) { left: 34px; } .p3team .tart-team img:nth-child(2) { left: 104px; height: 106px !important; } .p3team .tart-team img:nth-child(3) { left: 174px; }
   .tile.play:disabled { filter: grayscale(.9) brightness(.55); transform: none; }
   .prep3 .p3title { top: 30px; font-family: var(--raw); font-size: 46px; letter-spacing: .02em; }
   .prep3 .p3sub { top: 96px; font-size: 16px; color: var(--m-mut); }
@@ -12927,7 +12927,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           psi += w * ((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0));
         }
         while (psi > Math.PI) psi -= 2 * Math.PI; while (psi < -Math.PI) psi += 2 * Math.PI;
-        this.dosM = psi + a0; this.yawM = B; this.blendFrame = frameK;
+        this.dosM = psi + a0; this.yawM = B; this.blendFrame = frameK; this.coteK = tot > 0 ? 1 - (bw[avant] || 0) / tot : 0;
         this.play(haut, { time: ((this.ph + (M.phase0[avant] || 0)) % 1), fade: 0.25 });
         return this.ph;
       },
@@ -12966,15 +12966,16 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         if (this.dosComp && Math.abs(this.dosComp) > 0.01 && spine3.length) { body.updateMatrixWorld(true); for (const sb of spine3) { mod(sb); twist(sb, -this.dosComp / spine3.length); } }
         // respiration (poses fixes : garde basse, visée) : légère flexion du dos
         if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { mod(spine1); spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
+        if (enMarche && (this.marcheK || 0) > 0.05) this.ecarte(this.marcheK, this.coteK || 0);
         const repos = (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right') && !enMarche && !keepYaw;
-        if (this.pose0) this.pose(dt, repos);
+        if (this.pose0) this.poserPieds(dt, repos);
         this.appui(dt, repos && !this.pose0);
         this.tete(dt, keepYaw ? null : repos || enMarche);
       },
       // Pose des pieds à l'arrêt : au lieu de glisser en 0,3 s vers la pose d'arrêt (fondu), chaque pied reste cloué au sol
       // là où il était puis fait un petit pas (léger lever) jusqu'à sa place : d'abord celui qui était levé, puis l'autre.
       // IK des jambes par-dessus le fondu (la cible suit la pose du mixer, qui devient celle de l'arrêt).
-      pose(dt, repos) {
+      poserPieds(dt, repos) {
         const P = this.pose0; P.t += dt;
         if (!repos || P.t > 0.62) { this.pose0 = null; return; }
         group.updateMatrixWorld(true);
@@ -12988,6 +12989,29 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           const ft = pieds[i][2], qC = WQ(ft), d = T.sub(C); if (d.lengthSq() > 1e-8) ik(pieds[i][0], pieds[i][1], ft, d);
           // orientation du pied aussi (sinon la pointe pivote autour de la cheville cloué et glisse)
           mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(P.lockQ[i].clone().slerp(qC, s))); ft.updateMatrixWorld(true);
+        });
+      },
+      // Pieds jamais croisés (pas chassés et marche arrière « au pistolet » de la bibliothèque : pas très serrés, bottes l'une sur
+      // l'autre, genoux qui se touchent) : écart minimal des chevilles le long de la ligne du bassin (les deux pieds poussés
+      // chacun de la moitié, IK, orientation gardée), puis genoux tournés un peu vers l'extérieur autour de l'axe
+      // hanche → cheville (la cheville ne bouge pas), au prorata de la part des pas de côté / arrière (k).
+      ecarte(K, k) {
+        if (!pieds[0][2] || !pieds[1][2]) return;
+        group.updateMatrixWorld(true);
+        const lat = WP(pieds[0][0]).sub(WP(pieds[1][0])); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();   // vers la gauche du bassin
+        const MIN = (0.1 + 0.07 * k) * K, sep = WP(pieds[0][2]).sub(WP(pieds[1][2])).dot(lat);
+        if (sep < MIN) { const d = Math.min(0.3, MIN - sep) / 2; ik(pieds[0][0], pieds[0][1], pieds[0][2], lat.clone().multiplyScalar(d)); ik(pieds[1][0], pieds[1][1], pieds[1][2], lat.clone().multiplyScalar(-d)); }
+        if (k * K < 0.05) return;
+        pieds.forEach(([up, lo, ft], i) => {
+          const S0 = WP(up), K0 = WP(lo), H0 = WP(ft), ax = H0.clone().sub(S0); if (ax.lengthSq() < 1e-6) return; ax.normalize();
+          const kp = K0.clone().sub(S0); kp.addScaledVector(ax, -kp.dot(ax)); if (kp.lengthSq() < 1e-8) return; kp.normalize();
+          const out = lat.clone().multiplyScalar(i ? -1 : 1); out.addScaledVector(ax, -out.dot(ax)); if (out.lengthSq() < 1e-6) return; out.normalize();
+          // angle (signé, autour de ax) du genou vers l'extérieur ; on en fait une part, limitée à 25°
+          let a = Math.atan2(new THREE.Vector3().crossVectors(kp, out).dot(ax), kp.dot(out)); a = Math.max(-0.44, Math.min(0.44, a * 0.45 * k * K));
+          if (Math.abs(a) < 0.005) return;
+          const qF = WQ(ft); mod(up); mod(ft);
+          up.quaternion.copy(WQ(up.parent).invert().multiply(new THREE.Quaternion().setFromAxisAngle(ax, a)).multiply(WQ(up))); up.updateMatrixWorld(true);
+          ft.quaternion.copy(WQ(ft.parent).invert().multiply(qF)); ft.updateMatrixWorld(true);
         });
       },
       // Report du poids au repos : le bassin glisse lentement (~5,5 s) d'une jambe sur l'autre, s'abaisse un peu et s'incline
@@ -15242,7 +15266,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         box(53, 4.5, 2, 4.4, 1.4, 'cover', 'voiture'), box(52.5, 37.6, 2, 4.4, 1.4, 'cover', 'voiture'),
         box(47.5, 8, 2, 4.4, 1.4, 'cover', 'voiture'), box(47.5, 34, 2, 4.4, 1.4, 'cover', 'voiture'),
         box(41.6, 13, 4.4, 2, 1.4, 'cover', 'voiture'), box(41.6, 31, 4.4, 2, 1.4, 'cover', 'voiture'),
-        box(52, 20, 0.6, 4.5, 0.95, 'cover', 'barrière'),
+        box(52, 20, 0.6, 4.5, 0.95, 'cover', 'barrière'), box(48.5, 26.5, 2.5, 0.6, 0.95, 'cover', 'barrière'),
         box(62.5, 6, 1.5, 1.4, 1.1, 'cover', 'fût'), box(62.5, 38.6, 1.5, 1.4, 1.1, 'cover', 'fût'),
         box(55, 11, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'), box(55.5, 32.5, 1.0, 2.4, 1.0, 'cover', 'sacs de sable'),
       ],
@@ -20056,7 +20080,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffd9a8, size: 0.035, transparent: true, opacity: 0.55, depthWrite: false })); scene.add(dust);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x1f2328, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
   // quelques caisses et un conteneur pour l'arrière-plan
-  const crate = new THREE.MeshStandardMaterial({ color: 0x46392a, roughness: 1 }), cont = new THREE.MeshStandardMaterial({ color: 0x2b3640, roughness: 0.75, metalness: 0.3 });
+  const crate = new THREE.MeshStandardMaterial({ color: 0x46392a, roughness: 1 }), cont = new THREE.MeshStandardMaterial({ color: 0x1d242b, roughness: 0.8, metalness: 0.3 });
   [[0.3, 0.55, -2.6, 1.1], [5.7, 0.4, -1.8, 0.8], [6.3, 0.4, -2.7, 0.8]].forEach(([x, y, z, sz]) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), crate); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; scene.add(m); });
   const c = new THREE.Mesh(new THREE.BoxGeometry(6, 2.6, 2.4), cont); c.position.set(3.4, 1.3, -5.6); c.rotation.y = -0.12; c.castShadow = true; scene.add(c);
   const figs = [];

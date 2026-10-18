@@ -188,6 +188,7 @@
     if (!u.voie || u.flankDone || !this.map.def.voies) return null;
     const home = this.teams[u.team].spawn, dirx = Math.sign(this.map.spawns[1 - u.team].x - home.x) || 1;
     const ahead = (dest.x - u.x) * dirx;
+    if (this.teams[u.team].units.filter(a => a.alive).length <= 2) { u.flankDone = true; return null; }   // à deux, on ne se sépare plus
     if (ahead <= reach) {
       u.flankDone = true;
       this.logEvent('flank', `${u.callsign} arrive par le flanc ${u.voie < 0 ? 'nord' : 'sud'} et se rabat.`, { unit: u.id, team: u.team, silent: true });
