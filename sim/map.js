@@ -110,7 +110,7 @@
           // ---- SUD-EST : partie du parking fermée pour réfection de l'enrobé (séparateurs, clôtures de chantier bâchées,
           // conteneurs du chantier, benne à gravats, palettes de bordures, sacs de sable qui lestent les panneaux, fût)
           box(52.5, 34.2, 5.5, 0.6, 0.95, 'cover', 'barrière'), box(61, 34.2, 5, 0.6, 0.95, 'cover', 'barrière'),
-          box(51.9, 34.8, 0.3, 2.4, 2.0, 'wall', 'clôture de chantier'), box(51.9, 41.2, 0.3, 4.8, 2.0, 'wall', 'clôture de chantier'),
+          box(51.9, 34.8, 0.3, 1.2, 2.0, 'wall', 'clôture de chantier'), box(51.9, 41.2, 0.3, 4.8, 2.0, 'wall', 'clôture de chantier'),
           box(59.4, 39.0, 2.4, 6.0, 2.6, 'wall', 'conteneur'), box(65.6, 43.4, 6, 2.4, 2.6, 'wall', 'conteneur'),
           box(54.2, 43.4, 2.6, 1.7, 1.3, 'cover', 'benne à gravats'),
           box(56.2, 37.4, 1.2, 1.2, 0.9, 'cover', 'palettes'), box(57.7, 38.4, 1.2, 1.2, 0.9, 'cover', 'palettes'),

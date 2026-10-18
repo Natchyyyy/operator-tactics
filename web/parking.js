@@ -658,7 +658,7 @@
     const pole = new T.Mesh(new T.CylinderGeometry(0.07, 0.11, 8, 10), K.metalSombre); pole.position.y = 4; g.add(pole);
     const arm = new T.Mesh(new T.BoxGeometry(1.8, 0.08, 0.08), K.metalSombre); arm.position.set(0.85, 7.9, 0); g.add(arm);
     const head = new T.Mesh(new T.BoxGeometry(0.7, 0.14, 0.3), K.metalSombre); head.position.set(1.7, 7.85, 0); g.add(head);
-    const bulb = new T.Mesh(new T.BoxGeometry(0.6, 0.03, 0.22), mat('ampoule', () => new T.MeshStandardMaterial({ color: 0xfff6e0, emissive: 0xffd9a0, emissiveIntensity: 0 }))); bulb.position.set(1.7, 7.77, 0); g.add(bulb);
+    const bulb = new T.Mesh(new T.BoxGeometry(0.6, 0.03, 0.22), mat('ampoule', () => new T.MeshStandardMaterial({ color: 0x8a8780, roughness: 0.35, metalness: 0.2, emissive: 0xffd9a0, emissiveIntensity: 0 }))); bulb.position.set(1.7, 7.77, 0); g.add(bulb);
     NIGHT.mats.push(bulb.material); g.userData.lightAt = new T.Vector3(1.7, 7.7, 0);
     return g;
   }
@@ -886,7 +886,7 @@
     const c = document.createElement('canvas'); c.width = Math.round(256 * Math.max(1, w / h)); c.height = 256; draw(c.getContext('2d'), c.width, c.height);
     const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 8;
     const m = new T.MeshStandardMaterial({ map: t, roughness: 0.45, emissive: emiss ? 0xffffff : 0x000000, emissiveMap: emiss ? t : null, emissiveIntensity: 0 });
-    if (emiss) NIGHT.mats.push(m);
+    if (emiss) { NIGHT.mats.push(m); m.userData.nuit = typeof emiss === 'number' ? emiss : 0.9; }   // intensité la nuit (lisible, pas un halo blanc)
     const p = new T.Mesh(new T.PlaneGeometry(w, h), m); p.position.set(x, y, z); p.rotation.y = ry || 0; g.add(p); return p;
   }
   const txt = (q, s, x, y, font, col, align) => { q.font = font; q.fillStyle = col; q.textAlign = align || 'center'; q.textBaseline = 'middle'; q.fillText(s, x, y); };
@@ -1047,10 +1047,10 @@
     const K = M3(), g = new T.Group(), H = o.h;
     bx(g, o.w, H, o.d, std('totemCadre', 0x2b2f33, 0.45, 0.5), 0, 0, 0);
     for (const s of [-1, 1]) panneau(g, o.w - 0.16, H - 0.5, (q, w, h) => {
-      q.fillStyle = '#f4f6f8'; q.fillRect(0, 0, w, h); q.fillStyle = '#1f5fa8'; q.fillRect(0, 0, w, h * 0.22);
+      q.fillStyle = '#1f5fa8'; q.fillRect(0, 0, w, h); q.fillStyle = '#164a85'; q.fillRect(0, 0, w, h * 0.22);
       txt(q, 'AQUA', w / 2, h * 0.07, 'bold 40px Arial', '#fff'); txt(q, 'NOVA', w / 2, h * 0.16, 'bold 40px Arial', '#ffd23f');
-      ['LAVAGE', 'HP 2 €', 'MOUSSE', 'ASPI 1 €'].forEach((l, i) => { q.fillStyle = i % 2 ? '#e3e8ee' : '#ffffff'; q.fillRect(6, h * (0.26 + i * 0.17), w - 12, h * 0.15); txt(q, l, w / 2, h * (0.335 + i * 0.17), 'bold 30px Arial', '#1d2a36'); });
-    }, 0, 0.12, s * (o.d / 2 + 0.005), s < 0 ? Math.PI : 0, true);
+      ['LAVAGE', 'HP 2 €', 'MOUSSE', 'ASPI 1 €'].forEach((l, i) => { q.fillStyle = i % 2 ? '#2a6bb5' : '#2f75c4'; q.fillRect(6, h * (0.26 + i * 0.17), w - 12, h * 0.15); txt(q, l, w / 2, h * (0.335 + i * 0.17), 'bold 30px Arial', '#ffffff'); });
+    }, 0, 0.12, s * (o.d / 2 + 0.005), s < 0 ? Math.PI : 0, 0.7);
     return g;
   }
   // ---- aspirateur de la station : colonne, flexible enroulé, col de cygne
@@ -1120,11 +1120,13 @@
     const cols = [0x2f6b3a, 0xd9b52b, 0x2a5a9a], noms = ['VERRE', 'EMBALLAGES', 'PAPIERS'];
     for (let k = 0; k < n; k++) {
       const c = new T.Group(), m = std('colonne' + k, cols[k], 0.55, 0.05), H = o.h;
-      bx(c, cw, H - 0.25, side - 0.1, m, 0, -0.125, 0);
-      const top = new T.Mesh(new T.CylinderGeometry(0.5, 0.5, side - 0.1, 20, 1, false, -Math.PI / 2, Math.PI), m); top.rotation.x = Math.PI / 2; top.scale.set(cw, 1, 0.25 / 0.5); top.position.y = H / 2 - 0.25; c.add(top);   // dessus bombé (25 cm)
-      bx(c, 0.5, 0.05, 0.3, std('poigneeColonne', 0x222222, 0.6), 0, H / 2 + 0.02, 0);
-      for (const s of [-1, 1]) { const hole = new T.Mesh(new T.CircleGeometry(0.11, 18), std('trouColonne', 0x0c0c0c, 0.9)); hole.position.set(0, 0.25, s * ((side - 0.1) / 2 + 0.005)); if (s < 0) hole.rotation.y = Math.PI; c.add(hole);
-        panneau(c, cw * 0.8, 0.22, (q, w, h) => { q.fillStyle = '#fff'; q.fillRect(0, 0, w, h); txt(q, noms[k], w / 2, h / 2 + 4, 'bold 110px Arial', '#222'); }, 0, -0.25, s * ((side - 0.1) / 2 + 0.006), s < 0 ? Math.PI : 0); }
+      const r = Math.min(cw, side - 0.1) / 2, hb = H - r * 0.55 - 0.08;   // cloche : fût légèrement conique, dôme, socle
+      bx(c, cw + 0.1, 0.08, side, std('socleColonne', 0x8d8a84, 0.9), 0, -H / 2 + 0.04, 0);
+      cyl(c, r, hb, m, 0, -H / 2 + 0.08 + hb / 2, 0, 24).geometry = new T.CylinderGeometry(r * 0.92, r, hb, 24);
+      const dome = new T.Mesh(new T.SphereGeometry(r * 0.92, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), m); dome.scale.y = 0.6; dome.position.y = -H / 2 + 0.08 + hb; c.add(dome);
+      const anneau = new T.Mesh(new T.TorusGeometry(0.12, 0.025, 8, 18), std('poigneeColonne', 0x222222, 0.6)); anneau.rotation.x = Math.PI / 2; anneau.position.y = H / 2 + 0.02; c.add(anneau);
+      for (const s of [-1, 1]) { const hole = new T.Mesh(new T.CircleGeometry(0.11, 18), std('trouColonne', 0x0c0c0c, 0.9)); hole.position.set(0, H / 2 - 0.45, s * (r * 0.93 + 0.01)); if (s < 0) hole.rotation.y = Math.PI; c.add(hole);
+        panneau(c, r * 1.1, 0.2, (q, w, h) => { q.fillStyle = '#fff'; q.fillRect(0, 0, w, h); txt(q, noms[k], w / 2, h / 2 + 4, 'bold 100px Arial', '#222'); }, 0, -0.1, s * (r * 0.97 + 0.01), s < 0 ? Math.PI : 0); }
       const off = -L / 2 + (k + 0.5) * L / n; c.position.set(along ? off : 0, 0, along ? 0 : off); if (!along) c.rotation.y = Math.PI / 2; g.add(c);
     }
     return g;
@@ -1266,6 +1268,15 @@
     if (/^lavage/.test(n)) return lavage(o);
     if (n === 'haie') return haie(o);
     if (n === 'totem') return totem(o);
+    if (n === 'abribus' && has('abribus')) {   // abri : modèle Meshy, plus une « sucette » publicitaire éclairée au bout est et le cadre des horaires
+      const g = new T.Group(), m = M.fit('abribus', o.w, o.h, o.d, { tol: 0.3 }); g.add(m);
+      const mupi = new T.Group(); bx(mupi, 0.18, 1.9, 1.3, std('cadreMupi', 0x2b2f33, 0.4, 0.6), 0, 0, 0);
+      for (const s2 of [-1, 1]) panneau(mupi, 1.15, 1.7, (q, w, h) => { const gr = q.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#f2a23b'); gr.addColorStop(1, '#c8452e'); q.fillStyle = gr; q.fillRect(0, 0, w, h);
+        txt(q, 'FRAISE', w / 2, h * 0.3, 'bold 46px Arial', '#fff'); txt(q, '& CO', w / 2, h * 0.42, 'bold 46px Arial', '#fff'); txt(q, 'Glaces artisanales', w / 2, h * 0.62, '20px Arial', '#fff'); txt(q, 'Grand-Rue · 2 €', w / 2, h * 0.86, 'bold 22px Arial', '#ffe9b0'); }, s2 * 0.095, 0.0, 0, s2 * Math.PI / 2, true);
+      mupi.position.set(o.w / 2 - 0.12, -o.h / 2 + 1.05, 0); g.add(mupi);
+      panneau(g, 0.6, 0.8, (q, w, h) => { q.fillStyle = '#f4f4f0'; q.fillRect(0, 0, w, h); q.fillStyle = '#1f5fbf'; q.fillRect(0, 0, w, 50); txt(q, 'LIGNE 4  ·  NAVETTE', w / 2, 26, 'bold 22px Arial', '#fff'); for (let k = 0; k < 9; k++) txt(q, (7 + k) + ' h   ' + ['05', '25', '45'].join('  ') , 20, 80 + k * 18, '15px Arial', '#222', 'left'); }, -o.w / 2 + 0.9, -o.h / 2 + 1.5, -o.d / 2 + 0.07, 0);
+      return g;
+    }
     if (n === 'aspirateur') return aspirateur(o);
     if (n === 'guérite') return guerite(o);
     if (n === 'caisse automatique') return caisseAuto(o);
@@ -1289,7 +1300,7 @@
   let lightGroup = null;
   function setConditions(id, scene) {
     const night = id === 'nuit'; NIGHT.on = night;
-    for (const m of NIGHT.mats) m.emissiveIntensity = night ? (m.map && m.emissiveMap ? 1.6 : 4) : 0;
+    for (const m of NIGHT.mats) m.emissiveIntensity = night ? (m.userData.nuit !== undefined ? m.userData.nuit : m.map && m.emissiveMap ? 1.6 : 4) : 0;
     U.wet.value = id === 'pluie' ? 1 : id === 'brouillard' ? 0.35 : 0;
     if (root.Ruelle && root.Ruelle.setConditions) try { root.Ruelle.setConditions(id); } catch (e) { console.warn('ruelle :', e); }
     if (lightGroup) { scene.remove(lightGroup); lightGroup = null; }
