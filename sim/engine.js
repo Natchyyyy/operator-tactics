@@ -707,11 +707,25 @@
     if (u.goal && u.goalReq && Math.hypot(u.goalReq.x - x, u.goalReq.z - z) < 0.6 && u.path) { u.goalKind = kind; return true; }
     if (kind === 'advance' || kind === 'search') ({ x, z } = this.spreadGoal(u, x, z));
     if (u.goal && Math.hypot(u.goal.x - x, u.goal.z - z) < 0.6 && u.path) { u.goalKind = kind; u.goalReq = req; return true; }
-    const path = this.map.findPath(u.x, u.z, x, z);
+    let path = this.map.findPath(u.x, u.z, x, z);
     if (!path) { u.path = null; u.goal = null; return false; }
-    // le chemin s'arrête au centre de la dernière case : on va jusqu'au point exact (un couvert « plaqué » contre son obstacle)
-    const last = path[path.length - 1];
-    if (Math.hypot(last.x - x, last.z - z) > 0.05 && this.map.inBounds(x, z) && !this.map.insideObstacle(x, z) && this.map.walkableSegment(last.x, last.z, x, z)) path.push({ x, z });
+    // le chemin s'arrête au centre de la dernière case : on va jusqu'au point exact (un couvert « plaqué » contre son obstacle).
+    // Si ce point n'est pas joignable en ligne droite depuis cette case (un coin d'obstacle entre les deux), on passe par une
+    // case voisine libre d'où il l'est.
+    const last = path[path.length - 1], exact = this.map.inBounds(x, z) && !this.map.insideObstacle(x, z);
+    if (exact && Math.hypot(last.x - x, last.z - z) > 0.05) {
+      if (this.map.walkableSegment(last.x, last.z, x, z)) path.push({ x, z });
+      else {
+        const c0 = this.map.cellOf(x, z); let via = null, bd = Infinity;
+        for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) {
+          if (this.map.isBlocked(c0.c + dc, c0.r + dr)) continue;
+          const p = this.map.centerOf(c0.c + dc, c0.r + dr), dd = Math.hypot(p.x - x, p.z - z);
+          if (dd < bd && this.map.walkableSegment(p.x, p.z, x, z)) { bd = dd; via = p; }
+        }
+        const p2 = via && this.map.findPath(u.x, u.z, via.x, via.z);
+        if (p2) { path = p2; path.push({ x, z }); }
+      }
+    }
     // le premier point du chemin est souvent le centre de la case où l'on se trouve déjà, parfois DERRIÈRE soi :
     // on le saute (sinon un demi-pas en arrière, puis demi-tour — le corps « tournait sur lui-même » à chaque nouveau chemin)
     let i0 = 0; while (i0 < path.length - 1 && (Math.hypot(path[i0].x - u.x, path[i0].z - u.z) < 0.9

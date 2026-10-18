@@ -49,6 +49,8 @@
       // parvis, drive), milieu à travers les rangées de voitures et la station de lavage, sud le long du mur de la rue
       // (arrêt de bus, kiosque, chantier).
       voies: { nord: 9, milieu: 23, sud: 38 },
+      // marquage au sol (rendu seulement) : rangées doubles [x0, z0, places], places le long des murs [x, z, places, pas en x, pas en z]
+      marquage: { rangees: [[13, 13, 8], [49, 13, 8]], murs: [[7.6, 41, 9, 2.5, 0], [0, 29.5, 4, 0, 2.5], [67, 6.9, 4, 0, 2.5], [67, 28.6, 2, 0, 2.5]] },
       // Un vrai parking de centre commercial, vu du ciel : au nord la façade (entrée, parvis planté, quai de livraison à
       // l'ouest, « drive » à l'est), au sud le mur de la rue (places le long du mur, arrêt de la navette, kiosque à pizzas, et
       // à l'est une partie du parking fermée pour travaux), à l'ouest l'entrée à barrière (guérite), à l'est la sortie (poste
@@ -74,11 +76,12 @@
           // drive (nord-est) : auvent sur trois places, fourgon de livraison des courses, rolls
           box(57.8, 0.4, 2.3, 5.6, 2.4, 'wall', 'fourgon (drive)'),
           box(61, 0.6, 0.8, 1.7, 1.5, 'cover', 'rolls'), box(62.2, 0.6, 0.8, 1.7, 1.5, 'cover', 'rolls'),
+          box(53.7, 5.7, 0.3, 0.3, 4.6, 'wall', 'poteau'), box(61.5, 5.7, 0.3, 0.3, 4.6, 'wall', 'poteau'), box(69.3, 5.7, 0.3, 0.3, 4.6, 'wall', 'poteau'),
           // abris à chariots au bout des rangées (côté entrée)
           box(18.5, 11.1, 4.2, 1.8, 1.1, 'cover', 'abri à chariots'), box(49.4, 11.1, 4.2, 1.8, 1.1, 'cover', 'abri à chariots'),
           // ---- MILIEU : station de lavage (deux pistes, local technique au milieu), aspirateurs, voitures en attente
-          box(30.2, 18.5, 0.4, 9, 2.7, 'wall', 'lavage paroi'), box(41.4, 18.5, 0.4, 9, 2.7, 'wall', 'lavage paroi'),
-          box(34.6, 18.5, 2.8, 9, 2.7, 'wall', 'lavage local'),
+          box(30.2, 18.5, 0.4, 9, 3.3, 'wall', 'lavage paroi'), box(41.4, 18.5, 0.4, 9, 3.3, 'wall', 'lavage paroi'),
+          box(34.6, 18.5, 2.8, 9, 3.3, 'wall', 'lavage local'),
           box(38.9, 12.6, 1.9, 4.4, 1.4, 'cover', 'voiture'),                    // en attente devant la piste est
           box(31.7, 28.9, 1.9, 4.4, 1.4, 'cover', 'voiture'),                    // sortie de la piste ouest, au séchage
           box(26.0, 21.3, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(24.2, 23.0, 4.4, 1.9, 1.4, 'cover', 'voiture'),
@@ -102,8 +105,8 @@
           box(51.9, 34.8, 0.3, 2.4, 2.0, 'wall', 'clôture de chantier'), box(51.9, 41.2, 0.3, 4.8, 2.0, 'wall', 'clôture de chantier'),   // bâches imprimées sur les grilles
           box(59.4, 39.0, 2.4, 6.0, 2.6, 'wall', 'conteneur'),                  // conteneur de stockage du chantier
           box(65.6, 43.4, 6, 2.4, 2.6, 'wall', 'conteneur'),
-          box(54.2, 43.6, 2.2, 1.5, 1.3, 'cover', 'benne'),
-          box(57.0, 37.6, 1.2, 1.2, 0.9, 'cover', 'palettes'), box(58.6, 38.3, 1.2, 1.2, 0.9, 'cover', 'palettes'),
+          box(54.2, 43.4, 2.6, 1.7, 1.3, 'cover', 'benne à gravats'),
+          box(56.2, 37.4, 1.2, 1.2, 0.9, 'cover', 'palettes'), box(57.7, 38.4, 1.2, 1.2, 0.9, 'cover', 'palettes'),
           box(62.8, 37.0, 2.4, 1.0, 0.8, 'cover', 'sacs de sable'),
           box(67.4, 37.6, 1.4, 0.7, 1.1, 'cover', 'fût'),
         ],
