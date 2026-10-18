@@ -1495,8 +1495,9 @@
         }
         // reprise à deux mains (fin de rechargement…) : le fusil part de là où la main droite le portait et rejoint sa place en fondu
         const pk = this.priseK === undefined ? 1 : this.priseK;
-        if (tient && pk < 0.999 && this.handLocal.droite && !S.sansPrise) { const qS = new THREE.Quaternion(), pS = V(); new THREE.Matrix4().multiplyMatrices(rh.matrixWorld, this.handLocal.droite).premultiply(inv).decompose(pS, qS, V());
-          weapon.quaternion.copy(qS.slerp(weapon.quaternion, pk)); pos.copy(pS.lerp(pos, pk)); }
+        // (sans prise à deux mains dans l'animation : le fusil reste dans la main droite comme à la dernière prise)
+        if ((!two || pk < 0.999) && this.handLocal.droite && M.prise && !S.sansPrise) { const qS = new THREE.Quaternion(), pS = V(); new THREE.Matrix4().multiplyMatrices(rh.matrixWorld, this.handLocal.droite).premultiply(inv).decompose(pS, qS, V());
+          const k2 = two ? pk : 0; weapon.quaternion.copy(qS.slerp(weapon.quaternion, k2)); pos.copy(pS.lerp(pos, k2)); }
         if (procW > 0.01) { const Pp = this.poseArme(loc, inv), w = procW * (tient ? pk : 1); weapon.quaternion.slerp(Pp.q, w); pos.lerp(Pp.p, w); }
         barrel.set(0, 0, 1).applyQuaternion(weapon.quaternion);
         weapon.position.copy(pos).addScaledVector(barrel, -(recoil || 0) * 0.04);

@@ -44,7 +44,7 @@
   const MAPS = {
     parking: {
       id: 'parking', name: 'Parking de la Grand-Rue', width: 72, depth: 46,
-      spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 67, z: 23, r: 3.5 } ],
+      spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
       acces: [[47.5, 45.5]],   // entrée-sortie des voitures (vérification de circulation)
       capture: { x: 36, z: 23, r: 6 },  // la station de lavage : deux pistes ouvertes au nord et au sud, local technique au nord, muret entre les pistes
       asymetrique: true,
@@ -52,7 +52,7 @@
       // de voitures et la station de lavage, sud le long du muret de la rue (quai de la navette, kiosque, chantier).
       voies: { nord: 5.5, milieu: 23, sud: 34 },
       // marquage au sol (rendu seulement) : rangées doubles [x0, z0, places], places le long des murs [x, z, places, pas en x, pas en z]
-      marquage: { rangees: [[13, 17, 6], [49, 17, 6]], murs: [[7.6, 41, 7, 2.5, 0], [0, 29.5, 4, 0, 2.5], [67, 10.8, 2, 0, 2.5], [67, 28.9, 2, 0, 2.5]] },
+      marquage: { rangees: [[13, 17, 6], [49, 17, 6]], murs: [[7.6, 41, 7, 2.5, 0], [0, 10.8, 2, 0, 2.5], [0, 29.5, 4, 0, 2.5], [67, 10.8, 2, 0, 2.5], [67, 29.5, 2, 0, 2.5]] },
       // Un vrai parking de centre-ville, à l'arrière des boutiques de la Grand-Rue, vu du ciel : au nord la ruelle de service
       // (arrière des immeubles en briques, portes de service, entrées arrière des boutiques en face des deux passages du
       // grillage, bennes, fourgons de livraison) ; au sud la rue, derrière un muret à grille, avec l'unique entrée-sortie des
@@ -82,31 +82,39 @@
           box(7.6, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'), box(28.2, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'), box(61.5, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'),
           box(18.6, 8.9, 1.2, 1.2, 1.0, 'cover', 'palettes'), box(43.9, 0.4, 1.2, 1.2, 1.3, 'cover', 'caisses'), box(37.4, 2.6, 1.2, 1.2, 1.0, 'cover', 'palettes'),
           box(66.2, 7.6, 1.2, 1.2, 1.5, 'cover', 'caisses'), box(3.6, 8.4, 1.2, 1.2, 1.0, 'cover', 'palettes'),
-          // ---- MILIEU : station de lavage (deux pistes, local technique au milieu), aspirateurs, véhicules en attente ;
-          // devant, l'îlot du totem des tarifs
+          // ---- MILIEU (entre les rangées, x 23–49) : disposé en miroir autour de x = 36 pour l'équité ; station de lavage
+          // (deux pistes, local technique au nord, muret entre les pistes), un fourgon qui attend son tour au nord, un autre
+          // qu'on sèche au sud, l'îlot du totem des tarifs, de chaque côté deux places d'aspiration
           box(30.2, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'), box(41.4, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'),
-          box(34.6, 17.9, 2.8, 3.6, 3.3, 'wall', 'lavage local'), box(35.7, 21.5, 0.6, 6.6, 1.1, 'cover', 'lavage muret'),   // local technique au nord, muret entre les pistes
-          cap(box(38.8, 12.7, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),                     // en attente devant la piste est
-          cap(box(31.4, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1), cap(box(42.4, 29.2, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),   // aire de séchage                     // sortie de la piste ouest, au séchage
-          box(33.2, 11.0, 5.4, 1.6, 1.7, 'wall', 'haie'), box(35.3, 11.5, 1.2, 0.5, 3.6, 'wall', 'totem'),
-          box(26.0, 21.3, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(24.2, 23.0, 4.4, 1.9, 1.4, 'cover', 'voiture'), box(24.0, 18.4, 5.2, 2.1, 2.4, 'wall', 'fourgon'),   // deux places d'aspiration (un fourgon qu'on aspire)
-          box(45.4, 22.0, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(43.4, 23.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'),
-          // ---- OUEST : caisse automatique, places le long du mur ouest avec borne de recharge
-          box(9.4, 21.9, 2.2, 2.2, 2.6, 'wall', 'caisse automatique'),      // caisse piétons sous auvent, sur son îlot
+          box(34.6, 17.9, 2.8, 3.6, 3.3, 'wall', 'lavage local'), box(35.7, 21.5, 0.6, 6.6, 1.1, 'cover', 'lavage muret'),
+          cap(box(34.95, 12.7, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),             // attend qu'une piste se libère
+          cap(box(34.95, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),             // au séchage, à la sortie des pistes
+          box(33.3, 11.0, 5.4, 1.6, 1.7, 'wall', 'haie'), box(35.4, 11.5, 1.2, 0.5, 3.6, 'wall', 'totem'),
+          cap(box(27.9, 18.6, 1.9, 4.4, 1.4, 'cover', 'voiture'), -1), box(28.5, 23.4, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), cap(box(27.9, 24.6, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
+          cap(box(42.2, 18.6, 1.9, 4.4, 1.4, 'cover', 'voiture'), -1), box(42.7, 23.4, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), cap(box(42.2, 24.6, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),
+          // ---- OUEST : caisse automatique (piétons) sur son îlot ; places le long du mur ouest, borne de recharge
+          box(9.4, 21.9, 2.2, 2.2, 2.6, 'wall', 'caisse automatique'),
+          cap(box(0.2, 11.0, 5.2, 2.1, 2.4, 'wall', 'fourgon'), -1), cap(box(0.3, 13.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'), -1),
           cap(box(0.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), -1), cap(box(0.2, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon'), -1),
           box(0.2, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
-          // ---- EST : poste électrique sur son îlot, places le long du mur est
-          box(61.0, 23.4, 2.4, 3.2, 2.6, 'wall', 'poste électrique'), box(61.7, 26.9, 1.0, 0.5, 1.4, 'cover', 'armoire'),   // sur un îlot planté en bord de parking
-          cap(box(66.6, 11.0, 5.2, 2.1, 2.4, 'wall', 'fourgon'), 1), cap(box(67.3, 13.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'), 1), cap(box(66.6, 29.4, 5.2, 2.1, 2.4, 'wall', 'fourgon'), 1),
-          // ---- SUD : places le long du mur de la rue, kiosque à pizzas, arrêt de la navette, points de tri
+          // ---- EST : poste électrique sur son îlot planté ; places le long du mur est (au sud, la camionnette du chantier)
+          box(60.4, 21.9, 2.2, 2.2, 2.6, 'wall', 'poste électrique'), box(60.6, 24.6, 1.0, 0.5, 1.4, 'cover', 'armoire'),
+          cap(box(66.6, 11.0, 5.2, 2.1, 2.4, 'wall', 'fourgon'), 1), cap(box(67.3, 13.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'), 1),
+          cap(box(67.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), 1), cap(box(66.6, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon'), 1),
+          box(71.3, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
+          // ---- SUD : places le long du mur de la rue, kiosque à pizzas et consigne à colis (de part et d'autre), quai de la
+          // navette (abri et jardinières sur l'îlot, bus le long), fourgons de livraison, point de tri
           cap(box(8.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1), cap(box(16.1, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),
-          cap(box(23.0, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
-          box(21.2, 33.8, 2.4, 2.4, 3.0, 'wall', 'kiosque'),
-          box(30, 39.7, 12, 2.6, 3.0, 'wall', 'bus'), box(32.4, 38.0, 4.2, 1.5, 2.5, 'wall', 'abribus'), cap(box(44.2, 38.6, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),   // quai de la navette (abri sur l'îlot, bus le long) ; fourgon arrêté à la barrière de sortie
-          ...bac(30.4, 34.0, 1.8, 1.4), ...bac(37.4, 34.0, 1.8, 1.4), box(37.4, 38.1, 1.8, 1.3, 0.9, 'cover', 'bac à fleurs'),   // jardinières du passage piéton et du quai
           cap(box(18.0, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1), cap(box(20.5, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
+          cap(box(23.0, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
+          box(21.2, 33.8, 2.4, 2.4, 3.0, 'wall', 'kiosque'), box(48.4, 33.8, 2.4, 2.4, 2.4, 'wall', 'consigne colis'),
+          box(30, 39.7, 12, 2.6, 3.0, 'wall', 'bus'), box(33.9, 38.0, 4.2, 1.5, 2.5, 'wall', 'abribus'),
+          box(31.6, 38.1, 1.8, 1.3, 0.9, 'cover', 'bac à fleurs'), box(38.6, 38.1, 1.8, 1.3, 0.9, 'cover', 'bac à fleurs'),
+          ...bac(30.4, 34.0, 1.8, 1.4), ...bac(39.8, 34.0, 1.8, 1.4),            // jardinières du passage piéton
+          cap(box(25.7, 38.6, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),             // livraison du kiosque
+          cap(box(44.2, 38.6, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),             // arrêté à la barrière de sortie
+          box(9.4, 34.2, 1.6, 4.6, 1.7, 'wall', 'colonnes de tri'),               // point de tri sur son îlot, dans l'angle sud-ouest
           box(52.6, 41.8, 1.2, 1.2, 0.9, 'cover', 'palettes'), box(53.0, 35.4, 1.0, 2.0, 0.9, 'cover', 'sacs de sable'),
-          box(9.4, 34.2, 1.6, 4.6, 1.7, 'wall', 'colonnes de tri'),   // point de tri sur son îlot, dans l'angle sud-ouest
           // ---- SUD-EST : partie du parking fermée pour réfection de l'enrobé (séparateurs, clôtures de chantier bâchées,
           // conteneurs du chantier, benne à gravats, palettes de bordures, sacs de sable qui lestent les panneaux, fût)
           box(52.5, 34.2, 5.5, 0.6, 0.95, 'cover', 'barrière'), box(61, 34.2, 5, 0.6, 0.95, 'cover', 'barrière'),
@@ -117,12 +125,12 @@
           box(62.8, 37.0, 2.4, 1.0, 0.8, 'cover', 'sacs de sable'),
           box(67.4, 37.6, 1.4, 0.7, 1.1, 'cover', 'fût'),
         ],
-        // îlots plantés aux bouts des rangées (jardinières avec arbre, ou haies taillées)
+        // îlots plantés aux bouts des rangées (jardinières avec arbre, ou haies taillées), en miroir
         bac(13.6, 15.4, 4.4, 1.4), bac(18.6, 15.4, 4.0, 1.4), [box(13.6, 32.2, 4.6, 1.4, 1.7, 'wall', 'haie')], bac(18.8, 32.2, 3.0, 1.4),
-        bac(49.4, 15.4, 4.0, 1.4), [box(54.0, 15.4, 4.6, 1.4, 1.7, 'wall', 'haie')], [box(49.4, 32.2, 2.8, 1.4, 1.7, 'wall', 'haie')], bac(54.4, 32.2, 4.0, 1.4),
-        // rangées de places (ouest : x 13–23 ; est : x 49–59), du nord (z 17) au sud (z 32)
-        rangee(13, 17, 'vf.vm.', '.v.fvv', [0, 3, 5, 1, 6, 2, 4, 7, 0, 5]),
-        rangee(49, 17, 'v.vf.p', 'f..v.v', [2, 6, 0, 4, 1, 7, 3, 5, 6, 2])
+        bac(49.4, 15.4, 4.0, 1.4), bac(54.0, 15.4, 4.4, 1.4), bac(50.2, 32.2, 3.0, 1.4), [box(53.8, 32.2, 4.6, 1.4, 1.7, 'wall', 'haie')],
+        // rangées de places (ouest : x 13–23 ; est : x 49–59, en miroir), du nord (z 17) au sud (z 32)
+        rangee(13, 17, 'vf.vv.', '.v.fvv', [0, 3, 5, 1, 6, 2, 4, 7, 0, 5]),
+        rangee(49, 17, '.v.fvv', 'vf.vv.', [2, 6, 9, 4, 1, 7, 3, 5, 10, 11])
       ),
     },
   };
