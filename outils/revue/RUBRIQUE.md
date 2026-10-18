@@ -42,7 +42,7 @@ Fiabilité de chaque critère :
 | `genou_attaque` | flexion du genou à la pose du pied | marche 0-18°, marche visée 3-28°, course 8-38° | ±10° | FRCS. FM 3-06.11 : genoux fléchis en tactique. |
 | `genou_envers` [sûr] | angle entre le sens où pointe le genou (écart à la ligne hanche → cheville) et l'avant du **bassin**, jambe fléchie > 8° | ≤ 75° | ≤ 100° | Un genou ne plie que vers l'avant. Au-delà de 100° : jambe « cassée » (signalée par l'utilisateur en jeu ; souvent une seule image sur la jambe arrière). |
 | `genou_hyperextension` | jambe presque tendue (< 20°), genou en arrière de la ligne hanche → cheville selon l'avant du bassin | ≥ -3° | ≥ -8° | Anatomie. |
-| `angle_pied` | angle pied / déplacement en appui, pied à plat seulement (+ = pointe vers l'extérieur) | -6 à 22° | -14 à 32° | Les pieds suivent le déplacement, ouverts de 5 à 10°. |
+| `angle_pied` | angle pied / déplacement en appui, pied à plat seulement (+ = pointe vers l'extérieur) ; axe du pied = axe principal (ACP) de la bande basse de la semelle, pose de liaison | -6 à 22° | -14 à 32° | Les pieds suivent le déplacement, ouverts de 5 à 10°. |
 | `bassin_vs_deplacement` | bassin / déplacement, marche avant sans visée | ≤ 20° | ≤ 35° | Bassin face au déplacement (±4-5°). |
 | `torsion` | épaules / bassin | ≤ 45° | ≤ 62° | Rotation de la colonne. |
 | `rebond_bassin` | rebond vertical du bassin | marche 2-6,5 cm, visée 1,2-5 cm | — | Centre de masse ≈ 5 cm. En marche tactique, le rebond est réduit pour garder le viseur stable. |
@@ -59,7 +59,7 @@ Fiabilité de chaque critère :
 | `paume_poignee` [sûr] | ligne poignet → jointures (50/65/80 %) ↔ surface de l'arme, moins 1,5 cm d'épaisseur de main | ≤ 3 cm | ≤ 5,5 cm | Main forte sur la poignée. |
 | `paume_garde_main` [sûr] | paume gauche ↔ surface de l'arme | ≤ 3 cm | ≤ 5,5 cm | Main d'appui qui serre le garde-main (Vortex). |
 | `paume_garde_main_pos` | main d'appui, distance devant la poignée | 17-42 cm | 12-50 cm | Sur le garde-main : ni sur le chargeur, ni au-delà de la bouche. |
-| `doigts_dans_arme` [sûr, à la normale du maillage près] | distance signée min des bouts de doigts | ≥ -4 mm | ≥ -12 mm | Un doigt ne traverse pas le métal. |
+| `doigts_dans_arme` [sûr, à la normale du maillage près] | distance signée min des sommets du GANT au bout de chaque doigt (10 sommets les plus distaux) | ≥ -4 mm | ≥ -12 mm | Un doigt ne traverse pas le métal. |
 | `doigts_poignee` | majeur, annulaire et auriculaire droits ↔ arme | ≤ 2,5 cm | ≤ 4,5 cm | Trois doigts enroulés sur la poignée. |
 | `doigts_garde_main` | médiane des 5 doigts gauches ↔ arme | ≤ 3 cm | ≤ 5 cm | La main enveloppe le garde-main. |
 | `index_hors_detente` | courbure de l'index (somme de 3 angles, MOINS celle de la pose de liaison) quand on ne tire pas | ≤ 50° | ≤ 80° | TC 3-22.9 règle 3. |
@@ -90,3 +90,5 @@ Fiabilité de chaque critère :
 - **Sens du genou** : mesuré dans le repère du bassin (pas du pied : sur la pointe ou sur la jambe arrière, l'axe du pied n'a plus de sens). Les retournements durent souvent UNE image : regarder la bande de profil image par image (`jeu.py --suivre NOM --de I --a J`), pas seulement 4 instants.
 - **Œil** : l'os `headfront` des modèles Meshy est à hauteur de bouche ; l'œil droit est estimé 7,2 cm plus haut et 3,2 cm à droite. Vérifier avec `--marques` (point blanc) sur la vue `tete`.
 - **Yeux du banc** : le banc rejoue `syncMeshes()` du jeu (lacet du corps) et une cible affichée qui bouge à chaque image, comme en jeu. Une cible qui ne bouge qu'aux pas de simulation (0,1 s) fabriquait de faux à-coups de 10 000 °/s².
+- **Points de mesure du maillage** (leçons apprises) : sur ces modèles Meshy, l'os de bout de doigt (« …4 ») est 1 à 3 cm DANS le doigt, l'os `headfront` est à hauteur de bouche, et le sommet le plus en avant de la botte est côté gros orteil. Toujours mesurer sur la PEAU (sommets) et des axes robustes (ACP), calibrés dans la pose de liaison — jamais dans la pose du moment.
+- **Transitions en jeu** : les 0,4 premières secondes de chaque segment (changement d'état) sont exclues des critères de posture (la tête qui précède le fusil est naturelle) ; les à-coups jugent les transitions.

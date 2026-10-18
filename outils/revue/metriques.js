@@ -73,6 +73,19 @@
       for (const c of ['Right', 'Left']) for (const d of DOIGTS) { const q = [R.os[c + 'Hand'], R.os[c + d + 1], R.os[c + d + 2], R.os[c + d + 3], R.os[c + d + 4]].map(o => o && bp(o)); if (q.some(x => !x)) continue;
         R.courbeLiaison[c + d] = ang(q[1].clone().sub(q[0]), q[2].clone().sub(q[1])) + ang(q[2].clone().sub(q[1]), q[3].clone().sub(q[2])) + ang(q[3].clone().sub(q[2]), q[4].clone().sub(q[3])); } }
     f.group.updateMatrixWorld(true);
+    // sommets de la PEAU du bout de chaque doigt (os dominant = phalange la plus distale qui a des sommets) : sur les gants
+    // Meshy, l'os « …4 » n'est pas sur le maillage (1 à 3 cm à l'intérieur) ; on mesure donc le gant, pas l'os
+    if (f.skinned) { const sk2 = f.skinned, g2 = sk2.geometry, si2 = g2.attributes.skinIndex, sw2 = g2.attributes.skinWeight, bn = sk2.skeleton.bones;
+      const dom = new Int32Array(g2.attributes.position.count); for (let i = 0; i < dom.length; i++) { let bi = 0, bw = -1; for (let j = 0; j < 4; j++) { const w = sw2.getComponent(i, j); if (w > bw) { bw = w; bi = si2.getComponent(i, j); } } dom[i] = bi; }
+      R.peauDoigt = {}; const vv = V();
+      for (const c of ['Right', 'Left']) for (const d of DOIGTS) {
+        let liste = [];
+        for (const k of [3, 2, 1]) { const b = R.os[c + d + k]; if (!b) continue; const ib = bn.indexOf(b); for (let i = 0; i < dom.length; i++) if (dom[i] === ib) liste.push(i); if (liste.length >= 6) break; }
+        if (!liste.length) continue;
+        // les 10 sommets les plus éloignés de la main (le bout du doigt)
+        const hp = WP(R.os[c + 'Hand']); liste = liste.map(i => { sk2.getVertexPosition(i, vv); vv.applyMatrix4(sk2.matrixWorld); return [i, vv.distanceTo(hp)]; }).sort((a, b) => b[1] - a[1]).slice(0, 10).map(x => x[0]);
+        R.peauDoigt[c + d] = liste;
+      } }
     // capsules : rayon = 75e centile de la distance des sommets (os dominant) à leur segment
     const sk = f.skinned;
     if (sk && sk.geometry && sk.getVertexPosition) {
@@ -110,7 +123,15 @@
           for (const p of pts2) if (p.dot(dir) > tip.dot(dir)) tip = p;
           const plante = WP(toe).addScaledVector(upB, hmin - WP(toe).dot(upB));
           const loc = (o, p) => o.worldToLocal(p.clone());
-          R.semelle[c] = { talon: loc(ft, talon), plante: loc(toe, plante), bout: loc(toe, bout), pointe: loc(toe, tip), sol0: 0 };
+          // axe long de la semelle : direction principale (ACP) des sommets de la bande basse (3 cm), dans le plan du sol,
+          // orientée talon → pointe ; gardé dans le repère de l'os du pied (le sommet le plus en avant est souvent côté gros
+          // orteil : talon → pointe tournait l'axe de ~10-15° vers l'intérieur)
+          const bande = pts2.filter(p => p.dot(upB) < hmin + 0.03), side = new THREE.Vector3().crossVectors(upB, dir).normalize();
+          let mx = 0, my = 0; bande.forEach(p => { mx += p.dot(dir); my += p.dot(side); }); mx /= bande.length; my /= bande.length;
+          let sxx = 0, sxy = 0, syy = 0; bande.forEach(p => { const x = p.dot(dir) - mx, y = p.dot(side) - my; sxx += x * x; sxy += x * y; syy += y * y; });
+          const th = 0.5 * Math.atan2(2 * sxy, sxx - syy), axe = dir.clone().multiplyScalar(Math.cos(th)).addScaledVector(side, Math.sin(th)).normalize();
+          if (axe.dot(dir) < 0) axe.negate();
+          R.semelle[c] = { talon: loc(ft, talon), plante: loc(toe, plante), bout: loc(toe, bout), pointe: loc(toe, tip), sol0: 0, axeBind: +(Math.atan2(axe.dot(side), axe.dot(dir)) * D).toFixed(1), axe: axe.clone().applyQuaternion(WQ(ft).invert()) };
         }
       } finally { bonesAll.forEach((b, i) => { b.position.copy(sauve[i][0]); b.quaternion.copy(sauve[i][1]); b.scale.copy(sauve[i][2]); }); f.body.updateMatrixWorld(true); }
     }
@@ -168,7 +189,7 @@
       m['talon' + s] = talon; m['plante' + s] = plante; m['bout' + s] = bout;
       m['solMin' + s] = Math.min(talon.y, plante.y, bout.y, pointe.y) - g0;                  // < 0 : pied dans le sol
       m['talonY' + s] = talon.y - g0; m['boutY' + s] = Math.min(bout.y, pointe.y) - g0;
-      const dir = pointe.clone().sub(talon); dir.y = 0;   // (talon → bout de la botte : « bout » n'est que le point bas le plus en avant, il peut être près du talon) m['piedAz' + s] = azim(dir);
+      const dir = S.axe ? S.axe.clone().applyQuaternion(WQ(ft)) : pointe.clone().sub(talon); dir.y = 0; m['piedAz' + s] = azim(dir); m['axe' + s] = dir.clone().normalize();   // (axe ACP de la semelle ; à défaut talon → bout de la botte)
       m['piedVsDep' + s] = wrap(azim(dir) - azim(dep));                                         // angle de progression du pied
       m['cheville' + s] = P[c + 'Foot'];
       // genou : flexion (0 = jambe tendue), signe < 0 = hyperextension (genou en arrière de la ligne hanche → cheville)
@@ -256,7 +277,11 @@
       // bouts des doigts ↔ surface de l'arme
       for (const [c, s] of [['Right', 'D'], ['Left', 'G']]) for (const d of DOIGTS) {
         const tip = O[c + d + 4]; if (!tip) continue; const r = distArme(f, R, P[c + d + 4], 0.1);
-        m['doigt' + s + d] = r ? r.d : null;
+        m['doigtOs' + s + d] = r ? r.d : null;
+        // distance du GANT : min sur les sommets du bout du doigt (si connus), sinon l'os de bout
+        const pv = R.peauDoigt && R.peauDoigt[c + d];
+        if (pv && f.skinned) { let best = null; const vv = V(); for (const i of pv) { f.skinned.getVertexPosition(i, vv); vv.applyMatrix4(f.skinned.matrixWorld); const q = distArme(f, R, vv, 0.04); if (q && !q.loin && (best === null || q.d < best)) best = q.d; else if (q && q.loin && best === null) best = 0.04; } m['doigt' + s + d] = best; }
+        else m['doigt' + s + d] = r ? r.d : null;
         // courbure du doigt (somme des angles aux 3 articulations, 0 = tendu)
         const p1 = P[c + d + 1], p2 = P[c + d + 2], p3 = P[c + d + 3], p4 = P[c + d + 4];
         if (p1 && p2 && p3 && p4) { m['courbe' + s + d] = ang(p2.clone().sub(p1), p3.clone().sub(p2)) + ang(p3.clone().sub(p2), p4.clone().sub(p3)) + (P[c + 'Hand'] ? ang(p1.clone().sub(P[c + 'Hand']), p2.clone().sub(p1)) : 0);

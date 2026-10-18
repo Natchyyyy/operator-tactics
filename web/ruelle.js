@@ -218,7 +218,7 @@
     add(q, new T.PlaneGeometry(2.9, 0.72), sm, 0, 3.75, 0.145);
     for (const s of [-1, 1]) { add(q, new T.BoxGeometry(0.12, 0.2, 0.12), alu, s * 1.85, 2.6, 0.08); add(q, new T.SphereGeometry(0.07, 10, 8), k.lampe, s * 1.85, 2.48, 0.12); }
     if (!LAMPES.includes(k.lampe)) LAMPES.push(k.lampe);
-    const L = new T.PointLight(0xffc98a, 18, 9, 1.8); L.position.set(0, 2.4, 1.6); L.visible = false; q.add(L); NUITS.push(L);
+    const L = new T.PointLight(0xffc98a, 6, 8, 2); L.position.set(0, 2.4, 1.6);   // petite flaque chaude devant la porte (1/d², pas de mur brûlé) L.visible = false; q.add(L); NUITS.push(L);
   }
   // petites plaques : rue (émail bleu, bord vert, lettres blanches) et interdiction de stationner (blanc, bord rouge)
   function plateTex(kind, l1, l2) {
@@ -580,6 +580,7 @@
     for (let i = 0; i < 7; i++) { const x = 2 + R() * 68, z = 0.35 + R() * 0.4; if (!free(x, z, 0.4)) continue; const c = new T.Mesh(new T.BoxGeometry(0.5 + R() * 0.3, 0.02, 0.4 + R() * 0.3), k.carton); c.position.set(x, 0.012, z + 0.3); c.rotation.y = R() * 3; c.receiveShadow = true; group.add(c); }
     for (let i = 0; i < 4; i++) { const x = 3 + R() * 66, z = 0.3; if (!free(x, z, 0.35)) continue; const c = new T.Mesh(new T.BoxGeometry(0.45, 0.4, 0.35), k.carton); c.position.set(x, 0.2, z + 0.2); c.rotation.y = (R() - 0.5) * 0.5; c.castShadow = c.receiveShadow = true; group.add(c); }
   }
-  function setConditions(id) { const n = id === 'nuit'; for (const m of LAMPES) m.emissiveIntensity = n ? (m.userData.nuit || 3) : (m.userData.jour || 0); for (const l of NUITS) l.visible = n; }
+  // nuit : vitrines, enseignes, fenêtres éclairées lisibles mais sous le seuil du halo ; seules les ampoules des lampes brillent
+  function setConditions(id) { const n = id === 'nuit'; for (const m of LAMPES) m.emissiveIntensity = n ? (m.userData.nuit ? m.userData.nuit * 0.55 : 2.5) : (m.userData.jour || 0); for (const l of NUITS) l.visible = n; }
   root.Ruelle = { build, mesh, setConditions };
 })(window.OT = window.OT || {});

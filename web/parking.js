@@ -1352,11 +1352,22 @@
   let lightGroup = null;
   function setConditions(id, scene) {
     const night = id === 'nuit'; NIGHT.on = night;
-    for (const m of NIGHT.mats) m.emissiveIntensity = night ? (m.userData.nuit !== undefined ? m.userData.nuit : m.map && m.emissiveMap ? 1.6 : 4) : 0;
+    for (const m of NIGHT.mats) m.emissiveIntensity = night ? (m.userData.nuit !== undefined ? m.userData.nuit * 0.7 : m.map && m.emissiveMap ? 1.0 : 3) : 0;   // fenêtres, enseignes : lisibles sans halo ; ampoules : seules vraies sources (halo)
     U.wet.value = id === 'pluie' ? 1 : id === 'brouillard' ? 0.35 : 0;
     if (root.Ruelle && root.Ruelle.setConditions) try { root.Ruelle.setConditions(id); } catch (e) { console.warn('ruelle :', e); }
     if (lightGroup) { scene.remove(lightGroup); lightGroup = null; }
-    if (night) { lightGroup = new T.Group(); for (const p of lights) { const l = new T.PointLight(0xffc98a, p.k || 120, p.k > 150 ? 22 : 28, 1.6); l.position.copy(p); lightGroup.add(l); } scene.add(lightGroup); }
+    // luminaires à défilement (comme les vrais) : spot vers le bas, décroissance physique (1/d²), bord de flaque très adouci.
+    // Éclairement au sol sous la tête ≈ 2 (lune ≈ 0,5) : flaques douces, pas de blanc brûlé ; les murs proches ne sont plus
+    // inondés (la lumière ne part pas à l'horizontale). Auvent de la station de lavage : large, plus faible.
+    if (night) {
+      lightGroup = new T.Group();
+      for (const p of lights) {
+        const canopy = p.k && p.k < 60, I = canopy ? 20 : p.k > 150 ? 135 : 105;
+        const l = new T.SpotLight(0xffc98a, I, canopy ? 12 : 26, canopy ? 1.25 : 1.05, canopy ? 0.9 : 0.8, 2);
+        l.position.copy(p); l.target.position.set(p.x, 0, p.z); lightGroup.add(l, l.target);
+      }
+      scene.add(lightGroup); lightGroup.updateMatrixWorld(true);
+    }
   }
   function tick(t) { U.time.value = t; }
   root.Parking = { build, mesh, setConditions, tick, asphalt, concrete, worldMat, teinter, brickDet };

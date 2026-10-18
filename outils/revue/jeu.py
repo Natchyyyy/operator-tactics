@@ -71,8 +71,11 @@ window.ECH = { bandeN: 10, bande: null, img: 0, cat: {}, seg: {}, fin: [], pires
   E.bilans = () => {
     const out = []; const tous = E.fin.concat(Object.values(E.seg));
     for (const S of tous) {
-      const F = S.suivi.fr; if (F.length < 18) continue;
-      const b = S.suivi.bilan();
+      // (les 0,4 premières secondes d'un segment sont la transition depuis l'état précédent — ex. la tête vise avant que le fusil
+      // ne soit monté : elles sont jugées par les à-coups, pas par les critères de posture)
+      if (S.suivi.fr.length < 30) continue;
+      const SU = new REVUE.Suivi(); SU.fr = S.suivi.fr.slice(12); const F = SU.fr;
+      const b = SU.bilan();
       const images = F.map(m => { const o = {}; for (const k in m) if (typeof m[k] === 'number' || typeof m[k] === 'string') o[k] = typeof m[k] === 'number' ? +m[k].toFixed(4) : m[k]; o.t = m.img; return o; });
       out.push({ c: S.c, u: S.u, cs: S.cs, modele: S.modele, i0: S.i0, n: F.length, bilan: b, images });
     }
@@ -190,7 +193,7 @@ async def main(a):
         L += ['', f"## Bande de profil ({bande['cs']}) : `{os.path.relpath(fb, RACINE)}`", '']
     def ecrire():
         open(os.path.join(out, 'jeu.md'), 'w').write('\n'.join(L))
-        json.dump({'series': [{'cs': g['cs'], 'c': g['c'], 'modele': g['modele'], 'img': [i['t'] for i in g['images']], **{k: [i.get(k) for i in g['images']] for k in ('genouSensG', 'genouSensD', 'genouG', 'genouD', 'solMinG', 'solMinD', 'v', 'clip', 'erreurVisee', 'canonVsDep', 'poignetD', 'poignetG')}} for g in seg], 'categories': cat, 'alarmes': alarmes, 'verdicts': [{k: v[k] for k in v if k not in ('quand',)} for v in verd]}, open(os.path.join(out, 'jeu.json'), 'w'), default=str)
+        json.dump({'series': [{'cs': g['cs'], 'c': g['c'], 'modele': g['modele'], 'img': [i['t'] for i in g['images']], **{k: [i.get(k) for i in g['images']] for k in ('genouSensG', 'genouSensD', 'genouG', 'genouD', 'solMinG', 'solMinD', 'v', 'clip', 'erreurVisee', 'canonVsDep', 'poignetD', 'poignetG', 'teteVsCanon', 'teteAz', 'canonAz', 'bassinAz', 'teteTangage', 'canonTangage')}} for g in seg], 'categories': cat, 'alarmes': alarmes, 'verdicts': [{k: v[k] for k in v if k not in ('quand',)} for v in verd]}, open(os.path.join(out, 'jeu.json'), 'w'), default=str)
     ecrire(); print(os.path.join(out, 'jeu.md'), flush=True)
     # preuves : 2e passe déterministe (même graine), on s'arrête à l'image du pire cas et on rend un gros plan
     choix = []

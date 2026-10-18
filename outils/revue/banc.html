@@ -165,7 +165,7 @@ const VUES = {
   mainG: { az: 70, el: 10, dist: 0.8, os: 'LeftHand' }, mainGdessous: { az: 40, el: -35, dist: 0.8, os: 'LeftHand' }, mainGcote: { az: -80, el: 10, dist: 0.8, os: 'LeftHand' },
   poignetD: { az: -150, el: -10, dist: 0.6, os: 'RightHand' }, poignetG: { az: 150, el: -10, dist: 0.6, os: 'LeftHand' },
   armeD: { az: -90, el: 5, dist: 1.1, os: 'RightHand', sansCorps: 1 }, armeG: { az: 90, el: 5, dist: 1.1, os: 'RightHand', sansCorps: 1 },
-  pieds: { az: -60, el: 18, dist: 1.5, y: 0.12 }, semelles: { az: 0.01, el: -89, dist: 1.8, y: 0.05 }, /* (vue de dessous : le sol n'est visible que de dessus) */ piedsFace: { az: 0, el: 4, dist: 1.6, y: 0.18 }, piedsProfil: { az: -90, el: 3, dist: 1.6, y: 0.18 },
+  pieds: { az: -60, el: 18, dist: 1.5, y: 0.12 }, semelles: { az: 0.01, el: -89, dist: 1.8, y: 0.05 }, piedsDessus: { az: 0, el: 62, dist: 1.3, y: 0.05 }, piedsZenith: { az: 0.01, el: 89, dist: 1.2, y: 0.05, sansCorps: 1 }, /* (vue de dessous : le sol n'est visible que de dessus) */ piedsFace: { az: 0, el: 4, dist: 1.6, y: 0.18 }, piedsProfil: { az: -90, el: 3, dist: 1.6, y: 0.18 },
   tete: { az: -60, el: 8, dist: 0.9, os: 'Head' }, teteDessus: { az: -150, el: 40, dist: 0.9, os: 'Head' }, epaule: { az: -120, el: 15, dist: 0.85, os: 'RightShoulder' },
 };
 function placerCam(R, f, v) {
@@ -196,7 +196,7 @@ function planche(modele, etatId, opts) {
     c.f.group.updateMatrixWorld(true); if (!c.f.group.parent) R.sc.add(c.f.group);
     const m = REVUE.mesurer(c.f, { cible: c.p.vise ? c.cible : null, vel: c.vel });
     const pts = opts.marques ? [[m.detente, 0xffdd00], [m.poignee, 0x33ff66], [c.f.weapon && c.f.weapon.forePt && c.f.weapon.localToWorld(c.f.weapon.forePt.clone()), 0x33ccff], [m.creux, 0xff33cc, 0.012], [m.crosse, 0xff8800, 0.01],
-      [m.oeil, 0xffffff, 0.006], [m.talonG, 0xff3333, 0.012], [m.planteG, 0xff3333, 0.012], [m.boutG, 0xff3333, 0.012], [m.talonD, 0x3399ff, 0.012], [m.planteD, 0x3399ff, 0.012], [m.boutD, 0x3399ff, 0.012]] : [];
+      [m.oeil, 0xffffff, 0.006], ...[0.06, 0.12, 0.18, 0.24, 0.3].flatMap(k => [[m.talonG && m.axeG && m.talonG.clone().addScaledVector(m.axeG, k).setY(0.01), 0xffaa00, 0.008], [m.talonD && m.axeD && m.talonD.clone().addScaledVector(m.axeD, k).setY(0.01), 0x00ffaa, 0.008]]), [m.talonG, 0xff3333, 0.012], [m.planteG, 0xff3333, 0.012], [m.boutG, 0xff3333, 0.012], [m.talonD, 0x3399ff, 0.012], [m.planteD, 0x3399ff, 0.012], [m.boutD, 0x3399ff, 0.012]] : [];
     marquer(R, pts);
     vues.forEach((vn, j) => { const V0 = VUES[vn]; placerCam(R, c.f, V0); if (V0.sansCorps) c.f.body.visible = false; R.r.render(R.sc, R.cam); c.f.body.visible = true; cx.drawImage(R.r.domElement, gauche + j * tw, ent + 16 + k * th); });
     cx.fillStyle = '#eee'; cx.fillText('t=' + t.toFixed(2) + 's', 4, ent + 16 + k * th + 14); cx.fillText((c.f.clip || '').slice(0, 11), 4, ent + 16 + k * th + 28);

@@ -15,7 +15,7 @@ from verrou import verrou
 from playwright.async_api import async_playwright
 
 RACINE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-URL = 'http://127.0.0.1:8765/outils/revue/banc.html'
+URL = os.environ.get('REVUE_URL', 'http://127.0.0.1:8765/outils/revue/banc.html')   # (REVUE_URL : banc d'une autre copie du projet, ex. une ancienne version servie ailleurs)
 GL = ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"]
 if os.path.isdir('/opt/pw-browsers'): os.environ.setdefault('PLAYWRIGHT_BROWSERS_PATH', '/opt/pw-browsers')   # (conteneur Linux seulement ; ailleurs : chemin par défaut de Playwright)
 
