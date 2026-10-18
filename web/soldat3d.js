@@ -1374,7 +1374,8 @@
           const Aw = cible.clone().sub(WP(B.la)).normalize(), qP = new THREE.Quaternion().setFromRotationMatrix(base(Aw, fw.clone().negate().addScaledVector(lat, -1)).multiply(base(mid.position.clone(), Dl.N).transpose()));
           // au puits : la main peut tourner autour de l'axe du chargeur ; on la tourne pour qu'elle prolonge le bras (poignet droit)
           { const A = mid.position.clone().normalize().applyQuaternion(tq), F = cible.clone().sub(WP(B.la)).normalize(), a1 = A.addScaledVector(down, -A.dot(down)), f1 = F.addScaledVector(down, -F.dot(down));
-            if (a1.lengthSq() > 1e-4 && f1.lengthSq() > 1e-4) { a1.normalize(); f1.normalize(); const ang = Math.max(-1.2, Math.min(1.2, Math.atan2(new THREE.Vector3().crossVectors(a1, f1).dot(down), a1.dot(f1))));
+            if (a1.lengthSq() > 1e-4 && f1.lengthSq() > 1e-4) { a1.normalize(); f1.normalize(); let ang = Math.max(-1.2, Math.min(1.2, Math.atan2(new THREE.Vector3().crossVectors(a1, f1).dot(down), a1.dot(f1))));
+              const pr = this.angPuits !== undefined && this.t - this.tPuits < 0.2 ? this.angPuits : ang; ang = pr + Math.max(-0.04, Math.min(0.04, ang - pr)); this.angPuits = ang; this.tPuits = this.t;
               tq.premultiply(new THREE.Quaternion().setFromAxisAngle(down, ang)); } }
           this.poserBras('L', B.la, B.lf, B.lh, cible, qP.slerp(tq, ins), w, Dl); }
         else ik(B.la, B.lf, B.lh, T.sub(palm).multiplyScalar(w));
