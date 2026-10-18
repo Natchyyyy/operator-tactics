@@ -1,6 +1,8 @@
 # Version allégée (niveau de détail « loin ») d'un personnage HD : maillage simplifié par gltfpack (articulations et poids
 # gardés), puis on ne garde que ce qui sert au jeu : le maillage, la peau (os + matrices inverses de liaison) et les nœuds.
 # Pas de textures, matériaux ni animations : soldat3d.js lie ce maillage au squelette et au matériau du modèle HD déjà chargé.
+# (coordonnées de texture en flottants : -vtf ; quantifiées, gltfpack les recale par une transformation de texture portée
+# par le matériau, que l'on retire ici)
 # usage : python3 outils/lod_skin.py entree_hd.glb sortie_lod.glb --ratio 0.33 [--gltfpack /chemin/gltfpack]
 import json, struct, subprocess, tempfile, os, argparse
 ap = argparse.ArgumentParser(); ap.add_argument('src'); ap.add_argument('dst'); ap.add_argument('--ratio', type=float, default=0.33)
@@ -8,7 +10,7 @@ ap.add_argument('--gltfpack', default='/home/claude/meshoptimizer/gltfpack'); a 
 def lire(p):
     b = open(p, 'rb').read(); L = struct.unpack('<I', b[12:16])[0]; return json.loads(b[20:20 + L]), b[20 + L + 8:]
 tmp = tempfile.mktemp(suffix='.glb')
-subprocess.run([a.gltfpack, '-i', a.src, '-o', tmp, '-si', f'{a.ratio:.4f}', '-kn'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+subprocess.run([a.gltfpack, '-i', a.src, '-o', tmp, '-si', f'{a.ratio:.4f}', '-kn', '-vtf'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 j, b0 = lire(tmp); os.remove(tmp)
 out = bytearray(); views = []; remap = {}
 def push(data):

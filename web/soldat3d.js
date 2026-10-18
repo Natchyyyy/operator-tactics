@@ -29,7 +29,7 @@
   const GLISSE = 0.03;
   // à genou : hauteur du genou arrière posé (os, m), de sa cheville (pointe du pied au sol), cheville du pied avant à plat
   const GENOU = { genou: 0.075, cheville: 0.13, chevilleAv: 0.15 };
-  const TROT = { s: 0.38, hs: 0.4, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
+  const TROT = { s: 0.38, hs: 0.5, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
   const PENCHE = 0.21;
   // visée : angle (rad) entre la ligne des épaules et la face (0 = carré, ~1,3 = de profil comme les visées Mixamo), voir penche()
@@ -1106,8 +1106,12 @@
         const gy = group.getWorldPosition(V()).y, so = [semW(0), semW(1)], bas = (s) => Math.min(s.talon.y, s.plante.y, s.bout.y) - gy;
         pieds.forEach(([up, lo, ft], i) => {
           const L = Lk[i], S = so[i], h = bas(S), hT = S.talon.y - gy, hP = Math.min(S.plante.y, S.bout.y) - gy;
-          // appui : semelle à moins de 3 cm du sol et plus basse que l'autre ; pivot : talon posé → talon, sinon la plante
-          const appui = h < 0.03 && h <= bas(so[1 - i]) + 0.02;
+          // vitesse (monde) du pied tel que l'animation le place : un pied d'appui est presque immobile au sol, un pied en l'air
+          // qui passe près du sol avance à 2-3 fois la vitesse du corps (il ne doit pas être cloué en plein pas)
+          const vA = L.pA && dt > 0 ? Math.hypot(S.plante.x - L.pA.x, S.plante.z - L.pA.z) / dt : 0; L.pA = S.plante.clone();
+          // appui : semelle à moins de 3 cm du sol, plus basse que l'autre, et pied (presque) immobile ; pivot : talon posé →
+          // talon, sinon la plante
+          const appui = h < 0.03 && h <= bas(so[1 - i]) + 0.02 && (L.piv || vA < 1.1);
           const piv = !actif ? null : appui && hT < 0.02 ? 'A' : appui ? 'T' : (L.piv && h < 0.05 ? L.piv : null);
           if (piv) {
             const P = piv === 'A' ? S.talon : S.plante;
@@ -1504,7 +1508,13 @@
         // (sans prise à deux mains dans l'animation : le fusil reste dans la main droite comme à la dernière prise)
         if ((!two || pk < 0.999) && this.handLocal.droite && M.prise && !S.sansPrise) { const qS = new THREE.Quaternion(), pS = V(); new THREE.Matrix4().multiplyMatrices(rh.matrixWorld, this.handLocal.droite).premultiply(inv).decompose(pS, qS, V());
           const k2 = two ? pk : 0; weapon.quaternion.copy(qS.slerp(weapon.quaternion, k2)); pos.copy(pS.lerp(pos, k2)); }
-        if (procW > 0.01) { const Pp = this.poseArme(loc, inv), w = procW * (M.prise && !S.sansPrise ? pk : 1); weapon.quaternion.slerp(Pp.q, w); pos.lerp(Pp.p, w); }
+        if (procW > 0.01) { const Pp = this.poseArme(loc, inv);
+          // position lissée (ressort ~0,1 s, repère du groupe) : le fusil n'encaisse pas tout le rebond des pas (les bras l'absorbent)
+          if (this.tPose !== undefined && this.t > this.tPose && this.pArme && !S.sansLisse) { const dtp = Math.min(0.1, this.t - this.tPose), w0 = 11, e = Pp.p.clone().sub(this.pArme), a = e.multiplyScalar(w0 * w0).addScaledVector(this.vArme, -2 * w0);
+            this.vArme.addScaledVector(a, dtp); this.pArme.addScaledVector(this.vArme, dtp); if (this.pArme.distanceTo(Pp.p) > 0.08) { this.pArme.copy(Pp.p); this.vArme.set(0, 0, 0); } Pp.p.copy(this.pArme); }
+          else if (this.tPose !== this.t || !this.pArme) { this.pArme = Pp.p.clone(); this.vArme = V(); }
+          this.tPose = this.t;
+          const w = procW * (M.prise && !S.sansPrise ? pk : 1); weapon.quaternion.slerp(Pp.q, w); pos.lerp(Pp.p, w); }
         barrel.set(0, 0, 1).applyQuaternion(weapon.quaternion);
         weapon.position.copy(pos).addScaledVector(barrel, -(recoil || 0) * 0.04);
         // mains à leur place sur le fusil, doigts refermés dessus (voir calculerPrise) ; index sur la détente en tir

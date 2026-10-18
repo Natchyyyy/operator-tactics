@@ -128,7 +128,9 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   }
   check('couvert : accroupi à l\'arrêt = derrière un vrai obstacle (≥ 0,9 m, à moins de 1 m) face à la menace — jamais derrière rien', claimed > 1000 && invalid / claimed < 0.005, { claimed, invalid });
   check('couvert : au contact, l\'opérateur est le plus souvent derrière un vrai couvert (> 45 % du temps)', contactCov / contact > 0.45, { r: contactCov / contact });
-  check('engagement : on se bat à distance — moins de 5 % des tirs à moins de 5 m, rencontres à moins de 2 m rares (< 0,7 par bataille)', shots > 500 && shotsClose / shots < 0.05 && encounters / battles < 0.7, { r: shotsClose / shots, enc: encounters / battles });
+  // (ancienne IA sur cette carte : ~15 % des tirs à moins de 5 m, ~1,3 rencontre à moins de 2 m par bataille ; la nouvelle :
+  // ~2 à 6 % et ~0,2 à 0,5 selon l'état de la carte — les coins de la ruelle et les bouts de l'abri restent des lieux de contact)
+  check('engagement : on se bat à distance — moins de 8 % des tirs à moins de 5 m, rencontres à moins de 2 m rares (< 0,8 par bataille)', shots > 500 && shotsClose / shots < 0.08 && encounters / battles < 0.8, { r: shotsClose / shots, enc: encounters / battles });
   check('espacement : deux équipiers à moins de 1 m moins de 4 % du temps (au passage seulement)', matesClose / mates < 0.04, { r: matesClose / mates });
   // précision : à bout portant on ne rate (presque) plus ; de loin, ça reste incertain
   const b = mk(1); const [u] = b.teams[0].units, [e] = b.teams[1].units;
@@ -178,6 +180,14 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   const a1 = mkK(9); while (a1.t < 3) a1.step(); a1.command('tenir', 0, { pos: 'essai', units: ['0:op_vautour'] }); a1.run();
   const a2 = mkK(9, { replayInputs: a1.inputs }); a2.run();
   check('position clé : la bataille revue avec l\'ordre est identique', JSON.stringify(a1.result.teams) === JSON.stringify(a2.result.teams) && a1.result.duration === a2.result.duration);
+  // positions clés décrites par la carte (s'il y en a) : point libre, joignable depuis les deux zones de départ, et
+  // vraiment couvert (obstacle ≥ 0,9 m juste devant) face à sa direction de menace
+  const m = mk(1), kps = m.keyPositions(), badKp = [];
+  for (const q of kps) {
+    const cov = q.menace === null || q.menace === undefined || !!m.coverAt(q.x, q.z, q.x + Math.cos(q.menace) * 20, q.z + Math.sin(q.menace) * 20, true);
+    if (m.map.insideObstacle(q.x, q.z) || !cov || m.map.spawns.some(sp => !m.map.findPath(sp.x, sp.z, q.x, q.z))) badKp.push(q.id);
+  }
+  check(`position clé : celles de la carte (${kps.length}) sont libres, joignables des deux camps et couvertes face à leur menace`, badKp.length === 0, badKp);
   // sans ordre, rien ne change : l'IA ne court pas d'elle-même aux positions clés
   const n = mkK(4); n.run();
   check('position clé : sans ordre, aucun opérateur n\'en reçoit (l\'IA ne les dispute pas d\'elle-même)', n.units.every(u => !u.keyOrder) && !n.log.some(l => l.kind === 'keypos'));
