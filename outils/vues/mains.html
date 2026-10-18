@@ -27,7 +27,7 @@ const LISTE = (q.get('poses') || 'gb,vise,mvise,mbas,cvise,cbas,acc,macc').split
 const ISO = { centre: new THREE.Vector3(0, -99, 0), u: { value: 1e3 }, set rayon(v) { this.u.value = v; } };
 const DOIGTS = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'];
 OT.Soldat3D.whenReady(() => {
-  if (q.get('sans') === '1') OT.Soldat3D.sansPrise = true;
+  if (q.get('sans') === '1') { OT.Soldat3D.sansPrise = true; OT.Soldat3D.sansProc = true; }
   const NUM = q.get('num') === '1', W = C * 8, H = C * LISTE.length;
   const r = NUM ? null : new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   if (r) { r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; r.autoClear = false; document.body.prepend(r.domElement); }
