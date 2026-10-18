@@ -1502,11 +1502,23 @@
       // zigzags du chemin ne font plus pivoter le soldat dans tous les sens) ; un saut > 4 m/s est un replacement, ignoré
       const an = m.anim, vdx = (m.cur.x - m.prev.x) / DT, vdz = (m.cur.z - m.prev.z) / DT, vinst = Math.hypot(vdx, vdz);
       const kv = vinst > 4 ? 0 : Math.min(1, frameDt * 9); an.vx = (an.vx || 0) + (vdx - (an.vx || 0)) * kv; an.vz = (an.vz || 0) + (vdz - (an.vz || 0)) * kv;
-      let want = -m.cur.facing + Math.PI / 2;
-      if (u.alive && !u.target && !u.preaim && u.moving && vinst > 0.3 && Math.hypot(an.vx, an.vz) > 0.3) want = -Math.atan2(an.vz, an.vx) + Math.PI / 2;
-      if (m.yaw === undefined || !isFinite(m.yaw)) m.yaw = want;
-      if (u.alive) { let d = want - m.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
-        const maxStep = 5.5 * frameDt; m.yaw += Math.max(-maxStep, Math.min(maxStep, d * Math.min(1, frameDt * 10))); }
+      // orientation voulue : celle de la simulation, interpolée entre ses pas comme la position (elle change par paliers de
+      // ~11° toutes les 0,1 s), avec sa vitesse de rotation ; sans cible en marchant : la direction du déplacement
+      const fp = m.prev.facing !== undefined ? m.prev.facing : m.cur.facing; let dfa = m.cur.facing - fp; while (dfa > Math.PI) dfa -= 2 * Math.PI; while (dfa < -Math.PI) dfa += 2 * Math.PI;
+      let want = -(fp + dfa * alpha) + Math.PI / 2, wv = Math.abs(dfa) < 1.2 ? -dfa / DT : 0;
+      if (u.alive && !u.target && !u.preaim && u.moving && vinst > 0.3 && Math.hypot(an.vx, an.vz) > 0.3) { want = -Math.atan2(an.vz, an.vx) + Math.PI / 2; wv = 0; }
+      if (m.yaw === undefined || !isFinite(m.yaw)) { m.yaw = want; m.yawV = 0; }
+      if (u.alive && frameDt > 0) {
+        // ressort amorti critique (« SmoothDamp ») avec anticipation de la vitesse voulue : rotation continue en vitesse (plus
+        // d'à-coups du bassin, de la tête et de l'arme à chaque palier), retard < 1° sur une rotation régulière (les tirs restent
+        // alignés), vitesse plafonnée à 8 rad/s
+        const ST = 0.09, om = 2 / ST, x = om * frameDt, ex = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+        const y0 = m.yaw; m.yaw += wv * frameDt;
+        let ch = m.yaw - want; while (ch > Math.PI) ch -= 2 * Math.PI; while (ch < -Math.PI) ch += 2 * Math.PI;
+        const v0 = (m.yawV || 0) - wv, tmp = (v0 + om * ch) * frameDt, v1 = (v0 - om * tmp) * ex;
+        let ny = want + (ch + tmp) * ex, dy = ny - y0; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI;
+        const lim = 8 * frameDt; dy = Math.max(-lim, Math.min(lim, dy)); m.yaw = y0 + dy; m.yawV = Math.max(-8, Math.min(8, v1 + wv));
+        if (m.yaw > Math.PI) m.yaw -= 2 * Math.PI; else if (m.yaw < -Math.PI) m.yaw += 2 * Math.PI; }
       else if (m.anim.fallYaw !== undefined && (m.anim.deadT || 0) < 1.4) { let d = m.anim.fallYaw - m.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; m.yaw += Math.max(-2.5 * frameDt, Math.min(2.5 * frameDt, d)); }
       m.group.rotation.y = m.yaw;
       animateOperator(u, m, frameDt);

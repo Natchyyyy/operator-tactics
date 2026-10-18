@@ -43,11 +43,16 @@ python3 outils/revue/revue.py planche --etat patrouille --vues face,profil,dessu
 python3 outils/revue/jeu.py --pas 900 --preuves 6 --sortie captures/revue/jeu_NOM
 ```
 - Ce que ça donne : quelle part du temps chaque état occupe vraiment (et à quelle vitesse, avec quelle animation), les mêmes mesures sur chaque soldat et chaque image, et des gros plans rendus des pires cas (2e passe identique grâce à la graine).
+- `--alarmes 10` : dès qu'une image dépasse un seuil « majeur » instantané (pied dans le sol, jambes qui se traversent, doigts dans l'arme, poignet cassé, canon hors cible, tête hors de l'axe, canon en travers, canon sur soi, arme dans le torse, torsion), un gros plan (face + côté) est rendu sur l'image même : `jeu_NOM/alarmes/*.jpg`. Pas de 2e passe nécessaire.
 - Toujours commencer par la **répartition** : les plaintes du joueur portent sur ce qu'il voit le plus souvent.
   - Exemple : la « marche de patrouille » était en fait un petit trot à 2 m/s, présent 34 % du temps.
   - Exemple : la couverture (accroupi) occupait 24 % du temps.
 
 ### 4. Écrire la liste pour l'animateur
+```
+python3 outils/revue/liste.py captures/revue/NOM/rapport.json --partie haut --top 10 [--avant captures/revue/ANCIEN/rapport.json]
+```
+(`--partie bas` pour la locomotion ; `--avant` met les RÉGRESSIONS en tête et donne « avant → maintenant » pour chaque état.)
 Une liste par personne (haut du corps / bas du corps), **les pires défauts en premier**. Pour chaque défaut :
 - l'état et le modèle concernés ;
 - la valeur mesurée et la zone attendue ;
@@ -76,12 +81,18 @@ python3 outils/revue/revue.py comparer captures/revue/NOM/rapport.json captures/
 - **Tête** : regarde là où pointe l'arme ; stabilisée mais pas soudée (bouge un peu à chaque pas).
 - **Fluidité** : aucun pic d'accélération angulaire (saccade d'une image) ; transitions sans pied qui patine.
 
+## Machine puissante (PC de l'utilisateur)
+Si une machine avec une vraie carte graphique fait tourner le banc (ici : le PC de l'utilisateur, toutes les ~25 min sur `origin/main`, ~20 s par revue complète), lire ses résultats plutôt que de tout relancer en rendu logiciel :
+`git fetch -q origin pc-resultats && git show origin/pc-resultats:resultats/DERNIER.md` puis `resultats/<cycle>/revue/rapport.md|json`, `apercu_gign.jpg`, `preuves/`. Elle ne voit que ce qui est commité sur main.
+
 ## Pièges
 - **Une mesure n'est pas une preuve** : capsules, creux d'épaule, œil et détente sont des estimations. Toujours regarder l'image avant d'envoyer un défaut, et dire « estimé » quand c'en est un.
 - **Noms d'os** : dans les modèles Meshy, les doigts sont souvent mal nommés. On les reconnaît par leur position (le pouce est le plus près du poignet).
 - **Banc ≠ jeu** : le banc choisit les vitesses. Vérifier avec `jeu.py` les vitesses et états réels, sinon on corrige une démarche que personne ne voit.
 - **Instants de planche** : éviter de prendre des instants espacés d'un cycle exact, sinon on voit deux fois la même pose.
 - **Machine partagée** : une seule capture à la fois, petites tailles (200-300 px par case).
+- **Comparer des pommes avec des pommes** : si on a corrigé une MESURE (pas l'animation) entre deux revues, `comparer` / `--avant` montrent de fausses régressions ou améliorations. Noter la version des mesures (date de metriques.js / rubrique.py) avec chaque rapport.
+- **Garder la ligne de commande stable** : d'autres machines lancent le banc automatiquement ; une vue ou un état mal défini ne doit pas tout arrêter (les échecs par état sont listés dans « ÉCHECS » du rapport, la revue continue).
 - **Ne pas sur-noter** : un faux positif répété fait perdre la confiance de l'animateur. Retirer ou corriger le critère tout de suite.
 
 ## Adapter à Unreal Engine 5

@@ -351,12 +351,12 @@
 
   // ---- Pas de simulation (une fois par image) ----------------------------------------------------------------------------
   const _v = root.THREE ? new THREE.Vector3() : null, _q = root.THREE ? new THREE.Quaternion() : null;
-  let tReel = 0; const manuel = (() => { try { return /[?&]manual=1/.test(location.search); } catch (e) { return false; } })();
+  let tReel = 0, dtFin = 0; const manuel = (() => { try { return /[?&]manual=1/.test(location.search); } catch (e) { return false; } })();
   R.etape = function (dt, battle) {
     if (battle && battle !== battleRef) { reinit(); battleRef = battle; }
     // bataille finie : le jeu s'arrête (dt = 0) pendant la bannière et le plan final ; les corps finissent de tomber au
     // ralenti (comme le plan final), en temps réel — sauf en mode manuel (captures reproductibles)
-    if (!(dt > 0) && battle && battle.over && !manuel) { const now = performance.now(); dt = tReel ? Math.min(0.05, (now - tReel) / 1000) * 0.4 : 0; tReel = now; } else tReel = 0;
+    if (!(dt > 0) && battle && battle.over && !manuel) { const now = performance.now(); dt = tReel ? Math.min(0.05, (now - tReel) / 1000) * 0.4 : 0; tReel = now; dtFin = dt; } else { tReel = 0; dtFin = 0; }
     if (!W || !(dt > 0)) return;
     let n = 0; for (const r of ragdolls) if (!r.fige) n++;
     R.stats.actifs = n; if (!n) return;
@@ -461,8 +461,10 @@
     if (u.alive) { liberer(m); return false; }
     if (r.etat === 'attente') {
       if (!R.dispo()) { m.rag = null; if (r.flaque) r.flaque(u.x, u.z); return false; }
-      r.attente -= dt;
-      if (r.attente > 0) { m.update(dt, false); m.placeWeapon(true, 0, 'deux'); return true; }
+      // (le dernier mort d'une bataille : le jeu est arrêté, dt = 0 ; on avance au ralenti comme etape)
+      const da = dt > 0 ? dt : dtFin;
+      r.attente -= da;
+      if (r.attente > 0) { m.update(da, false); m.placeWeapon(true, 0, 'deux'); return true; }
       if (!demarrer(u, m)) return false;
     }
     if (r.etat === 'physique' && r.erreur) {   // abandon : os remis dans la pose de la mort, animation de chute

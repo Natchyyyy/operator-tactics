@@ -18,7 +18,7 @@ INIT = "(() => { let s = 123456789; Math.random = () => { s = (s * 1103515245 + 
 
 # Échantillonneur injecté dans la page : remplace le rendu (RENDU.render) — appelé à chaque image APRÈS l'animation.
 ECH = r"""
-window.ECH = { img: 0, cat: {}, seg: {}, fin: [], pires: [], actif: true, garde: 1.0 };
+window.ECH = { img: 0, cat: {}, seg: {}, fin: [], pires: [], actif: true, garde: 1.0, alarmes: [], vus: {}, maxAlarmes: 0 };
 (() => {
   const E = window.ECH, R = API.rendu(), DT = 0.1;
   const catOf = (u, m) => {
@@ -51,6 +51,9 @@ window.ECH = { img: 0, cat: {}, seg: {}, fin: [], pires: [], actif: true, garde:
       const cible = tgt ? new THREE.Vector3(tgt.x, 1.35, tgt.z) : null;
       const mm = REVUE.mesurer(m, { cible: k.vise ? cible : null, vel: new THREE.Vector3((m.cur.x - m.prev.x) / DT, 0, (m.cur.z - m.prev.z) / DT) });
       s2.suivi.ajouter(mm, 1 / 30, { img: E.img, clip: m.clip, v: +k.v.toFixed(2) });
+      // alarmes instantanées (seuils « majeur » de la rubrique) : gros plan rendu TOUT DE SUITE (pas de 2e passe)
+      if (E.alarmes.length < E.maxAlarmes) for (const [id, t] of E.TESTS) { let x; try { x = t(mm, k); } catch (e) { x = null; } if (x === null || x === false || x === undefined) continue;
+        const cle = k.c + '|' + id; if (E.vus[cle]) continue; E.vus[cle] = 1; E.capturer(u, m, { id, cat: k.c, val: +(+x).toFixed(3), img: E.img, cs: u.callsign }); break; }
     }
   };
   // bilan d'un segment (≥ 0,6 s) : mêmes champs que le banc → notable par rubrique.py
@@ -64,6 +67,29 @@ window.ECH = { img: 0, cat: {}, seg: {}, fin: [], pires: [], actif: true, garde:
     }
     return out;
   };
+  const doigts = (mm) => Math.min(...['D', 'G'].flatMap(s => ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'].map(d => mm['doigt' + s + d])).filter(v => typeof v === 'number'));
+  // [id, test] : renvoie la valeur fautive ou null
+  E.TESTS = [
+    ['pied_dans_sol', (mm) => { const v = Math.min(mm.solMinG, mm.solMinD); return v < -0.05 ? v : null; }],
+    ['tibias_se_touchent', (mm) => mm.tibias < -0.035 ? mm.tibias : null],
+    ['doigts_dans_arme', (mm, k) => !/recharge|lancer/.test(k.c) && doigts(mm) < -0.012 ? doigts(mm) : null],
+    ['poignets', (mm, k) => !/lancer/.test(k.c) && Math.max(mm.poignetD || 0, mm.poignetG || 0) > 72 ? Math.max(mm.poignetD, mm.poignetG) : null],
+    ['erreur_visee', (mm, k) => k.vise && !/recharge|lancer/.test(k.c) && mm.erreurVisee > 9 ? mm.erreurVisee : null],
+    ['tete_vs_canon', (mm, k) => k.vise && !/recharge|lancer/.test(k.c) && Math.abs(mm.teteVsCanon) > 22 ? mm.teteVsCanon : null],
+    ['garde_basse_direction', (mm, k) => !k.vise && k.v > 0.3 && !/recharge|lancer/.test(k.c) && Math.abs(mm.canonVsDep) > 50 ? mm.canonVsDep : null],
+    ['bouche_sur_soi', (mm, k) => !/lancer/.test(k.c) && mm.boucheSurSoi < 0 ? mm.boucheSurSoi : null],
+    ['arme_dans_corps', (mm) => mm.armeTronc < -0.045 ? mm.armeTronc : null],
+    ['torsion', (mm) => Math.abs(mm.torsion) > 62 ? mm.torsion : null],
+  ];
+  const cv = () => document.querySelector('canvas');
+  E.capturer = (u, m, info) => {
+    const g = m.group.position, vues = [['face', Math.PI / 2 - m.yaw], ['cote', Math.atan2(Math.sin(m.yaw), -Math.cos(m.yaw))]];
+    info.images = [];
+    E.actif = false; E.dessin = true;
+    try { for (const [nom, yaw] of vues) { API.look(g.x, g.z, yaw, 0.22, 3.0, 0.9); const c = cv(); info.images.push([nom, c.toDataURL('image/jpeg', 0.85)]); } }
+    finally { E.actif = true; E.dessin = false; }
+    E.alarmes.push(info);
+  };
   E.orig = R.render; E.dessin = false;
   R.render = () => { if (E.actif) E.echant(); if (E.dessin) E.orig.call(R); };
 })();
@@ -73,7 +99,7 @@ async def main(a):
     out = os.path.join(RACINE, a.sortie or os.path.join('captures', 'revue', datetime.datetime.now().strftime('jeu_%m%d_%H%M'))); os.makedirs(out, exist_ok=True)
     url = f"http://127.0.0.1:8765/web/index.html?manual=1&mode=free&hd=0&fx=0"
     async def ouvrir(p, taille):
-        br = await p.chromium.launch(args=GL); pg = await br.new_page(viewport={'width': taille[0], 'height': taille[1]})
+        br = await p.chromium.launch(args=GL); pg = await br.new_page(viewport={'width': taille[0], 'height': taille[1]})   # (la taille du canvas = celle des gros plans)
         pg.on('pageerror', lambda e: errs.append(str(e)))
         await pg.add_init_script(INIT)
         with verrou('chargement du jeu'):
@@ -82,10 +108,11 @@ async def main(a):
             await pg.add_script_tag(path=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'metriques.js'))
             await pg.evaluate(f"API.start({{mapId: {json.dumps(a.carte)}, seed: {a.graine}, conditions: 'jour'}})")
             await pg.evaluate(ECH)
+            await pg.evaluate(f'ECH.maxAlarmes = {a.alarmes}')
         return br, pg
     errs = []
     async with async_playwright() as p:
-        br, pg = await ouvrir(p, (480, 300))
+        br, pg = await ouvrir(p, (520, 520))
         t0 = time.time(); fini = False; i = 0
         # blocs courts sous le verrou partagé (les autres agents passent entre deux blocs)
         while i < a.pas and not fini:
@@ -93,7 +120,7 @@ async def main(a):
             with verrou(): r = await pg.evaluate(f"(() => {{ for (let j = 0; j < {n}; j++) {{ if (API.battle().over) return 'fin'; API.stepFine({a.k}); }} return API.battle().t; }})()")
             i += n; fini = r == 'fin'
         print(f'simulation : {i} pas, {time.time() - t0:.0f} s' + (' (bataille finie)' if fini else ''), flush=True)
-        with verrou(): cat = await pg.evaluate('ECH.cat'); seg = await pg.evaluate('ECH.bilans()')
+        with verrou(): cat = await pg.evaluate('ECH.cat'); seg = await pg.evaluate('ECH.bilans()'); alarmes = await pg.evaluate('ECH.alarmes')
         await br.close()
     # notation par segment (rubrique du banc ; on associe la catégorie à l'état du banc le plus proche)
     MAP = {'patrouille_avant': 'patrouille', 'marche_visee_avant': 'marche_visee', 'marche_visee_diag': 'marche_visee_diagG', 'marche_visee_lateral': 'pas_chasse_G', 'marche_visee_diagArr': 'recul_diagD', 'marche_visee_recul': 'recul_vise',
@@ -121,9 +148,19 @@ async def main(a):
     for (c, i), g in sorted(agg.items(), key=lambda kv: -(kv[1]['majeur'] * 3 + kv[1]['mineur']) / max(1, kv[1]['n']) * cat.get(kv[0][0], {'n': 1})['n']):
         if g['majeur'] + g['mineur'] == 0: continue
         p = g['pire']; L.append(f"- **{c}** `{i}` ({g['partie']}) : {g['majeur']} majeurs + {g['mineur']} mineurs / {g['n']} segments ; pire {p['valeur']:.3g} ({p['cs']}, image {p['img0']}, attendu {g['ok']}) — {g['lib']}")
+    # gros plans pris pendant la simulation (alarmes instantanées)
+    if alarmes:
+        os.makedirs(os.path.join(out, 'alarmes'), exist_ok=True)
+        L += ['', '## Alarmes instantanées (gros plans pris sur l\'image même, pendant la bataille)', '']
+        for al in alarmes:
+            fs = []
+            for nom, url in al.pop('images', []):
+                f = os.path.join(out, 'alarmes', f"{al['img']:05d}_{al['cs']}_{al['id']}_{nom}.jpg"); open(f, 'wb').write(base64.b64decode(url.split(',', 1)[1])); fs.append(os.path.relpath(f, RACINE))
+            al['fichiers'] = fs
+            L.append(f"- {al['cat']} `{al['id']}` {al['cs']} image {al['img']} : {al['val']} → " + ', '.join(f'`{x}`' for x in fs))
     def ecrire():
         open(os.path.join(out, 'jeu.md'), 'w').write('\n'.join(L))
-        json.dump({'categories': cat, 'verdicts': [{k: v[k] for k in v if k not in ('quand',)} for v in verd]}, open(os.path.join(out, 'jeu.json'), 'w'), default=str)
+        json.dump({'categories': cat, 'alarmes': alarmes, 'verdicts': [{k: v[k] for k in v if k not in ('quand',)} for v in verd]}, open(os.path.join(out, 'jeu.json'), 'w'), default=str)
     ecrire(); print(os.path.join(out, 'jeu.md'), flush=True)
     # preuves : 2e passe déterministe (même graine), on s'arrête à l'image du pire cas et on rend un gros plan
     choix = []
@@ -158,5 +195,5 @@ async def main(a):
     if errs: print('erreurs de page :', errs[:5])
 
 ap = argparse.ArgumentParser(); ap.add_argument('--carte', default='parking'); ap.add_argument('--graine', type=int, default=3); ap.add_argument('--pas', type=int, default=900)
-ap.add_argument('--k', type=int, default=3); ap.add_argument('--bloc', type=int, default=60); ap.add_argument('--sortie'); ap.add_argument('--preuves', type=int, default=0)
+ap.add_argument('--k', type=int, default=3); ap.add_argument('--bloc', type=int, default=60); ap.add_argument('--alarmes', type=int, default=10); ap.add_argument('--sortie'); ap.add_argument('--preuves', type=int, default=0)
 asyncio.run(main(ap.parse_args()))

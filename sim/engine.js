@@ -808,7 +808,7 @@
         let occupied = false;
         for (const a of this.alliesOf(u)) if (a.alive && a.post && Math.hypot(a.post.x - cp.x, a.post.z - cp.z) < 2.5) { occupied = true; break; }
         if (occupied) continue;
-        const sc = this.map.openness(cp.x, cp.z, dirx, 6) * 2 - dh * 0.15 + this.rng.next() * 0.05;
+        const sc = this.map.openness(cp.x, cp.z, dirx, 6) * 2 - dh * 0.4 + this.rng.next() * 0.05;   // « Tenir » : un poste PRÈS de là où l'on est
         if (sc > bs) { bs = sc; best = cp; }
       }
       if (!best && this.zone) { this.occupyZone(u, threatPos); return; }   // aucun couvert libre dans la zone : on s'y installe quand même
@@ -1014,7 +1014,9 @@
         if (!cover) {
           const postCovers = u.post && this.coverAt(u.post.x, u.post.z, threat.x, threat.z, true);
           if (postCovers && Math.hypot(u.post.x - u.x, u.post.z - u.z) > 1.2 && this.setGoal(u, u.post.x, u.post.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; }
-          if (!postCovers) { const cp = this.findCover(u, threat, 9, { minRange: u.weapon.minRange, requireShoot: true }) || this.findCover(u, threat, 9, { minRange: u.weapon.minRange }); if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.post = { x: cp.x, z: cp.z }; u.state = 'tocover'; u.stance = 'stand'; return; } }
+          // poste qui ne couvre pas de cette menace : on n'en change que sous le feu, et pas plus d'une fois toutes les 6 s
+          // (« Tenir » : on ne court pas d'un couvert à l'autre à chaque nouvel adversaire aperçu)
+          if (!postCovers && beingShot && this.t - (u.postAt || -99) > 6) { const cp = this.findCover(u, threat, 6, { minRange: u.weapon.minRange, requireShoot: true }) || this.findCover(u, threat, 6, { minRange: u.weapon.minRange }); if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.post = { x: cp.x, z: cp.z }; u.postAt = this.t; u.state = 'tocover'; u.stance = 'stand'; return; } }
         }
         this.stop(u);
         const teamEngaged = this.alliesOf(u).some(a => a.alive && (this.t - a.lastShotAt < 3 || this.t - a.lastShotByAt < 3)) || this.t - u.lastShotAt < 3;
