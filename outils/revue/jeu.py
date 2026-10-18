@@ -18,7 +18,7 @@ INIT = "(() => { let s = 123456789; Math.random = () => { s = (s * 1103515245 + 
 
 # Échantillonneur injecté dans la page : remplace le rendu (RENDU.render) — appelé à chaque image APRÈS l'animation.
 ECH = r"""
-window.ECH = { img: 0, cat: {}, seg: {}, fin: [], pires: [], actif: true, garde: 1.0, alarmes: [], vus: {}, maxAlarmes: 0 };
+window.ECH = { bandeN: 10, bande: null, img: 0, cat: {}, seg: {}, fin: [], pires: [], actif: true, garde: 1.0, alarmes: [], vus: {}, maxAlarmes: 0 };
 (() => {
   const E = window.ECH, R = API.rendu(), DT = 0.1;
   const catOf = (u, m) => {
@@ -51,6 +51,13 @@ window.ECH = { img: 0, cat: {}, seg: {}, fin: [], pires: [], actif: true, garde:
       const cible = tgt ? new THREE.Vector3(tgt.x, 1.35, tgt.z) : null;
       const mm = REVUE.mesurer(m, { cible: k.vise ? cible : null, vel: new THREE.Vector3((m.cur.x - m.prev.x) / DT, 0, (m.cur.z - m.prev.z) / DT) });
       s2.suivi.ajouter(mm, 1 / 30, { img: E.img, clip: m.clip, v: +k.v.toFixed(2) });
+      // bande de profil de la petite course (vérification visuelle systématique) : 1er soldat en jog_bas_avant depuis > 1 s,
+      // une vue de côté toutes les 2 images, 10 vues
+      if (E.bandeN > 0 && k.c === 'jog_bas_avant' && E.img - s2.i0 > 30 && (!E.bande || E.bande.u === u.id) && (!E.bande || E.bande.imgs.length < E.bandeN) && (!E.bande || E.img - E.bande.der >= 2)) {
+        if (!E.bande) E.bande = { u: u.id, cs: u.callsign, imgs: [], der: 0 };
+        E.bande.der = E.img; const g = m.group.position, yaw = Math.atan2(Math.sin(m.yaw), -Math.cos(m.yaw));
+        E.actif = false; E.dessin = true; try { API.look(g.x, g.z, yaw, 0.12, 2.6, 0.75); E.bande.imgs.push([E.img, cv().toDataURL('image/jpeg', 0.85), +mm.genouSensG.toFixed(0), +mm.genouSensD.toFixed(0)]); } finally { E.actif = true; E.dessin = false; }
+      }
       // alarmes instantanées (seuils « majeur » de la rubrique) : gros plan rendu TOUT DE SUITE (pas de 2e passe)
       if (E.alarmes.length < E.maxAlarmes) for (const [id, t] of E.TESTS) { let x; try { x = t(mm, k); } catch (e) { x = null; } if (x === null || x === false || x === undefined) continue;
         const cle = k.c + '|' + id; if (E.vus[cle]) continue; E.vus[cle] = 1; E.capturer(u, m, { id, cat: k.c, val: +(+x).toFixed(3), img: E.img, cs: u.callsign }); break; }
@@ -80,6 +87,7 @@ window.ECH = { img: 0, cat: {}, seg: {}, fin: [], pires: [], actif: true, garde:
     ['bouche_sur_soi', (mm, k) => !/lancer/.test(k.c) && mm.boucheSurSoi < 0 ? mm.boucheSurSoi : null],
     ['arme_dans_corps', (mm) => mm.armeTronc < -0.045 ? mm.armeTronc : null],
     ['torsion', (mm) => Math.abs(mm.torsion) > 62 ? mm.torsion : null],
+    ['genou_envers', (mm) => Math.max(mm.genouSensG || 0, mm.genouSensD || 0) > 100 ? Math.max(mm.genouSensG, mm.genouSensD) : null],
   ];
   const cv = () => document.querySelector('canvas');
   E.capturer = (u, m, info) => {
@@ -120,7 +128,7 @@ async def main(a):
             with verrou(): r = await pg.evaluate(f"(() => {{ for (let j = 0; j < {n}; j++) {{ if (API.battle().over) return 'fin'; API.stepFine({a.k}); }} return API.battle().t; }})()")
             i += n; fini = r == 'fin'
         print(f'simulation : {i} pas, {time.time() - t0:.0f} s' + (' (bataille finie)' if fini else ''), flush=True)
-        with verrou(): cat = await pg.evaluate('ECH.cat'); seg = await pg.evaluate('ECH.bilans()'); alarmes = await pg.evaluate('ECH.alarmes')
+        with verrou(): cat = await pg.evaluate('ECH.cat'); seg = await pg.evaluate('ECH.bilans()'); alarmes = await pg.evaluate('ECH.alarmes'); bande = await pg.evaluate('ECH.bande')
         await br.close()
     # notation par segment (rubrique du banc ; on associe la catégorie à l'état du banc le plus proche)
     MAP = {'patrouille_avant': 'patrouille', 'marche_visee_avant': 'marche_visee', 'marche_visee_diag': 'marche_visee_diagG', 'marche_visee_lateral': 'pas_chasse_G', 'marche_visee_diagArr': 'recul_diagD', 'marche_visee_recul': 'recul_vise',
@@ -158,6 +166,17 @@ async def main(a):
                 f = os.path.join(out, 'alarmes', f"{al['img']:05d}_{al['cs']}_{al['id']}_{nom}.jpg"); open(f, 'wb').write(base64.b64decode(url.split(',', 1)[1])); fs.append(os.path.relpath(f, RACINE))
             al['fichiers'] = fs
             L.append(f"- {al['cat']} `{al['id']}` {al['cs']} image {al['img']} : {al['val']} → " + ', '.join(f'`{x}`' for x in fs))
+    # bande de profil de la petite course : assemblée en une planche (PIL), valeur du sens des genoux sous chaque image
+    if bande and bande.get('imgs'):
+        from PIL import Image, ImageDraw
+        import io
+        ims = [(i, Image.open(io.BytesIO(base64.b64decode(u.split(',', 1)[1]))).convert('RGB'), g, d) for i, u, g, d in bande['imgs']]
+        w, h = ims[0][1].size; c = 260 / h; tw, th = int(w * c), 260
+        pl = Image.new('RGB', (tw * len(ims), th + 18), (20, 24, 28)); dr = ImageDraw.Draw(pl)
+        for j, (i, im, g, d) in enumerate(ims):
+            pl.paste(im.resize((tw, th)), (j * tw, 0)); dr.text((j * tw + 4, th + 3), f"img {i}  genoux G {g} D {d}", fill=(255, 80, 80) if max(g, d) > 100 else (220, 220, 220))
+        fb = os.path.join(out, 'bande_trot_profil.jpg'); pl.save(fb, quality=88)
+        L += ['', f"## Bande de profil de la petite course ({bande['cs']}) : `{os.path.relpath(fb, RACINE)}`", '']
     def ecrire():
         open(os.path.join(out, 'jeu.md'), 'w').write('\n'.join(L))
         json.dump({'categories': cat, 'alarmes': alarmes, 'verdicts': [{k: v[k] for k in v if k not in ('quand',)} for v in verd]}, open(os.path.join(out, 'jeu.json'), 'w'), default=str)

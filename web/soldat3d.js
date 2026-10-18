@@ -283,6 +283,19 @@
     const out = new THREE.AnimationClip(nom, best.p, tr.map((t, j) => new t.constructor(t.name, times, vals[j])));
     out.userData = { t1: best.t1, p: best.p, ecart: best.d }; return out;
   }
+  // Plan du genou (IK des jambes) : décalage du genou perpendiculaire à l'axe hanche → cheville, tel que le genou plie dans le
+  // sens ANATOMIQUE : vers l'avant du BASSIN (lat = axe hanche droite → hanche gauche). Test : (p × dir)·lat > 0.
+  // Avant, la règle suivait la direction des orteils : pied en arrière pointe en bas (talon relevé de la course), « l'avant »
+  // devenait l'arrière et le genou de la jambe arrière pliait à l'envers (patte d'oiseau). Si le genou est presque tendu, son
+  // plan est celui de l'avant du bassin ; s'il plie nettement vers l'arrière, il est retourné dans son plan ; s'il pointe sur
+  // le côté (ni avant ni arrière), on le laisse.
+  function planGenou(p, dir, lat, mini) {
+    const pl = p.length(), c = new THREE.Vector3();
+    if (pl < mini) { const f = new THREE.Vector3().crossVectors(lat, new THREE.Vector3(0, 1, 0)); f.addScaledVector(dir, -f.dot(dir)); if (f.lengthSq() > 1e-10) { f.normalize(); if (c.crossVectors(f, dir).dot(lat) < 0) f.negate(); return p.addScaledVector(f, mini - pl).normalize(); } }
+    if (pl < 1e-10) return p.set(0, 0, 1);
+    p.divideScalar(pl); if (c.crossVectors(p, dir).dot(lat) < -0.3) p.negate();
+    return p;
+  }
   // IK des jambes cuite dans un clip (30 clés/s) : pour chaque image, cible(i, H, A, Aq) donne la position monde voulue de
   // chaque cheville (A, Aq : cheville et orientation d'origine ; H : bassin) ; dyH(i) : montée du bassin (m, unités du
   // modèle). Genou dans son plan, pied gardant son orientation monde. Renvoie le nouveau clip (jambes seules) et l'erreur max.
@@ -310,8 +323,7 @@
         let c = S0.distanceTo(Tj); c = Math.min(Math.max(c, Math.abs(a - bb) + 1e-4), (a + bb) * 0.997);
         const dir = Tj.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - bb * bb) / (2 * a * c)));
         const p = E0.clone().sub(S0); p.addScaledVector(dir, -p.dot(dir));
-        if (!libre) { const fd = W(toes[j]).sub(W(ft)); fd.y = 0; fd.addScaledVector(dir, -fd.dot(dir)); if (fd.lengthSq() > 1e-8) { fd.normalize(); const pd = p.dot(fd), pl = p.length(); if (pd < 0) p.addScaledVector(fd, -pd + 0.02 * RAW_H / HEIGHT); else if (pl < 0.02 * RAW_H / HEIGHT) p.addScaledVector(fd, 0.02 * RAW_H / HEIGHT - pl); } }
-        if (p.lengthSq() < 1e-10) p.set(0, 0, 1); p.normalize();
+        { const lat = W(L[0][0]).sub(W(L[1][0])); lat.y = 0; lat.normalize(); planGenou(p, dir, lat, 0.02 * RAW_H / HEIGHT); }
         const E1 = S0.clone().addScaledVector(dir, a * cosA).addScaledVector(p, a * Math.sqrt(1 - cosA * cosA));
         turn(up, E0.clone().sub(S0), E1.sub(S0)); const E2 = W(lo); turn(lo, W(ft).sub(E2), Tj.clone().sub(E2));
         ft.quaternion.copy(WQ(ft.parent).invert().multiply(Aq[j])); ft.updateMatrixWorld(true);
@@ -926,9 +938,7 @@
       const a = S0.distanceTo(E0), b = E0.distanceTo(H0); let c = S0.distanceTo(T); c = Math.min(Math.max(c, Math.abs(a - b) + 1e-4), (a + b) * 0.993);
       const dir = T.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - b * b) / (2 * a * c)));
       const p = E0.clone().sub(S0); p.addScaledVector(dir, -p.dot(dir));
-      const fd = toe ? WP(toe).sub(H0) : new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())); fd.y = 0; fd.addScaledVector(dir, -fd.dot(dir));
-      if (fd.lengthSq() > 1e-8 && E0.y > H0.y + 0.05) { fd.normalize(); const pd = p.dot(fd), pl = p.length(); if (pd < -0.005) p.copy(fd); else if (pl < 0.015) p.addScaledVector(fd, 0.015 - pl); }   // (genou en arrière → vers l'avant ; presque tendu → plan des orteils ; sinon son plan d'origine)
-      if (p.lengthSq() < 1e-8) p.set(0, 0, 1); p.normalize();
+      { const lat = WP(pieds[0][0]).sub(WP(pieds[1][0])); lat.y = 0; if (lat.lengthSq() > 1e-8) planGenou(p, dir, lat.normalize(), 0.02); else p.normalize(); }
       const E1 = S0.clone().addScaledVector(dir, a * cosA).addScaledVector(p, a * Math.sqrt(1 - cosA * cosA));
       turn(up, E0.clone().sub(S0), E1.sub(S0)); const E2 = WP(lo); turn(lo, WP(ft).sub(E2), T.sub(E2));
       ft.quaternion.copy(WQ(ft.parent).invert().multiply(qF)); ft.updateMatrixWorld(true);

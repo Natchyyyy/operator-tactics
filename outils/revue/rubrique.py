@@ -25,6 +25,7 @@ ETIQ = {
     'jog_vise_lateralD': {'course', 'vise', 'lateral'},
     'jog_vise_recul': {'course', 'vise', 'recul'},
     'jog_bas_rapide': {'course', 'garde_basse', 'avant'},
+    'jog_bas_24': {'course', 'garde_basse', 'avant'},
     'accroupi': {'arret', 'accroupi', 'vise'},
     'marche_accroupie': {'marche', 'accroupi', 'vise', 'avant'},
     'recharge_arret': {'arret', 'recharge'},
