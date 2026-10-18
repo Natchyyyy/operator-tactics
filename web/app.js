@@ -939,8 +939,11 @@
     if (dirMarche || grace) { jambes = 0; a.recule = false; a.piedsYaw = m.yaw; }
     m.jambesCible = u.alive ? jambes : 0;
     m.verrouPieds = false;   // (loco() : pieds d'appui cloués et jamais croisés aussi hors marche directionnelle, voir Soldat3D.verrou)
-    const loco = (n) => { const nat = m.loco[n] || 1; m.play(n, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)), fade: 0.2 }); m.verrouPieds = true;
+    const loco = (n) => { const nat = m.loco[n] || 1; m.play(n, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)), fade: a.crT > 0 ? 0.42 : 0.2 }); m.verrouPieds = true;
       const act = m.mixer.existingAction(m.clips[n]); if (act) a.phase = act.time / (m.clips[n].duration || 1) * 2 * Math.PI; };   // phase des pas (sons)
+    // accroupi ↔ debout : fondu de 0,42 s (et non 0,25) : le buste descend de ~45 cm, c'est une vraie mise à genou
+    if (a.crouchVu !== undefined && a.crouchVu !== crouch) a.crT = 0.45; a.crouchVu = crouch; a.crT = Math.max(0, (a.crT || 0) - dt);
+    const fCr = (f) => a.crT > 0 ? 0.42 : f;
     let mode = 'deux', legs = false;
     if (!u.alive) {
       mode = (a.deadT = (a.deadT || 0) + dt) > 1.6 ? 'sol' : 'droite';
@@ -984,9 +987,9 @@
       else if (aiming || u.preaim) loco(v > 1.4 ? 'Run_and_Shoot' : 'Walk_Aim');          // ennemi connu : fusil épaulé
       else loco(v > 1.4 ? (m.clips.Run_Low ? 'Run_Low' : 'Run_and_Shoot') : (m.clips.Walk_Low ? 'Walk_Low' : 'Walk_Aim'));   // sinon garde basse
     }
-    else if (crouch) { if (m.clips.Accroupi_Vise) m.play(aiming ? 'Accroupi_Vise' : 'Accroupi_Bas', { time: 0, fade: 0.25 }); else m.play('Kneeling_Reload', { time: 0.06, fade: 0.25 }); }
-    else if (aiming || !m.clips.Garde_Basse) m.play('Rifle_Aim_Turn_Right', { time: 0, fade: 0.25 });
-    else m.play('Garde_Basse', { time: 0, fade: 0.3 });
+    else if (crouch) { if (m.clips.Accroupi_Vise) m.play(aiming ? 'Accroupi_Vise' : 'Accroupi_Bas', { time: 0, fade: fCr(0.25) }); else m.play('Kneeling_Reload', { time: 0.06, fade: fCr(0.25) }); }
+    else if (aiming || !m.clips.Garde_Basse) m.play('Rifle_Aim_Turn_Right', { time: 0, fade: fCr(0.25) });
+    else m.play('Garde_Basse', { time: 0, fade: fCr(0.3) });
     if (!legs) m.playLegs(null);
     if (u.alive) { m.ring.material.opacity = 0.55; a.deadT = 0; m.pose.position.y = 0; }
     // la tête regarde la cible (position affichée de son soldat) ; sans cible, Soldat3D fait de lents coups d'œil au repos

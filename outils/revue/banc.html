@@ -190,7 +190,7 @@ function planche(modele, etatId, opts) {
   vues.forEach((v, j) => cx.fillText(v, gauche + j * tw + 4, ent + 12));
   const R = rendu(tw, th); let k = 0; const info = [];
   jouer(modele, etatId, (img, t, c) => {
-    if (k >= inst.length || t < inst[k] - 1e-6) return;
+    if (k >= inst.length || t < inst[k] - 0.5 / FPS) return;   // (image la plus proche de l'instant demandé)
     c.f.group.updateMatrixWorld(true); if (!c.f.group.parent) R.sc.add(c.f.group);
     const m = REVUE.mesurer(c.f, { cible: c.p.vise ? c.cible : null, vel: c.vel });
     const pts = opts.marques ? [[m.detente, 0xffdd00], [m.poignee, 0x33ff66], [c.f.weapon && c.f.weapon.forePt && c.f.weapon.localToWorld(c.f.weapon.forePt.clone()), 0x33ccff], [m.creux, 0xff33cc, 0.012], [m.crosse, 0xff8800, 0.01],
