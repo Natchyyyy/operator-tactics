@@ -218,7 +218,7 @@
     add(q, new T.PlaneGeometry(2.9, 0.72), sm, 0, 3.75, 0.145);
     for (const s of [-1, 1]) { add(q, new T.BoxGeometry(0.12, 0.2, 0.12), alu, s * 1.85, 2.6, 0.08); add(q, new T.SphereGeometry(0.07, 10, 8), k.lampe, s * 1.85, 2.48, 0.12); }
     if (!LAMPES.includes(k.lampe)) LAMPES.push(k.lampe);
-    const L = new T.PointLight(0xffc98a, 6, 8, 2); L.position.set(0, 2.4, 1.6);   // petite flaque chaude devant la porte (1/d², pas de mur brûlé) L.visible = false; q.add(L); NUITS.push(L);
+    const L = new T.PointLight(0xffc98a, 3, 7, 2); L.position.set(0, 2.4, 1.6); L.visible = false; q.add(L); NUITS.push(L);   // petite flaque chaude devant la porte (1/d² : ≈ 0,5 au sol, pas de mur brûlé)
   }
   // petites plaques : rue (émail bleu, bord vert, lettres blanches) et interdiction de stationner (blanc, bord rouge)
   function plateTex(kind, l1, l2) {
