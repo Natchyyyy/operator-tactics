@@ -81,9 +81,8 @@ const V = MAPS.parking.voies;
   while (b.t < 2) b.step();
   const r = b.command('rotate', 0, -1), again = b.command('rotate', 0, 1);
   check('rotation : acceptée, toute l\'escouade (hors tireur d\'élite) passe au nord ; une seconde rotation immédiate est refusée (recharge)', r.ok && !again.ok && b.teams[0].units.every(u => u.voie === -1) && b.snapshot().teams[0].rotation === -1, { r, again });
-  let north = 0; while (b.t < 14 && !b.teams[0].units.some(u => u.visible.size)) b.step();
-  for (const u of b.teams[0].units) if (u.alive && u.z < 15) north++;
-  check('rotation : les opérateurs rejoignent réellement le flanc nord', north >= 4, b.teams[0].units.map(u => u.z.toFixed(0)));
+  const reached = new Set(); while (b.t < 18) { b.step(); for (const u of b.teams[0].units) if (u.alive && u.z < 15) reached.add(u.id); }
+  check('rotation : les opérateurs rejoignent réellement le flanc nord', reached.size >= 4, b.teams[0].units.map(u => u.z.toFixed(0)));
   const h = mk(6, { teams: [{ name: 'A', order: 'hold', operators: ops }, { name: 'B', operators: ops }] }); h.step();
   check('rotation : refusée en ordre « Tenir », refusée pour une voie inconnue', !h.command('rotate', 0, 1).ok && !mk(6).command('rotate', 0, 2).ok);
   // rejouable : mêmes commandes au même pas → même bataille

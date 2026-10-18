@@ -215,7 +215,7 @@
   Battle.prototype.rotate = function (teamIndex, lane) {
     const can = this.canRotate(teamIndex, lane); if (!can.ok) return can;
     const team = this.teams[teamIndex], movers = team.units.filter(u => u.alive && u.role.id !== 'marksman');
-    movers.forEach((u, k) => { u.voie = lane; u.laneDz = lane ? (k - (movers.length - 1) / 2) * 2.5 : (k - (movers.length - 1) / 2) * 3; this.resetRoute(u); });
+    movers.forEach((u, k) => { u.voie = lane; u.laneDz = (k - (movers.length - 1) / 2) * (lane ? 1.8 : 3); this.resetRoute(u); });
     team.rotateUntil = this.t + ROTATION_COOLDOWN; team.rotation = lane; team.rotations = (team.rotations || 0) + 1;
     this.logEvent('rotation', `${team.name} : rotation, toute l'escouade passe ${lane < 0 ? 'par le flanc nord' : lane > 0 ? 'par le flanc sud' : 'par le milieu'}.`, { team: teamIndex, lane });
     return { ok: true };
