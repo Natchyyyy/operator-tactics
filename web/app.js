@@ -185,8 +185,8 @@
       const P = m.group.position, T = tg && meshes[tg.id] ? meshes[tg.id].group.position : null;
       let f = T ? new THREE.Vector2(T.x - P.x, T.z - P.z) : fwdOf(id); if (f.lengthSq() < 0.01) f = fwdOf(id); f.normalize();
       const d = smoothDir(s, 'dir', f.x, f.y, 2.2, dt), fx = d.x, fz = d.y, rx = -fz * side, rz = fx * side;
-      const dist = T ? Math.hypot(T.x - P.x, T.z - P.z) : 10, back = 1.75 - Math.min(0.45, age * 0.09);   // lent travelling avant
-      const pos = V3(P.x - fx * back + rx * 0.62, Math.max(1.35, (u.eyeY ? u.eyeY() : 1.55) + 0.25), P.z - fz * back + rz * 0.62);   // à hauteur des yeux du tireur (accroupi : plus bas)
+      const dist = T ? Math.hypot(T.x - P.x, T.z - P.z) : 10, back = 2.2 - Math.min(0.5, age * 0.09);   // lent travelling avant
+      const pos = V3(P.x - fx * back + rx * 0.8, Math.max(1.45, (u.eyeY ? u.eyeY() : 1.55) + 0.38), P.z - fz * back + rz * 0.8);   // à hauteur des yeux du tireur (accroupi : plus bas)
       const tgt = T ? V3(T.x, kc || !tg.alive ? 0.8 : (tg.eyeY ? tg.eyeY() : 1.5) - 0.3, T.z) : V3(P.x + fx * 10, 1.3, P.z + fz * 10);
       // tireur au premier plan d'un côté, cible sur le tiers opposé : on vise un peu à côté de la cible
       const look = tgt.clone().add(V3(-rx * dist * 0.16, 0, -rz * dist * 0.16));
@@ -361,9 +361,10 @@
         const px = m.group.position.x, pz = m.group.position.z;
         const pivot = new THREE.Vector3(px, 1.6, pz);
         const want = clipBoom(pivot, new THREE.Vector3(px - fx * 4.4 - fz * 0.5, 2.4, pz - fz * 4.4 + fx * 0.5)), look = new THREE.Vector3(px + fx * 7, 1.1, pz + fz * 7);
-        if (!cam.init) { cam.pos.copy(want); cam.look.copy(look); cam.init = true; }
-        cam.pos.lerp(want, 0.08); cam.look.lerp(look, 0.12);
-        cam.pos.copy(clipBoom(pivot, cam.pos));   // même pendant le lissage, jamais à travers un obstacle
+        const dt = dirTick();   // ressort critique indépendant de la cadence d'images (plus d'à-coups quand la perche se replie)
+        if (!cam.init) { cam.pos.copy(want); cam.look.copy(look); DIRECTOR.vel.set(0, 0, 0); DIRECTOR.lvel.set(0, 0, 0); cam.init = true; }
+        damp3(cam.pos, want, DIRECTOR.vel, 0.4, dt); damp3(cam.look, look, DIRECTOR.lvel, 0.28, dt);
+        pushOut(cam.pos, 0.2);   // même pendant le lissage, jamais dans un obstacle
         camera.position.copy(cam.pos); camera.lookAt(cam.look);
         cam.target.set(px, 0, pz);
         return;
@@ -921,6 +922,8 @@
     else m.play('Garde_Basse', { time: 0, fade: 0.3 });
     if (!legs) m.playLegs(null);
     if (u.alive) { m.ring.material.opacity = 0.55; a.deadT = 0; m.pose.position.y = 0; }
+    // la tête regarde la cible (position affichée de son soldat) ; sans cible, Soldat3D fait de lents coups d'œil au repos
+    m.regard = u.alive && u.target && u.target.alive ? ((meshes[u.target.id] && meshes[u.target.id].group.position) || u.target) : null;
     m.update(dt, !u.alive);
     // inclinaison dans les virages en courant (le torse se penche vers l'intérieur de la courbe)
     { const va = Math.atan2(a.vz || 0, a.vx || 0), sp = Math.hypot(a.vx || 0, a.vz || 0); let tr = a.vAng === undefined ? 0 : va - a.vAng; while (tr > Math.PI) tr -= 2 * Math.PI; while (tr < -Math.PI) tr += 2 * Math.PI; a.vAng = va;

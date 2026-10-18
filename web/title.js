@@ -5,26 +5,28 @@
   let renderer; try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); } catch (e) { return; }
   renderer.setPixelRatio(1); renderer.shadowMap.enabled = true; renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.35;
-  const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x2a2420, 10, 30);
+  const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x2c2521, 9, 26);
   (function sky() {   // crépuscule : horizon orangé derrière l'escouade
     const c = document.createElement('canvas'); c.width = 4; c.height = 256; const g = c.getContext('2d');
-    const grd = g.createLinearGradient(0, 0, 0, 256); grd.addColorStop(0, '#0b0f15'); grd.addColorStop(0.42, '#1c2430'); grd.addColorStop(0.6, '#5a4638'); grd.addColorStop(0.7, '#b0703a'); grd.addColorStop(0.78, '#3a2a22'); grd.addColorStop(1, '#151314');
+    const grd = g.createLinearGradient(0, 0, 0, 256); grd.addColorStop(0, '#05070a'); grd.addColorStop(0.28, '#0c1119'); grd.addColorStop(0.4, '#1f2228'); grd.addColorStop(0.465, '#6b4a33'); grd.addColorStop(0.5, '#3a2c25'); grd.addColorStop(1, '#141213');
     g.fillStyle = grd; g.fillRect(0, 0, 4, 256); const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; scene.background = tex;
   })();
   const camera = new THREE.PerspectiveCamera(32, 16 / 9, 0.1, 50);
   scene.add(new THREE.HemisphereLight(0xb8c8d8, 0x3a3630, 1.4));
   const key = new THREE.DirectionalLight(0xffe2b0, 3.2); key.position.set(3, 6, 4); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); scene.add(key);
   const rim = new THREE.DirectionalLight(0x5a8fd8, 1.6); rim.position.set(-4, 3, -3); scene.add(rim);
-  const sunset = new THREE.DirectionalLight(0xff9a50, 1.5); sunset.position.set(2, 1.5, -8); scene.add(sunset);   // contre-jour orangé
+  const sunset = new THREE.DirectionalLight(0xff9a50, 1.8); sunset.position.set(2, 1.5, -8); scene.add(sunset);   // contre-jour orangé
+  const front = new THREE.DirectionalLight(0xcfe0ff, 1.1); front.position.set(1, 2.5, 9); scene.add(front);   // débouche les visages et les tenues sombres
+  const pool = new THREE.SpotLight(0xffe6c0, 140, 0, 0.45, 0.75, 2); pool.position.set(3, 7.5, 3.5); pool.target.position.set(3, 0, -0.4); scene.add(pool, pool.target);   // flaque de lumière sur l'escouade
   // poussière en suspension dans la lumière
   const dustN = 260, dustPos = new Float32Array(dustN * 3); for (let i = 0; i < dustN; i++) dustPos.set([Math.random() * 14 - 5, Math.random() * 4, Math.random() * 8 - 5], i * 3);
   const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
   const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffd9a8, size: 0.035, transparent: true, opacity: 0.55, depthWrite: false })); scene.add(dust);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x2a2f36, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x1f2328, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
   // quelques caisses et un conteneur pour l'arrière-plan
-  const crate = new THREE.MeshStandardMaterial({ color: 0x5a4a32, roughness: 1 }), cont = new THREE.MeshStandardMaterial({ color: 0x35587a, roughness: 0.7, metalness: 0.3 });
-  [[-3.5, 0.55, -2.5, 1.1], [3.8, 0.4, -1.5, 0.8], [4.6, 0.4, -2.4, 0.8]].forEach(([x, y, z, sz]) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), crate); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; scene.add(m); });
-  const c = new THREE.Mesh(new THREE.BoxGeometry(6, 2.6, 2.4), cont); c.position.set(-1, 1.3, -6); c.castShadow = true; scene.add(c);
+  const crate = new THREE.MeshStandardMaterial({ color: 0x46392a, roughness: 1 }), cont = new THREE.MeshStandardMaterial({ color: 0x2b3640, roughness: 0.75, metalness: 0.3 });
+  [[0.3, 0.55, -2.6, 1.1], [5.7, 0.4, -1.8, 0.8], [6.3, 0.4, -2.7, 0.8]].forEach(([x, y, z, sz]) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), crate); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; scene.add(m); });
+  const c = new THREE.Mesh(new THREE.BoxGeometry(6, 2.6, 2.4), cont); c.position.set(3.4, 1.3, -5.6); c.rotation.y = -0.12; c.castShadow = true; scene.add(c);
   const figs = [];
   function buildSquad() {
     for (const f of figs) scene.remove(f.group); figs.length = 0;
@@ -36,22 +38,22 @@
       const o = OT.DATA.OPERATORS.find(x => x.id === id); if (!o) return;
       const st = profile ? profile.operators[id] : null;
       const weapon = st ? st.weaponId : OT.DATA.ROLES[o.role].weapon;
-      // en V derrière le chef ; soldat 3D (même modèle que le QG) dès qu'il est chargé, sinon la figure simple
-      const spots = [[0, 0.3, -0.25, 1], [-1.3, -0.3, 0.05, 0], [1.25, -0.2, -0.45, 0.7], [-2.5, -0.9, 0.3, 'kneel'], [2.45, -0.95, -0.6, 0]];
-      const [x, z, ry, pose] = spots[i];
+      // soldat 3D (même modèle que le QG) dès qu'il est chargé, sinon la figure simple ; en V, le chef devant au centre de la
+      // moitié droite (le titre occupe la gauche), chacun tourné un peu vers lui
+      const pose = [1, 0, 0.7, 'kneel', 0][i], V = [[3.0, 0.45], [2.1, -0.2], [3.95, -0.25], [1.2, -0.9], [4.85, -0.95]][i], ry = (3.0 - V[0]) * 0.09 + (i === 0 ? 0.08 : 0);
       const s3 = S3 && S3.create({ modele: 'gign', uniform: uni.uniform, weapon });
       if (s3) {
         const clip = s3.clips.Garde_Basse ? 'Garde_Basse' : 'Rifle_Aim_Turn_Right';
         s3.play(clip, { time: 0 }); s3.update(0); s3.body.rotation.y = (s3.yawFix && s3.yawFix[clip]) || 0; s3.placeWeapon(true, 0);
         s3.group.traverse(n => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
-        s3.group.position.set(x + 2.6, 0, z + (pose === 'kneel' ? -0.5 : 0)); s3.group.rotation.y = ry * 0.6 + (i === 0 ? 0.1 : 0);
+        s3.group.position.set(V[0], 0, V[1]); s3.group.rotation.y = ry;
         scene.add(s3.group); figs.push(s3); return;
       }
       const f = OT.Figure.build({ id, weapon, uniform: uni.uniform, vest: uni.vest, teamColor: 0x4f9cf0, headgear: st && st.headgear || 'casque' });
       // poses variées : le chef au centre épaulé, un tireur à genou, les autres arme basse ou épaulée
       if (pose === 'kneel') { f.legs[0].leg.rotation.x = -1.15; f.legs[0].knee.rotation.x = 1.75; f.legs[1].leg.rotation.x = -0.55; f.legs[1].knee.rotation.x = 1.95; f.hips.position.y = f.hipsY - 0.4; f.torso.rotation.x = 0.25; OT.Figure.armPose(f, 0.8); }
       else { f.torso.rotation.y = pose * 0.18; f.headG.rotation.y = -pose * 0.16; OT.Figure.armPose(f, pose); }
-      f.group.position.set(x + 2.6, 0, z); f.group.rotation.y = ry;
+      f.group.position.set(V[0], 0, V[1]); f.group.rotation.y = ry + (pose === 'kneel' ? 0.3 : 0);
       scene.add(f.group); figs.push(f);
     });
   }
@@ -61,7 +63,7 @@
     const w = canvas.clientWidth, h = canvas.clientHeight; if (w && h && (canvas.width !== w || canvas.height !== h)) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
     // l'escouade à droite de l'écran (le titre occupe la gauche) ; la caméra glisse lentement de part et d'autre
     const a = Math.sin(t * 0.12) * 0.3, wide = camera.aspect < 1.5 ? 1.15 : 1;
-    camera.position.set(0.6 + Math.sin(a) * 3.8, 1.45 + Math.sin(t * 0.2) * 0.08, (7.4 + Math.cos(a) * 1.0) * wide); camera.lookAt(0.9, 1.0, -0.2);
+    camera.position.set(0.6 + Math.sin(a) * 2.4, 1.45 + Math.sin(t * 0.2) * 0.08, (7.4 + Math.cos(a) * 1.0) * wide); camera.lookAt(0.9, 1.0, -0.2);
     const dp = dustGeo.attributes.position.array; for (let i = 0; i < dp.length; i += 3) { dp[i] += 0.002; dp[i + 1] += Math.sin(t + i) * 0.0008; if (dp[i] > 9) dp[i] = -5; } dustGeo.attributes.position.needsUpdate = true;
     renderer.render(scene, camera);
   }

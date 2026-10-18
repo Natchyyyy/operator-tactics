@@ -451,12 +451,14 @@
     const UP = new THREE.Vector3(0, 1, 0), qT = new THREE.Quaternion(), qP = new THREE.Quaternion();
     const twist = (bone, ang) => { bone.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(UP, ang); bone.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); bone.updateMatrixWorld(true); };
     const spine3 = [bone('Spine'), bone('Spine1'), bone('Spine2')].filter(Boolean), hipsB = bone('Hips'), spine1 = bone('Spine1');
+    const pieds = ['Left', 'Right'].map(c => [bone(c + 'UpLeg'), bone(c + 'Leg'), bone(c + 'Foot')]), cou = bone('Neck'), graine = (S.nb = (S.nb || 0) + 1) * 2.399;
     // Retouches par image (torsion des jambes, respiration, IK de l'épaule, recul) : elles s'ajoutent à la pose du mixer.
     // PIÈGE three.js : le mixer ne réécrit un os que si sa valeur animée a CHANGÉ depuis l'image précédente ; sur une pose
     // figée ou un haut du corps statique, nos retouches s'accumulaient d'image en image (torses qui tournaient sans fin).
     // D'où ce registre : chaque os retouché est remis à sa valeur « mixer » au début de l'image suivante.
     const mods = [];
-    const mod = (bone) => { if (!bone || bone.userData.modK === frameK) return; bone.userData.modK = frameK; mods.push([bone, bone.quaternion.clone()]); };
+    // (la position est gardée aussi : le report du poids déplace le bassin)
+    const mod = (bone) => { if (!bone || bone.userData.modK === frameK) return; bone.userData.modK = frameK; mods.push([bone, bone.quaternion.clone(), bone.position.clone()]); };
     let frameK = 1;
     const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true, modele: M.nom, mod, clips: M.clips, yawFix: M.yawFix, loco: M.loco || {}, chuteY: M.chuteY || {}, legClip: null,
       jambes: 0, jambesCible: 0, mode: 'deux', handLocal: { droite: null, gauche: null }, t: 0,
@@ -551,8 +553,11 @@
       // jambes tournent de cet angle, le dos le rattrape (réparti sur les trois vertèbres) : le torse et l'arme restent vers
       // la cible pendant que les jambes marchent là où le soldat va (pas de côté, recul). Lissé pour ne pas sauter.
       update(dt, keepYaw) {
-        for (const [b, q] of mods) b.quaternion.copy(q); mods.length = 0;
         const enMarche = !!this.blendW && this.blendFrame === frameK;
+        // arrêt après une marche / course : les pieds sont « cloués » là où ils étaient affichés (positions monde de l'image
+        // précédente, lues AVANT d'effacer les retouches), puis posé() les amène un par un à la pose d'arrêt
+        if (this.blendW && !enMarche && !keepYaw && pieds[0][2] && pieds[1][2]) this.pose0 = { t: 0, lock: pieds.map(l => new THREE.Vector3().setFromMatrixPosition(l[2].matrixWorld)), lockQ: pieds.map(l => { const q = new THREE.Quaternion(); l[2].matrixWorld.decompose(V(), q, V()); return q; }) };
+        for (const [b, q, p] of mods) { b.quaternion.copy(q); b.position.copy(p); } mods.length = 0;
         if (this.blendW && !enMarche) {   // plus en marche directionnelle : les jambes mélangées s'effacent
           for (const n in this.blendW) { const a = actions[n]; if (a && a.isScheduled() && this.blendW[n] > 0) a.fadeOut(0.3); }
           this.blendW = null; this.dosM = (this.dosM || 0) + (this.yawM || 0);   // (torsion figée, qui s'efface avec marcheK)
@@ -578,6 +583,66 @@
         if (this.dosComp && Math.abs(this.dosComp) > 0.01 && spine3.length) { body.updateMatrixWorld(true); for (const sb of spine3) { mod(sb); twist(sb, -this.dosComp / spine3.length); } }
         // respiration (poses fixes : garde basse, visée) : légère flexion du dos
         if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { mod(spine1); spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
+        const repos = (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right') && !enMarche && !keepYaw;
+        if (this.pose0) this.poserPieds(dt, repos);
+        this.appui(dt, repos && !this.pose0);
+        this.tete(dt, keepYaw ? null : repos || enMarche);
+      },
+      // Pose des pieds à l'arrêt : au lieu de glisser en 0,3 s vers la pose d'arrêt (fondu), chaque pied reste cloué au sol
+      // là où il était puis fait un petit pas (léger lever) jusqu'à sa place : d'abord celui qui était levé, puis l'autre.
+      // IK des jambes par-dessus le fondu (la cible suit la pose du mixer, qui devient celle de l'arrêt).
+      poserPieds(dt, repos) {
+        const P = this.pose0; P.t += dt;
+        if (!repos || P.t > 0.62) { this.pose0 = null; return; }
+        group.updateMatrixWorld(true);
+        const cur = pieds.map(l => WP(l[2]));
+        if (!P.ordre) { if (Math.max(cur[0].distanceTo(P.lock[0]), cur[1].distanceTo(P.lock[1])) > 0.8) { this.pose0 = null; return; }   // (téléporté)
+          P.ordre = P.lock[0].y >= P.lock[1].y ? [0, 1] : [1, 0]; }
+        P.ordre.forEach((i, rang) => {
+          const x = Math.max(0, Math.min(1, (P.t - rang * 0.16) / 0.24)), s = x * x * (3 - 2 * x); if (s >= 1) return;
+          const L = P.lock[i], C = cur[i], h = Math.min(0.07, 0.35 * Math.hypot(C.x - L.x, C.z - L.z));
+          const T = L.clone().lerp(C, s); T.y += h * Math.sin(Math.PI * s);
+          const ft = pieds[i][2], qC = WQ(ft), d = T.sub(C); if (d.lengthSq() > 1e-8) ik(pieds[i][0], pieds[i][1], ft, d);
+          // orientation du pied aussi (sinon la pointe pivote autour de la cheville cloué et glisse)
+          mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(P.lockQ[i].clone().slerp(qC, s))); ft.updateMatrixWorld(true);
+        });
+      },
+      // Report du poids au repos : le bassin glisse lentement (~5,5 s) d'une jambe sur l'autre, s'abaisse un peu et s'incline
+      // vers la jambe libre ; les pieds restent au sol (IK), les épaules restent à peu près droites.
+      appui(dt, actif) {
+        this.reposK = (this.reposK || 0) + ((actif ? 1 : 0) - (this.reposK || 0)) * Math.min(1, dt * 1.5);
+        if (this.reposK < 0.01 || !hipsB || !pieds[0][2] || !pieds[1][2]) return;
+        group.updateMatrixWorld(true);
+        const s0 = Math.sin(this.t * 1.14 + graine), s = Math.sign(s0) * Math.pow(Math.abs(s0), 0.6) * this.reposK;   // (s'attarde sur chaque jambe)
+        const avant = pieds.map(l => WP(l[2])), gq = group.getWorldQuaternion(new THREE.Quaternion());
+        const lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq);
+        mod(hipsB);
+        const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022); h1.y -= 0.008 * Math.abs(s);
+        hipsB.position.add(hipsB.parent.worldToLocal(h1).sub(hipsB.parent.worldToLocal(h0.clone()))); hipsB.updateMatrixWorld(true);
+        const roule = (b, a) => { b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
+        roule(hipsB, -s * 0.035); if (spine1) { mod(spine1); roule(spine1, s * 0.03); }
+        pieds.forEach((l, i) => { const d = avant[i].clone().sub(WP(l[2])); if (d.lengthSq() > 1e-8) ik(l[0], l[1], l[2], d); });
+      },
+      // Tête : regarde la cible (this.regard = {x, z} dans le monde, donné par le jeu ; limité en visée, la joue est sur la
+      // crosse) ; sans cible, au repos, coups d'œil lents à gauche / à droite. Réparti sur le cou et la tête.
+      tete(dt, actif) {
+        if (!cou || !this.bones.head) return;
+        let want = 0;
+        if (actif) {
+          const vise = EPAULE[this.clip] ? 0.3 : 1.0;
+          if (this.regard) { const g = group.getWorldPosition(V()), fq = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()));
+            let a = Math.atan2(this.regard.x - g.x, this.regard.z - g.z) - Math.atan2(fq.x, fq.z); while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI;
+            want = Math.max(-vise, Math.min(vise, a)); this.coupT = 0; }
+          else if (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right') {
+            this.coupT = (this.coupT || 0) - dt;
+            if (this.coupT <= 0) { this.nCoup = (this.nCoup || 0) + 1; const r = Math.abs(Math.sin(this.nCoup * 12.9898 + graine * 78.233) * 43758.5453) % 1;
+              this.coup = this.nCoup % 2 ? (r - 0.5) * 1.3 * vise : 0; this.coupT = 2.2 + 3 * r; }
+            want = this.coup || 0;
+          }
+        }
+        this.teteA = (this.teteA || 0) + (want - (this.teteA || 0)) * Math.min(1, dt * 3.5);
+        if (Math.abs(this.teteA) < 0.005) return;
+        mod(cou); twist(cou, this.teteA * 0.4); mod(this.bones.head); twist(this.bones.head, this.teteA * 0.6);
       },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
       // L'arme est tenue par les PAUMES (entre le poignet et la base des doigts), pas par les poignets : la poignée dans la paume

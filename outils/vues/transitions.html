@@ -7,7 +7,9 @@
 // ?m=gign|soldat ; window.MESURES ; window.planche().
 const q = new URLSearchParams(location.search);
 // [durée (s), vitesse (m/s), direction (°, 0 = vers la visée, 90 = à gauche), visée]
-const SCEN = [[1, 0, 0, 0], [2, 2.2, 0, 0], [0.8, 0, 0, 0], [0.8, 0, 0, 1], [1.6, 1.2, 90, 1], [0.8, 0, 0, 1], [1.6, 2.0, 180, 1], [0.6, 2.0, 45, 1], [0.8, 2.0, 45, 0], [1, 0, 0, 0]];
+// ?scen=recul : recul rapide en visant (3,6 m/s) ; ?lim=3.2 : au-delà, ancienne méthode (course lue à l'envers, jambes tournées)
+const LIM = +(q.get('lim') || 3.2);
+const SCEN = q.get('scen') === 'recul' ? [[0.6, 0, 0, 1], [2.4, 3.6, 180, 1], [0.8, 0, 0, 1]] : [[1, 0, 0, 0], [2, 2.2, 0, 0], [0.8, 0, 0, 0], [0.8, 0, 0, 1], [1.6, 1.2, 90, 1], [0.8, 0, 0, 1], [1.6, 2.0, 180, 1], [0.6, 2.0, 45, 1], [0.8, 2.0, 45, 0], [1, 0, 0, 0]];
 OT.Soldat3D.whenReady(() => {
   const W = 1800, H = 700, r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true; document.body.appendChild(r.domElement);
   const sc = new THREE.Scene(); sc.background = new THREE.Color(0x3a4248);
@@ -27,7 +29,11 @@ OT.Soldat3D.whenReady(() => {
     const [, v, deg, vise] = SCEN[Math.min(seg, SCEN.length - 1)], e = deg * Math.PI / 180;
     f.group.position.x += Math.sin(e) * v * dt; f.group.position.z += Math.cos(e) * v * dt;   // le groupe regarde +Z (la visée)
     f.jambesCible = 0;
-    if (v > 0.15 && v <= 3.2) { const course = v > 1.45; f.marche(e, v, dt, course ? (vise ? 'Run_and_Shoot_Haut' : 'Run_Low_Haut') : (vise ? 'Walk_Aim_Haut' : 'Walk_Low_Haut'), course ? 'Pas_Avant_Course' : vise ? 'Pas_Avant_Aim' : 'Pas_Avant_Low'); }
+    if (v > LIM) {   // ancienne méthode (app.js : loco + recul)
+      const n = vise ? 'Run_and_Shoot' : 'Run_Low', rec = Math.abs(e) > 1.85, nat = f.loco[n] || 1;
+      f.play(n, { speed: (rec ? -1 : 1) * Math.max(0.4, Math.min(2.2, v / nat)), fade: 0.2 }); f.jambesCible = rec ? e + (e > 0 ? -Math.PI : Math.PI) - f.body.rotation.y : e - f.body.rotation.y;
+    }
+    else if (v > 0.15) { const course = v > 1.45; f.marche(e, v, dt, course ? (vise ? 'Run_and_Shoot_Haut' : 'Run_Low_Haut') : (vise ? 'Walk_Aim_Haut' : 'Walk_Low_Haut'), course ? 'Pas_Avant_Course' : vise ? 'Pas_Avant_Aim' : 'Pas_Avant_Low'); }
     else if (vise) f.play('Rifle_Aim_Turn_Right', { time: 0, fade: 0.25 }); else f.play('Garde_Basse', { time: 0, fade: 0.3 });
     f.playLegs(null); f.update(dt); f.group.updateMatrixWorld(true); f.placeWeapon(true, 0, 'deux');
     const bz = new THREE.Vector3(0, 0, 1).applyQuaternion(f.weapon.quaternion);

@@ -383,9 +383,34 @@
     const z = this.zone, side = Math.sign(this.teams[u.team].spawn.x - z.x) || (u.team === 0 ? -1 : 1);
     return { x: z.x + side * 1.5, z: z.z };
   };
+  // Poste de flanc autour de la zone : un couvert de son côté (nord ou sud), hors de la zone mais à moins de 9 m de son bord,
+  // qui voit le plus de points de la zone (et, si possible, couvert face à la menace).
+  Battle.prototype.flankPost = function (u, facePos) {
+    const z = this.zone, ring = [];
+    for (let k = 0; k < 8; k++) ring.push({ x: z.x + Math.cos(k * Math.PI / 4) * z.r * 0.6, z: z.z + Math.sin(k * Math.PI / 4) * z.r * 0.6 });
+    let best = null, bs = -Infinity;
+    for (const cp of this.map.coverPoints) {
+      const dz = (cp.z - z.z) * u.voie; if (dz < z.r + 2.5 || dz > z.r + 9 || Math.abs(cp.x - z.x) > 10) continue;
+      if (this.alliesOf(u).some(a => a.alive && ((a.zoneSpot && Math.hypot(a.zoneSpot.x - cp.x, a.zoneSpot.z - cp.z) < 2.5) || (a.post && Math.hypot(a.post.x - cp.x, a.post.z - cp.z) < 2.5)))) continue;
+      let vis = 0; for (const p of ring) if (this.map.hasLOS(cp.x, EYE.stand, cp.z, p.x, CHEST.stand, p.z)) vis++;
+      if (vis < 2) continue;
+      const sc = vis + (this.map.coverFrom(cp.x, cp.z, facePos.x, facePos.z, true) ? 2 : 0) - Math.hypot(cp.x - u.x, cp.z - u.z) * 0.08 + this.rng.next() * 0.5;
+      if (sc > bs) { bs = sc; best = cp; }
+    }
+    return best ? { x: best.x, z: best.z, flanc: true } : null;
+  };
+  // en poste de flanc, avec au moins un équipier dans la zone ?
+  Battle.prototype.onFlankPost = function (u) { return !!(u.zoneSpot && u.zoneSpot.flanc && this.alliesOf(u).some(a => a.alive && this.inZone(a, 0.5))); };
   // Prendre position dans la zone : un couvert à l'intérieur (face à la menace) ou, à défaut, un point libre réparti autour du centre.
   Battle.prototype.occupyZone = function (u, facePos) {
     const z = this.zone;
+    // flanqueur arrivé par le côté : tant qu'un équipier est dans la zone, il la couvre depuis son flanc (feu croisé sur ceux
+    // qui veulent y entrer) ; plus personne de son camp dedans → il y entre à son tour
+    if (u.voie && u.flankDone && this.map.def.voies) {
+      const mates = this.alliesOf(u).some(a => a.alive && this.inZone(a, 0.5));
+      if (u.zoneSpot && u.zoneSpot.flanc && !mates) u.zoneSpot = null;
+      if (!u.zoneSpot && mates) u.zoneSpot = this.flankPost(u, facePos);
+    }
     if (!u.zoneSpot) {
       let best = null, bs = -Infinity;
       for (const cp of this.map.coverPoints) {
@@ -715,8 +740,8 @@
       }
       // capture : si la zone n'est pas à nous, on ne s'éternise pas dans un échange de tirs à distance — on progresse vers la zone,
       // de couvert en couvert (le tireur d'élite reste en appui)
-      if (this.zone && this.zone.holder !== u.team && u.role.id !== 'marksman' && !covering && !pinned && !this.inZone(u, 1) && u.reloading <= 0) {
-        const fw = this.flankWaypoint(u, this.zone, 5), dst = fw || this.zone;   // flanqueur : on progresse le long de sa voie
+      if (this.zone && this.zone.holder !== u.team && u.role.id !== 'marksman' && !covering && !pinned && !this.inZone(u, 1) && u.reloading <= 0 && !this.onFlankPost(u)) {
+        const fw = this.flankWaypoint(u, this.zone, 0), dst = fw || this.zone;   // flanqueur : on progresse le long de sa voie
         const dz = Math.hypot(u.x - dst.x, u.z - dst.z);
         const cp = this.findCover(u, threat, 14, { towards: dst });
         if (cp && Math.hypot(cp.x - dst.x, cp.z - dst.z) < dz - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
@@ -780,7 +805,7 @@
       // capture : on n'abandonne pas la zone pour courir après une position connue lointaine ; on s'y installe face à la menace
       // … sauf si l'adversaire est lui-même dans la zone : il faut aller l'en déloger
       if (this.zone && u.role.id !== 'marksman' && !(this.zone.contested && this.inZone(threatPos, 1.5)) && (nd > 10 || this.inZone(u))) {
-        const fw = nd > 10 && order !== 'hold' && this.flankWaypoint(u, this.zone, 5);   // flanqueur : par sa voie jusqu'à hauteur de la zone
+        const fw = nd > 10 && order !== 'hold' && this.flankWaypoint(u, this.zone, 0);   // flanqueur : par sa voie jusqu'à hauteur de la zone
         if (fw && this.flankMove(u, threatPos, fw)) return;
         this.occupyZone(u, threatPos); return;
       }
@@ -828,7 +853,7 @@
     // 3) aucune information : se déployer / avancer vers l'objectif
     if (this.zone && (u.role.id !== 'marksman' || this.inZone(u))) {
       // capture : tout le monde vers la zone (le tireur d'élite garde son poste de surveillance plus bas)
-      const fw = order !== 'hold' && this.flankWaypoint(u, this.zone, 5);        // flanqueur : par sa voie jusqu'à hauteur de la zone
+      const fw = order !== 'hold' && this.flankWaypoint(u, this.zone, 0);        // flanqueur : par sa voie jusqu'à hauteur de la zone
       if (fw && this.flankMove(u, objective, fw)) return;
       if (!this.inZone(u, 2) && this.tiroir(u, objective, this.zone)) return;   // Tiroir : bonds alternés jusqu'à la zone
       if (order === 'careful' || u.role.id === 'support') {

@@ -137,6 +137,9 @@
     $('#hqXpBar').style.width = next === null ? '100%' : (100 * ((profile.xp || 0) - RANKS[r].xp) / (RANKS[r + 1].xp - RANKS[r].xp)).toFixed(0) + '%';
     $('#hqRating').textContent = Game.teamRating(profile);
     $('#homeRank').textContent = `Rang ${r} · ${RANKS[r].name}${next === null ? '' : ' — ' + next + ' XP avant le suivant'}`;
+    { const hx = $('#homeXpBar'); if (hx) hx.style.width = $('#hqXpBar').style.width; }
+    { const lead = OPERATORS.find(x => x.id === profile.squad[0]), pn = $('#podName'), pr = $('#podRole');
+      if (pn) pn.textContent = lead ? lead.callsign : ''; if (pr) pr.textContent = lead ? `${ROLES[lead.role].name} · niv. ${Game.levelFor(profile.operators[lead.id].xp)}` : ''; }
     $('#homeSquad').innerHTML = profile.squad.map(id => { const o = OPERATORS.find(x => x.id === id), st = profile.operators[id];
       return `<button class="hsq ${st.wounded ? 'wounded' : ''}" data-op="${id}"><span class="hsqp">${portraitOf(o)}</span><span class="hsqt"><b>${esc(o.callsign)}</b><small>${ROLES[o.role].name} · niv. ${Game.levelFor(st.xp)}${st.wounded ? ' · blessé' : ''}</small></span><span class="rt">${Math.round(Game.operatorRating(profile, id))}</span></button>`; }).join('');
     $('#homeSquad').querySelectorAll('.hsq').forEach(e => e.addEventListener('click', () => { selected = e.dataset.op; showTab('equipe'); }));
@@ -330,7 +333,7 @@
     const statRows = Game.STATS.map(k => { const bonus = !def.wounded && def[k] > o[k] ? def[k] - o[k] : 0; return `<div class="srow ${def.wounded ? 'wounded' : ''}"><span class="sl">${STAT_FR[k]}</span><span class="si">${OT.Ico ? OT.Ico(STAT_ICO[k]) : ''}</span><span class="sv">${def[k]}${bonus ? `<small>+${bonus}</small>` : ''}</span><span class="sbar"><i style="width:${def[k]}%"></i>${def.wounded ? `<u style="width:${o[k]}%"></u>` : ''}</span></div>`; }).join('');
     const promos = (st.pendingPromotions || []).map(p => `<div class="promobox"><b>Promotion — niveau ${p.level}</b> : choisissez un second trait.<div class="promochoices">${p.choices.map(t => `<button class="promochoice" data-act="promo" data-trait="${t}" data-id="${o.id}"><b>${TRAITS[t].name}</b><span>${esc(TRAITS[t].desc)}</span></button>`).join('')}</div></div>`).join('');
     let html = '';
-    if (teamTab === 'skills') html = `<div class="sgrid">${statRows}</div><div class="traitbox"><b>${TRAITS[o.trait].name}</b> — ${esc(TRAITS[o.trait].desc)}${(st.traits || []).map(t => `<br><b>${TRAITS[t].name}</b> <small class="muted">(promotion)</small> — ${esc(TRAITS[t].desc)}`).join('')}</div>${promos}<div class="lvl">Niveau ${def.level} · ${Game.xpToNext(st.xp) === null ? 'maximum' : Game.xpToNext(st.xp) + ' XP avant le suivant'} · <span class="muted">inspiré du ${esc(o.unit)}</span></div>`;
+    if (teamTab === 'skills') html = `<div class="sgrid">${statRows}</div><div class="traitbox"><b>${TRAITS[o.trait].name}</b> — ${esc(TRAITS[o.trait].desc)}${(st.traits || []).map(t => `<br><b>${TRAITS[t].name}</b> <small class="muted">(promotion)</small> — ${esc(TRAITS[t].desc)}`).join('')}</div>${promos}<div class="lvl">Niveau ${def.level} · ${Game.xpToNext(st.xp) === null ? 'maximum' : Game.xpToNext(st.xp) + ' XP avant le suivant'}</div>`;
     else if (teamTab === 'head') html = st.unlocked ? `<div class="trh">Couvre-chef</div><div class="hgpick">${Object.keys(Game.HEADGEAR_PRICES).map(h => { const owned = !!profile.headgear[h]; const nm = OT.Figure.HEADGEAR[h].name; return `<button class="mini ${st.headgear === h ? 'on' : ''} ${owned ? '' : 'locked'}" data-hg="${h}" title="${nm}${owned ? '' : ' — ' + Game.HEADGEAR_PRICES[h] + ' cr.'}">${nm}${owned ? '' : ' · ' + Game.HEADGEAR_PRICES[h] + ' cr.'}</button>`; }).join('')}</div>` : '<p class="muted">Recrutez cet opérateur pour le personnaliser.</p>';
     else if (teamTab === 'equip') html = st.unlocked ? `
       <div class="equip">
@@ -380,6 +383,7 @@
   OT.playBack = () => { if (tab !== 'missions' || playView === 'home') return false; setPlayView(playView === 'prep' && selectedMission !== 'rapide' ? 'camp' : 'home'); return true; };
   function renderMissions() {
     $('#playHome').classList.toggle('hidden', playView !== 'home'); $('#campView').classList.toggle('hidden', playView !== 'camp'); $('#prepView').classList.toggle('hidden', playView !== 'prep');
+    $('#hq').dataset.view = playView;   // fil d'Ariane de la barre du haut (Jouer › Campagne › Préparation)
     // contrats du jour
     const dly = Game.dailyContracts(profile);
     $('#hqDaily').innerHTML = dly.list.map(c => `<div class="daily ${c.done ? 'done' : ''}"><div class="crow"><b>${esc(c.text)}</b><span class="spacer"></span><span>${c.done ? '✓' : c.progress + '/' + c.goal}</span></div><div class="xpbar big"><i style="width:${100 * c.progress / c.goal}%"></i></div><small>${c.reward} crédits</small></div>`).join('');
@@ -433,7 +437,7 @@
     $('#prepSub').innerHTML = mm ? `${esc(OT.MAPS[mm.mapId].name)} · ${esc(Game.objectiveLabel(mm))}${mm.conditions && mm.conditions !== 'jour' ? ' · ' + esc(DATA.CONDITIONS[mm.conditions].name) : ''} · <span class="muted">adversaire niveau ${mm.level}</span>` : '';
     const eq = profile.tactics.equipped || [], ownedN = Object.keys(profile.tactics.owned || {}).length;
     $('#prepSlots').innerHTML = (ownedN ? '' : '<div class="p3none">Aucune carte de tactique disponible.<button class="getcards" data-go2="cartes"><span data-ico="pack"></span>Obtenir des cartes</button></div>')
-      + [0, 1, 2].map(i => { const id = eq[i]; return id ? `<button class="tslot full" data-slot="${i}" data-t="${id}" title="${esc(TACTICS[id].desc)} (cliquer pour retirer)"><span class="tsname">${esc(TACTICS[id].name)}</span><span class="tsart">${tacArt(id)}</span></button>` : `<button class="tslot" data-slot="${i}"><span>Toucher pour<br>choisir</span></button>`; }).join('');
+      + [0, 1, 2].map(i => { const id = eq[i]; return id ? `<button class="tslot full" data-slot="${i}" data-t="${id}" title="${esc(TACTICS[id].desc)} (cliquer pour retirer)"><span class="tsname">${esc(TACTICS[id].name)}</span><span class="tsart">${tacArt(id)}</span></button>` : `<button class="tslot" data-slot="${i}"><span class="tsplus">+</span><span>Choisir une<br>tactique</span></button>`; }).join('');
     $('#prepSlots').querySelectorAll('.tslot').forEach(b => b.addEventListener('click', () => {
       if (b.dataset.t) { Game.equipTactic(profile, b.dataset.t); saveNow(); render(); return; }
       if (!ownedN) { flash('Aucune tactique : ouvrez des paquets de cartes.'); return; }

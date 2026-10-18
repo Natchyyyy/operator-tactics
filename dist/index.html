@@ -931,6 +931,247 @@
   #playHome .medals { left: 0; right: 0; top: 190px; justify-content: center; gap: 70px; }
   #playHome::before { content: 'Jouer'; position: absolute; left: 0; right: 0; top: 70px; text-align: center; font-size: 15px; font-weight: 800; letter-spacing: .3em; text-transform: uppercase; color: #7fd8c8; }
 
+  /* ===================== Menus v4 (PC premium) : titre et QG — hiérarchie nette, verre fumé, liseré de rareté, survol / focus, transitions ===================== */
+  :root { --m-acc: #4ee089; --m-acc-d: #3ccf7a; --m-ink: #06130b; --m-glass: rgba(10,14,16,.74); --m-glass2: rgba(16,22,25,.86); --m-line: rgba(255,255,255,.09); --m-line2: rgba(255,255,255,.17);
+    --m-txt: #eef5f1; --m-mut: #9db0a8; --m-gold: #e8b64a; --m-ease: cubic-bezier(.2,.8,.2,1); }
+  @keyframes mIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @keyframes mFade { from { opacity: 0; } to { opacity: 1; } }
+  #hq button, #title button { transition: background-color .16s, border-color .16s, color .16s, transform .18s var(--m-ease), box-shadow .18s, filter .16s, opacity .16s; }
+  #hq button:focus-visible, #hq select:focus-visible, #hq input:focus-visible, #hq summary:focus-visible, #title button:focus-visible, #title .tgl:focus-within { outline: 2px solid var(--m-acc); outline-offset: 3px; }
+  /* changement d'écran : le contenu arrive en fondu, de 14 px (pas de remplissage : aucun contexte d'empilement ne reste ensuite) */
+  #hq .hqpanel:not(.hidden) > :not(.hidden) { animation: mIn .34s var(--m-ease); }
+  @media (prefers-reduced-motion: reduce) { #hq *, #title * { animation: none !important; transition: none !important; } }
+
+  /* ---- écran titre ---- */
+  #title { background: #07090b; }
+  #title #titleScene { animation: mFade 1.4s ease; }
+  #title .titleGrad { background: linear-gradient(90deg, rgba(6,8,10,.97) 0%, rgba(6,8,10,.86) 27%, rgba(6,8,10,.28) 50%, rgba(6,8,10,0) 64%), linear-gradient(0deg, rgba(6,8,10,.92) 0%, rgba(6,8,10,0) 28%), linear-gradient(180deg, rgba(6,8,10,.6) 0%, rgba(6,8,10,0) 16%); }
+  #title .titleBox { left: max(48px, 7.5%); max-width: 660px; text-shadow: none; animation: mIn .9s var(--m-ease); }
+  #title .titleKicker { display: flex; align-items: center; gap: 14px; font: 700 13px/1 var(--ui); letter-spacing: .34em; color: var(--m-gold); margin-bottom: 24px; }
+  #title .titleKicker::before { content: ''; width: 40px; height: 2px; background: currentColor; }
+  #title .titleName { font-family: var(--raw); font-weight: 400; font-size: 108px; line-height: .9; letter-spacing: .01em; color: #f3f6f8; margin: 0 0 28px; text-shadow: 0 8px 34px rgba(0,0,0,.55); }
+  #title .titleName span { margin-top: 14px; font-size: 46px; letter-spacing: .62em; color: var(--m-gold); }
+  #title .titleSub { font-size: 17px; line-height: 1.6; color: #c3ccd3; max-width: 500px; margin-bottom: 30px; }
+  #title .titleSave { display: none; }
+  #title .titleSave.on { display: flex; flex-direction: column; gap: 5px; width: fit-content; max-width: 100%; min-height: 0; margin: 0 0 22px; padding: 12px 20px 12px 16px; border-left: 3px solid var(--m-acc); border-radius: 0 10px 10px 0; background: rgba(255,255,255,.055); font-size: 14px; color: #dfe7e3; letter-spacing: .02em; }
+  #title .titleSave.on::before { content: 'Carrière en cours'; font-size: 11px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--m-acc); }
+  #title .titleBtns { gap: 14px; flex-wrap: wrap; }
+  #title .titleBtns button { height: 58px; padding: 0 32px; border-radius: 12px; font: 700 15px/1 var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--m-txt); background: rgba(255,255,255,.06); border: 1px solid var(--m-line2); backdrop-filter: blur(8px); }
+  #title .titleBtns button:hover { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.36); transform: translateY(-2px); }
+  #title .titleBtns button.on { background: var(--m-acc-d); border-color: var(--m-acc-d); color: var(--m-ink); box-shadow: 0 12px 32px rgba(60,207,122,.28); }
+  #title .titleBtns button.on:hover { background: var(--m-acc); box-shadow: 0 16px 38px rgba(60,207,122,.42); }
+  #title .titleBtns button.on::after { content: '→'; display: inline-block; margin-left: 14px; transition: transform .18s var(--m-ease); } #title .titleBtns button.on:hover::after { transform: translateX(4px); }
+  #title .titleFoot { display: flex; align-items: center; flex-wrap: wrap; margin-top: 30px; font-size: 13px; color: #85928e; }
+  #title .titleFoot > * + *::before { content: ''; display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: #4b5753; margin: 0 14px; vertical-align: middle; }
+  #title .tgl { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; color: #c3ccd3; border-radius: 12px; }
+  #title .tgl input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+  #title .tgl i { width: 34px; height: 20px; border-radius: 10px; background: rgba(255,255,255,.16); position: relative; transition: background .16s; }
+  #title .tgl i::after { content: ''; position: absolute; left: 3px; top: 3px; width: 14px; height: 14px; border-radius: 50%; background: #dfe7e3; transition: transform .18s var(--m-ease); }
+  #title .tgl input:checked + i { background: var(--m-acc-d); } #title .tgl input:checked + i::after { transform: translateX(14px); background: #fff; }
+  #title .titleCorner { position: absolute; right: 40px; bottom: 32px; z-index: 2; display: flex; gap: 16px; font: 700 11px var(--ui); letter-spacing: .24em; text-transform: uppercase; color: rgba(220,230,226,.42); pointer-events: none; }
+  #title .titleCorner span + span::before { content: '/'; margin-right: 16px; opacity: .55; }
+  @media (max-height: 820px) { #title .titleName { font-size: 80px; } #title .titleName span { font-size: 34px; } #title .titleSub { font-size: 15.5px; margin-bottom: 22px; } #title .titleKicker { margin-bottom: 16px; } #title .titleFoot { margin-top: 20px; } }
+
+  /* ---- QG : barre du haut (fil d'Ariane au centre), pied ---- */
+  #hq header.rawbar { background: linear-gradient(180deg, rgba(12,16,18,.95), rgba(8,11,12,.84)); border-bottom: 1px solid rgba(255,255,255,.07); }
+  #hq header.rawbar::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: linear-gradient(90deg, transparent 0%, rgba(78,224,137,.5) 30%, rgba(47,182,201,.4) 70%, transparent 100%); pointer-events: none; }
+  .sqbtn { width: 42px; height: 42px; border-radius: 10px; } .sqbtn:hover { transform: translateY(-1px); }
+  .hqrank { height: 22px; font-size: 11px; }
+  .rb-where { position: absolute; left: 50%; top: 0; height: 64px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; pointer-events: none; white-space: nowrap; }
+  .rb-where span { font-size: 10.5px; font-weight: 700; letter-spacing: .32em; text-transform: uppercase; color: var(--m-mut); }
+  .rb-where b { font-size: 17px; font-weight: 800; letter-spacing: .26em; text-transform: uppercase; color: var(--m-txt); }
+  .rb-where::after { content: ''; width: 26px; height: 2px; border-radius: 1px; background: var(--m-acc); }
+  .rb-where b::after { content: 'Accueil'; }
+  #hq[data-tab=equipe] .rb-where b::after { content: 'Équipe'; } #hq[data-tab=missions] .rb-where b::after { content: 'Jouer'; }
+  #hq[data-tab=missions][data-view=camp] .rb-where b::after { content: 'Jouer › Campagne'; } #hq[data-tab=missions][data-view=prep] .rb-where b::after { content: 'Jouer › Préparation'; }
+  #hq[data-tab=cartes] .rb-where b::after { content: 'Cartes'; } #hq[data-tab=ligue] .rb-where b::after { content: 'Ligue'; } #hq[data-tab=carriere] .rb-where b::after { content: 'Carrière'; }
+  .pill { height: 42px; border-radius: 21px !important; } .pill:hover { transform: translateY(-2px); }
+  .pill.dim:hover { opacity: 1; color: #ffb4a8 !important; border-color: rgba(255,120,100,.6) !important; background: rgba(60,18,14,.85) !important; }
+  #hq .mini.pillb, #hq .cvhead .mini, #hq .trhead .mini, #hq .pkhead .mini { height: 42px; padding: 0 24px; border-radius: 21px; font: 700 13px var(--ui); letter-spacing: .16em; text-transform: uppercase; color: var(--m-txt); background: rgba(255,255,255,.07); border: 1px solid var(--m-line2); }
+  #hq .cvhead .mini:hover, #hq .trhead .mini:hover, #hq .pkhead .mini:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.34); }
+  #hq .cvhead .mini::before { content: '← '; }
+
+  /* ---- accueil : capsule du chef, deux grandes actions, bilan en bas, escouade à droite ---- */
+  .home3 .pod { left: 64px; top: 36px; width: 470px; height: 880px; border-radius: 20px; border: 1px solid rgba(110,220,232,.28);
+    background: radial-gradient(ellipse at 50% 97%, rgba(80,220,240,.32), transparent 48%), radial-gradient(ellipse at 50% 30%, rgba(60,140,160,.16), transparent 62%), linear-gradient(180deg, rgba(12,30,36,.72), rgba(4,10,12,.9)); }
+  .home3 .pod::before { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; border-radius: inherit; background: repeating-linear-gradient(0deg, rgba(140,230,240,.03) 0 1px, transparent 1px 4px); box-shadow: inset 0 -90px 90px -50px rgba(0,0,0,.45); }
+  .home3 .pod::after { --c: rgba(140,235,245,.6); content: ''; position: absolute; inset: 14px; z-index: 3; pointer-events: none;
+    background: linear-gradient(var(--c), var(--c)) left top / 24px 2px no-repeat, linear-gradient(var(--c), var(--c)) left top / 2px 24px no-repeat, linear-gradient(var(--c), var(--c)) right top / 24px 2px no-repeat, linear-gradient(var(--c), var(--c)) right top / 2px 24px no-repeat,
+      linear-gradient(var(--c), var(--c)) left bottom / 24px 2px no-repeat, linear-gradient(var(--c), var(--c)) left bottom / 2px 24px no-repeat, linear-gradient(var(--c), var(--c)) right bottom / 24px 2px no-repeat, linear-gradient(var(--c), var(--c)) right bottom / 2px 24px no-repeat; }
+  .podtag { position: absolute; right: 34px; top: 32px; z-index: 4; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; text-align: right; pointer-events: none; }
+  .podtag small { font-size: 11px; font-weight: 700; letter-spacing: .26em; text-transform: uppercase; color: #7fd8e6; }
+  .podtag b { font-family: var(--raw); font-weight: 400; font-size: 30px; line-height: 1; color: #fff; text-transform: uppercase; text-shadow: 0 2px 10px rgba(0,0,0,.6); }
+  .podtag span { font-size: 13px; color: var(--m-mut); }
+  .hmain { left: 580px; top: 36px; width: 750px; height: 880px; gap: 24px; }
+  .hkick { font-size: 12px; letter-spacing: .3em; color: var(--m-acc); }
+  .htitle { font-size: 64px; }
+  .hrate { padding: 14px 22px; border-radius: 16px; background: var(--m-glass); border-color: var(--m-line2); }
+  .hrate b { font-size: 52px; }
+  .hactions { flex: 1; min-height: 0; gap: 20px; }
+  .hact { height: auto; padding: 30px 32px !important; border-radius: 20px !important; overflow: hidden; background: linear-gradient(160deg, rgba(255,255,255,.075), rgba(255,255,255,.02)) !important; backdrop-filter: blur(8px); }
+  .hact::after { content: '→'; position: absolute; right: 30px; top: 26px; font-size: 26px; opacity: .45; transition: transform .18s var(--m-ease), opacity .16s; }
+  .hact:hover { transform: translateY(-3px); } .hact:hover::after { opacity: 1; transform: translateX(4px); }
+  .hact .hicon { left: 32px; top: 30px; color: var(--m-acc); } .hact .hicon .ico { width: 64px; height: 64px; color: inherit; } .hact .hicon .ico * { fill: currentColor; }
+  .hact .hwm { position: absolute; right: -40px; bottom: -30px; width: 300px; height: 300px; opacity: .07; pointer-events: none; transition: opacity .2s, transform .3s var(--m-ease); }
+  .hact .hwm .ico { width: 100%; height: 100%; } .hact .hwm .ico * { fill: currentColor; } .hact:hover .hwm { opacity: .12; transform: scale(1.04) rotate(-3deg); } .hact.primary .hwm { color: var(--m-ink); opacity: .12; }
+  .hact b { font-size: 34px; } .hact small { font-size: 16px; line-height: 1.45; }
+  .hact.primary { background: linear-gradient(150deg, #52e28e 0%, #34c370 55%, #229655 100%) !important; box-shadow: 0 20px 44px rgba(40,180,100,.26) !important; }
+  .hact.primary:hover { background: linear-gradient(150deg, #66ec9c 0%, #3fcf7c 55%, #2aa862 100%) !important; }
+  .hact.primary .hicon { color: var(--m-ink); } .hact.primary .hicon .ico { color: inherit; }
+  .hact.primary::before { content: ''; position: absolute; right: -70px; bottom: -90px; width: 320px; height: 320px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.24), transparent 66%); pointer-events: none; }
+  .hstats.homeInfo { margin-top: auto; padding: 26px 30px; border-radius: 20px; background: var(--m-glass); border-color: var(--m-line); backdrop-filter: blur(10px); gap: 16px; }
+  .hstats .rankline { font-size: 16px; }
+  .hxp { height: 6px; margin-top: -6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .hxp i { display: block; height: 100%; width: 0; border-radius: 3px; background: linear-gradient(90deg, #7a3cff, #b48cff); transition: width .6s var(--m-ease); }
+  .hstats .record2 span { padding: 16px 18px; border-radius: 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.05); }
+  .hstats .record2 b { font-size: 46px; } .hstats .record2 i { font-size: 12px; } .hstats .muted { font-size: 14px; }
+  .hstats .record2 span:nth-child(1) i { color: #7fe0a6; } .hstats .record2 span:nth-child(2) i { color: #f08b7e; }
+  .hsquad { left: 1370px; top: 36px; width: 490px; gap: 14px; }
+  .hsqhead { padding: 4px 6px 0; } .hsqhead b { font-size: 13px; letter-spacing: .28em; } .hsqhead small { font-size: 12.5px; }
+  .home3 .homeSquad { gap: 12px; }
+  .hsq { position: relative; overflow: hidden; height: 154px; grid-template-columns: 124px 1fr auto; padding: 10px 24px 10px 10px !important; border-radius: 18px !important; background: var(--m-glass) !important; border-color: var(--m-line) !important; }
+  .hsq::before { content: ''; position: absolute; left: 0; top: 22px; bottom: 22px; width: 3px; border-radius: 0 3px 3px 0; background: var(--m-acc); opacity: 0; transition: opacity .16s; }
+  .hsq:hover { transform: translateX(-3px); } .hsq:hover::before { opacity: 1; }
+  .hsq:first-child::after { content: 'Chef'; position: absolute; right: 24px; top: 16px; font-size: 10.5px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; color: var(--m-gold); }
+  .hsq .hsqp { width: 124px; height: 134px; border-radius: 12px; background: radial-gradient(ellipse at 50% 30%, #2b4a44, #0d1715 75%); }
+  .hsq .hsqt b { font-size: 24px; } .hsq .hsqt small { font-size: 14.5px; }
+  .hsq .rt { font-size: 38px; text-align: right; } .hsq .rt::after { content: 'Note'; display: block; margin-top: 2px; font-size: 10.5px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--m-mut); }
+
+  /* ---- équipe : cartes sombres à liseré de rareté (commun acier, rare bleu, élite or) ---- */
+  .bc, .sqc, .opcard { --rc: #8fa3a0; } .bc.r2, .sqc.r2, .opcard.r2 { --rc: #4aa3ff; } .bc.r3, .sqc.r3, .opcard.r3 { --rc: #e8b64a; }
+  .bc, .bc.r2, .bc.r3 { padding: 0; border-radius: 20px; overflow: hidden; background: linear-gradient(180deg, #172025, #0b1013); box-shadow: 0 24px 54px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.08); }
+  .bc::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 5; box-shadow: inset 0 3px 0 var(--rc), inset 0 0 0 1px color-mix(in srgb, var(--rc) 45%, transparent); }
+  .bc-top, .bc.r2 .bc-top { height: 70px; border-radius: 0; justify-content: flex-start; padding-left: 26px; background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 22%, #121a1e), #10171a); box-shadow: none; }
+  .bc-top b { font-family: var(--raw); font-size: 38px; color: #fff; padding-right: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bc-role { right: 14px; top: 9px; width: 62px; height: 62px; color: #fff; background: rgba(0,0,0,.45); border: 2px solid var(--rc); box-shadow: 0 4px 12px rgba(0,0,0,.4); }
+  .bc-role .ico { width: 34px; height: 34px; }
+  .bc-sub { height: 32px; justify-content: flex-start; padding-left: 26px; background: rgba(0,0,0,.42); font: 700 13px var(--ui); letter-spacing: .24em; color: var(--rc); }
+  .bc-art { border-radius: 0; box-shadow: none; background: radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--rc) 26%, #10201f) 0%, #0b1214 62%, #070a0b 100%); }
+  .bc-art::before { background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,.025) 3px 4px); }
+  .bc-foot { left: 0; right: 0; bottom: 0; height: 130px; padding: 0 16px 18px 26px; border-radius: 0; background: linear-gradient(0deg, rgba(5,8,9,.94), rgba(5,8,9,0)); font: 700 15px var(--ui); letter-spacing: .16em; }
+  .bc-rate { width: 96px; height: 96px; margin: 0; border-radius: 20px; background: rgba(8,12,14,.86); border: 2px solid var(--rc); box-shadow: 0 8px 20px rgba(0,0,0,.5); }
+  .bc-rate b { font-size: 44px; } .bc-rate .ico { width: 28px; height: 28px; color: var(--rc); }
+  .trcard .bc { padding: 0; border-radius: 16px; }
+  .trcard .bc-top { height: 50px; padding-left: 16px; } .trcard .bc-top b { font-size: 24px; padding-right: 52px; }
+  .trcard .bc-role { top: 6px; right: 8px; width: 38px; height: 38px; border-width: 2px; } .trcard .bc-role .ico { width: 22px; height: 22px; }
+  .trcard .bc-sub { height: 26px; padding-left: 16px; font-size: 11px; }
+  .trcard .bc-foot { height: 90px; padding: 0 10px 10px 16px; font-size: 11.5px; } .trcard .bc-rate { width: 64px; height: 64px; border-radius: 14px; } .trcard .bc-rate b { font-size: 28px; } .trcard .bc-rate .ico { width: 20px; height: 20px; }
+  .tmside { left: 1716px; width: 184px; } .tmside select { font-family: var(--ui); font-weight: 600; font-size: 12.5px; height: 34px; border-radius: 8px; }
+  .tmside .syn { border-radius: 10px; } .tmside .syn span { font-size: 12px; }
+  .tmbody select { font-family: var(--ui); border-radius: 8px; }
+  .tmbody .lvl { font-size: 14px; }
+  .ybtn { height: 48px; border-radius: 24px !important; padding: 0 26px 0 56px !important; font-size: 13px !important; background: var(--m-acc-d) !important; color: var(--m-ink) !important; box-shadow: 0 10px 26px rgba(40,180,100,.22); }
+  .ybtn:hover { background: var(--m-acc) !important; filter: none; transform: translateY(-2px); } .ybtn .ico { color: inherit; }
+  .ybtn.dim { background: rgba(255,255,255,.07) !important; color: var(--m-txt) !important; border: 1px solid var(--m-line2) !important; box-shadow: none; } .ybtn.dim:hover { background: rgba(255,255,255,.14) !important; }
+  .tracts .ybtn { height: 52px; padding: 0 18px !important; font-size: 13px !important; }
+  .tmsquad { top: 642px; gap: 20px; }
+  .tmsquad::before { content: 'Escouade engagée'; position: absolute; left: 2px; top: -30px; font: 700 12px var(--ui); letter-spacing: .26em; text-transform: uppercase; color: var(--m-mut); }
+  .sqc { width: 283px; height: 238px; padding: 0; border: 0; border-radius: 16px; gap: 0; background: #0b1013; box-shadow: 0 14px 30px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.08); transition: transform .18s var(--m-ease), box-shadow .18s; }
+  .sqc:hover { transform: translateY(-4px); box-shadow: 0 18px 36px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.22); }
+  .sqc-name { height: 40px; justify-content: flex-start; padding-left: 16px; font-size: 20px; color: #f1f5f3; background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 20%, #141c20), #10171a); box-shadow: inset 0 3px 0 var(--rc); }
+  .sqc.sel { box-shadow: 0 0 0 2px var(--m-acc), 0 0 30px rgba(78,224,137,.32), 0 14px 30px rgba(0,0,0,.5); }
+  .sqc.sel .sqc-name { background: linear-gradient(180deg, rgba(78,224,137,.3), rgba(78,224,137,.08)); box-shadow: inset 0 3px 0 var(--m-acc); }
+  .sqc-art { background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--rc) 22%, #11201e), #0a1012 70%); }
+  .sqc-rate { right: 12px; bottom: 12px; width: 64px; height: 64px; border-radius: 16px; background: rgba(8,12,14,.86); border: 2px solid var(--rc); } .sqc-rate .ico { color: var(--rc); }
+  .sqc.empty { opacity: 1; background: rgba(255,255,255,.025); box-shadow: none; border: 2px dashed rgba(255,255,255,.18); }
+  .sqc.empty .sqc-name { background: transparent; box-shadow: none; color: var(--m-mut); } .sqc.empty .sqc-art { background: none; color: var(--m-mut); } .sqc.empty:hover { border-color: var(--m-acc); } .sqc.empty:hover .sqc-art { color: var(--m-acc); }
+  /* changer de soldat : fenêtre au premier plan, le reste assombri */
+  .tmroster { left: 160px; top: 60px; width: 1600px; height: 660px; border: 1px solid var(--m-line2); border-radius: 20px; overflow: hidden; background: rgba(9,13,15,.95); backdrop-filter: blur(14px); box-shadow: 0 0 0 3000px rgba(0,0,0,.6), 0 30px 80px rgba(0,0,0,.6); }
+  .tmroster:not(.hidden) { animation: mIn .28s var(--m-ease); }
+  .trhead { padding: 18px 24px; border-bottom: 1px solid var(--m-line); } .trhead b { font-family: var(--raw); font-size: 30px; }
+  .trbody { grid-template-columns: 1fr 660px; }
+  .trlist { grid-template-columns: repeat(auto-fill, 170px); gap: 18px; padding: 24px; }
+  .trdetail { border-left: 1px solid var(--m-line); padding: 22px; }
+  .opcard { width: 170px; height: 236px; padding: 0; border: 0; border-radius: 14px; background: #0b1013; box-shadow: 0 10px 22px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.08); transition: transform .18s var(--m-ease), box-shadow .18s; }
+  .opcard:hover { transform: translateY(-3px); box-shadow: 0 14px 28px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.24); }
+  .opcard .oc-name, .opcard.r1 .oc-name, .opcard.r3 .oc-name { height: 36px; font-size: 17px; color: #f1f5f3; background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 20%, #141c20), #10171a); box-shadow: inset 0 3px 0 var(--rc); }
+  .opcard .oc-art { background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--rc) 22%, #11201e), #0a1012 70%); }
+  .opcard .oc-rate { background: rgba(8,12,14,.86); border: 2px solid var(--rc); } .opcard .oc-rate .ico { color: var(--rc); }
+  .opcard .oc-st { height: 26px; line-height: 26px; background: rgba(0,0,0,.6); font: 700 11px/26px var(--ui); letter-spacing: .14em; }
+  .opcard.insquad { box-shadow: 0 10px 22px rgba(0,0,0,.45), inset 0 0 0 2px rgba(78,224,137,.5); } .opcard.insquad .oc-st { color: var(--m-acc); }
+  .opcard.sel { box-shadow: 0 0 0 2px var(--m-acc), 0 0 26px rgba(78,224,137,.4); }
+
+  /* ---- jouer : cartes de mode en verre, campagne, préparation ---- */
+  #playHome::before { content: 'Choisissez un mode de jeu'; top: 96px; font-size: 13px; letter-spacing: .3em; color: var(--m-mut); }
+  #playHome .medals { top: 156px; gap: 48px; }
+  .medtile { width: 340px; height: 580px; }
+  .medtile:hover { transform: translateY(-4px); }
+  .medtile::before { left: 0; right: 0; top: 140px; bottom: 0; border-radius: 22px; background: linear-gradient(180deg, rgba(255,255,255,.065), rgba(255,255,255,.02)); border: 1px solid var(--m-line2); backdrop-filter: blur(8px); transition: border-color .16s, box-shadow .2s, background .2s; }
+  .medtile:hover::before { border-color: rgba(78,224,137,.6); background: linear-gradient(180deg, rgba(78,224,137,.1), rgba(255,255,255,.02)); box-shadow: 0 22px 54px rgba(0,0,0,.45); }
+  .medtile.on::before, .medtile.sel::before { border-color: rgba(78,224,137,.75); box-shadow: 0 0 0 1px rgba(78,224,137,.4), 0 0 44px rgba(78,224,137,.16); }
+  .medtile .mdl { left: 35px; top: 0; }
+  .medtile .ibtn { left: auto; right: 16px; top: 252px; width: 34px; height: 34px; border-radius: 50% !important; font-size: 17px !important; background: rgba(0,0,0,.45) !important; border: 1px solid var(--m-line2) !important; }
+  .medtile .mt { left: 0; right: 0; top: 304px; height: auto; font-size: 22px; letter-spacing: .14em; color: #fff; }
+  .medtile .ms { left: 24px; right: 24px; bottom: 24px; height: 170px; border-radius: 16px; background: rgba(0,0,0,.34); border: 1px solid var(--m-line); color: var(--m-txt); gap: 12px; }
+  .medtile .ms em { color: var(--m-acc); font-size: 12px !important; letter-spacing: .22em; }
+  .medtile .mbar { width: 230px; height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; } .medtile .mbar > i { border-radius: 4px; background: linear-gradient(90deg, var(--m-acc-d), #8ff0b8); }
+  .medtile .ms small { position: static; font-size: 14px; font-weight: 700; letter-spacing: .1em; color: var(--m-mut); }
+  .medtile .ms strong { font-family: var(--raw); font-size: 46px; color: #fff; }
+  .medtile.locked .ms { background: rgba(0,0,0,.45); } .medtile.locked .ms strong { font: 700 20px var(--ui); letter-spacing: .1em; color: var(--m-mut); } .medtile.locked .lk .ico { width: 30px; height: 34px; color: var(--m-mut); }
+  .campview { padding: 26px 40px; }
+  .cvhead { height: 112px; gap: 24px; } .cvmedal { width: 104px; height: 104px; }
+  .cvhead b { font-family: var(--raw); font-size: 44px; letter-spacing: .02em; color: #fff; } .cvhead small { margin-top: 6px; font-size: 15px; line-height: 1.5; color: var(--m-mut); }
+  .cvbody { grid-template-columns: 1fr 440px; gap: 28px; margin-top: 18px; height: 740px; }
+  #hq #hqMissions { grid-template-columns: repeat(3, 1fr) !important; gap: 16px; }
+  .cvlist .mission { height: 196px; padding: 16px 18px; border-radius: 16px; background: var(--m-glass); border: 1px solid var(--m-line); transition: border-color .16s, transform .18s var(--m-ease), box-shadow .18s, background .16s; }
+  .cvlist .mission:not(.locked):hover { border-color: rgba(255,255,255,.3); transform: translateY(-2px); }
+  .cvlist .mission.won { border-color: rgba(78,224,137,.4); }
+  .cvlist .mission.sel { border-color: var(--m-acc); background: linear-gradient(180deg, rgba(78,224,137,.11), rgba(10,14,16,.8)); box-shadow: 0 0 0 1px rgba(78,224,137,.5), 0 0 30px rgba(78,224,137,.14); }
+  .cvlist .mnum { font-size: 22px; color: var(--m-acc); } .cvlist .mrow b { font-size: 19px; }
+  .cvlist .mmap { font-size: 13px; } .cvlist .mdesc { height: 56px; font-size: 13px; line-height: 1.45; color: #b5c3bd; }
+  .cvlist .mfoot { left: 18px; right: 18px; bottom: 14px; gap: 16px; justify-content: flex-start; padding-top: 10px; border-top: 1px solid var(--m-line); font-size: 12.5px; color: var(--m-mut); }
+  .cvlist .mfoot .diff { margin-left: 0; } .cvlist .mfoot span:last-child { margin-left: auto; }
+  .cvlist .mission.locked { opacity: .5; } .cvlist .mlock { color: var(--m-mut); }
+  .cvside { gap: 18px; } .cvside .deploy { background: var(--m-glass); border: 1px solid var(--m-line); border-radius: 16px; padding: 18px 20px; line-height: 1.5; } .cvside .deploy b { font-size: 22px; }
+  .cvch .d3h { font-size: 12px; font-weight: 700; letter-spacing: .26em; color: var(--m-mut); } .cvch .chal { border-radius: 10px; padding: 7px 10px; background: var(--m-glass); }
+  .tile { border-radius: 18px !important; border: 1px solid var(--m-line2) !important; background: var(--m-glass2) !important; box-shadow: 0 14px 30px rgba(0,0,0,.4); }
+  .tile:hover { transform: translateY(-3px); border-color: rgba(255,255,255,.32) !important; }
+  .tile b { height: 44px; font: 800 14px var(--ui); letter-spacing: .2em; background: rgba(0,0,0,.35); border-top: 1px solid var(--m-line); }
+  .tile.play { color: var(--m-ink) !important; background: linear-gradient(150deg, #52e28e, #2aa862) !important; border-color: rgba(160,255,200,.55) !important; box-shadow: 0 16px 38px rgba(40,180,100,.28); }
+  .tile.play:hover { background: linear-gradient(150deg, #66ec9c, #33b56c) !important; }
+  .tile.play b { color: var(--m-ink); font-size: 18px; background: rgba(0,0,0,.1); border-top-color: rgba(0,0,0,.14); }
+  .tart-play { color: inherit; } .tart-play .ico * { fill: currentColor; }
+  .tile.big { height: 140px; } .tile.big .tart-play .ico { width: 120px; height: 72px; }
+  .cvch #hqChallenges { max-height: 320px; }
+  .p3team .tart-team .portrait { width: auto !important; height: 118px !important; bottom: -2px; } .p3team .tart-team img:nth-child(1) { left: 34px; } .p3team .tart-team img:nth-child(2) { left: 104px; height: 130px !important; } .p3team .tart-team img:nth-child(3) { left: 174px; }
+  .tile.play:disabled { filter: grayscale(.9) brightness(.55); transform: none; }
+  .prep3 .p3title { top: 30px; font-family: var(--raw); font-size: 46px; letter-spacing: .02em; }
+  .prep3 .p3sub { top: 96px; font-size: 16px; color: var(--m-mut); }
+  .p3slots { top: 262px; gap: 28px; }
+  .p3slots::before { content: 'Tactiques emportées · trois au maximum'; position: absolute; left: 0; right: 0; top: -38px; text-align: center; font: 700 12px var(--ui); letter-spacing: .26em; text-transform: uppercase; color: var(--m-mut); }
+  .tslot { position: relative; width: 250px; height: 330px; gap: 16px; border-radius: 20px !important; font: 700 15px/1.4 var(--ui) !important; letter-spacing: .12em; color: var(--m-mut) !important; text-shadow: none; background: rgba(255,255,255,.03) !important; border: 2px dashed rgba(255,255,255,.18) !important; box-shadow: none; }
+  .tslot:hover { filter: none; transform: translateY(-3px); color: var(--m-txt) !important; border-color: var(--m-acc) !important; background: rgba(78,224,137,.06) !important; }
+  .tslot .tsplus { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 300; line-height: 1; color: var(--m-acc); border: 1px solid rgba(78,224,137,.45); background: rgba(78,224,137,.08); }
+  .tslot.full { color: #fff !important; background: linear-gradient(180deg, rgba(30,44,40,.92), rgba(10,16,15,.96)) !important; border: 1px solid var(--m-line2) !important; box-shadow: 0 16px 34px rgba(0,0,0,.45); }
+  .tslot.full:hover { border-color: rgba(255,130,110,.65) !important; background: linear-gradient(180deg, rgba(48,30,28,.92), rgba(16,10,10,.96)) !important; }
+  .tslot.full::after { content: 'Retirer'; position: absolute; left: 0; right: 0; bottom: 14px; font: 700 11px var(--ui); letter-spacing: .24em; text-transform: uppercase; color: #ff9f90; opacity: 0; transition: opacity .16s; } .tslot.full:hover::after { opacity: 1; }
+  .tslot .tsname { font: 800 15px var(--ui); letter-spacing: .14em; } .tslot .tsart img { max-height: 240px; }
+  .p3team { left: 40px; top: auto; bottom: 36px; width: 300px; height: 150px; }
+  .p3right { right: 40px; top: auto; bottom: 36px; width: auto; flex-direction: row; align-items: stretch; gap: 16px; }
+  .shieldbtn { width: 300px; height: 96px; gap: 16px; padding: 0 20px 0 18px !important; border-radius: 18px !important; color: var(--m-txt) !important; background: var(--m-glass2) !important; border: 1px solid var(--m-line2) !important; box-shadow: 0 14px 30px rgba(0,0,0,.4); }
+  .shieldbtn:hover { transform: translateY(-3px); border-color: rgba(255,255,255,.32) !important; }
+  .shieldbtn [data-ico] { width: 60px; height: 60px; border-radius: 14px; background: rgba(0,0,0,.42); }
+  .shieldbtn b { font: 700 12px var(--ui); letter-spacing: .24em; color: var(--m-mut); } .shieldbtn small { display: block; margin-top: 4px; font: 800 21px var(--ui); letter-spacing: .08em; }
+  .shieldbtn::after { content: '↻'; margin-left: auto; font-size: 22px; opacity: .5; } .shieldbtn:hover::after { opacity: 1; }
+  .tile.p3play { width: 340px; height: 96px; flex-direction: row; }
+  .tile.p3play .tart-play { flex: 0 0 104px; } .tile.p3play .tart-play .ico { width: 64px; height: 46px; margin: 0; }
+  .tile.p3play b { flex: 1; height: auto; justify-content: flex-start; font-size: 28px; letter-spacing: .26em; background: none; border: 0; }
+  #hq .p3hint { top: 628px; bottom: auto; left: 400px; right: 400px; font-size: 15px; color: var(--m-mut); text-shadow: none; }
+  .p3none { top: 350px; gap: 14px; font: 700 14px var(--ui); letter-spacing: .14em; color: var(--m-mut); }
+  .getcards { width: 340px; height: 64px; padding: 0 26px 0 84px !important; border-radius: 32px !important; font: 800 14px var(--ui) !important; letter-spacing: .14em; color: var(--m-ink) !important; background: var(--m-acc-d) !important; border: 0 !important; box-shadow: 0 12px 28px rgba(40,180,100,.25); }
+  .getcards:hover { background: var(--m-acc) !important; transform: translateY(-2px); }
+  .getcards [data-ico] { width: 64px; border-radius: 32px 0 0 32px; background: rgba(0,0,0,.18); } .getcards .ico { width: 34px; height: 34px; }
+  #hq .prep3:has(.p3none) .p3hint { top: 740px; }
+  .p3pick { left: 260px; right: 260px; top: 150px; height: auto; max-height: 560px; z-index: 9; padding: 20px 24px; border-radius: 20px; border: 1px solid var(--m-line2); background: rgba(9,13,15,.96); backdrop-filter: blur(14px); box-shadow: 0 0 0 3000px rgba(0,0,0,.55), 0 30px 80px rgba(0,0,0,.6); }
+  .pkhead { font: 800 16px var(--ui); letter-spacing: .2em; } .pkhead small { font-size: 13px; }
+  .pkcard { border-radius: 14px !important; border: 1px solid var(--m-line2) !important; background: linear-gradient(180deg, rgba(30,44,40,.92), rgba(10,16,15,.96)) !important; }
+  .pkcard:hover { transform: translateY(-3px); border-color: rgba(255,255,255,.34) !important; }
+  .pkcard.eq { border-color: var(--m-acc) !important; box-shadow: 0 0 0 1px rgba(78,224,137,.5), 0 0 24px rgba(78,224,137,.25); }
+  .pkcard b { font: 800 13px var(--ui); letter-spacing: .1em; }
+  /* panneaux secondaires (cartes, ligue, carrière) : même verre que le reste */
+  #hq .hqpanel .hqcol { background: var(--m-glass); border: 1px solid var(--m-line); border-radius: 18px; padding: 18px; backdrop-filter: blur(10px); }
+  #hq .hqpanel h3 { font-family: var(--ui); font-weight: 700; font-size: 12.5px; letter-spacing: .26em; color: var(--m-mut); }
+
   /* ===================== HUD de bataille v3 : verre fumé, filets fins, chiffres tabulaires, couleurs d'équipe en accent ===================== */
   #app.hud3 { --hud: 'Rajdhani', var(--ui); --glass: rgba(10,14,19,.62); --glass2: rgba(16,22,30,.78); --edge: rgba(255,255,255,.10); --b0: #4aa3ff; --b1: #ff5a48; --txt: #eef3f8; --mut: rgba(220,230,240,.62); }
   #app.hud3 .topbar { left: 50% !important; right: auto !important; width: 980px !important; transform: translateX(-50%); top: 12px; height: 64px; padding: 0; background: none; grid-template-columns: 1fr 150px 1fr; gap: 6px; }
@@ -1047,6 +1288,7 @@
     <div class="rb-cell rb-season" title="Saison de ligue : batailles jouées"><div class="rb-lbl">Saison</div><div class="seg" id="hqSeason"></div><div class="rb-sub" id="hqSeasonTxt"></div></div>
     <div class="rb-cell rb-team"><span class="ins team0" id="hqIns">✶</span><div class="hqname" id="hqTeamName">Alpha</div><div class="hqrank"><span class="rk">Rang<b id="hqRankN">0</b></span><span id="hqXp"></span><i class="xpfill" id="hqXpBar"></i><span id="hqRank" class="sr"></span></div></div>
     <div class="rb-cell rb-ach"><div class="rb-lbl">Succès</div><div class="achs" id="hqAch" title="Succès"></div></div>
+    <div class="rb-where" aria-hidden="true"><span>Quartier général</span><b></b></div>
     <div class="spacer"></div>
     <div class="rb-money"><div title="Crédits"><span class="mico" data-ico="coin"></span><span id="credits">0</span></div><div title="Paquets offerts à ouvrir"><span class="mico" data-ico="pack"></span><span id="hqPacksN">0</span></div></div>
     <button id="hqHelp" class="sqbtn small" title="Aide"></button>
@@ -1057,16 +1299,17 @@
   <!-- Accueil : soldat dans sa capsule, puissance d'équipe, trois grandes tuiles (comme le jeu d'origine) -->
   <div class="hqpanel" data-panel="accueil">
     <div class="home3">
-      <div class="pod"><div class="podframe"></div><canvas id="homeScene"></canvas><div class="podglass"></div><div class="podbase"></div></div>
+      <div class="pod"><div class="podframe"></div><canvas id="homeScene"></canvas><div class="podglass"></div><div class="podbase"></div><div class="podtag"><small>Chef d'escouade</small><b id="podName"></b><span id="podRole"></span></div></div>
       <div class="hmain">
         <div class="hhead"><span class="hkick">Quartier général</span><b class="htitle" id="homeTeamTitle">Alpha</b>
           <div class="hrate ratingCard" title="Note d'équipe : moyenne des notes des opérateurs engagés"><span>Note d'équipe</span><b id="hqRating">0</b></div></div>
         <div class="hactions">
-          <button class="hact primary" data-go="missions"><span class="hicon" data-ico="arrows"></span><b>Jouer</b><small>Campagne et bataille rapide sur le parking</small></button>
-          <button class="hact" data-go="equipe"><span class="hicon" data-ico="soldier"></span><b>Mon équipe</b><small>Opérateurs, ordre et formation</small></button>
+          <button class="hact primary" data-go="missions"><span class="hwm" data-ico="arrows"></span><span class="hicon" data-ico="arrows"></span><b>Jouer</b><small>Campagne et bataille rapide sur le parking</small></button>
+          <button class="hact" data-go="equipe"><span class="hwm" data-ico="soldier"></span><span class="hicon" data-ico="soldier"></span><b>Mon équipe</b><small>Opérateurs, ordre et formation</small></button>
         </div>
         <div class="hstats homeInfo">
           <div class="rankline" id="homeRank"></div>
+          <div class="hxp"><i id="homeXpBar"></i></div>
           <div class="record2"><span><b id="hqWins">0</b><i>victoires</i></span><span><b id="hqLosses">0</b><i>défaites</i></span><span><b id="hqDraws">0</b><i>égalités</i></span></div>
           <div class="muted" id="career"></div>
         </div>
@@ -12591,12 +12834,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const UP = new THREE.Vector3(0, 1, 0), qT = new THREE.Quaternion(), qP = new THREE.Quaternion();
     const twist = (bone, ang) => { bone.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(UP, ang); bone.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); bone.updateMatrixWorld(true); };
     const spine3 = [bone('Spine'), bone('Spine1'), bone('Spine2')].filter(Boolean), hipsB = bone('Hips'), spine1 = bone('Spine1');
+    const pieds = ['Left', 'Right'].map(c => [bone(c + 'UpLeg'), bone(c + 'Leg'), bone(c + 'Foot')]), cou = bone('Neck'), graine = (S.nb = (S.nb || 0) + 1) * 2.399;
     // Retouches par image (torsion des jambes, respiration, IK de l'épaule, recul) : elles s'ajoutent à la pose du mixer.
     // PIÈGE three.js : le mixer ne réécrit un os que si sa valeur animée a CHANGÉ depuis l'image précédente ; sur une pose
     // figée ou un haut du corps statique, nos retouches s'accumulaient d'image en image (torses qui tournaient sans fin).
     // D'où ce registre : chaque os retouché est remis à sa valeur « mixer » au début de l'image suivante.
     const mods = [];
-    const mod = (bone) => { if (!bone || bone.userData.modK === frameK) return; bone.userData.modK = frameK; mods.push([bone, bone.quaternion.clone()]); };
+    // (la position est gardée aussi : le report du poids déplace le bassin)
+    const mod = (bone) => { if (!bone || bone.userData.modK === frameK) return; bone.userData.modK = frameK; mods.push([bone, bone.quaternion.clone(), bone.position.clone()]); };
     let frameK = 1;
     const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true, modele: M.nom, mod, clips: M.clips, yawFix: M.yawFix, loco: M.loco || {}, chuteY: M.chuteY || {}, legClip: null,
       jambes: 0, jambesCible: 0, mode: 'deux', handLocal: { droite: null, gauche: null }, t: 0,
@@ -12691,8 +12936,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // jambes tournent de cet angle, le dos le rattrape (réparti sur les trois vertèbres) : le torse et l'arme restent vers
       // la cible pendant que les jambes marchent là où le soldat va (pas de côté, recul). Lissé pour ne pas sauter.
       update(dt, keepYaw) {
-        for (const [b, q] of mods) b.quaternion.copy(q); mods.length = 0;
         const enMarche = !!this.blendW && this.blendFrame === frameK;
+        // arrêt après une marche / course : les pieds sont « cloués » là où ils étaient affichés (positions monde de l'image
+        // précédente, lues AVANT d'effacer les retouches), puis posé() les amène un par un à la pose d'arrêt
+        if (this.blendW && !enMarche && !keepYaw && pieds[0][2] && pieds[1][2]) this.pose0 = { t: 0, lock: pieds.map(l => new THREE.Vector3().setFromMatrixPosition(l[2].matrixWorld)), lockQ: pieds.map(l => { const q = new THREE.Quaternion(); l[2].matrixWorld.decompose(V(), q, V()); return q; }) };
+        for (const [b, q, p] of mods) { b.quaternion.copy(q); b.position.copy(p); } mods.length = 0;
         if (this.blendW && !enMarche) {   // plus en marche directionnelle : les jambes mélangées s'effacent
           for (const n in this.blendW) { const a = actions[n]; if (a && a.isScheduled() && this.blendW[n] > 0) a.fadeOut(0.3); }
           this.blendW = null; this.dosM = (this.dosM || 0) + (this.yawM || 0);   // (torsion figée, qui s'efface avec marcheK)
@@ -12718,6 +12966,66 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         if (this.dosComp && Math.abs(this.dosComp) > 0.01 && spine3.length) { body.updateMatrixWorld(true); for (const sb of spine3) { mod(sb); twist(sb, -this.dosComp / spine3.length); } }
         // respiration (poses fixes : garde basse, visée) : légère flexion du dos
         if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { mod(spine1); spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
+        const repos = (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right') && !enMarche && !keepYaw;
+        if (this.pose0) this.pose(dt, repos);
+        this.appui(dt, repos && !this.pose0);
+        this.tete(dt, keepYaw ? null : repos || enMarche);
+      },
+      // Pose des pieds à l'arrêt : au lieu de glisser en 0,3 s vers la pose d'arrêt (fondu), chaque pied reste cloué au sol
+      // là où il était puis fait un petit pas (léger lever) jusqu'à sa place : d'abord celui qui était levé, puis l'autre.
+      // IK des jambes par-dessus le fondu (la cible suit la pose du mixer, qui devient celle de l'arrêt).
+      pose(dt, repos) {
+        const P = this.pose0; P.t += dt;
+        if (!repos || P.t > 0.62) { this.pose0 = null; return; }
+        group.updateMatrixWorld(true);
+        const cur = pieds.map(l => WP(l[2]));
+        if (!P.ordre) { if (Math.max(cur[0].distanceTo(P.lock[0]), cur[1].distanceTo(P.lock[1])) > 0.8) { this.pose0 = null; return; }   // (téléporté)
+          P.ordre = P.lock[0].y >= P.lock[1].y ? [0, 1] : [1, 0]; }
+        P.ordre.forEach((i, rang) => {
+          const x = Math.max(0, Math.min(1, (P.t - rang * 0.16) / 0.24)), s = x * x * (3 - 2 * x); if (s >= 1) return;
+          const L = P.lock[i], C = cur[i], h = Math.min(0.07, 0.35 * Math.hypot(C.x - L.x, C.z - L.z));
+          const T = L.clone().lerp(C, s); T.y += h * Math.sin(Math.PI * s);
+          const ft = pieds[i][2], qC = WQ(ft), d = T.sub(C); if (d.lengthSq() > 1e-8) ik(pieds[i][0], pieds[i][1], ft, d);
+          // orientation du pied aussi (sinon la pointe pivote autour de la cheville cloué et glisse)
+          mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(P.lockQ[i].clone().slerp(qC, s))); ft.updateMatrixWorld(true);
+        });
+      },
+      // Report du poids au repos : le bassin glisse lentement (~5,5 s) d'une jambe sur l'autre, s'abaisse un peu et s'incline
+      // vers la jambe libre ; les pieds restent au sol (IK), les épaules restent à peu près droites.
+      appui(dt, actif) {
+        this.reposK = (this.reposK || 0) + ((actif ? 1 : 0) - (this.reposK || 0)) * Math.min(1, dt * 1.5);
+        if (this.reposK < 0.01 || !hipsB || !pieds[0][2] || !pieds[1][2]) return;
+        group.updateMatrixWorld(true);
+        const s0 = Math.sin(this.t * 1.14 + graine), s = Math.sign(s0) * Math.pow(Math.abs(s0), 0.6) * this.reposK;   // (s'attarde sur chaque jambe)
+        const avant = pieds.map(l => WP(l[2])), gq = group.getWorldQuaternion(new THREE.Quaternion());
+        const lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq);
+        mod(hipsB);
+        const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022); h1.y -= 0.008 * Math.abs(s);
+        hipsB.position.add(hipsB.parent.worldToLocal(h1).sub(hipsB.parent.worldToLocal(h0.clone()))); hipsB.updateMatrixWorld(true);
+        const roule = (b, a) => { b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
+        roule(hipsB, -s * 0.035); if (spine1) { mod(spine1); roule(spine1, s * 0.03); }
+        pieds.forEach((l, i) => { const d = avant[i].clone().sub(WP(l[2])); if (d.lengthSq() > 1e-8) ik(l[0], l[1], l[2], d); });
+      },
+      // Tête : regarde la cible (this.regard = {x, z} dans le monde, donné par le jeu ; limité en visée, la joue est sur la
+      // crosse) ; sans cible, au repos, coups d'œil lents à gauche / à droite. Réparti sur le cou et la tête.
+      tete(dt, actif) {
+        if (!cou || !this.bones.head) return;
+        let want = 0;
+        if (actif) {
+          const vise = EPAULE[this.clip] ? 0.3 : 1.0;
+          if (this.regard) { const g = group.getWorldPosition(V()), fq = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()));
+            let a = Math.atan2(this.regard.x - g.x, this.regard.z - g.z) - Math.atan2(fq.x, fq.z); while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI;
+            want = Math.max(-vise, Math.min(vise, a)); this.coupT = 0; }
+          else if (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right') {
+            this.coupT = (this.coupT || 0) - dt;
+            if (this.coupT <= 0) { this.nCoup = (this.nCoup || 0) + 1; const r = Math.abs(Math.sin(this.nCoup * 12.9898 + graine * 78.233) * 43758.5453) % 1;
+              this.coup = this.nCoup % 2 ? (r - 0.5) * 1.3 * vise : 0; this.coupT = 2.2 + 3 * r; }
+            want = this.coup || 0;
+          }
+        }
+        this.teteA = (this.teteA || 0) + (want - (this.teteA || 0)) * Math.min(1, dt * 3.5);
+        if (Math.abs(this.teteA) < 0.005) return;
+        mod(cou); twist(cou, this.teteA * 0.4); mod(this.bones.head); twist(this.bones.head, this.teteA * 0.6);
       },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
       // L'arme est tenue par les PAUMES (entre le poignet et la base des doigts), pas par les poignets : la poignée dans la paume
@@ -14501,7 +14809,16 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   const key = new THREE.DirectionalLight(0xfff0d8, 3.2); key.position.set(2.5, 3.5, 4.5); scene.add(key);
   const rim = new THREE.DirectionalLight(0x6fe6ff, 2.6); rim.position.set(-3, 2.5, -3); scene.add(rim);
   const rim2 = new THREE.DirectionalLight(0x9ff0d0, 1.2); rim2.position.set(3, 1, -3); scene.add(rim2);
-  const POSE = { clip: 'Garde_Basse', t: 0, yaw: 0.22, cx: 0.03 };
+  const fill = new THREE.DirectionalLight(0xbfe8ff, 0.7); fill.position.set(-3.5, 1.2, 3); scene.add(fill);   // débouche les ombres du côté gauche
+  // ombre de contact sous les pieds (disque dégradé) : le soldat est posé sur le socle de la capsule
+  (function contact() {
+    const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+    const grd = g.createRadialGradient(64, 64, 4, 64, 64, 62); grd.addColorStop(0, 'rgba(0,0,0,.75)'); grd.addColorStop(0.55, 'rgba(0,0,0,.3)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, 128, 128); const tex = new THREE.CanvasTexture(c);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.9), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.position.y = 0.003; m.renderOrder = -1; scene.add(m);
+  })();
+  const POSE = { clip: 'Garde_Basse', t: 0, yaw: 0.22, cx: 0.1 };   // cx : soldat un peu à gauche, le canon du fusil reste dans la capsule
   let fig = null, key0 = '';
   function build(profile) {
     const id = profile.squad[0]; if (!id) { if (fig) scene.remove(fig.group); fig = null; key0 = ''; return; }
@@ -14527,7 +14844,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (fig && !fig.isSkinned) { fig.torso.rotation.z = Math.sin(t * 0.9) * 0.012; fig.headG.rotation.y = -0.35 + Math.sin(t * 0.37) * 0.08; fig.group.position.y = Math.sin(t * 1.8) * 0.004; }
     else if (fig) { fig.group.rotation.y = fig.pose0.yaw + Math.sin(t * 0.3) * 0.03; }
     // soldat Meshy : entier dans la capsule (pieds compris), décalé pour que le fusil tenu de profil reste dans le cadre
-    if (fig && fig.isSkinned) { const cx = fig.pose0 && fig.pose0.cx !== undefined ? fig.pose0.cx : 0.05; camera.position.set(cx, 0.95, 6.2); camera.lookAt(cx, 0.92, 0); } else { camera.position.set(0.25, 1.0, 5.5); camera.lookAt(0.05, 0.9, 0); }
+    if (fig && fig.isSkinned) { const cx = fig.pose0 && fig.pose0.cx !== undefined ? fig.pose0.cx : 0.05; camera.position.set(cx, 1.0, 5.85); camera.lookAt(cx, 0.9, 0); } else { camera.position.set(0.25, 1.0, 5.5); camera.lookAt(0.05, 0.9, 0); }
     renderer.render(scene, camera);
   }
   function frame(now) { if (!running) return; requestAnimationFrame(frame); draw((now - t0) / 1000); }
@@ -15345,7 +15662,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       this.logEvent('flank', `${u.callsign} arrive par le flanc ${u.voie < 0 ? 'nord' : 'sud'} et se rabat.`, { unit: u.id, team: u.team, silent: true });
       return null;
     }
-    return { x: u.x + dirx * Math.min(ahead - reach + 1, 10), z: clamp(home.z + this.laneOf(u), 2, this.map.depth - 2) };
+    const lz = clamp(home.z + this.laneOf(u), 2, this.map.depth - 2);
+    // loin de sa voie : on la rejoint d'abord (presque latéralement), puis on la suit
+    return { x: u.x + dirx * Math.min(ahead - reach + 1, Math.abs(u.z - lz) > 4 ? 4 : 10), z: lz };
   };
   // Avancer d'un pas le long de la voie de flanc (fw) : en tiroir par bonds alternés, en ordre prudent de couvert en couvert.
   Battle.prototype.flankMove = function (u, threatPos, fw) {
@@ -15533,9 +15852,34 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const z = this.zone, side = Math.sign(this.teams[u.team].spawn.x - z.x) || (u.team === 0 ? -1 : 1);
     return { x: z.x + side * 1.5, z: z.z };
   };
+  // Poste de flanc autour de la zone : un couvert de son côté (nord ou sud), hors de la zone mais à moins de 9 m de son bord,
+  // qui voit le plus de points de la zone (et, si possible, couvert face à la menace).
+  Battle.prototype.flankPost = function (u, facePos) {
+    const z = this.zone, ring = [];
+    for (let k = 0; k < 8; k++) ring.push({ x: z.x + Math.cos(k * Math.PI / 4) * z.r * 0.6, z: z.z + Math.sin(k * Math.PI / 4) * z.r * 0.6 });
+    let best = null, bs = -Infinity;
+    for (const cp of this.map.coverPoints) {
+      const dz = (cp.z - z.z) * u.voie; if (dz < z.r + 2.5 || dz > z.r + 9 || Math.abs(cp.x - z.x) > 10) continue;
+      if (this.alliesOf(u).some(a => a.alive && ((a.zoneSpot && Math.hypot(a.zoneSpot.x - cp.x, a.zoneSpot.z - cp.z) < 2.5) || (a.post && Math.hypot(a.post.x - cp.x, a.post.z - cp.z) < 2.5)))) continue;
+      let vis = 0; for (const p of ring) if (this.map.hasLOS(cp.x, EYE.stand, cp.z, p.x, CHEST.stand, p.z)) vis++;
+      if (vis < 2) continue;
+      const sc = vis + (this.map.coverFrom(cp.x, cp.z, facePos.x, facePos.z, true) ? 2 : 0) - Math.hypot(cp.x - u.x, cp.z - u.z) * 0.08 + this.rng.next() * 0.5;
+      if (sc > bs) { bs = sc; best = cp; }
+    }
+    return best ? { x: best.x, z: best.z, flanc: true } : null;
+  };
+  // en poste de flanc, avec au moins un équipier dans la zone ?
+  Battle.prototype.onFlankPost = function (u) { return !!(u.zoneSpot && u.zoneSpot.flanc && this.alliesOf(u).some(a => a.alive && this.inZone(a, 0.5))); };
   // Prendre position dans la zone : un couvert à l'intérieur (face à la menace) ou, à défaut, un point libre réparti autour du centre.
   Battle.prototype.occupyZone = function (u, facePos) {
     const z = this.zone;
+    // flanqueur arrivé par le côté : tant qu'un équipier est dans la zone, il la couvre depuis son flanc (feu croisé sur ceux
+    // qui veulent y entrer) ; plus personne de son camp dedans → il y entre à son tour
+    if (u.voie && u.flankDone && this.map.def.voies) {
+      const mates = this.alliesOf(u).some(a => a.alive && this.inZone(a, 0.5));
+      if (u.zoneSpot && u.zoneSpot.flanc && !mates) u.zoneSpot = null;
+      if (!u.zoneSpot && mates) u.zoneSpot = this.flankPost(u, facePos);
+    }
     if (!u.zoneSpot) {
       let best = null, bs = -Infinity;
       for (const cp of this.map.coverPoints) {
@@ -15865,8 +16209,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       }
       // capture : si la zone n'est pas à nous, on ne s'éternise pas dans un échange de tirs à distance — on progresse vers la zone,
       // de couvert en couvert (le tireur d'élite reste en appui)
-      if (this.zone && this.zone.holder !== u.team && u.role.id !== 'marksman' && !covering && !pinned && !this.inZone(u, 1) && u.reloading <= 0) {
-        const fw = this.flankWaypoint(u, this.zone, 5), dst = fw || this.zone;   // flanqueur : on progresse le long de sa voie
+      if (this.zone && this.zone.holder !== u.team && u.role.id !== 'marksman' && !covering && !pinned && !this.inZone(u, 1) && u.reloading <= 0 && !this.onFlankPost(u)) {
+        const fw = this.flankWaypoint(u, this.zone, 0), dst = fw || this.zone;   // flanqueur : on progresse le long de sa voie
         const dz = Math.hypot(u.x - dst.x, u.z - dst.z);
         const cp = this.findCover(u, threat, 14, { towards: dst });
         if (cp && Math.hypot(cp.x - dst.x, cp.z - dst.z) < dz - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
@@ -15930,7 +16274,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // capture : on n'abandonne pas la zone pour courir après une position connue lointaine ; on s'y installe face à la menace
       // … sauf si l'adversaire est lui-même dans la zone : il faut aller l'en déloger
       if (this.zone && u.role.id !== 'marksman' && !(this.zone.contested && this.inZone(threatPos, 1.5)) && (nd > 10 || this.inZone(u))) {
-        const fw = nd > 10 && order !== 'hold' && this.flankWaypoint(u, this.zone, 5);   // flanqueur : par sa voie jusqu'à hauteur de la zone
+        const fw = nd > 10 && order !== 'hold' && this.flankWaypoint(u, this.zone, 0);   // flanqueur : par sa voie jusqu'à hauteur de la zone
         if (fw && this.flankMove(u, threatPos, fw)) return;
         this.occupyZone(u, threatPos); return;
       }
@@ -15978,7 +16322,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // 3) aucune information : se déployer / avancer vers l'objectif
     if (this.zone && (u.role.id !== 'marksman' || this.inZone(u))) {
       // capture : tout le monde vers la zone (le tireur d'élite garde son poste de surveillance plus bas)
-      const fw = order !== 'hold' && this.flankWaypoint(u, this.zone, 5);        // flanqueur : par sa voie jusqu'à hauteur de la zone
+      const fw = order !== 'hold' && this.flankWaypoint(u, this.zone, 0);        // flanqueur : par sa voie jusqu'à hauteur de la zone
       if (fw && this.flankMove(u, objective, fw)) return;
       if (!this.inZone(u, 2) && this.tiroir(u, objective, this.zone)) return;   // Tiroir : bonds alternés jusqu'à la zone
       if (order === 'careful' || u.role.id === 'support') {
@@ -15996,8 +16340,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const dirx = Math.sign(objective.x - home.x) || 1;
     const progress = (u.x - home.x) * dirx;
     const span = Math.abs(objective.x - home.x);
-    const stepLen = order === 'careful' ? 12 : 22;
-    let gx = home.x + dirx * Math.min(span - 6, progress + stepLen), gz = clamp(home.z + lane, 2, this.map.depth - 2);
+    let gz = clamp(home.z + lane, 2, this.map.depth - 2);
+    const stepLen = u.voie && Math.abs(u.z - gz) > 4 ? 5 : order === 'careful' ? 12 : 22;   // flanqueur loin de sa voie : la rejoindre d'abord
+    let gx = home.x + dirx * Math.min(span - 6, progress + stepLen);
     // Tiroir : bonds alternés le long de sa voie, jusqu'aux abords de la zone adverse
     if (progress < span - 8 && this.tiroir(u, objective, { x: home.x + dirx * (span - 8), z: gz })) return;
     if (order === 'careful' || u.role.id === 'support') {
@@ -17354,6 +17699,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     $('#hqXpBar').style.width = next === null ? '100%' : (100 * ((profile.xp || 0) - RANKS[r].xp) / (RANKS[r + 1].xp - RANKS[r].xp)).toFixed(0) + '%';
     $('#hqRating').textContent = Game.teamRating(profile);
     $('#homeRank').textContent = `Rang ${r} · ${RANKS[r].name}${next === null ? '' : ' — ' + next + ' XP avant le suivant'}`;
+    { const hx = $('#homeXpBar'); if (hx) hx.style.width = $('#hqXpBar').style.width; }
+    { const lead = OPERATORS.find(x => x.id === profile.squad[0]), pn = $('#podName'), pr = $('#podRole');
+      if (pn) pn.textContent = lead ? lead.callsign : ''; if (pr) pr.textContent = lead ? `${ROLES[lead.role].name} · niv. ${Game.levelFor(profile.operators[lead.id].xp)}` : ''; }
     $('#homeSquad').innerHTML = profile.squad.map(id => { const o = OPERATORS.find(x => x.id === id), st = profile.operators[id];
       return `<button class="hsq ${st.wounded ? 'wounded' : ''}" data-op="${id}"><span class="hsqp">${portraitOf(o)}</span><span class="hsqt"><b>${esc(o.callsign)}</b><small>${ROLES[o.role].name} · niv. ${Game.levelFor(st.xp)}${st.wounded ? ' · blessé' : ''}</small></span><span class="rt">${Math.round(Game.operatorRating(profile, id))}</span></button>`; }).join('');
     $('#homeSquad').querySelectorAll('.hsq').forEach(e => e.addEventListener('click', () => { selected = e.dataset.op; showTab('equipe'); }));
@@ -17547,7 +17895,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const statRows = Game.STATS.map(k => { const bonus = !def.wounded && def[k] > o[k] ? def[k] - o[k] : 0; return `<div class="srow ${def.wounded ? 'wounded' : ''}"><span class="sl">${STAT_FR[k]}</span><span class="si">${OT.Ico ? OT.Ico(STAT_ICO[k]) : ''}</span><span class="sv">${def[k]}${bonus ? `<small>+${bonus}</small>` : ''}</span><span class="sbar"><i style="width:${def[k]}%"></i>${def.wounded ? `<u style="width:${o[k]}%"></u>` : ''}</span></div>`; }).join('');
     const promos = (st.pendingPromotions || []).map(p => `<div class="promobox"><b>Promotion — niveau ${p.level}</b> : choisissez un second trait.<div class="promochoices">${p.choices.map(t => `<button class="promochoice" data-act="promo" data-trait="${t}" data-id="${o.id}"><b>${TRAITS[t].name}</b><span>${esc(TRAITS[t].desc)}</span></button>`).join('')}</div></div>`).join('');
     let html = '';
-    if (teamTab === 'skills') html = `<div class="sgrid">${statRows}</div><div class="traitbox"><b>${TRAITS[o.trait].name}</b> — ${esc(TRAITS[o.trait].desc)}${(st.traits || []).map(t => `<br><b>${TRAITS[t].name}</b> <small class="muted">(promotion)</small> — ${esc(TRAITS[t].desc)}`).join('')}</div>${promos}<div class="lvl">Niveau ${def.level} · ${Game.xpToNext(st.xp) === null ? 'maximum' : Game.xpToNext(st.xp) + ' XP avant le suivant'} · <span class="muted">inspiré du ${esc(o.unit)}</span></div>`;
+    if (teamTab === 'skills') html = `<div class="sgrid">${statRows}</div><div class="traitbox"><b>${TRAITS[o.trait].name}</b> — ${esc(TRAITS[o.trait].desc)}${(st.traits || []).map(t => `<br><b>${TRAITS[t].name}</b> <small class="muted">(promotion)</small> — ${esc(TRAITS[t].desc)}`).join('')}</div>${promos}<div class="lvl">Niveau ${def.level} · ${Game.xpToNext(st.xp) === null ? 'maximum' : Game.xpToNext(st.xp) + ' XP avant le suivant'}</div>`;
     else if (teamTab === 'head') html = st.unlocked ? `<div class="trh">Couvre-chef</div><div class="hgpick">${Object.keys(Game.HEADGEAR_PRICES).map(h => { const owned = !!profile.headgear[h]; const nm = OT.Figure.HEADGEAR[h].name; return `<button class="mini ${st.headgear === h ? 'on' : ''} ${owned ? '' : 'locked'}" data-hg="${h}" title="${nm}${owned ? '' : ' — ' + Game.HEADGEAR_PRICES[h] + ' cr.'}">${nm}${owned ? '' : ' · ' + Game.HEADGEAR_PRICES[h] + ' cr.'}</button>`; }).join('')}</div>` : '<p class="muted">Recrutez cet opérateur pour le personnaliser.</p>';
     else if (teamTab === 'equip') html = st.unlocked ? `
       <div class="equip">
@@ -17597,6 +17945,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   OT.playBack = () => { if (tab !== 'missions' || playView === 'home') return false; setPlayView(playView === 'prep' && selectedMission !== 'rapide' ? 'camp' : 'home'); return true; };
   function renderMissions() {
     $('#playHome').classList.toggle('hidden', playView !== 'home'); $('#campView').classList.toggle('hidden', playView !== 'camp'); $('#prepView').classList.toggle('hidden', playView !== 'prep');
+    $('#hq').dataset.view = playView;   // fil d'Ariane de la barre du haut (Jouer › Campagne › Préparation)
     // contrats du jour
     const dly = Game.dailyContracts(profile);
     $('#hqDaily').innerHTML = dly.list.map(c => `<div class="daily ${c.done ? 'done' : ''}"><div class="crow"><b>${esc(c.text)}</b><span class="spacer"></span><span>${c.done ? '✓' : c.progress + '/' + c.goal}</span></div><div class="xpbar big"><i style="width:${100 * c.progress / c.goal}%"></i></div><small>${c.reward} crédits</small></div>`).join('');
@@ -17650,7 +17999,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     $('#prepSub').innerHTML = mm ? `${esc(OT.MAPS[mm.mapId].name)} · ${esc(Game.objectiveLabel(mm))}${mm.conditions && mm.conditions !== 'jour' ? ' · ' + esc(DATA.CONDITIONS[mm.conditions].name) : ''} · <span class="muted">adversaire niveau ${mm.level}</span>` : '';
     const eq = profile.tactics.equipped || [], ownedN = Object.keys(profile.tactics.owned || {}).length;
     $('#prepSlots').innerHTML = (ownedN ? '' : '<div class="p3none">Aucune carte de tactique disponible.<button class="getcards" data-go2="cartes"><span data-ico="pack"></span>Obtenir des cartes</button></div>')
-      + [0, 1, 2].map(i => { const id = eq[i]; return id ? `<button class="tslot full" data-slot="${i}" data-t="${id}" title="${esc(TACTICS[id].desc)} (cliquer pour retirer)"><span class="tsname">${esc(TACTICS[id].name)}</span><span class="tsart">${tacArt(id)}</span></button>` : `<button class="tslot" data-slot="${i}"><span>Toucher pour<br>choisir</span></button>`; }).join('');
+      + [0, 1, 2].map(i => { const id = eq[i]; return id ? `<button class="tslot full" data-slot="${i}" data-t="${id}" title="${esc(TACTICS[id].desc)} (cliquer pour retirer)"><span class="tsname">${esc(TACTICS[id].name)}</span><span class="tsart">${tacArt(id)}</span></button>` : `<button class="tslot" data-slot="${i}"><span class="tsplus">+</span><span>Choisir une<br>tactique</span></button>`; }).join('');
     $('#prepSlots').querySelectorAll('.tslot').forEach(b => b.addEventListener('click', () => {
       if (b.dataset.t) { Game.equipTactic(profile, b.dataset.t); saveNow(); render(); return; }
       if (!ownedN) { flash('Aucune tactique : ouvrez des paquets de cartes.'); return; }
@@ -18040,8 +18389,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const P = m.group.position, T = tg && meshes[tg.id] ? meshes[tg.id].group.position : null;
       let f = T ? new THREE.Vector2(T.x - P.x, T.z - P.z) : fwdOf(id); if (f.lengthSq() < 0.01) f = fwdOf(id); f.normalize();
       const d = smoothDir(s, 'dir', f.x, f.y, 2.2, dt), fx = d.x, fz = d.y, rx = -fz * side, rz = fx * side;
-      const dist = T ? Math.hypot(T.x - P.x, T.z - P.z) : 10, back = 1.75 - Math.min(0.45, age * 0.09);   // lent travelling avant
-      const pos = V3(P.x - fx * back + rx * 0.62, Math.max(1.35, (u.eyeY ? u.eyeY() : 1.55) + 0.25), P.z - fz * back + rz * 0.62);   // à hauteur des yeux du tireur (accroupi : plus bas)
+      const dist = T ? Math.hypot(T.x - P.x, T.z - P.z) : 10, back = 2.2 - Math.min(0.5, age * 0.09);   // lent travelling avant
+      const pos = V3(P.x - fx * back + rx * 0.8, Math.max(1.45, (u.eyeY ? u.eyeY() : 1.55) + 0.38), P.z - fz * back + rz * 0.8);   // à hauteur des yeux du tireur (accroupi : plus bas)
       const tgt = T ? V3(T.x, kc || !tg.alive ? 0.8 : (tg.eyeY ? tg.eyeY() : 1.5) - 0.3, T.z) : V3(P.x + fx * 10, 1.3, P.z + fz * 10);
       // tireur au premier plan d'un côté, cible sur le tiers opposé : on vise un peu à côté de la cible
       const look = tgt.clone().add(V3(-rx * dist * 0.16, 0, -rz * dist * 0.16));
@@ -18216,9 +18565,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const px = m.group.position.x, pz = m.group.position.z;
         const pivot = new THREE.Vector3(px, 1.6, pz);
         const want = clipBoom(pivot, new THREE.Vector3(px - fx * 4.4 - fz * 0.5, 2.4, pz - fz * 4.4 + fx * 0.5)), look = new THREE.Vector3(px + fx * 7, 1.1, pz + fz * 7);
-        if (!cam.init) { cam.pos.copy(want); cam.look.copy(look); cam.init = true; }
-        cam.pos.lerp(want, 0.08); cam.look.lerp(look, 0.12);
-        cam.pos.copy(clipBoom(pivot, cam.pos));   // même pendant le lissage, jamais à travers un obstacle
+        const dt = dirTick();   // ressort critique indépendant de la cadence d'images (plus d'à-coups quand la perche se replie)
+        if (!cam.init) { cam.pos.copy(want); cam.look.copy(look); DIRECTOR.vel.set(0, 0, 0); DIRECTOR.lvel.set(0, 0, 0); cam.init = true; }
+        damp3(cam.pos, want, DIRECTOR.vel, 0.4, dt); damp3(cam.look, look, DIRECTOR.lvel, 0.28, dt);
+        pushOut(cam.pos, 0.2);   // même pendant le lissage, jamais dans un obstacle
         camera.position.copy(cam.pos); camera.lookAt(cam.look);
         cam.target.set(px, 0, pz);
         return;
@@ -18776,6 +19126,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     else m.play('Garde_Basse', { time: 0, fade: 0.3 });
     if (!legs) m.playLegs(null);
     if (u.alive) { m.ring.material.opacity = 0.55; a.deadT = 0; m.pose.position.y = 0; }
+    // la tête regarde la cible (position affichée de son soldat) ; sans cible, Soldat3D fait de lents coups d'œil au repos
+    m.regard = u.alive && u.target && u.target.alive ? ((meshes[u.target.id] && meshes[u.target.id].group.position) || u.target) : null;
     m.update(dt, !u.alive);
     // inclinaison dans les virages en courant (le torse se penche vers l'intérieur de la courbe)
     { const va = Math.atan2(a.vz || 0, a.vx || 0), sp = Math.hypot(a.vx || 0, a.vz || 0); let tr = a.vAng === undefined ? 0 : va - a.vAng; while (tr > Math.PI) tr -= 2 * Math.PI; while (tr < -Math.PI) tr += 2 * Math.PI; a.vAng = va;
@@ -19685,26 +20037,28 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   let renderer; try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); } catch (e) { return; }
   renderer.setPixelRatio(1); renderer.shadowMap.enabled = true; renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.35;
-  const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x2a2420, 10, 30);
+  const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x2c2521, 9, 26);
   (function sky() {   // crépuscule : horizon orangé derrière l'escouade
     const c = document.createElement('canvas'); c.width = 4; c.height = 256; const g = c.getContext('2d');
-    const grd = g.createLinearGradient(0, 0, 0, 256); grd.addColorStop(0, '#0b0f15'); grd.addColorStop(0.42, '#1c2430'); grd.addColorStop(0.6, '#5a4638'); grd.addColorStop(0.7, '#b0703a'); grd.addColorStop(0.78, '#3a2a22'); grd.addColorStop(1, '#151314');
+    const grd = g.createLinearGradient(0, 0, 0, 256); grd.addColorStop(0, '#05070a'); grd.addColorStop(0.28, '#0c1119'); grd.addColorStop(0.4, '#1f2228'); grd.addColorStop(0.465, '#6b4a33'); grd.addColorStop(0.5, '#3a2c25'); grd.addColorStop(1, '#141213');
     g.fillStyle = grd; g.fillRect(0, 0, 4, 256); const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; scene.background = tex;
   })();
   const camera = new THREE.PerspectiveCamera(32, 16 / 9, 0.1, 50);
   scene.add(new THREE.HemisphereLight(0xb8c8d8, 0x3a3630, 1.4));
   const key = new THREE.DirectionalLight(0xffe2b0, 3.2); key.position.set(3, 6, 4); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); scene.add(key);
   const rim = new THREE.DirectionalLight(0x5a8fd8, 1.6); rim.position.set(-4, 3, -3); scene.add(rim);
-  const sunset = new THREE.DirectionalLight(0xff9a50, 1.5); sunset.position.set(2, 1.5, -8); scene.add(sunset);   // contre-jour orangé
+  const sunset = new THREE.DirectionalLight(0xff9a50, 1.8); sunset.position.set(2, 1.5, -8); scene.add(sunset);   // contre-jour orangé
+  const front = new THREE.DirectionalLight(0xcfe0ff, 1.1); front.position.set(1, 2.5, 9); scene.add(front);   // débouche les visages et les tenues sombres
+  const pool = new THREE.SpotLight(0xffe6c0, 140, 0, 0.45, 0.75, 2); pool.position.set(3, 7.5, 3.5); pool.target.position.set(3, 0, -0.4); scene.add(pool, pool.target);   // flaque de lumière sur l'escouade
   // poussière en suspension dans la lumière
   const dustN = 260, dustPos = new Float32Array(dustN * 3); for (let i = 0; i < dustN; i++) dustPos.set([Math.random() * 14 - 5, Math.random() * 4, Math.random() * 8 - 5], i * 3);
   const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
   const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffd9a8, size: 0.035, transparent: true, opacity: 0.55, depthWrite: false })); scene.add(dust);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x2a2f36, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x1f2328, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
   // quelques caisses et un conteneur pour l'arrière-plan
-  const crate = new THREE.MeshStandardMaterial({ color: 0x5a4a32, roughness: 1 }), cont = new THREE.MeshStandardMaterial({ color: 0x35587a, roughness: 0.7, metalness: 0.3 });
-  [[-3.5, 0.55, -2.5, 1.1], [3.8, 0.4, -1.5, 0.8], [4.6, 0.4, -2.4, 0.8]].forEach(([x, y, z, sz]) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), crate); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; scene.add(m); });
-  const c = new THREE.Mesh(new THREE.BoxGeometry(6, 2.6, 2.4), cont); c.position.set(-1, 1.3, -6); c.castShadow = true; scene.add(c);
+  const crate = new THREE.MeshStandardMaterial({ color: 0x46392a, roughness: 1 }), cont = new THREE.MeshStandardMaterial({ color: 0x2b3640, roughness: 0.75, metalness: 0.3 });
+  [[0.3, 0.55, -2.6, 1.1], [5.7, 0.4, -1.8, 0.8], [6.3, 0.4, -2.7, 0.8]].forEach(([x, y, z, sz]) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), crate); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; scene.add(m); });
+  const c = new THREE.Mesh(new THREE.BoxGeometry(6, 2.6, 2.4), cont); c.position.set(3.4, 1.3, -5.6); c.rotation.y = -0.12; c.castShadow = true; scene.add(c);
   const figs = [];
   function buildSquad() {
     for (const f of figs) scene.remove(f.group); figs.length = 0;
@@ -19716,22 +20070,22 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const o = OT.DATA.OPERATORS.find(x => x.id === id); if (!o) return;
       const st = profile ? profile.operators[id] : null;
       const weapon = st ? st.weaponId : OT.DATA.ROLES[o.role].weapon;
-      // en V derrière le chef ; soldat 3D (même modèle que le QG) dès qu'il est chargé, sinon la figure simple
-      const spots = [[0, 0.3, -0.25, 1], [-1.3, -0.3, 0.05, 0], [1.25, -0.2, -0.45, 0.7], [-2.5, -0.9, 0.3, 'kneel'], [2.45, -0.95, -0.6, 0]];
-      const [x, z, ry, pose] = spots[i];
+      // soldat 3D (même modèle que le QG) dès qu'il est chargé, sinon la figure simple ; en V, le chef devant au centre de la
+      // moitié droite (le titre occupe la gauche), chacun tourné un peu vers lui
+      const pose = [1, 0, 0.7, 'kneel', 0][i], V = [[3.0, 0.45], [2.1, -0.2], [3.95, -0.25], [1.2, -0.9], [4.85, -0.95]][i], ry = (3.0 - V[0]) * 0.09 + (i === 0 ? 0.08 : 0);
       const s3 = S3 && S3.create({ modele: 'gign', uniform: uni.uniform, weapon });
       if (s3) {
         const clip = s3.clips.Garde_Basse ? 'Garde_Basse' : 'Rifle_Aim_Turn_Right';
         s3.play(clip, { time: 0 }); s3.update(0); s3.body.rotation.y = (s3.yawFix && s3.yawFix[clip]) || 0; s3.placeWeapon(true, 0);
         s3.group.traverse(n => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
-        s3.group.position.set(x + 2.6, 0, z + (pose === 'kneel' ? -0.5 : 0)); s3.group.rotation.y = ry * 0.6 + (i === 0 ? 0.1 : 0);
+        s3.group.position.set(V[0], 0, V[1]); s3.group.rotation.y = ry;
         scene.add(s3.group); figs.push(s3); return;
       }
       const f = OT.Figure.build({ id, weapon, uniform: uni.uniform, vest: uni.vest, teamColor: 0x4f9cf0, headgear: st && st.headgear || 'casque' });
       // poses variées : le chef au centre épaulé, un tireur à genou, les autres arme basse ou épaulée
       if (pose === 'kneel') { f.legs[0].leg.rotation.x = -1.15; f.legs[0].knee.rotation.x = 1.75; f.legs[1].leg.rotation.x = -0.55; f.legs[1].knee.rotation.x = 1.95; f.hips.position.y = f.hipsY - 0.4; f.torso.rotation.x = 0.25; OT.Figure.armPose(f, 0.8); }
       else { f.torso.rotation.y = pose * 0.18; f.headG.rotation.y = -pose * 0.16; OT.Figure.armPose(f, pose); }
-      f.group.position.set(x + 2.6, 0, z); f.group.rotation.y = ry;
+      f.group.position.set(V[0], 0, V[1]); f.group.rotation.y = ry + (pose === 'kneel' ? 0.3 : 0);
       scene.add(f.group); figs.push(f);
     });
   }
@@ -19741,7 +20095,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const w = canvas.clientWidth, h = canvas.clientHeight; if (w && h && (canvas.width !== w || canvas.height !== h)) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
     // l'escouade à droite de l'écran (le titre occupe la gauche) ; la caméra glisse lentement de part et d'autre
     const a = Math.sin(t * 0.12) * 0.3, wide = camera.aspect < 1.5 ? 1.15 : 1;
-    camera.position.set(0.6 + Math.sin(a) * 3.8, 1.45 + Math.sin(t * 0.2) * 0.08, (7.4 + Math.cos(a) * 1.0) * wide); camera.lookAt(0.9, 1.0, -0.2);
+    camera.position.set(0.6 + Math.sin(a) * 2.4, 1.45 + Math.sin(t * 0.2) * 0.08, (7.4 + Math.cos(a) * 1.0) * wide); camera.lookAt(0.9, 1.0, -0.2);
     const dp = dustGeo.attributes.position.array; for (let i = 0; i < dp.length; i += 3) { dp[i] += 0.002; dp[i + 1] += Math.sin(t + i) * 0.0008; if (dp[i] > 9) dp[i] = -5; } dustGeo.attributes.position.needsUpdate = true;
     renderer.render(scene, camera);
   }
