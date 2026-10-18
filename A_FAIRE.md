@@ -9,6 +9,10 @@
   État actuel du moteur (`sim/engine.js`, « À terre / relevé ») : tête = mort ; sinon 55 % de chances seulement d'être à
   terre ; un relevé ne peut plus être mis à terre → il faudra passer de 55 % à (presque) toujours.
 
+- Grosse passe d'équilibrage à faire plus tard (consigne : pas de vérification d'équilibre lourde pour les petites
+  modifications). Point connu : depuis la limite de vitesse en pas chassé / recul (`gaitSpeed`, 18/10), l'ouest gagne
+  ~59 % (élimination) / ~58 % (capture) sur 400 batailles ; les flanqueurs est survivent moins → retoucher les couverts
+  des flancs est.
 - Plus tard (accord de principe, 18/10) : poses de repos variées / légère animation pour l'escouade de l'écran titre.
 - Refusé pour l'instant : réafficher les sections cachées du QG (cartes, ligue, carrière, crédits) ; navigation clavier/manette.
 
