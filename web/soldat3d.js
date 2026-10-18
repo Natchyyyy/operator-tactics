@@ -33,6 +33,8 @@
   const ECART_PAS = 0.21;
   // recul : foulée de la marche arrière allongée (rapport)
   const RECUL = 1.45;
+  // plan du genou (IK des jambes) : écart max à l'avant anatomique vers l'extérieur / l'intérieur (rad)
+  const GENOU_OUT = 1.0, GENOU_IN = 0.45;
   // à genou : hauteur du genou arrière posé (os, m), de sa cheville (pointe du pied au sol), cheville du pied avant à plat
   const GENOU = { genou: 0.075, cheville: 0.13, chevilleAv: 0.15, baisse: 0.035 };   // baisse : bassin abaissé (m) pour que le genou arrière touche le sol
   const TROT = { s: 0.38, hs: 0.5, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
@@ -291,12 +293,16 @@
   // devenait l'arrière et le genou de la jambe arrière pliait à l'envers (patte d'oiseau). Si le genou est presque tendu, son
   // plan est celui de l'avant du bassin ; s'il plie nettement vers l'arrière, il est retourné dans son plan ; s'il pointe sur
   // le côté (ni avant ni arrière), on le laisse.
-  function planGenou(p, dir, lat, mini) {
-    const pl = p.length(), c = new THREE.Vector3();
-    if (pl < mini) { const f = new THREE.Vector3().crossVectors(lat, new THREE.Vector3(0, 1, 0)); f.addScaledVector(dir, -f.dot(dir)); if (f.lengthSq() > 1e-10) { f.normalize(); if (c.crossVectors(f, dir).dot(lat) < 0) f.negate(); return p.addScaledVector(f, mini - pl).normalize(); } }
-    if (pl < 1e-10) return p.set(0, 0, 1);
-    p.divideScalar(pl); if (c.crossVectors(p, dir).dot(lat) < -0.3) p.negate();
-    return p;
+  function planGenou(p, dir, lat, mini, cote) {
+    // avant anatomique du genou dans le plan ⟂ à l'axe : f = dir × lat (jambe verticale : l'avant du bassin ; cuisse levée
+    // à l'horizontale : le haut) ; g = côté gauche. Le genou est gardé dans le demi-espace avant : au plus GENOU_OUT vers
+    // l'extérieur, GENOU_IN vers l'intérieur (au-delà, ramené à la limite, de façon continue : plus de bascule d'un côté à
+    // l'autre d'une image à la suivante)
+    const f = new THREE.Vector3().crossVectors(dir, lat); if (f.lengthSq() < 1e-10) return p.lengthSq() > 1e-10 ? p.normalize() : p.set(0, 0, 1);
+    f.normalize(); const g = new THREE.Vector3().crossVectors(f, dir).normalize(), pl = p.length();
+    if (pl < mini) p.addScaledVector(f, mini - pl);
+    let th = Math.atan2(p.dot(g), p.dot(f)) * cote; th = Math.max(-GENOU_IN, Math.min(GENOU_OUT, th)) * cote;
+    return p.copy(f).multiplyScalar(Math.cos(th)).addScaledVector(g, Math.sin(th));
   }
   // IK des jambes cuite dans un clip (30 clés/s) : pour chaque image, cible(i, H, A, Aq) donne la position monde voulue de
   // chaque cheville (A, Aq : cheville et orientation d'origine ; H : bassin) ; dyH(i) : montée du bassin (m, unités du
@@ -325,7 +331,7 @@
         let c = S0.distanceTo(Tj); c = Math.min(Math.max(c, Math.abs(a - bb) + 1e-4), (a + bb) * 0.997);
         const dir = Tj.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - bb * bb) / (2 * a * c)));
         const p = E0.clone().sub(S0); p.addScaledVector(dir, -p.dot(dir));
-        { const lat = W(L[0][0]).sub(W(L[1][0])); lat.y = 0; lat.normalize(); planGenou(p, dir, lat, 0.02 * RAW_H / HEIGHT); }
+        { const lat = W(L[0][0]).sub(W(L[1][0])); lat.y = 0; lat.normalize(); planGenou(p, dir, lat, 0.02 * RAW_H / HEIGHT, j ? -1 : 1); }
         const E1 = S0.clone().addScaledVector(dir, a * cosA).addScaledVector(p, a * Math.sqrt(1 - cosA * cosA));
         turn(up, E0.clone().sub(S0), E1.sub(S0)); const E2 = W(lo); turn(lo, W(ft).sub(E2), Tj.clone().sub(E2));
         ft.quaternion.copy(WQ(ft.parent).invert().multiply(Aq[j])); ft.updateMatrixWorld(true);
@@ -692,14 +698,14 @@
   // du majeur. Main droite : paume sur le flanc droit de la poignée, doigts vers l'avant autour de la poignée, jointures au
   // bord avant ; main gauche : sous le garde-main, doigts vers la droite qui remontent sur son flanc droit, pouce à gauche.
   const PRISE = {
-    R: { A: [0.383, -0.386, 0.839], N: [0.913, 0.294, -0.282], mcp: [-0.04, -0.063, -0.129],
+    R: { A: [0.303, 0.024, 0.953], N: [0.87, 0.401, -0.287], mcp: [-0.044, -0.049, -0.127],
       // cibles du bout des doigts (index : tendu le long de la carcasse, au-dessus du pontet ; pouce : flanc gauche, sous la carcasse)
       cibles: { 0: { ferme: [0.6, 1, 0.8], max: [1.2, 1.3, 1.2] }, 1: { p: [-0.036, 0.004, 0], auto: true, f1: [-0.45, 0.8], f2: 0.3, reg: 0.03, ecart: 0.5 } },
       detente: { p: [-0.004, -0.014, -0.088], f1: [-0.15, 1.4], f2: 1.6 } },
-    L: { A: [-0.816, 0.149, 0.559], N: [0.19, 0.982, 0.015], mcp: [-0.036, 0.01, 0.168],
+    L: { A: [-0.816, 0.149, 0.559], N: [0.106, 0.988, -0.109], mcp: [-0.036, 0.002, 0.174],
       cibles: { 0: { p: [0.04, 0.07, 0.2], f1: [-0.15, 1.2], f2: 1.0 } } },
     // places propres à un modèle (mêmes champs, remplacent ceux du dessus) : les mains n'ont pas la même forme
-    gign: { R: { A: [0.209, 0.261, 0.943], N: [0.934, 0.232, -0.271], mcp: [-0.04, -0.051, -0.119] }, L: { A: [-0.822, 0.089, 0.563], N: [0.074, 0.996, -0.051], mcp: [-0.028, 0.012, 0.168] } },
+    gign: { R: { A: [0.008, 0.261, 0.965], N: [1, 0.027, -0.015], mcp: [-0.04, -0.039, -0.131] }, L: { A: [-0.825, 0.029, 0.565], N: [0.024, 1, -0.016], mcp: [-0.038, 0.018, 0.164] } },
   };
   S.PRISE = PRISE;
   function calculerPrise(f, W) {
@@ -950,7 +956,7 @@
       const a = S0.distanceTo(E0), b = E0.distanceTo(H0); let c = S0.distanceTo(T); c = Math.min(Math.max(c, Math.abs(a - b) + 1e-4), (a + b) * 0.993);
       const dir = T.clone().sub(S0).normalize(), cosA = Math.max(-1, Math.min(1, (a * a + c * c - b * b) / (2 * a * c)));
       const p = E0.clone().sub(S0); p.addScaledVector(dir, -p.dot(dir));
-      { const lat = WP(pieds[0][0]).sub(WP(pieds[1][0])); lat.y = 0; if (lat.lengthSq() > 1e-8) planGenou(p, dir, lat.normalize(), 0.02); else p.normalize(); }
+      { const lat = WP(pieds[0][0]).sub(WP(pieds[1][0])); lat.y = 0; if (lat.lengthSq() > 1e-8) planGenou(p, dir, lat.normalize(), 0.02, up === pieds[1][0] ? -1 : 1); else p.normalize(); }
       const E1 = S0.clone().addScaledVector(dir, a * cosA).addScaledVector(p, a * Math.sqrt(1 - cosA * cosA));
       turn(up, E0.clone().sub(S0), E1.sub(S0)); const E2 = WP(lo); turn(lo, WP(ft).sub(E2), T.sub(E2));
       ft.quaternion.copy(WQ(ft.parent).invert().multiply(qF)); ft.updateMatrixWorld(true);

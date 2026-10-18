@@ -96,6 +96,15 @@ async def cmd_revue(a):
             except Exception as ex:
                 msg = str(ex).split('\n')[0][:300]; echecs.append((m, e, 'planche : ' + msg)); print(f'ÉCHEC planche {m}/{e} : {msg}', flush=True); continue
             print(f'preuve {chemin} ({time.time() - t0:.0f} s)', flush=True)
+        # contrôle visuel systématique : planche de profil de la petite course (l'allure la plus vue en jeu), chaque modèle
+        bandes = []
+        if not a.sans_trot:
+            for m in a.modeles.split(','):
+                chemin = os.path.join(out, f'trot_profil_{m}.png')
+                try:
+                    with verrou(): r = await pg.evaluate(f'BANC.planche({json.dumps(m)}, "jog_bas_24", {json.dumps({"vues": ["profil", "profilG", "piedsProfil", "piedsFace"], "n": 6, "tw": 200, "th": 220})})')
+                    sauver_png(r['url'], chemin); bandes.append(os.path.relpath(chemin, RACINE).replace(os.sep, '/'))
+                except Exception as ex: echecs.append((m, 'jog_bas_24', 'trot : ' + str(ex).split(chr(10))[0][:300]))
         for v in mauvais:
             c = choix.get((v['modele'], v['etat']))
             v['preuve'] = c.get('chemin') if c else None
@@ -105,6 +114,7 @@ async def cmd_revue(a):
                'mesures': {f'{m}/{e}': {'bilan': {k: x for k, x in r['bilan'].items() if k != 'stat'}, 'stat': r['bilan'].get('stat')} for (m, e), r in res.items()}},
               open(os.path.join(out, 'rapport.json'), 'w'), default=str, indent=0)
     L = [f'# Revue d\'animation — {datetime.datetime.now():%d/%m %H:%M}', '', f'Sortie : `{out}`', '']
+    if bandes: L += ['Contrôle visuel de la petite course (profil, 6 instants) — À REGARDER à chaque revue : ' + ', '.join(f'`{b}`' for b in bandes), '']
     # tableau par état
     L += ['## Scores par état (OK / mineur / majeur)', '', '| état | ' + ' | '.join(a.modeles.split(',')) + ' |', '|---|' + '---|' * len(a.modeles.split(','))]
     for e in etats:
@@ -187,7 +197,7 @@ async def cmd_etats(a):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(); sp = ap.add_subparsers(dest='cmd', required=True)
-    r = sp.add_parser('revue'); r.add_argument('--modeles', default='gign,soldat'); r.add_argument('--etats'); r.add_argument('--preuves', type=int, default=14); r.add_argument('--sortie')
+    r = sp.add_parser('revue'); r.add_argument('--modeles', default='gign,soldat'); r.add_argument('--etats'); r.add_argument('--preuves', type=int, default=14); r.add_argument('--sortie'); r.add_argument('--sans-trot', dest='sans_trot', action='store_true')
     pl = sp.add_parser('planche'); pl.add_argument('--modele', default='gign'); pl.add_argument('--etat', required=True); pl.add_argument('--vues', default='face,profil,dos,troisQuarts')
     pl.add_argument('--n', type=int, default=4); pl.add_argument('--instants'); pl.add_argument('--marques', action='store_true'); pl.add_argument('--taille', default='200x260'); pl.add_argument('--sortie')
     ape = sp.add_parser('apercu'); ape.add_argument('--modele', default='gign'); ape.add_argument('--etats'); ape.add_argument('--vues', default='face,profil,dessus,mainD,piedsProfil'); ape.add_argument('--taille', default='180x220'); ape.add_argument('--marques', action='store_true'); ape.add_argument('--sortie')

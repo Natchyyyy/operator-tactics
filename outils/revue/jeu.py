@@ -59,7 +59,8 @@ window.ECH = { bandeN: 10, bande: null, img: 0, cat: {}, seg: {}, fin: [], pires
         (E.bandeN > 0 && k.c === 'jog_bas_avant' && E.img - s2.i0 > 30 && (!E.bande || E.bande.u === u.id) && (!E.bande || E.bande.imgs.length < E.bandeN) && (!E.bande || E.img - E.bande.der >= 2))) {
         if (!E.bande) E.bande = { u: u.id, cs: u.callsign, imgs: [], der: 0 };
         E.bande.der = E.img; const g = m.group.position, yaw = Math.atan2(Math.sin(m.yaw), -Math.cos(m.yaw));
-        E.actif = false; E.dessin = true; try { API.look(g.x, g.z, yaw, 0.1, E.suivre ? 2.2 : 2.6, E.suivre ? 0.6 : 0.75); E.bande.imgs.push([E.img, cv().toDataURL('image/jpeg', 0.85), +mm.genouSensG.toFixed(0), +mm.genouSensD.toFixed(0)]); } finally { E.actif = true; E.dessin = false; }
+        E.actif = false; E.dessin = true; try { API.look(g.x, g.z, yaw, 0.1, E.suivre ? 2.2 : 2.6, E.suivre ? 0.6 : 0.75); E.bande.imgs.push([E.img, cv().toDataURL('image/jpeg', 0.85), +mm.genouSensG.toFixed(0), +mm.genouSensD.toFixed(0)]);
+          if (E.suivre) { API.look(g.x, g.z, Math.PI / 2 - m.yaw, 0.1, 2.2, 0.6); E.bande.imgs.push([E.img + 0.5, cv().toDataURL('image/jpeg', 0.85), +mm.genouSensG.toFixed(0), +mm.genouSensD.toFixed(0)]); } } finally { E.actif = true; E.dessin = false; }
       }
       // alarmes instantanées (seuils « majeur » de la rubrique) : gros plan rendu TOUT DE SUITE (pas de 2e passe)
       if (E.alarmes.length < E.maxAlarmes) for (const [id, t] of E.TESTS) { let x; try { x = t(mm, k); } catch (e) { x = null; } if (x === null || x === false || x === undefined) continue;
