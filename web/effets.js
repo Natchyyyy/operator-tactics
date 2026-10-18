@@ -44,7 +44,7 @@
       uniforms: { tAtlas: { value: ATLAS }, uLight: { value: new T.Color(1, 1, 1) }, fogColor: { value: new T.Color() }, fogDensity: { value: 0 } },
       vertexShader: `
         attribute vec3 iPos, iAxis; attribute vec2 iSize, iFrame; attribute vec4 iCol;
-        varying vec2 vUv; varying vec4 vCol; varying float vFog;
+        varying vec2 vUv; varying vec4 vCol; varying float vFog; varying float vSoft;
         void main() {
           vec3 camR = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]), camU = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
           vec3 wp;
@@ -56,13 +56,13 @@
             float c = cos(iSize.y), s = sin(iSize.y); vec2 q = vec2(c * position.x - s * position.y, s * position.x + c * position.y) * iSize.x;
             wp = iPos + camR * q.x + camU * q.y;
           }
-          float fr = iFrame.x; vUv = (vec2(mod(fr, 4.0), 3.0 - floor(fr / 4.0)) + uv) / 4.0; vCol = iCol;
+          float fr = iFrame.x; vUv = (vec2(mod(fr, 4.0), 3.0 - floor(fr / 4.0)) + uv) / 4.0; vCol = iCol; vSoft = (fr >= 4.0 && fr < 12.0) ? wp.y : 99.0;   // fumée : fondu au ras du sol (pas d'arête nette)
           vec4 mv = viewMatrix * vec4(wp, 1.0); gl_Position = projectionMatrix * mv; vFog = -mv.z;
         }`,
       fragmentShader: `
-        uniform sampler2D tAtlas; uniform vec3 uLight, fogColor; uniform float fogDensity; varying vec2 vUv; varying vec4 vCol; varying float vFog;
+        uniform sampler2D tAtlas; uniform vec3 uLight, fogColor; uniform float fogDensity; varying vec2 vUv; varying vec4 vCol; varying float vFog; varying float vSoft;
         void main() {
-          vec4 t = texture2D(tAtlas, vUv); float a = t.a * vCol.a; if (a < 0.003) discard;
+          vec4 t = texture2D(tAtlas, vUv); float a = t.a * vCol.a * smoothstep(0.0, 0.5, vSoft); if (a < 0.003) discard;
           float fog = 1.0 - exp(-fogDensity * fogDensity * vFog * vFog);
           ${lit ? 'vec3 col = vCol.rgb * uLight; col = mix(col, fogColor, fog); gl_FragColor = vec4(col, a);' : 'gl_FragColor = vec4(vCol.rgb * a * (1.0 - fog), a);'}
         }`,
@@ -220,6 +220,12 @@
     // fumée tactique (nappe opaque qui bloque la vue) : beaucoup de bouffées lentes
     E.smoke = function (x, z, r, dur) {
       for (let k = 0; k < 70; k++) { const a = Math.random() * 6.28, d = Math.sqrt(Math.random()) * r; alpha.add({ p: V(x + Math.cos(a) * d, rnd(0.4, 2.4), z + Math.sin(a) * d), v: V(rnd(-0.15, 0.15), rnd(0.02, 0.1), rnd(-0.15, 0.15)), life: dur * rnd(0.85, 1.05), size: rnd(1.6, 2.6), grow: 0.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.78, 0.78, 0.76], a0: 0.95, fadeIn: 1.2, fadePow: 0.35, rot: Math.random() * 6, spin: rnd(-0.1, 0.1), delay: rnd(0, 0.8) }); }
+    };
+    // pas : éclaboussures sous la pluie (gouttelettes claires qui retombent), petite poussière en courant par temps sec
+    E.footstep = function (x, z, wet, v) {
+      if (wet) { for (let k = 0; k < 7; k++) alpha.add({ p: V(x + rnd(-0.12, 0.12), 0.03, z + rnd(-0.12, 0.12)), v: V(rnd(-0.7, 0.7), rnd(0.8, 1.6), rnd(-0.7, 0.7)), grav: 9, floor: 0.01, life: rnd(0.22, 0.38), size: rnd(0.02, 0.035), frame: 4, col: [0.75, 0.8, 0.85], a0: 0.7 });
+        alpha.add({ p: V(x, 0.02, z), life: 0.45, size: 0.12, grow: 2.5, frame: 4, col: [0.7, 0.74, 0.78], a0: 0.18 }); }
+      else for (let k = 0; k < 2; k++) alpha.add({ p: V(x + rnd(-0.15, 0.15), 0.05, z + rnd(-0.15, 0.15)), v: V(rnd(-0.3, 0.3), rnd(0.1, 0.3), rnd(-0.3, 0.3)), life: rnd(0.5, 0.9), size: 0.12, grow: 2.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.52, 0.5, 0.46], a0: 0.16 * Math.min(1, v / 3), drag: 2 });
     };
     E.dustPuff = function (x, z, s) { for (let k = 0; k < 4; k++) alpha.add({ p: V(x + rnd(-0.2, 0.2), 0.05, z + rnd(-0.2, 0.2)), v: V(rnd(-0.4, 0.4), rnd(0.1, 0.4), rnd(-0.4, 0.4)), life: rnd(0.6, 1.2), size: 0.15 * s, grow: 3, frame: 4 + Math.floor(Math.random() * 4), col: [0.5, 0.47, 0.42], a0: 0.35, drag: 2 }); };
     E.update = function (dt, cam, sunCol, fog) {

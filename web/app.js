@@ -262,7 +262,9 @@
     for (let i = 0; i < steam.life.length; i++) { steam.life[i] = (steam.life[i] + dt * 0.12) % 1; const k = steam.life[i], b = steam.base[i]; a[i * 3] = b[0] + Math.sin(i * 1.7 + k * 3) * 0.6 + k * 2.5; a[i * 3 + 1] = b[1] + 0.3 + k * 7; a[i * 3 + 2] = b[2] + Math.cos(i * 2.3) * 0.6; }
     steam.obj.geometry.attributes.position.needsUpdate = true;
   }
+  let condNow = 'jour';
   function applyConditions(id) {
+    condNow = id || 'jour';
     const L = LOOK[id] || LOOK.jour;
     hemi.color.setHex(L.hemi[0]); hemi.groundColor.setHex(L.hemi[1]); hemi.intensity = L.hemi[2];
     if (RENDU) { if (battle) RENDU.setCenter(battle.map.width / 2, battle.map.depth / 2); RENDU.setConditions(id || 'jour'); }
@@ -1012,7 +1014,7 @@
     const col = z.contested ? 0xffffff : z.holder === 0 ? TEAM[0].color : z.holder === 1 ? TEAM[1].color : 0xe8d36a;
     const U = zoneMats.uniforms, t = performance.now() / 1000;
     U.uCol.value.lerp(new THREE.Color(col), 0.08); U.uT.value = t;
-    const lead = z.holder !== null && z.holder !== undefined ? z.holder : (battle.teams[0].capture >= battle.teams[1].capture ? 0 : 1);
+    const lead = z.holder === 0 || z.holder === 1 ? z.holder : (battle.teams[0].capture >= battle.teams[1].capture ? 0 : 1);   // −1 : zone disputée
     U.uProg.value = Math.min(1, (battle.teams[lead].capture || 0) / 100); U.uPCol.value.setHex(TEAM[lead].color);
     U.uA.value = z.contested ? 0.75 + 0.25 * Math.sin(t * 9) : 0.85;
   }
@@ -1150,7 +1152,10 @@
     if (speed <= 2) for (const u of battle.units) {
       if (!u.alive || !u.moving) continue;
       const m = meshes[u.id]; const ph = Math.floor(m.anim.phase / Math.PI);
-      if (m.lastStepPhase !== undefined && ph !== m.lastStepPhase) play('pas', { x: u.x, y: 0.2, z: u.z }, { vol: 0.9, varie: 0.06 });
+      if (m.lastStepPhase !== undefined && ph !== m.lastStepPhase) {
+        play('pas', { x: u.x, y: 0.2, z: u.z }, { vol: 0.9, varie: 0.06 });
+        if (EFX && EFX.footstep) { const v = Math.hypot(m.anim.vx || 0, m.anim.vz || 0); if (condNow === 'pluie' || v > 2.2) EFX.footstep(m.group.position.x, m.group.position.z, condNow === 'pluie', v); }
+      }
       m.lastStepPhase = ph;
     }
     pumpLog();
