@@ -25,7 +25,7 @@
   const DOS_VISEE = 0.5;
   // petite course de patrouille tirée de « Running » (voir foulee()) : foulée × s, levée des pieds × hs, bassin remonté (part)
   // dos : part du mouvement de la colonne de la course ajoutée à la garde basse (Trot_Low)
-  const TROT = { s: 0.45, hs: 0.5, rise: 0.5, dos: 0.45 };
+  const TROT = { s: 0.45, hs: 0.4, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
   const PENCHE = 0.21;   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
   // visée à l'arrêt : rotation du bassin et des jambes vers la cible (rad), voir update()
@@ -44,6 +44,11 @@
   const RECHARGE = { Standing_Reload: 1, Standing_Reload_Haut: 1 };
   const EPAULE = { Rifle_Aim_Turn_Right: 1, Walk_Aim: 1, Walk_Aim_Haut: 1, Run_and_Shoot: 1, Run_and_Shoot_Haut: 1, Gunshot_Reaction: 1 };
   const CREUX = { dedans: 0.16, avant: 0.08, bas: -0.03 };
+  // œil droit dans le repère de la tête (m : au-dessus de l'os de la tête, devant, à droite) ; point de visée de l'optique
+  // (repère de l'arme : centre de la fenêtre du viseur point rouge) ; garde basse construite (rad : canon vers le bas, vers la
+  // gauche ; m : crosse sous / devant le creux de l'épaule)
+  const OEIL = { haut: 0.095, avant: 0.085, cote: 0.032 }, VISEE_OPTIQUE = [0, 0.145, -0.03], GARDE = { pique: 0.6, dedans: 0.15, bas: 0.02, avant: 0 };
+  S.OEIL = OEIL; S.GARDE = GARDE;
   S.CREUX = CREUX;
   function b64ToBuf(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
   // Repère de paume : un point fixe dans chaque main, à la base des doigts (le squelette du GIGN n'a pas d'os de doigts).
@@ -304,7 +309,16 @@
     // montée du bassin : longueur bassin → cheville d'appui conservée en moyenne (part « rise »)
     let mont = 0; for (const [H, A] of ech) { const j = A[0].y < A[1].y ? 0 : 1, d0 = H.distanceTo(A[j]), h0 = Math.hypot(A[j].x - H.x, A[j].z - H.z), t = cib(H, A[j]), h1 = Math.hypot(t.x - H.x, t.z - H.z); mont += (Math.sqrt(Math.max(0, d0 * d0 - h1 * h1)) - Math.sqrt(Math.max(0, d0 * d0 - h0 * h0))) / N; }
     const dy = mont * rise;
-    return jambesIK(M, src, nom, (i, H, A) => { const H0 = H.clone(); return A.map(a => cib(H0, a)); }, () => dy);
+    // pied moins cambré (la course attaque le sol pointe en avant, très tendue) : inclinaison cheville → pointe ramenée vers
+    // celle de la pose de repos (part 1 − kp de l'écart), pour une attaque du sol plus à plat de petite foulée
+    const toes = [b('LeftToeBase'), b('RightToeBase')], gb = M.clips.Garde_Basse; let p0 = 0.6;
+    if (gb && toes[0]) { const mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true); const f = W(toes[0]).sub(W(F[0])); p0 = Math.atan2(-f.y, Math.hypot(f.x, f.z)); mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true); }
+    const kp = TROT.kp, up = new THREE.Vector3(0, 1, 0);
+    return jambesIK(M, src, nom, (i, H, A, Aq) => {
+      const H0 = H.clone();
+      if (toes[0] && toes[1] && kp < 1) A.forEach((a, j) => { const f = W(toes[j]).sub(a), h = Math.hypot(f.x, f.z); if (h < 1e-4) return; const p = Math.atan2(-f.y, h), np = p0 + (p - p0) * kp;
+        const fh = new THREE.Vector3(f.x / h, 0, f.z / h), f1 = fh.clone().multiplyScalar(Math.cos(np)).addScaledVector(up, -Math.sin(np)); Aq[j] = new THREE.Quaternion().setFromUnitVectors(f.normalize(), f1).multiply(Aq[j]); });
+      return A.map(a => cib(H0, a)); }, () => dy);
   }
   // Pieds au sol : la plupart des cycles de la bibliothèque « flottent » (la pointe la plus basse du cycle 1 à 6 cm au-dessus
   // du sol, mesuré). On descend (ou remonte) le bassin de tout le clip pour que la pointe la plus basse soit à sa hauteur de
@@ -624,6 +638,7 @@
         res.dmin.push(+(dmin(k, th) * 100).toFixed(2));
         if (c) res.err.push(+(p.copy(bout[k]).applyMatrix4(fk(k, th)[2]).distanceTo(new THREE.Vector3().fromArray(c.p)) * 100).toFixed(2));
       });
+      res.paumeLoc = new THREE.Vector3().fromArray(PALME).multiplyScalar(0.6).applyMatrix4(Hrel);
       res.paume = +(gp(0) * 100).toFixed(2); res.bouts = os.map((o3, k) => p.copy(bout[k]).applyMatrix4(fk(k, k < 5 ? (res.th || [])[k] || [0, 0, 0, 0] : 0)[2]).toArray());
       if (R && Pc.detente) { const th = cibler(1, Pc.detente.p, Pc.detente); res.detente = quats(1, th); res.detenteErr = +(p.copy(bout[1]).applyMatrix4(fk(1, th)[2]).distanceTo(new THREE.Vector3().fromArray(Pc.detente.p)) * 100).toFixed(2); }
       out[side === 'Right' ? 'R' : 'L'] = res;
@@ -792,7 +807,9 @@
           // (≤ ~55°, typiquement en diagonale vers la droite d'un tireur droitier), on court ainsi : appuis nets de la course,
           // au lieu du pas chassé joué 2 à 3 fois trop vite (pieds qui glissent) ; hystérésis 0,9 / 1,0 rad
           const twA = wrap(e - ta), torsA = Math.abs(wrap(twA + 0.7 * a0));
-          this.jogTw = avant === 'Pas_Avant_Course' && Math.abs(e) <= Math.abs(tc) && Math.abs(twA) <= 1.35 && torsA < (this.jogTw ? 1.0 : 0.9);
+          // (patrouille, mix : le corps suit déjà le déplacement ; le petit écart des virages est pris par le bassin, jamais par un
+          // pas chassé « au pistolet » mélangé à la petite course)
+          this.jogTw = (avant === 'Pas_Avant_Course' || !!mix) && Math.abs(e) <= Math.abs(tc) && Math.abs(twA) <= 1.35 && torsA < (this.jogTw ? 1.0 : 0.9);
           if (this.jogTw) { cible[avant] = 1; tau = twA; this.selArr = null; }
           else if (Math.abs(e) <= Math.abs(tc)) {
             // secteur avant : mélange marche avant / pas chassé, poids tels que la somme des foulées (vecteurs) pointe vers e
@@ -935,14 +952,17 @@
         const sc = group.getWorldScale(V()).y, tR = (M.toeR || 0.04) * sc, aR = (M.ankR || 0.15) * sc;
         pieds.forEach(([up, lo, ft], i) => {
           const L = Lk[i], A = WP(ft), T = WP(orteils[i]), gy = group.getWorldPosition(V()).y;
-          const talon = A.y - gy < aR + 0.025, pointe = T.y - gy < tR + 0.012;
-          // pivot : talon au sol → cheville ; sinon pointe au sol → pointe ; pointe encore basse → on garde le pivot actuel
-          const piv = !actif ? null : talon ? 'A' : pointe ? 'T' : (L.piv && T.y - gy < tR + 0.03 ? L.piv : null);
+          // appui : pointe basse (≤ 4,5 cm au-dessus de sa hauteur de repos) et plus basse que l'autre ; talon : cheville basse
+          const Tb = WP(orteils[1 - i]), bas = T.y - gy < tR + 0.045, talon = bas && A.y - gy < aR + 0.025, appui = bas && T.y <= Tb.y + 0.02;
+          // pivot : talon au sol → cheville ; sinon pointe d'appui → pointe ; pointe encore basse → on garde le pivot actuel
+          const piv = !actif ? null : talon ? 'A' : appui ? 'T' : (L.piv && T.y - gy < tR + 0.07 ? L.piv : null);
           if (piv) {
             const P = piv === 'A' ? A : T;
             if (L.piv !== piv) { L.anc = P.clone(); if (L.off && L.w > 0) L.anc.addScaledVector(L.off, L.w * L.w * (3 - 2 * L.w)); L.piv = piv; }
-            const d = new THREE.Vector3(L.anc.x - P.x, 0, L.anc.z - P.z);
-            if (d.length() > 0.22) { L.piv = null; L.w = Math.max(0, L.w - dt / 0.12); }   // (trop loin : pivot sur place, saut)
+            // (et posé AU sol : la pointe à sa hauteur de repos, ou la cheville si le talon est posé ; les cycles flottent de 1 à 4 cm)
+            const dy = piv === 'A' ? Math.max(-0.04, Math.min(0.03, gy + aR - A.y)) : Math.max(-0.04, Math.min(0.06, gy + tR - T.y));
+            const d = new THREE.Vector3(L.anc.x - P.x, dy, L.anc.z - P.z);
+            if (Math.hypot(d.x, d.z) > 0.22) { L.piv = null; L.w = Math.max(0, L.w - dt / 0.12); }   // (trop loin : pivot sur place, saut)
             else { L.off = d; L.w = Math.min(1, L.w + dt / 0.05); }
           } else { L.piv = null; L.w = Math.max(0, L.w - dt / 0.12); }
           if (L.w > 0 && L.off && L.off.lengthSq() > 1e-8) ik(up, lo, ft, L.off.clone().multiplyScalar(L.w * L.w * (3 - 2 * L.w)));
@@ -1123,6 +1143,15 @@
         const P = M.prise; if (!P || k < 0.01 || S.sansPrise) return;
         const B = this.bones, tp = V(), tq = new THREE.Quaternion(), ts = V(); weapon.updateMatrixWorld(true);
         const ob = this.osDoigts || (this.osDoigts = {}), os = (n) => ob[n] || (ob[n] = body.getObjectByName(n));
+        // fusil hors d'atteinte d'une main (bras tendu à plus de 97 %) : il est rapproché de cette épaule d'autant
+        if (mains && !seule && B.ra && B.la) for (let it = 0; it < 3; it++) {
+          const d = V(); let loin = false;
+          for (const [h, arm, fore, hand] of [['R', B.ra, B.rf, B.rh], ['L', B.la, B.lf, B.lh]]) {
+            const Sh = WP(arm), L = Sh.distanceTo(WP(fore)) + WP(fore).distanceTo(WP(hand)), T = V().setFromMatrixPosition(new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, P[h].Hrel)), e = Sh.distanceTo(T) - 0.97 * L;
+            if (e > 0.002) { d.addScaledVector(Sh.sub(T).normalize(), e * k); loin = true; } }
+          if (!loin) break;
+          const gi = group.matrixWorld.clone().invert(); weapon.position.add(d.clone().transformDirection(gi).multiplyScalar(d.length() / group.getWorldScale(V()).x)); weapon.updateMatrixWorld(true);
+        }
         for (const [h, arm, fore, hand] of [['R', B.ra, B.rf, B.rh], ['L', B.la, B.lf, B.lh]]) {
           const D = P[h]; if (!D || !hand || (seule && seule !== h)) continue;
           if (mains && arm && fore) {
@@ -1152,6 +1181,35 @@
             const qq = h === 'R' && d === 1 && D.detente && this.detK > 0.01 ? q.clone().slerp(D.detente[j], this.detK) : q;
             b.quaternion.slerp(qq, k); b.updateMatrixWorld(true); }));
         }
+      },
+      // Fusil placé par construction (repère du groupe) au lieu de suivre les mains de l'animation :
+      //  - visée : canon exactement vers la cible (this.regard, à hauteur de poitrine ; sinon droit devant), ligne de visée de
+      //    l'optique passant par l'œil droit (joue sur la crosse), crosse à la profondeur du creux de l'épaule ;
+      //  - garde basse : crosse dans le creux de l'épaule, canon vers l'avant et le bas (GARDE.pique) un peu vers la gauche.
+      // Mélange des deux selon epK / gbK. Les mains sont ensuite amenées sur l'arme (tenir).
+      poseArme(loc, inv) {
+        const B = this.bones, up = new THREE.Vector3(0, 1, 0), sR = loc(B.ra), sL = loc(B.la);
+        const lat = sL.clone().sub(sR).setY(0).normalize(), fwd = new THREE.Vector3().crossVectors(lat, up).normalize();
+        const creux = sR.clone().addScaledVector(lat, CREUX.dedans).addScaledVector(fwd, CREUX.avant).addScaledVector(up, -CREUX.bas);
+        const gq = group.getWorldQuaternion(new THREE.Quaternion()), hq = gq.clone().invert().multiply(WQ(B.head));
+        const oeil = loc(B.head).add(new THREE.Vector3(0, OEIL.haut, OEIL.avant).applyQuaternion(hq)).addScaledVector(lat, -OEIL.cote);
+        const repere = (d) => { const u = up.clone().addScaledVector(d, -up.dot(d)).normalize(); return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(u, d), u, d)); };
+        const butt = weapon.buttPt, ea = (this.epK || 0) / Math.max(1e-4, (this.epK || 0) + (this.gbK || 0));
+        // directions : repère du groupe (+Z = direction de visée du jeu ; en visée le tireur est de profil, ses épaules ne la donnent pas)
+        lat.set(1, 0, 0); fwd.set(0, 0, 1);
+        // visée
+        let d;
+        if (this.regard) { const T = new THREE.Vector3(this.regard.x, WP(B.spine).y, this.regard.z).applyMatrix4(inv); d = T.sub(oeil).normalize(); }
+        else d = fwd.clone().multiplyScalar(Math.cos(VISEE_TANGAGE)).addScaledVector(up, Math.sin(VISEE_TANGAGE));
+        { let ay = Math.atan2(d.dot(lat), d.dot(fwd)), ap = Math.asin(Math.max(-1, Math.min(1, d.y))); ay = Math.max(-0.6, Math.min(0.6, ay)); ap = Math.max(-0.5, Math.min(0.4, ap));
+          d = fwd.clone().multiplyScalar(Math.cos(ay) * Math.cos(ap)).addScaledVector(lat, Math.sin(ay) * Math.cos(ap)).addScaledVector(up, Math.sin(ap)); }
+        const qA = repere(d), E0 = oeil.clone().sub(new THREE.Vector3().fromArray(VISEE_OPTIQUE).applyQuaternion(qA)), PB = creux.clone().sub(butt.clone().applyQuaternion(qA));
+        const pA = E0.addScaledVector(d, PB.clone().sub(E0).dot(d));
+        if (ea > 0.999) return { q: qA, p: pA };
+        // garde basse
+        const pq = GARDE.pique, dg = fwd.clone().multiplyScalar(Math.cos(pq) * Math.cos(GARDE.dedans)).addScaledVector(lat, Math.cos(pq) * Math.sin(GARDE.dedans)).addScaledVector(up, -Math.sin(pq));
+        const qL = repere(dg), pL = creux.clone().addScaledVector(up, -GARDE.bas).addScaledVector(fwd, GARDE.avant).sub(butt.clone().applyQuaternion(qL));
+        return { q: qL.slerp(qA, ea), p: pL.lerp(pA, ea) };
       },
       placeWeapon(twoHands, recoil, mode) {
         const B = this.bones, rh = B.rh, lh = B.lh; if (!rh) return;
@@ -1199,8 +1257,14 @@
         weapon.quaternion.setFromRotationMatrix(R);
         let g = grip.clone().applyQuaternion(weapon.quaternion), barrel = new THREE.Vector3(0, 0, 1).applyQuaternion(weapon.quaternion);
         let pos = pR.clone().sub(g);
+        // prise (voir calculerPrise) : le fusil est placé pour que le milieu des places des deux paumes soit au milieu des paumes
+        // de l'animation (chaque main fait la moitié du chemin jusqu'à sa place, au lieu de tout pour la gauche)
+        if (two && M.prise && M.prise.R.paumeLoc && !S.sansPrise) pos = pR.clone().add(pL).multiplyScalar(0.5).sub(M.prise.R.paumeLoc.clone().add(M.prise.L.paumeLoc).multiplyScalar(0.5).applyQuaternion(weapon.quaternion));
+        // placement du fusil construit (voir poseArme) : visée et garde basse ; ses poids sont ceux des poses épaulées / basses
+        const procW = twoHands && mode === 'deux' && pL && M.prise && weapon.isMeshy && weapon.buttPt && B.ra && B.la && B.head && !S.sansProc ? Math.max(this.epK || 0, this.gbK || 0) : 0;
+        const tient = two || procW > 0.5;
         // crosse dans le creux de l'épaule (voir EPAULE) : on glisse le fusil, puis les bras suivent
-        const k = two && weapon.buttPt && B.ra && B.la ? (this.epK || 0) : 0;
+        const k = two && weapon.buttPt && B.ra && B.la ? (this.epK || 0) * (1 - procW) : 0;
         if (k > 0.01) {
           // fusil à niveau d'abord : les animations le tiennent de 6 à 17° vers le bas (il visait alors le sol) ; on le relève
           // autour de la crosse vers VISEE_TANGAGE, les deux mains suivent (IK des bras, mains tournées d'autant)
@@ -1227,16 +1291,17 @@
           if (dl.lengthSq() > 1e-8) {
             const gw = group.matrixWorld, dW = dl.clone().transformDirection(gw).multiplyScalar(dl.length() * group.getWorldScale(V()).x);
             ik(B.ra, B.rf, rh, dW); if (lh) ik(B.la, B.lf, lh, dW);
-            pos = palm(rh, B.rm).sub(g);   // la paume droite a suivi (à la précision de l'IK près)
+            pos.add(dl);   // les bras ont suivi (à la précision de l'IK près ; les mains sont ensuite remises à leur place, voir tenir)
           }
         }
+        if (procW > 0.01) { const Pp = this.poseArme(loc, inv); weapon.quaternion.slerp(Pp.q, procW); pos.lerp(Pp.p, procW); barrel.set(0, 0, 1).applyQuaternion(weapon.quaternion); }
         weapon.position.copy(pos).addScaledVector(barrel, -(recoil || 0) * 0.04);
         // mains à leur place sur le fusil, doigts refermés dessus (voir calculerPrise) ; index sur la détente en tir
         { const dt = Math.max(0, Math.min(0.1, this.t - (this.tPrise === undefined ? this.t : this.tPrise))); this.tPrise = this.t; const kk = dt > 0 ? Math.min(1, dt * 8) : 1;
-          this.priseK = (this.priseK === undefined ? 1 : this.priseK) + ((two ? 1 : 0) - (this.priseK === undefined ? 1 : this.priseK)) * kk;
+          this.priseK = (this.priseK === undefined ? 1 : this.priseK) + ((tient ? 1 : 0) - (this.priseK === undefined ? 1 : this.priseK)) * kk;
           this.detK = (this.detK || 0) + (((recoil || 0) > 0.02 || ((this.epK || 0) > 0.6 && this.regard) ? 1 : 0) - (this.detK || 0)) * kk;
-          if (two) this.tenir(this.priseK, true); }
-        if (two) {   // mémoire de la prise pour les modes à une main
+          if (tient) this.tenir(this.priseK, true); }
+        if (tient) {   // mémoire de la prise pour les modes à une main
           weapon.updateMatrixWorld(true);
           this.handLocal.droite = new THREE.Matrix4().copy(rh.matrixWorld).invert().multiply(weapon.matrixWorld);
           if (lh) this.handLocal.gauche = new THREE.Matrix4().copy(lh.matrixWorld).invert().multiply(weapon.matrixWorld);

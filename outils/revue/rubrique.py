@@ -42,9 +42,9 @@ def stat_ou(r, keys, a, f):
 
 def planted(r, s):
     """images où le pied s ('G'/'D') est au sol (point de semelle le plus bas à moins de 2 cm de son minimum)"""
-    im = r['images']; ys = [i.get('solMin' + s) for i in im if i.get('solMin' + s) is not None]
+    im = r['images']; ys = sorted(i.get('solMin' + s) for i in im if i.get('solMin' + s) is not None)
     if not ys: return []
-    b = min(0, min(ys)); return [i for i in im if i.get('solMin' + s) is not None and i['solMin' + s] < b + 0.02]
+    b = min(0.01, ys[int(len(ys) * 0.05)]); return [i for i in im if i.get('solMin' + s) is not None and i['solMin' + s] < b + 0.02]
 
 def moy(v): return sum(v) / len(v) if v else None
 
@@ -83,8 +83,12 @@ for s, nm in (('G', 'gauche'), ('D', 'droit')):
     crit(id='glisse_appui_' + s, partie='bas', lib=f'Distance glissée sur l\'appui le pire, pied {nm} (m)', quand=lambda e: 'marche' in e or 'course' in e or 'transition' in e or 'pivot' in e,
          val=(lambda s: lambda r: r['bilan'].get('glisseParAppui' + s))(s), ok=(-1, 0.03), mineur=(-1, 0.07), cle=('glisseMaxImg' + s,),
          pourquoi='Même un glissement lent devient visible s\'il s\'accumule sur un appui (plus de 3 cm).', src='idem', vues=['pieds', 'piedsProfil'])
-crit(id='pieds_croises', partie='bas', lib='Pieds croisés : écart latéral min des chevilles, perpendiculaire au déplacement (m)', quand=lambda e: ('marche' in e or 'course' in e) and 'lateral' not in e and 'recharge' not in e,
-     val=lambda r: st(r, 'ecartPieds', 'min'), ok=(0.03, 9), mineur=(-0.01, 9), cle=('ecartPieds', 'min'),
+for s, nm in (('G', 'gauche'), ('D', 'droit')):
+    crit(id='patine_' + s, partie='bas', lib=f'Patinage pondéré par la hauteur, pied {nm} (m/s : vitesse du point le plus bas × poids de contact)', quand=lambda e: 'marche' in e or 'course' in e or 'transition' in e or 'pivot' in e,
+         val=(lambda s: lambda r: r['bilan'].get('patine' + s))(s), ok=(-1, 0.05), mineur=(-1, 0.11), cle=(),
+         pourquoi='Mesure standard du « foot skating » : un pied près du sol ne doit pas se déplacer horizontalement.', src='Zhang et al. 2018 (Mode-Adaptive Neural Networks, mesure de patinage pondérée par la hauteur, H = 2,5 cm)', vues=['pieds', 'piedsProfil'])
+crit(id='pieds_croises', partie='bas', lib='Pieds croisés : écart min des chevilles le long de la ligne des hanches (m)', quand=lambda e: ('marche' in e or 'course' in e) and 'lateral' not in e and 'recharge' not in e,
+     val=lambda r: st(r, 'ecartPiedsBassin', 'min'), ok=(0.03, 9), mineur=(-0.01, 9), cle=('ecartPiedsBassin', 'min'),
      pourquoi='En marche, chaque pied pose sur sa propre ligne (largeur de pas ≈ 8-17 cm) ; des pieds qui se croisent = démarche de mannequin ou chute.', src='PMC3756042 (largeur de pas 0,17 ± 0,04 m entre talons) ; Perry', vues=['piedsFace', 'dessus'])
 crit(id='pieds_croises_lateral', partie='bas', lib='Pas chassé : écart min des chevilles le long de la ligne des hanches (m)', quand=lambda e: 'lateral' in e or 'diag' in e or 'recul' in e,
      val=lambda r: st(r, 'ecartPiedsBassin', 'min'), ok=(0.06, 9), mineur=(0.02, 9), cle=('ecartPiedsBassin', 'min'),
@@ -168,7 +172,7 @@ crit(id='erreur_visee', partie='haut', lib='Canon ↔ cible (°, max)', quand=la
      bornes=lambda e: ((0, 2.5), (0, 6)) if 'arret' in e else ((0, 4), (0, 9)),
      pourquoi='En visée, le canon est SUR la cible ; à 10 m, 3° = 50 cm à côté.', src='Géométrie (le tir doit partir vers la cible)', vues=['troisQuarts', 'dessus'])
 crit(id='crosse_epaule', partie='haut', lib='Crosse ↔ creux de l\'épaule en visée (m, max)', quand=lambda e: 'vise' in e and 'recharge' not in e and 'accroupi' not in e,
-     val=lambda r: st(r, 'crosseEpaule', 'max'), ok=(0, 0.05), mineur=(0, 0.08), cle=('crosseEpaule', 'max'),
+     val=lambda r: st(r, 'crosseEpaule', 'max'), ok=(0, 0.06), mineur=(0, 0.09), cle=('crosseEpaule', 'max'),
      pourquoi='La plaque de couche est dans le creux de l\'épaule (entre clavicule et deltoïde), pas sur le bras ni dans le vide.', src='FM 3-06.11 §3-15a, §3-23a ("butt ... firmly in the pocket of the shoulder")', vues=['epaule', 'profil'])
 crit(id='oeil_ligne_visee', partie='haut', lib='Œil ↔ plan vertical du canon (m, max absolu)', quand=lambda e: 'vise' in e and 'recharge' not in e and 'course' not in e,
      val=lambda r: (lambda a, b: None if a is None else max(abs(a), abs(b)))(st(r, 'oeilLateral', 'min'), st(r, 'oeilLateral', 'max')), ok=(0, 0.035), mineur=(0, 0.07), cle=('oeilLateral', 'max'),

@@ -93,4 +93,45 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   }
   check('à terre : un opérateur neutralisé ne se déplace plus jamais', downs > 20 && moved === 0, { downs, moved });
 }
+{
+  // ---- Couvert, espacement, distance d'engagement, précision à bout portant (sur de vraies batailles) ----
+  // Vérification indépendante du moteur : un « vrai couvert » est un obstacle d'au moins 0,9 m de haut, dont le bord est à
+  // moins de 1 m du soldat, qui coupe la ligne des yeux de la menace (1,6 m) vers ses hanches (0,5 m).
+  const edge = (x, z, o) => Math.hypot(Math.max(o.x - x, 0, x - (o.x + o.w)), Math.max(o.z - z, 0, z - (o.z + o.d)));
+  const realCover = (b, x, z, tx, tz) => b.map.obstacles.some(o => o.h >= 0.9 && edge(x, z, o) <= 1.0 && OT.segmentHitsBox(tx, 1.6, tz, x, 0.5, z, o));
+  const threatOf = (b, u) => {
+    let th = null, td = 99;
+    for (const e of b.enemiesOf(u)) if (e.alive && u.visible.has(e.id)) { const d = Math.hypot(u.x - e.x, u.z - e.z); if (d < td) { td = d; th = e; } }
+    if (!th && b.t - u.lastShotByAt < 1.5 && u.lastShotBy && u.lastShotBy.alive) th = u.lastShotBy;
+    if (!th) for (const e of b.enemiesOf(u)) { const k = u.knowledge[e.id]; if (e.alive && k) { const d = Math.hypot(k.x - u.x, k.z - u.z); if (d < td) { td = d; th = k; } } }
+    return th;
+  };
+  let claimed = 0, invalid = 0, contact = 0, contactCov = 0, shots = 0, shotsClose = 0, encounters = 0, mates = 0, matesClose = 0, battles = 0;
+  for (let sd = 101; sd <= 112; sd++) {
+    const b = mk(sd); battles++;
+    const orig = b.shoot.bind(b); b.shoot = function (u, e, d) { shots++; if (d < 5) shotsClose++; return orig(u, e, d); };
+    const near = new Set();
+    while (!b.over) {
+      b.step();
+      for (const u of b.units) {
+        if (!u.alive) continue;
+        const th = threatOf(b, u);
+        if (u.stance === 'crouch' && !u.moving && u.state !== 'reviving' && th) { claimed++; if (!realCover(b, u.x, u.z, th.x, th.z)) invalid++; }
+        if (th && (u.visible.size || b.t - u.lastShotByAt < 1.5)) { contact++; if (realCover(b, u.x, u.z, th.x, th.z)) contactCov++; }
+        let m = 99; for (const a of b.teams[u.team].units) if (a !== u && a.alive) m = Math.min(m, Math.hypot(a.x - u.x, a.z - u.z));
+        if (m < 99) { mates++; if (m < 1) matesClose++; }
+        if (u.team === 0) for (const e of b.teams[1].units) if (e.alive) { const d = Math.hypot(u.x - e.x, u.z - e.z), k = u.id + e.id; if (d < 2 && !near.has(k)) { near.add(k); encounters++; } else if (d > 4) near.delete(k); }
+      }
+    }
+  }
+  check('couvert : accroupi à l\'arrêt = derrière un vrai obstacle (≥ 0,9 m, à moins de 1 m) face à la menace — jamais derrière rien', claimed > 1000 && invalid / claimed < 0.005, { claimed, invalid });
+  check('couvert : au contact, l\'opérateur est le plus souvent derrière un vrai couvert (> 45 % du temps)', contactCov / contact > 0.45, { r: contactCov / contact });
+  check('engagement : on se bat à distance — moins de 5 % des tirs à moins de 5 m, rencontres à moins de 2 m rares (< 0,7 par bataille)', shots > 500 && shotsClose / shots < 0.05 && encounters / battles < 0.7, { r: shotsClose / shots, enc: encounters / battles });
+  check('espacement : deux équipiers à moins de 1 m moins de 4 % du temps (au passage seulement)', matesClose / mates < 0.04, { r: matesClose / mates });
+  // précision : à bout portant on ne rate (presque) plus ; de loin, ça reste incertain
+  const b = mk(1); const [u] = b.teams[0].units, [e] = b.teams[1].units;
+  let row = null; for (let z = 2; z < 44 && row === null; z += 0.5) if (b.map.hasLOS(8, 0.3, z, 52, 0.3, z) && b.map.hasLOS(8, 1.6, z, 52, 1.6, z)) row = z;
+  const p = (d, moving) => { u.x = 8; u.z = row; e.x = 8 + d; e.z = row; u.moving = !!moving; e.moving = !!moving; u.suppression = 0; u.burst = 0; return b.hitChance(u, e, d).p; };
+  check('précision : à 1–2 m on touche presque à coup sûr même en mouvement (> 0,75), la chance décroît avec la distance, et reste incertaine à 40 m (< 0,3)', p(1.5, true) > 0.75 && p(3, true) > 0.5 && p(1.5) > p(5) && p(5) > p(15) && p(15) >= p(40) && p(40) < 0.3, { p1: p(1.5, true), p3: p(3, true), p5: p(5), p15: p(15), p40: p(40) });
+}
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

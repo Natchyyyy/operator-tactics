@@ -907,7 +907,11 @@
     // marche OU course (petites foulées) directionnelles jusqu'à 3,2 m/s ; au-delà (sprint) l'ancienne méthode. Marche ou
     // course : choisie d'après la vitesse NOMINALE du soldat (u.speed()), pas la vitesse mesurée : le premier pas de
     // simulation d'un départ est partiel (vitesse basse) et faisait jouer 0,1 s de marche avant la course
-    const dirMarche = u.alive && m.marche && m.clips.Pas_Gauche && !crouch && u.moving && v > 0.15 && v <= 3.2 && !(u.reloading > 0) && !u.throwing && !battle.over;
+    // patrouille (pas d'ennemi connu, garde basse) : marche → petite course → course mélangées selon la vitesse lissée, à toutes
+    // les vitesses ; en visant, jusqu'à 3,2 m/s (au-delà l'ancienne course épaulée)
+    const patrouille = u.alive && !(aiming || u.preaim) && !!m.clips.Pas_Trot && !!m.clips.Walk_Low_Haut;
+    a.vLis = v > 0.15 ? (a.vLis > 0.15 ? a.vLis + (v - a.vLis) * Math.min(1, dt * 4) : v) : 0;
+    const dirMarche = u.alive && m.marche && m.clips.Pas_Gauche && !crouch && u.moving && v > 0.15 && (v <= 3.2 || patrouille) && !(u.reloading > 0) && !u.throwing && !battle.over;
     // (la simulation plafonne la vitesse de côté / en reculant : si la vitesse réelle reste sous 1,45 m/s plus de 0,25 s alors
     // que la nominale est au-dessus, c'est ce plafond, pas un démarrage : on marche)
     a.lentT = u.moving && v > 0.15 && v <= 1.45 ? (a.lentT || 0) + dt : 0;
@@ -935,8 +939,16 @@
     else if (dirMarche) {
       const vise = aiming || u.preaim || !m.clips.Walk_Low_Haut;
       // (marche attend la direction par rapport au groupe, c.-à-d. à la visée : on rajoute la correction du corps retirée plus haut)
-      const haut = course ? (vise ? 'Run_and_Shoot_Haut' : 'Run_Low_Haut') : (vise ? 'Walk_Aim_Haut' : 'Walk_Low_Haut');
-      const ph = m.marche(ecart + (m.body ? m.body.rotation.y : 0), v, dt, haut, course ? 'Pas_Avant_Course' : vise ? 'Pas_Avant_Aim' : 'Pas_Avant_Low');
+      let haut = course ? (vise ? 'Run_and_Shoot_Haut' : 'Run_Low_Haut') : (vise ? 'Walk_Aim_Haut' : 'Walk_Low_Haut'), avant = course ? 'Pas_Avant_Course' : vise ? 'Pas_Avant_Aim' : 'Pas_Avant_Low', mix = null;
+      if (patrouille) {
+        // marche (≤ 1,55 m/s) → petite course (1,95 m/s) → course (≥ 3,7 m/s), même phase ; haut du corps de la petite course
+        // dès qu'elle domine (hystérésis)
+        const sm = (x, a0, a1) => { const t = Math.max(0, Math.min(1, (x - a0) / (a1 - a0))); return t * t * (3 - 2 * t); };
+        const kT = sm(a.vLis, 1.55, 1.95), kR = m.clips.Pas_Run ? sm(a.vLis, 2.7, 3.7) : 0;
+        mix = { Pas_Avant_Low: 1 - kT, Pas_Trot: kT * (1 - kR), Pas_Run: kT * kR }; avant = 'Pas_Avant_Low';
+        a.trot = a.trot ? kT > 0.35 : kT > 0.65; haut = a.trot && m.clips.Trot_Low_Haut ? 'Trot_Low_Haut' : 'Walk_Low_Haut';
+      }
+      const ph = m.marche(ecart + (m.body ? m.body.rotation.y : 0), v, dt, haut, avant, mix);
       a.phase = ph * 2 * Math.PI;
     }
     else if (u.moving && v > 0.15) {
@@ -1449,7 +1461,9 @@
     for (const u of battle.units) {
       const m = meshes[u.id];
       const p = new THREE.Vector3(m.group.position.x, u.alive ? (u.stance === 'crouch' ? 1.5 : 2.05) : 0.6, m.group.position.z).project(camera);
-      const visible = p.z < 1 && p.x > -1.1 && p.x < 1.1 && p.y > -1.1 && p.y < 1.1;
+      // plan rapproché du réalisateur : l'étiquette du soldat cadré flotterait loin au-dessus de sa tête ; on la cache
+      const proche = cam.mode === 'director' && camera.position.distanceTo(m.group.position) < 6.5;
+      const visible = !proche && p.z < 1 && p.x > -1.1 && p.x < 1.1 && p.y > -1.1 && p.y < 1.1;
       m.label.style.display = visible ? 'block' : 'none';
       if (!visible) continue;
       m.lx = (p.x + 1) / 2 * w; m.ly = (1 - p.y) / 2 * h; m.lz = p.z; placed.push(m);

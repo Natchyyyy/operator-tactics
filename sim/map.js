@@ -66,7 +66,7 @@
           box(-1, 18, 1, 10, 1.1, 'wall', 'mur portail ouest'), box(72, 18, 1, 10, 1.1, 'wall', 'mur portail est'),
           // ---- NORD : façade du centre commercial (avancée de l'entrée), parvis
           box(26, 0, 20, 5, 6.0, 'wall', 'centre commercial'),
-          box(33.2, 7.4, 5.2, 2.1, 2.4, 'wall', 'fourgon'),                      // livreur arrêté au dépose-minute devant l'entrée
+          box(33.2, 5.1, 5.2, 2.1, 2.4, 'wall', 'fourgon'),                      // livreur arrêté au dépose-minute devant l'entrée
           // quai de livraison (nord-ouest) : quai surélevé contre la façade, camion à quai, palettes et rolls, benne
           box(5, 0, 16, 2, 1.2, 'cover', 'quai de chargement'),
           box(11.2, 2, 2.3, 5.6, 2.4, 'wall', 'fourgon (livraison)'),
@@ -78,12 +78,12 @@
           box(61, 0.6, 0.8, 1.7, 1.5, 'cover', 'rolls'), box(62.2, 0.6, 0.8, 1.7, 1.5, 'cover', 'rolls'),
           box(53.7, 5.7, 0.3, 0.3, 4.6, 'wall', 'poteau'), box(61.5, 5.7, 0.3, 0.3, 4.6, 'wall', 'poteau'), box(69.3, 5.7, 0.3, 0.3, 4.6, 'wall', 'poteau'),
           // abris à chariots au bout des rangées (côté entrée)
-          box(18.5, 11.1, 4.2, 1.8, 1.1, 'cover', 'abri à chariots'), box(49.4, 11.1, 4.2, 1.8, 1.1, 'cover', 'abri à chariots'),
+          box(20.8, 8.4, 1.8, 4.4, 2.3, 'wall', 'abri à chariots'), box(49.4, 8.4, 1.8, 4.4, 2.3, 'wall', 'abri à chariots'),   // parois pleines (affiches) sur les grands côtés
           // ---- MILIEU : station de lavage (deux pistes, local technique au milieu), aspirateurs, voitures en attente
-          box(30.2, 18.5, 0.4, 9, 3.3, 'wall', 'lavage paroi'), box(41.4, 18.5, 0.4, 9, 3.3, 'wall', 'lavage paroi'),
-          box(34.6, 18.5, 2.8, 9, 3.3, 'wall', 'lavage local'),
-          box(38.9, 12.6, 1.9, 4.4, 1.4, 'cover', 'voiture'),                    // en attente devant la piste est
-          box(31.7, 28.9, 1.9, 4.4, 1.4, 'cover', 'voiture'),                    // sortie de la piste ouest, au séchage
+          box(30.2, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'), box(41.4, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'),
+          box(34.6, 17.9, 2.8, 10.2, 3.3, 'wall', 'lavage local'),
+          box(38.8, 12.7, 2.1, 5.2, 2.4, 'wall', 'fourgon'),                     // en attente devant la piste est
+          box(31.4, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon'),                     // sortie de la piste ouest, au séchage
           box(26.0, 21.3, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(24.2, 23.0, 4.4, 1.9, 1.4, 'cover', 'voiture'),
           box(45.4, 22.0, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(43.4, 23.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'),
           // ---- OUEST : entrée (guérite du gardien), places le long du mur ouest avec bornes de recharge
@@ -97,7 +97,7 @@
           box(8.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), box(16.1, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'),
           box(23.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'),
           box(19.6, 37.4, 2.4, 2.4, 3.0, 'wall', 'kiosque'),
-          box(30, 42.2, 12, 2.6, 3.0, 'wall', 'bus'), box(34.2, 39.9, 4.2, 1.5, 2.5, 'wall', 'abribus'),   // quai de la navette : abri sur l'îlot, bus le long
+          box(30, 39.6, 12, 2.6, 3.0, 'wall', 'bus'), box(32.4, 37.6, 4.2, 1.5, 2.5, 'wall', 'abribus'),   // quai de la navette : abri sur l'îlot, bus le long
           box(1.6, 43.6, 4.6, 1.6, 1.7, 'wall', 'colonnes de tri'),
           // ---- SUD-EST : partie du parking fermée pour réfection de l'enrobé (séparateurs, clôtures de chantier, bungalow
           // de chantier, benne à gravats, palettes de bordures, sacs de sable qui lestent les panneaux, fûts d'émulsion)
@@ -111,7 +111,7 @@
           box(67.4, 37.6, 1.4, 0.7, 1.1, 'cover', 'fût'),
         ],
         // îlots plantés aux bouts des rangées et sur le parvis
-        bac(13.6, 11.3, 4, 1.5), [box(13.6, 33.4, 4.6, 1.5, 1.7, 'wall', 'haie')], [box(53.8, 11.3, 4.4, 1.5, 1.7, 'wall', 'haie')], bac(49.6, 33.4, 2.0, 1.4),
+        bac(13.6, 11.3, 4, 1.5), bac(18.4, 11.3, 2.0, 1.5), [box(13.6, 33.4, 4.6, 1.5, 1.7, 'wall', 'haie')], [box(53.8, 11.3, 4.4, 1.5, 1.7, 'wall', 'haie')], [box(49.4, 33.4, 2.8, 1.4, 1.7, 'wall', 'haie')],
         bac(22.6, 5.8, 1.6, 1.6), bac(27.8, 5.8, 1.6, 1.6), bac(42.4, 5.8, 1.6, 1.6), bac(48.6, 5.8, 1.6, 1.6),
         // rangées de places (ouest : x 13–23 ; est : x 49–59), du nord (z 13) au sud (z 33)
         rangee(13, 13, 'vv..fvm.', '.fv..v.f', [0, 3, 5, 1, 6, 2, 4, 7, 0, 5]),

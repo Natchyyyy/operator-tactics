@@ -5,9 +5,9 @@
    - options : vol, pan (−1…1), vitesse (hauteur), varie (petite variation de hauteur, ex. .03), delai (s), reverb (0…1) ;
    - limiteur en sortie : pas de saturation quand beaucoup de sons s'additionnent. */
 const Son = (() => {
-  let ac = null, master = null, rev = null, loading = null, erreur = null, decodes = 0, echecs = 0; const buf = {}, last = {};
+  let ac = null, master = null, rev = null, loading = null, erreur = null, decodes = 0, echecs = 0; const buf = {}, last = {}, joues = {};
   function init(){
-    if(ac){ if(ac.state === "suspended") ac.resume().catch(() => {}); return true; }
+    if(ac){ if(ac.state === "suspended") ac.resume().catch(() => {}); if(!loading) charger(); return true; }   // (données des sons pas encore dans la page au premier appel : on réessaie)
     try{
       ac = new (window.AudioContext || window.webkitAudioContext)();
       master = ac.createGain(); const lim = ac.createDynamicsCompressor();
@@ -36,7 +36,7 @@ const Son = (() => {
     const g = ac.createGain(); g.gain.value = o.vol == null ? 1 : o.vol; src.connect(g); let out = g;
     if(o.pan){ const p = ac.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, o.pan)); g.connect(p); out = p; }
     out.connect(master); if(o.reverb){ const s = ac.createGain(); s.gain.value = o.reverb; out.connect(s); s.connect(reverb()); }
-    src.start(ac.currentTime + .003 + (o.delai || 0)); return true;
+    src.start(ac.currentTime + .003 + (o.delai || 0)); joues[nom] = (joues[nom] || 0) + 1; return true;
   }
   // déverrouillage : à CHAQUE geste tant que le contexte n'est pas « running » (certains cadres — artifact, iframe — ne le
   // laissent démarrer qu'au deuxième geste ou le suspendent quand l'onglet passe en arrière-plan) ; un son muet d'un
@@ -63,7 +63,7 @@ const Son = (() => {
   function arreterBoucle(fondu = .6, voie){ const keys = voie ? [voie] : Object.keys(loops); for(const k of keys){ const l = loops[k]; if(!l) continue; delete loops[k]; try{ l.g.gain.linearRampToValueAtTime(0, ac.currentTime + fondu); l.src.stop(ac.currentTime + fondu + .05); }catch(e){} } }
   function volumeBoucle(voie, v, t = .5){ const l = loops[voie]; if(l) try{ l.g.gain.linearRampToValueAtTime(v, ac.currentTime + t); }catch(e){} }
   // état pour le diagnostic (réglages) : contexte, sons décodés, échecs
-  function etat(){ return { contexte: ac ? ac.state : "absent", sons: Object.keys(buf).length, decodes, echecs, erreur, volume: master ? master.gain.value : null }; }
+  function etat(){ return { contexte: ac ? ac.state : "absent", sons: Object.keys(buf).length, decodes, echecs, erreur, volume: master ? master.gain.value : null, joues: Object.assign({}, joues) }; }
   return {init, jouer, charger, boucle, arreterBoucle, volumeBoucle, etat, debloquer, get pret(){ return !!loading; }, volume(v){ if(master) master.gain.value = v; }};
 })();
 window.Son = Son;

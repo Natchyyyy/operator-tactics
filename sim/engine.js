@@ -653,12 +653,17 @@
   Battle.prototype.findCover = function (u, threat, maxDist, opts) {
     opts = opts || {};
     let best = null, bestScore = -Infinity;
+    // les autres ennemis connus : on ne va pas se mettre à couvert sous le nez de l'un d'eux (à moins de ~8 m, quand on
+    // en est plus loin que ça) — un couvert face à l'un n'en est pas un face à l'autre
+    const others = [];
+    for (const e of this.enemiesOf(u)) { const k = u.knowledge[e.id]; if (e.alive && k && this.t - k.t < 12) { const dk = Math.hypot(k.x - u.x, k.z - u.z); others.push({ x: k.x, z: k.z, lim: Math.min(MIN_CLOSE, dk - 1.5) }); } }
     for (const c0 of this.map.coverPoints) {
       if (Math.abs(c0.x - u.x) > maxDist + 1 || Math.abs(c0.z - u.z) > maxDist + 1) continue;
       const h = this.hug(c0), cp = { x: h.hx, z: h.hz, obstacle: h.obstacle };
       const d = dist2(u, cp); if (d > maxDist) continue;
       const cv = this.coverAt(cp.x, cp.z, threat.x, threat.z, true);
       if (!cv) continue;
+      if (others.some(o => Math.hypot(o.x - cp.x, o.z - cp.z) < o.lim)) continue;
       // depuis ce point debout, puis-je voir la menace ? (sinon c'est une cachette, pas une position de tir)
       const canShoot = this.map.hasLOS(cp.x, EYE.stand, cp.z, threat.x, CHEST.stand, threat.z);
       if (opts.requireShoot && !canShoot) continue;
@@ -1001,7 +1006,13 @@
       // distance d'approche : position toute fraîche → on s'installe à distance de combat, à couvert, et on échange des tirs ;
       // elle vieillit (personne ne la revoit) → on resserre de couvert en couvert ; périmée → on va voir ce qu'il en est
       const age = this.t - threatPos.t, stand = this.standoff(u);
-      const reach = age < 6 ? stand : age < 14 ? MIN_CLOSE + 2 : 0;
+      let reach = age < 6 ? stand : age < 14 ? MIN_CLOSE + 2 : MIN_CLOSE;
+      // information ancienne (≥ 14 s) : on va VOIR la position, d'un point d'où on la découvre ; vue de près et vide → oubliée
+      // (on ne marche plus jusque sur elle) ; sans vue possible, on s'en approche jusqu'à quelques mètres
+      if (age >= 14 && nd <= MIN_CLOSE + 3) {
+        if (this.map.hasLOS(u.x, EYE.stand, u.z, threatPos.x, CHEST.stand, threatPos.z)) { delete u.knowledge[nearest.unit.id]; this.stop(u); u.state = 'search'; u.stance = 'stand'; return; }
+        reach = 0;
+      }
       if (nd > Math.max(6, reach + 2) && u.status !== 'critical' && this.tiroir(u, threatPos, threatPos, reach)) return;   // Tiroir : bonds alternés vers la menace
       if (u.role.id === 'marksman') {
         // un poste de tir à bonne distance AVEC vue sur la position connue
@@ -1285,7 +1296,10 @@
     const cp = this.findCover(u, threatPos, 11, { towards: dest, minRange: reach ? reach * 0.7 : 0 });
     let g;
     if (cp && Math.hypot(cp.x - dest.x, cp.z - dest.z) < dNow - 2) g = cp;
-    else { const step = Math.min(8, dNow - stopAt); if (step < 1.5) { u.boundDone = b.n; return overwatch(); } g = this.spreadGoal(u, u.x + (dest.x - u.x) / dNow * step, u.z + (dest.z - u.z) / dNow * step); }
+    else {
+      const step = reach ? Math.min(8, dNow - stopAt) : Math.min(8, dNow); if (step < 1.5) { u.boundDone = b.n; return overwatch(); }
+      g = this.spreadGoal(u, u.x + (dest.x - u.x) / dNow * step, u.z + (dest.z - u.z) / dNow * step);
+    }
     if (this.setGoal(u, g.x, g.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; u.boundGoalN = b.n; return true; }
     u.boundDone = b.n; return overwatch();
   };

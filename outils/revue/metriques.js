@@ -53,7 +53,19 @@
     const n = (x) => os(f, x);
     for (const k of ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'HeadTop_End', 'RightShoulder', 'LeftShoulder', 'RightArm', 'RightForeArm', 'RightHand', 'LeftArm', 'LeftForeArm', 'LeftHand',
       'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase', 'LeftToe_End', 'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase', 'RightToe_End']) R.os[k] = n(k);
-    for (const c of ['Right', 'Left']) for (const d of DOIGTS) for (const i of [1, 2, 3, 4]) R.os[c + d + i] = n(c + 'Hand' + d + i);
+    // doigts reconnus par leur POSITION (dans les squelettes Meshy, les noms des doigts sont souvent permutés) : pouce = base la
+    // plus proche du poignet, puis du côté du pouce vers l'auriculaire (même règle que soldat3d.js / calculerPrise)
+    f.group.updateMatrixWorld(true);
+    for (const c of ['Right', 'Left']) {
+      const H = n(c + 'Hand'); if (!H) continue;
+      const ch = H.children.filter(b => b.isBone).map(b => { const k = [b]; while (k.length < 4) { const x = k[k.length - 1].children.find(y => y.isBone); if (!x) break; k.push(x); } return k; }).filter(k => k.length >= 4);
+      if (ch.length !== 5) { for (const d of DOIGTS) for (const i of [1, 2, 3, 4]) R.os[c + d + i] = n(c + 'Hand' + d + i); continue; }
+      const hp = WP(H), base = ch.map(k => WP(k[0]).sub(hp)), axe = base.reduce((a, b) => a.add(b.clone()), V()).normalize();
+      const ip = base.map((b, i) => [i, b.dot(axe)]).sort((a, b) => a[1] - b[1])[0][0], cote = base[ip].clone().addScaledVector(axe, -base[ip].dot(axe));
+      const autres = [0, 1, 2, 3, 4].filter(i => i !== ip).sort((a, b) => base[b].dot(cote) - base[a].dot(cote));
+      [ip].concat(autres).forEach((k, j) => ch[k].forEach((b, i) => { R.os[c + DOIGTS[j] + (i + 1)] = b; }));
+      R.nomsDoigts = R.nomsDoigts || {}; R.nomsDoigts[c] = [ip].concat(autres).map(k => ch[k][0].name.replace(/^mixamorig:?/, ''));
+    }
     R.os.headfront = f.body.getObjectByName('headfront');
     f.group.updateMatrixWorld(true);
     // capsules : rayon = 75e centile de la distance des sommets (os dominant) à leur segment
@@ -97,7 +109,7 @@
       const bb = new THREE.Box3(); tris.forEach(t => { bb.expandByPoint(t[0]); bb.expandByPoint(t[1]); bb.expandByPoint(t[2]); });
       R.arme = { tris, grille, C, cle, bb, nTris: tris.length };
       // détente (estimée) : devant la poignée, sous l'axe du canon — point de référence pour l'index (vérifiable en gros plan)
-      if (w.gripPt) R.arme.detente = w.gripPt.clone().add(new THREE.Vector3(0, 0.025, 0.065));   // (calé à l'œil sur la vue armeD du banc)
+      if (w.gripPt) R.arme.detente = (OT.Soldat3D.PRISE && OT.Soldat3D.PRISE.R && OT.Soldat3D.PRISE.R.detente) ? new THREE.Vector3().fromArray(OT.Soldat3D.PRISE.R.detente.p) : w.gripPt.clone().add(new THREE.Vector3(0, 0.025, 0.065));   // (point de détente d'anim-haut si présent)   // (calé à l'œil sur la vue armeD du banc)
       if (w.gripPt && w.forePt) { R.arme.axeZ = [w.gripPt.z, w.forePt.z]; }
     }
     f.revue = R; return R;
@@ -144,7 +156,7 @@
       const H = P[c + 'UpLeg'], K = P[c + 'Leg'], A = P[c + 'Foot'];
       const flex = 180 - ang(H.clone().sub(K), A.clone().sub(K)), fw = dir.lengthSq() > 1e-6 ? dir.clone().normalize() : dep;
       const ka = K.clone().sub(H), ha = A.clone().sub(H); const hors = ka.clone().sub(ha.clone().multiplyScalar(ka.dot(ha) / Math.max(1e-9, ha.dot(ha))));
-      m['genou' + s] = hors.dot(fw) < -0.005 && flex > 2 ? -flex : flex;
+      m['genou' + s] = hors.dot(fw) < -0.005 && flex > 1 && flex < 20 ? -flex : flex;   // (signe seulement près de la jambe tendue : au-delà, un genou plié « à l'envers » se verrait de toute façon)
       m['genouDevantOrteil' + s] = K.clone().sub(bout).dot(fw);                                    // > 0 : genou au-delà du bout du pied
     }
     // écart des pieds / genoux perpendiculaire au déplacement (< 0 : croisés), et dans le repère du bassin
@@ -181,7 +193,8 @@
       m['coude' + s] = ang(Sh.clone().sub(E), Hd.clone().sub(E));                       // 180 = bras tendu
       m['coudeHaut' + s] = E.y - Sh.y;                                                    // > 0 : coude au-dessus de l'épaule (« aile de poulet »)
       m['coudeEcart' + s] = E.clone().sub(Sh).dot(ep.clone().normalize()) * (c === 'Right' ? -1 : 1);   // coude écarté vers l'extérieur (m)
-      const mid = O[c + 'HandMiddle1'] ? P[c + 'HandMiddle1'] : (c === 'Right' ? (f.bones.rm && WP(f.bones.rm)) : (f.bones.lm && WP(f.bones.lm)));
+      // axe de la main = poignet → milieu des bases de l'index, du majeur, de l'annulaire et de l'auriculaire
+      const bs = ['Index', 'Middle', 'Ring', 'Pinky'].map(d => P[c + d + 1]).filter(Boolean), mid = bs.length === 4 ? bs.reduce((a, b) => a.add(b), V()).multiplyScalar(0.25) : null;
       if (mid) m['poignet' + s] = ang(Hd.clone().sub(E), mid.clone().sub(Hd));                // 0 = main dans l'axe de l'avant-bras
     }
     // --- arme
@@ -217,7 +230,7 @@
       // crosse ↔ creux de l'épaule droite (entre clavicule et deltoïde : depuis l'articulation de l'épaule, vers le centre et l'avant)
       if (butt) {
         const sR = P.RightArm, sL = P.LeftArm, la = sL.clone().sub(sR).setY(0).normalize(), fw2 = new THREE.Vector3().crossVectors(la, up).normalize();
-        const creux = sR.clone().addScaledVector(la, 0.07).addScaledVector(fw2, 0.06);   // (à hauteur de l'articulation, 7 cm vers le centre, 6 cm devant)
+        const creux = sR.clone().addScaledVector(la, 0.11).addScaledVector(fw2, 0.06).addScaledVector(up, 0.01);   // (entre le deltoïde et la clavicule : 11 cm vers le centre depuis l'articulation, 6 cm devant)
         m.creux = creux; m.crosseEpaule = butt.distanceTo(creux);
         m.crosseSousAisselle = butt.distanceTo(sR.clone().addScaledVector(up, -0.12));
       }
@@ -231,7 +244,7 @@
       const rr = (k) => R.rayons[k] || 0.06, b0 = butt || grip;
       const avantTronc = grip.clone().addScaledVector(canon, 0.05);   // (la crosse touche l'épaule exprès : on part de devant la poignée)
       m.armeTronc = segSeg(avantTronc, muz, P.Spine, P.Neck) - rr('tronc') - 0.03;
-      m.armeTete = segSeg(b0, muz, P.Head, P.HeadTop_End || P.Head) - rr('tete') - 0.025;
+      m.armeTete = segSeg(avantTronc, muz, P.Head, P.HeadTop_End || P.Head) - rr('tete') - 0.025;   // (sans la crosse : la joue s'y appuie exprès)
       m.armeCuisses = Math.min(segSeg(avantTronc, muz, P.LeftUpLeg, P.LeftLeg) - rr('cuisseG'), segSeg(avantTronc, muz, P.RightUpLeg, P.RightLeg) - rr('cuisseD')) - 0.03;
       // canon pointé sur ses propres jambes / pieds (sécurité : on ne balaie jamais son corps avec la bouche)
       { const ray = (a, b, r) => { const end = muz.clone().addScaledVector(canon, 3); return segSeg(muz, end, a, b) - r; };
@@ -251,24 +264,36 @@
   // Suivi dans le temps
   // ---------------------------------------------------------------------------------------------------------------
   class Suivi {
-    constructor(opts) { this.fr = []; this.o = Object.assign({ sol: 0.02 }, opts || {}); }
+    constructor(opts) { this.fr = []; this.o = Object.assign({ sol: 0.025 }, opts || {}); }
     ajouter(m, dt, extra) { m.dt = dt; if (extra) Object.assign(m, extra); this.fr.push(m); }
     bilan() {
       const F = this.fr, out = {}, SOL = this.o.sol; if (F.length < 3) return out;
       // sol de référence de chaque pied : son point le plus bas sur la fenêtre (un pied enfoncé de 2 cm partout reste « au sol »)
-      const bas = {}; for (const s of ['G', 'D']) bas[s] = Math.min(0, ...F.map(f => f['solMin' + s]).filter(v => typeof v === 'number'));
+      // (5e centile : un seul pic d'enfoncement ne doit pas faire croire que le pied n'est jamais au sol)
+      const bas = {}; for (const s of ['G', 'D']) { const a = F.map(f => f['solMin' + s]).filter(v => typeof v === 'number').sort((x, y) => x - y); bas[s] = Math.min(0.01, a.length ? a[Math.floor(a.length * 0.05)] : 0); }
       const auSol = (f, s, k) => f[k + s].y - f._grp.y < bas[s] + SOL;
+      out.solRef = bas;
       // glissement : un point de semelle au sol (< SOL) à deux images de suite ne doit pas bouger horizontalement
       for (const s of ['G', 'D']) {
-        let somme = 0, temps = 0, pire = 0, pireI = -1, enPhase = 0, glPhase = 0, phases = [];
+        let somme = 0, temps = 0, pire = 0, pireI = -1, enPhase = 0, glPhase = 0, phases = [], rase = 0;
         for (let i = 1; i < F.length; i++) {
           const a = F[i - 1], b = F[i]; if (!a['talon' + s]) continue;
           let best = null;
           for (const k of ['talon', 'plante', 'bout']) { const pa = a[k + s], pb = b[k + s]; if (auSol(a, s, k) && auSol(b, s, k)) { const d = Math.hypot(pb.x - pa.x, pb.z - pa.z); if (best === null || d < best) best = d; } }
+          // (un pied bas qui va plus vite que le corps est en oscillation au ras du sol, pas en appui : compté à part, « rase »)
+          if (best !== null && best / b.dt > Math.max(0.5, (b.vitesse || 0) * 1.0)) { rase += b.dt; best = null; }
           if (best === null) { if (enPhase > 0.08) phases.push([enPhase, glPhase]); enPhase = 0; glPhase = 0; continue; }
           const v = best / b.dt; somme += best; temps += b.dt; enPhase += b.dt; glPhase += best; if (v > pire) { pire = v; pireI = i; }
         }
         if (enPhase > 0.08) phases.push([enPhase, glPhase]);
+        // « patinage » pondéré par la hauteur (mesure usuelle des articles de synthèse de mouvement, H = 2,5 cm) :
+        // vitesse horizontale du point le plus bas × (2 − 2^(h/H)) bornée à [0, 1], moyennée sur toutes les images
+        { let sk = 0, n = 0; for (let i = 1; i < F.length; i++) { const a = F[i - 1], b = F[i]; if (!a['talon' + s]) continue;
+            let lo = null; for (const k of ['talon', 'plante', 'bout']) { const h = b[k + s].y - b._grp.y - bas[s]; if (lo === null || h < lo[0]) lo = [h, k]; }
+            const pa = a[lo[1] + s], pb = b[lo[1] + s], w = Math.max(0, Math.min(1, 2 - Math.pow(2, Math.max(0, lo[0]) / 0.025)));
+            sk += Math.hypot(pb.x - pa.x, pb.z - pa.z) / b.dt * w; n++; }
+          out['patine' + s] = n ? sk / n : 0; }
+        out['rase' + s] = rase;
         out['glisseMoy' + s] = temps > 0 ? somme / temps : 0;    // m/s moyen pendant l'appui
         out['glisseMax' + s] = pire; out['glisseMaxImg' + s] = pireI;
         out['glisseParAppui' + s] = phases.length ? Math.max(...phases.map(p => p[1])) : 0;   // m perdus sur l'appui le pire
@@ -276,7 +301,7 @@
       }
       // poses de pied (attaques) : le pied passe de levé à posé
       const att = [];
-      for (const s of ['G', 'D']) { let leve = false; for (let i = 0; i < F.length; i++) { const y = F[i]['solMin' + s]; if (y === undefined) continue; if (y > bas[s] + SOL * 2.5) leve = true; else if (leve && y < bas[s] + SOL) { leve = false; att.push({ i, s, t: F.slice(0, i + 1).reduce((x, f) => x + f.dt, 0), p: F[i]['cheville' + s].clone(), genou: F[i]['genou' + s], ...F[i] }); } } }
+      for (const s of ['G', 'D']) { let leve = false; for (let i = 0; i < F.length; i++) { const y = F[i]['solMin' + s]; if (y === undefined) continue; if (y > bas[s] + 0.05) leve = true; else if (leve && y < bas[s] + SOL) { leve = false; att.push({ i, s, t: F.slice(0, i + 1).reduce((x, f) => x + f.dt, 0), p: F[i]['cheville' + s].clone(), genou: F[i]['genou' + s], ...F[i] }); } } }
       att.sort((a, b) => a.i - b.i); out.attaques = att.length;
       if (att.length >= 3) {
         const T = F.reduce((x, f) => x + f.dt, 0), t0 = att[0].t, t1 = att[att.length - 1].t;
