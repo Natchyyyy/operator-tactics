@@ -114,7 +114,7 @@
           const iF = bonesAll.indexOf(ft), iT = bonesAll.indexOf(toe), iE = bonesAll.indexOf(R.os[c + 'Toe_End']);
           const pts2 = [];
           for (let i = 0; i < N; i++) { let bi = 0, bw = -1; for (let j = 0; j < 4; j++) { const w = sw.getComponent(i, j); if (w > bw) { bw = w; bi = si.getComponent(i, j); } }
-            if (bi !== iF && bi !== iT && bi !== iE) continue; sk.getVertexPosition(i, vb); pts2.push(vb.clone().applyMatrix4(sk.matrixWorld)); }
+            if (bi !== iF && bi !== iT && bi !== iE) continue; sk.getVertexPosition(i, vb); const pp = vb.clone().applyMatrix4(sk.matrixWorld); pp.idx = i; pts2.push(pp); }
           if (!pts2.length) continue;
           const dir = WP(toe).sub(WP(ft)); dir.addScaledVector(upB, -dir.dot(upB)).normalize();
           const hmin = Math.min(...pts2.map(p => p.dot(upB))), bas = pts2.filter(p => p.dot(upB) < hmin + 0.02);
@@ -131,7 +131,13 @@
           let sxx = 0, sxy = 0, syy = 0; bande.forEach(p => { const x = p.dot(dir) - mx, y = p.dot(side) - my; sxx += x * x; sxy += x * y; syy += y * y; });
           const th = 0.5 * Math.atan2(2 * sxy, sxx - syy), axe = dir.clone().multiplyScalar(Math.cos(th)).addScaledVector(side, Math.sin(th)).normalize();
           if (axe.dot(dir) < 0) axe.negate();
-          R.semelle[c] = { talon: loc(ft, talon), plante: loc(toe, plante), bout: loc(toe, bout), pointe: loc(toe, tip), sol0: 0, axeBind: +(Math.atan2(axe.dot(side), axe.dot(dir)) * D).toFixed(1), axe: axe.clone().applyQuaternion(WQ(ft).invert()) };
+          // repères de liaison pour : orteils relevés (« orteil d'elfe »), flexion plantaire de la cheville, écrasement de la botte
+          const toeEnd = R.os[c + 'Toe_End'], leg = R.os[c + 'Leg'];
+          const v1 = WP(toe).sub(WP(ft)), v2 = toeEnd ? WP(toeEnd).sub(WP(toe)) : v1.clone(), shin = WP(ft).sub(WP(leg));
+          const angOrteil = (a, b, n) => Math.atan2(b.clone().normalize().dot(n) - a.clone().normalize().dot(n), a.clone().normalize().dot(b.clone().normalize())) * D;
+          R.semelle[c] = { talon: loc(ft, talon), plante: loc(toe, plante), bout: loc(toe, bout), pointe: loc(toe, tip), sol0: 0, axeBind: +(Math.atan2(axe.dot(side), axe.dot(dir)) * D).toFixed(1), axe: axe.clone().applyQuaternion(WQ(ft).invert()),
+            hautPied: upB.clone().applyQuaternion(WQ(ft).invert()), orteil0: angOrteil(v1, v2, upB), cheville0: ang(shin, v1),
+            iTalon: talon.idx, iPointe: tip.idx, dBotte0: talon.distanceTo(tip) };
         }
       } finally { bonesAll.forEach((b, i) => { b.position.copy(sauve[i][0]); b.quaternion.copy(sauve[i][1]); b.scale.copy(sauve[i][2]); }); f.body.updateMatrixWorld(true); }
     }
@@ -190,7 +196,17 @@
       m['solMin' + s] = Math.min(talon.y, plante.y, bout.y, pointe.y) - g0;                  // < 0 : pied dans le sol
       m['talonY' + s] = talon.y - g0; m['boutY' + s] = Math.min(bout.y, pointe.y) - g0;
       const dir = S.axe ? S.axe.clone().applyQuaternion(WQ(ft)) : pointe.clone().sub(talon); dir.y = 0; m['piedAz' + s] = azim(dir); m['axe' + s] = dir.clone().normalize();   // (axe ACP de la semelle ; à défaut talon → bout de la botte)
-      m['piedVsDep' + s] = wrap(azim(dir) - azim(dep));                                         // angle de progression du pied
+      m['piedVsDep' + s] = wrap(azim(dir) - azim(dep));
+      // orteils relevés : angle de la phalange (ToeBase → Toe_End) au-dessus du pied (Foot → ToeBase), moins celui de la liaison
+      { const te = O[c + 'Toe_End'], up2 = S.hautPied ? S.hautPied.clone().applyQuaternion(WQ(ft)) : new THREE.Vector3(0, 1, 0);
+        const a1 = P[c + 'ToeBase'].clone().sub(P[c + 'Foot']).normalize(), a2 = te ? P[c + 'Toe_End'].clone().sub(P[c + 'ToeBase']).normalize() : a1.clone();
+        m['orteil' + s] = Math.atan2(a2.dot(up2) - a1.dot(up2), a1.dot(a2)) * D - (S.orteil0 || 0);
+        // flexion plantaire de la cheville (+ = pointe du pied vers le bas, par rapport à la liaison)
+        m['plantaire' + s] = ang(P[c + 'Foot'].clone().sub(P[c + 'Leg']), a1) - (S.cheville0 || 0);
+        m['talonLeve' + s] = (talon.y - plante.y);
+        // botte écrasée / étirée : distance talon ↔ pointe de la botte (sommets de la peau) rapportée à la liaison
+        if (f.skinned && S.iTalon !== undefined && S.dBotte0) { const va = V(), vb2 = V(); f.skinned.getVertexPosition(S.iTalon, va); f.skinned.getVertexPosition(S.iPointe, vb2); va.applyMatrix4(f.skinned.matrixWorld); vb2.applyMatrix4(f.skinned.matrixWorld);
+          m['botte' + s] = va.distanceTo(vb2) / (S.dBotte0 * f.group.getWorldScale(V()).x) - 1; } }                                         // angle de progression du pied
       m['cheville' + s] = P[c + 'Foot'];
       // genou : flexion (0 = jambe tendue), signe < 0 = hyperextension (genou en arrière de la ligne hanche → cheville)
       const H = P[c + 'UpLeg'], K = P[c + 'Leg'], A = P[c + 'Foot'];
@@ -203,7 +219,12 @@
         m['genouSens' + s] = flex > 8 && hors.length() > 0.01 && bp.lengthSq() > 1e-6 ? ang(hors, bp) : 0;
         m['genouArriere' + s] = hors.dot(bav);   // m : > 0 genou devant la ligne hanche → cheville (selon l'avant du bassin)
         fwB = bav; }
-      m['genou' + s] = m['genouArriere' + s] < -0.005 && flex > 1 && flex < 20 ? -flex : flex;   // (hyperextension : jambe presque tendue, genou en arrière selon l'avant du bassin)   // (signe seulement près de la jambe tendue : au-delà, un genou plié « à l'envers » se verrait de toute façon)
+      m['genou' + s] = m['genouArriere' + s] < -0.005 && flex > 1 && flex < 20 ? -flex : flex;
+      // valgus du genou (plan frontal du bassin) : angle (+ = genou rentré vers l'axe du corps) entre hanche → genou et genou → cheville
+      { const bl2 = P.LeftUpLeg.clone().sub(P.RightUpLeg); bl2.y = 0; bl2.normalize(); const inw = bl2.clone().multiplyScalar(c === 'Left' ? -1 : 1);   // vers le milieu
+        const bav2 = new THREE.Vector3().crossVectors(bl2, new THREE.Vector3(0, 1, 0)).normalize(), proj = (v) => v.clone().addScaledVector(bav2, -v.dot(bav2));
+        const u1 = proj(K.clone().sub(H)), u2 = proj(A.clone().sub(K));
+        m['valgus' + s] = u1.lengthSq() > 1e-6 && u2.lengthSq() > 1e-6 && flex > 5 ? Math.atan2(u1.clone().normalize().dot(inw) - u2.clone().normalize().dot(inw), u1.clone().normalize().dot(u2.clone().normalize())) * D : 0; }   // (hyperextension : jambe presque tendue, genou en arrière selon l'avant du bassin)   // (signe seulement près de la jambe tendue : au-delà, un genou plié « à l'envers » se verrait de toute façon)
       m['genouDevantOrteil' + s] = K.clone().sub(bout).dot(fw);                                    // > 0 : genou au-delà du bout du pied
     }
     // écart des pieds / genoux perpendiculaire au déplacement (< 0 : croisés), et dans le repère du bassin
@@ -264,6 +285,7 @@
       m.paumeG_axe = Math.hypot(pGl.x - fl.x, pGl.y - fl.y);                 // écart à l'axe du garde-main (perpendiculaire)
       m.paumeG_long = pGl.z - fl.z;                                         // position le long de l'arme (+ vers la bouche)
       m.paumeG_avantPoignee = pGl.z - w.gripPt.z;                           // m devant la poignée
+      m.paumeG_fraction = (pGl.z - w.gripPt.z) / Math.max(0.05, w.muzzle.z - w.gripPt.z);   // 0 = poignée, 1 = bouche
       const dPG = distArme(f, R, pG, 0.12); m.paumeG_surface = dPG ? dPG.d : null;
       const dPD = distArme(f, R, pD, 0.12); m.paumeD_point = dPD ? dPD.d : null;
       // paume ↔ arme : points de la ligne poignet → jointures (50, 65, 80 %), le plus proche de l'arme, moins la demi-épaisseur
