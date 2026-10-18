@@ -128,6 +128,7 @@
     this.units = this.teams.flatMap(t => t.units);
     // Tiroir : deux moitiés d'escouade en alternance (le tireur d'élite reste en appui, hors des bonds)
     for (const team of this.teams) { let k = 0; for (const u of team.units) u.boundGroup = u.role.id === 'marksman' ? -1 : (k++ % 2); team.bound = { group: 0, since: 0, n: 0 }; }
+    this.assignLanes();
     this.placeUnits();
     this.logEvent('start', `Début de l'engagement — ${this.map.name} — graine ${this.seed}. ${this.teams.map(t => `${t.name} (${ORDERS[t.order].name})`).join(' contre ')}.`);
   }
@@ -156,7 +157,55 @@
 
   // Voie d'approche d'un opérateur : décalage latéral (m) par rapport à l'axe des zones de départ.
   // def.lane : -1 (nord), 0 (centre), 1 (sud) choisi par le joueur ; sinon répartition automatique.
-  Battle.prototype.laneOf = function (u) { return u.def.lane !== undefined && u.def.lane !== null ? u.def.lane * 11 : (u.idx - 2) * 5.5; };
+  // Carte qui décrit ses voies (def.voies = { nord, milieu, sud } : z de chaque voie) : la voie de l'opérateur (u.voie, voir
+  // assignLanes) donne directement le z de sa voie ; au milieu, les opérateurs s'étagent de part et d'autre de l'axe (u.laneDz).
+  Battle.prototype.laneOf = function (u) {
+    const v = this.map.def.voies, l = u.voie;
+    if (v && l !== undefined && l !== null) return (l < 0 ? v.nord : l > 0 ? v.sud : v.milieu + (u.laneDz || 0)) - this.teams[u.team].spawn.z;
+    return u.def.lane !== undefined && u.def.lane !== null ? u.def.lane * 11 : (u.idx - 2) * 5.5;
+  };
+  // Répartition sur les voies (une fois, au début) : voie choisie par le joueur (def.lane) sinon automatique. Sur une carte à
+  // voies, chaque escouade d'au moins 4 envoie 1 ou 2 opérateurs sur chaque flanc (plan et opérateurs tirés à la graine),
+  // les autres tiennent l'axe central ; à 3, un seul flanqueur ; en dessous, tout le monde au milieu.
+  Battle.prototype.assignLanes = function () {
+    const v = this.map.def.voies;
+    for (const team of this.teams) {
+      for (const u of team.units) u.voie = u.def.lane !== undefined && u.def.lane !== null ? Math.sign(u.def.lane) : null;
+      if (!v) continue;
+      const auto = team.units.filter(u => u.voie === null && u.role.id !== 'marksman');
+      for (let i = auto.length - 1; i > 0; i--) { const j = Math.floor(this.rng.next() * (i + 1)); [auto[i], auto[j]] = [auto[j], auto[i]]; }
+      const plans = [[1, 1], [2, 1], [1, 2], [2, 2]];
+      const [nN, nS] = auto.length >= 4 ? plans[Math.floor(this.rng.next() * plans.length)] : auto.length === 3 ? (this.rng.next() < 0.5 ? [1, 0] : [0, 1]) : [0, 0];
+      auto.forEach((u, i) => { u.voie = i < nN ? -1 : i < nN + nS ? 1 : 0; });
+      const mid = team.units.filter(u => u.voie === 0 || u.voie === null).sort((a, b) => a.idx - b.idx);
+      mid.forEach((u, k) => { u.voie = 0; u.laneDz = (k - (mid.length - 1) / 2) * 3; });
+    }
+  };
+  // Voie de flanc : tant qu'un flanqueur n'est pas arrivé à hauteur de sa destination (la zone, une menace connue), il
+  // progresse le long de sa voie ; ensuite il se rabat sur la destination, par le côté (une fois pour toutes).
+  // Renvoie le prochain point de la voie, ou null (pas de flanc, ou flanc terminé).
+  Battle.prototype.flankWaypoint = function (u, dest, reach) {
+    if (!u.voie || u.flankDone || !this.map.def.voies) return null;
+    const home = this.teams[u.team].spawn, dirx = Math.sign(this.map.spawns[1 - u.team].x - home.x) || 1;
+    const ahead = (dest.x - u.x) * dirx;
+    if (ahead <= reach) {
+      u.flankDone = true;
+      this.logEvent('flank', `${u.callsign} arrive par le flanc ${u.voie < 0 ? 'nord' : 'sud'} et se rabat.`, { unit: u.id, team: u.team, silent: true });
+      return null;
+    }
+    return { x: u.x + dirx * Math.min(ahead - reach + 1, 10), z: clamp(home.z + this.laneOf(u), 2, this.map.depth - 2) };
+  };
+  // Avancer d'un pas le long de la voie de flanc (fw) : en tiroir par bonds alternés, en ordre prudent de couvert en couvert.
+  Battle.prototype.flankMove = function (u, threatPos, fw) {
+    if (this.tiroir(u, threatPos, fw)) return true;
+    if (this.teams[u.team].order === 'careful') {
+      if (this.t < u.pauseUntil) { this.stop(u); u.state = 'pause'; u.stance = 'stand'; return true; }
+      const cp = this.findCover(u, threatPos, 12, { towards: fw });
+      if (cp && Math.hypot(cp.x - fw.x, cp.z - fw.z) < Math.hypot(u.x - fw.x, u.z - fw.z) - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return true; }
+    }
+    if (this.setGoal(u, fw.x, fw.z, 'advance')) { u.state = 'advancing'; u.stance = 'stand'; return true; }
+    return false;
+  };
   Battle.prototype.logEvent = function (kind, text, data) {
     const e = Object.assign({ t: Math.round(this.t * 10) / 10, time: fmtT(this.t), kind, text }, data || {});
     this.log.push(e); return e;
@@ -665,10 +714,11 @@
       // capture : si la zone n'est pas à nous, on ne s'éternise pas dans un échange de tirs à distance — on progresse vers la zone,
       // de couvert en couvert (le tireur d'élite reste en appui)
       if (this.zone && this.zone.holder !== u.team && u.role.id !== 'marksman' && !covering && !pinned && !this.inZone(u, 1) && u.reloading <= 0) {
-        const dz = Math.hypot(u.x - this.zone.x, u.z - this.zone.z);
-        const cp = this.findCover(u, threat, 14, { towards: this.zone });
-        if (cp && Math.hypot(cp.x - this.zone.x, cp.z - this.zone.z) < dz - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
-        const near = this.zoneApproach(u);
+        const fw = this.flankWaypoint(u, this.zone, 5), dst = fw || this.zone;   // flanqueur : on progresse le long de sa voie
+        const dz = Math.hypot(u.x - dst.x, u.z - dst.z);
+        const cp = this.findCover(u, threat, 14, { towards: dst });
+        if (cp && Math.hypot(cp.x - dst.x, cp.z - dst.z) < dz - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
+        const near = fw || this.zoneApproach(u);
         if (order === 'assault' && this.setGoal(u, near.x, near.z, 'advance')) { u.state = 'advancing'; u.stance = 'stand'; return; }
       }
       // tireur d'élite trop près : reculer vers un couvert plus lointain
@@ -727,8 +777,17 @@
       const threatPos = nearest.k;
       // capture : on n'abandonne pas la zone pour courir après une position connue lointaine ; on s'y installe face à la menace
       // … sauf si l'adversaire est lui-même dans la zone : il faut aller l'en déloger
-      if (this.zone && u.role.id !== 'marksman' && !(this.zone.contested && this.inZone(threatPos, 1.5)) && (nd > 10 || this.inZone(u))) { this.occupyZone(u, threatPos); return; }
+      if (this.zone && u.role.id !== 'marksman' && !(this.zone.contested && this.inZone(threatPos, 1.5)) && (nd > 10 || this.inZone(u))) {
+        const fw = nd > 10 && order !== 'hold' && this.flankWaypoint(u, this.zone, 5);   // flanqueur : par sa voie jusqu'à hauteur de la zone
+        if (fw && this.flankMove(u, threatPos, fw)) return;
+        this.occupyZone(u, threatPos); return;
+      }
       if (order === 'hold') { this.holdPost(u, threatPos); return; }
+      // flanqueur : la menace connue est loin et hors de sa voie → il continue par le flanc jusqu'à sa hauteur, puis se rabat
+      if (nd > 12 && Math.abs(threatPos.z - (home.z + this.laneOf(u))) > 7) {
+        const fw = this.flankWaypoint(u, threatPos, 3);
+        if (fw && this.flankMove(u, threatPos, fw)) return;
+      }
       if (nd > 6 && u.status !== 'critical' && this.tiroir(u, threatPos, threatPos)) return;   // Tiroir : bonds alternés vers la menace
       if (u.role.id === 'marksman') {
         // un poste de tir à bonne distance AVEC vue sur la position connue
@@ -767,6 +826,8 @@
     // 3) aucune information : se déployer / avancer vers l'objectif
     if (this.zone && (u.role.id !== 'marksman' || this.inZone(u))) {
       // capture : tout le monde vers la zone (le tireur d'élite garde son poste de surveillance plus bas)
+      const fw = order !== 'hold' && this.flankWaypoint(u, this.zone, 5);        // flanqueur : par sa voie jusqu'à hauteur de la zone
+      if (fw && this.flankMove(u, objective, fw)) return;
       if (!this.inZone(u, 2) && this.tiroir(u, objective, this.zone)) return;   // Tiroir : bonds alternés jusqu'à la zone
       if (order === 'careful' || u.role.id === 'support') {
         if (this.t < u.pauseUntil && !this.inZone(u, 3)) { this.stop(u); u.state = 'pause'; u.stance = 'stand'; return; }

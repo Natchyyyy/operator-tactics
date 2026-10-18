@@ -1793,7 +1793,7 @@
     skip: () => { skipToEnd(); return battle.result; },
     camShot: (kind, id) => { if (kind === 'shoulder' || kind === 'dolly') { setCamMode('director'); cam.shot = { kind, id, side: 1, until: simTime + 999 }; cam.cutAt = simTime; } else { setCamMode('follow'); cam.follow = id; } render(); for (let i = 0; i < 60; i++) applyCamera(); render(); return [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)); },
     stepRaw: (n) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; return battle.t; },   // sans rendu (outils de capture)
-    dirTrace: (n) => directorTrace(n || 600), dirDebug: () => ({ frameShot, shotQuality, pickShot, variants, bestOf, D: DIRECTOR }),   // mesure du réalisateur (coupes, durée des plans, caméra masquée, à-coups)
+    dirTrace: (n) => directorTrace(n || 600), dirDebug: () => ({ frameShot, shotQuality, pickShot, variants, bestOf, D: DIRECTOR, camera, cam, renderer }),   // mesure du réalisateur (coupes, durée des plans, caméra masquée, à-coups)
     runToEnd: () => { instantResult = true; while (!battle.over) stepSim(); instantResult = false; acc = DT; render(); return battle.result; },
     start: (opts) => { newBattle(opts); render(); return battle.zone || true; },
     banner: () => { $('#result').classList.add('hidden'); showBanner(() => showResult()); },

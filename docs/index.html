@@ -1034,10 +1034,11 @@
     <div class="titleKicker">Jeu tactique à collectionner</div>
     <h1 class="titleName">OPERATOR<span>TACTICS</span></h1>
     <div class="titleSub">Deux escouades. Un terrain. Aucun script : chaque tir, chaque couvert, chaque décision est simulé.</div>
-    <div class="titleBtns"><button id="titleStart" class="on">Entrer au quartier général</button><button id="titleFree">Bataille libre</button></div>
     <div id="titleSave" class="titleSave"></div>
-    <div class="titleFoot"><label><input type="checkbox" id="titleMusic" checked> Musique</label> · PC 1920×1080 · Sauvegarde locale</div>
+    <div class="titleBtns"><button id="titleStart" class="on">Entrer au quartier général</button><button id="titleFree">Bataille libre</button></div>
+    <div class="titleFoot"><label class="tgl"><input type="checkbox" id="titleMusic" checked><i></i>Musique</label><span>Sauvegarde locale</span><span>Conçu pour 1920 × 1080</span></div>
   </div>
+  <div class="titleCorner"><span>5 contre 5</span><span>Simulation autonome</span></div>
 </div>
 <div id="hq" class="screen hidden">
   <header class="rawbar">
@@ -12167,7 +12168,6 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   const EPAULE = { Rifle_Aim_Turn_Right: 1, Walk_Aim: 1, Walk_Aim_Haut: 1, Run_and_Shoot: 1, Run_and_Shoot_Haut: 1, Gunshot_Reaction: 1 };
   const CREUX = { dedans: 0.06, avant: 0.08, bas: 0.03 };
   S.CREUX = CREUX;
-  const i4 = (o) => { for (const k in o) if (o[k] > 0) return false; return true; };
   function b64ToBuf(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
   // Repère de paume : un point fixe dans chaque main, à la base des doigts (le squelette du GIGN n'a pas d'os de doigts).
   // La paume = 60 % du poignet vers ce point.
@@ -14875,6 +14875,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
       capture: { x: 36, z: 23, r: 6 },  // l'enclos central, partagé en deux par l'abri : on le prend par ses deux bouts (nord, sud)
       asymetrique: true,
+      voies: { nord: 9, milieu: 23, sud: 37 },   // z des trois voies d'approche (flancs nord et sud, axe central) : routes de l'IA
       // Tracé en trois voies (nord le long du centre commercial, milieu, sud le long du bus), mais chaque camp a son propre
       // terrain : à l'ouest un conteneur couché au nord et un fourgon au sud ; à l'est un conteneur debout (nord-sud) qui
       // ouvre un angle différent, un conteneur au sud. Le centre (abri, enclos, zone) reste sur l'axe pour l'équité ;
@@ -15279,6 +15280,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     this.units = this.teams.flatMap(t => t.units);
     // Tiroir : deux moitiés d'escouade en alternance (le tireur d'élite reste en appui, hors des bonds)
     for (const team of this.teams) { let k = 0; for (const u of team.units) u.boundGroup = u.role.id === 'marksman' ? -1 : (k++ % 2); team.bound = { group: 0, since: 0, n: 0 }; }
+    this.assignLanes();
     this.placeUnits();
     this.logEvent('start', `Début de l'engagement — ${this.map.name} — graine ${this.seed}. ${this.teams.map(t => `${t.name} (${ORDERS[t.order].name})`).join(' contre ')}.`);
   }
@@ -15307,7 +15309,55 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
 
   // Voie d'approche d'un opérateur : décalage latéral (m) par rapport à l'axe des zones de départ.
   // def.lane : -1 (nord), 0 (centre), 1 (sud) choisi par le joueur ; sinon répartition automatique.
-  Battle.prototype.laneOf = function (u) { return u.def.lane !== undefined && u.def.lane !== null ? u.def.lane * 11 : (u.idx - 2) * 5.5; };
+  // Carte qui décrit ses voies (def.voies = { nord, milieu, sud } : z de chaque voie) : la voie de l'opérateur (u.voie, voir
+  // assignLanes) donne directement le z de sa voie ; au milieu, les opérateurs s'étagent de part et d'autre de l'axe (u.laneDz).
+  Battle.prototype.laneOf = function (u) {
+    const v = this.map.def.voies, l = u.voie;
+    if (v && l !== undefined && l !== null) return (l < 0 ? v.nord : l > 0 ? v.sud : v.milieu + (u.laneDz || 0)) - this.teams[u.team].spawn.z;
+    return u.def.lane !== undefined && u.def.lane !== null ? u.def.lane * 11 : (u.idx - 2) * 5.5;
+  };
+  // Répartition sur les voies (une fois, au début) : voie choisie par le joueur (def.lane) sinon automatique. Sur une carte à
+  // voies, chaque escouade d'au moins 4 envoie 1 ou 2 opérateurs sur chaque flanc (plan et opérateurs tirés à la graine),
+  // les autres tiennent l'axe central ; à 3, un seul flanqueur ; en dessous, tout le monde au milieu.
+  Battle.prototype.assignLanes = function () {
+    const v = this.map.def.voies;
+    for (const team of this.teams) {
+      for (const u of team.units) u.voie = u.def.lane !== undefined && u.def.lane !== null ? Math.sign(u.def.lane) : null;
+      if (!v) continue;
+      const auto = team.units.filter(u => u.voie === null && u.role.id !== 'marksman');
+      for (let i = auto.length - 1; i > 0; i--) { const j = Math.floor(this.rng.next() * (i + 1)); [auto[i], auto[j]] = [auto[j], auto[i]]; }
+      const plans = [[1, 1], [2, 1], [1, 2], [2, 2]];
+      const [nN, nS] = auto.length >= 4 ? plans[Math.floor(this.rng.next() * plans.length)] : auto.length === 3 ? (this.rng.next() < 0.5 ? [1, 0] : [0, 1]) : [0, 0];
+      auto.forEach((u, i) => { u.voie = i < nN ? -1 : i < nN + nS ? 1 : 0; });
+      const mid = team.units.filter(u => u.voie === 0 || u.voie === null).sort((a, b) => a.idx - b.idx);
+      mid.forEach((u, k) => { u.voie = 0; u.laneDz = (k - (mid.length - 1) / 2) * 3; });
+    }
+  };
+  // Voie de flanc : tant qu'un flanqueur n'est pas arrivé à hauteur de sa destination (la zone, une menace connue), il
+  // progresse le long de sa voie ; ensuite il se rabat sur la destination, par le côté (une fois pour toutes).
+  // Renvoie le prochain point de la voie, ou null (pas de flanc, ou flanc terminé).
+  Battle.prototype.flankWaypoint = function (u, dest, reach) {
+    if (!u.voie || u.flankDone || !this.map.def.voies) return null;
+    const home = this.teams[u.team].spawn, dirx = Math.sign(this.map.spawns[1 - u.team].x - home.x) || 1;
+    const ahead = (dest.x - u.x) * dirx;
+    if (ahead <= reach) {
+      u.flankDone = true;
+      this.logEvent('flank', `${u.callsign} arrive par le flanc ${u.voie < 0 ? 'nord' : 'sud'} et se rabat.`, { unit: u.id, team: u.team, silent: true });
+      return null;
+    }
+    return { x: u.x + dirx * Math.min(ahead - reach + 1, 10), z: clamp(home.z + this.laneOf(u), 2, this.map.depth - 2) };
+  };
+  // Avancer d'un pas le long de la voie de flanc (fw) : en tiroir par bonds alternés, en ordre prudent de couvert en couvert.
+  Battle.prototype.flankMove = function (u, threatPos, fw) {
+    if (this.tiroir(u, threatPos, fw)) return true;
+    if (this.teams[u.team].order === 'careful') {
+      if (this.t < u.pauseUntil) { this.stop(u); u.state = 'pause'; u.stance = 'stand'; return true; }
+      const cp = this.findCover(u, threatPos, 12, { towards: fw });
+      if (cp && Math.hypot(cp.x - fw.x, cp.z - fw.z) < Math.hypot(u.x - fw.x, u.z - fw.z) - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return true; }
+    }
+    if (this.setGoal(u, fw.x, fw.z, 'advance')) { u.state = 'advancing'; u.stance = 'stand'; return true; }
+    return false;
+  };
   Battle.prototype.logEvent = function (kind, text, data) {
     const e = Object.assign({ t: Math.round(this.t * 10) / 10, time: fmtT(this.t), kind, text }, data || {});
     this.log.push(e); return e;
@@ -15816,10 +15866,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // capture : si la zone n'est pas à nous, on ne s'éternise pas dans un échange de tirs à distance — on progresse vers la zone,
       // de couvert en couvert (le tireur d'élite reste en appui)
       if (this.zone && this.zone.holder !== u.team && u.role.id !== 'marksman' && !covering && !pinned && !this.inZone(u, 1) && u.reloading <= 0) {
-        const dz = Math.hypot(u.x - this.zone.x, u.z - this.zone.z);
-        const cp = this.findCover(u, threat, 14, { towards: this.zone });
-        if (cp && Math.hypot(cp.x - this.zone.x, cp.z - this.zone.z) < dz - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
-        const near = this.zoneApproach(u);
+        const fw = this.flankWaypoint(u, this.zone, 5), dst = fw || this.zone;   // flanqueur : on progresse le long de sa voie
+        const dz = Math.hypot(u.x - dst.x, u.z - dst.z);
+        const cp = this.findCover(u, threat, 14, { towards: dst });
+        if (cp && Math.hypot(cp.x - dst.x, cp.z - dst.z) < dz - 2 && this.setGoal(u, cp.x, cp.z, 'bound')) { u.state = 'bounding'; u.stance = 'stand'; return; }
+        const near = fw || this.zoneApproach(u);
         if (order === 'assault' && this.setGoal(u, near.x, near.z, 'advance')) { u.state = 'advancing'; u.stance = 'stand'; return; }
       }
       // tireur d'élite trop près : reculer vers un couvert plus lointain
@@ -15878,8 +15929,17 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const threatPos = nearest.k;
       // capture : on n'abandonne pas la zone pour courir après une position connue lointaine ; on s'y installe face à la menace
       // … sauf si l'adversaire est lui-même dans la zone : il faut aller l'en déloger
-      if (this.zone && u.role.id !== 'marksman' && !(this.zone.contested && this.inZone(threatPos, 1.5)) && (nd > 10 || this.inZone(u))) { this.occupyZone(u, threatPos); return; }
+      if (this.zone && u.role.id !== 'marksman' && !(this.zone.contested && this.inZone(threatPos, 1.5)) && (nd > 10 || this.inZone(u))) {
+        const fw = nd > 10 && order !== 'hold' && this.flankWaypoint(u, this.zone, 5);   // flanqueur : par sa voie jusqu'à hauteur de la zone
+        if (fw && this.flankMove(u, threatPos, fw)) return;
+        this.occupyZone(u, threatPos); return;
+      }
       if (order === 'hold') { this.holdPost(u, threatPos); return; }
+      // flanqueur : la menace connue est loin et hors de sa voie → il continue par le flanc jusqu'à sa hauteur, puis se rabat
+      if (nd > 12 && Math.abs(threatPos.z - (home.z + this.laneOf(u))) > 7) {
+        const fw = this.flankWaypoint(u, threatPos, 3);
+        if (fw && this.flankMove(u, threatPos, fw)) return;
+      }
       if (nd > 6 && u.status !== 'critical' && this.tiroir(u, threatPos, threatPos)) return;   // Tiroir : bonds alternés vers la menace
       if (u.role.id === 'marksman') {
         // un poste de tir à bonne distance AVEC vue sur la position connue
@@ -15918,6 +15978,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // 3) aucune information : se déployer / avancer vers l'objectif
     if (this.zone && (u.role.id !== 'marksman' || this.inZone(u))) {
       // capture : tout le monde vers la zone (le tireur d'élite garde son poste de surveillance plus bas)
+      const fw = order !== 'hold' && this.flankWaypoint(u, this.zone, 5);        // flanqueur : par sa voie jusqu'à hauteur de la zone
+      if (fw && this.flankMove(u, objective, fw)) return;
       if (!this.inZone(u, 2) && this.tiroir(u, objective, this.zone)) return;   // Tiroir : bonds alternés jusqu'à la zone
       if (order === 'careful' || u.role.id === 'support') {
         if (this.t < u.pauseUntil && !this.inZone(u, 3)) { this.stop(u); u.state = 'pause'; u.stance = 'stand'; return; }
@@ -19586,7 +19648,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     skip: () => { skipToEnd(); return battle.result; },
     camShot: (kind, id) => { if (kind === 'shoulder' || kind === 'dolly') { setCamMode('director'); cam.shot = { kind, id, side: 1, until: simTime + 999 }; cam.cutAt = simTime; } else { setCamMode('follow'); cam.follow = id; } render(); for (let i = 0; i < 60; i++) applyCamera(); render(); return [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)); },
     stepRaw: (n) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; return battle.t; },   // sans rendu (outils de capture)
-    dirTrace: (n) => directorTrace(n || 600), dirDebug: () => ({ frameShot, shotQuality, pickShot, variants, bestOf, D: DIRECTOR }),   // mesure du réalisateur (coupes, durée des plans, caméra masquée, à-coups)
+    dirTrace: (n) => directorTrace(n || 600), dirDebug: () => ({ frameShot, shotQuality, pickShot, variants, bestOf, D: DIRECTOR, camera, cam, renderer }),   // mesure du réalisateur (coupes, durée des plans, caméra masquée, à-coups)
     runToEnd: () => { instantResult = true; while (!battle.over) stepSim(); instantResult = false; acc = DT; render(); return battle.result; },
     start: (opts) => { newBattle(opts); render(); return battle.zone || true; },
     banner: () => { $('#result').classList.add('hidden'); showBanner(() => showResult()); },
@@ -19649,34 +19711,50 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const profile = window.HQ ? window.HQ.profile() : null;
     const ids = profile ? profile.squad.slice(0, 5) : ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'];
     const uni = profile ? (OT.DATA.UNIFORMS.find(u => u.id === profile.uniform) || OT.DATA.UNIFORMS[0]) : OT.DATA.UNIFORMS[0];
+    const S3 = OT.Soldat3D && OT.Soldat3D.ready ? OT.Soldat3D : null; skinned = !!S3;
     ids.forEach((id, i) => {
       const o = OT.DATA.OPERATORS.find(x => x.id === id); if (!o) return;
       const st = profile ? profile.operators[id] : null;
-      const f = OT.Figure.build({ id, weapon: st ? st.weaponId : OT.DATA.ROLES[o.role].weapon, uniform: uni.uniform, vest: uni.vest, teamColor: 0x4f9cf0, headgear: st && st.headgear || 'casque' });
-      // poses variées : le chef au centre épaulé, un tireur à genou, les autres arme basse ou épaulée
+      const weapon = st ? st.weaponId : OT.DATA.ROLES[o.role].weapon;
+      // en V derrière le chef ; soldat 3D (même modèle que le QG) dès qu'il est chargé, sinon la figure simple
       const spots = [[0, 0.3, -0.25, 1], [-1.3, -0.3, 0.05, 0], [1.25, -0.2, -0.45, 0.7], [-2.5, -0.9, 0.3, 'kneel'], [2.45, -0.95, -0.6, 0]];
       const [x, z, ry, pose] = spots[i];
+      const s3 = S3 && S3.create({ modele: 'gign', uniform: uni.uniform, weapon });
+      if (s3) {
+        const clip = s3.clips.Garde_Basse ? 'Garde_Basse' : 'Rifle_Aim_Turn_Right';
+        s3.play(clip, { time: 0 }); s3.update(0); s3.body.rotation.y = (s3.yawFix && s3.yawFix[clip]) || 0; s3.placeWeapon(true, 0);
+        s3.group.traverse(n => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
+        s3.group.position.set(x + 2.6, 0, z + (pose === 'kneel' ? -0.5 : 0)); s3.group.rotation.y = ry * 0.6 + (i === 0 ? 0.1 : 0);
+        scene.add(s3.group); figs.push(s3); return;
+      }
+      const f = OT.Figure.build({ id, weapon, uniform: uni.uniform, vest: uni.vest, teamColor: 0x4f9cf0, headgear: st && st.headgear || 'casque' });
+      // poses variées : le chef au centre épaulé, un tireur à genou, les autres arme basse ou épaulée
       if (pose === 'kneel') { f.legs[0].leg.rotation.x = -1.15; f.legs[0].knee.rotation.x = 1.75; f.legs[1].leg.rotation.x = -0.55; f.legs[1].knee.rotation.x = 1.95; f.hips.position.y = f.hipsY - 0.4; f.torso.rotation.x = 0.25; OT.Figure.armPose(f, 0.8); }
       else { f.torso.rotation.y = pose * 0.18; f.headG.rotation.y = -pose * 0.16; OT.Figure.armPose(f, pose); }
       f.group.position.set(x + 2.6, 0, z); f.group.rotation.y = ry;
       scene.add(f.group); figs.push(f);
     });
   }
-  let t0 = performance.now(), running = true;
-  function frame(now) {
-    if (!running) return; requestAnimationFrame(frame);
-    const w = canvas.clientWidth, h = canvas.clientHeight; if (canvas.width !== w || canvas.height !== h) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
-    const t = (now - t0) / 1000; const a = Math.sin(t * 0.12) * 0.35;
-    camera.position.set(1.0 + Math.sin(a) * 4.5, 1.6 + Math.sin(t * 0.2) * 0.1, 7.6 + Math.cos(a) * 1.2); camera.lookAt(1.2, 1.05, 0);
+  let t0 = performance.now(), running = true, skinned = false;
+  const manual = document.documentElement.classList.contains('manual') || new URLSearchParams(location.search).get('manual') === '1';
+  function draw(t) {
+    const w = canvas.clientWidth, h = canvas.clientHeight; if (w && h && (canvas.width !== w || canvas.height !== h)) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    // l'escouade à droite de l'écran (le titre occupe la gauche) ; la caméra glisse lentement de part et d'autre
+    const a = Math.sin(t * 0.12) * 0.3, wide = camera.aspect < 1.5 ? 1.15 : 1;
+    camera.position.set(0.6 + Math.sin(a) * 3.8, 1.45 + Math.sin(t * 0.2) * 0.08, (7.4 + Math.cos(a) * 1.0) * wide); camera.lookAt(0.9, 1.0, -0.2);
     const dp = dustGeo.attributes.position.array; for (let i = 0; i < dp.length; i += 3) { dp[i] += 0.002; dp[i + 1] += Math.sin(t + i) * 0.0008; if (dp[i] > 9) dp[i] = -5; } dustGeo.attributes.position.needsUpdate = true;
     renderer.render(scene, camera);
   }
+  function frame(now) { if (!running) return; requestAnimationFrame(frame); draw((now - t0) / 1000); }
   function show() {
-    $('#title').classList.remove('hidden'); buildSquad(); running = true; t0 = performance.now(); requestAnimationFrame(frame);
+    $('#title').classList.remove('hidden'); buildSquad(); running = true; t0 = performance.now();
+    if (manual) { running = false; draw(0); } else requestAnimationFrame(frame);   // captures : une seule image, sans boucle
     // carrière en cours : le bouton principal la reprend, avec un rappel (rang, batailles, crédits)
     const p = window.HQ ? window.HQ.profile() : null;
     if (p && p.career && p.career.battles > 0) { $('#titleStart').textContent = 'Reprendre la carrière'; $('#titleSave').textContent = `${p.teamName} · ${OT.DATA.RANKS[OT.Game.rankFor(p.xp || 0)].name} · ${p.career.battles} bataille${p.career.battles > 1 ? 's' : ''} · ${p.credits} crédits`; }
     else { $('#titleStart').textContent = 'Entrer au quartier général'; $('#titleSave').textContent = ''; }
+    $('#titleSave').classList.toggle('on', !!$('#titleSave').textContent);
+    try { $('#titleStart').focus({ preventScroll: true }); } catch (e) { /* focus indisponible */ }   // Entrée = bouton principal
   }
   function hide() { $('#title').classList.add('hidden'); running = false; }
   let jingled = false;
@@ -19686,6 +19764,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   $('#titleStart').addEventListener('click', () => { hide(); window.HQ.show(); if (window.OT_MUSIC && window.Son) setTimeout(() => Son.boucle('musique_qg', { voie: 'musique', vol: 0.8 * window.OT_MUSIC.get(), fondu: 2.5 }), 600); });
   $('#titleFree').addEventListener('click', () => { hide(); $('#freeBattle').click(); });
   window.TITLE = { show, hide };
+  // le soldat 3D arrive après l'écran titre : l'escouade est reconstruite avec lui
+  if (OT.Soldat3D && OT.Soldat3D.whenReady) OT.Soldat3D.whenReady(() => { if (!skinned && !$('#title').classList.contains('hidden')) { buildSquad(); if (manual) draw(0); } });
   const params = new URLSearchParams(location.search);
   if (params.get('manual') === '1' || params.get('mode') === 'free' || params.get('skipTitle') === '1') hide(); else { if (window.OT_MUSIC) $('#titleMusic').checked = window.OT_MUSIC.get() > 0; show(); }
 })();
