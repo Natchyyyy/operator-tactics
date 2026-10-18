@@ -17,19 +17,21 @@ def lmax(x, s=.05):
     m = x if x.ndim == 1 else x.mean(0); w = int(s*SR); c = np.concatenate([[0], np.cumsum(m**2)])
     if len(m) <= w: return 10*np.log10(c[-1]/w + 1e-15)
     return 10*np.log10(((c[w:] - c[:-w])/w).max() + 1e-15)
-def compresseur(x, seuil_db, ratio=4.0, att=.0008, rel=.06):
-    """compresseur de crête (enveloppe à attaque rapide) : réduit l'écart crête / niveau sans « écraser » le son"""
-    e = np.abs(x); env = np.empty_like(e); a1 = np.exp(-1/(att*SR)); r1 = np.exp(-1/(rel*SR)); v = 0.0
-    for k in range(len(e)):   # (boucle simple : sons courts)
-        v = a1*v + (1 - a1)*e[k] if e[k] > v else r1*v + (1 - r1)*e[k]; env[k] = v
-    t = 10**(seuil_db/20); g = np.where(env > t, (env/t)**(1/ratio - 1), 1.0); return x*g
+def limiteur(x, c, fen=.003, rel=.04):
+    """limiteur à anticipation : gain = c / crête locale (max sur « fen »), lissé (relâchement « rel ») ; pas de distorsion de tanh"""
+    from scipy.ndimage import maximum_filter1d, minimum_filter1d, uniform_filter1d
+    n = max(3, int(fen*SR)); env = maximum_filter1d(np.abs(x), n); g = np.minimum(1.0, c/np.maximum(env, 1e-9))
+    g = minimum_filter1d(g, n); r = int(rel*SR)
+    g = np.minimum(g, sg.lfilter([1 - np.exp(-1/r)], [1, -np.exp(-1/r)], g, zi=[g[0]*np.exp(-1/r)])[0]) if r > 1 else g
+    return x*uniform_filter1d(g, n)
 def niveau(x, db, fen=.05, crete=-1.0):
-    """niveau cible (dB, puissance max sur « fen » s) ; si la crête dépasse, compresseur puis limiteur doux (comme un micro saturé)"""
+    """niveau cible (dB, puissance max sur « fen » s) ; si la crête dépasse, limiteur à anticipation (comme le mastering des jeux)"""
     c = 10**(crete/20); y = x*10**((db - lmax(x, fen))/20)
-    if np.abs(y).max() > c*1.4 and y.ndim == 1 and len(y) < 4*SR:
-        y = compresseur(y, crete - 6, 4.0); y = y*10**((db - lmax(y, fen))/20)
+    for _ in range(14):
+        if np.abs(y).max() <= c*1.001: break
+        y = limiteur(y, c*.97); y = y*10**((db - lmax(y, fen))/20)
     p = np.abs(y).max()
-    if p > c: y = c*np.tanh(y/c)
+    if p > c: y = y*c/p   # dernier recours : on baisse (le niveau visé n'est pas atteint)
     return y
 def debut(x, seuil=.08):
     """indice de l'attaque : on part du maximum et on remonte (au plus 15 ms) jusqu'à seuil × crête"""
@@ -77,32 +79,32 @@ def snd(name, n=1, db=-20, fen=.05, debit=48, st=False):
 # Renfort de graves léger, crêtes adoucies (les enregistrements de tirs sont saturés à la source), queue naturelle du stand conservée.
 def tir(src, dur, db_grave):
     x = hp(lire(src), 35); x = grave(x, 85, db_grave); return couper(x, dur, .35)
-@snd("tir_556_proche", 5, -10)
+@snd("tir_556_proche", 5, -13, debit=64)
 def tir_proche(i): return tir(f"ffsl/556_proche_{i}.ogg", 1.25, 4.5)
-@snd("tir_556_moyen", 4, -11)
+@snd("tir_556_moyen", 4, -14, debit=64)
 def tir_moyen(i): return tir(f"ffsl/556_moyen_{i}.ogg", 1.45, 3.5)
-@snd("tir_556_loin", 4, -12)
+@snd("tir_556_loin", 4, -15, debit=64)
 def tir_loin(i): return tir(f"ffsl/556_loin_{i}.ogg", 1.6, 2.0)
-@snd("tir_silencieux", 4, -19)   # silencieux : le claquement de la balle reste, la détonation devient un « toc » sourd, on entend la culasse
+@snd("tir_silencieux", 4, -21)   # silencieux : le claquement de la balle reste, la détonation devient un « toc » sourd, on entend la culasse
 def tir_sil(i):
     x = hp(lire(f"ffsl/556_proche_{i}.ogg"), 60); a = debut(x); x = x[a:]
-    corps = lp(couper(x, .22, .12, 0), 1100, 2)*.9
-    claque = hp(x[:int(.004*SR)], 2500)*.35
+    corps = grave(lp(couper(x, .22, .12, 0), 1800, 2), 120, 5)*2.5
+    claque = hp(x[:int(.003*SR)], 2500)*.12
     cul = lire(f"ffsl/556_culasse_{1 + i % 2}.ogg"); cul = hp(couper(cul, .07, .03), 900)*.25
     return mixe(.4, (corps, 0, 1), (claque, 0, 1), (cul, .012, 1))
 
 # ---------------------------------------------------------------- passage de la balle près de la caméra (synthèse : onde en N, souffle)
-@snd("claquement", 4, -15)       # balle supersonique qui passe tout près : « crac » sec (onde en N) + réflexion au sol + petite queue
+@snd("claquement", 4, -18)       # balle supersonique qui passe tout près : « crac » sec (onde en N) + réflexion au sol + petite queue
 def claquement(i):
     seed(500 + i); n = int(.0003*SR) + 2*i; t = np.linspace(-1, 1, n); nw = -t*.9      # onde en N (≈ 0,3 ms)
     x = np.zeros(int(.25*SR)); x[:n] += nw; d = int(rng.uniform(.002, .006)*SR); x[d:d + n] += nw*rng.uniform(.4, .6)
-    x = hp(x, 400)*6; tail = hp(noise(.12), 1500)*env_ad(int(.12*SR), .001, .05)*.05; place(x, tail, .001)
+    x = hp(x, 400)*6; tail = hp(noise(.04), 2000)*env_ad(int(.04*SR), .0005, .015)*.03; place(x, tail, .001)
     return lp(x, 14000)
-@snd("sifflement", 4, -23)       # balle plus lointaine qui passe : souffle bref qui descend (effet Doppler)
+@snd("sifflement", 4, -25)       # balle plus lointaine qui passe : souffle bref qui descend (effet Doppler)
 def sifflement(i):
     seed(520 + i); d = rng.uniform(.16, .26); f0, f1 = rng.uniform(4200, 5200), rng.uniform(1700, 2300)
     x = dsp.sweep_bp(noise(d), f0, f1, 5)*np.hanning(int(d*SR))**1.5; return x + hp(noise(d), 6000)*np.hanning(int(d*SR))**3*.15
-@snd("ricochet", 4, -23)         # ricochet : choc métallique bref puis sifflement qui s'éloigne en vibrant
+@snd("ricochet", 4, -25)         # ricochet : choc métallique bref puis sifflement qui s'éloigne en vibrant
 def ricochet(i):
     seed(540 + i); k = lire(f"kenney/impactMetal_light_00{i}.ogg"); k = amortir(couper(k, .08, .03), .05)
     d = rng.uniform(.35, .55); t = np.arange(int(d*SR))/SR; f = rng.uniform(3600, 4800)*np.exp(-t/d*rng.uniform(.7, 1.0))
@@ -113,27 +115,28 @@ def ricochet(i):
 # ---------------------------------------------------------------- impacts de balle par matière (vrais chocs + « tic » d'arrivée)
 def debris(i, g=.25):
     x = lire(f"cdda/walk_t_gravel_{1 + i % 10}.ogg"); a = debut(x); return hp(couper(x, .12, .08, a), 1500)*g
-@snd("impact_beton", 6, -20)     # béton / brique / mur : éclat sec + gravillons qui retombent (smash_fail brick & concrete, CC0)
+@snd("impact_beton", 6, -22)     # béton / brique / mur : éclat sec + gravillons qui retombent (smash_fail brick & concrete, CC0)
 def impact_beton(i):
     src = f"cdda/smash_fail_brick{'' if i % 5 == 0 else '_' + str(i % 5)}.ogg" if i < 5 else "cdda/smash_fail_concrete_2.ogg"
     x = hp(lire(src), 180); x = couper(x, .22, .1); x = hauteur(x, [1.0, 1.08, .95, 1.12, 1.03, .9][i])
     return mixe(.4, (tick(.003, 3000), 0, .5), (x, .001, 1), (debris(i), .025 + .01*i, 1))
-@snd("impact_metal", 5, -20)     # conteneur, cuve, barrière : « tang » métallique court (Kenney, CC0)
+@snd("impact_metal", 5, -22)     # conteneur, cuve, barrière : « tang » métallique court (Kenney, CC0)
 def impact_metal(i):
     x = lire(["kenney/impactMetal_light_000.ogg", "kenney/impactMetal_medium_001.ogg", "kenney/impactPlate_light_002.ogg", "kenney/impactMetal_light_003.ogg", "kenney/impactMetal_medium_004.ogg"][i])
-    x = amortir(couper(hp(x, 200), .4, .1), .3); return mixe(.45, (tick(.002, 4000), 0, .7), (x, .001, 1))
-@snd("impact_carrosserie", 4, -20)   # voiture, fourgon, bus : tôle creuse (Halleck, CC BY)
+    x = amortir(couper(hp(x, 200), .4, .1), .3); seed(560 + i); choc = bp(noise(.025), 900, 7000)*env_ad(int(.025*SR), .0003, .012, 3)
+    return mixe(.45, (tick(.002, 4000), 0, .7), (choc, 0, .5), (x, .001, 1))
+@snd("impact_carrosserie", 4, -22)   # voiture, fourgon, bus : tôle creuse (Halleck, CC BY)
 def impact_carrosserie(i):
     x = hp(lire(f"cdda/hit_vehicle{i + 1}.ogg"), 120); x = amortir(couper(x, .35, .1), .4); return mixe(.4, (tick(.002, 3500), 0, .6), (x, .001, 1))
-@snd("impact_verre", 3, -21)     # vitre : choc de verre (Kenney, CC0)
+@snd("impact_verre", 3, -23)     # vitre : choc de verre (Kenney, CC0)
 def impact_verre(i):
     x = lire(f"kenney/impactGlass_{['light', 'medium', 'light'][i]}_00{i + 1}.ogg"); x = couper(hp(x, 300), .3, .1); return mixe(.35, (tick(.002, 4000), 0, .6), (x, .001, 1))
-@snd("impact_bois", 4, -21)      # caisses, palettes : craquement de bois + échardes (Kenney, CC0)
+@snd("impact_bois", 4, -23)      # caisses, palettes : craquement de bois + échardes (Kenney, CC0)
 def impact_bois(i):
     x = lire(f"kenney/impactWood_{['light', 'medium'][i % 2]}_00{i}.ogg"); x = couper(hp(x, 120), .25, .1)
     sp = bp(noise(.05), 2000, 7000)*env_ad(int(.05*SR), .001, .02)*.12
     return mixe(.35, (tick(.003, 2500), 0, .5), (x, .001, 1), (sp, .004, 1))
-@snd("impact_corps", 5, -19)     # balle qui touche : coup sourd et mat (coups CC0) + choc de plaque une fois sur trois
+@snd("impact_corps", 5, -21)     # balle qui touche : coup sourd et mat (coups CC0) + choc de plaque une fois sur trois
 def impact_corps(i):
     x = lire(f"cdda/unarmed_hit_flesh_{1 + i % 5}.ogg"); x = couper(hp(x, 55), .2, .08); x = lp(x, 5000)
     out = mixe(.3, (tick(.002, 2000), 0, .25), (x, .001, 1))
@@ -141,39 +144,39 @@ def impact_corps(i):
     return out
 
 # ---------------------------------------------------------------- douilles, rechargement, chute
-@snd("douilles", 6, -30)         # étuis qui tintent sur le sol (FST180081, CC BY 4.0)
+@snd("douilles", 6, -32)         # étuis qui tintent sur le sol (FST180081, CC BY 4.0)
 def douilles(i):
     x = hp(lire(f"cdda/brass_eject{'' if i % 2 == 0 else '_1'}.ogg"), 1500); e = np.abs(x); pk, _ = sg.find_peaks(np.convolve(e, np.ones(240)/240, 'same'), distance=int(.15*SR), prominence=e.max()*.05)
-    pk = sorted(pk, key=lambda k: -e[k])[:3]; k = sorted(pk)[i // 2 % len(pk)]
+    pk = sorted(sorted(pk, key=lambda k: -e[k])[:3]); k = pk[(i // 2) % len(pk)] if i < 4 else pk[-1 - (i % 2)]
     return couper(x, .3, .12, max(0, k - int(.01*SR)))
-@snd("recharge", 3, -20)         # chargeur retiré / inséré puis culasse (Free Firearm Sound Library, CC0)
+@snd("recharge", 3, -22)         # chargeur retiré / inséré puis culasse (Free Firearm Sound Library, CC0)
 def recharge(i):
     c = hp(lire(f"ffsl/556_chargeur_{i % 2}.ogg"), 120); a = debut(c[:int(1.2*SR)] if i == 2 else c); c = couper(c, 1.0, .15, max(0, a - int(.05*SR)))
     k = hp(lire(f"ffsl/556_culasse_{i}.ogg"), 150); k = couper(k, .45, .1)
     return mixe(1.8, (c, 0, 1), (k, 1.05 + .08*i, .9))
-@snd("chute", 4, -20)            # un corps qui tombe avec son équipement : choc sourd + cliquetis (Kenney, CC0)
+@snd("chute", 4, -22)            # un corps qui tombe avec son équipement : choc sourd + cliquetis (Kenney, CC0)
 def chute(i):
     a = couper(lire(f"kenney/impactSoft_heavy_00{i}.ogg"), .3, .1); b = couper(lire(f"kenney/impactPunch_medium_00{(i + 2) % 5}.ogg"), .3, .1)
     m = amortir(couper(hp(lire(f"kenney/impactMetal_light_00{(i + 1) % 5}.ogg"), 800), .15, .05), .1)
     return lp(mixe(.6, (a, 0, 1), (b, .09 + .02*i, .6), (m, .1 + .03*i, .12)), 7000)
-@snd("equipement", 4, -31)       # frottement d'équipement quand on court (MWsfx, CC0)
+@snd("equipement", 4, -33)       # frottement d'équipement quand on court (MWsfx, CC0)
 def equipement(i):
     x = hp(lire(f"cdda/clear_obstacle_{2 + i % 2}.ogg"), 250); return hauteur(couper(x, .3, .1), [1, 1.06, .94, 1.1][i])
 
 # ---------------------------------------------------------------- pas
-@snd("pas_mouille", 6, -25)      # pas dans les flaques (nathanaelj83 CC0, duckduckpony CC BY)
+@snd("pas_mouille", 6, -27)      # pas dans les flaques (nathanaelj83 CC0, duckduckpony CC BY)
 def pas_mouille(i):
     x = hp(lire(f"cdda/walk_t_water_sh_{i + 1}.ogg"), 150); return couper(x, .24, .08)
 
 # ---------------------------------------------------------------- explosions (grenade : CC0 j1987 / CC BY 3.0 bmlake ; lourde : CC0 unfa)
-@snd("explosion", 3, -9)
+@snd("explosion", 3, -11)
 def explosion(i):
     g = hp(lire(f"ffsl/grenade_{i}.ogg"), 30); g = couper(g, .9, .2)
     seed(610 + i); boom = lp(dsp.resonator(noise(1.2), rng.uniform(38, 48), 1.6)*env_ad(int(1.2*SR), .002, .7), 160)*2.0
-    out = mixe(2.2, (g, 0, 1), (boom, 0, .8))
+    out = mixe(2.2, (g, 0, 1.6), (boom, 0, .5))
     for k in range(7): place(out, debris(k + i, .18), rng.uniform(.3, 1.4))   # gravillons qui retombent
     return out
-@snd("explosion_lourde", 2, -8)  # obus, frappe aérienne
+@snd("explosion_lourde", 2, -10)  # obus, frappe aérienne
 def explosion_lourde(i):
     x = hp(lire(f"ffsl/lourde_{i}.ogg"), 25); return couper(x, 2.8, .8)
 

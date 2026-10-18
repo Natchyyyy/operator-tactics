@@ -1,0 +1,82 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Ragdoll</title><style>body{margin:0;background:#2a3036;font:12px sans-serif;color:#ddd}canvas{display:block}</style></head><body>
+<script src="../../web/three.min.js"></script><script src="../../web/figure.js"></script><script src="../../web/gltf.js"></script><script src="../../web/modeles/soldat.js"></script><script src="../../web/modeles/gign.js"></script><script src="../../web/modeles/decor.js"></script><script src="../../web/modeles3d.js"></script><script src="../../web/soldat3d.js"></script>
+<script src="../../web/vendor/cannon-es.js"></script><script src="../../web/ragdoll.js"></script>
+<script>
+// Morts en ragdoll (web/ragdoll.js) : un soldat par scénario (tir de face au torse, à la tête de face / de dos, à la jambe,
+// en courant, contre une voiture, explosion, accroupi), tué après 0,5 s d'animation ; planche : une ligne par scénario,
+// une colonne par instant (?t=0,0.15,…), vue de côté. ?m=gign|soldat ; ?s=0,3 (scénarios) ; ?taille=180 ; ?az=deg.
+// window.planche() dessine ; window.DIAG : écart des pivots, point le plus bas, figé, temps de calcul.
+const q = new URLSearchParams(location.search);
+// scénario : clip vivant, vitesse (m/s, vers +Z), localisation, direction de la balle (repère du soldat : +Z devant, +X sa gauche), obstacle, souffle
+const SC = [
+  { nom: 'torse de face', clip: 'Rifle_Aim_Turn_Right', loc: 'torse', dir: [0, -0.05, -1] },
+  { nom: 'tête de face', clip: 'Rifle_Aim_Turn_Right', loc: 'tête', dir: [0, -0.05, -1] },
+  { nom: 'tête de dos', clip: 'Garde_Basse', loc: 'tête', dir: [0, -0.05, 1] },
+  { nom: 'jambe (côté)', clip: 'Garde_Basse', loc: 'membre', dir: [-1, -0.05, 0], graine: 0.1 },
+  { nom: 'en courant', clip: 'Run_and_Shoot', v: 3.4, loc: 'torse', dir: [0.3, -0.05, -1] },
+  { nom: 'contre une voiture', clip: 'Rifle_Aim_Turn_Right', loc: 'torse', dir: [0, -0.05, -1], obst: { dz: -0.75, w: 4.4, d: 1.8, h: 1.45 } },
+  { nom: 'explosion', clip: 'Garde_Basse', loc: 'grenade', souffle: [1.8, 0.6] },
+  { nom: 'accroupi', clip: 'Accroupi_Vise', loc: 'torse', dir: [0.4, -0.1, -1] },
+];
+const SEL = q.get('s') ? q.get('s').split(',').map(Number) : SC.map((_, i) => i);
+const TEMPS = (q.get('t') || '0,0.15,0.3,0.5,0.8,1.2,2,3.5').split(',').map(Number);
+OT.Soldat3D.whenReady(() => {
+  const RAG = OT.Ragdoll, TA = +(q.get('taille') || 180), cols = TEMPS.length, rangs = SEL.length, W = TA * cols, H = TA * rangs;
+  const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true; document.body.appendChild(r.domElement);
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(0x3a4248);
+  sc.add(new THREE.HemisphereLight(0xffffff, 0x404040, 1.5)); const dl = new THREE.DirectionalLight(0xfff0d8, 2.6); dl.castShadow = true; dl.shadow.camera.left = -4; dl.shadow.camera.right = 4; dl.shadow.camera.top = 4; dl.shadow.camera.bottom = -4; dl.shadow.mapSize.set(1024, 1024); sc.add(dl); sc.add(dl.target);
+  const sol = new THREE.Mesh(new THREE.PlaneGeometry(200, 60), new THREE.MeshStandardMaterial({ color: 0x5b5f62, roughness: 1 })); sol.rotation.x = -Math.PI / 2; sol.receiveShadow = true; sc.add(sol);
+  const grid = new THREE.GridHelper(200, 200, 0x777777, 0x666666); grid.position.y = 0.004; sc.add(grid);
+  const battle = { t: 0, log: [], map: { obstacles: [] } };
+  const S = SEL.map((i, k) => {
+    const s = SC[i], x0 = k * 10, f = OT.Soldat3D.create({ modele: q.get('m') || 'gign', uniform: 0x6b5a3e, weapon: 'carbine' });
+    f.group.position.set(x0, 0, 0); f.yaw = 0; f.anim = { vx: 0, vz: s.v || 0 }; f.group.traverse(o => { if (o.isMesh) o.castShadow = true; }); sc.add(f.group);
+    const u = { id: 'u' + k + (s.graine !== undefined ? '' : ''), x: x0, z: 0, alive: true, bleedUntil: 0 };
+    if (s.obst) { const o = { x: x0 - s.obst.w / 2, z: s.obst.dz - s.obst.d, w: s.obst.w, d: s.obst.d, h: s.obst.h, name: 'voiture' }; battle.map.obstacles.push(o);
+      const mb = new THREE.Mesh(new THREE.BoxGeometry(o.w, o.h, o.d), new THREE.MeshStandardMaterial({ color: 0x6d7b8a, roughness: 0.6 })); mb.position.set(o.x + o.w / 2, o.h / 2, o.z + o.d / 2); mb.castShadow = mb.receiveShadow = true; sc.add(mb); }
+    return { s, f, u, x0, morts: false };
+  });
+  const dt = 1 / 30; let t = -0.5; const DIAG = window.DIAG = S.map(() => []);
+  const pas = () => {
+    battle.t = t;
+    for (const e of S) if (!e.morts && t >= 0) {   // mort : comme app.js (down puis shot)
+      const { s, f, u } = e; u.alive = false; u.x = f.group.position.x; u.z = f.group.position.z;
+      battle.log.push({ kind: 'down', enemy: u.id, loc: s.loc });
+      if (s.souffle) RAG.souffle(u.x + s.souffle[0], u.z + s.souffle[1], t);
+      if (RAG.mort(u, f, battle) && s.dir) { const d = new THREE.Vector3(...s.dir).normalize(); RAG.impact(f, d, 0); }
+      if (f.rag && s.graine !== undefined) f.rag.graine = s.graine;
+      e.morts = true;
+    }
+    RAG.etape(t >= 0 ? dt : 0, battle);
+    for (const e of S) {
+      const { s, f, u } = e;
+      if (u.alive) {
+        if (s.v) f.group.position.z += s.v * dt;
+        const nat = f.loco[s.clip] || 1; f.play(s.clip, s.v ? { speed: s.v / nat, fade: 0 } : { time: 0, fade: 0 });
+        f.playLegs(null); f.update(dt); f.placeWeapon(true, 0, 'deux');
+      } else if (!RAG.anime(u, f, dt)) { f.play('Shot_in_the_Back_and_Fall', { speed: 1.25, fade: 0.08 }); f.update(dt, true); f.placeWeapon(false, 0, 'droite'); }
+      const dg = RAG.diag(f); if (dg) DIAG[S.indexOf(e)].push(dg);
+    }
+    t += dt;
+  };
+  const az = +(q.get('az') || 90) * Math.PI / 180, cam = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
+  window.planche = () => {
+    const t0 = performance.now();
+    r.setScissorTest(true); r.setClearColor(0x3a4248); r.clear();
+    for (let c = 0; c < cols; c++) {
+      while (t < TEMPS[c] - 1e-6) pas();
+      S.forEach((e, k) => {
+        for (const o of S) o.f.group.visible = o === e;
+        const cx = e.x0, cz = (e.s.v ? 1.2 : 0) - 0.4;
+        cam.position.set(cx + 4.3 * Math.sin(az), 1.6, cz + 4.3 * Math.cos(az)); cam.lookAt(cx, 0.65, cz);
+        dl.position.set(cx + 3, 8, cz + 4); dl.target.position.set(cx, 0, cz);
+        const x = c * TA, y = H - (k + 1) * TA; r.setViewport(x, y, TA, TA); r.setScissor(x, y, TA, TA); r.render(sc, cam);
+      });
+    }
+    return { ms: Math.round(performance.now() - t0), stats: RAG.stats };
+  };
+  window.resume = () => S.map((e, k) => { const d = DIAG[k]; if (!d.length) return e.s.nom + ' : pas de ragdoll'; const ec = Math.max(...d.map(x => x.ecart)), bas = Math.min(...d.map(x => x.bas)), last = d[d.length - 1];
+    return `${e.s.nom} : écart pivots max ${(ec * 100).toFixed(1)} cm, plus bas ${(bas * 100).toFixed(1)} cm, figé à ${last.fige ? last.t : '-'} s, cible ${last.cible}, création ${last.creationMs} ms${last.erreur ? ' ERREUR' : ''}`; });
+  window.S = S; window.PRET = true;
+});
+</script></body></html>

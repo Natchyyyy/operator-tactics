@@ -1,0 +1,152 @@
+{
+ "tir_556_proche": [
+  "tir_556_proche_0.ogg",
+  "tir_556_proche_1.ogg",
+  "tir_556_proche_2.ogg",
+  "tir_556_proche_3.ogg",
+  "tir_556_proche_4.ogg"
+ ],
+ "tir_556_moyen": [
+  "tir_556_moyen_0.ogg",
+  "tir_556_moyen_1.ogg",
+  "tir_556_moyen_2.ogg",
+  "tir_556_moyen_3.ogg"
+ ],
+ "tir_556_loin": [
+  "tir_556_loin_0.ogg",
+  "tir_556_loin_1.ogg",
+  "tir_556_loin_2.ogg",
+  "tir_556_loin_3.ogg"
+ ],
+ "tir_silencieux": [
+  "tir_silencieux_0.ogg",
+  "tir_silencieux_1.ogg",
+  "tir_silencieux_2.ogg",
+  "tir_silencieux_3.ogg"
+ ],
+ "claquement": [
+  "claquement_0.ogg",
+  "claquement_1.ogg",
+  "claquement_2.ogg",
+  "claquement_3.ogg"
+ ],
+ "sifflement": [
+  "sifflement_0.ogg",
+  "sifflement_1.ogg",
+  "sifflement_2.ogg",
+  "sifflement_3.ogg"
+ ],
+ "ricochet": [
+  "ricochet_0.ogg",
+  "ricochet_1.ogg",
+  "ricochet_2.ogg",
+  "ricochet_3.ogg"
+ ],
+ "impact_beton": [
+  "impact_beton_0.ogg",
+  "impact_beton_1.ogg",
+  "impact_beton_2.ogg",
+  "impact_beton_3.ogg",
+  "impact_beton_4.ogg",
+  "impact_beton_5.ogg"
+ ],
+ "impact_metal": [
+  "impact_metal_0.ogg",
+  "impact_metal_1.ogg",
+  "impact_metal_2.ogg",
+  "impact_metal_3.ogg",
+  "impact_metal_4.ogg"
+ ],
+ "impact_carrosserie": [
+  "impact_carrosserie_0.ogg",
+  "impact_carrosserie_1.ogg",
+  "impact_carrosserie_2.ogg",
+  "impact_carrosserie_3.ogg"
+ ],
+ "impact_verre": [
+  "impact_verre_0.ogg",
+  "impact_verre_1.ogg",
+  "impact_verre_2.ogg"
+ ],
+ "impact_bois": [
+  "impact_bois_0.ogg",
+  "impact_bois_1.ogg",
+  "impact_bois_2.ogg",
+  "impact_bois_3.ogg"
+ ],
+ "impact_corps": [
+  "impact_corps_0.ogg",
+  "impact_corps_1.ogg",
+  "impact_corps_2.ogg",
+  "impact_corps_3.ogg",
+  "impact_corps_4.ogg"
+ ],
+ "douilles": [
+  "douilles_0.ogg",
+  "douilles_1.ogg",
+  "douilles_2.ogg",
+  "douilles_3.ogg",
+  "douilles_4.ogg",
+  "douilles_5.ogg"
+ ],
+ "recharge": [
+  "recharge_0.ogg",
+  "recharge_1.ogg",
+  "recharge_2.ogg"
+ ],
+ "chute": [
+  "chute_0.ogg",
+  "chute_1.ogg",
+  "chute_2.ogg",
+  "chute_3.ogg"
+ ],
+ "equipement": [
+  "equipement_0.ogg",
+  "equipement_1.ogg",
+  "equipement_2.ogg",
+  "equipement_3.ogg"
+ ],
+ "pas_mouille": [
+  "pas_mouille_0.ogg",
+  "pas_mouille_1.ogg",
+  "pas_mouille_2.ogg",
+  "pas_mouille_3.ogg",
+  "pas_mouille_4.ogg",
+  "pas_mouille_5.ogg"
+ ],
+ "explosion": [
+  "explosion_0.ogg",
+  "explosion_1.ogg",
+  "explosion_2.ogg"
+ ],
+ "explosion_lourde": [
+  "explosion_lourde_0.ogg",
+  "explosion_lourde_1.ogg"
+ ],
+ "pluie": [
+  "pluie_0.ogg"
+ ],
+ "pluie_courte": [
+  "pluie_courte_0.ogg"
+ ],
+ "vent": [
+  "vent_0.ogg"
+ ],
+ "vent_court": [
+  "vent_court_0.ogg"
+ ],
+ "oiseaux": [
+  "oiseaux_0.ogg"
+ ],
+ "nuit": [
+  "nuit_0.ogg"
+ ],
+ "sirene": [
+  "sirene_0.ogg",
+  "sirene_1.ogg"
+ ],
+ "tonnerre": [
+  "tonnerre_0.ogg",
+  "tonnerre_1.ogg"
+ ]
+}

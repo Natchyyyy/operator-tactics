@@ -296,7 +296,7 @@
     const floors = Math.floor((h - 3.6) / 3.2), nwin = Math.max(1, Math.floor((w - 1.4) / 2.6)), step = (w - 1.4) / nwin;
     for (let f = 0; f < floors; f++) for (let i = 0; i < nwin; i++) {
       const wx = x0 + 0.7 + step * (i + 0.5), wy = y0 + 4.9 + f * 3.2;
-      if (opts.escalier && Math.abs(wx - opts.escalier) < 1.9 && f < 2) { windowAt(g, wx, wy, 0, R, wins); continue; }
+      if (opts.masque && wx > opts.masque[0] - 0.6 && wx < opts.masque[1] + 0.6 && wy < y0 + opts.masque[2]) continue;   // derrière l'annexe
       windowAt(g, wx, wy, 0, R, wins);
       if (R() < 0.3 && f < 2 && !(opts.boutique && Math.abs(wx - opts.boutique[0]) < 2.6)) wallAC(g, wx, wy - 1.1, 0, R);
     }
@@ -323,16 +323,16 @@
     // [x0, x1, hauteur, brique, graine, détails] — x en coordonnées du monde ; l'annexe (x 30–37) cache le pied de l'immeuble 3
     const B = [
       [-6, 9, 10.2, 'rouge', 11, { portes: [3.0], hautes: [6.2], escalier: 6.5, tags: [[1.2, 2.6]] }],
-      [9, 18.5, 13.4, 'brun', 12, { portes: [16.2], rideau: [11.6, 3.0], hautes: [14.6] }],
+      [9, 18.5, 13.4, 'brun', 12, { portes: [17.6], rideau: [11.6, 3.0], escalier: 14.6 }],
       [18.5, 28.5, 8.6, 'peint', 13, { portes: [20.4], graisse: 21.9, boutique: [25.75, { nom: "Marlow's Diner", sous: 'Breakfast all day', fond: '#1f4a35', lettres: '#f3ead2', toile: 0x234d36 }], tags: [[19.6, 1.6]] }],
-      [28.5, 39, 12.2, 'rouge', 14, { escalier: 33.5, hautes: [38.0] }],
+      [28.5, 39, 12.2, 'rouge', 14, { masque: [30, 37, 6.2], hautes: [38.0] }],
       [39, 49.5, 9.8, 'jaune', 15, { portes: [41.6], gaz: 43.0, boutique: [48.0, { nom: 'Fenwick Books', sous: 'New & used', fond: '#5a1f26', lettres: '#f1e3c4', toile: 0x6a2129 }], tags: [[44.6, 2.2]] }],
       [49.5, 60, 13.0, 'brun', 16, { portes: [57.6], escalier: 54.2, hautes: [51.5] }],
       [60, 78, 10.6, 'rouge', 17, { portes: [65.2], rideau: [70.0, 3.2], hautes: [62.6], tags: [[67.5, 2.8]] }],
     ];
     for (const [x0, x1, h, tone, seed, opts] of B) {
       const o2 = Object.assign({}, opts); if (o2.boutique) o2.boutique = [X(o2.boutique[0]), o2.boutique[1]]; for (const k of ['graisse', 'gaz']) if (o2[k] !== undefined) o2[k] = X(o2[k]); for (const k of ['portes', 'hautes']) if (o2[k]) o2[k] = o2[k].map(X);
-      if (o2.rideau) o2.rideau = [X(o2.rideau[0]), o2.rideau[1]]; if (o2.escalier) o2.escalier = X(o2.escalier); if (o2.tags) o2.tags = o2.tags.map(([a, b]) => [X(a), b]);
+      if (o2.rideau) o2.rideau = [X(o2.rideau[0]), o2.rideau[1]]; if (o2.masque) o2.masque = [X(o2.masque[0]), X(o2.masque[1]), o2.masque[2]]; if (o2.escalier) o2.escalier = X(o2.escalier); if (o2.tags) o2.tags = o2.tags.map(([a, b]) => [X(a), b]);
       building(f, X(x0), X(x1), h, tone, seed, y0, o2);
     }
     // joints entre immeubles : un poteau de briques en saillie (mitoyenneté)

@@ -38,26 +38,27 @@
   // un arbre dans une jardinière (bac en béton surélevé) ; le tronc est un obstacle mince (bloque la vue au ras du tronc)
   function bac(x, z, w, d) { return [box(x, z, w, d, 0.9, 'cover', 'bac à fleurs'), box(x + w / 2 - 0.25, z + d / 2 - 0.25, 0.5, 0.5, 5.0, 'wall', 'arbre')]; }
 
-  // une seule carte pour l'instant : le parking du centre commercial
+  // une seule carte pour l'instant : le parking à l'arrière des boutiques de Main Street
   const MAPS = {
     parking: {
-      id: 'parking', name: 'Parking du centre commercial', width: 72, depth: 46,
+      id: 'parking', name: 'Parking de Main Street', width: 72, depth: 46,
       spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 67, z: 23, r: 3.5 } ],
       acces: [[47.5, 45.5]],   // entrée-sortie des voitures (vérification de circulation)
-      capture: { x: 36, z: 23, r: 6 },  // la station de lavage : deux pistes ouvertes au nord et au sud, local technique au milieu
+      capture: { x: 36, z: 23, r: 6 },  // la station de lavage : deux pistes ouvertes au nord et au sud, local technique au nord, muret entre les pistes
       asymetrique: true,
-      // z des trois voies d'approche, routes de l'IA : nord le long de la façade du centre commercial (quai de livraison,
-      // parvis, drive), milieu à travers les rangées de voitures et la station de lavage, sud le long du mur de la rue
-      // (arrêt de bus, kiosque, chantier).
+      // z des trois voies d'approche, routes de l'IA : nord par la ruelle (derrière le grillage), milieu à travers les rangées
+      // de voitures et la station de lavage, sud le long du muret de la rue (quai de la navette, kiosque, chantier).
       voies: { nord: 5.5, milieu: 23, sud: 37 },
       // marquage au sol (rendu seulement) : rangées doubles [x0, z0, places], places le long des murs [x, z, places, pas en x, pas en z]
       marquage: { rangees: [[13, 17, 6], [49, 17, 6]], murs: [[7.6, 41, 7, 2.5, 0], [0, 29.5, 4, 0, 2.5], [67, 10.8, 2, 0, 2.5], [67, 28.9, 2, 0, 2.5]] },
-      // Un vrai parking de centre commercial, vu du ciel : au nord la façade (entrée, parvis planté, quai de livraison à
-      // l'ouest, « drive » à l'est), au sud le mur de la rue (places le long du mur, arrêt de la navette, kiosque à pizzas, et
-      // à l'est une partie du parking fermée pour travaux), à l'ouest l'entrée à barrière (guérite), à l'est la sortie (poste
-      // électrique). Entre les deux, deux rangées doubles de places orientées nord-sud (les voitures garées en épi droit
-      // forment des lignes de couvert en travers du terrain, avec des places vides pour passer) et, au milieu, la station de
-      // lavage (zone à prendre). Pas symétrique : l'équilibre est vérifié en jouant des centaines de batailles.
+      // Un vrai parking à l'américaine, à l'arrière des boutiques de Main Street, vu du ciel : au nord la ruelle de service
+      // (arrière des immeubles en briques, portes de service, entrées arrière des boutiques en face des deux passages du
+      // grillage, bennes, fourgons de livraison) ; au sud la rue, derrière un muret à grille, avec l'unique entrée-sortie des
+      // voitures (barrières, guérite), le quai de la navette et une partie du parking fermée pour travaux ; à l'ouest et à
+      // l'est des murs de clôture (portes piétonnes derrière les zones de départ). Entre les deux, deux rangées doubles de
+      // places orientées nord-sud (voitures garées en marche avant, capot vers le milieu : des lignes de couvert en travers du
+      // terrain, avec des places vides pour passer) et, au milieu, la station de lavage (zone à prendre). Pas symétrique :
+      // l'équilibre est vérifié en jouant des centaines de batailles.
       obstacles: [].concat(
         [
           // limites : au nord les arrières des immeubles (ruelle), à l'ouest et à l'est des murs de clôture (graffitis), au sud
@@ -74,8 +75,8 @@
           box(30, 0, 7, 7.0, 5.0, 'wall', 'annexe'), box(39, 6.6, 4, 3.9, 2.0, 'wall', 'local poubelles'),
           box(12, 0.9, 5.2, 2.1, 2.4, 'wall', 'fourgon'), box(56, 8.2, 5.2, 2.1, 2.4, 'wall', 'fourgon'),
           box(0.5, 0.4, 2.0, 1.4, 1.3, 'cover', 'benne'), box(20, 8.8, 2.0, 1.4, 1.3, 'cover', 'benne'), box(52.5, 0.4, 2.0, 1.4, 1.3, 'cover', 'benne'),
-          box(7.6, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'), box(26.3, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'), box(61.5, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'),
-          box(23.2, 0.4, 1.2, 1.2, 1.0, 'cover', 'palettes'), box(45.6, 0.4, 1.2, 1.2, 1.3, 'cover', 'caisses'),
+          box(7.6, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'), box(28.2, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'), box(61.5, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'),
+          box(18.6, 8.9, 1.2, 1.2, 1.0, 'cover', 'palettes'), box(43.9, 0.4, 1.2, 1.2, 1.3, 'cover', 'caisses'),
           box(66.2, 7.6, 1.2, 1.2, 1.5, 'cover', 'caisses'), box(3.6, 8.4, 1.2, 1.2, 1.0, 'cover', 'palettes'),
           // ---- MILIEU : station de lavage (deux pistes, local technique au milieu), aspirateurs, véhicules en attente ;
           // devant, l'îlot du totem des tarifs
