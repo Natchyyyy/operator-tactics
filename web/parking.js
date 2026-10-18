@@ -1357,7 +1357,7 @@
     if (root.Ruelle && root.Ruelle.setConditions) try { root.Ruelle.setConditions(id); } catch (e) { console.warn('ruelle :', e); }
     if (lightGroup) { scene.remove(lightGroup); lightGroup = null; }
     // luminaires à défilement (comme les vrais) : spot vers le bas, décroissance physique (1/d²), bord de flaque très adouci.
-    // Éclairement au sol sous la tête ≈ 2 (lune ≈ 0,5) : flaques douces, pas de blanc brûlé ; les murs proches ne sont plus
+    // Éclairement au sol sous la tête ≈ 2 à 2,7 (lune ≈ 0,7) : flaques douces, pas de blanc brûlé ; les murs proches ne sont plus
     // inondés (la lumière ne part pas à l'horizontale). Auvent de la station de lavage : large, plus faible.
     if (night) {
       lightGroup = new T.Group();
