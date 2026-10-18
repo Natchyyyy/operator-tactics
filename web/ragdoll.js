@@ -1,5 +1,6 @@
 // Morts en « ragdoll » physique (affichage seulement : la simulation a déjà décidé qui meurt, où, quand, de quel tir).
-// À la mort (pas « à terre » : un blessé qui peut être relevé garde ses animations), le soldat Meshy passe de l'animation
+// À chaque chute (mort, ou « à terre » : blessé qui peut être relevé — il respire une fois posé, et son relevé part de la
+// pose allongée en fondu vers l'animation du jeu), le soldat Meshy passe de l'animation
 // à un corps physique de 12 solides (bassin, ventre, torse, tête, bras, avant-bras + main, cuisses, jambes + pied) reliés
 // par des articulations limitées (genoux et coudes en charnière dans un seul sens, cou, dos, épaules et hanches en cônes),
 // moteur physique cannon-es (vendor/cannon-es.js, window.CANNON). Les solides sont taillés d'après le maillage lui-même
@@ -513,12 +514,25 @@
     Object.assign(r, { etat: 'releve', tb: 0, snap, snapArme: arme, yaw0: m.group.rotation.y, resp: null, armeCible: r.armeVivant || null });
     if (w && r.armeVivant) { w.position.copy(r.armeVivant[0]); w.quaternion.copy(r.armeVivant[1]); w.scale.copy(r.armeVivant[2]); }
   }
+  // slerp sans retournement automatique (sg = ±1 : côté de la cible)
+  function slerpBrut(a, b, t, sg) {
+    let bx = b.x * sg, by = b.y * sg, bz = b.z * sg, bw = b.w * sg, c = a.x * bx + a.y * by + a.z * bz + a.w * bw;
+    let k0, k1; if (c > 0.9995) { k0 = 1 - t; k1 = t; } else { const th = Math.acos(Math.max(-1, Math.min(1, c))), s = Math.sin(th); k0 = Math.sin((1 - t) * th) / s; k1 = Math.sin(t * th) / s; }
+    return new THREE.Quaternion(a.x * k0 + bx * k1, a.y * k0 + by * k1, a.z * k0 + bz * k1, a.w * k0 + bw * k1).normalize();
+  }
   const lisse = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
   // (appelée par le jeu après l'animation ET l'arme placée : la cible du fondu comprend les bras recalés sur l'arme)
   R.releve = function (u, m, dt) {
     const r = m.rag; if (!r || r.etat !== 'releve' || !u.alive) return;
     r.tb += dt; const k = lisse(r.tb / P.releve);
-    for (const [o, q, p] of r.snap) { m.mod(o); o.quaternion.slerpQuaternions(q, o.quaternion.clone(), k); o.position.lerpVectors(p, o.position.clone(), k); }
+    // (chemin de chaque os choisi pour rester continu d'une image à l'autre : entre la pose allongée et la pose debout un
+    // os peut être tourné de près de 180° ; le plus court chemin basculerait alors d'un côté à l'autre — bras qui sautent)
+    for (const e of r.snap) {
+      const [o, q, p] = e; m.mod(o);
+      const t = o.quaternion, a = slerpBrut(q, t, k, 1), b = slerpBrut(q, t, k, -1), prev = e[3] || q;
+      o.quaternion.copy(Math.abs(a.dot(prev)) >= Math.abs(b.dot(prev)) ? a : b); e[3] = o.quaternion.clone();
+      o.position.lerpVectors(p, o.position.clone(), k);
+    }
     let d = r.yaw0 - m.group.rotation.y; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
     m.pose.rotation.y = d * (1 - k);
     // arme : reste au sol (fixe dans le monde) puis rejoint les mains pendant la seconde moitié du fondu

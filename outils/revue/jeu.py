@@ -89,7 +89,8 @@ window.ECH = { bandeN: 10, bande: null, img: 0, cat: {}, seg: {}, fin: [], pires
     ['torsion', (mm) => Math.abs(mm.torsion) > 62 ? mm.torsion : null],
     ['genou_envers', (mm) => Math.max(mm.genouSensG || 0, mm.genouSensD || 0) > 100 ? Math.max(mm.genouSensG, mm.genouSensD) : null],
   ];
-  const cv = () => document.querySelector('canvas');
+  // canvas du rendu 3D = le plus grand de la page (il y en a d'autres : titre, icônes…)
+  const cv = () => Array.from(document.querySelectorAll('canvas')).sort((a, b) => b.width * b.height - a.width * a.height)[0];
   E.capturer = (u, m, info) => {
     const g = m.group.position, vues = [['face', Math.PI / 2 - m.yaw], ['cote', Math.atan2(Math.sin(m.yaw), -Math.cos(m.yaw))]];
     info.images = [];

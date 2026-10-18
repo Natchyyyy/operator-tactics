@@ -688,7 +688,7 @@
   const PRISE = {
     R: { A: [0.383, -0.386, 0.839], N: [0.913, 0.294, -0.282], mcp: [-0.04, -0.063, -0.129],
       // cibles du bout des doigts (index : tendu le long de la carcasse, au-dessus du pontet ; pouce : flanc gauche, sous la carcasse)
-      cibles: { 0: { ferme: [0.6, 1, 0.8], max: [1.2, 1.3, 1.2] }, 1: { p: [-0.036, 0.006, -0.075], f1: [-0.4, 0.8], f2: 0.3, reg: 0.03 } },
+      cibles: { 0: { ferme: [0.6, 1, 0.8], max: [1.2, 1.3, 1.2] }, 1: { p: [-0.036, 0.006, -0.075], f1: [-0.4, 0.8], f2: 0.3, reg: 0.03, ecart: 0.5 } },
       detente: { p: [-0.004, -0.014, -0.088], f1: [-0.2, 1.4], f2: 1.6 } },
     L: { A: [-0.816, 0.149, 0.559], N: [0.19, 0.982, 0.015], mcp: [-0.036, 0.01, 0.168],
       cibles: { 0: { p: [0.04, 0.07, 0.2], f1: [-0.4, 1.2], f2: 1.0 } } },
@@ -761,12 +761,14 @@
       const glisse = Math.max(-0.05, Math.min(0.05, lo)); Hrel.premultiply(new THREE.Matrix4().makeTranslation(nW.x * glisse, nW.y * glisse, nW.z * glisse));
       // 2a. fermeture jusqu'au contact (une phalange qui touche fige celles d'avant, les suivantes continuent)
       const fermer = (k, vit, max) => {
-        const th = [0, 0, 0, 0], fige = [false, false, false];
-        for (let it = 0; it < 120 && fige.some(x => !x); it++) {
-          const av = th.slice(); for (let j = 0; j < 3; j++) if (!fige[j]) { th[j] = Math.min(max[j], th[j] + vit[j] * 0.025); if (th[j] >= max[j]) fige[j] = true; }
-          const d = dSeg(k, th);
-          for (let j = 2; j >= 0; j--) if (d[j] < 0.0015) { for (let i = 0; i <= j; i++) { if (!fige[i] && d[j] < -0.003) th[i] = av[i]; fige[i] = true; } break; }
-        }
+        // chaque articulation se ferme tant que la partie du doigt qui la suit n'entre pas dans l'arme (plus de 2 mm, ou plus
+        // profond qu'avant le pas) : un doigt déjà au contact à plat continue de s'enrouler sans traverser
+        const th = [0, 0, 0, 0];
+        for (let it = 0; it < 150; it++) { let bouge = false;
+          for (let j = 0; j < 3; j++) { if (th[j] >= max[j]) continue;
+            const d0 = Math.min(...dSeg(k, th).slice(j)), t2 = th.slice(); t2[j] = Math.min(max[j], th[j] + vit[j] * 0.025); const d1 = Math.min(...dSeg(k, t2).slice(j));
+            if (d1 > -0.002 || d1 >= d0 - 1e-5) { th[j] = t2[j]; bouge = true; } }
+          if (!bouge) break; }
         return th;
       };
       // 2b. bout du doigt (articulation du bout) amené au point « cible » sans entrer dans l'arme : recherche en grille puis
@@ -775,9 +777,9 @@
         const C = new THREE.Vector3().fromArray(cible), cout = (th) => { const ms = fk(k, th), d = Math.min(...dSeg(k, th, ms));
           return p.copy(bout[k]).applyMatrix4(ms[2]).distanceTo(C) + 6 * Math.max(0, -d - 0.002) + (o.reg || 0.004) * (Math.abs(th[1]) + Math.abs(th[2])) + 0.004 * Math.abs(th[3]); };
         let best = null;
-        for (let a = Math.max(-0.15, o.f1[0]); a <= o.f1[1]; a += 0.1) for (let e = -0.35; e <= 0.35; e += 0.07) for (let c = 0; c <= o.f2; c += 0.12) { const th = [a, c, c * 0.8, e], v = cout(th); if (!best || v < best[0]) best = [v, th]; }
+        for (let a = Math.max(-0.15, o.f1[0]); a <= o.f1[1]; a += 0.1) for (let e = -(o.ecart || 0.35); e <= (o.ecart || 0.35); e += 0.07) for (let c = 0; c <= o.f2; c += 0.12) { const th = [a, c, c * 0.8, e], v = cout(th); if (!best || v < best[0]) best = [v, th]; }
         let th = best[1], v = best[0];
-        for (const st of [0.05, 0.02, 0.008]) for (let it = 0; it < 12; it++) { let mieux = false; for (let i = 0; i < 4; i++) for (const sg of [-1, 1]) { const t2 = th.slice(); t2[i] += sg * st; if (i === 0 && t2[i] < -0.15 || i === 1 && t2[i] < 0 || i === 2 && t2[i] < 0 || i === 3 && Math.abs(t2[i]) > 0.35) continue; const v2 = cout(t2); if (v2 < v) { v = v2; th = t2; mieux = true; } } if (!mieux) break; }
+        for (const st of [0.05, 0.02, 0.008]) for (let it = 0; it < 12; it++) { let mieux = false; for (let i = 0; i < 4; i++) for (const sg of [-1, 1]) { const t2 = th.slice(); t2[i] += sg * st; if (i === 0 && t2[i] < -0.15 || i === 1 && t2[i] < 0 || i === 2 && t2[i] < 0 || i === 3 && Math.abs(t2[i]) > (o.ecart || 0.35)) continue; const v2 = cout(t2); if (v2 < v) { v = v2; th = t2; mieux = true; } } if (!mieux) break; }
         return th;
       };
       const R = side === 'Right', res = { Hrel, glisse, N, ordre: ordre.map(c => chaines[c][0].name), doigts: [], dmin: [], err: [] };

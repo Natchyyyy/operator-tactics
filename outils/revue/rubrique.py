@@ -187,6 +187,9 @@ crit(id='crosse_epaule', partie='haut', lib='Crosse ↔ creux de l\'épaule en v
 crit(id='oeil_ligne_visee', partie='haut', lib='Œil ↔ plan vertical du canon (m, max absolu)', quand=lambda e: 'vise' in e and 'recharge' not in e and 'course' not in e,
      val=lambda r: (lambda a, b: None if a is None else max(abs(a), abs(b)))(st(r, 'oeilLateral', 'min'), st(r, 'oeilLateral', 'max')), ok=(0, 0.035), mineur=(0, 0.07), cle=('oeilLateral', 'max'),
      pourquoi='Joue sur la crosse, l\'œil est dans l\'axe du viseur ; sinon le tireur « vise à côté ».', src='TC 3-22.9 fig. 6-1 (stock weld) ; FM 3-06.11 §3-23c (spot weld)', vues=['tete', 'teteDessus'])
+crit(id='oeil_hauteur', partie='haut', lib='Œil au-dessus de l\'axe du canon en visée (m, moyenne ; œil estimé ±2 cm)', quand=lambda e: 'vise' in e and 'recharge' not in e and 'course' not in e,
+     val=lambda r: st(r, 'oeilHaut', 'moy'), ok=(0.03, 0.11), mineur=(0.0, 0.15), cle=('oeilHaut', 'moy'),
+     pourquoi='Avec un viseur point rouge sur carabine, l\'œil est ≈ 6-7 cm au-dessus de l\'axe du canon (hauteur du viseur) : plus haut, le tireur ne voit pas dans son viseur (fusil sous le menton) ; plus bas, impossible.', src='Géométrie AR-15 + optique (hauteur de visée ≈ 6,5 cm) ; TC 3-22.9 fig. 6-1', vues=['tete', 'profil'])
 crit(id='tete_vs_canon', partie='haut', lib='Tête tournée par rapport au canon en visée (°, max absolu)', quand=lambda e: 'vise' in e and 'recharge' not in e,
      val=lambda r: (lambda a, b: None if a is None else max(abs(a), abs(b)))(st(r, 'teteVsCanon', 'min'), st(r, 'teteVsCanon', 'max')), ok=(0, 12), mineur=(0, 22), cle=('teteVsCanon', 'max'),
      pourquoi='« Les yeux, le canon et la cible » : on regarde là où pointe l\'arme (le canon suit la tête).', src='FM 3-06.11 §3-15a ("swing the muzzle as they turn their head")', vues=['teteDessus', 'face'])
