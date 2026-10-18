@@ -53,7 +53,7 @@ OT.Soldat3D.whenReady(() => {
     return 0;
   };
   // mesures : rotations par image (torse, bassin, fusil), saut des pieds au sol (le pied le plus bas d'une image à l'autre)
-  window.FR = frames;
+  window.FR = frames; window.F = f;
   window.mesures = () => {
     while (t < TOT - 1e-6) pas();
     const out = { torseMax: 0, bassinMax: 0, fusilMax: 0, piedMax: 0, ou: {} };

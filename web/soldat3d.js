@@ -517,7 +517,8 @@
             const n = this.selArr ? PR : cote; cible[n] = 1; tau = Math.max(-1.3, Math.min(1.3, tw(n)));
           }
         } else cible[avant] = 1;
-        this.jambesCible = tau;
+        // (torsion du bassin au prorata de la couche des jambes : à l'entrée en marche elle monte avec elle)
+        this.jambesCible = tau * Math.min(1, (this.marcheK || 0) + dt / 0.2);
         if (!this.blendW) this.blendW = {};
         const bw = this.blendW;
         for (const n in bw) if (!(n in cible)) cible[n] = 0;
@@ -533,15 +534,17 @@
         for (const n in bw) {
           const a = act(n); if (!a) continue;
           const w = tot > 0 ? bw[n] / tot : 0;
-          if (w <= 0) { if (a.isRunning()) a.stop(); continue; }
-          if (!a.isRunning()) { a.reset(); a.play(); }
+          // (isScheduled et non isRunning : une action à timeScale 0 n'est jamais « running » pour three.js ; avec isRunning les
+          // couches de jambes n'étaient jamais arrêtées ni effacées et pesaient encore sur toutes les poses suivantes)
+          if (w <= 0) { if (a.isScheduled()) a.stop(); continue; }
+          if (!a.isScheduled()) { a.reset(); a.play(); }
           a.enabled = true; a.timeScale = 0; a.stopFading(); a.setEffectiveWeight(w * this.marcheK);
           a.time = ((this.ph + (M.phase0[n] || 0) + ((M.decal && M.decal[avant] && M.decal[avant][n]) || 0)) % 1) * a.getClip().duration;
           psi += w * ((M.hipsYaw[n] || 0) - (M.hipsYaw[avant] || 0));
         }
         while (psi > Math.PI) psi -= 2 * Math.PI; while (psi < -Math.PI) psi += 2 * Math.PI;
         this.dosM = psi + a0; this.yawM = B; this.blendFrame = frameK;
-        this.play(haut, { time: ((this.ph + (M.phase0[avant] || 0)) % 1), fade: 0.2 });
+        this.play(haut, { time: ((this.ph + (M.phase0[avant] || 0)) % 1), fade: 0.25 });
         return this.ph;
       },
       // keepYaw : garder la correction actuelle (chute : on ne fait pas pivoter un corps qui tombe)
@@ -552,10 +555,10 @@
         for (const [b, q] of mods) b.quaternion.copy(q); mods.length = 0;
         const enMarche = !!this.blendW && this.blendFrame === frameK;
         if (this.blendW && !enMarche) {   // plus en marche directionnelle : les jambes mélangées s'effacent
-          for (const n in this.blendW) { const a = actions[n]; if (a && a.isRunning() && this.blendW[n] > 0) a.fadeOut(0.2); }
+          for (const n in this.blendW) { const a = actions[n]; if (a && a.isScheduled() && this.blendW[n] > 0) a.fadeOut(0.3); }
           this.blendW = null; this.dosM = (this.dosM || 0) + (this.yawM || 0);   // (torsion figée, qui s'efface avec marcheK)
         }
-        if (!enMarche) this.marcheK = Math.max(0, (this.marcheK || 0) - dt / 0.25);
+        if (!enMarche) this.marcheK = Math.max(0, (this.marcheK || 0) - dt / 0.3);
         frameK++;
         mixer.update(dt); this.t += dt;
         this.epK = (this.epK || 0) + ((EPAULE[this.clip] ? 1 : 0) - (this.epK || 0)) * (dt > 0 ? Math.min(1, dt * 8) : 1);
@@ -565,7 +568,9 @@
         // pendant que le corps pivote) ; pondérée par marcheK (entrée / sortie en fondu, comme les animations)
         this.dosComp = (this.marcheK || 0) > 0 ? this.marcheK * ((this.dosM || 0) + (enMarche ? body.rotation.y : 0)) : 0;
         let dj = this.jambesCible - this.jambes; while (dj > Math.PI) dj -= 2 * Math.PI; while (dj < -Math.PI) dj += 2 * Math.PI;
-        this.jambes += Math.max(-9 * dt, Math.min(9 * dt, dj * Math.min(1, dt * 14)));
+        // (sortie de marche directionnelle : la torsion du bassin se défait au rythme du fondu des jambes, pas d'un coup)
+        const kj = !enMarche && (this.marcheK || 0) > 0 ? dt * 6 : dt * 14;
+        this.jambes += Math.max(-9 * dt, Math.min(9 * dt, dj * Math.min(1, kj)));
         if (Math.abs(this.jambes) > 0.01 && hipsB && spine3.length) {
           body.updateMatrixWorld(true); mod(hipsB); twist(hipsB, this.jambes);
           for (const sb of spine3) { mod(sb); twist(sb, -this.jambes / spine3.length); }
