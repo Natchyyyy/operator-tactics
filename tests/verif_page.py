@@ -173,7 +173,11 @@ async def main():
         # de bout en bout : une bataille jouée par le jeu fait entendre des coups de feu (lecteur → play() → Son.jouer)
         tirs = await pg.evaluate("() => { const n = () => Object.entries(Son.etat().joues).filter(([k]) => /^tir/.test(k)).reduce((a, [, v]) => a + v, 0); const n0 = n(); window.OT_MUTE && window.OT_MUTE.set(false); API.start({ mapId: 'parking', seed: 3 }); for (let i = 0; i < 120 && n() === n0; i++) API.stepRaw(10); return [n() - n0, Son.etat().contexte]; }")
         check("en bataille, les coups de feu sont réellement joués", tirs[0] > 0 and tirs[1] == "running", tirs)
-        son = await pg.evaluate("async () => { if (typeof Son === 'undefined') return 'pas de lecteur'; Son.init(); await Son.charger(); return [Son.jouer('tir_fusil'), Son.jouer('impact_metal'), Son.jouer('impact_bois'), Son.jouer('impact_sol'), Son.jouer('pas'), Son.jouer('recharge'), Son.jouer('victoire'), Son.jouer('musique_titre')].every(Boolean) && await Son.boucle('musique_qg', { voie: 'musique', vol: .5 }); }")
+        try: await pg.wait_for_function("() => Son.etat().pack !== 'chargement'", timeout=30000)
+        except Exception: pass
+        pk = await pg.evaluate("() => [Son.etat().pack, Son.a('pluie'), Son.a('oiseaux')]")
+        check("le paquet de sons complémentaire (hd/sons_hd.json : ambiances longues) est chargé", pk == ["chargé", True, True], pk)
+        son = await pg.evaluate("async () => { if (typeof Son === 'undefined') return 'pas de lecteur'; Son.init(); await Son.charger(); return [Son.jouer('tir_556_proche'), Son.jouer('impact_metal'), Son.jouer('impact_bois'), Son.jouer('impact_sol'), Son.jouer('pas'), Son.jouer('recharge'), Son.jouer('victoire'), Son.jouer('musique_titre')].every(Boolean) && await Son.boucle('musique_qg', { voie: 'musique', vol: .5 }); }")
         check("les bruitages et musiques se décodent et se jouent", son is True, son)
         check("aucune erreur JavaScript", not errs, errs[:5])
         print(f"\n{ok}/{tot} vérifications réussies"); await br.close()

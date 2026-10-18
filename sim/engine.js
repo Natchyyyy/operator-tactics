@@ -827,8 +827,15 @@
   };
   // Arrivé à distance : si l'on n'est pas derrière un vrai couvert face à la menace, rejoindre le plus proche (≤ 6 m) d'où
   // l'on voit sa position, sans s'en approcher sous ~8 m. Vrai si un déplacement est lancé.
+  // Déjà à couvert mais sans vue sur la position (couvert « plein », on ne peut que s'y cacher) : au bout de 3 s, on gagne
+  // un couvert voisin d'où l'on peut tirer — sinon les deux camps se cachent l'un de l'autre et plus personne ne tire.
   Battle.prototype.coverUp = function (u, p) {
-    if (this.coverAt(u.x, u.z, p.x, p.z, true)) return false;
+    if (this.coverAt(u.x, u.z, p.x, p.z, true)) {
+      if (this.map.hasLOS(u.x, EYE.stand, u.z, p.x, CHEST.stand, p.z) || u.moving || this.t - (u.stillSince === undefined ? this.t : u.stillSince) < 3) return false;
+      const cp = this.findCover(u, p, 6, { requireShoot: true, minRange: MIN_CLOSE, preferDist: this.standoff(u) });
+      if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.6 && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return true; }
+      return false;
+    }
     const cp = this.findCover(u, p, 6, { requireShoot: true, minRange: MIN_CLOSE, preferDist: this.standoff(u) }) || this.findCover(u, p, 6, { minRange: MIN_CLOSE });
     if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.4 && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return true; }
     return false;
@@ -1030,6 +1037,11 @@
       // elle vieillit (personne ne la revoit) → on resserre de couvert en couvert ; périmée → on va voir ce qu'il en est
       const age = this.t - threatPos.t, stand = this.standoff(u);
       let reach = age < 6 ? stand : age < 14 ? MIN_CLOSE + 2 : MIN_CLOSE;
+      // arrêté depuis 4 s sans aucune vue sur la position (voitures, murs : terrain fermé) : la distance de combat ne sert à
+      // rien d'ici, on resserre (de couvert en couvert) jusqu'à ~10 m
+      const los = this.map.hasLOS(u.x, EYE.stand, u.z, threatPos.x, CHEST.stand, threatPos.z);
+      if (los || u.moving) u.blindAt = undefined; else if (u.blindAt === undefined) u.blindAt = this.t;
+      if (!los && u.blindAt !== undefined && this.t - u.blindAt > 4) reach = Math.min(reach, MIN_CLOSE + 2);
       // information ancienne (≥ 14 s) : on va VOIR la position, d'un point d'où on la découvre ; vue de près et vide → oubliée
       // (on ne marche plus jusque sur elle) ; sans vue possible, on s'en approche jusqu'à quelques mètres
       if (age >= 14 && nd <= MIN_CLOSE + 3) {

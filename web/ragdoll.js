@@ -42,7 +42,7 @@
   const G_SOL = 1, G_OBS = 2, G_CORPS = 4, G_ARME = 8;
   // réglages
   const P = {
-    pas: 1 / 60, sousPasMax: 6, iterations: 18, gravite: -9.81,
+    pas: 1 / 60, sousPasMax: 6, iterations: 24, gravite: -9.81,
     amortLin: 0.08, amortAng: 0.45, frottementArt: 3.0,           // frottement des articulations (1/s, vitesse angulaire relative)
     tonique: 0.22, relache: 0.3,                                     // phase tonique (s) puis relâchement (s)
     impulsion: { tete: 10, torse: 28, membre: 15, bras: 8 },        // N·s (exagéré par rapport au réel, lisible à l'écran)
@@ -63,7 +63,7 @@
     bones.forEach((b, i) => segDe.set(i, segNom(b)));
     const idxOs = (n) => bones.findIndex(b => nomOs(b.name) === n);
     const lie = (n) => { const i = idxOs(n); return i < 0 ? null : new T.Vector3().setFromMatrixPosition(new T.Matrix4().copy(sk.boneInverses[i]).invert()); };
-    const box = SEGS.map(() => new T.Box3());
+    const box = SEGS.map(() => new T.Box3()), sous = SEGS.map(() => new Map());   // sous : boîte par os (nom), repère de liaison
     m.body.traverse(o => {
       if (!o.isSkinnedMesh || !o.skeleton) return;
       const g = o.geometry, pos = g.attributes.position, si = g.attributes.skinIndex, sw = g.attributes.skinWeight; if (!pos || !si || !sw) return;
@@ -72,6 +72,7 @@
         let best = -1, bw = 0; for (let k = 0; k < 4; k++) { const w = sw.getComponent(i, k); if (w > bw) { bw = w; best = si.getComponent(i, k); } }
         const s = best >= 0 ? map[best] : -1; if (s < 0) continue;
         v.fromBufferAttribute(pos, i).applyMatrix4(o.bindMatrix); box[s].expandByPoint(v);
+        const nb = nomOs(o.skeleton.bones[best].name); let bx = sous[s].get(nb); if (!bx) sous[s].set(nb, bx = new T.Box3()); bx.expandByPoint(v);
       }
     });
     const ok = SEGS.every((s, i) => !box[i].isEmpty() && idxOs(s.b) >= 0); if (!ok) { cacheModele.set(cle, null); return null; }
@@ -82,6 +83,7 @@
     const res = {
       U, F, L, os: SEGS.map(s => idxOs(s.b)),
       centre: box.map(b => b.getCenter(new T.Vector3())), demi: box.map(b => b.getSize(new T.Vector3()).multiplyScalar(0.5)),
+      sous: sous.map(mp => [...mp].map(([n, bx]) => ({ i: idxOs(n), bx })).filter(x => x.i >= 0)),
       D: { brasG: dir('LeftArm', 'LeftForeArm'), avbrasG: dir('LeftForeArm', 'LeftHand'), brasD: dir('RightArm', 'RightForeArm'), avbrasD: dir('RightForeArm', 'RightHand'),
         cuisseG: dir('LeftUpLeg', 'LeftLeg'), jambeG: dir('LeftLeg', 'LeftFoot'), cuisseD: dir('RightUpLeg', 'RightLeg'), jambeD: dir('RightLeg', 'RightFoot') },
       plie: {},   // sens de flexion des coudes (repère du bras), mesuré sur une pose où le coude est plié
@@ -159,6 +161,7 @@
     if (battle && u.bleedUntil > battle.t) return false;   // à terre (peut être relevé) : animations
     if (battle !== battleRef) { reinit(); battleRef = battle; }
     let loc = null; if (battle && battle.log) for (let i = battle.log.length - 1; i >= Math.max(0, battle.log.length - 40); i--) { const e = battle.log[i]; if (e.kind === 'down' && e.enemy === u.id) { loc = e.loc || null; break; } }
+    if (m.anim) delete m.anim.fallYaw;   // (le jeu ne fait plus pivoter le groupe : le corps figé ne doit pas tourner)
     m.rag = { etat: 'attente', attente: 0, loc, dir: null, t0: battle ? battle.t : 0, u, map: battle && battle.map, graine: hash(u.id + ':' + (battle ? battle.t.toFixed(2) : '0')) };
     return true;
   };
@@ -180,11 +183,25 @@
     const A = poseSegments(m, Mo); m.update(1 / 30, false); const B = poseSegments(m, Mo);
     const an = m.anim || {}, vG = new T.Vector3(an.vx || 0, 0, an.vz || 0); if (vG.length() > 6) vG.setLength(6);
     const k = B[0].k;
+    // boîtes des segments dans LA pose de la mort : la boîte de chaque os rattaché (main, pied, cou…) suit sa rotation figée
+    const skel = m.skinned.skeleton, centres = [], demis = [], Sm = new T.Matrix4(), Si = new T.Matrix4(), Sj = new T.Matrix4(), cn = new T.Vector3();
+    SEGS.forEach((s, i) => {
+      Sm.multiplyMatrices(skel.bones[Mo.os[i]].matrixWorld, Mo.inv[i]); Si.copy(Sm).invert();
+      const bb = new T.Box3();
+      for (const { i: j, bx } of Mo.sous[i]) {
+        if (j === Mo.os[i]) { bb.union(bx); continue; }
+        Sj.multiplyMatrices(skel.bones[j].matrixWorld, new T.Matrix4().copy(skel.boneInverses[j])); Sj.premultiply(Si);
+        for (let c = 0; c < 8; c++) { cn.set(c & 1 ? bx.max.x : bx.min.x, c & 2 ? bx.max.y : bx.min.y, c & 4 ? bx.max.z : bx.min.z).applyMatrix4(Sj); bb.expandByPoint(cn); }
+      }
+      if (bb.isEmpty()) bb.copy(new T.Box3().setFromCenterAndSize(Mo.centre[i], Mo.demi[i].clone().multiplyScalar(2)));
+      centres.push(bb.getCenter(new T.Vector3())); demis.push(bb.getSize(new T.Vector3()).multiplyScalar(0.5));
+      B[i].c = centres[i].clone().applyMatrix4(Sm);
+    });
     const corps = SEGS.map((s, i) => {
-      const d = Mo.demi[i];
+      const d = demis[i];
       const b = new C.Body({ mass: s.m, material: matCorps, linearDamping: P.amortLin, angularDamping: P.amortAng, collisionFilterGroup: G_CORPS, collisionFilterMask: G_SOL | G_OBS, allowSleep: false });
-      if (s.boule) b.addShape(new C.Sphere(k * (d.x + d.y + d.z) / 3 * 0.92));
-      else b.addShape(new C.Box(new C.Vec3(d.x * k * 0.9, d.y * k * 0.9, d.z * k * 0.9)));
+      if (s.boule) { const rr = k * Math.min(d.x, d.y, d.z); b.addShape(new C.Sphere(rr)); b.addShape(new C.Box(new C.Vec3(d.x * k * 0.97, d.y * k * 0.97, d.z * k * 0.97))); }   // (tête : boîte du casque, arrondie par une sphère)
+      else b.addShape(new C.Box(new C.Vec3(d.x * k * 0.95, d.y * k * 0.95, d.z * k * 0.95)));
       b.position.set(B[i].c.x, B[i].c.y, B[i].c.z); b.quaternion.set(B[i].q.x, B[i].q.y, B[i].q.z, B[i].q.w);
       const v = B[i].c.clone().sub(A[i].c).multiplyScalar(30).add(vG); if (v.length() > 8) v.setLength(8);
       b.velocity.set(v.x, v.y, v.z);
@@ -194,7 +211,7 @@
       W.addBody(b); return b;
     });
     // sol sous le corps : aucune boîte sous y = 0 au départ (les poses accroupies peuvent effleurer le sol)
-    let ymin = 0; corps.forEach(b => { b.updateAABB(); ymin = Math.min(ymin, b.aabb.lowerBound.y); }); if (ymin < 0.005) corps.forEach(b => { b.position.y += 0.005 - ymin; });
+    let ymin = 0; corps.forEach(b => { b.updateAABB(); ymin = Math.min(ymin, b.aabb.lowerBound.y); }); const leve = Math.max(0, 0.005 - ymin); if (leve) corps.forEach(b => { b.position.y += leve; });
     corps.forEach(b => { b.previousPosition.copy(b.position); b.interpolatedPosition.copy(b.position); b.previousQuaternion.copy(b.quaternion); b.interpolatedQuaternion.copy(b.quaternion); });
     obstaclesAutour(r.map, u.x, u.z, 3.5);
     // sens de flexion des coudes : mesuré sur cette pose si le coude est plié, sinon celui déjà connu, sinon vers l'avant
@@ -208,13 +225,13 @@
     // articulations
     const U = Mo.U, F = Mo.F, L = Mo.L, art = [];
     const lien = (pn, cn, opt) => {
-      const a = corps[IDX[pn]], b = corps[IDX[cn]], piv = B[IDX[cn]].os, pv = new C.Vec3(piv.x, piv.y, piv.z);
+      const a = corps[IDX[pn]], b = corps[IDX[cn]], piv = B[IDX[cn]].os, pv = new C.Vec3(piv.x, piv.y + leve, piv.z);   // (corps relevé de « leve » : pivots aussi)
       const pA = a.pointToLocalFrame(pv), pB = b.pointToLocalFrame(pv);
       const cons = [];
       if (opt.charniere) {   // axe de charnière dans le parent ; dans l'enfant : le même axe tel qu'il est aujourd'hui (pas d'à-coup)
         const axW = a.vectorToWorldFrame(new C.Vec3(opt.charniere.x, opt.charniere.y, opt.charniere.z)), axB = b.vectorToLocalFrame(axW);
         cons.push(new C.HingeConstraint(a, b, { pivotA: pA, pivotB: pB, axisA: new C.Vec3(opt.charniere.x, opt.charniere.y, opt.charniere.z), axisB: axB, collideConnected: false, maxForce: 1e6 }));
-      } else cons.push(new C.PointToPointConstraint(a, b, pA, pB, 1e6));
+      } else cons.push(new C.PointToPointConstraint(a, pA, b, pB, 1e6));
       // limites : angle entre un axe du parent et un axe de l'enfant ; si la pose de départ dépasse déjà, la limite s'élargit
       for (const [axA, axB, ang] of opt.limites || []) {
         const wa = a.vectorToWorldFrame(new C.Vec3(axA.x, axA.y, axA.z)), wb = b.vectorToWorldFrame(new C.Vec3(axB.x, axB.y, axB.z));
@@ -258,7 +275,7 @@
         W.addBody(ab); arme = { body: ab, c, sc };
       }
     }
-    Object.assign(r, { etat: 'physique', corps, art, arme, k, Mo, t: 0, calme: 0, sauve: sauverOs(m), fige: false });
+    Object.assign(r, { etat: 'physique', corps, art, arme, k, Mo, centres, t: 0, calme: 0, sauve: sauverOs(m), fige: false });
     impulsions(r, u, m);
     ragdolls.add(r); R.stats.morts++;
     r.msCreation = performance.now() - t0;
@@ -304,8 +321,12 @@
 
   // ---- Pas de simulation (une fois par image) ----------------------------------------------------------------------------
   const _v = root.THREE ? new THREE.Vector3() : null, _q = root.THREE ? new THREE.Quaternion() : null;
+  let tReel = 0; const manuel = (() => { try { return /[?&]manual=1/.test(location.search); } catch (e) { return false; } })();
   R.etape = function (dt, battle) {
     if (battle && battle !== battleRef) { reinit(); battleRef = battle; }
+    // bataille finie : le jeu s'arrête (dt = 0) pendant la bannière et le plan final ; les corps finissent de tomber au
+    // ralenti (comme le plan final), en temps réel — sauf en mode manuel (captures reproductibles)
+    if (!(dt > 0) && battle && battle.over && !manuel) { const now = performance.now(); dt = tReel ? Math.min(0.05, (now - tReel) / 1000) * 0.4 : 0; tReel = now; } else tReel = 0;
     if (!W || !(dt > 0)) return;
     let n = 0; for (const r of ragdolls) if (!r.fige) n++;
     R.stats.actifs = n; if (!n) return;
@@ -398,7 +419,7 @@
       const pos = b.interpolatedPosition || b.position, qu = b.interpolatedQuaternion || b.quaternion;
       // S = T(centre) R(q) S(k) T(−c) ; monde de l'os = S × lié
       _q.set(qu.x, qu.y, qu.z, qu.w); _p.set(pos.x, pos.y, pos.z);
-      _S.compose(_p, _q, sc); _M.makeTranslation(-Mo.centre[i].x, -Mo.centre[i].y, -Mo.centre[i].z); _S.multiply(_M).multiply(Mo.lie[i]);
+      _S.compose(_p, _q, sc); _M.makeTranslation(-r.centres[i].x, -r.centres[i].y, -r.centres[i].z); _S.multiply(_M).multiply(Mo.lie[i]);
       bone.parent.updateWorldMatrix(true, false);
       _P.copy(bone.parent.matrixWorld).invert().multiply(_S);
       _P.decompose(_v, _q, _p);
@@ -428,5 +449,11 @@
     return { t: +r.t.toFixed(2), ecart: +ecart.toFixed(3), bas: +bas.toFixed(3), fige: r.fige, erreur: !!r.erreur, cible: r.cible || null, creationMs: +(r.msCreation || 0).toFixed(1) };
   };
   R.actifs = () => ragdolls.size;
+  // mesures des modèles faites à l'avance, au repos (sinon ~30 ms à la première mort)
+  R.prechauffer = function () {
+    if (!R.dispo() || !OT.Soldat3D || !OT.Soldat3D.ready) return;
+    for (const nom in OT.Soldat3D.modeles) { try { const f = OT.Soldat3D.create({ modele: nom, weapon: null }); if (f) mesurer(f); } catch (e) { console.warn('ragdoll (mesures) :', e); } }
+  };
+  if (OT.Soldat3D && OT.Soldat3D.whenReady) OT.Soldat3D.whenReady(() => { const go = () => R.prechauffer(); if (root.requestIdleCallback) root.requestIdleCallback(go, { timeout: 4000 }); else setTimeout(go, 500); });
   OT.Ragdoll = R;
 })(typeof window !== 'undefined' ? window : globalThis);

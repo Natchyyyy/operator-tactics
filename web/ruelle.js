@@ -40,10 +40,11 @@
     brun: { b: [104, 62, 48], v: 20, m: [128, 120, 110], sombre: 0.18 },
     jaune: { b: [168, 132, 92], v: 18, m: [160, 150, 136], sombre: 0.06 },
     peint: { b: [176, 170, 156], v: 6, m: [168, 162, 150], sombre: 0.0, peint: true },
+    parpaing: { b: [150, 148, 142], v: 10, m: [128, 126, 120], sombre: 0.04, cols: 8, rows: 20 },   // blocs de béton 0,47 × 0,19 m
   };
   function brick(tone) {
     const key = 'brique' + tone; if (CACHE[key]) return CACHE[key];
-    const P = TONS[tone], R = rng(tone.length * 977 + 13), N = 1024, cols = 16, rows = 50, bw = N / cols, bh = N / rows;
+    const P = TONS[tone], R = rng(tone.length * 977 + 13), N = 1024, cols = P.cols || 16, rows = P.rows || 50, bw = N / cols, bh = N / rows;
     const c = canvas(N), g = c.getContext('2d'), hc = canvas(N), hg = hc.getContext('2d');
     g.fillStyle = `rgb(${P.m.join(',')})`; g.fillRect(0, 0, N, N); hg.fillStyle = '#202020'; hg.fillRect(0, 0, N, N);
     for (let r = 0; r < rows; r++) {
@@ -62,7 +63,10 @@
     for (let i = 0; i < d.length; i += 4) { const n = (R() - 0.5) * (P.peint ? 10 : 26); d[i] += n; d[i + 1] += n; d[i + 2] += n; if (R() < 0.02) { hd[i] = hd[i + 1] = hd[i + 2] = Math.max(0, hd[i] - 70); d[i] *= 0.8; d[i + 1] *= 0.8; d[i + 2] *= 0.8; } }
     g.putImageData(id, 0, 0); hg.putImageData(hid, 0, 0);
     // peinture qui s'écaille par plaques (brique peinte)
-    if (P.peint) for (let k = 0; k < 40; k++) { g.fillStyle = `rgba(${TONS.rouge.b.join(',')},${0.5 + R() * 0.4})`; g.beginPath(); g.ellipse(R() * N, R() * N, 10 + R() * 40, 6 + R() * 18, R() * 3, 0, 7); g.fill(); }
+    if (P.peint) for (let k = 0; k < 5; k++) {   // quelques plaques où la peinture est partie : briques nues par petits éclats groupés
+      const cx = R() * N, cy = R() * N, rad = 30 + R() * 70;
+      for (let i = 0; i < 160; i++) { const a = R() * 6.283, r = rad * Math.sqrt(R()); g.fillStyle = `rgba(${118 + R() * 30 | 0},${70 + R() * 20 | 0},${56 + R() * 15 | 0},${0.35 + R() * 0.4})`; g.fillRect(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.6, 2 + R() * 7, 1 + R() * 4); }
+    }
     return (CACHE[key] = { map: tex(c, true, true), normalMap: normalTex(hc, 3.2) });
   }
   function brickMat(tone) { return mat('brique' + tone, () => { const B = brick(tone); return new T.MeshStandardMaterial({ map: B.map, normalMap: B.normalMap, normalScale: new T.Vector2(0.9, 0.9), roughness: 0.9, color: 0xe6e6e6 }); }); }
@@ -97,6 +101,7 @@
     lampe: mat('rlampe', () => new T.MeshStandardMaterial({ color: 0xf2e6c8, emissive: 0xffd08a, emissiveIntensity: 0, roughness: 0.3 })),
   });
   const LAMPES = [];   // matériaux lumineux (nuit)
+  const NUITS = [];    // lumières allumées la nuit seulement
   // rideau métallique : lames horizontales galvanisées, usure, bas plus sale
   function shutterMat() {
     return mat('rrideau', () => {
@@ -174,8 +179,8 @@
     const key = 'ens' + name; if (CACHE[key]) return CACHE[key];
     const W = 1024, H = 256, c = canvas(W, H), g = c.getContext('2d');
     g.fillStyle = bg; g.fillRect(0, 0, W, H); g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 8; g.strokeRect(14, 14, W - 28, H - 28);
-    g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 118px Georgia, "Times New Roman", serif'; g.fillText(name, W / 2, sub ? 108 : H / 2 + 6);
-    if (sub) { g.font = 'italic 46px Georgia, serif'; g.fillText(sub, W / 2, 200); }
+    g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle'; let fs = 118; do { g.font = `bold ${fs}px Georgia, "Times New Roman", serif`; fs -= 6; } while (g.measureText(name).width > W - 90 && fs > 50); g.fillText(name, W / 2, sub ? 108 : H / 2 + 6);
+    if (sub) { let fs2 = 46; do { g.font = `italic ${fs2}px Georgia, serif`; fs2 -= 3; } while (g.measureText(sub).width > W - 90 && fs2 > 24); g.fillText(sub, W / 2, 200); }
     const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 8; return (CACHE[key] = t);
   }
   // entrée « clients » à l'arrière d'une boutique (côté parking) : porte vitrée double, vitrine, store en toile à
@@ -183,8 +188,15 @@
   function shopEntrance(g, x, y0, z, shop) {
     const k = K(), q = new T.Group(); q.position.set(x, y0, z); g.add(q);
     const alu = mat('ralu', () => new T.MeshStandardMaterial({ color: 0x3a3c3e, roughness: 0.4, metalness: 0.8 }));
-    const vitre = mat('rvitrine', () => new T.MeshStandardMaterial({ color: 0x2c3a40, roughness: 0.05, metalness: 0.7, emissive: 0xffc27a, emissiveIntensity: 0.08 }));
-    vitre.userData.jour = 0.08; vitre.userData.nuit = 0.7; if (!LAMPES.includes(vitre)) LAMPES.push(vitre);
+    const vitre = mat('rvitrine', () => {
+      const c = canvas(256), g = c.getContext('2d'); g.fillStyle = '#2b2118'; g.fillRect(0, 0, 256, 256);
+      const l = g.createRadialGradient(128, 40, 5, 128, 60, 170); l.addColorStop(0, 'rgba(255,214,150,0.95)'); l.addColorStop(1, 'rgba(120,80,40,0)'); g.fillStyle = l; g.fillRect(0, 0, 256, 256);
+      g.fillStyle = 'rgba(40,28,18,0.85)'; g.fillRect(0, 150, 256, 106); g.fillStyle = 'rgba(160,120,70,0.6)'; g.fillRect(0, 146, 256, 6);   // comptoir
+      for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(${150 + i * 12},${110 + i * 8},70,0.55)`; g.fillRect(14 + i * 40, 80 + (i % 2) * 14, 26, 50); }   // rayonnages
+      const t = tex(c, true, false);
+      return new T.MeshStandardMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0.35, roughness: 0.08, metalness: 0.2 });
+    });
+    vitre.userData.jour = 0.35; vitre.userData.nuit = 1.4; if (!LAMPES.includes(vitre)) LAMPES.push(vitre);
     add(q, new T.BoxGeometry(2.9, 2.5, 0.06), alu, 0, 1.25 + 0.15, 0.03);
     add(q, new T.PlaneGeometry(1.7, 2.2), vitre, -0.45, 1.27, 0.065);                 // portes vitrées
     add(q, new T.PlaneGeometry(0.95, 1.5), vitre, 0.9, 1.6, 0.065);                   // vitrine
@@ -198,14 +210,33 @@
     const aw = new T.Mesh(new T.PlaneGeometry(3.4, 1.35), toile); aw.position.set(0, 2.95, 0.58); aw.rotation.x = -Math.PI / 2 + 0.55; aw.castShadow = aw.receiveShadow = true; q.add(aw);
     add(q, new T.BoxGeometry(3.4, 0.28, 0.02), toile, 0, 2.55, 1.15);
     for (const s of [-1, 1]) { const side = new T.Mesh(new T.ShapeGeometry(new T.Shape([new T.Vector2(0, 0), new T.Vector2(1.15, -0.62), new T.Vector2(1.15, -0.9), new T.Vector2(0, -0.28)])), toile); side.position.set(s * 1.7, 3.25, 0.0); side.rotation.y = -Math.PI / 2; side.castShadow = true; q.add(side); }
-    for (const s of [-1, 1]) add(q, cyl(0.015, 1.2, 6), k.acierNoir, s * 1.68, 2.9, 0.58).rotation.x = Math.PI / 2 - 0.55;
+    for (const s of [-1, 1]) add(q, cyl(0.015, 1.32, 6), k.acierNoir, s * 1.66, 2.93, 0.575).rotation.x = 2.08;
     // enseigne lumineuse au-dessus du store
-    const sm = new T.MeshStandardMaterial({ map: signTex(shop.nom, shop.sous, shop.fond, shop.lettres), emissive: 0xffffff, emissiveMap: signTex(shop.nom, shop.sous, shop.fond, shop.lettres), emissiveIntensity: 0.15, roughness: 0.4 });
-    sm.userData.jour = 0.15; sm.userData.nuit = 1.3; LAMPES.push(sm);
+    const sm = mat('rens' + shop.nom, () => { const t = signTex(shop.nom, shop.sous, shop.fond, shop.lettres), m = new T.MeshStandardMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0.15, roughness: 0.4 }); m.userData.jour = 0.15; m.userData.nuit = 1.3; return m; });
+    if (!LAMPES.includes(sm)) LAMPES.push(sm);
     add(q, new T.BoxGeometry(3.0, 0.8, 0.14), alu, 0, 3.75, 0.07);
     add(q, new T.PlaneGeometry(2.9, 0.72), sm, 0, 3.75, 0.145);
     for (const s of [-1, 1]) { add(q, new T.BoxGeometry(0.12, 0.2, 0.12), alu, s * 1.85, 2.6, 0.08); add(q, new T.SphereGeometry(0.07, 10, 8), k.lampe, s * 1.85, 2.48, 0.12); }
     if (!LAMPES.includes(k.lampe)) LAMPES.push(k.lampe);
+    const L = new T.PointLight(0xffc98a, 18, 9, 1.8); L.position.set(0, 2.4, 1.6); L.visible = false; q.add(L); NUITS.push(L);
+  }
+  // petites plaques : rue (émail bleu, bord vert, lettres blanches) et interdiction de stationner (blanc, bord rouge)
+  function plateTex(kind, l1, l2) {
+    const key = 'plaque' + kind + l1; if (CACHE[key]) return CACHE[key];
+    const W = 512, H = kind === 'rue' ? 200 : 256, c = canvas(W, H), g = c.getContext('2d'); g.textAlign = 'center'; g.textBaseline = 'middle';
+    if (kind === 'rue') {
+      g.fillStyle = '#e9e9e2'; g.fillRect(0, 0, W, H); g.fillStyle = '#1f3e8a'; g.fillRect(8, 8, W - 16, H - 16); g.strokeStyle = '#e9e9e2'; g.lineWidth = 5; g.strokeRect(18, 18, W - 36, H - 36);
+      g.fillStyle = '#f4f4ee'; g.font = 'bold 40px Arial, sans-serif'; g.fillText(l1, W / 2, 72); g.font = 'bold 62px Arial, sans-serif'; g.fillText(l2, W / 2, 132);
+    } else {
+      g.fillStyle = '#f2f2ee'; g.fillRect(0, 0, W, H); g.strokeStyle = '#c0262d'; g.lineWidth = 16; g.strokeRect(10, 10, W - 20, H - 20);
+      g.fillStyle = '#1a1a1a'; g.font = 'bold 54px Arial, sans-serif'; g.fillText(l1, W / 2, 96); g.font = '36px Arial, sans-serif'; g.fillText(l2, W / 2, 168);
+    }
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 4; return (CACHE[key] = t);
+  }
+  function plate(g, x, y, z, w, h, tex, ry) {
+    const q = new T.Group(); q.position.set(x, y, z); q.rotation.y = ry || 0; g.add(q);
+    add(q, new T.BoxGeometry(w + 0.02, h + 0.02, 0.015), K().galva, 0, 0, 0.008);
+    const m = new T.Mesh(new T.PlaneGeometry(w, h), mat('plaque' + tex.uuid, () => new T.MeshStandardMaterial({ map: tex, roughness: 0.35, metalness: 0.1 }))); m.position.z = 0.017; q.add(m);
   }
   // bac à graisse de restaurant (cuve fermée sur roulettes) à côté de la porte de service
   function greaseBin(g, x, y0, z) {
@@ -229,13 +260,28 @@
     for (const s of [-1, 1]) add(q, new T.BoxGeometry(0.1, h, 0.12), k.acier, s * (w / 2 + 0.05), h / 2, 0.06);
     for (const s of [-1, 1]) { const b = add(q, cyl(0.1, 1.0, 10), mat('rbutoir', () => new T.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.6 })), s * (w / 2 + 0.35), 0.5, 0.25); }   // potelets de protection jaunes
   }
+  // vitrages : reflet sombre, store vénitien, rideaux (texture : ce qu'on devine derrière la vitre)
+  function winMat(r) {
+    const kind = r < 0.45 ? 0 : r < 0.72 ? 1 : r < 0.86 ? 2 : 3;   // 3 : rideaux, pièce éclairée la nuit
+    return mat('rvitrage' + kind, () => {
+      const c = canvas(128, 192), g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 128, 192);
+      gr.addColorStop(0, '#3a4a55'); gr.addColorStop(0.55, '#1d262d'); gr.addColorStop(1, '#2a343b'); g.fillStyle = gr; g.fillRect(0, 0, 128, 192);
+      if (kind === 1) { for (let y = 0; y < 150; y += 6) { g.fillStyle = 'rgba(214,206,186,0.9)'; g.fillRect(0, y, 128, 4); } }
+      if (kind === 3) { g.fillStyle = '#5a4630'; g.fillRect(0, 0, 128, 192); }
+      if (kind >= 2) { g.fillStyle = 'rgba(176,150,120,0.92)'; g.fillRect(0, 0, 40, 192); g.fillRect(88, 0, 40, 192); for (let x = 0; x < 40; x += 8) { g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(x, 0, 3, 192); g.fillRect(88 + x, 0, 3, 192); } }
+      const sky = g.createLinearGradient(0, 0, 128, 80); sky.addColorStop(0, 'rgba(200,215,225,0.35)'); sky.addColorStop(1, 'rgba(200,215,225,0)'); g.fillStyle = sky; g.fillRect(0, 0, 128, 192);
+      const t = tex(c, true, false), m = new T.MeshStandardMaterial({ map: t, roughness: 0.12, metalness: 0.25 });
+      if (kind === 3) { m.emissive = new T.Color(0xffd9a0); m.emissiveMap = t; m.emissiveIntensity = 0; m.userData.jour = 0; m.userData.nuit = 1.1; }
+      return m;
+    });
+  }
   // fenêtre d'étage : tableau sombre, vitrage, appui et linteau en pierre ; parfois condamnée ou grillagée
   function windowAt(g, x, y, z, R, wins) {
     const k = K(), w = 1.0, h = 1.45, kind = R();
     add(g, new T.BoxGeometry(w + 0.04, h + 0.04, 0.02), k.acierNoir, x, y, z + 0.005);
     if (kind < 0.18) add(g, new T.BoxGeometry(w - 0.02, h - 0.02, 0.03), k.contreplaque, x, y, z + 0.02);
     else {
-      add(g, new T.PlaneGeometry(w - 0.12, h - 0.12), k.verre, x, y, z + 0.02);
+      const wm = winMat(R()); if (wm.emissiveMap && !LAMPES.includes(wm)) LAMPES.push(wm); add(g, new T.PlaneGeometry(w - 0.12, h - 0.12), wm, x, y, z + 0.02);
       add(g, new T.BoxGeometry(0.04, h - 0.1, 0.03), k.acierNoir, x, y, z + 0.03); add(g, new T.BoxGeometry(w - 0.1, 0.04, 0.03), k.acierNoir, x, y + 0.12, z + 0.03);
       if (kind > 0.8) for (let i = -2; i <= 2; i++) add(g, cyl(0.012, h, 6), k.acierNoir, x + i * 0.2, y, z + 0.09);
     }
@@ -254,8 +300,8 @@
   }
   // escalier de secours (deux paliers, volée, échelle relevée) : modèle Meshy, sinon dessiné ; bas à 2,3 m
   function fireEscape(g, x, y0, z, H, R) {
-    const p = model('escalier', 3.6, H, 1.3, { byHeight: true, tol: 0.4 });
-    if (p) { p.position.set(x, y0 + 2.3 + H / 2, z + 0.67); g.add(p); return; }
+    const p = model('escalier', 3.6, H, 1.3, { byHeight: true, tol: 0.4 });   // échelle relevée : pied à 2,7 m
+    if (p) { p.position.set(x, y0 + 2.7 + H / 2, z + 0.67); g.add(p); return; }
     const k = K(), m = k.acierNoir, top = y0 + 2.3 + H;
     for (const ly of [y0 + 2.3 + H * 0.42, top - 1.0]) {
       add(g, new T.BoxGeometry(3.4, 0.06, 1.2), m, x, ly, z + 0.62);
@@ -302,11 +348,17 @@
     }
     // rez-de-chaussée : portes, rideau, compteurs, petites fenêtres hautes grillagées
     for (const dx of opts.portes || []) { backDoor(g, dx, y0, 0, R); if (R() < 0.6) meters(g, dx + 1.4, y0, 0, R); }
-    if (opts.rideau) shutter(g, opts.rideau[0], y0, 0, opts.rideau[1], 3.0);
+    if (opts.rideau) { shutter(g, opts.rideau[0], y0, 0, opts.rideau[1], 3.0); plate(g, opts.rideau[0] + opts.rideau[1] / 2 + 0.75, y0 + 2.1, 0, 0.5, 0.25, plateTex('interdit', 'LIVRAISONS', 'Stationnement interdit')); }
     if (opts.boutique) shopEntrance(g, opts.boutique[0], y0, 0, opts.boutique[1]);
     if (opts.graisse !== undefined) greaseBin(g, opts.graisse, y0, 0);
     if (opts.gaz !== undefined) gasMeters(g, opts.gaz, y0, 0);
-    for (const hx of opts.hautes || []) { add(g, new T.BoxGeometry(0.9, 0.5, 0.02), k.verre, hx, y0 + 2.9, 0.01); for (let i = -2; i <= 2; i++) add(g, cyl(0.01, 0.5, 5), k.acierNoir, hx + i * 0.18, y0 + 2.9, 0.06); }
+    for (const hx of opts.hautes || []) {   // imposte haute de réserve : cadre, vitrage armé, barreaux, appui
+      add(g, new T.BoxGeometry(1.0, 0.62, 0.04), k.acier, hx, y0 + 2.9, 0.02);
+      add(g, new T.PlaneGeometry(0.88, 0.5), winMat(0.9), hx, y0 + 2.9, 0.045);
+      for (let i = -3; i <= 3; i++) add(g, cyl(0.016, 0.62, 6), k.galva, hx + i * 0.13, y0 + 2.9, 0.1);
+      for (const dy of [-0.26, 0.26]) add(g, new T.BoxGeometry(0.98, 0.035, 0.035), k.galva, hx, y0 + 2.9 + dy, 0.1);
+      add(g, new T.BoxGeometry(1.12, 0.07, 0.14), k.chaperon, hx, y0 + 2.56, 0.07);
+    }
     if (opts.escalier) fireEscape(g, opts.escalier, y0, 0, Math.min(h - 3.4, 6.2), R);
     downspout(g, x1 - 0.25, y0, 0, h);
     // salissures et tags
@@ -324,17 +376,20 @@
     const B = [
       [-6, 9, 10.2, 'rouge', 11, { portes: [3.0], hautes: [6.2], escalier: 6.5, tags: [[1.2, 2.6]] }],
       [9, 18.5, 13.4, 'brun', 12, { portes: [17.6], rideau: [11.6, 3.0], escalier: 14.6 }],
-      [18.5, 28.5, 8.6, 'peint', 13, { portes: [20.4], graisse: 21.9, boutique: [25.75, { nom: "Marlow's Diner", sous: 'Breakfast all day', fond: '#1f4a35', lettres: '#f3ead2', toile: 0x234d36 }], tags: [[19.6, 1.6]] }],
+      [18.5, 28.5, 8.6, 'peint', 13, { portes: [20.4], graisse: 21.9, boutique: [25.75, { nom: 'Le Comptoir', sous: 'Café · Brasserie · Plat du jour 14,50 €', fond: '#1f4a35', lettres: '#f3ead2', toile: 0x234d36 }], tags: [[23.3, 1.1]] }],
       [28.5, 39, 12.2, 'rouge', 14, { masque: [30, 37, 6.2], hautes: [38.0] }],
-      [39, 49.5, 9.8, 'jaune', 15, { portes: [41.6], gaz: 43.0, boutique: [48.0, { nom: 'Fenwick Books', sous: 'New & used', fond: '#5a1f26', lettres: '#f1e3c4', toile: 0x6a2129 }], tags: [[44.6, 2.2]] }],
+      [39, 49.5, 9.8, 'jaune', 15, { portes: [41.6], gaz: 43.0, boutique: [48.0, { nom: 'Librairie Fenouil', sous: 'Livres neufs & d’occasion', fond: '#5a1f26', lettres: '#f1e3c4', toile: 0x6a2129 }], tags: [[44.6, 2.2]] }],
       [49.5, 60, 13.0, 'brun', 16, { portes: [57.6], escalier: 54.2, hautes: [51.5] }],
-      [60, 78, 10.6, 'rouge', 17, { portes: [65.2], rideau: [70.0, 3.2], hautes: [62.6], tags: [[67.5, 2.8]] }],
+      [60, 78, 10.6, 'rouge', 17, { portes: [65.2], rideau: [70.0, 3.2], hautes: [62.6], tags: [[63.4, 2.4]] }],
     ];
     for (const [x0, x1, h, tone, seed, opts] of B) {
       const o2 = Object.assign({}, opts); if (o2.boutique) o2.boutique = [X(o2.boutique[0]), o2.boutique[1]]; for (const k of ['graisse', 'gaz']) if (o2[k] !== undefined) o2[k] = X(o2[k]); for (const k of ['portes', 'hautes']) if (o2[k]) o2[k] = o2[k].map(X);
       if (o2.rideau) o2.rideau = [X(o2.rideau[0]), o2.rideau[1]]; if (o2.masque) o2.masque = [X(o2.masque[0]), X(o2.masque[1]), o2.masque[2]]; if (o2.escalier) o2.escalier = X(o2.escalier); if (o2.tags) o2.tags = o2.tags.map(([a, b]) => [X(a), b]);
       building(f, X(x0), X(x1), h, tone, seed, y0, o2);
     }
+    // plaques de rue aux deux bouts de la ruelle
+    plate(f, X(-0.4), y0 + 3.2, 0, 0.75, 0.3, plateTex('rue', 'PASSAGE', 'des Tanneurs'));
+    plate(f, X(72.4), y0 + 3.2, 0, 0.75, 0.3, plateTex('rue', 'PASSAGE', 'des Tanneurs'));
     // joints entre immeubles : un poteau de briques en saillie (mitoyenneté)
     for (const x of [9, 18.5, 28.5, 39, 49.5, 60]) add(f, new T.BoxGeometry(0.3, 2, 0.1), brickMat('brun'), X(x), y0 + 1, 0.05).scale.y = 1;
     return g;
@@ -350,7 +405,7 @@
     shutter(s, -0.9, y0, 0, 3.4, 3.2);
     backDoor(s, 2.3, y0, 0, R);
     decal(s, grimeTex(42, W, o.h, wins), W, o.h, 0, 0, 0.012);
-    decal(s, tagTex(77), 2.4, 0.9, -0.9, y0 + 3.75, 0.025, 0, 0.9);
+    decal(s, tagTex(77), 1.6, 0.6, 2.4, y0 + 3.55, 0.025, 0, 0.9);
     const e = new T.Group(); e.position.x = W / 2; e.rotation.y = Math.PI / 2; g.add(e);   // face est : porte, compteurs
     backDoor(e, 0.6, y0, 0, R); meters(e, -1.6, y0, 0, R); downspout(e, 3.2, y0, 0, o.h);
     decal(e, grimeTex(43, Dd, o.h, []), Dd, o.h, 0, 0, 0.012);
@@ -362,7 +417,7 @@
   // local à poubelles : trois murs en parpaings enduits, ouvert au nord, deux bennes dedans
   function binShed(o) {
     const k = K(), g = new T.Group(), y0 = -o.h / 2, t = 0.2;
-    const wallM = mat('rparpaing', () => { const B = brick('peint'); return new T.MeshStandardMaterial({ map: B.map, normalMap: B.normalMap, roughness: 0.92, color: 0xb9b6ae }); });
+    const wallM = mat('rparpaing', () => { const B = brick('parpaing'); return new T.MeshStandardMaterial({ map: B.map, normalMap: B.normalMap, roughness: 0.92, color: 0xd8d6d0 }); });
     add(g, boxW(o.w, o.h, t, TILE), wallM, 0, 0, o.d / 2 - t / 2);
     for (const s of [-1, 1]) add(g, boxW(t, o.h, o.d, TILE), wallM, s * (o.w / 2 - t / 2), 0, 0);
     add(g, new T.BoxGeometry(o.w + 0.08, 0.08, t + 0.08), k.chaperon, 0, o.h / 2 + 0.04, o.d / 2 - t / 2);
@@ -410,6 +465,8 @@
       if (n.startsWith('local poubelles')) return binShed(o);
       if (n.startsWith('clôture grillagée')) return fence(o);
       if (n.startsWith('clim')) return condenser(o);
+      if (n === 'benne' && hasM('benne')) return model('benne', o.w, o.h, o.d, { tol: 0.3, rot: o.z < 5 ? Math.PI : 0 });
+      if (n === 'armoire' && hasM('armoire')) return model('armoire', o.w, o.h, o.d, { tol: 0.3 });   // (app.js n'a pas de cas 'armoire' : sans ceci, boîte grise)
       if (n.startsWith('caisses') && hasM('caisses')) return model('caisses', o.w, o.h, o.d, { tol: 0.3, rot: Math.round(o.x * 7) % 4 * Math.PI / 2 });
       if (n.startsWith('guérite') && hasM('guerite')) return model('guerite', o.w, o.h, o.d, { tol: 0.25, rot: -Math.PI / 2 });
     } catch (e) { console.warn('ruelle (' + n + ') :', e); }
@@ -429,7 +486,7 @@
     m.rotation.x = -Math.PI / 2; m.rotation.z = rot || 0; m.position.set(x, 0.012, z); m.receiveShadow = true; m.renderOrder = 1; group.add(m);
   }
   function build(map, group, ctx) {
-    LAMPES.length = 0;
+    NUITS.length = 0;
     const has = (nm) => map.obstacles.some(o => (o.name || '').startsWith(nm)); if (!has('clôture grillagée') && !has('annexe')) return;
     const k = K(), R = rng(2027), free = (x, z, r) => !map.obstacles.some(o => x > o.x - r && x < o.x + o.w + r && z > o.z - r && z < o.z + o.d + r);
     // pied des façades : bande humide et sale le long du mur nord, taches d'huile, avaloir au milieu de la ruelle
@@ -457,11 +514,32 @@
     for (let i = 0; i + 1 < tops.length; i++) for (const s of [-0.75, 0, 0.75]) span(tops[i].clone().setX(tops[i].x + s), tops[i + 1].clone().setX(tops[i + 1].x + s), 0.6);
     for (const t of tops) for (const dx of [-3, 3]) span(t.clone(), new T.Vector3(t.x + dx, 7.2 + R(), 0.05), 0.5);   // branchements des immeubles
     // sacs-poubelle et cartons à côté des bennes et des portes
-    const bag = (x, z) => { const m = new T.Mesh(new T.SphereGeometry(0.32, 10, 8), k.sac); m.scale.set(1, 0.75 + R() * 0.3, 0.9); m.position.set(x, 0.24, z); m.rotation.y = R() * 3; m.castShadow = m.receiveShadow = true; group.add(m); };
+    // sac-poubelle : sphère déformée (fond aplati, plis, col resserré) + nœud
+    const bagGeo = (seed) => {
+      const Rb = rng(seed), gq = new T.SphereGeometry(0.3, 16, 12), pa = gq.attributes.position, v = new T.Vector3();
+      const bumps = Array.from({ length: 6 }, () => [new T.Vector3(Rb() - 0.5, Rb() - 0.3, Rb() - 0.5).normalize(), 0.03 + Rb() * 0.05]);
+      for (let i = 0; i < pa.count; i++) {
+        v.fromBufferAttribute(pa, i); const n = v.clone().normalize(); let r = 0.3;
+        for (const [d, a] of bumps) r += a * Math.max(0, n.dot(d)) ** 3;
+        r += 0.014 * Math.sin(Math.atan2(n.z, n.x) * 9 + n.y * 14 + seed) + (Rb() - 0.5) * 0.01;   // plis du plastique
+        v.copy(n).multiplyScalar(r); v.y *= 0.85;
+        if (v.y < -0.13) v.y = -0.13 - (v.y + 0.13) * 0.2;                           // posé : fond aplati
+        if (v.y > 0.19) { const t = Math.min(1, (v.y - 0.19) / 0.07); v.x *= 1 - 0.72 * t; v.z *= 1 - 0.72 * t; v.y += 0.03 * t; }   // col froncé, court
+        pa.setXYZ(i, v.x, v.y, v.z);
+      }
+      gq.computeVertexNormals(); return gq;
+    };
+    const BAGS = [bagGeo(1), bagGeo(2), bagGeo(3)], sacM = mat('rsac2', () => new T.MeshStandardMaterial({ color: 0x16181a, roughness: 0.34, metalness: 0.05 }));
+    const bag = (x, z) => {
+      const q = new T.Group(); q.position.set(x, 0.12, z); q.rotation.set((R() - 0.5) * 0.3, R() * 6.28, (R() - 0.5) * 0.3); const sc = 0.85 + R() * 0.35; q.scale.set(sc, sc * (0.8 + R() * 0.25), sc); group.add(q);
+      const m = new T.Mesh(BAGS[Math.floor(R() * 3)], sacM); m.castShadow = m.receiveShadow = true; q.add(m);
+      const kn = new T.Mesh(new T.SphereGeometry(0.045, 8, 6), sacM); kn.scale.y = 0.8; kn.position.y = 0.3; kn.rotation.z = (R() - 0.5) * 0.8; kn.castShadow = true; q.add(kn);
+      for (const s of [-1, 1]) { const e = new T.Mesh(new T.ConeGeometry(0.03, 0.11, 5), sacM); e.position.set(s * 0.05, 0.34, 0); e.rotation.z = -s * 1.1; q.add(e); }
+    };
     for (const o of map.obstacles) if ((o.name || '').startsWith('benne') && o.z < 11) for (let i = 0; i < 3; i++) { const x = o.x + o.w + 0.35 + R() * 0.5, z = o.z + 0.3 + i * 0.4; if (free(x, z, 0.3)) bag(x, z); }
     for (let i = 0; i < 7; i++) { const x = 2 + R() * 68, z = 0.35 + R() * 0.4; if (!free(x, z, 0.4)) continue; const c = new T.Mesh(new T.BoxGeometry(0.5 + R() * 0.3, 0.02, 0.4 + R() * 0.3), k.carton); c.position.set(x, 0.012, z + 0.3); c.rotation.y = R() * 3; c.receiveShadow = true; group.add(c); }
     for (let i = 0; i < 4; i++) { const x = 3 + R() * 66, z = 0.3; if (!free(x, z, 0.35)) continue; const c = new T.Mesh(new T.BoxGeometry(0.45, 0.4, 0.35), k.carton); c.position.set(x, 0.2, z + 0.2); c.rotation.y = (R() - 0.5) * 0.5; c.castShadow = c.receiveShadow = true; group.add(c); }
   }
-  function setConditions(id) { const n = id === 'nuit'; for (const m of LAMPES) m.emissiveIntensity = n ? (m.userData.nuit || 3) : (m.userData.jour || 0); }
+  function setConditions(id) { const n = id === 'nuit'; for (const m of LAMPES) m.emissiveIntensity = n ? (m.userData.nuit || 3) : (m.userData.jour || 0); for (const l of NUITS) l.visible = n; }
   root.Ruelle = { build, mesh, setConditions };
 })(window.OT = window.OT || {});

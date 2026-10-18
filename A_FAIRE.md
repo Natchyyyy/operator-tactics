@@ -16,6 +16,15 @@
 - Plus tard (accord de principe, 18/10) : poses de repos variées / légère animation pour l'escouade de l'écran titre.
 - Refusé pour l'instant : réafficher les sections cachées du QG (cartes, ligue, carrière, crédits) ; navigation clavier/manette.
 
+## Taille de la page publiée (18/10) — limite claude.ai : 16 Mo par page
+- Avant : `dist/artifact.html` faisait 14,3 Mo à lui seul (three.js, scripts, modèles base64, sons, images) → plus de place.
+- Maintenant (`node build.js`, voir README « Construction et publication ») : page légère de ~0,26 Mo + 7 fichiers `p/`
+  (~14 Mo, chacun ≤ 5 Mo) chargés en parallèle avec barre de progression ; `dist/complet.html` garde le jeu en un fichier.
+- Limites qui restent : 16 Mo par fichier texte (15 Mo binaire), 511 fichiers et **256 Mo par version** de l'artifact
+  (≈ 125 Mo utilisés le 18/10, dont ~115 Mo de haute définition `hd/`) → surveiller `dist/publier.json` (« problemes »).
+  Si la HD grossit encore : textures en .webp/.jpg plus compressées, ou modèles HD seulement sur githack (pas dans l'artifact).
+- Publier : `node outils/publier.js` (lots des fichiers changés) puis `node outils/publier.js --fait`.
+
 ## 18/10 : nouveaux personnages, marche dans toutes les directions, carte asymétrique, nouveaux objets
 - Personnages refaits (vues Gemini → Meshy multi-vues → remaillage 100 k → texture 8K PBR → rig humanoïde avec os des
   doigts → animations « Marchez à gauche avec un pistolet » et « Marcher en arrière avec un pistolet » de la bibliothèque) :

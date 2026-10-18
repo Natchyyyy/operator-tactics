@@ -35,13 +35,15 @@
     });
     return out;
   }
+  // sens du capot d'un véhicule isolé (le long de son grand côté : +1 vers +x ou +z)
+  function cap(o, dir) { o.dir = dir; return o; }
   // un arbre dans une jardinière (bac en béton surélevé) ; le tronc est un obstacle mince (bloque la vue au ras du tronc)
   function bac(x, z, w, d) { return [box(x, z, w, d, 0.9, 'cover', 'bac à fleurs'), box(x + w / 2 - 0.25, z + d / 2 - 0.25, 0.5, 0.5, 5.0, 'wall', 'arbre')]; }
 
-  // une seule carte pour l'instant : le parking à l'arrière des boutiques de Main Street
+  // une seule carte pour l'instant : le parking à l'arrière des boutiques de la Grand-Rue
   const MAPS = {
     parking: {
-      id: 'parking', name: 'Parking de Main Street', width: 72, depth: 46,
+      id: 'parking', name: 'Parking de la Grand-Rue', width: 72, depth: 46,
       spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 67, z: 23, r: 3.5 } ],
       acces: [[47.5, 45.5]],   // entrée-sortie des voitures (vérification de circulation)
       capture: { x: 36, z: 23, r: 6 },  // la station de lavage : deux pistes ouvertes au nord et au sud, local technique au nord, muret entre les pistes
@@ -51,7 +53,7 @@
       voies: { nord: 5.5, milieu: 23, sud: 37 },
       // marquage au sol (rendu seulement) : rangées doubles [x0, z0, places], places le long des murs [x, z, places, pas en x, pas en z]
       marquage: { rangees: [[13, 17, 6], [49, 17, 6]], murs: [[7.6, 41, 7, 2.5, 0], [0, 29.5, 4, 0, 2.5], [67, 10.8, 2, 0, 2.5], [67, 28.9, 2, 0, 2.5]] },
-      // Un vrai parking à l'américaine, à l'arrière des boutiques de Main Street, vu du ciel : au nord la ruelle de service
+      // Un vrai parking de centre-ville, à l'arrière des boutiques de la Grand-Rue, vu du ciel : au nord la ruelle de service
       // (arrière des immeubles en briques, portes de service, entrées arrière des boutiques en face des deux passages du
       // grillage, bennes, fourgons de livraison) ; au sud la rue, derrière un muret à grille, avec l'unique entrée-sortie des
       // voitures (barrières, guérite), le quai de la navette et une partie du parking fermée pour travaux ; à l'ouest et à
@@ -82,23 +84,23 @@
           // devant, l'îlot du totem des tarifs
           box(30.2, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'), box(41.4, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'),
           box(34.6, 17.9, 2.8, 3.6, 3.3, 'wall', 'lavage local'), box(35.7, 21.5, 0.6, 6.6, 1.1, 'cover', 'lavage muret'),   // local technique au nord, muret entre les pistes
-          box(38.8, 12.7, 2.1, 5.2, 2.4, 'wall', 'fourgon'),                     // en attente devant la piste est
-          box(31.4, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon'),                     // sortie de la piste ouest, au séchage
+          cap(box(38.8, 12.7, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),                     // en attente devant la piste est
+          cap(box(31.4, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon'), 1),                     // sortie de la piste ouest, au séchage
           box(33.2, 11.0, 5.4, 1.6, 1.7, 'wall', 'haie'), box(35.3, 11.5, 1.2, 0.5, 3.6, 'wall', 'totem'),
           box(26.0, 21.3, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(24.2, 23.0, 4.4, 1.9, 1.4, 'cover', 'voiture'),
           box(45.4, 22.0, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), box(43.4, 23.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'),
           // ---- OUEST : caisse automatique, places le long du mur ouest avec borne de recharge
           box(9.4, 21.9, 2.2, 2.2, 2.6, 'wall', 'caisse automatique'),      // caisse piétons sous auvent, sur son îlot
-          box(0.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), box(0.2, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon'),
+          cap(box(0.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), -1), cap(box(0.2, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon'), -1),
           box(0.2, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
           // ---- EST : poste électrique sur son îlot, places le long du mur est
           box(61.0, 23.4, 2.4, 3.2, 2.6, 'wall', 'poste électrique'), box(61.7, 26.9, 1.0, 0.5, 1.4, 'cover', 'armoire'),   // sur un îlot planté en bord de parking
-          box(66.6, 11.0, 5.2, 2.1, 2.4, 'wall', 'fourgon'), box(67.3, 13.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'), box(66.6, 29.4, 5.2, 2.1, 2.4, 'wall', 'fourgon'),
+          cap(box(66.6, 11.0, 5.2, 2.1, 2.4, 'wall', 'fourgon'), 1), cap(box(67.3, 13.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'), 1), cap(box(66.6, 29.4, 5.2, 2.1, 2.4, 'wall', 'fourgon'), 1),
           // ---- SUD : places le long du mur de la rue, kiosque à pizzas, arrêt de la navette, points de tri
-          box(8.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), box(16.1, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'),
-          box(23.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'),
+          cap(box(8.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1), cap(box(16.1, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),
+          cap(box(23.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
           box(21.2, 33.8, 2.4, 2.4, 3.0, 'wall', 'kiosque'),
-          box(30, 39.7, 12, 2.6, 3.0, 'wall', 'bus'), box(32.4, 38.0, 4.2, 1.5, 2.5, 'wall', 'abribus'), box(44.2, 38.6, 2.1, 5.2, 2.4, 'wall', 'fourgon'),   // quai de la navette (abri sur l'îlot, bus le long) ; fourgon arrêté à la barrière d'entrée
+          box(30, 39.7, 12, 2.6, 3.0, 'wall', 'bus'), box(32.4, 38.0, 4.2, 1.5, 2.5, 'wall', 'abribus'), cap(box(44.2, 38.6, 2.1, 5.2, 2.4, 'wall', 'fourgon'), -1),   // quai de la navette (abri sur l'îlot, bus le long) ; fourgon arrêté à la barrière d'entrée
           box(13.8, 33.8, 4.6, 1.6, 1.7, 'wall', 'colonnes de tri'),
           // ---- SUD-EST : partie du parking fermée pour réfection de l'enrobé (séparateurs, clôtures de chantier bâchées,
           // conteneurs du chantier, benne à gravats, palettes de bordures, sacs de sable qui lestent les panneaux, fût)

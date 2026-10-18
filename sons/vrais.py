@@ -164,6 +164,9 @@ def equipement(i):
     x = hp(lire(f"cdda/clear_obstacle_{2 + i % 2}.ogg"), 250); return hauteur(couper(x, .3, .1), [1, 1.06, .94, 1.1][i])
 
 # ---------------------------------------------------------------- pas
+@snd("pas", 6, -27)              # vrais pas sur sol de pierre (samulis, CC0) — choisis par l'utilisateur ; remplacent les pas de synthèse
+def pas(i):
+    x = hp(lire(f"cdda/walk_t_rock_floor_{1 + i % 4}.ogg"), 100); return hauteur(couper(x, .3, .1), [1, 1, 1, 1, 1.05, .95][i])
 @snd("pas_mouille", 6, -27)      # pas dans les flaques (nathanaelj83 CC0, duckduckpony CC BY)
 def pas_mouille(i):
     x = hp(lire(f"cdda/walk_t_water_sh_{i + 1}.ogg"), 150); return couper(x, .24, .08)
@@ -181,10 +184,10 @@ def explosion_lourde(i):
     x = hp(lire(f"ffsl/lourde_{i}.ogg"), 25); return couper(x, 2.8, .8)
 
 # ---------------------------------------------------------------- ambiances (boucles stéréo) et ponctuations
-@snd("pluie", 1, -33, fen=2.0, debit=48, st=True)        # pluie forte (Ali@k, CC0)
-def pluie(i): return boucle_st(hp(lire("cdda/heavyrain.ogg"), 90), 24, 2.0)
+@snd("pluie", 1, -33, fen=2.0, debit=48, st=True)        # pluie sur les toits et le sol, gouttes (sergeeo, CC BY 3.0) — choisie par l'utilisateur
+def pluie(i): return boucle_st(hp(lire("cdda/night_rain.ogg"), 90), 22, 2.0)
 @snd("pluie_courte", 1, -33, fen=2.0, debit=32, st=True) # même pluie, boucle courte (incluse dans la page)
-def pluie_courte(i): return boucle_st(hp(lire("cdda/heavyrain.ogg"), 90), 8, 1.5, 12)
+def pluie_courte(i): return boucle_st(hp(lire("cdda/night_rain.ogg"), 90), 8, 1.5, 12)
 @snd("vent", 1, -40, fen=2.0, debit=40, st=True)         # vent doux (brouillard) (florianreichelt, CC0)
 def vent(i): return boucle_st(lp(hp(lire("cdda/flurries.ogg"), 70), 7000), 24, 3.0)
 @snd("vent_court", 1, -40, fen=2.0, debit=28, st=True)

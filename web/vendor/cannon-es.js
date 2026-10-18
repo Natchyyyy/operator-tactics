@@ -1,9 +1,5 @@
-/* cannon-es 0.20.0 — https://github.com/pmndrs/cannon-es (tag v0.20.0, dist/cannon-es.cjs.js) — MIT License, Copyright (c) 2015 cannon.js Authors, Copyright (c) 2020 pmndrs. Wrapped as a classic script exposing window.CANNON (OPERATOR TACTICS, ragdolls). */
-(function () { var exports = {}, module = { exports: exports };
-'use strict';
-
-Object.defineProperty(exports, '__esModule', { value: true });
-
+/* cannon-es 0.20.0 - https://github.com/pmndrs/cannon-es (tag v0.20.0, dist/cannon-es.js, ES module build) - MIT License, Copyright (c) 2015 cannon.js Authors, Copyright (c) 2020 pmndrs (see cannon-es.LICENSE). Wrapped as a classic script exposing window.CANNON for OPERATOR TACTICS (ragdolls); code otherwise unchanged. */
+(function () {
 /**
  * Records what objects are colliding with each other
  */
@@ -12965,7 +12961,7 @@ class World extends EventTarget {
 new AABB();
 const tmpRay = new Ray(); // performance.now() fallback on Date.now()
 
-const performance = require('perf_hooks') && require('perf_hooks').performance || {};
+const performance = globalThis.performance || {};
 
 if (!performance.now) {
   let nowOffset = Date.now();
@@ -13026,60 +13022,6 @@ const endShapeContactEvent = {
   shapeB: null
 };
 
-exports.AABB = AABB;
-exports.ArrayCollisionMatrix = ArrayCollisionMatrix;
-exports.BODY_SLEEP_STATES = BODY_SLEEP_STATES;
-exports.BODY_TYPES = BODY_TYPES;
-exports.Body = Body;
-exports.Box = Box;
-exports.Broadphase = Broadphase;
-exports.COLLISION_TYPES = COLLISION_TYPES;
-exports.ConeTwistConstraint = ConeTwistConstraint;
-exports.Constraint = Constraint;
-exports.ContactEquation = ContactEquation;
-exports.ContactMaterial = ContactMaterial;
-exports.ConvexPolyhedron = ConvexPolyhedron;
-exports.Cylinder = Cylinder;
-exports.DistanceConstraint = DistanceConstraint;
-exports.Equation = Equation;
-exports.EventTarget = EventTarget;
-exports.FrictionEquation = FrictionEquation;
-exports.GSSolver = GSSolver;
-exports.GridBroadphase = GridBroadphase;
-exports.Heightfield = Heightfield;
-exports.HingeConstraint = HingeConstraint;
-exports.JacobianElement = JacobianElement;
-exports.LockConstraint = LockConstraint;
-exports.Mat3 = Mat3;
-exports.Material = Material;
-exports.NaiveBroadphase = NaiveBroadphase;
-exports.Narrowphase = Narrowphase;
-exports.ObjectCollisionMatrix = ObjectCollisionMatrix;
-exports.Particle = Particle;
-exports.Plane = Plane;
-exports.PointToPointConstraint = PointToPointConstraint;
-exports.Pool = Pool;
-exports.Quaternion = Quaternion;
-exports.RAY_MODES = RAY_MODES;
-exports.Ray = Ray;
-exports.RaycastResult = RaycastResult;
-exports.RaycastVehicle = RaycastVehicle;
-exports.RigidVehicle = RigidVehicle;
-exports.RotationalEquation = RotationalEquation;
-exports.RotationalMotorEquation = RotationalMotorEquation;
-exports.SAPBroadphase = SAPBroadphase;
-exports.SHAPE_TYPES = SHAPE_TYPES;
-exports.SPHSystem = SPHSystem;
-exports.Shape = Shape;
-exports.Solver = Solver;
-exports.Sphere = Sphere;
-exports.SplitSolver = SplitSolver;
-exports.Spring = Spring;
-exports.Transform = Transform;
-exports.Trimesh = Trimesh;
-exports.Vec3 = Vec3;
-exports.Vec3Pool = Vec3Pool;
-exports.WheelInfo = WheelInfo;
-exports.World = World;
 
-;(typeof window !== "undefined" ? window : globalThis).CANNON = module.exports; })();
+;(typeof window !== "undefined" ? window : globalThis).CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body, Box, Broadphase, COLLISION_TYPES, ConeTwistConstraint, Constraint, ContactEquation, ContactMaterial, ConvexPolyhedron, Cylinder, DistanceConstraint, Equation, EventTarget, FrictionEquation, GSSolver, GridBroadphase, Heightfield, HingeConstraint, JacobianElement, LockConstraint, Mat3, Material, NaiveBroadphase, Narrowphase, ObjectCollisionMatrix, Particle, Plane, PointToPointConstraint, Pool, Quaternion, RAY_MODES, Ray, RaycastResult, RaycastVehicle, RigidVehicle, RotationalEquation, RotationalMotorEquation, SAPBroadphase, SHAPE_TYPES, SPHSystem, Shape, Solver, Sphere, SplitSolver, Spring, Transform, Trimesh, Vec3, Vec3Pool, WheelInfo, World };
+})();

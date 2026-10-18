@@ -496,6 +496,7 @@
     $('#app').dataset.cond = id || 'jour';
     if (OT.Parking && battle && battle.map.id === 'parking') { OT.Parking.setConditions(id || 'jour', scene); buildLamps(false); } else buildLamps(id === 'nuit' || id === 'brouillard');
     buildSteam();
+    meteoSound();   // couche sonore de la météo (pluie, vent, nuit, oiseaux)
   }
   function updateRain(dt) {
     if (!rain) return; const a = rain.geometry.attributes.position.array, v = 26 * dt;
@@ -889,6 +890,8 @@
   const lerp = (a, b, k) => a + (b - a) * k;
   function animateSkinned(u, m, dt) {
     const a = m.anim, clipSpeed = (n) => (m.clips[n] || {}).duration || 1;
+    // mort en ragdoll physique (ragdoll.js) : le corps n'est plus animé
+    if (m.rag && OT.Ragdoll && OT.Ragdoll.anime(u, m, dt)) { m.ring.material.opacity = Math.max(0.15, m.ring.material.opacity - dt); chargeur(u, m, a); return; }
     a.recoil = Math.max(0, a.recoil - dt * 10); a.flinch = Math.max(0, a.flinch - dt * 4);
     const crouch = u.alive && u.stance === 'crouch', aiming = u.alive && (u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture');
     const dx = m.cur.x - m.prev.x, dz = m.cur.z - m.prev.z, v = Math.hypot(dx, dz) / DT;
@@ -1081,6 +1084,7 @@
     if (m) { m.anim.recoil = 1; const mz = m.weapon.localToWorld(m.weapon.muzzle.clone()); from.copy(mz); }
     const dir = to.clone().sub(from), len = dir.length(); dir.normalize();
     const delay = len / BULLET;
+    if (ev.hit && OT.Ragdoll && meshes[ev.target]) OT.Ragdoll.impact(meshes[ev.target], dir, delay);   // balle mortelle → ragdoll
     if (EFX) {
       EFX.muzzle(from, dir, !!(sh && sh.weapon.silenced));
       EFX.tracer(from, to, BULLET, team);
@@ -1124,21 +1128,21 @@
   }
   function addBlast(ev) {
     if (ev.kind === 'flash' && EFX) {
-      EFX.flashbang({ x: ev.x, z: ev.z }); play('flashbang', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2 });
+      EFX.flashbang({ x: ev.x, z: ev.z }); play('flashbang', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2, espace: true });
       const p = new THREE.Vector3(ev.x, 0.8, ev.z).project(camera); if (p.z < 1 && Math.abs(p.x) < 1 && Math.abs(p.y) < 1) { const wv = $('#whiteout'); wv.classList.remove('on'); wv.offsetWidth; wv.classList.add('on'); }
     } else if (EFX) {
-      EFX.explosion({ x: ev.x, z: ev.z }); play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.3 }); cam.shake = Math.max(cam.shake || 0, 0.5);
+      EFX.explosion({ x: ev.x, z: ev.z }); play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.3, espace: true }); cam.shake = Math.max(cam.shake || 0, 0.5);
     } else if (ev.kind === 'flash') {
       const light = new THREE.PointLight(0xffffff, 60, 18); light.position.set(ev.x, 1.2, ev.z); scene.add(light); fx.push({ obj: light, kind: 'flashlight', start: simTime, until: simTime + 0.35 });
       const s = new THREE.Mesh(new THREE.SphereGeometry(0.8, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 })); s.position.set(ev.x, 0.6, ev.z); scene.add(s); fx.push({ obj: s, until: simTime + 0.18, grow: 6, start: simTime });
       for (let i = 0; i < 5; i++) { const d = new THREE.Mesh(dustGeo, dustMat); d.position.set(ev.x, 0.3, ev.z); d.scale.setScalar(2 + Math.random()); scene.add(d); fx.push({ obj: d, until: simTime + 2.2, start: simTime, vel: new THREE.Vector3((Math.random() - 0.5) * 2, 1 + Math.random(), (Math.random() - 0.5) * 2), gravity: 0.3 }); }
-      play('flashbang', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2 });
+      play('flashbang', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2, espace: true });
       // le joueur voit l'éclair : voile blanc bref si la caméra regarde la zone
       const p = new THREE.Vector3(ev.x, 0.8, ev.z).project(camera); if (p.z < 1 && Math.abs(p.x) < 1 && Math.abs(p.y) < 1) { const wv = $('#whiteout'); wv.classList.remove('on'); wv.offsetWidth; wv.classList.add('on'); }
     } else {
       addShell(ev);
       const light = new THREE.PointLight(0xffa040, 40, 16); light.position.set(ev.x, 1.0, ev.z); scene.add(light); fx.push({ obj: light, kind: 'flashlight', start: simTime, until: simTime + 0.3 });
-      play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.3 });
+      play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.3, espace: true });
       cam.shake = Math.max(cam.shake || 0, 0.5);
     }
   }
@@ -1153,7 +1157,8 @@
     plane.rotation.y = Math.atan2(ev.dx, ev.dz); scene.add(plane);
     fx.push({ obj: plane, kind: 'plane', start: simTime, until: simTime + 2.2, ax: ev.cx - ev.dx * 60, az: ev.cz - ev.dz * 60, bx: ev.cx + ev.dx * 60, bz: ev.cz + ev.dz * 60 });
     for (let k = -ev.half; k <= ev.half; k += 2.5) { const x = ev.cx + ev.dx * k + (Math.random() - 0.5) * 2, z = ev.cz + ev.dz * k + (Math.random() - 0.5) * 2; const d = new THREE.Mesh(dustGeo, dustMat); d.position.set(x, 0.2, z); d.scale.setScalar(2); scene.add(d); const t0 = simTime + 0.9 + (k + ev.half) / (ev.half * 2) * 0.5; fx.push({ obj: d, until: t0 + 1.2, start: t0, vel: new THREE.Vector3(0, 3 + Math.random() * 3, 0), gravity: 6 }); }
-    play('tir_mitrailleuse', { x: ev.cx, y: 2, z: ev.cz }, { vol: 1.4, vitesse: 0.7 }); setTimeout(() => play('explosion', { x: ev.cx, y: 1, z: ev.cz }, { vol: 1 }), 200);
+    for (let k = 0; k < 5; k++) setTimeout(() => play('tir_556_moyen', { x: ev.cx, y: 2, z: ev.cz }, { vol: 1.2, vitesse: 0.62, varie: 0.03, espace: true }), k * 75);   // rafale du canon de l'avion
+    setTimeout(() => play('explosion_lourde', { x: ev.cx, y: 1, z: ev.cz }, { vol: 1, espace: true }), 400);
     cam.shake = Math.max(cam.shake || 0, 0.6);
   }
   function updateFx() {
@@ -1186,7 +1191,6 @@
   // ---------------------------------------------------------------------------------------------
   // Sons : lecteur de la boîte à outils (window.Son), spatialisés par rapport à la caméra, densité limitée aux vitesses élevées
   // ---------------------------------------------------------------------------------------------
-  const SHOT_SOUND = { carbine: 'tir_fusil', battle: 'tir_fusil', smg: 'tir_pm', smgsil: 'tir_silencieux', dmr: 'tir_precision', lmg: 'tir_mitrailleuse', shotgun: 'tir_pompe' };
   let muted = false; try { muted = localStorage.getItem('ot-mute') === '1'; } catch (e) { /* stockage indisponible */ }
   // ---- Réglages (volume général, musique, vitesse et caméra par défaut, qualité, ombres) : gardés dans ce navigateur ----
   const SETTINGS = Object.assign({ vol: 0.9, music: 1, speed: 1, cam: 'director', quality: 'haute', shadows: true, voice: true }, (() => { try { return JSON.parse(localStorage.getItem('ot-settings') || '{}'); } catch (e) { return {}; } })());
@@ -1208,32 +1212,70 @@
     },
   };
   const recent = {};
+  // Espace sonore (caméra = oreille) : volume selon la distance, panoramique selon la position à l'écran, aigus avalés par
+  // l'air au loin et par un obstacle entre la source et la caméra ; pour les détonations (o.espace) : écho des façades,
+  // réverbération de plein air qui grandit avec la distance, et retard du son au-delà de 40 m (343 m/s).
+  const ECHO = { parking: 0.75, place: 1, entrepot: 1, raffinerie: 0.7, gare: 1 };
   function spatial(x, y, z) {
-    // volume selon la distance à la caméra, panoramique selon la position à l'écran
-    const p = new THREE.Vector3(x, y, z);
-    const d = p.distanceTo(camera.position);
-    const vol = Math.max(0.06, Math.min(1, 26 / (d + 8)));
+    const p = new THREE.Vector3(x, y, z), c = camera.position, d = p.distanceTo(c);
+    const occl = !!(battle && battle.map && d > 2 && boomHit(x, y, z, c.x, c.y, c.z) < 0.97);
+    const vol = Math.max(0.05, Math.min(1, 26 / (d + 8))) * (occl ? 0.6 : 1);
     const proj = p.project(camera);
-    return { vol, pan: Math.max(-0.8, Math.min(0.8, proj.x * 0.8)) };
+    return { d, occl, vol, pan: Math.max(-0.8, Math.min(0.8, proj.x * 0.8)), filtre: Math.min(20000, 22000 * Math.exp(-d / 70)) * (occl ? 0.22 : 1) };
   }
   function play(name, pos, o) {
     if (muted || !window.Son) return;
     Son.volume(SETTINGS.vol);
     const now = performance.now();
-    const minGap = { pas: 60, tir_fusil: 35, tir_pm: 25, tir_mitrailleuse: 30, impact_beton: 50, impact_corps: 50, impact_metal: 50, impact_bois: 50, impact_sol: 50 }[name] || 0;
+    const minGap = { pas: 60, pas_mouille: 60, tir_556_proche: 30, tir_556_moyen: 30, tir_556_loin: 30, tir_silencieux: 30, impact_beton: 50, impact_corps: 50, impact_metal: 50, impact_bois: 50, impact_sol: 50, impact_carrosserie: 50, douilles: 120, claquement: 60, sifflement: 60 }[name] || 0;
     if (minGap && recent[name] && now - recent[name] < minGap / Math.min(2, speed)) return;
     recent[name] = now;
-    const opt = Object.assign({ varie: 0.04 }, o || {});
-    if (pos) { const sp = spatial(pos.x, pos.y || 1, pos.z); opt.vol = (opt.vol == null ? 1 : opt.vol) * sp.vol; opt.pan = sp.pan; }
+    const opt = Object.assign({ varie: 0.04 }, o || {}), espace = opt.espace; delete opt.espace;
+    if (pos) {
+      const sp = spatial(pos.x, pos.y || 1, pos.z); opt.vol = (opt.vol == null ? 1 : opt.vol) * sp.vol; opt.pan = sp.pan; opt.filtre = sp.filtre;
+      if (espace) {
+        const e = battle ? ECHO[battle.map.id] || 0.8 : 0.8;
+        opt.ext = Math.min(0.6, 0.12 + sp.d / 110) * (sp.occl ? 1.4 : 1);
+        opt.echo = { t: 0.07 + Math.random() * 0.14, g: 0.22 * e * (sp.d > 60 ? 0.6 : 1), f: 2200 };
+        if (sp.d > 40) opt.delai = (opt.delai || 0) + (sp.d - 40) / 343;
+      }
+    }
     Son.jouer(name, opt);
   }
+  // Coup de feu : vrai enregistrement du 5,56 choisi selon la distance d'écoute (près / mi-distance / loin), silencieux à
+  // part ; étuis qui tintent près de la caméra ; claquement ou sifflement quand la balle passe tout près de la caméra.
+  function shotSound(sh, ev) {
+    const f = ev.from, sp = spatial(f.x, f.y || 1.4, f.z), v = ev.suppressive ? 0.85 : 1;
+    if (sh.weapon.silenced) play('tir_silencieux', f, { vol: v, espace: true });
+    else play('tir_556_' + (sp.d < 28 ? 'proche' : sp.d < 70 ? 'moyen' : 'loin'), f, { vol: v * 1.3, espace: true, varie: 0.03 });
+    if (sp.d < 16 && Math.random() < 0.3) pendingSounds.push({ at: simTime + 0.45 + Math.random() * 0.4, name: 'douilles', pos: { x: f.x, y: 0.1, z: f.z }, vol: 0.9 });
+    const c = camera.position, t = ev.to, dx = t.x - f.x, dy = (t.y || 1) - (f.y || 1.4), dz = t.z - f.z, L2 = dx * dx + dy * dy + dz * dz || 1;
+    const k = ((c.x - f.x) * dx + (c.y - (f.y || 1.4)) * dy + (c.z - f.z) * dz) / L2;
+    if (k > 0.05 && k < 0.98) { const m = Math.hypot(f.x + dx * k - c.x, (f.y || 1.4) + dy * k - c.y, f.z + dz * k - c.z);
+      if (m < 4) pendingSounds.push({ at: simTime + Math.sqrt(L2) * k / 900, name: m < 1.8 ? 'claquement' : 'sifflement', pos: null, vol: m < 1.8 ? 0.9 : 0.8 - m * 0.1 }); }
+  }
   const AMBIENCE = { entrepot: 'ambiance_port', raffinerie: 'ambiance_port', place: 'ambiance_ville', parking: 'ambiance_ville', gare: 'ambiance_port' };
+  // couche météo (boucle « meteo ») : pluie, vent du brouillard, insectes la nuit, oiseaux le jour ; ponctuations rares
+  // (sirène très lointaine la nuit, tonnerre sous la pluie). Le son long vient du paquet hd/sons_hd.json, la boucle courte
+  // incluse dans la page sert en attendant (ou sans paquet).
+  const METEO = { pluie: ['pluie', 'pluie_courte', 0.75, 'tonnerre'], brouillard: ['vent', 'vent_court', 0.8, null], nuit: ['nuit', null, 0.9, 'sirene'], jour: ['oiseaux', null, 0.6, null] };
+  let ambOn = false, ponctT = null;
+  function meteoSound() {
+    if (!window.Son || !ambOn || muted || !battle) return;
+    const m = METEO[condNow] || METEO.jour;
+    Son.boucle(AMBIENCE[battle.map.id] || 'ambiance_port', { voie: 'ambiance', vol: condNow === 'pluie' ? 0.55 : 0.9 });
+    Son.boucle(m[0], { voie: 'meteo', vol: m[2], secours: m[1], fondu: 2.5 });
+    clearTimeout(ponctT); if (!m[3]) return;
+    const next = () => { ponctT = setTimeout(() => { if (ambOn && !muted && !paused) Son.jouer(m[3], { vol: m[3] === 'sirene' ? 0.22 : 0.45, pan: Math.random() * 1.4 - 0.7, filtre: m[3] === 'sirene' ? 1500 : 5000, varie: 0.03 }); next(); }, (35 + Math.random() * 70) * 1000); };
+    next();
+  }
   let musicVol = SETTINGS.music;
   // ambiance + musique : la musique de bataille remplace celle du QG ; tout s'arrête en sourdine
   function ambience(on) {
     if (!window.Son) return;
-    if (!on || muted) { Son.arreterBoucle(0.8, 'ambiance'); if (!on && !muted) Son.boucle('musique_qg', { voie: 'musique', vol: 0.8 * musicVol, fondu: 2 }); if (muted) Son.arreterBoucle(0.6, 'musique'); return; }
-    if (battle) { Son.boucle(AMBIENCE[battle.map.id] || 'ambiance_port', { voie: 'ambiance', vol: 0.9 }); Son.boucle('musique_bataille', { voie: 'musique', vol: 0.7 * musicVol, fondu: 1.5 }); }
+    ambOn = !!on && !muted;
+    if (!on || muted) { clearTimeout(ponctT); Son.arreterBoucle(0.8, 'ambiance'); Son.arreterBoucle(1.2, 'meteo'); if (!on && !muted) Son.boucle('musique_qg', { voie: 'musique', vol: 0.8 * musicVol, fondu: 2 }); if (muted) Son.arreterBoucle(0.6, 'musique'); return; }
+    if (battle) { meteoSound(); Son.boucle('musique_bataille', { voie: 'musique', vol: 0.7 * musicVol, fondu: 1.5 }); }
   }
   window.OT_MUSIC = { set(v) { musicVol = v; SETTINGS.music = v; try { localStorage.setItem('ot-music', String(v)); localStorage.setItem('ot-settings', JSON.stringify(SETTINGS)); } catch (e) { /* rien */ } if (window.Son) Son.volumeBoucle('musique', (battle && !$('#app').classList.contains('hidden') ? 0.7 : 0.8) * v); }, get: () => musicVol };
   function setMuted(m) { muted = m; try { localStorage.setItem('ot-mute', m ? '1' : '0'); } catch (e) { /* rien */ } $('#mute').textContent = m ? '🔇' : '🔊'; $('#mute').classList.toggle('on', !m); ambience(!m && !$('#app').classList.contains('hidden')); }
@@ -1388,7 +1430,7 @@
     m.scale.set(r * (0.8 + Math.random() * 0.5), r * (0.6 + Math.random() * 0.5), 1); decals.add(m);
   }
   // son d'impact selon la matière la plus proche du point d'arrivée de la balle (métal, bois, béton, sol / sable)
-  const MAT_OF = (n) => /^(conteneur|voiture|fourgon|bus|cuve|tuyauterie|fût|pompe|armoire|barrière|bac|kiosque|abri)/.test(n) ? 'impact_metal' : /^(caisses|palettes|banc|étal)/.test(n) ? 'impact_bois' : /^(sacs|palmier)/.test(n) ? 'impact_sol' : 'impact_beton';
+  const MAT_OF = (n) => /^(voiture|fourgon|bus|berline|camion)/.test(n) ? (Math.random() < 0.2 ? 'impact_verre' : 'impact_carrosserie') : /^(conteneur|cuve|tuyauterie|fût|pompe|armoire|barrière|bac|kiosque|abri)/.test(n) ? 'impact_metal' : /^(caisses|palettes|banc|étal)/.test(n) ? 'impact_bois' : /^(sacs|palmier)/.test(n) ? 'impact_sol' : 'impact_beton';
   function impactSound(p) {
     if (p.y < 0.15) return 'impact_sol';
     let best = null, bd = 1.2;
@@ -1402,17 +1444,17 @@
     for (const ev of battle.drainEvents()) {
       if (ev.type === 'shot') {
         addShot(ev, unitById[ev.shooter].team);
-        const sw = unitById[ev.shooter].weapon, w = sw.id;
-        play(sw.silenced ? 'tir_silencieux' : (SHOT_SOUND[w] || 'tir_fusil'), ev.from, { vol: ev.suppressive ? 0.8 : 1 });
+        shotSound(unitById[ev.shooter], ev);
         const d = Math.hypot(ev.to.x - ev.from.x, ev.to.z - ev.from.z);
         const imp = ev.hit ? 'impact_corps' : impactSound(ev.to);
         pendingSounds.push({ at: simTime + d / 110, name: imp, pos: ev.to, vol: ev.hit ? 1 : imp === 'impact_sol' ? 0.6 : 0.9 });
+        if (!ev.hit && (imp === 'impact_beton' || imp === 'impact_metal') && Math.random() < 0.12) pendingSounds.push({ at: simTime + d / 110 + 0.01, name: 'ricochet', pos: ev.to, vol: 0.8 });
       }
       if (ev.type === 'shot' && ev.hit && Math.random() < 0.25) { const t = unitById[ev.target]; if (t) addBlood(t.x, t.z, 0.22); }
       if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); const u = unitById[ev.unit]; if (u) directorEvent('revive', u.x, u.z); }
-      if (ev.type === 'down') { { const u = unitById[ev.unit]; if (u) addBlood(u.x, u.z, 0.6); } const m = meshes[ev.unit]; if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; if (m.isSkinned) chooseFall(unitById[ev.unit], m); } const u = unitById[ev.unit]; if (u) directorEvent('down', u.x, u.z); }
+      if (ev.type === 'down') { { const u = unitById[ev.unit]; if (u) { addBlood(u.x, u.z, 0.6); pendingSounds.push({ at: simTime + 0.5, name: 'chute', pos: { x: u.x, y: 0.3, z: u.z }, vol: 1 }); } } const m = meshes[ev.unit]; if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; if (m.isSkinned && !(OT.Ragdoll && OT.Ragdoll.mort(unitById[ev.unit], m, battle))) chooseFall(unitById[ev.unit], m); } const u = unitById[ev.unit]; if (u) directorEvent('down', u.x, u.z); }
       if (ev.type === 'smoke') addSmoke(ev);
-      if (ev.type === 'shell') { addShell(ev); addScorch(ev.x, ev.z, 1.8); play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2 }); cam.shake = Math.max(cam.shake || 0, 0.35); }
+      if (ev.type === 'shell') { addShell(ev); addScorch(ev.x, ev.z, 1.8); play('explosion_lourde', { x: ev.x, y: 1, z: ev.z }, { vol: 1.1, espace: true }); cam.shake = Math.max(cam.shake || 0, 0.35); }
       if (ev.type === 'heal') addHeal(ev);
       if (ev.type === 'reco') addReco(ev);
       if (ev.type === 'barrage_called') addBarrageMarker(ev);
@@ -1420,6 +1462,7 @@
       if (ev.type === 'strike_called') addStrikeMarker(ev);
       if (ev.type === 'destroyed') destroyDecor(ev);
       if (ev.type === 'strike') { addStrike(ev); for (let k = -ev.half; k <= ev.half; k += 3) addScorch(ev.cx + ev.dx * k + (Math.random() - 0.5) * 1.5, ev.cz + ev.dz * k + (Math.random() - 0.5) * 1.5, 0.9); }
+      if (OT.Ragdoll && (ev.type === 'grenade_blast' && ev.kind !== 'flash' || ev.type === 'shell' || ev.type === 'strike')) OT.Ragdoll.souffle(ev.x !== undefined ? ev.x : ev.cx, ev.z !== undefined ? ev.z : ev.cz, simTime);
       if (ev.type === 'grenade_blast') { addBlast(ev); if (ev.kind !== 'flash') addScorch(ev.x, ev.z, 1.4); directorEvent('blast', ev.x, ev.z); }
     }
     updateTacticCards();
@@ -1429,8 +1472,10 @@
       if (!u.alive || !u.moving) continue;
       const m = meshes[u.id]; const ph = Math.floor(m.anim.phase / Math.PI);
       if (m.lastStepPhase !== undefined && ph !== m.lastStepPhase) {
-        play('pas', { x: u.x, y: 0.2, z: u.z }, { vol: 0.9, varie: 0.06 });
-        if (EFX && EFX.footstep) { const v = Math.hypot(m.anim.vx || 0, m.anim.vz || 0); if (condNow === 'pluie' || v > 2.2) EFX.footstep(m.group.position.x, m.group.position.z, condNow === 'pluie', v); }
+        const v = Math.hypot(m.anim.vx || 0, m.anim.vz || 0);
+        play(condNow === 'pluie' ? 'pas_mouille' : 'pas', { x: u.x, y: 0.2, z: u.z }, { vol: 0.9, varie: 0.06 });
+        if (v > 2.2 && Math.random() < 0.3) play('equipement', { x: u.x, y: 1, z: u.z }, { vol: 0.8, varie: 0.05 });
+        if (EFX && EFX.footstep) { if (condNow === 'pluie' || v > 2.2) EFX.footstep(m.group.position.x, m.group.position.z, condNow === 'pluie', v); }
       }
       m.lastStepPhase = ph;
     }
@@ -1440,6 +1485,7 @@
   const pendingSounds = [];
 
   function syncMeshes(alpha) {
+    if (OT.Ragdoll) OT.Ragdoll.etape(frameDt, battle);   // physique des morts (une fois par image)
     for (const u of battle.units) {
       const m = meshes[u.id];
       const x = m.prev.x + (m.cur.x - m.prev.x) * alpha, z = m.prev.z + (m.cur.z - m.prev.z) * alpha;

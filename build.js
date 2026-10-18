@@ -7,7 +7,8 @@
 //      p/jeu.js                                                     tous les autres scripts, dans l'ordre de web/index.html
 //  - dist/artifact.html : la même page légère sans squelette, pour claude.ai ; dist/publier.json : fichiers à publier avec.
 //  - hd/ : modèles et textures haute définition (web/hd) ; dist/hdart : les .glb en base64 dans des .json (artifacts).
-// Les scripts sont lus dans web/index.html : ajouter un <script src> là-bas suffit (data-optionnel : son échec n'est pas bloquant).
+// Les scripts sont lus dans web/index.html : ajouter un <script src> là-bas suffit (data-optionnel : son échec n'est pas bloquant ;
+// data-page : petit script gardé dans la page légère, exécuté avant le chargeur — ex. la police du titre).
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const root = __dirname, R = (p) => path.join(root, p);
 require('./outils/images_js.js');   // régénère web/images.js à partir de web/img
@@ -28,7 +29,7 @@ for (const m of corpsSansSons.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)
   if (type && !/javascript/.test(type)) throw new Error('web/index.html : script de type « ' + type + ' » non géré : ' + m[0].slice(0, 80));
   if (src) {
     const fichier = path.posix.normalize('web/' + src); if (!fs.existsSync(R(fichier))) throw new Error('web/index.html : script introuvable ' + fichier);
-    const genre = /^(three\.min|three-addons)\.js$/.test(src) || /^vendor\//.test(src) ? 'vendor' : /^modeles\//.test(src) ? 'modele' : 'jeu';
+    const genre = /\bdata-page\b/.test(attrs) ? 'page' : /^(three\.min|three-addons)\.js$/.test(src) || /^vendor\//.test(src) ? 'vendor' : /^modeles\//.test(src) ? 'modele' : 'jeu';
     scripts.push({ tag: m[0], src, nom: fichier, code: lire(fichier), opt: /\bdata-optionnel\b/.test(attrs), genre });
   } else scripts.push({ tag: m[0], nom: 'web/index.html#' + (++nInline), code: m[2], genre: 'jeu', inline: true });
 }
@@ -58,7 +59,8 @@ const chargeur = lire('web/chargeur.js').replace('/*MANIFESTE*/null', () => JSON
 let corpsLeger = corpsSansSons; for (const s of scripts) corpsLeger = corpsLeger.replace(s.tag, () => '');
 corpsLeger = corpsLeger.split('\n').filter(l => l.trim()).join('\n');
 const styleLeger = tete[0].replace(/<\/style>$/, () => lire('web/chargeur.css') + '</style>');
-const corpsFinal = corpsLeger + `\n<script>\n${chargeur}\n</script>\n`;
+// scripts marqués data-page (petits, utiles dès le premier affichage : police du titre) : gardés dans la page légère
+const corpsFinal = corpsLeger + scripts.filter(s => s.genre === 'page').map(s => `\n<script>\n${s.code}\n</script>`).join('') + `\n<script>\n${chargeur}\n</script>\n`;
 const page = source.slice(0, source.indexOf(tete[0])) + styleLeger + source.slice(source.indexOf(tete[0]) + tete[0].length, source.indexOf('<body>')) + '<body>\n' + corpsFinal + '</body>\n</html>\n';
 for (const dst of ['dist', 'docs']) {
   const garder = new Set([...parties, ...annexes].map(p => path.basename(p.f)));

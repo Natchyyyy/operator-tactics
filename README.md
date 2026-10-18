@@ -26,6 +26,8 @@ des `<script src>` de `web/index.html` (ajouter un script là-bas suffit, `build
 - Le chargeur télécharge les fichiers en parallèle (`p/x.js?v=<empreinte>` : une republication ne sert jamais une vieille
   version en cache) et les exécute dans l'ordre. Fichier requis manquant : message en français sur l'écran titre ; fichier
   marqué `data-optionnel` (ex. moteur physique) ou sons : on continue sans. Haute définition : chargée ensuite, avec repli.
+  Un script marqué `data-page` (petit, utile au premier affichage : `police.js`) reste dans la page légère.
+  Mesures du dernier chargement : `window.OT_CHARGEMENT` (durées par fichier, scripts lents).
 - Publier l'artifact : `node outils/publier.js` donne les lots à envoyer (seulement les fichiers changés ; `--tout` pour
   tout), chacun en un appel avec `file_path` = `dist/artifact.html` ; après succès `node outils/publier.js --fait`.
 - Ajouter des fichiers : script → `<script src>` dans `web/index.html` ; bibliothèque → `web/vendor/<nom>.js`

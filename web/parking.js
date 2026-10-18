@@ -727,6 +727,19 @@
       g.position.set(ouest ? xw + 0.02 : xw - 0.02, 0, sp.z); group.add(g);
     }
     laverie(map, group);
+    // îlots à bordure sous le mobilier du parking (débord de 35 cm : dans la marge des opérateurs, on ne marche jamais dessus) ;
+    // herbe autour du poste électrique
+    const herbe = mat('herbeIlot', () => new T.MeshStandardMaterial({ color: 0x4d6b34, roughness: 1 })), bord = mat('bordure', () => worldMat(concrete('clair'), { roughness: 0.9, color: 0xc8c4bb }));
+    for (const o of OB) {
+      if (!/^(bac à fleurs|haie|colonnes de tri|kiosque|caisse automatique|poste électrique|armoire|borne de recharge|aspirateur|guérite)$/.test(o.name || '')) continue;
+      const e = 0.35, w = o.w + 2 * e, d = o.d + 2 * e, isle = new T.Group();
+      bx(isle, w, 0.13, d, bord, 0, 0.065, 0);
+      if (o.name === 'poste électrique' || o.name === 'armoire') bx(isle, w - 0.24, 0.02, d - 0.24, herbe, 0, 0.135, 0);
+      isle.position.set(o.x + o.w / 2, 0, o.z + o.d / 2); isle.traverse(m => { if (m.isMesh) m.receiveShadow = true; }); group.add(isle);
+    }
+    const poste = OB.find(o => o.name === 'poste électrique');
+    if (poste) for (const [x, z] of [[poste.x - 0.25, poste.z - 0.25], [poste.x + poste.w + 0.25, poste.z - 0.25], [poste.x - 0.25, poste.z + poste.d + 0.25], [poste.x + poste.w + 0.25, poste.z + poste.d + 0.25]]) {
+      const b = new T.Group(); cyl(b, 0.08, 1.0, std('jauneBorne', 0xe8b51a, 0.5, 0.3), 0, 0.5, 0, 12); cyl(b, 0.085, 0.08, std('reflechissant', 0xf0f0f0, 0.25, 0.2), 0, 0.82, 0, 12); b.position.set(x, 0.13, z); b.traverse(m => { if (m.isMesh) m.castShadow = true; }); group.add(b); }
     // arbres le long des rues et voitures garées le long des trottoirs (modèles Meshy si chargés)
     const M3d = ctx && ctx.M3;
     const ARBRE = M3d && M3d.has('arbre') ? 'arbre' : 'palmier';
@@ -878,7 +891,7 @@
   }
   const txt = (q, s, x, y, font, col, align) => { q.font = font; q.fillStyle = col; q.textAlign = align || 'center'; q.textBaseline = 'middle'; q.fillText(s, x, y); };
   // ---- couleurs de carrosserie (voitures garées : pas toutes blanches)
-  const PAL = [0x34373b, 0xa3a8ad, 0xefede8, 0x8a1d1d, 0x22324e, 0x33402f, 0xbfae8c, 0x56595e, 0x6b2430, 0x41607c, 0xd9d7d0, 0x1d1e20];
+  const PAL = [0x6a6f76, 0xc4c8cc, 0xf4f2ec, 0xb03030, 0x34528a, 0x56684a, 0xd4c29c, 0x8a8d92, 0x8c3040, 0x6a8cab, 0xece9e0, 0x2e3034];
   const tintCache = {};
   function teinter(g, k) {
     const col = new T.Color(PAL[((Math.floor(k) % PAL.length) + PAL.length) % PAL.length]).convertSRGBToLinear();
@@ -886,7 +899,7 @@
     g.traverse(m => {
       if (!m.isMesh || !m.material || Array.isArray(m.material) || !m.material.color) return;
       const key = m.material.uuid + '|' + k % PAL.length;
-      m.material = tintCache[key] || (tintCache[key] = (() => { const c = m.material.clone(); c.color.multiply(col).multiplyScalar(Math.min(f, 1.25)); return c; })());
+      m.material = tintCache[key] || (tintCache[key] = (() => { const c = m.material.clone(); c.color.multiply(col).multiplyScalar(Math.min(f, 1.45)); return c; })());
     });
     return g;
   }
@@ -968,7 +981,11 @@
     const x0 = Math.min(...P.map(o => o.x)), x1 = Math.max(...P.map(o => o.x + o.w)), z0 = Math.min(...P.map(o => o.z)), z1 = Math.max(...P.map(o => o.z + o.d)), H = Math.max(...P.map(o => o.h));
     const K = M3(), g = new T.Group(), cx = (x0 + x1) / 2, W = x1 - x0 + 1.0, D = z1 - z0 + 1.2;
     const bleu = std('bleuLavage', 0x1f5fa8, 0.45, 0.2);
-    bx(g, W, 0.22, D, std('toitLavage', 0xdfe3e6, 0.5, 0.4), cx, H + 0.11, (z0 + z1) / 2);
+    bx(g, W, 0.22, D, std('toitLavage', 0x8f979c, 0.6, 0.4), cx, H + 0.11, (z0 + z1) / 2);
+    for (let k = 1; k < 6; k++) bx(g, 0.05, 0.04, D - 0.2, std('jointToit', 0x6e7579, 0.5, 0.6), x0 - 0.5 + k * W / 6, H + 0.24, (z0 + z1) / 2);   // couvre-joints du bac acier
+    for (const sx of [-1, 1]) bx(g, W, 0.18, 0.12, bleu, cx, H + 0.31, sx < 0 ? z0 - 0.6 + 0.06 : z1 + 0.6 - 0.06);
+    for (const [dx, dz] of [[-2.2, -2.5], [2.6, 2.0]]) { const u = new T.Group(); bx(u, 1.1, 0.7, 0.8, std('clim', 0xc9cbc8, 0.5, 0.4), 0, 0.35, 0); cyl(u, 0.28, 0.02, std('grilleClim', 0x2a2c2e, 0.7, 0.5), 0, 0.71, 0, 18); u.position.set(cx + dx, H + 0.22, (z0 + z1) / 2 + dz); g.add(u); }
+    for (const dz of [-3.5, 0.5, 3.6]) cyl(g, 0.12, 0.5, std('ventToit', 0xb0b5b8, 0.4, 0.7), cx + 4.2, H + 0.47, (z0 + z1) / 2 + dz, 10);
     bx(g, W - 0.1, 0.03, D - 0.1, std('sousToit', 0xb7bdc2, 0.4, 0.6), cx, H - 0.01, (z0 + z1) / 2);
     for (const s of [-1, 1]) {   // bandeau d'enseigne au nord et au sud (nom inventé), éclairé la nuit
       const z = s < 0 ? z0 - 0.6 : z1 + 0.6;
@@ -990,21 +1007,40 @@
       const boom = bx(g, 0.08, 0.08, 2.6, tube, m, H - 0.15, (z0 + z1) / 2 + 0.6);
       const hose = cyl(g, 0.025, 1.3, tuyau, m, H - 0.8, (z0 + z1) / 2 + 1.85, 8);
       // grilles d'évacuation au sol, au milieu de la piste ; néons
-      const gr = new T.Mesh(new T.BoxGeometry(0.4, 0.02, z1 - z0 - 1.5), grateMat()); gr.position.set(m, 0.012, (z0 + z1) / 2); gr.receiveShadow = true; g.add(gr);
+      const gr = new T.Mesh(new T.BoxGeometry(0.4, 0.02, z1 - z0 - 1.5), grateMat()); gr.position.set(m, 0.012, (z0 + z1) / 2); gr.receiveShadow = true; group.add(gr);
       const neon = bx(g, 0.12, 0.04, 1.2, std('neonLavage', 0xffffff, 0.3, 0, { emissive: 0xe8f4ff, emissiveIntensity: 0 }), m, H - 0.05, (z0 + z1) / 2); NIGHT.mats.push(neon.material);
       void boom; void hose;
     }
-    g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); group.add(g);
+    // lisibilité : vu d'en haut (caméra au-dessus du toit, regard plongeant), le toit devient presque transparent pour qu'on
+    // voie qui tient la zone ; il reste opaque dans les plans bas et pour les ombres (la carte d'ombres ne lit pas l'opacité)
+    const dir = new T.Vector3(), etat = { haut: false };
+    g.traverse(o => {
+      if (!o.isMesh) return; o.castShadow = true; o.receiveShadow = true;
+      const c = o.material.clone(); if (NIGHT.mats.includes(o.material)) NIGHT.mats.push(c); o.material = c; o.userData.keep = true;
+      o.onBeforeRender = (r, sc, cam) => {
+        if (cam.isOrthographicCamera || cam.position.y < 0) return;   // ombres, reflets des flaques : on ne change rien
+        cam.getWorldDirection(dir); const haut = cam.position.y > H + 3.5 && dir.y < -0.35;
+        if (c.userData.haut !== haut) { c.userData.haut = haut; c.transparent = haut; c.opacity = haut ? 0.15 : 1; c.depthWrite = !haut; c.needsUpdate = true; }
+      };
+    });
+    group.add(g); void etat;
     lights.push(new T.Vector3(cx, H - 0.3, (z0 + z1) / 2));
   }
   // ---- haie taillée dans une jardinière, totem des tarifs
   function haie(o) {
-    const K = M3(), g = new T.Group(), ph = 0.45;
-    bx(g, o.w, ph, o.d, K.betonClair, 0, -o.h / 2 + ph / 2, 0);
-    const geo = new T.BoxGeometry(o.w - 0.12, o.h - ph + 0.05, o.d - 0.12, Math.max(2, Math.round(o.w * 3)), 4, Math.max(2, Math.round(o.d * 3))), p = geo.attributes.position, R = rng(Math.floor(o.x * 7 + o.z * 3));
-    for (let i = 0; i < p.count; i++) { const y = p.getY(i), k = y > 0 ? 0.06 : 0.035; p.setXYZ(i, p.getX(i) + (R() - 0.5) * k, y + (y > 0 ? (R() - 0.5) * 0.08 : 0), p.getZ(i) + (R() - 0.5) * k); }
+    const K = M3(), g = new T.Group(), ph = 0.55, hw = o.w - 0.3, hd = o.d - 0.3, hh = o.h - ph + 0.1;
+    bx(g, o.w, ph, o.d, K.betonClair, 0, -o.h / 2 + ph / 2, 0); bx(g, o.w + 0.06, 0.06, o.d + 0.06, K.betonClair, 0, -o.h / 2 + ph, 0);
+    const geo = new T.BoxGeometry(hw, hh, hd, Math.max(3, Math.round(o.w * 4)), 6, Math.max(3, Math.round(o.d * 4))), p = geo.attributes.position, R = rng(Math.floor(o.x * 7 + o.z * 3));
+    const ph2 = (x, z) => Math.sin(x * 3.1 + z * 1.7) * 0.5 + Math.sin(x * 7.3 - z * 5.1) * 0.5;
+    for (let i = 0; i < p.count; i++) {
+      let x = p.getX(i), y = p.getY(i), z = p.getZ(i); const t = Math.max(0, (y - (hh / 2 - 0.35)) / 0.35);   // haut arrondi : on rentre les bords
+      const rx = Math.abs(x) / (hw / 2), rz = Math.abs(z) / (hd / 2), edge = Math.max(rx, rz);
+      x *= 1 - 0.14 * t * t * (hw > 1 ? 0.35 / hw * 2 : 1) * rx; z *= 1 - 0.14 * t * t * (0.35 / hd * 2) * rz;
+      y -= 0.18 * t * t * Math.pow(edge, 4);
+      const n = ph2(x, z) * 0.05 + (R() - 0.5) * 0.04; p.setXYZ(i, x + Math.sign(x) * n * rx, y + (y > 0 ? n : 0), z + Math.sign(z) * n * rz);
+    }
     geo.computeVertexNormals();
-    const h = new T.Mesh(geo, feuillageMat()); h.position.y = -o.h / 2 + ph + (o.h - ph) / 2 - 0.02; g.add(h);
+    const h = new T.Mesh(geo, feuillageMat()); h.position.y = -o.h / 2 + ph + hh / 2 - 0.08; g.add(h);
     return g;
   }
   function totem(o) {
@@ -1041,6 +1077,21 @@
     bx(g, 0.6, 0.4, 0.35, std('clim', 0xc9cbc8, 0.5, 0.4), w / 2 - 0.4, H / 2 + 0.2, d / 2 - 0.4);
     return g;
   }
+  // ---- caisse automatique (paiement du stationnement, piétons) : kiosque fermé, deux caisses encastrées, auvent, enseigne
+  function caisseAuto(o) {
+    const K = M3(), g = new T.Group(), H = o.h, w = o.w, d = o.d, bleuP = std('bleuParking', 0x1f5fbf, 0.45, 0.25);
+    bx(g, w, H - 0.3, d, std('bardageBlanc', 0xeceeed, 0.5, 0.15), 0, -0.15, 0);
+    bx(g, w + 1.2, 0.18, d + 1.2, bleuP, 0, H / 2 - 0.09, 0); bx(g, w + 1.22, 0.05, d + 1.22, K.metalSombre, 0, H / 2 - 0.2, 0);
+    for (const s of [-1, 1]) {
+      const t = new T.Group(); bx(t, 0.1, 1.5, 0.75, std('inox', 0xb8bcc0, 0.25, 0.9), 0, 0, 0);
+      bx(t, 0.02, 0.28, 0.4, std('ecranMonnayeur', 0x0b1418, 0.2, 0, { emissive: 0x2d8a6a, emissiveIntensity: 0.7 }), 0.06, 0.35, 0);
+      bx(t, 0.03, 0.05, 0.25, K.metalSombre, 0.06, 0.0, 0); bx(t, 0.03, 0.1, 0.12, std('boutonVert', 0x2e8b57, 0.4), 0.06, -0.2, 0.2);
+      t.position.set(s * (w / 2 + 0.05), -H / 2 + 1.0, 0); if (s < 0) t.rotation.y = Math.PI; g.add(t);
+      panneau(g, w * 0.9, 0.42, (q, wd, h) => { q.fillStyle = '#1f5fbf'; q.fillRect(0, 0, wd, h); txt(q, 'P  CAISSE', wd / 2, h / 2 + 4, 'bold 140px Arial', '#fff'); }, s * (w / 2 + 0.01), H / 2 - 0.6, 0, s * Math.PI / 2, true);
+    }
+    bx(g, 0.9, 2.0, 0.05, std('porteGuerite', 0xcfd3d5, 0.4, 0.4), 0, -H / 2 + 1.0, d / 2 + 0.03);
+    return g;
+  }
   // ---- borne de recharge : socle, écran, câble enroulé
   function borne(o) {
     const g = new T.Group(), H = o.h;
@@ -1070,7 +1121,8 @@
     for (let k = 0; k < n; k++) {
       const c = new T.Group(), m = std('colonne' + k, cols[k], 0.55, 0.05), H = o.h;
       bx(c, cw, H - 0.25, side - 0.1, m, 0, -0.125, 0);
-      const top = new T.Mesh(new T.CylinderGeometry(cw / 2, cw / 2, side - 0.1, 20, 1, false, 0, Math.PI), m); top.rotation.x = Math.PI / 2; top.rotation.z = Math.PI / 2; top.scale.set(0.5 / (cw / 2) * 0.5, 1, 1); top.position.y = H / 2 - 0.25; c.add(top);
+      const top = new T.Mesh(new T.CylinderGeometry(0.5, 0.5, side - 0.1, 20, 1, false, -Math.PI / 2, Math.PI), m); top.rotation.x = Math.PI / 2; top.scale.set(cw, 1, 0.25 / 0.5); top.position.y = H / 2 - 0.25; c.add(top);   // dessus bombé (25 cm)
+      bx(c, 0.5, 0.05, 0.3, std('poigneeColonne', 0x222222, 0.6), 0, H / 2 + 0.02, 0);
       for (const s of [-1, 1]) { const hole = new T.Mesh(new T.CircleGeometry(0.11, 18), std('trouColonne', 0x0c0c0c, 0.9)); hole.position.set(0, 0.25, s * ((side - 0.1) / 2 + 0.005)); if (s < 0) hole.rotation.y = Math.PI; c.add(hole);
         panneau(c, cw * 0.8, 0.22, (q, w, h) => { q.fillStyle = '#fff'; q.fillRect(0, 0, w, h); txt(q, noms[k], w / 2, h / 2 + 4, 'bold 110px Arial', '#222'); }, 0, -0.25, s * ((side - 0.1) / 2 + 0.006), s < 0 ? Math.PI : 0); }
       const off = -L / 2 + (k + 0.5) * L / n; c.position.set(along ? off : 0, 0, along ? 0 : off); if (!along) c.rotation.y = Math.PI / 2; g.add(c);
@@ -1089,12 +1141,12 @@
   }
   function chantierClo(o) {
     const g = new T.Group(), along = o.w >= o.d, L = along ? o.w : o.d, H = o.h, n = Math.max(1, Math.round(L / 3.4));
-    const tubeM = std('tubeGalva', 0xb4b9bc, 0.35, 0.85), plot = std('plotChantier', 0x8a8c86, 0.9), bm = mat('bacheM', () => new T.MeshStandardMaterial({ map: bacheTex(), roughness: 0.8, side: T.DoubleSide }));
+    const tubeM = std('tubeGalva', 0xb4b9bc, 0.35, 0.85), plot = std('plotChantier', 0x8a8c86, 0.9), bm = mat('bacheM', () => new T.MeshStandardMaterial({ map: bacheTex(), roughness: 0.8 }));
     for (let k = 0; k < n; k++) {
       const pl = L / n, off = -L / 2 + (k + 0.5) * pl, p = new T.Group();
       for (const s of [-1, 1]) { cyl(p, 0.025, H - 0.15, tubeM, s * (pl / 2 - 0.05), 0.05, 0, 8); bx(p, 0.6, 0.14, 0.22, plot, s * pl / 2, -H / 2 + 0.07, 0); }
       for (const y of [H / 2 - 0.05, -H / 2 + 0.2]) { const t = cyl(p, 0.025, pl - 0.1, tubeM, 0, y, 0, 8); t.rotation.z = Math.PI / 2; }
-      const b = new T.Mesh(new T.PlaneGeometry(pl - 0.14, H - 0.35), bm); b.position.set(0, 0.07, 0); p.add(b);
+      for (const f of [0, 1]) { const b = new T.Mesh(new T.PlaneGeometry(pl - 0.14, H - 0.35), bm); b.position.set(0, 0.07, f ? -0.012 : 0.012); if (f) b.rotation.y = Math.PI; p.add(b); }   // une bâche imprimée de chaque côté
       p.position.set(along ? off : 0, 0, along ? 0 : off); if (!along) p.rotation.y = Math.PI / 2; g.add(p);
     }
     return g;
@@ -1183,6 +1235,20 @@
   }
   function climP(o) { const g = new T.Group(); bx(g, o.w, o.h, o.d, std('clim', 0xc9cbc8, 0.5, 0.4), 0, 0, 0); const f = new T.Mesh(new T.CylinderGeometry(0.3, 0.3, 0.02, 20), std('grilleClim', 0x2a2c2e, 0.7, 0.5)); f.position.y = o.h / 2 + 0.01; g.add(f); return g; }
 
+  // mur de clôture ouest / est : graffitis ; au bout de la ruelle (z < bord du grillage), un portail coulissant grillagé
+  function murCloture(o) {
+    const g = new T.Group(), zr = 10.5, o2 = Object.assign({}, o, { z: zr, d: o.z + o.d - zr });
+    const w = wall(o2); w.position.z = (o2.z + o2.d / 2) - (o.z + o.d / 2); g.add(w);
+    const gt = new T.Group(), L = zr - o.z, H = 2.4, post = std('tubeGalva', 0xb4b9bc, 0.35, 0.85);
+    const gm = grillageMat().clone(); gm.map = gm.map.clone(); gm.map.needsUpdate = true; gm.map.repeat.set(L / 0.6, H / 0.6);
+    const pl = new T.Mesh(new T.PlaneGeometry(L, H), gm); pl.rotation.y = Math.PI / 2; pl.position.y = H / 2 + 0.1; gt.add(pl);
+    for (const y of [0.12, H + 0.08]) { const r = cyl(gt, 0.035, L, post, 0, y, 0, 8); r.rotation.x = Math.PI / 2; }
+    for (let k = 0; k <= 3; k++) cyl(gt, 0.04, H, post, 0, H / 2 + 0.1, -L / 2 + k * L / 3, 8);
+    for (const z of [-L / 2 + 0.6, L / 2 - 0.6]) { const wh = cyl(gt, 0.1, 0.06, std('tuyauNoir', 0x151515, 0.6), 0, 0.1, z, 12); wh.rotation.z = Math.PI / 2; }
+    bx(gt, 0.25, 2.6, 0.25, M3().betonClair, 0, 1.3, L / 2 + 0.12);
+    gt.position.set(0, -o.h / 2, (o.z + L / 2) - (o.z + o.d / 2)); g.add(gt);
+    return g;
+  }
   // une pièce de la simulation habillée (null : laisser le jeu la dessiner)
   function mesh(o) {
     const n = o.name || '', RU = root.Ruelle, M = root.Modeles3D, has = (k) => M && M.ready && M.has(k);
@@ -1190,6 +1256,7 @@
     if (n === 'mur nord') return murRuelle(o);
     if (/^mur portail/.test(n)) return portail(o);
     if (n === 'mur sud') return murRue(o);
+    if (n === 'mur ouest' || n === 'mur est') return murCloture(o);
     if (/^mur (est|ouest)/.test(n)) return wall(o);
     if (n.startsWith('centre commercial')) return mall(o);
     if (n === 'annexe') return annexeP(o);
@@ -1201,14 +1268,15 @@
     if (n === 'totem') return totem(o);
     if (n === 'aspirateur') return aspirateur(o);
     if (n === 'guérite') return guerite(o);
+    if (n === 'caisse automatique') return caisseAuto(o);
     if (n === 'borne de recharge') return borne(o);
     if (n === 'poste électrique') return poste(o);
     if (n === 'colonnes de tri') return colonnes(o);
     if (n === 'benne à gravats') return benneGravats(o);
     if (n === 'poteau') { const g = new T.Group(); cyl(g, 0.12, o.h, M3().metalSombre, 0, 0, 0, 12); return g; }
     if (n === 'clim') return climP(o);
-    if (n === 'armoire' && !has('armoire')) return armoireP(o);
-    if (n === 'benne' && !has('benne')) return benneP(o);
+    if (n === 'armoire') return has('armoire') ? M.fit('armoire', o.w, o.h, o.d, { tol: 0.3, rot: Math.PI }) : armoireP(o);
+    if (n === 'benne') return has('benne') ? M.fit('benne', o.w, o.h, o.d, { tol: 0.3, rot: o.z < 5 ? 0 : Math.PI }) : benneP(o);
     if (n.startsWith('palettes') && !has('palettes')) return crates(o);
     if (n.startsWith('abri')) return booth(o);
     if (n.startsWith('muret')) return lowWall(o);

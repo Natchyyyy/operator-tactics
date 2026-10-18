@@ -27,6 +27,8 @@
   // dos : part du mouvement de la colonne de la course ajoutée à la garde basse (Trot_Low)
   // marche en visant : bassin abaissé (m) par rapport à la marche naturelle
   const GLISSE = 0.05;
+  // à genou : hauteur du genou arrière posé (os, m), de sa cheville (pointe du pied au sol), cheville du pied avant à plat
+  const GENOU = { genou: 0.075, cheville: 0.13, chevilleAv: 0.15 };
   const TROT = { s: 0.45, hs: 0.4, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
   const PENCHE = 0.21;
@@ -343,6 +345,34 @@
     const i0 = clip.tracks.indexOf(tr), nt = tr.clone(), v = nt.values; for (let i = 0; i < v.length; i += 3) { v[i] += d.x; v[i + 1] += d.y; v[i + 2] += d.z; }
     clip.tracks[i0] = nt; return dy * HEIGHT / RAW_H;
   }
+  // À genou (Kneeling_Reload, dont la pose de couverture accroupie est tirée) : dans l'animation le genou arrière reste à
+  // ~18 cm du sol, sur la pointe d'un pied qui flotte (3 à 7 cm), l'autre pied flotte aussi : un accroupi instable. Cuit sur
+  // tout le clip : genou arrière posé au sol (cuisse ramenée sous la hanche), tibia couché vers l'arrière, orteils au sol ;
+  // pied avant à plat au sol. Bassin inchangé (le haut du corps et l'arme ne bougent pas).
+  function genou(M) {
+    const src = M.clips.Kneeling_Reload; if (!src) return;
+    const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
+    const L = [['LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase'], ['RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase']].map(l => l.map(b)); if (L.some(l => l.some(x => !x))) return;
+    const W = (o) => o.getWorldPosition(new THREE.Vector3()), k = RAW_H / HEIGHT, tR = (M.toeR || 0.04) * k, K = GENOU.genou * k, AY = GENOU.cheville * k;
+    const legs = jambesIK(M, src, 'Kneeling_Reload', (i, H, A, Aq) => {
+      const N = L.map(l => W(l[1])), r = N[0].y < N[1].y ? 0 : 1, f = 1 - r, out = A.map(a => a.clone());
+      // jambe arrière : genou au sol à l'aplomb (presque) de la hanche, tibia vers l'arrière, cheville à AY
+      { const S0 = W(L[r][0]), a = S0.distanceTo(N[r]), bb = N[r].distanceTo(A[r]), dh0 = new THREE.Vector3(N[r].x - S0.x, 0, N[r].z - S0.z), dh = Math.sqrt(Math.max(0, a * a - (S0.y - K) ** 2));
+        if (dh0.lengthSq() < 1e-8) dh0.set(0, 0, 1); dh0.normalize();
+        const Nt = S0.clone().addScaledVector(dh0, dh); Nt.y = K;
+        const sh = new THREE.Vector3(A[r].x - N[r].x, 0, A[r].z - N[r].z); if (sh.lengthSq() < 1e-8) sh.copy(dh0).negate(); sh.normalize();
+        const hz = Math.sqrt(Math.max(0, bb * bb - (AY - K) ** 2)); out[r] = Nt.clone().addScaledVector(sh, hz); out[r].y = AY;
+        // orteils au sol : le pied tourne autour de la cheville pour que sa pointe touche le sol
+        const T = W(L[r][3]), fv = T.clone().sub(A[r]), len = fv.length(), h = Math.hypot(fv.x, fv.z);
+        if (len > 1e-4 && h > 1e-4) { const y1 = Math.max(-len * 0.98, tR + 0.012 * k - AY), h1 = Math.sqrt(len * len - y1 * y1), f1 = new THREE.Vector3(fv.x / h * h1, y1, fv.z / h * h1);
+          Aq[r] = new THREE.Quaternion().setFromUnitVectors(fv.clone().normalize(), f1.normalize()).multiply(Aq[r]); } }
+      // pied avant : posé à plat (on le descend de ce qu'il flotte)
+      { const T = W(L[f][3]), fl = Math.min(T.y - tR, A[f].y - GENOU.chevilleAv * k); if (fl > 0) out[f].y -= fl; }
+      return out; });
+    if (!legs) return;
+    const noms = new Set(legs.tracks.map(t => t.name));
+    M.clips.Kneeling_Reload = new THREE.AnimationClip('Kneeling_Reload', src.duration, src.tracks.filter(t => !noms.has(t.name)).concat(legs.tracks));
+  }
   function directions(M) {
     const G = M.clips.Walk_Left_with_Gun, B = M.clips.Walk_Backward_with_Gun; if (!G || !B) return;
     const legs = (c, nom) => c && new THREE.AnimationClip(nom, c.duration, c.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone()));
@@ -385,6 +415,7 @@
         M.solDy = {}; for (const n of ['Pas_Avant_Low', 'Pas_Avant_Aim', 'Pas_Avant_Course', 'Pas_Trot', 'Pas_Run', 'Pas_Glisse', 'Pas_Gauche', 'Pas_Droite', 'Pas_Arriere']) if (M.clips[n]) M.solDy[n] = +aterrir(M, M.clips[n], repos).toFixed(3); } }
     for (const n of ['Walk_Aim', 'Walk_Low', 'Run_and_Shoot', 'Run_Low', 'Trot_Low']) { const c = M.clips[n]; if (c) { M.clips[n + '_Haut'] = new THREE.AnimationClip(n + '_Haut', c.duration, c.tracks.filter(t => !JAMBES.test(t.name)).map(t => t.clone())); } }
     if (M.yawFix.Walk_Aim !== undefined) M.yawFix.Walk_Aim_Haut = M.yawFix.Walk_Aim;
+    try { genou(M); } catch (e) { console.warn('soldat 3D (genou) :', e); }
     M.dirs = true;
   }
   // Vitesse « naturelle » de chaque cycle de locomotion (m/s, pour un soldat de 1,80 m) : pendant l'appui, le pied recule
@@ -545,9 +576,9 @@
   // demi-tailles h (arrondi compris), rayon d'arrondi r, inclinaison rx (rad, autour de X : poignée inclinée vers l'arrière).
   // Mesuré sur le modèle (outils/vues/arme_profil.html). Sert à refermer les doigts au contact de l'arme (distance signée).
   const FORMES = [
-    { n: 'poignee', c: [-0.002, -0.05, -0.1545], h: [0.015, 0.06, 0.026], r: 0.012, rx: 0.314 },
+    { n: 'poignee', c: [-0.002, -0.055, -0.156], h: [0.016, 0.066, 0.027], r: 0.012, rx: 0.314 },
     { n: 'carcasse', c: [-0.002, 0.05, -0.08], h: [0.024, 0.053, 0.15], r: 0.006 },
-    { n: 'pontet', c: [-0.002, -0.031, -0.088], h: [0.006, 0.004, 0.028], r: 0.003 },
+    { n: 'pontet', c: [-0.002, -0.034, -0.088], h: [0.012, 0.007, 0.028], r: 0.004 },
     { n: 'pontetAv', c: [-0.002, -0.016, -0.062], h: [0.006, 0.016, 0.004], r: 0.003 },
     { n: 'detente', c: [-0.002, -0.012, -0.098], h: [0.003, 0.009, 0.003], r: 0.002 },
     { n: 'chargeur', c: [-0.002, -0.06, 0.0025], h: [0.015, 0.06, 0.043], r: 0.008 },
@@ -573,7 +604,7 @@
   // du majeur. Main droite : paume sur le flanc droit de la poignée, doigts vers l'avant autour de la poignée, jointures au
   // bord avant ; main gauche : sous le garde-main, doigts vers la droite qui remontent sur son flanc droit, pouce à gauche.
   const PRISE = {
-    R: { A: [0.035, -0.413, 0.91], N: [0.998, 0.069, -0.007], mcp: [-0.044, -0.047, -0.141],
+    R: { A: [0.383, -0.386, 0.839], N: [0.913, 0.294, -0.282], mcp: [-0.04, -0.063, -0.129],
       // cibles du bout des doigts (index : tendu le long de la carcasse, au-dessus du pontet ; pouce : flanc gauche, sous la carcasse)
       cibles: { 0: { p: [0.026, -0.008, -0.14], f1: [-0.4, 1.4], f2: 1.2 }, 1: { p: [-0.027, 0.008, -0.075], f1: [-0.4, 0.8], f2: 0.4, reg: 0.02 } },
       detente: { p: [-0.004, -0.014, -0.088], f1: [-0.2, 1.4], f2: 1.6 } },
@@ -845,7 +876,7 @@
           const twA = wrap(e - ta), torsA = Math.abs(wrap(twA + 0.7 * a0));
           // (patrouille, mix : le corps suit déjà le déplacement ; le petit écart des virages est pris par le bassin, jamais par un
           // pas chassé « au pistolet » mélangé à la petite course)
-          this.jogTw = (avant === 'Pas_Avant_Course' || !!mix) && Math.abs(e) <= Math.abs(tc) && Math.abs(twA) <= 1.35 && torsA < (this.jogTw ? 1.0 : 0.9);
+          this.jogTw = (avant === 'Pas_Avant_Course' || avant === 'Pas_Glisse' || !!mix) && Math.abs(e) <= Math.abs(tc) && Math.abs(twA) <= 1.35 && torsA < (this.jogTw ? 1.0 : 0.9);
           if (this.jogTw) { cible[avant] = 1; tau = twA; this.selArr = null; }
           else if (Math.abs(e) <= Math.abs(tc)) {
             // secteur avant : mélange marche avant / pas chassé, poids tels que la somme des foulées (vecteurs) pointe vers e
@@ -1209,6 +1240,8 @@
             const Sh = WP(arm), L = Sh.distanceTo(WP(fore)) + WP(fore).distanceTo(WP(hand)), T = cibleM(h, V(), new THREE.Quaternion()), e = Sh.distanceTo(T) - 0.97 * L;
             if (e > 0.002) { d.addScaledVector(Sh.sub(T).normalize(), e * k); loin = true; } }
           if (!loin) break;
+          // visée : le fusil recule le long de son axe seulement (la ligne de visée reste sur l'œil et la cible)
+          if ((this.epK || 0) > 0.01) { const ax = V().setFromMatrixColumn(weapon.matrixWorld, 2).normalize(), da = d.dot(ax); d.lerp(ax.multiplyScalar(da < 0 ? da : 0), this.epK); }
           this.rapproche = (it ? this.rapproche : 0) + d.length();
           const gi = group.matrixWorld.clone().invert(); weapon.position.add(d.clone().transformDirection(gi).multiplyScalar(d.length() / group.getWorldScale(V()).x)); weapon.updateMatrixWorld(true);
         }
@@ -1226,7 +1259,7 @@
             const w = new THREE.Vector3().crossVectors(dir, u), Aw = os(D.ordre[2]).position.clone().normalize().applyQuaternion(qH), up = new THREE.Vector3(0, 1, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()));
             const coude = (ph) => C.clone().addScaledVector(u, r * Math.cos(ph)).addScaledVector(w, r * Math.sin(ph));
             const dedans = new THREE.Vector3(h === 'R' ? 1 : -1, 0, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()));   // vers le centre du corps
-            const cout = (ph) => { const E = coude(ph), f = T.clone().sub(E).normalize(); return Math.acos(Math.max(-1, Math.min(1, f.dot(Aw)))) + 0.25 * Math.abs(ph) + 1.5 * Math.max(0, E.clone().sub(C).dot(up) / Math.max(1e-4, r) + 0.2) + 3 * Math.max(0, E.clone().sub(S0).dot(dedans) / a - 0.05); };   // (coude jamais rentré dans le buste)
+            const cout = (ph) => { const E = coude(ph), f = T.clone().sub(E).normalize(); return Math.acos(Math.max(-1, Math.min(1, f.dot(Aw)))) + 0.25 * Math.abs(ph) + 2 * Math.max(0, E.clone().sub(S0).dot(up) / a + 0.1) + 3 * Math.max(0, E.clone().sub(S0).dot(dedans) / a - 0.05); };   // (coude jamais rentré dans le buste)
             let ph = 0, cb = cout(0); for (let x = -2.4; x <= 2.4; x += 0.2) { const cx = cout(x); if (cx < cb) { cb = cx; ph = x; } }
             for (const st of [0.08, 0.03, 0.01]) for (const sg of [-1, 1]) { while (cout(ph + sg * st) < cb) { ph += sg * st; cb = cout(ph); } }
             const sw = this.coudePh || (this.coudePh = {}); ph = sw[h] === undefined ? ph : sw[h] + (ph - sw[h]) * Math.min(1, 0.35); sw[h] = ph;
