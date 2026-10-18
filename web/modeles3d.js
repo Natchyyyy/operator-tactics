@@ -4,7 +4,7 @@
 // ajustés à la boîte de l'obstacle simulé. Si un modèle manque, le jeu garde le décor dessiné par programme (decor.js).
 (function (root) {
   const S = { ready: false, scenes: {}, boxes: {}, onReady: [], hd: {} };
-  const NOMS = ['fusil', 'berline', 'pickup', 'fourgon', 'bus', 'barriere', 'sacs', 'fut', 'abribus', 'kiosque', 'palmier', 'arbre', 'benne', 'palettes', 'conteneur', 'armoire', 'clim', 'porte', 'caisses', 'escalier', 'guerite', 'caisse'];
+  const NOMS = ['fusil', 'berline', 'pickup', 'fourgon', 'bus', 'barriere', 'sacs', 'fut', 'abribus', 'kiosque', 'palmier', 'arbre', 'benne', 'palettes', 'conteneur', 'armoire', 'clim', 'porte', 'caisses', 'escalier', 'guerite', 'caisse', 'aspirateur', 'borne'];
   function b64ToBuf(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
   function finish() { S.ready = true; for (const f of S.onReady.splice(0)) try { f(); } catch (e) { console.warn(e); } }
   function load() {
@@ -13,14 +13,14 @@
     // objets publiés seulement en haute définition (hd/, pas de version incluse dans la page : elle serait trop lourde) ;
     // sans eux (page ouverte seule, hors ligne), le décor dessiné par programme les remplace
     const HDOK = /^https?:/.test(location.protocol) && !/[?&]hd=0/.test(location.search) && !!window.fetch;
-    const HDSEUL = new Set(['arbre', 'benne', 'palettes', 'conteneur', 'armoire', 'clim', 'porte', 'caisses', 'escalier', 'guerite', 'caisse']);
+    const HDSEUL = new Set(['arbre', 'benne', 'palettes', 'conteneur', 'armoire', 'clim', 'porte', 'caisses', 'escalier', 'guerite', 'caisse', 'aspirateur', 'borne']);
     // window.OT_HD (build.js) : liste des fichiers HD publiés à côté de la page — on ne demande pas les autres (pas de 404)
     const OHD = window.OT_HD, aHD = (n) => !OHD || !!OHD.fichiers[n + '.glb'];
     const todo = NOMS.filter(n => M[n] || (HDOK && HDSEUL.has(n) && aHD(n))); let left = todo.length; if (!left) return finish();
     const done = () => { if (--left === 0) finish(); };
     // version haute définition (hd/<nom>.glb, plus de triangles, textures 2048 avec relief et rugosité) si elle est
     // publiée à côté de la page ; sinon (fichier local, hors ligne) la version incluse dans la page
-    const HD = new Set(['fusil', 'berline', 'pickup', 'fourgon', 'bus', 'barriere', 'sacs', 'fut', 'abribus', 'kiosque', 'arbre', 'benne', 'palettes', 'conteneur', 'armoire', 'clim', 'porte', 'caisses', 'escalier', 'guerite', 'caisse']);
+    const HD = new Set(['fusil', 'berline', 'pickup', 'fourgon', 'bus', 'barriere', 'sacs', 'fut', 'abribus', 'kiosque', 'arbre', 'benne', 'palettes', 'conteneur', 'armoire', 'clim', 'porte', 'caisses', 'escalier', 'guerite', 'caisse', 'aspirateur', 'borne']);
     const source = (n) => {
       const inline = () => (M[n] ? b64ToBuf(M[n]) : null);
       if (!HD.has(n) || !aHD(n) || !/^https?:/.test(location.protocol) || /[?&]hd=0/.test(location.search) || !window.fetch) return Promise.resolve(inline());

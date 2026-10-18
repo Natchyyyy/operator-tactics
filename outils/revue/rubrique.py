@@ -64,7 +64,9 @@ def _ratio_pas(r):
 def _toe_out(r):
     out = []
     for s, sg in (('G', 1), ('D', -1)):
-        out += [sg * i['piedVsDep' + s] for i in planted(r, s) if i.get('piedVsDep' + s) is not None]
+        # (pied à plat seulement : talon et pointe à moins de 4 cm de hauteur l'un de l'autre ; sur la pointe, la projection
+        # talon → pointe est trop courte et son azimut n'a plus de sens)
+        out += [sg * i['piedVsDep' + s] for i in planted(r, s) if i.get('piedVsDep' + s) is not None and abs(i.get('talonY' + s, 0) - i.get('boutY' + s, 0)) < 0.04]
     return out
 
 def _plie(lst, f):
