@@ -1003,11 +1003,33 @@
     else { u.fireAcc = Math.min(u.fireAcc, 1); if (u.target && !u.target.alive) u.target = null; }
   };
 
+  // Allure selon l'angle entre la marche et le regard (arme pointée vers la cible, ou vers une menace connue) : on ne court pas
+  // en crabe ni à reculons aussi vite que droit devant. Plafonds (m/s) aux angles de GAIT, raccords progressifs (smoothstep) :
+  // pleine vitesse jusqu'à 30° ; 2,0 à 45° (diagonale avant : la marche s'y mélange au pas chassé) ; 1,4 à 90° (pas chassé
+  // pur, ~1,35 × sa cadence naturelle de 1,0 m/s) ; 1,8 de 135° à 180° (marche arrière, ~1,55 × sa cadence naturelle de
+  // 1,15 m/s). Mesuré sur les animations (pied d'appui qui glisse au-delà) : outils/vues/marche.html.
+  const GAIT = [[Math.PI / 6, Infinity], [Math.PI / 4, 2.0], [Math.PI / 2, 1.4], [3 * Math.PI / 4, 1.8], [Math.PI, 1.8]];
+  Battle.prototype.gaitSpeed = function (v, ang) {
+    if (ang <= GAIT[0][0]) return v;
+    for (let i = 1; i < GAIT.length; i++) {
+      const [a1, c1] = GAIT[i]; if (ang > a1 && i < GAIT.length - 1) continue;
+      const [a0, c0] = GAIT[i - 1], t = clamp((ang - a0) / (a1 - a0), 0, 1), k = t * t * (3 - 2 * t);
+      const v0 = Math.min(v, c0), v1 = Math.min(v, c1);
+      return v0 + (v1 - v0) * k;
+    }
+    return v;
+  };
   Battle.prototype.move = function (u) {
     const wp = u.path[u.pathIdx];
     if (!wp) { this.arrive(u); return; }
     const d = Math.hypot(wp.x - u.x, wp.z - u.z);
-    const stepLen = u.speed() * DT;
+    // regard pendant la marche : la cible si l'on en a une ; sinon l'arme pointée vers la dernière position connue d'un ennemi
+    // (repéré il y a moins de 5 s) si elle n'est pas dans le dos : on progresse en couvrant l'angle dangereux plutôt qu'en
+    // regardant ses pieds
+    const mv = Math.atan2(wp.z - u.z, wp.x - u.x); let aim = null;
+    if (!u.target && d > 0.05) { let best = 99; for (const { k } of this.knownEnemies(u)) { if (this.t - k.t > 5) continue; const dd = Math.hypot(k.x - u.x, k.z - u.z); const a = Math.atan2(k.z - u.z, k.x - u.x); if (dd < best && angDiff(a, mv) < 1.9) { best = dd; aim = a; } } }
+    const look = u.target && u.target.alive ? Math.atan2(u.target.z - u.z, u.target.x - u.x) : aim;
+    const stepLen = (look === null || d <= 0.05 ? u.speed() : this.gaitSpeed(u.speed(), angDiff(look, mv))) * DT;
     let nx, nz;
     if (d <= stepLen) { nx = wp.x; nz = wp.z; }
     else { nx = u.x + (wp.x - u.x) / d * stepLen; nz = u.z + (wp.z - u.z) / d * stepLen; }
@@ -1036,13 +1058,7 @@
     }
     u.stats.distance += Math.hypot(nx - u.x, nz - u.z);
     // regard : vers le point de passage visé (pas vers le petit pas de côté de la séparation entre alliés)
-    if (!u.target && d > 0.05) {
-      // arme pointée vers la dernière position connue d'un ennemi (repéré il y a moins de 5 s) si elle n'est pas dans le dos :
-      // on progresse en couvrant l'angle dangereux plutôt qu'en regardant ses pieds
-      const mv = Math.atan2(wp.z - u.z, wp.x - u.x); let aim = null, best = 99;
-      for (const { k } of this.knownEnemies(u)) { if (this.t - k.t > 5) continue; const dd = Math.hypot(k.x - u.x, k.z - u.z); const a = Math.atan2(k.z - u.z, k.x - u.x); if (dd < best && angDiff(a, mv) < 1.9) { best = dd; aim = a; } }
-      u.facing = aim === null ? mv : aim; u.preaim = aim !== null;
-    }
+    if (!u.target && d > 0.05) { u.facing = aim === null ? mv : aim; u.preaim = aim !== null; }
     u.x = nx; u.z = nz; u.moving = true;
     if (d <= stepLen) { u.pathIdx++; if (u.pathIdx >= u.path.length) { this.arrive(u); return; } }
     // détection de blocage : pas de progrès depuis 2,5 s → nouveau chemin

@@ -16842,11 +16842,33 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     else { u.fireAcc = Math.min(u.fireAcc, 1); if (u.target && !u.target.alive) u.target = null; }
   };
 
+  // Allure selon l'angle entre la marche et le regard (arme pointée vers la cible, ou vers une menace connue) : on ne court pas
+  // en crabe ni à reculons aussi vite que droit devant. Plafonds (m/s) aux angles de GAIT, raccords progressifs (smoothstep) :
+  // pleine vitesse jusqu'à 30° ; 2,0 à 45° (diagonale avant : la marche s'y mélange au pas chassé) ; 1,4 à 90° (pas chassé
+  // pur, ~1,35 × sa cadence naturelle de 1,0 m/s) ; 1,8 de 135° à 180° (marche arrière, ~1,55 × sa cadence naturelle de
+  // 1,15 m/s). Mesuré sur les animations (pied d'appui qui glisse au-delà) : outils/vues/marche.html.
+  const GAIT = [[Math.PI / 6, Infinity], [Math.PI / 4, 2.0], [Math.PI / 2, 1.4], [3 * Math.PI / 4, 1.8], [Math.PI, 1.8]];
+  Battle.prototype.gaitSpeed = function (v, ang) {
+    if (ang <= GAIT[0][0]) return v;
+    for (let i = 1; i < GAIT.length; i++) {
+      const [a1, c1] = GAIT[i]; if (ang > a1 && i < GAIT.length - 1) continue;
+      const [a0, c0] = GAIT[i - 1], t = clamp((ang - a0) / (a1 - a0), 0, 1), k = t * t * (3 - 2 * t);
+      const v0 = Math.min(v, c0), v1 = Math.min(v, c1);
+      return v0 + (v1 - v0) * k;
+    }
+    return v;
+  };
   Battle.prototype.move = function (u) {
     const wp = u.path[u.pathIdx];
     if (!wp) { this.arrive(u); return; }
     const d = Math.hypot(wp.x - u.x, wp.z - u.z);
-    const stepLen = u.speed() * DT;
+    // regard pendant la marche : la cible si l'on en a une ; sinon l'arme pointée vers la dernière position connue d'un ennemi
+    // (repéré il y a moins de 5 s) si elle n'est pas dans le dos : on progresse en couvrant l'angle dangereux plutôt qu'en
+    // regardant ses pieds
+    const mv = Math.atan2(wp.z - u.z, wp.x - u.x); let aim = null;
+    if (!u.target && d > 0.05) { let best = 99; for (const { k } of this.knownEnemies(u)) { if (this.t - k.t > 5) continue; const dd = Math.hypot(k.x - u.x, k.z - u.z); const a = Math.atan2(k.z - u.z, k.x - u.x); if (dd < best && angDiff(a, mv) < 1.9) { best = dd; aim = a; } } }
+    const look = u.target && u.target.alive ? Math.atan2(u.target.z - u.z, u.target.x - u.x) : aim;
+    const stepLen = (look === null || d <= 0.05 ? u.speed() : this.gaitSpeed(u.speed(), angDiff(look, mv))) * DT;
     let nx, nz;
     if (d <= stepLen) { nx = wp.x; nz = wp.z; }
     else { nx = u.x + (wp.x - u.x) / d * stepLen; nz = u.z + (wp.z - u.z) / d * stepLen; }
@@ -16875,13 +16897,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     u.stats.distance += Math.hypot(nx - u.x, nz - u.z);
     // regard : vers le point de passage visé (pas vers le petit pas de côté de la séparation entre alliés)
-    if (!u.target && d > 0.05) {
-      // arme pointée vers la dernière position connue d'un ennemi (repéré il y a moins de 5 s) si elle n'est pas dans le dos :
-      // on progresse en couvrant l'angle dangereux plutôt qu'en regardant ses pieds
-      const mv = Math.atan2(wp.z - u.z, wp.x - u.x); let aim = null, best = 99;
-      for (const { k } of this.knownEnemies(u)) { if (this.t - k.t > 5) continue; const dd = Math.hypot(k.x - u.x, k.z - u.z); const a = Math.atan2(k.z - u.z, k.x - u.x); if (dd < best && angDiff(a, mv) < 1.9) { best = dd; aim = a; } }
-      u.facing = aim === null ? mv : aim; u.preaim = aim !== null;
-    }
+    if (!u.target && d > 0.05) { u.facing = aim === null ? mv : aim; u.preaim = aim !== null; }
     u.x = nx; u.z = nz; u.moving = true;
     if (d <= stepLen) { u.pathIdx++; if (u.pathIdx >= u.path.length) { this.arrive(u); return; } }
     // détection de blocage : pas de progrès depuis 2,5 s → nouveau chemin
@@ -18906,7 +18922,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (s.kind === 'dolly') {   // de profil, à ~3,8 m, caméra basse ; le soldat sur le tiers arrière, de l'espace devant lui
       const m = meshes[s.id], u = unitById[s.id]; if (!m || !u || !u.alive) return null;
       const P = m.group.position, sp = Math.hypot(m.anim.vx || 0, m.anim.vz || 0);
-      const f0 = sp > 0.2 ? new THREE.Vector2(m.anim.vx / sp, m.anim.vz / sp) : new THREE.Vector2(Math.cos(u.facing), Math.sin(u.facing));
+      // espace devant le regard : vers sa cible s'il en a une (il peut reculer en tirant), sinon dans le sens de la marche
+      const tg = u.target && u.target.alive && meshes[u.target.id] ? meshes[u.target.id].group.position : null, tl = tg ? Math.hypot(tg.x - P.x, tg.z - P.z) : 0;
+      const f0 = tl > 0.5 ? new THREE.Vector2((tg.x - P.x) / tl, (tg.z - P.z) / tl) : sp > 0.2 ? new THREE.Vector2(m.anim.vx / sp, m.anim.vz / sp) : new THREE.Vector2(Math.cos(u.facing), Math.sin(u.facing));
       const dd = smoothDir(s, 'dir', f0.x, f0.y, 1.4, dt), dx = dd.x, dz = dd.y, ca = Math.cos(s.ang || 0), sa = Math.sin(s.ang || 0);
       const nx = (-dz * ca - dx * sa) * side, nz = (dx * ca - dz * sa) * side, R = s.dd || 3.8;   // côté, angle (trois-quarts arrière / avant), distance
       s.still = u.moving ? 0 : (s.still || 0) + (dt || 0);
@@ -19593,7 +19611,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // course : choisie d'après la vitesse NOMINALE du soldat (u.speed()), pas la vitesse mesurée : le premier pas de
     // simulation d'un départ est partiel (vitesse basse) et faisait jouer 0,1 s de marche avant la course
     const dirMarche = u.alive && m.marche && m.clips.Pas_Gauche && !crouch && u.moving && v > 0.15 && v <= 3.2 && !(u.reloading > 0) && !u.throwing && !battle.over;
-    const course = (u.speed ? u.speed() : v) > 1.45 && !!m.clips.Pas_Avant_Course;
+    // (la simulation plafonne la vitesse de côté / en reculant : si la vitesse réelle reste sous 1,45 m/s plus de 0,25 s alors
+    // que la nominale est au-dessus, c'est ce plafond, pas un démarrage : on marche)
+    a.lentT = u.moving && v > 0.15 && v <= 1.45 ? (a.lentT || 0) + dt : 0;
+    const course = (u.speed ? u.speed() : v) > 1.45 && !(a.lentT > 0.25) && !!m.clips.Pas_Avant_Course;
     if (dirMarche) { jambes = 0; a.recule = false; a.piedsYaw = m.yaw; }
     m.jambesCible = u.alive ? jambes : 0;
     const loco = (n) => { const nat = m.loco[n] || 1; m.play(n, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)), fade: 0.2 });

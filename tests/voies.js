@@ -104,5 +104,17 @@ const V = MAPS.parking.voies;
   check('QG : sans plan équipé ni voie imposée, répartition automatique', G.planOf(p) === 'auto' && G.effectiveDef(p, 'op_lynx').lane === null);
 }
 
+{
+  // allure : on ne court pas en crabe ni à reculons aussi vite que droit devant (plafonds calés sur les animations)
+  const b = mk(1), g = (v, d) => b.gaitSpeed(v, d * Math.PI / 180);
+  check('allure : pleine vitesse jusqu\'à 30°, ≤ 2,0 m/s à 45°, 1,4 à 90°, 1,8 à reculons ; la marche lente n\'est pas touchée',
+    g(2.6, 0) === 2.6 && g(2.6, 30) === 2.6 && Math.abs(g(2.6, 45) - 2) < 1e-9 && Math.abs(g(2.6, 90) - 1.4) < 1e-9 && Math.abs(g(2.6, 180) - 1.8) < 1e-9 && g(1.2, 90) === 1.2 && g(2.6, 60) < 2 && g(2.6, 60) > 1.4);
+  // en bataille : un opérateur qui vise une cible au nord et marche vers l'est avance à ~1,4 m/s
+  const c = mk(1), [u] = c.teams[0].units, e = c.teams[1].units[0];
+  u.x = 20; u.z = 23; e.x = 20; e.z = 5; u.target = e; c.setGoal(u, 30, 23, 'advance');
+  const x0 = u.x; for (let i = 0; i < 10; i++) c.move(u);
+  check('allure : en pas chassé (cible sur le côté), ~1,4 m/s au lieu de sa pleine vitesse', u.x - x0 <= 1.55 && u.x - x0 > 0.5 && u.speed() > 2, { d: u.x - x0, v: u.speed() });   // (chemin sur les centres de cases : angle proche de 90°, pas exact)
+}
+
 console.log(`\n${pass}/${pass + fail} vérifications réussies${fail ? '  — ÉCHECS : ' + fail : ''}`);
 process.exit(fail ? 1 : 0);

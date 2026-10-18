@@ -219,7 +219,9 @@
     if (s.kind === 'dolly') {   // de profil, à ~3,8 m, caméra basse ; le soldat sur le tiers arrière, de l'espace devant lui
       const m = meshes[s.id], u = unitById[s.id]; if (!m || !u || !u.alive) return null;
       const P = m.group.position, sp = Math.hypot(m.anim.vx || 0, m.anim.vz || 0);
-      const f0 = sp > 0.2 ? new THREE.Vector2(m.anim.vx / sp, m.anim.vz / sp) : new THREE.Vector2(Math.cos(u.facing), Math.sin(u.facing));
+      // espace devant le regard : vers sa cible s'il en a une (il peut reculer en tirant), sinon dans le sens de la marche
+      const tg = u.target && u.target.alive && meshes[u.target.id] ? meshes[u.target.id].group.position : null, tl = tg ? Math.hypot(tg.x - P.x, tg.z - P.z) : 0;
+      const f0 = tl > 0.5 ? new THREE.Vector2((tg.x - P.x) / tl, (tg.z - P.z) / tl) : sp > 0.2 ? new THREE.Vector2(m.anim.vx / sp, m.anim.vz / sp) : new THREE.Vector2(Math.cos(u.facing), Math.sin(u.facing));
       const dd = smoothDir(s, 'dir', f0.x, f0.y, 1.4, dt), dx = dd.x, dz = dd.y, ca = Math.cos(s.ang || 0), sa = Math.sin(s.ang || 0);
       const nx = (-dz * ca - dx * sa) * side, nz = (dx * ca - dz * sa) * side, R = s.dd || 3.8;   // côté, angle (trois-quarts arrière / avant), distance
       s.still = u.moving ? 0 : (s.still || 0) + (dt || 0);
@@ -906,7 +908,10 @@
     // course : choisie d'après la vitesse NOMINALE du soldat (u.speed()), pas la vitesse mesurée : le premier pas de
     // simulation d'un départ est partiel (vitesse basse) et faisait jouer 0,1 s de marche avant la course
     const dirMarche = u.alive && m.marche && m.clips.Pas_Gauche && !crouch && u.moving && v > 0.15 && v <= 3.2 && !(u.reloading > 0) && !u.throwing && !battle.over;
-    const course = (u.speed ? u.speed() : v) > 1.45 && !!m.clips.Pas_Avant_Course;
+    // (la simulation plafonne la vitesse de côté / en reculant : si la vitesse réelle reste sous 1,45 m/s plus de 0,25 s alors
+    // que la nominale est au-dessus, c'est ce plafond, pas un démarrage : on marche)
+    a.lentT = u.moving && v > 0.15 && v <= 1.45 ? (a.lentT || 0) + dt : 0;
+    const course = (u.speed ? u.speed() : v) > 1.45 && !(a.lentT > 0.25) && !!m.clips.Pas_Avant_Course;
     if (dirMarche) { jambes = 0; a.recule = false; a.piedsYaw = m.yaw; }
     m.jambesCible = u.alive ? jambes : 0;
     const loco = (n) => { const nat = m.loco[n] || 1; m.play(n, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)), fade: 0.2 });
