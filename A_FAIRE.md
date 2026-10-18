@@ -9,6 +9,9 @@
   État actuel du moteur (`sim/engine.js`, « À terre / relevé ») : tête = mort ; sinon 55 % de chances seulement d'être à
   terre ; un relevé ne peut plus être mis à terre → il faudra passer de 55 % à (presque) toujours.
 
+- Plus tard (accord de principe, 18/10) : poses de repos variées / légère animation pour l'escouade de l'écran titre.
+- Refusé pour l'instant : réafficher les sections cachées du QG (cartes, ligue, carrière, crédits) ; navigation clavier/manette.
+
 ## 18/10 : nouveaux personnages, marche dans toutes les directions, carte asymétrique, nouveaux objets
 - Personnages refaits (vues Gemini → Meshy multi-vues → remaillage 100 k → texture 8K PBR → rig humanoïde avec os des
   doigts → animations « Marchez à gauche avec un pistolet » et « Marcher en arrière avec un pistolet » de la bibliothèque) :

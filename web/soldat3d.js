@@ -29,6 +29,8 @@
   // poignet, coude dans son plan d'origine, mains gardant leur orientation) pour que les paumes restent sur la poignée et
   // le garde-main. CREUX : position du creux par rapport à l'articulation de l'épaule droite (m) : vers le centre du
   // corps, vers l'avant, vers le bas.
+  // rechargements debout (main droite portée dans la poche de rechargement, voir poche())
+  const RECHARGE = { Standing_Reload: 1, Standing_Reload_Haut: 1 };
   const EPAULE = { Rifle_Aim_Turn_Right: 1, Walk_Aim: 1, Walk_Aim_Haut: 1, Run_and_Shoot: 1, Run_and_Shoot_Haut: 1, Gunshot_Reaction: 1 };
   const CREUX = { dedans: 0.06, avant: 0.08, bas: 0.03 };
   S.CREUX = CREUX;
@@ -717,6 +719,38 @@
         if (Math.abs(this.teteA) < 0.005) return;
         mod(cou); twist(cou, this.teteA * 0.4); mod(H); twist(H, this.teteA * 0.6);
       },
+      // Rechargement : l'animation lève le fusil au-dessus du casque, canon vers le ciel, et la main gauche ne va jamais au
+      // chargeur. On impose une position de rechargement : poignée devant la poitrine (~30 cm devant, 12 cm sous Spine2), canon
+      // vers l'avant-bas (20°) un peu en travers (15° vers la gauche), incliné de 25° ; la main droite y est amenée par IK
+      // (orientation comprise : main = arme · prise⁻¹). Entrée / sortie en fondu au début et à la fin du clip (p : 0..1).
+      poche(p, L) {
+        const x = Math.max(0, Math.min(1, p / 0.12, (1 - p) / 0.1)), w = x * x * (3 - 2 * x); if (w < 0.01) return;
+        const B = this.bones, rh = B.rh; group.updateMatrixWorld(true);
+        const gq = group.getWorldQuaternion(new THREE.Quaternion()), sc = group.getWorldScale(V()).x, up = new THREE.Vector3(0, 1, 0);
+        const fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
+        const d = fw.clone().multiplyScalar(Math.cos(0.26)).addScaledVector(lat, Math.sin(0.26)); d.multiplyScalar(Math.cos(-0.35)).addScaledVector(up, Math.sin(-0.35)).normalize();
+        const u = up.clone().addScaledVector(d, -up.dot(d)).normalize(), qW = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(u, d), u, d));
+        qW.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -0.45));
+        const T = WP(B.spine).addScaledVector(fw, 0.3 * sc).addScaledVector(up, -0.12 * sc).addScaledVector(lat, -0.04 * sc);
+        const posW = T.clone().sub((weapon.gripPt || V()).clone().multiplyScalar(sc).applyQuaternion(qW));
+        const Hd = new THREE.Matrix4().compose(posW, qW, new THREE.Vector3(sc, sc, sc)).multiply(new THREE.Matrix4().copy(L).invert());
+        const hp = V(), hq = new THREE.Quaternion(); Hd.decompose(hp, hq, V());
+        const h0 = WP(rh), tq = WQ(rh).slerp(hq, w);
+        ik(B.ra, B.rf, rh, h0.clone().lerp(hp, w).sub(h0));
+        rh.quaternion.copy(WQ(rh.parent).invert().multiply(tq)); rh.updateMatrixWorld(true);
+      },
+      // main gauche pendant le rechargement : va chercher le chargeur neuf au porte-chargeur du gilet (12-45 %), le monte au puits
+      // de chargeur sous le fusil (45-60 %), l'y tient (60-86 %, chargeur() l'enfonce), puis rend la main à l'animation (96 %)
+      mainChargeur(p) {
+        const sm = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+        const w = p < 0.86 ? sm(p / 0.12) : 1 - sm((p - 0.86) / 0.1); if (w < 0.01) return;
+        const B = this.bones, sc = group.getWorldScale(V()).x; weapon.updateMatrixWorld(true); group.updateMatrixWorld(true);
+        const gq = group.getWorldQuaternion(new THREE.Quaternion()), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
+        const poche = WP(B.spine).addScaledVector(fw, 0.17 * sc).addScaledVector(new THREE.Vector3(0, 1, 0), -0.3 * sc).addScaledVector(lat, 0.06 * sc);
+        const well = weapon.localToWorld(weapon.magCenter.clone()), down = weapon.localToWorld(new THREE.Vector3(0, -1, 0)).sub(weapon.localToWorld(V())).normalize();
+        const T = poche.lerp(well.addScaledVector(down, 0.07 * sc), sm((p - 0.45) / 0.15)), palm = B.lm ? WP(B.lh).lerp(WP(B.lm), 0.6) : WP(B.lh);
+        ik(B.la, B.lf, B.lh, T.sub(palm).multiplyScalar(w));
+      },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
       // L'arme est tenue par les PAUMES (entre le poignet et la base des doigts), pas par les poignets : la poignée dans la paume
       // droite, le garde-main dans la paume gauche. L'orientation aligne le segment poignée → garde-main de l'arme (qui n'est
@@ -731,8 +765,15 @@
         group.updateMatrixWorld(true);
         if (mode === 'droite' || mode === 'gauche') {
           const hand = mode === 'gauche' && lh ? lh : rh, L = this.handLocal[mode === 'gauche' && lh ? 'gauche' : 'droite'];
-          if (L) { const mw = new THREE.Matrix4().multiplyMatrices(hand.matrixWorld, L).premultiply(new THREE.Matrix4().copy(group.matrixWorld).invert());
-            mw.decompose(weapon.position, weapon.quaternion, V()); weapon.scale.set(1, 1, 1); return; }
+          if (L) {
+            // rechargement debout : la main droite porte le fusil dans la « poche de rechargement » (voir poche()), la gauche va
+            // au puits de chargeur pendant que chargeur() (app.js) y amène le chargeur neuf
+            const ac = mode === 'droite' && RECHARGE[this.clip] && actions[this.clip], p = ac ? (ac.time / ac.getClip().duration) % 1 : -1;
+            if (p >= 0 && B.ra && B.rf) this.poche(p, L);
+            const mw = new THREE.Matrix4().multiplyMatrices(hand.matrixWorld, L).premultiply(new THREE.Matrix4().copy(group.matrixWorld).invert());
+            mw.decompose(weapon.position, weapon.quaternion, V()); weapon.scale.set(1, 1, 1);
+            if (p >= 0 && lh && B.la && B.lf && weapon.magCenter) this.mainChargeur(p);
+            return; }
           twoHands = false;
         }
         if (mode === 'bandouliere' && this.slingLocal && B.spine) {   // arme en travers du torse (lancer de grenade), mains libres

@@ -1,4 +1,4 @@
-// Écran titre : cinq opérateurs de l'escouade en ligne sur un sol sombre, caméra qui glisse lentement ; jingle au premier geste.
+// Écran titre : les cinq opérateurs de l'escouade en V devant un mur de béton tagué, caméra qui glisse lentement ; jingle au premier geste.
 (function () {
   const OT = window.OT; const $ = (s) => document.querySelector(s);
   const canvas = $('#titleScene'); if (!canvas) return;
@@ -26,11 +26,39 @@
   const dustN = 260, dustPos = new Float32Array(dustN * 3); for (let i = 0; i < dustN; i++) dustPos.set([Math.random() * 14 - 5, Math.random() * 4, Math.random() * 8 - 5], i * 3);
   const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
   const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffd9a8, size: 0.035, transparent: true, opacity: 0.55, depthWrite: false })); scene.add(dust);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x1f2328, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-  // quelques caisses et un conteneur pour l'arrière-plan
-  const crate = new THREE.MeshStandardMaterial({ color: 0x46392a, roughness: 1 }), cont = new THREE.MeshStandardMaterial({ color: 0x1d242b, roughness: 0.8, metalness: 0.3 });
-  [[0.3, 0.55, -2.6, 1.1], [5.7, 0.4, -1.8, 0.8], [6.3, 0.4, -2.7, 0.8]].forEach(([x, y, z, sz]) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), crate); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; scene.add(m); });
-  const c = new THREE.Mesh(new THREE.BoxGeometry(6, 2.6, 2.4), cont); c.position.set(3.4, 1.3, -5.6); c.rotation.y = -0.12; c.castShadow = true; scene.add(c);
+  key.target.position.set(3, 0, -1.2); scene.add(key.target); Object.assign(key.shadow.camera, { left: -9, right: 9, top: 7, bottom: -7, near: 0.5, far: 30 }); key.shadow.bias = -0.0004;
+  // décor : sol, mur, caisses, conteneur. Version simple (formes unies) tout de suite ; version habillée (matières du parking :
+  // asphalte, béton à coffrage et tags inventés, caisses en bois, conteneur ou modèles 3D) dès que possible, sauf en rendu logiciel
+  const RICH = !SOFT || FORCE3D;
+  let set = null, setRich = false, setM3 = false;
+  function buildSet() {
+    const P = window.Parking, M3 = window.Modeles3D && window.Modeles3D.ready ? window.Modeles3D : null;
+    const rich = RICH && P && P.mesh && P.worldMat && P.asphalt;
+    if (set && (!rich || (setRich && (setM3 || !M3)))) return;   // déjà habillé (ou rien de mieux possible)
+    if (set) scene.remove(set); set = new THREE.Group(); setRich = !!rich; setM3 = !!M3; scene.add(set);
+    const put = (o, x, y, z, ry) => { if (!o) return null; o.position.set(x, y, z); o.rotation.y += ry || 0; o.traverse(n => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } }); set.add(o); return o; };
+    if (!rich) {
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x1f2328, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; set.add(ground);
+      const crate = new THREE.MeshStandardMaterial({ color: 0x46392a, roughness: 1 }), cont = new THREE.MeshStandardMaterial({ color: 0x1d242b, roughness: 0.8, metalness: 0.3 });
+      [[0.3, 0.55, -2.6, 1.1], [5.7, 0.4, -1.8, 0.8], [6.3, 0.4, -2.7, 0.8]].forEach(([x, y, z, sz]) => put(new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), crate), x, y, z));
+      put(new THREE.Mesh(new THREE.BoxGeometry(6, 2.6, 2.4), cont), 3.4, 1.3, -5.6, -0.12);
+      return;
+    }
+    // sol d'asphalte (détail en coordonnées du monde, sans tuilage visible)
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), P.worldMat(P.asphalt(), { roughness: 0.94, color: 0x8f8a84 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; set.add(ground);
+    // mur d'enceinte en panneaux de béton, assez haut pour que son arête sorte du cadre ; tags sur la face visible
+    const WH = 5.2; put(P.mesh({ name: 'mur nord', x: 11, z: 4, w: 27, h: WH, d: 0.35 }), 3, WH / 2, -4.6);
+    // conteneur à droite (modèle 3D s'il est chargé), caisses sur palettes, fûts, palettes
+    const fit = (n, w, h, d, opts) => (M3 && M3.has(n) ? M3.fit(n, w, h, d, opts) : null);
+    put(fit('conteneur', 6.1, 2.6, 2.45) || P.mesh({ name: 'conteneur', x: 2, z: 3, w: 6.1, h: 2.6, d: 2.45 }), 8.4, 1.3, -2.9, -0.95);
+    put(P.mesh({ name: 'caisses', x: 3, z: 1, w: 1.3, h: 1.45, d: 1.1 }), 0.1, 0.725, -2.3, 0.18);
+    put(P.mesh({ name: 'caisses', x: 7, z: 2, w: 1.2, h: 1.05, d: 1.0 }), 6.15, 0.525, -1.45, -0.3);
+    put(fit('fut', 0.6, 0.9, 0.6), 5.75, 0.45, -0.35); put(fit('fut', 0.6, 0.9, 0.6), 6.4, 0.45, -0.05, 1.1);
+    put(fit('palettes', 1.2, 0.5, 1.0), -0.9, 0.25, -1.2, 0.5);
+    // coins un peu plus éclairés sur le mur (lampe de chantier hors champ) : les tags et le béton se lisent derrière l'escouade
+    const wash = new THREE.SpotLight(0xffd2a0, 90, 0, 0.7, 0.9, 2); wash.position.set(5.5, 6, 1.5); wash.target.position.set(4, 1.6, -4.6); set.add(wash, wash.target);
+  }
+  buildSet();
   const figs = [];
   function buildSquad() {
     for (const f of figs) scene.remove(f.group); figs.length = 0;
@@ -77,7 +105,7 @@
     if (cost > 40) setTimeout(() => { if (running) requestAnimationFrame(frame); }, Math.min(3000, cost * 4)); else requestAnimationFrame(frame);
   }
   function show() {
-    $('#title').classList.remove('hidden'); buildSquad(); running = true; t0 = performance.now();
+    $('#title').classList.remove('hidden'); buildSet(); buildSquad(); running = true; t0 = performance.now();
     if (manual) { running = false; draw(0); } else requestAnimationFrame(frame);   // captures : une seule image, sans boucle
     // carrière en cours : le bouton principal la reprend, avec un rappel (rang, batailles, crédits)
     const p = window.HQ ? window.HQ.profile() : null;
@@ -95,7 +123,7 @@
   $('#titleFree').addEventListener('click', () => { hide(); $('#freeBattle').click(); });
   window.TITLE = { show, hide };
   // le soldat 3D arrive après l'écran titre : l'escouade est reconstruite avec lui
-  if (OT.Soldat3D && OT.Soldat3D.whenReady) OT.Soldat3D.whenReady(() => { if (!skinned && (!SOFT || FORCE3D) && !$('#title').classList.contains('hidden')) { buildSquad(); if (manual) draw(0); } });
+  if (OT.Soldat3D && OT.Soldat3D.whenReady) OT.Soldat3D.whenReady(() => { if ($('#title').classList.contains('hidden')) return; buildSet(); if (!skinned && RICH) buildSquad(); if (manual) draw(0); });
   const params = new URLSearchParams(location.search);
   if (params.get('manual') === '1' || params.get('mode') === 'free' || params.get('skipTitle') === '1') hide(); else { if (window.OT_MUSIC) $('#titleMusic').checked = window.OT_MUSIC.get() > 0; show(); }
 })();

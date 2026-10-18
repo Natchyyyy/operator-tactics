@@ -196,7 +196,12 @@
   // ---- Cartes v2 : paquets dessinés (probabilités par type), ouverture plein écran carte par carte, couleurs de rareté -----
   const CARD_TYPE_FR = { operator: 'Recrue', dupe: 'Doublon', tactic: 'Tactique', perk: 'Perk', xp: 'Expérience', credits: 'Crédits', cosmetic: 'Cosmétique' };
   const TYPE_GLYPH = { credits: '¤', cosmetic: '✦', xp: '▲', perk: '✚' };
-  const tacArt = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'cart')) || `<span class="cglyph">${TACTIC_ICON[id] || '◆'}</span>`;
+  // emblèmes dessinés des tactiques sans illustration (hexagone + pictogramme) ; tiroir : deux flèches décalées = bonds alternés
+  const TAC_SVG = {
+    tiroir: '<path d="M36 74 V40 M25 50 L36 37 L47 50" stroke="#eef5f1"/><path d="M64 84 V52 M53 62 L64 49 L75 62" stroke="#4ee089"/><path d="M30 86 H42 M58 30 H70" stroke="#4ee089" stroke-width="3" opacity=".6"/>',
+  };
+  const tacEmblem = (id) => `<span class="cglyph tsvg"><svg viewBox="0 0 100 100" style="display:inline-block;width:1.25em;height:1.25em;vertical-align:middle" aria-hidden="true"><defs><linearGradient id="tg-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d3a2c"/><stop offset="1" stop-color="#0b1511"/></linearGradient></defs><polygon points="50,4 90,27 90,73 50,96 10,73 10,27" fill="url(#tg-${id})" stroke="#4ee089" stroke-width="3" stroke-linejoin="round"/><g fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">${TAC_SVG[id]}</g></svg></span>`;
+  const tacArt = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'cart')) || (TAC_SVG[id] ? tacEmblem(id) : `<span class="cglyph">${TACTIC_ICON[id] || '◆'}</span>`);
   function cardArt(c) {
     const o = c.id && OPERATORS.find(x => x.id === c.id);
     if (c.type === 'tactic') return tacArt(c.id);
@@ -264,12 +269,17 @@
   $('#tmChange').addEventListener('click', () => { cand = null; $('#tmRoster').classList.remove('hidden'); renderRoster(); });
   $('#trClose').addEventListener('click', () => $('#tmRoster').classList.add('hidden'));
   $('#tmHead').addEventListener('click', () => { teamTab = teamTab === 'head' ? 'skills' : 'head'; renderDetail(); });
+  // grande carte : le soldat rendu par la scène de la capsule d'accueil (même modèle, même éclairage) ; sinon le portrait
+  function cardFigure(o) {
+    const url = window.HOMESCENE && window.HOMESCENE.snapshot && profile.operators[o.id] && window.HOMESCENE.snapshot(profile, o.id);
+    return url ? `<img class="portrait full snap" src="${url}" alt="">` : portraitOf(o, true);
+  }
   function bigCardHTML(o, opts = {}) {
     const st = profile.operators[o.id] || {}; const def = Game.effectiveDef(profile, o.id); const rate = Math.round(Game.operatorRating(profile, o.id));
     return `<div class="bc r${o.rarity} ${def.wounded ? 'wounded' : ''} ${st.unlocked ? '' : 'locked'}">
       <div class="bc-top"><b>${esc(o.callsign)}</b><span class="bc-role">${roleIco(o)}</span></div>
       <div class="bc-sub">${esc(ROLES[o.role].name)}${st.unlocked && Game.levelFor(st.xp) ? ' · niv. ' + Game.levelFor(st.xp) : ''}</div>
-      <div class="bc-art">${flagOf(o)}${portraitOf(o, true)}
+      <div class="bc-art">${flagOf(o)}${cardFigure(o)}
         ${st.pendingPromotions && st.pendingPromotions.length ? '<button class="bc-up" data-act="promo-open" title="Promotion à choisir">' + (OT.Ico ? OT.Ico('plus') : '+') + '</button>' : ''}
         ${def.wounded && st.unlocked ? `<div class="bc-wound"><span class="bang">!</span><div><b>Gravement blessé</b><small>repos ${st.woundRest || 0}/${DATA.WOUND.restMissions} · compétences ÷2</small><button class="mini" data-act="treat">Soigner ${Game.treatmentPrice(profile) ? '· ' + Game.treatmentPrice(profile) + ' cr.' : '(gratuit)'}</button></div></div>` : ''}
         ${!st.unlocked ? `<div class="bc-lock">${OT.Ico ? OT.Ico('lock') : ''}<b>${PRICES.operator[o.rarity]} cr.</b></div>` : ''}
@@ -368,7 +378,7 @@
     $('#hqSynergies').innerHTML = DATA.SYNERGIES.map(sy => { const a = syn.find(x => x.id === sy.id); return `<div class="syn ${a ? 'on' : ''}" title="${esc(sy.desc)}${a ? ' — ' + esc(a.sources.join(', ')) + ' → ' + esc(a.targets.join(', ')) : ''}"><b>${esc(sy.name)}</b><span>${esc(sy.effect)}</span></div>`; }).join('');
     el.querySelectorAll('.sqc[data-id]').forEach(s => s.addEventListener('click', () => { selected = s.dataset.id; render(); }));
     el.querySelectorAll('.sqc[data-empty]').forEach(s => s.addEventListener('click', () => { cand = null; $('#tmRoster').classList.remove('hidden'); renderRoster(); }));
-    $('#selOrder').value = profile.order;
+    $('#selOrder').value = profile.order; { const od = $('#selOrderDesc'); if (od) od.textContent = ORDERS[profile.order].desc; }
     $('#launch').disabled = !Game.squadReady(profile);
     const nw = profile.squad.filter(id => profile.operators[id].wounded).length;
     $('#launchHint').textContent = Game.squadReady(profile) ? `${profile.squad.length < 5 ? `Escouade réduite (${profile.squad.length}). ` : ''}${nw ? `Attention : ${nw} blessé${nw > 1 ? 's' : ''} grave${nw > 1 ? 's' : ''} à demi-capacité. ` : ''}${ORDERS[profile.order].desc}` : 'Il faut au moins 3 opérateurs disponibles pour lancer la mission.';

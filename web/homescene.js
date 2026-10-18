@@ -53,9 +53,27 @@
   }
   function frame(now) { if (!running) return; requestAnimationFrame(frame); draw((now - t0) / 1000); }
   const manual = new URLSearchParams(location.search).get('manual') === '1' || document.documentElement.classList.contains('manual');
+  // image du soldat pour les grandes cartes de l'écran Équipe : même modèle, même éclairage et même cadrage que la capsule.
+  // Rendue dans le canevas de la capsule puis copiée (le tout dans la même tâche : aucune image intermédiaire n'est affichée).
+  const snaps = {}; let shown = false;
+  function snapshot(profile, id) {
+    const st = profile.operators[id]; if (!st || !(OT.Soldat3D && OT.Soldat3D.ready)) return null;
+    const uni = OT.DATA.UNIFORMS.find(u => u.id === profile.uniform) || OT.DATA.UNIFORMS[0], P = window.HOMEPOSE || POSE;
+    const k = JSON.stringify([id, uni.id, st.weaponId]); if (snaps[k]) return snaps[k];
+    let s3 = null; try { s3 = OT.Soldat3D.create({ modele: 'gign', uniform: uni.uniform, weapon: st.weaponId }); } catch (e) { s3 = null; } if (!s3) return null;
+    s3.play(P.clip, { time: P.t }); s3.update(0); s3.body.rotation.y = (s3.yawFix[P.clip] || 0); s3.placeWeapon(true, 0); s3.group.rotation.y = P.yaw;
+    const W = 340, H = 636, cx = P.cx !== undefined ? P.cx : 0.05;
+    if (fig) fig.group.visible = false; scene.add(s3.group);
+    renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); camera.position.set(cx, 1.0, 5.85); camera.lookAt(cx, 0.9, 0);
+    let url = null; try { renderer.render(scene, camera); url = canvas.toDataURL('image/png'); } catch (e) { url = null; }
+    scene.remove(s3.group); if (fig) fig.group.visible = true;
+    if (shown) draw(0); else { const w = canvas.clientWidth, h = canvas.clientHeight; if (w && h) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); } }
+    return (snaps[k] = url);
+  }
   window.HOMESCENE = {
-    show(profile) { build(profile); if (manual) { draw(0); return; } if (!running) { running = true; requestAnimationFrame(frame); } },
-    hide() { running = false; },
+    show(profile) { shown = true; build(profile); if (manual) { draw(0); return; } if (!running) { running = true; requestAnimationFrame(frame); } },
+    hide() { shown = false; running = false; },
     redraw() { draw(0); },
+    snapshot,
   };
 })();
