@@ -1,14 +1,14 @@
 {
  "page": "/home/claude/operator-tactics/dist/artifact.html",
- "octets_page": 264081,
- "version": "eb6aa5f5fe",
- "total_octets": 137789400,
- "fichiers": 39,
+ "octets_page": 358497,
+ "version": "c521162ce5",
+ "total_octets": 141832997,
+ "fichiers": 44,
  "problemes": [],
  "lots": [
   {
-   "n": 19,
-   "octets": 56963065,
+   "n": 22,
+   "octets": 58381945,
    "files": {
     "p/three.min.js": "/home/claude/operator-tactics/dist/p/three.min.js",
     "p/three-addons.js": "/home/claude/operator-tactics/dist/p/three-addons.js",
@@ -22,18 +22,21 @@
     "hd/abribus.json": "/home/claude/operator-tactics/dist/hdart/abribus.json",
     "hd/arbre.json": "/home/claude/operator-tactics/dist/hdart/arbre.json",
     "hd/armoire.json": "/home/claude/operator-tactics/dist/hdart/armoire.json",
+    "hd/aspirateur.json": "/home/claude/operator-tactics/dist/hdart/aspirateur.json",
     "hd/barriere.json": "/home/claude/operator-tactics/dist/hdart/barriere.json",
     "hd/benne.json": "/home/claude/operator-tactics/dist/hdart/benne.json",
     "hd/berline.json": "/home/claude/operator-tactics/dist/hdart/berline.json",
+    "hd/borne.json": "/home/claude/operator-tactics/dist/hdart/borne.json",
     "hd/bus.json": "/home/claude/operator-tactics/dist/hdart/bus.json",
+    "hd/caisse.json": "/home/claude/operator-tactics/dist/hdart/caisse.json",
     "hd/caisses.json": "/home/claude/operator-tactics/dist/hdart/caisses.json",
     "hd/clim.json": "/home/claude/operator-tactics/dist/hdart/clim.json",
     "hd/conteneur.json": "/home/claude/operator-tactics/dist/hdart/conteneur.json"
    }
   },
   {
-   "n": 14,
-   "octets": 59329850,
+   "n": 15,
+   "octets": 58065393,
    "files": {
     "hd/escalier.json": "/home/claude/operator-tactics/dist/hdart/escalier.json",
     "hd/fourgon.json": "/home/claude/operator-tactics/dist/hdart/fourgon.json",
@@ -41,6 +44,7 @@
     "hd/fut.json": "/home/claude/operator-tactics/dist/hdart/fut.json",
     "hd/gign_couleur.jpg": "/home/claude/operator-tactics/dist/hdart/gign_couleur.jpg",
     "hd/gign_hd.json": "/home/claude/operator-tactics/dist/hdart/gign_hd.json",
+    "hd/gign_lod.json": "/home/claude/operator-tactics/dist/hdart/gign_lod.json",
     "hd/gign_mr.jpg": "/home/claude/operator-tactics/dist/hdart/gign_mr.jpg",
     "hd/gign_relief.jpg": "/home/claude/operator-tactics/dist/hdart/gign_relief.jpg",
     "hd/guerite.json": "/home/claude/operator-tactics/dist/hdart/guerite.json",
@@ -52,11 +56,12 @@
    }
   },
   {
-   "n": 5,
-   "octets": 21232404,
+   "n": 6,
+   "octets": 25027162,
    "files": {
     "hd/soldat_couleur.jpg": "/home/claude/operator-tactics/dist/hdart/soldat_couleur.jpg",
     "hd/soldat_hd.json": "/home/claude/operator-tactics/dist/hdart/soldat_hd.json",
+    "hd/soldat_lod.json": "/home/claude/operator-tactics/dist/hdart/soldat_lod.json",
     "hd/soldat_mr.jpg": "/home/claude/operator-tactics/dist/hdart/soldat_mr.jpg",
     "hd/soldat_relief.jpg": "/home/claude/operator-tactics/dist/hdart/soldat_relief.jpg",
     "hd/sons_hd.json": "/home/claude/operator-tactics/dist/hdart/sons_hd.json"
@@ -95,9 +100,9 @@
   {
    "publie": "p/modeles-gign.js",
    "source": "dist/p/modeles-gign.js",
-   "octets": 2733432,
+   "octets": 2752068,
    "type": "text/javascript",
-   "sha": "0666d05b3323"
+   "sha": "7fb79b4fb494"
   },
   {
    "publie": "p/modeles-decor.js",
@@ -116,9 +121,9 @@
   {
    "publie": "p/jeu.js",
    "source": "dist/p/jeu.js",
-   "octets": 1533987,
+   "octets": 1495721,
    "type": "text/javascript",
-   "sha": "6ca7eae3f714"
+   "sha": "07930bf906f4"
   },
   {
    "publie": "p/cannon-es.LICENSE.txt",
@@ -130,16 +135,16 @@
   {
    "publie": "hd/abribus.json",
    "source": "dist/hdart/abribus.json",
-   "octets": 3401094,
+   "octets": 3075122,
    "type": "application/json",
-   "sha": "84c0cec3034a"
+   "sha": "b2a0206e4a9e"
   },
   {
    "publie": "hd/arbre.json",
    "source": "dist/hdart/arbre.json",
-   "octets": 6480234,
+   "octets": 4192386,
    "type": "application/json",
-   "sha": "a2ed0a9dda6d"
+   "sha": "644c34ebdd6d"
   },
   {
    "publie": "hd/armoire.json",
@@ -149,46 +154,67 @@
    "sha": "f2472a171816"
   },
   {
+   "publie": "hd/aspirateur.json",
+   "source": "dist/hdart/aspirateur.json",
+   "octets": 2519458,
+   "type": "application/json",
+   "sha": "fd0854867ad9"
+  },
+  {
    "publie": "hd/barriere.json",
    "source": "dist/hdart/barriere.json",
-   "octets": 3343542,
+   "octets": 3210946,
    "type": "application/json",
-   "sha": "e05874004600"
+   "sha": "b4babbc2e5af"
   },
   {
    "publie": "hd/benne.json",
    "source": "dist/hdart/benne.json",
-   "octets": 2838210,
+   "octets": 2512374,
    "type": "application/json",
-   "sha": "6be507269586"
+   "sha": "a10ab462792c"
   },
   {
    "publie": "hd/berline.json",
    "source": "dist/hdart/berline.json",
-   "octets": 4682386,
+   "octets": 3900410,
    "type": "application/json",
-   "sha": "621635ea823d"
+   "sha": "0da27ae5da6c"
+  },
+  {
+   "publie": "hd/borne.json",
+   "source": "dist/hdart/borne.json",
+   "octets": 2536546,
+   "type": "application/json",
+   "sha": "1bb1fb8c5938"
   },
   {
    "publie": "hd/bus.json",
    "source": "dist/hdart/bus.json",
-   "octets": 5742658,
+   "octets": 4682474,
    "type": "application/json",
-   "sha": "f26a2c6dee38"
+   "sha": "bfef29d8cd54"
+  },
+  {
+   "publie": "hd/caisse.json",
+   "source": "dist/hdart/caisse.json",
+   "octets": 1991378,
+   "type": "application/json",
+   "sha": "5e6a0c7cfdbb"
   },
   {
    "publie": "hd/caisses.json",
    "source": "dist/hdart/caisses.json",
-   "octets": 4265226,
+   "octets": 4643954,
    "type": "application/json",
-   "sha": "b8c85542c940"
+   "sha": "c042356fb902"
   },
   {
    "publie": "hd/clim.json",
    "source": "dist/hdart/clim.json",
-   "octets": 6458774,
+   "octets": 5385586,
    "type": "application/json",
-   "sha": "631e73cf82d7"
+   "sha": "1d76d2280be2"
   },
   {
    "publie": "hd/conteneur.json",
@@ -207,16 +233,16 @@
   {
    "publie": "hd/fourgon.json",
    "source": "dist/hdart/fourgon.json",
-   "octets": 4099654,
+   "octets": 3325766,
    "type": "application/json",
-   "sha": "6346895382ee"
+   "sha": "5fdef55c60de"
   },
   {
    "publie": "hd/fusil.json",
    "source": "dist/hdart/fusil.json",
-   "octets": 4633430,
+   "octets": 3408922,
    "type": "application/json",
-   "sha": "5df1efc1dc78"
+   "sha": "56264ca9bf07"
   },
   {
    "publie": "hd/fut.json",
@@ -228,9 +254,9 @@
   {
    "publie": "hd/gign_couleur.jpg",
    "source": "dist/hdart/gign_couleur.jpg",
-   "octets": 3525438,
+   "octets": 3556309,
    "type": "image/jpeg",
-   "sha": "37ede9c22683"
+   "sha": "681728476a5c"
   },
   {
    "publie": "hd/gign_hd.json",
@@ -240,11 +266,18 @@
    "sha": "460760161638"
   },
   {
+   "publie": "hd/gign_lod.json",
+   "source": "dist/hdart/gign_lod.json",
+   "octets": 2771174,
+   "type": "application/json",
+   "sha": "81bf52e54b83"
+  },
+  {
    "publie": "hd/gign_mr.jpg",
    "source": "dist/hdart/gign_mr.jpg",
-   "octets": 583411,
+   "octets": 462941,
    "type": "image/jpeg",
-   "sha": "2cbf732afa0b"
+   "sha": "b36e3ce8b21e"
   },
   {
    "publie": "hd/gign_relief.jpg",
@@ -256,9 +289,9 @@
   {
    "publie": "hd/guerite.json",
    "source": "dist/hdart/guerite.json",
-   "octets": 3956858,
+   "octets": 3799290,
    "type": "application/json",
-   "sha": "7ca87eccd2be"
+   "sha": "6d8612ce4005"
   },
   {
    "publie": "hd/kiosque.json",
@@ -270,30 +303,30 @@
   {
    "publie": "hd/palettes.json",
    "source": "dist/hdart/palettes.json",
-   "octets": 4982134,
+   "octets": 4554006,
    "type": "application/json",
-   "sha": "dbe1bf39a1fd"
+   "sha": "4edc4d6669ae"
   },
   {
    "publie": "hd/pickup.json",
    "source": "dist/hdart/pickup.json",
-   "octets": 4849686,
+   "octets": 4015878,
    "type": "application/json",
-   "sha": "28b7841e2bac"
+   "sha": "1a805b3a79bf"
   },
   {
    "publie": "hd/porte.json",
    "source": "dist/hdart/porte.json",
-   "octets": 3697302,
+   "octets": 3474758,
    "type": "application/json",
-   "sha": "650adcd91880"
+   "sha": "c02f2786554b"
   },
   {
    "publie": "hd/sacs.json",
    "source": "dist/hdart/sacs.json",
-   "octets": 2689162,
+   "octets": 2383574,
    "type": "application/json",
-   "sha": "585a0ce38aea"
+   "sha": "16a5c6418a1e"
   },
   {
    "publie": "hd/soldat_couleur.jpg",
@@ -308,6 +341,13 @@
    "octets": 7322450,
    "type": "application/json",
    "sha": "da528c079d12"
+  },
+  {
+   "publie": "hd/soldat_lod.json",
+   "source": "dist/hdart/soldat_lod.json",
+   "octets": 3794758,
+   "type": "application/json",
+   "sha": "085988a362b5"
   },
   {
    "publie": "hd/soldat_mr.jpg",
