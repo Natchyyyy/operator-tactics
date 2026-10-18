@@ -59,8 +59,8 @@ window.ECH = { bandeN: 10, bande: null, img: 0, cat: {}, seg: {}, fin: [], pires
         (E.bandeN > 0 && k.c === 'jog_bas_avant' && E.img - s2.i0 > 30 && (!E.bande || E.bande.u === u.id) && (!E.bande || E.bande.imgs.length < E.bandeN) && (!E.bande || E.img - E.bande.der >= 2))) {
         if (!E.bande) E.bande = { u: u.id, cs: u.callsign, imgs: [], der: 0 };
         E.bande.der = E.img; const g = m.group.position, yaw = Math.atan2(Math.sin(m.yaw), -Math.cos(m.yaw));
-        E.actif = false; E.dessin = true; try { API.look(g.x, g.z, yaw, 0.1, E.suivre ? 2.2 : 2.6, E.suivre ? 0.6 : 0.75); E.bande.imgs.push([E.img, cv().toDataURL('image/jpeg', 0.85), +mm.genouSensG.toFixed(0), +mm.genouSensD.toFixed(0)]);
-          if (E.suivre) { API.look(g.x, g.z, Math.PI / 2 - m.yaw, 0.1, 2.2, 0.6); E.bande.imgs.push([E.img + 0.5, cv().toDataURL('image/jpeg', 0.85), +mm.genouSensG.toFixed(0), +mm.genouSensD.toFixed(0)]); } } finally { E.actif = true; E.dessin = false; }
+        E.actif = false; E.dessin = true; const rendre = E.isoler(u); try { API.look(g.x, g.z, yaw, 0.12, E.suivre ? 2.8 : 2.6, E.suivre ? 0.85 : 0.75); E.bande.imgs.push([E.img, cv().toDataURL('image/jpeg', 0.85), +mm.genouSensG.toFixed(0), +mm.genouSensD.toFixed(0)]);
+          if (E.suivre) { API.look(g.x, g.z, Math.PI / 2 - m.yaw, 0.12, 2.8, 0.85); E.bande.imgs.push([E.img + 0.5, cv().toDataURL('image/jpeg', 0.85), +mm.genouSensG.toFixed(0), +mm.genouSensD.toFixed(0)]); } } finally { E.actif = true; E.dessin = false; rendre(); }
       }
       // alarmes instantanées (seuils « majeur » de la rubrique) : gros plan rendu TOUT DE SUITE (pas de 2e passe)
       if (E.alarmes.length < E.maxAlarmes) for (const [id, t] of E.TESTS) { let x; try { x = t(mm, k); } catch (e) { x = null; } if (x === null || x === false || x === undefined) continue;
@@ -94,13 +94,18 @@ window.ECH = { bandeN: 10, bande: null, img: 0, cat: {}, seg: {}, fin: [], pires
     ['genou_envers', (mm) => Math.max(mm.genouSensG || 0, mm.genouSensD || 0) > 100 ? Math.max(mm.genouSensG, mm.genouSensD) : null],
   ];
   // canvas du rendu 3D = le plus grand de la page (il y en a d'autres : titre, icônes…)
+  // gros plans : on cache le décor (voitures, murs) qui masque souvent le soldat ; seuls restent les soldats
+  E.isoler = (u) => { const sc = API.scene(), M = API.meshes(), garde = new Set(Object.values(M).map(m => m.group)), cach = [];
+    for (const o of sc.children) if (!garde.has(o) && o.visible && !o.isLight) { o.visible = false; cach.push(o); }
+    for (const id in M) if (id !== u.id && M[id].group.visible) { M[id].group.visible = false; cach.push(M[id].group); }
+    return () => cach.forEach(o => { o.visible = true; }); };
   const cv = () => Array.from(document.querySelectorAll('canvas')).sort((a, b) => b.width * b.height - a.width * a.height)[0];
   E.capturer = (u, m, info) => {
     const g = m.group.position, vues = [['face', Math.PI / 2 - m.yaw], ['cote', Math.atan2(Math.sin(m.yaw), -Math.cos(m.yaw))]];
     info.images = [];
-    E.actif = false; E.dessin = true;
+    E.actif = false; E.dessin = true; const rendre = E.isoler(u);
     try { for (const [nom, yaw] of vues) { API.look(g.x, g.z, yaw, 0.22, 3.0, 0.9); const c = cv(); info.images.push([nom, c.toDataURL('image/jpeg', 0.85)]); } }
-    finally { E.actif = true; E.dessin = false; }
+    finally { E.actif = true; E.dessin = false; rendre(); }
     E.alarmes.push(info);
   };
   E.orig = R.render; E.dessin = false;
