@@ -12,7 +12,7 @@ import rubrique
 from verrou import verrou
 from playwright.async_api import async_playwright
 RACINE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-os.environ.setdefault('PLAYWRIGHT_BROWSERS_PATH', '/opt/pw-browsers')
+if os.path.isdir('/opt/pw-browsers'): os.environ.setdefault('PLAYWRIGHT_BROWSERS_PATH', '/opt/pw-browsers')   # (conteneur Linux seulement ; ailleurs : chemin par défaut de Playwright)
 GL = ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--autoplay-policy=no-user-gesture-required"]
 INIT = "(() => { let s = 123456789; Math.random = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }; })();"
 

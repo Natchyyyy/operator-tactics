@@ -17,7 +17,7 @@ from playwright.async_api import async_playwright
 RACINE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 URL = 'http://127.0.0.1:8765/outils/revue/banc.html'
 GL = ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"]
-os.environ.setdefault('PLAYWRIGHT_BROWSERS_PATH', '/opt/pw-browsers')
+if os.path.isdir('/opt/pw-browsers'): os.environ.setdefault('PLAYWRIGHT_BROWSERS_PATH', '/opt/pw-browsers')   # (conteneur Linux seulement ; ailleurs : chemin par défaut de Playwright)
 
 async def page_banc(p):
     br = await p.chromium.launch(args=GL); pg = await br.new_page(viewport={'width': 400, 'height': 300})
