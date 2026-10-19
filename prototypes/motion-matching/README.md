@@ -47,19 +47,26 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   0,3-0,65 s après appui ; arrêt en 25-55 cm sans retour.
 - IK deux os : côté de flexion = mélange continu entre le côté naturel (pose capturée) et le pôle (coudes bas et rentrés,
   genoux avant) — plus de coude qui saute (max 3 m/s, vitesse d'un bras qui marche).
-- Garde-main hors de portée → l'arme est rentrée vers le tireur (≤ 7 cm) avant que la main ne glisse ; buste bladé 0,3 rad.
-- Styles : Neutral (sans arme) et Swat (arme, défaut). Verrou des pieds horizontal (IK deux os robuste, écart ≤ 8 cm).
-- Arme (V, active par défaut) : low ready — crosse dans le creux de l'épaule droite (`PARAMS.fusil` : avant/droite/haut par
-  rapport à l'épaule, tangage −0,5 rad, cant 0,3 rad vers l'intérieur, lissage 60 ms) ; direction = regard du soldat mélangé
-  30 % au buste. Mains : places du jeu (`PRISE` de soldat3d.js, par modèle) → IK deux os (coudes vers le bas), main d'appui
-  glissée vers l'arrière si le garde-main est hors de portée (bras de 46 cm sur ce modèle), torsion du poignet partagée 60 %
-  avec l'avant-bras, doigts de la première image de « Rifle_Aim_Turn_Right » ; fondu 0,25 s à la sortie / au rangement.
+- Arme (V, active par défaut) : low ready d'après deux photos de référence — crosse posée sur le dessus de l'épaule droite
+  contre le cou (ancre : base du cou, `PARAMS.fusil` avant/droite/haut), canon qui plonge de 27° (tangage −0,47 rad, jusqu'à
+  −0,7 si la main d'appui ne peut pas atteindre le garde-main), arme roulée de 29° dessus vers la tête (roulis −0,5), léger
+  travers (cant 0,05 + buste bladé, vrille 0,4 rad répartie sur Spine/Spine1/Spine2). Si la poignée arrive à moins de 11 cm
+  de l'épaule droite (bras de 44 cm), l'arme est poussée vers l'avant le long du canon (lissé 0,15 s). Lissage de l'arme
+  (80 ms) dans le repère du personnage, pas dans le monde (sinon elle traînait derrière un soldat qui court).
+  Mains : places du jeu (`PRISE` de soldat3d.js, par modèle, ramenées à une arme de 0,74 m) → IK deux os (coudes vers le bas),
+  torsion du poignet partagée 60 % avec l'avant-bras, doigts de la première image de « Rifle_Aim_Turn_Right », index droit
+  tendu hors de la détente en low ready ; fondu 0,25 s à la sortie / au rangement.
+- Épaulé (clic droit maintenu, `PARAMS.epaule`, fondu 0,3 s) : crosse dans le creux de l'épaule (ancre cou, avant −0,06 /
+  droite 0,12 / haut −0,04), canon horizontal, vrille 0,55, joue sur la crosse : cou + tête penchés vers l'avant (0,45 rad)
+  et roulés vers la crosse (0,35 rad), moitié sur le cou, moitié sur la tête.
+- Agent critique (sous-agent indépendant, photos de référence vs captures éclairées `?clair=1`) : v22 38-64 %, v23
+  85 % → 92-94 % en low ready après corrections (crosse derrière l'épaule, plongée 27°, roulis) ; voir captures/crit-*.png.
 - Commandes : ZQSD relatif à la caméra, le soldat regarde là où il va ; clic droit maintenu = épaulé (`PARAMS.epaule`, fondu
   0,3 s) + regard verrouillé sur la caméra (pas de côté, recul) ; la caméra seule ne fait jamais tourner le soldat.
 - E : escouade de 5 soldats (4 de plus sur des chemins, arme sortie) ; chaque agent = soldat + contrôleur + lecture de la base ;
   5 soldats ≈ 1,1 ms de simulation par pas sur une machine lente.
-- Mesures (scénarios 60 Hz, `scratchpad/scenario.py`, `robuste.js`) : main droite sur la poignée à < 0,01 mm ; 90 s d'entrées
-  aléatoires sans NaN ; dérive à l'arrêt 0 ; chemin de démo : 9 points en 60 s, 0,3 s bloquées ; glissement en marche Swat
+- Mesures (outils/tests) : main droite sur la poignée à < 0,01 mm ; 90 s d'entrées aléatoires sans NaN ; coudes ≤ 5 m/s
+  (plus de coude qui saute quand la poignée est près de l'épaule) ; dérive à l'arrêt 0 ; chemin de démo : 9 points en 60 s, 0,3 s bloquées ; glissement en marche Swat
   7 cm/s (données seules 4,5), 15-19 avec changements de direction toutes les 2 s (transitions).
 - Manques : course rapide (100STYLE plafonne vers 1,9 m/s en Swat), accroupi, tête qui suit une cible, mode épaulé/tir.
   Données StartStop_* présentes dans donnees/100style/ mais pas dans la base.

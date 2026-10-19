@@ -2,7 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
-  const VERSION = 22;
+  const VERSION = 23;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);
@@ -271,12 +271,12 @@
       // fondu : la prise s'installe / se défait en ~0,25 s (mains, doigts), le fusil apparaît quand la prise est à moitié faite
       this.poidsArme = Math.max(0, Math.min(1, (this.poidsArme ?? 0) + (actif ? 1 : -1) * dt / 0.25));
       const pa = this.poidsArme; w.visible = pa > 0.5;
-      if (pa <= 0) { for (const d of this.doigts) d.os.quaternion.copy(d.repos); this.fusilPos = null; return; }
+      if (pa <= 0) { for (const d of this.doigts) d.os.quaternion.copy(d.repos); this.fusilPos = null; this.fusilPosLoc = null; return; }
       const D = this.mains.D, G = this.mains.G; if (D.some(x => !x) || G.some(x => !x)) return;
       // deux ports : low ready (défaut) et épaulé en visée (regard verrouillé) ; fondu entre les deux
       this.poidsVisee = Math.max(0, Math.min(1, (this.poidsVisee ?? 0) + ((this.viseeEpaulee ? 1 : -1) * dt / 0.3)));
       const pv = this.poidsVisee, L = PARAMS.fusil, E = PARAMS.epaule;
-      const P = { vrille: L.vrille, tangageMax: L.tangageMax + (E.tangageMax - L.tangageMax) * pv, avant: L.avant + (E.avant - L.avant) * pv, droite: L.droite + (E.droite - L.droite) * pv, haut: L.haut + (E.haut - L.haut) * pv, tangage: L.tangage + (E.tangage - L.tangage) * pv, cant: L.cant + (E.cant - L.cant) * pv, buste: L.buste, lissage: L.lissage, appuiZ: L.appuiZ, torsion: L.torsion };
+      const P = { vrille: L.vrille + ((E.vrille ?? L.vrille) - L.vrille) * pv, tangageMax: L.tangageMax + (E.tangageMax - L.tangageMax) * pv, avant: L.avant + (E.avant - L.avant) * pv, droite: L.droite + (E.droite - L.droite) * pv, haut: L.haut + (E.haut - L.haut) * pv, tangage: L.tangage + (E.tangage - L.tangage) * pv, cant: L.cant + (E.cant - L.cant) * pv, roulis: (L.roulis || 0) + ((E.roulis || 0) - (L.roulis || 0)) * pv, buste: L.buste, lissage: L.lissage, appuiZ: L.appuiZ, torsion: L.torsion };
       // Low ready comme un vrai tireur : la CROSSE reste dans le creux de l'épaule droite, le canon pivote vers le bas.
       // Direction : le regard du soldat (ses hanches), un peu mélangé au buste pour vivre avec la marche ; léger cant vers
       // l'intérieur (le fusil barre la poitrine).
@@ -295,25 +295,40 @@
       }
       // Ancrage de la CROSSE d'après les photos de référence : posée sur le DESSUS de l'épaule droite, près du cou ; repère
       // du buste (Spine2, qui ne balance pas avec les bras capturés : l'arme reste calme au repos). Le canon plonge.
-      const pS2 = sp.getWorldPosition(V3());
+      const cou = this.os[Base.meta.os.indexOf('Neck')] || sp; const pS2 = cou.getWorldPosition(V3());   // ancre : base du cou (ne penche pas avec la marche)
       const creux = pS2.clone().addScaledVector(dir, P.avant).addScaledVector(droite, P.droite).add(V3(0, P.haut, 0));
       // Tangage adaptatif : si la main d'appui ne peut pas atteindre sa place sur le garde-main, le canon plonge davantage
       // (jusqu'à P.tangageMax) — ce que fait un tireur aux bras courts — au lieu de rentrer l'arme dans le corps. Lissé.
+      // Bras courts : si la poignée arrive trop près de l'épaule droite (bras replié à fond, coude indéfini), l'arme est
+      // poussée vers l'avant le long du canon juste ce qu'il faut (≥ 11 cm épaule → main), en douceur.
+      let pousse = 0;
+      if (this.prise && D[0]) {
+        const epD = D[0].getWorldPosition(V3()), axe0 = V3(0, 0, 1).applyQuaternion(Q().setFromAxisAngle(V3(0, 1, 0), yaw).multiply(Q().setFromAxisAngle(V3(1, 0, 0), -(this.tangageLisse ?? P.tangage))));
+        const q0 = Q().setFromAxisAngle(V3(0, 1, 0), yaw).multiply(Q().setFromAxisAngle(V3(1, 0, 0), -(this.tangageLisse ?? P.tangage))).multiply(Q().setFromAxisAngle(V3(0, 0, 1), P.roulis));
+        const base = creux.clone().sub(w.buttPt.clone().applyQuaternion(q0)).add(this.prise.D.pos.clone().applyQuaternion(q0));
+        for (let it = 0; it < 20 && base.clone().addScaledVector(axe0, pousse).distanceTo(epD) < 0.11; it++) pousse += 0.01;
+                this.pousseLisse = this.pousseLisse == null ? pousse : this.pousseLisse + (pousse - this.pousseLisse) * (1 - Math.exp(-dt / 0.15));
+        creux.addScaledVector(axe0, this.pousseLisse);
+      }
       let tangage = P.tangage;
       if (this.prise && G[0] && G[1] && G[2]) {
         const epG = G[0].getWorldPosition(V3()), portee = (G[1].getWorldPosition(V3()).distanceTo(epG) + G[2].getWorldPosition(V3()).distanceTo(G[1].getWorldPosition(V3()))) * 0.96;
         const posG = this.prise.G.pos.clone(); if (P.appuiZ != null) posG.z = P.appuiZ;
         for (let it = 0; it < 40 && tangage > P.tangageMax; it++) {
-          const qt = Q().setFromAxisAngle(V3(0, 1, 0), yaw).multiply(Q().setFromAxisAngle(V3(1, 0, 0), -tangage));
+          const qt = Q().setFromAxisAngle(V3(0, 1, 0), yaw).multiply(Q().setFromAxisAngle(V3(1, 0, 0), -tangage)).multiply(Q().setFromAxisAngle(V3(0, 0, 1), P.roulis));
           const cible = creux.clone().sub(w.buttPt.clone().applyQuaternion(qt)).add(posG.clone().applyQuaternion(qt));
           if (cible.distanceTo(epG) <= portee) break;
           tangage -= 0.02;
         }
       }
       this.tangageLisse = this.tangageLisse == null ? tangage : this.tangageLisse + (tangage - this.tangageLisse) * (1 - Math.exp(-dt / 0.2));
-      const q = Q().setFromAxisAngle(V3(0, 1, 0), yaw).multiply(Q().setFromAxisAngle(V3(1, 0, 0), -this.tangageLisse));
-      if (!this.fusilPos) { this.fusilPos = creux.clone(); this.fusilQ = q.clone(); }
-      const k = 1 - Math.exp(-dt / P.lissage); this.fusilPos.lerp(creux, k); this.fusilQ.slerp(q, k);
+      const q = Q().setFromAxisAngle(V3(0, 1, 0), yaw).multiply(Q().setFromAxisAngle(V3(1, 0, 0), -this.tangageLisse)).multiply(Q().setFromAxisAngle(V3(0, 0, 1), P.roulis));   // roulis : dessus de l'arme vers le cou en low ready (photo)
+      // lissage dans le repère du personnage (sinon l'arme traîne derrière un soldat qui court ou qui tourne)
+      const gQ = Q().setFromAxisAngle(V3(0, 1, 0), this.yaw), gM = new THREE.Matrix4().compose(V3(this.pos.x, 0, this.pos.z), gQ, V3(1, 1, 1)), gI = gM.clone().invert(), gQI = gQ.clone().invert();
+      const creuxLoc = creux.clone().applyMatrix4(gI), qLoc = gQI.clone().multiply(q);
+      if (!this.fusilPosLoc) { this.fusilPosLoc = creuxLoc.clone(); this.fusilQLoc = qLoc.clone(); }
+      const k = 1 - Math.exp(-dt / P.lissage); this.fusilPosLoc.lerp(creuxLoc, k); this.fusilQLoc.slerp(qLoc, k);
+      this.fusilPos = this.fusilPosLoc.clone().applyMatrix4(gM); this.fusilQ = gQ.clone().multiply(this.fusilQLoc);
       w.quaternion.copy(this.fusilQ); w.position.copy(this.fusilPos).sub(w.buttPt.clone().applyQuaternion(this.fusilQ));
       // mains : placées sur l'arme comme dans la prise de référence (IK deux os vers la position, orientation reportée)
       for (const [main, k] of [[D, 'D'], [G, 'G']]) {
@@ -347,8 +362,10 @@
       const tete = this.os[Base.meta.os.indexOf('Head')];
       if (tete && pv > 0.001) {
         const kT = pa * pv; const rDroite = droite.clone().negate();            // axe vers la gauche du tireur = -droite... (droite = dir × up pointe à droite)
-        const qT = Q().setFromAxisAngle(droite, 0.22 * kT).multiply(Q().setFromAxisAngle(dir, 0.3 * kT));   // baisse (autour de l'axe droite) + roulis vers la droite
-        tete.quaternion.copy(tete.parent.getWorldQuaternion(Q()).invert().multiply(qT).multiply(tete.getWorldQuaternion(Q()))); tete.updateMatrixWorld(true);
+        const qT = Q().setFromAxisAngle(droite, -(E.joue ?? 0.22) * kT).multiply(Q().setFromAxisAngle(dir, (E.rouleTete ?? 0.3) * kT));   // baisse (autour de l'axe droite) + roulis vers la droite
+        // moitié sur le cou (la tête descend et avance vers la crosse), moitié sur la tête
+        const couOs = this.os[Base.meta.os.indexOf('Neck')], qT2 = Q().slerp.call(Q(), qT, 0.5);
+        for (const o of [couOs, tete]) { if (!o) continue; o.quaternion.copy(o.parent.getWorldQuaternion(Q()).invert().multiply(qT2).multiply(o.getWorldQuaternion(Q()))); o.updateMatrixWorld(true); }
       }
       // repères de mise au point : poignée (jaune), garde-main (cyan), jointure du majeur visée (vert D, bleu G), bout d'os de main (rouge)
       if (PARAMS.debug) {
@@ -510,7 +527,7 @@
   let renderer, scene, camera, cam = { dist: 4.2, pitch: 0.42 }, horloge = 0;
   let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.01, droite: 0.10, haut: 0.15, tangage: -0.5, tangageMax: -0.65, cant: 0.3, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: 0.05, droite: 0.15, haut: 0.17, tangage: 0.0, tangageMax: -0.05, cant: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.055, tangage: -0.47, tangageMax: -0.7, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
