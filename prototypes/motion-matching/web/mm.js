@@ -2,7 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
-  const VERSION = 23;
+  const VERSION = 24;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);
@@ -296,7 +296,10 @@
       // Ancrage de la CROSSE d'après les photos de référence : posée sur le DESSUS de l'épaule droite, près du cou ; repère
       // du buste (Spine2, qui ne balance pas avec les bras capturés : l'arme reste calme au repos). Le canon plonge.
       const cou = this.os[Base.meta.os.indexOf('Neck')] || sp; const pS2 = cou.getWorldPosition(V3());   // ancre : base du cou (ne penche pas avec la marche)
-      const creux = pS2.clone().addScaledVector(dir, P.avant).addScaledVector(droite, P.droite).add(V3(0, P.haut, 0));
+      // épauler : la crosse part du dessus de l'épaule, l'arme est poussée vers l'avant puis vient se caler dans le creux
+      // de l'épaule (excursion avant maximale à mi-fondu, dans les deux sens)
+      const avantPlus = (E.poussee || 0) * Math.sin(Math.PI * pv);
+      const creux = pS2.clone().addScaledVector(dir, P.avant + avantPlus).addScaledVector(droite, P.droite).add(V3(0, P.haut, 0));
       // Tangage adaptatif : si la main d'appui ne peut pas atteindre sa place sur le garde-main, le canon plonge davantage
       // (jusqu'à P.tangageMax) — ce que fait un tireur aux bras courts — au lieu de rentrer l'arme dans le corps. Lissé.
       // Bras courts : si la poignée arrive trop près de l'épaule droite (bras replié à fond, coude indéfini), l'arme est
@@ -527,7 +530,7 @@
   let renderer, scene, camera, cam = { dist: 4.2, pitch: 0.42 }, horloge = 0;
   let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.055, tangage: -0.47, tangageMax: -0.7, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).

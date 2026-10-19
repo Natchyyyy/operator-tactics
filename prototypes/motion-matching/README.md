@@ -49,7 +49,7 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   genoux avant) — plus de coude qui saute (max 3 m/s, vitesse d'un bras qui marche).
 - Arme (V, active par défaut) : low ready d'après deux photos de référence — crosse posée sur le dessus de l'épaule droite
   contre le cou (ancre : base du cou, `PARAMS.fusil` avant/droite/haut), canon qui plonge de 27° (tangage −0,47 rad, jusqu'à
-  −0,7 si la main d'appui ne peut pas atteindre le garde-main), arme roulée de 29° dessus vers la tête (roulis −0,5), léger
+  −0,8 si la main d'appui ne peut pas atteindre le garde-main), arme roulée de 29° dessus vers la tête (roulis −0,5), léger
   travers (cant 0,05 + buste bladé, vrille 0,4 rad répartie sur Spine/Spine1/Spine2). Si la poignée arrive à moins de 11 cm
   de l'épaule droite (bras de 44 cm), l'arme est poussée vers l'avant le long du canon (lissé 0,15 s). Lissage de l'arme
   (80 ms) dans le repère du personnage, pas dans le monde (sinon elle traînait derrière un soldat qui court).
@@ -57,7 +57,8 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   torsion du poignet partagée 60 % avec l'avant-bras, doigts de la première image de « Rifle_Aim_Turn_Right », index droit
   tendu hors de la détente en low ready ; fondu 0,25 s à la sortie / au rangement.
 - Épaulé (clic droit maintenu, `PARAMS.epaule`, fondu 0,3 s) : crosse dans le creux de l'épaule (ancre cou, avant −0,06 /
-  droite 0,12 / haut −0,04), canon horizontal, vrille 0,55, joue sur la crosse : cou + tête penchés vers l'avant (0,45 rad)
+  droite 0,12 / haut −0,04), canon horizontal, vrille 0,55 ; pour épauler l'arme est poussée de 8 cm vers l'avant puis vient se caler dans l'épaule
+  (excursion maximale à mi-fondu) ; joue sur la crosse : cou + tête penchés vers l'avant (0,45 rad)
   et roulés vers la crosse (0,35 rad), moitié sur le cou, moitié sur la tête.
 - Agent critique (sous-agent indépendant, photos de référence vs captures éclairées `?clair=1`) : v22 38-64 %, v23
   85 % → 92-94 % en low ready après corrections (crosse derrière l'épaule, plongée 27°, roulis) ; voir captures/crit-*.png.
