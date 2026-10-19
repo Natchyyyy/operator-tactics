@@ -1170,11 +1170,7 @@
     const side = new T.Group();
     for (const s2 of [-1, 1]) panneau(side, L * 0.62, H * 0.32, (q, w, h) => { q.clearRect(0, 0, w, h); q.fillStyle = livree[0]; q.fillRect(0, h * 0.62, w, h * 0.22); txt(q, livree[1], w * 0.5, h * 0.3, 'bold 110px Arial', livree[0]); txt(q, livree[2], w * 0.5, h * 0.73, 'bold 44px Arial', '#ffffff'); }, 0, -H * 0.02, s2 * (th / 2 + 0.03), s2 < 0 ? Math.PI : 0);
     side.traverse(m => { if (m.isMesh) { m.material.transparent = true; m.material.alphaTest = 0.05; } });
-    if (n === 'fourgon (nettoyage)') {   // auvent déroulé du côté ouest, au-dessus de 2,2 m (on passe dessous)
-      const tx = mat('auventNet', () => new T.MeshStandardMaterial({ color: 0x2e8b57, roughness: 0.8, side: T.DoubleSide }));
-      const aw = new T.Mesh(new T.PlaneGeometry(L * 0.7, 1.8), tx); aw.rotation.x = -Math.PI / 2 + 0.12; aw.position.set(0, H / 2 - 0.05, -(th / 2 + 0.9)); side.add(aw);
-      const barre = new T.Mesh(new T.BoxGeometry(L * 0.7, 0.05, 0.05), M3().metal); barre.position.set(0, H / 2 - 0.27, -(th / 2 + 1.78)); side.add(barre);   // store banne sans pieds
-    }
+    // (l'auvent vert déroulé du nettoyeur a été retiré : vu de loin, une plaque verte flottante sans pieds)
     if (n === 'fourgon (chantier)') { const gy = new T.Mesh(new T.CylinderGeometry(0.08, 0.1, 0.14, 12), std('gyrophare', 0xff8a00, 0.3, 0, { emissive: 0xff7a00, emissiveIntensity: 0.6 })); gy.position.set(L * 0.2, H / 2 + 0.07, 0); side.add(gy); }
     if (!along) side.rotation.y = Math.PI / 2; g.add(side);
     return g;

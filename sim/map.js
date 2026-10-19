@@ -98,7 +98,7 @@
           // qu'on sèche au sud, l'îlot du totem des tarifs, de chaque côté deux places d'aspiration
           box(30.2, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'), box(41.4, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'),
           box(34.6, 17.9, 2.8, 3.6, 3.3, 'wall', 'lavage local'), box(35.7, 21.5, 0.6, 6.6, 1.1, 'cover', 'lavage muret'),
-          cap(box(34.95, 12.7, 2.1, 5.2, 2.4, 'wall', 'fourgon (lavage)'), 1),     // fourgon du technicien de la station, à la porte du local
+          cap(box(34.95, 12.5, 2.1, 4.8, 2.4, 'wall', 'fourgon (lavage)'), 1),     // fourgon du technicien de la station, à 1,2 m de la porte du local (sinon fourgon + local blanc = un faux camion)
           cap(box(34.95, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon (nettoyage)'), 1),  // nettoyeur à la main (lustrage) sur l'aire de séchage, auvent ouvert
           box(33.3, 11.0, 5.4, 1.6, 1.7, 'wall', 'haie'), box(35.4, 11.5, 1.2, 0.5, 3.6, 'wall', 'totem'),
           cap(box(27.9, 18.6, 1.9, 4.4, 1.4, 'cover', 'voiture'), -1), box(28.5, 23.4, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), cap(box(27.9, 24.6, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
