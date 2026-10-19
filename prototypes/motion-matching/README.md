@@ -40,6 +40,14 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   au repos : séquences de repos seulement (sauts rares : 40 % mieux, 1 s mini) et racine figée ; si on veut avancer alors
   que l'animation est arrêtée (départ, virage serré), la meilleure image est prise sans marge (sinon un repos atypique peut
   bloquer un agent). La simulation du clavier est recalée sur le personnage à chaque pas.
+- Réactivité : recherche immédiate à chaque changement d'intention (touche), marge de saut retirée au départ / à l'arrêt /
+  aux grands changements de vitesse ; frein de racine relâché en 50 ms au départ ; ressort de vitesse vif à l'accélération
+  (demi-vie 0,15 s) et réaliste au freinage (0,3 s). Arrêt demandé → recherche limitée aux images « d'arrêt » (futur à 1 s
+  < 35 cm : repos et freinages), ce qui supprime les pas de marche arrière après un arrêt. Mesures : 15 cm parcourus en
+  0,3-0,65 s après appui ; arrêt en 25-55 cm sans retour.
+- IK deux os : côté de flexion = mélange continu entre le côté naturel (pose capturée) et le pôle (coudes bas et rentrés,
+  genoux avant) — plus de coude qui saute (max 3 m/s, vitesse d'un bras qui marche).
+- Garde-main hors de portée → l'arme est rentrée vers le tireur (≤ 7 cm) avant que la main ne glisse ; buste bladé 0,3 rad.
 - Styles : Neutral (sans arme) et Swat (arme, défaut). Verrou des pieds horizontal (IK deux os robuste, écart ≤ 8 cm).
 - Arme (V, active par défaut) : low ready — crosse dans le creux de l'épaule droite (`PARAMS.fusil` : avant/droite/haut par
   rapport à l'épaule, tangage −0,5 rad, cant 0,3 rad vers l'intérieur, lissage 60 ms) ; direction = regard du soldat mélangé

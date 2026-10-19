@@ -2,7 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
-  const VERSION = 15;
+  const VERSION = 18;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);
@@ -64,15 +64,17 @@
     const seq = new Int16Array(N), style = new Uint8Array(N), ok = new Uint8Array(N), repos = new Uint8Array(N);
     meta.sequences.forEach((s, si) => { const r = /_ID\./.test(s.nom) ? 1 : 0; for (let i = s.debut; i < s.fin; i++) { seq[i] = si; style[i] = s.style; ok[i] = i < s.fin - 35 ? 1 : 0; repos[i] = r; } });
     const contact = new Uint8Array(N); for (let i = 0; i < N; i++) contact[i] = +meta.contact[i];
-    Object.assign(Base, { meta, N, J, nF, q, hy, v, w, fiche, fn, seq, style, ok, repos, contact, POIDS });
+    // images « d'arrêt » : le personnage est à moins de 35 cm de sa position actuelle 1 s plus tard (repos, freinages)
+    const arret = new Uint8Array(N); for (let i = 0; i < N; i++) { const o = i * nF; arret[i] = Math.hypot(fiche[o + 19], fiche[o + 20]) < 0.35 ? 1 : 0; }
+    Object.assign(Base, { meta, N, J, nF, q, hy, v, w, fiche, fn, seq, style, ok, repos, arret, contact, POIDS });
     return Base;
   }
 
   // recherche brute : la meilleure image pour une requête normalisée (seulement le style demandé)
-  function chercher(req, styleVoulu, seulRepos) {
-    const { N, nF, fn, ok, style, repos } = Base; let best = -1, bc = Infinity;
+  function chercher(req, styleVoulu, seulRepos, seulArret) {
+    const { N, nF, fn, ok, style, repos, arret } = Base; let best = -1, bc = Infinity;
     for (let i = 0; i < N; i++) {
-      if (!ok[i] || style[i] !== styleVoulu || (seulRepos && !repos[i])) continue;
+      if (!ok[i] || style[i] !== styleVoulu || (seulRepos && !repos[i]) || (seulArret && !arret[i])) continue;
       let c = 0; const o = i * nF;
       for (let k = 0; k < nF; k++) { const d = fn[o + k] - req[k]; c += d * d; if (c >= bc) break; }
       if (c < bc) { bc = c; best = i; }
@@ -91,16 +93,23 @@
     if (dist > maxC) d.setLength(maxC); if (dist < Math.abs(a - b) * 1.05) d.setLength(Math.abs(a - b) * 1.05);
     const c = d.length(), cible = pH.clone().add(d), dirC = d.clone().normalize();
     const HK = pK.clone().sub(pH), HA = pA.clone().sub(pH), KA = pA.clone().sub(pK);
-    // axe de flexion : plan actuel si net, sinon par rapport au pôle
-    let axe = HK.clone().cross(HA);
-    // Convention : HK = rot(dirC, −a1) autour de l'axe, donc l'axe vaut (côté de flexion) × dirC. Si le plan naturel est
-    // plat (membre tendu) ou si l'articulation serait du mauvais côté du pôle (coude vers le haut, genou en arrière),
-    // on prend le côté du pôle.
-    const cote = pole ? pole.clone().addScaledVector(dirC, -pole.dot(dirC)) : null;
-    if (axe.lengthSq() < 1e-4 * a * a * Math.max(1e-6, HA.lengthSq())) axe = (cote && cote.lengthSq() > 1e-6 ? cote.clone() : V3(0, 0, 1)).cross(dirC);
-    if (axe.lengthSq() < 1e-8) axe = V3(0, 1, 0).cross(dirC); if (axe.lengthSq() < 1e-8) axe = V3(1, 0, 0);
-    axe.addScaledVector(dirC, -axe.dot(dirC)); if (axe.lengthSq() < 1e-8) axe = V3(0, 1, 0).cross(dirC); axe.normalize();   // perpendiculaire à la nouvelle direction : le triangle se ferme exactement
-    if (cote && cote.lengthSq() > 1e-6) { const axePole = cote.clone().cross(dirC).normalize(); if (axe.dot(axePole) < 0) axe.copy(axePole); }
+    // Côté de flexion = mélange CONTINU entre le côté naturel (où est le coude/genou dans la pose capturée, projeté
+    // perpendiculairement à la nouvelle direction) et le pôle. Plus le membre est tendu ou plus son côté naturel s'éloigne du
+    // pôle, plus le pôle l'emporte. Jamais de bascule brusque (c'était la cause des coudes qui « sautaient »).
+    const nat = HK.clone().addScaledVector(dirC, -HK.dot(dirC));                       // côté naturel (longueur = sinus × a)
+    const pol = pole ? pole.clone().addScaledVector(dirC, -pole.dot(dirC)) : V3();
+    let bend;
+    if (pol.lengthSq() > 1e-6) {
+      pol.normalize();
+      const nl = nat.length(), natN = nl > 1e-6 ? nat.clone().divideScalar(nl) : pol.clone();
+      const net = Math.min(1, nl / (0.35 * a));                                     // 0 = tendu (côté indéfini) … 1 = bien plié
+      const acc = Math.max(0, Math.min(1, (natN.dot(pol) + 0.2) / 0.8));             // 0 = opposé au pôle … 1 = du côté du pôle
+      const w = net * acc;
+      bend = natN.multiplyScalar(w).addScaledVector(pol, 1 - w);
+      if (bend.lengthSq() < 1e-6) bend = pol.clone();
+    } else bend = nat.lengthSq() > 1e-8 ? nat : V3(0, 0, 1);
+    bend.addScaledVector(dirC, -bend.dot(dirC)); if (bend.lengthSq() < 1e-8) bend = V3(0, 1, 0).addScaledVector(dirC, -dirC.y); bend.normalize();
+    const axe = bend.clone().cross(dirC).normalize();                                 // convention : HK = rot(dirC, −a1) autour de l'axe
     const a1 = Math.acos(Math.max(-1, Math.min(1, (a * a + c * c - b * b) / (2 * a * c))));
     const dirHK2 = dirC.clone().applyAxisAngle(axe, -a1);                       // HK = rot(HA, −angle) dans la convention axe = HK×HA
     const pK2 = pH.clone().addScaledVector(dirHK2, a);
@@ -260,7 +269,7 @@
       // deux ports : low ready (défaut) et épaulé en visée (regard verrouillé) ; fondu entre les deux
       this.poidsVisee = Math.max(0, Math.min(1, (this.poidsVisee ?? 0) + ((this.viseeEpaulee ? 1 : -1) * dt / 0.3)));
       const pv = this.poidsVisee, L = PARAMS.fusil, E = PARAMS.epaule;
-      const P = { vrille: L.vrille, avant: L.avant + (E.avant - L.avant) * pv, droite: L.droite + (E.droite - L.droite) * pv, haut: L.haut + (E.haut - L.haut) * pv, tangage: L.tangage + (E.tangage - L.tangage) * pv, cant: L.cant + (E.cant - L.cant) * pv, buste: L.buste, lissage: L.lissage, appuiZ: L.appuiZ, torsion: L.torsion };
+      const P = { vrille: L.vrille, reculMax: L.reculMax, avant: L.avant + (E.avant - L.avant) * pv, droite: L.droite + (E.droite - L.droite) * pv, haut: L.haut + (E.haut - L.haut) * pv, tangage: L.tangage + (E.tangage - L.tangage) * pv, cant: L.cant + (E.cant - L.cant) * pv, buste: L.buste, lissage: L.lissage, appuiZ: L.appuiZ, torsion: L.torsion };
       // Low ready comme un vrai tireur : la CROSSE reste dans le creux de l'épaule droite, le canon pivote vers le bas.
       // Direction : le regard du soldat (ses hanches), un peu mélangé au buste pour vivre avec la marche ; léger cant vers
       // l'intérieur (le fusil barre la poitrine).
@@ -284,6 +293,17 @@
       if (!this.fusilPos) { this.fusilPos = creux.clone(); this.fusilQ = q.clone(); }
       const k = 1 - Math.exp(-dt / P.lissage); this.fusilPos.lerp(creux, k); this.fusilQ.slerp(q, k);
       w.quaternion.copy(this.fusilQ); w.position.copy(this.fusilPos).sub(w.buttPt.clone().applyQuaternion(this.fusilQ));
+      // garde-main hors de portée du bras gauche : on RENTRE l'arme vers le tireur (crosse plus profonde dans l'épaule) plutôt
+      // que de reculer la main vers le chargeur ; recul lissé, 12 cm au plus
+      if (this.prise && G[0] && G[1] && G[2]) {
+        const epG = G[0].getWorldPosition(V3()), portee = (G[1].getWorldPosition(V3()).distanceTo(epG) + G[2].getWorldPosition(V3()).distanceTo(G[1].getWorldPosition(V3()))) * 0.95;
+        const posG = this.prise.G.pos.clone(); if (P.appuiZ != null) posG.z = P.appuiZ;
+        const axeW = V3(0, 0, 1).applyQuaternion(this.fusilQ);
+        let recul = 0; const cibleG = w.position.clone().add(posG.applyQuaternion(this.fusilQ));
+        for (let it = 0; it < 24 && cibleG.clone().addScaledVector(axeW, -recul).distanceTo(epG) > portee && recul < P.reculMax; it++) recul += 0.005;
+        this.reculArme = (this.reculArme ?? 0) + (recul - (this.reculArme ?? 0)) * (1 - Math.exp(-dt / 0.1));
+        w.position.addScaledVector(axeW, -this.reculArme);
+      }
       // mains : placées sur l'arme comme dans la prise de référence (IK deux os vers la position, orientation reportée)
       for (const [main, k] of [[D, 'D'], [G, 'G']]) {
         if (!this.prise) break;
@@ -297,7 +317,9 @@
           for (let it = 0; it < 20 && cible.distanceTo(ep) > portee; it++) cible.addScaledVector(axe, -0.02);
         }
         cible = mainData.clone().lerp(cible, pa);
-        ikDeuxOs(main[0], main[1], main[2], cible, V3(0, -1, 0).addScaledVector(dir, -0.4).normalize());
+        // pôles : coudes vers le bas ; le droit rentré vers le corps (pas d'« aile de poulet »), le gauche un peu en arrière
+        const pole = k === 'D' ? V3(0, -1, 0).addScaledVector(dir, -0.25).addScaledVector(droite, -0.5).normalize() : V3(0, -1, 0).addScaledVector(dir, -0.35).normalize();
+        ikDeuxOs(main[0], main[1], main[2], cible, pole);
         const qw = qData.clone().slerp(this.fusilQ.clone().multiply(pr.q), pa);
         // orientation de la main sur l'arme ; la torsion du poignet est partagée avec l'avant-bras (il roule autour de son axe,
         // ce qui ne déplace pas la main) pour éviter un poignet vrillé
@@ -398,7 +420,7 @@
 
   // -------------------------------------------------------------------------------------------- contrôleur
   const nouveauControleur = () => ({
-    pos: V3(), vel: V3(), acc: V3(), yaw: 0, yawV: 0, hPos: 0.25, hYaw: 0.15,
+    pos: V3(), vel: V3(), acc: V3(), yaw: 0, yawV: 0, hPos: 0.15, hFrein: 0.3, hYaw: 0.12,
     touches: {}, visee: true, accroupi: false, chemin: null, cheminIdx: 0, camYaw: 0.6,
     vitesses: { marche: 1.25, course: 2.6, lat: 1.0 },
     direction() {
@@ -430,10 +452,13 @@
       return Math.atan2(vGoal.x, vGoal.z);
     },
     // trajectoire prédite aux temps t (s) : positions et regards dans le repère MONDE
+    // demi-vie du ressort de vitesse : vive à l'accélération, plus lente au freinage (un humain décélère sur ~40 cm ; prédire
+    // un arrêt sur place pousserait la recherche vers des pas de marche arrière)
+    hVitesse(vGoal) { return vGoal.lengthSq() >= this.vel.lengthSq() ? this.hPos : this.hFrein; },
     predire(temps, vGoal, yGoal) {
-      const P = [], D = [];
+      const P = [], D = []; const h = this.hVitesse(vGoal);
       for (const t of temps) {
-        const [x] = ressortVitesse(this.pos, this.vel, this.acc, vGoal, this.hPos, t);
+        const [x] = ressortVitesse(this.pos, this.vel, this.acc, vGoal, h, t);
         const [y] = ressortAngle(this.yaw, this.yawV, yGoal, this.hYaw, t);
         P.push(x); D.push(V3(Math.sin(y), 0, Math.cos(y)));
       }
@@ -441,7 +466,7 @@
     },
     pas(dt) {
       const vGoal = this.vitesseCible(), yGoal = this.yawCible(vGoal);
-      [this.pos, this.vel, this.acc] = ressortVitesse(this.pos, this.vel, this.acc, vGoal, this.hPos, dt);
+      [this.pos, this.vel, this.acc] = ressortVitesse(this.pos, this.vel, this.acc, vGoal, this.hVitesse(vGoal), dt);
       [this.yaw, this.yawV] = ressortAngle(this.yaw, this.yawV, yGoal, this.hYaw, dt);
       return [vGoal, yGoal];
     }
@@ -474,7 +499,7 @@
   let renderer, scene, camera, cam = { dist: 4.2, pitch: 0.42 }, horloge = 0;
   let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { avant: 0.06, droite: -0.08, haut: -0.03, tangage: -0.5, cant: 0.15, buste: 0.3, lissage: 0.06, appuiZ: 0.1, torsion: 0.6, vrille: 0.3 }, epaule: { avant: 0.05, droite: -0.07, haut: 0.07, tangage: -0.02, cant: 0.12 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { avant: 0.06, droite: -0.08, haut: -0.03, tangage: -0.5, cant: 0.15, buste: 0.3, lissage: 0.06, appuiZ: 0.15, torsion: 0.6, vrille: 0.3, reculMax: 0.07 }, epaule: { avant: 0.05, droite: -0.07, haut: 0.07, tangage: -0.02, cant: 0.12 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -507,22 +532,29 @@
       // recherche toutes les 0,1 s, ou tout de suite si on change de style
       const styleVoulu = Ctl.visee ? 2 : Ctl.accroupi ? 1 : 0;      // 2 = Swat (arme), 1 = accroupi (pas de données pour l'instant), 0 = neutre
       this.derniereRecherche += dt;
-      if (this.derniereRecherche >= PARAMS.periode || styleVoulu !== this.styleCourant) {
+      // recherche immédiate dès que l'intention change (touche pressée / relâchée, direction) : réactivité au clavier
+      const intention = vGoal.x.toFixed(1) + ',' + vGoal.z.toFixed(1) + ',' + (Ctl.verrouRegard ? 1 : 0);
+      const changement = intention !== this.intentionPrec; this.intentionPrec = intention;
+      if (this.derniereRecherche >= PARAMS.periode || styleVoulu !== this.styleCourant || changement) {
         this.derniereRecherche = 0;
         const req = this.requete(vGoal, yGoal);
         // à l'arrêt voulu et presque atteint : on ne cherche que dans les séquences de repos (sinon ping-pong entre des
         // instants d'arrêt situés juste avant des départs, et piétinement)
         const f = this.frame, vitAnimCour = Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]);
-        const auRepos = vGoal.lengthSq() < 0.01 && vitAnimCour < 0.35 && Ctl.vel.lengthSq() < 0.04;
-        const [best, bc] = chercher(req, styleVoulu, auRepos);
-        const cc = (Base.ok[f] && Base.style[f] === styleVoulu && (!auRepos || Base.repos[f])) ? cout(f, req) : Infinity;
+        const arretVoulu = vGoal.lengthSq() < 0.01;
+        const auRepos = arretVoulu && vitAnimCour < 0.35;
+        const [best, bc] = chercher(req, styleVoulu, auRepos, arretVoulu);
+        const cc = (Base.ok[f] && Base.style[f] === styleVoulu && (!auRepos || Base.repos[f]) && (!arretVoulu || Base.arret[f])) ? cout(f, req) : Infinity;
         if (this === agents[0]) { JOURNAL.push([+horloge.toFixed(2), +cc.toFixed(1), +bc.toFixed(1), best, f]); if (JOURNAL.length > 400) JOURNAL.shift(); }
         // les marges évitent les sauts inutiles en régime établi ; mais si on veut avancer alors que l'animation est à l'arrêt
         // (départ, ou arrêt forcé à un virage), on prend la meilleure image sans marge : sinon un repos « atypique » peut
         // retenir le soldat indéfiniment (pose trop éloignée de tous les départs)
         const veutPartir = vGoal.lengthSq() > 0.25 && vitAnimCour < 0.2;
-        const seuil = veutPartir ? cc : auRepos ? cc * 0.6 - PARAMS.margeSaut : cc * PARAMS.margeRel - PARAMS.margeSaut;   // au repos : très peu de sauts (pas de tressautement)
-        if (best >= 0 && bc < seuil && Math.abs(best - f) > 2 && (horloge - this.dernierSaut >= (auRepos ? 1.0 : veutPartir ? 0.1 : PARAMS.minSaut) || styleVoulu !== this.styleCourant)) {
+        const veutArreter = vGoal.lengthSq() < 0.01 && vitAnimCour > 0.3;                 // arrêt demandé : même traitement
+        const vitGoal = Math.sqrt(vGoal.lengthSq()), ecartVit = Math.abs(vitGoal - vitAnimCour);
+        const sansMarge = veutPartir || veutArreter || ecartVit > 0.6;                     // (ou grand changement de vitesse)
+        const seuil = sansMarge ? cc : auRepos ? cc * 0.6 - PARAMS.margeSaut : cc * PARAMS.margeRel - PARAMS.margeSaut;   // au repos : très peu de sauts (pas de tressautement)
+        if (best >= 0 && bc < seuil && Math.abs(best - f) > 2 && (horloge - this.dernierSaut >= (auRepos ? 1.0 : sansMarge ? 0.1 : PARAMS.minSaut) || styleVoulu !== this.styleCourant || (changement && horloge - this.dernierSaut >= 0.08))) {
           this.dernierSaut = horloge; S.hLife = PARAMS.hLife;
           // transition : écart entre la pose courante (telle qu'affichée) et la nouvelle
           for (let k = 0; k < Base.J; k++) this.ancQ[k].copy(this.poseQ[k]); this.ancY[0] = this.poseY[0];
@@ -543,7 +575,7 @@
       // à l'arrêt voulu, la racine ne se déplace plus (les « repos » capturés contiennent de lents piétinements : 10 cm/s qui
       // feraient dériver le soldat de 50 cm en quelques secondes) ; le verrou des pieds garde les appuis en place
       const vGoalNul = vGoal.lengthSq() < 0.01 && Ctl.vel.lengthSq() < 0.04 && Math.hypot(v[i * 3], v[i * 3 + 2]) < 0.35;
-      this.facteurRacine += ((vGoalNul ? 0 : 1) - this.facteurRacine) * Math.min(1, dt / 0.3);
+      this.facteurRacine += ((vGoalNul ? 0 : 1) - this.facteurRacine) * Math.min(1, dt / (vGoalNul ? 0.3 : 0.05));
       S.yaw += w[i] * dt * this.facteurRacine; S.pos.addScaledVector(vl, dt * this.facteurRacine);
       Ctl.pos.copy(S.pos); Ctl.yaw = S.yaw;
       S.appliquer(this.poseQ, this.poseY, dt);
