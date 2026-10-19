@@ -44,8 +44,10 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   30 % au buste. Mains : places du jeu (`PRISE` de soldat3d.js, par modèle) → IK deux os (coudes vers le bas), main d'appui
   glissée vers l'arrière si le garde-main est hors de portée (bras de 46 cm sur ce modèle), torsion du poignet partagée 60 %
   avec l'avant-bras, doigts de la première image de « Rifle_Aim_Turn_Right » ; fondu 0,25 s à la sortie / au rangement.
-- Commandes : ZQSD relatif à la caméra, le soldat regarde là où il va ; clic droit maintenu = regard verrouillé sur la caméra
-  (pas de côté, recul) ; la caméra seule ne fait jamais tourner le soldat.
+- Commandes : ZQSD relatif à la caméra, le soldat regarde là où il va ; clic droit maintenu = épaulé (`PARAMS.epaule`, fondu
+  0,3 s) + regard verrouillé sur la caméra (pas de côté, recul) ; la caméra seule ne fait jamais tourner le soldat.
+- E : escouade de 5 soldats (4 de plus sur des chemins, arme sortie) ; chaque agent = soldat + contrôleur + lecture de la base ;
+  5 soldats ≈ 1,1 ms de simulation par pas sur une machine lente.
 - Mesures (scénarios 60 Hz, `scratchpad/scenario.py`, `robuste.js`) : main droite sur la poignée à < 0,01 mm ; 90 s d'entrées
   aléatoires sans NaN ; dérive à l'arrêt 0 ; chemin de démo : 9 points en 60 s, 0,3 s bloquées ; glissement en marche Swat
   7 cm/s (données seules 4,5), 15-19 avec changements de direction toutes les 2 s (transitions).
