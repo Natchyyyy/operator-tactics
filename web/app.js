@@ -1207,7 +1207,7 @@
       // (pivot continu : les pieds se replacent EN AVANCE sur la rotation — vitesse de lacet × 0,3 s, ≤ 34° — : le bassin passe
       // d'en avance à en retard entre deux replacements au lieu d'être toujours en retard ; avant, pendant un demi-tour en
       // visant, les jambes traînaient de 20-25° et les pieds se retrouvaient l'un derrière l'autre vus de face)
-      if (Math.abs(jambes) > 0.7 || (a.stopT > 1.2 && Math.abs(jambes) > 0.25) || crouch) { if (crouch || !m.repas || m.repas() !== false) { const av = crouch ? 0 : Math.max(-0.6, Math.min(0.6, (m.yawV || 0) * 0.3)); a.piedsYaw = m.yaw + av; jambes = av; } }
+      if (Math.abs(jambes) > 0.7 || (a.stopT > 1.2 && Math.abs(jambes) > 0.25) || crouch) { if (crouch || !m.repas || m.repas() !== false) { const av = crouch ? 0 : Math.max(-0.6, Math.min(0.6, (m.yawV || 0) * (OT.PIVOT_AVANCE_TEST ?? 0.3))); a.piedsYaw = m.yaw + av; jambes = av; } }
     }
     // marche (pas la course, pas accroupi) : jambes directionnelles (soldat3d.marche) quand le modèle a les pas chassés
     // marche OU course (petites foulées) directionnelles jusqu'à 3,2 m/s ; au-delà (sprint) l'ancienne méthode. Marche ou
@@ -1274,7 +1274,8 @@
         // d'appui glissait de 1,2 m/s) : on passe de l'une à l'autre (fondu ~0,15 s), avec hystérésis
         const sm = (x, a0, a1) => { const t = Math.max(0, Math.min(1, (x - a0) / (a1 - a0))); return t * t * (3 - 2 * t); };
         if (!grace) a.trot = a.trot ? a.vLis > 1.8 : a.vLis > 1.95;
-        const kR = m.clips.Pas_Run ? sm(a.vLis, 2.7, 3.7) : 0;
+        // (la course entre dès 2,2 m/s : sa foulée longue allonge un peu le pas ; à 2,6 m/s la cadence passait à 206-216 pas/min)
+        const kR = m.clips.Pas_Run ? sm(a.vLis, ...(OT.RUN_MIX_TEST || [2.2, 3.7])) : 0;
         mix = a.trot ? { Pas_Trot: 1 - kR, Pas_Run: kR } : { Pas_Avant_Low: 1 }; avant = 'Pas_Avant_Low';
         haut = a.trot && m.clips.Trot_Low_Haut ? 'Trot_Low_Haut' : 'Walk_Low_Haut';
       }
@@ -1824,7 +1825,11 @@
         let ch = m.yaw - want; while (ch > Math.PI) ch -= 2 * Math.PI; while (ch < -Math.PI) ch += 2 * Math.PI;
         const v0 = (m.yawV || 0) - wv, tmp = (v0 + om * ch) * frameDt, v1 = (v0 - om * tmp) * ex;
         let ny = want + (ch + tmp) * ex, dy = ny - y0; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI;
-        const lim = 8 * frameDt; dy = Math.max(-lim, Math.min(lim, dy)); m.yaw = y0 + dy; m.yawV = Math.max(-8, Math.min(8, v1 + wv));
+        const lim = 8 * frameDt; dy = Math.max(-lim, Math.min(lim, dy)); let vN = Math.max(-8, Math.min(8, v1 + wv));
+        // (accélération angulaire plafonnée à 40 rad/s² : un changement de cible — l'orientation simulée saute d'un coup — ne fait
+        // plus pivoter tout le corps en une image ; mesuré en jeu : 13 500 °/s² au buste, 24 000 à la tête)
+        { const vO = m.yawV || 0, da = (OT.YAW_ACC_TEST || 40) * frameDt; if (Math.abs(vN - vO) > da) { vN = vO + Math.sign(vN - vO) * da; dy = Math.max(-lim, Math.min(lim, (vO + vN) * 0.5 * frameDt)); } }
+        m.yaw = y0 + dy; m.yawV = vN;
         if (m.yaw > Math.PI) m.yaw -= 2 * Math.PI; else if (m.yaw < -Math.PI) m.yaw += 2 * Math.PI; }
       else if (m.anim.fallYaw !== undefined && (m.anim.deadT || 0) < 1.4) { let d = m.anim.fallYaw - m.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; m.yaw += Math.max(-2.5 * frameDt, Math.min(2.5 * frameDt, d)); }
       m.group.rotation.y = m.yaw;

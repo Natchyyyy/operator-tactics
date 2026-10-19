@@ -115,6 +115,28 @@ const V = MAPS.parking.voies;
   const x0 = u.x; for (let i = 0; i < 10; i++) c.move(u);
   check('allure : en pas chassé (cible sur le côté), ~1,4 m/s au lieu de sa pleine vitesse', u.x - x0 <= 1.55 && u.x - x0 > 0.5 && u.speed() > 2, { d: u.x - x0, v: u.speed() });   // (chemin sur les centres de cases : angle proche de 90°, pas exact)
 }
+{
+  // pas d'allers-retours : un opérateur ne rebrousse pas chemin (> 150°) d'un pas sur l'autre à plus de 2 m/s (point de
+  // passage occupé par un camarade, poussée de séparation qui renvoie d'un côté puis de l'autre : « moonwalk » à l'écran).
+  // Les pas de côté de déblocage (0,5 m d'un coup) sont comptés à part. Avant correction (8 batailles) : 184 inversions,
+  // 7 épisodes (≥ 3 en 1 s) ; après : ~12, 0.
+  let inv = 0, osc = 0;
+  for (let seed = 1; seed <= 8; seed++) {
+    const b = new Battle({ seed, mapId: 'parking' }), prev = {}, vel = {}, hist = {};
+    while (!b.over && b.t < 300) {
+      for (const u of b.units) prev[u.id] = [u.x, u.z];
+      b.step();
+      for (const u of b.units) {
+        const vx = (u.x - prev[u.id][0]) / 0.1, vz = (u.z - prev[u.id][1]) / 0.1, sp = Math.hypot(vx, vz), pv = vel[u.id];
+        if (pv && sp > 2 && pv.sp > 2 && sp < 4.9 && pv.sp < 4.9 && (vx * pv.vx + vz * pv.vz) / (sp * pv.sp) < -0.866) {
+          inv++; const h = (hist[u.id] = (hist[u.id] || []).filter(t => b.t - t < 1)); h.push(b.t); if (h.length === 3) osc++;
+        }
+        vel[u.id] = { vx, vz, sp };
+      }
+    }
+  }
+  check('marche : pas d\'allers-retours d\'un pas sur l\'autre (8 batailles : aucun épisode, inversions rares)', osc === 0 && inv < 40, { inv, osc });
+}
 
 console.log(`\n${pass}/${pass + fail} vérifications réussies${fail ? '  — ÉCHECS : ' + fail : ''}`);
 process.exit(fail ? 1 : 0);

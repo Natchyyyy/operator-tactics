@@ -1317,6 +1317,24 @@
     const wp = u.path[u.pathIdx];
     if (!wp) { this.arrive(u); return; }
     const d = Math.hypot(wp.x - u.x, wp.z - u.z);
+    // point de passage occupé (camarade debout dessus ou presque, ou un corps) : la séparation empêche d'y poser le pied, et
+    // l'opérateur tournait autour en changeant de côté à chaque pas (allers-retours à 3-4 m/s, « moonwalk » à l'écran). À moins
+    // de 1,2 m, on le tient pour atteint : point intermédiaire, si le suivant est en ligne directe ; point final (couvert, bond…
+    // déjà tenu par un camarade debout), on s'arrête à côté de lui (sauf pour relever un blessé : il faut le toucher). De même
+    // quand une poussée l'a déjà porté au-delà d'un point intermédiaire (à moins de 0,5 m, du côté du segment suivant) : pas de
+    // demi-tour pour aller le toucher.
+    if (d < 1.2 && d > 0.05 && u.pathIdx + 1 >= u.path.length && u.goalKind !== 'revive') {
+      for (const a of this.units) if (a !== u && a.alive && a.team === u.team && Math.hypot(a.x - wp.x, a.z - wp.z) < 0.6) { this.arrive(u); return; }
+    }
+    if (d < 1.2 && d > 0.05 && u.pathIdx + 1 < u.path.length) {
+      const nw = u.path[u.pathIdx + 1];
+      if (d < 0.5 && (u.x - wp.x) * (nw.x - wp.x) + (u.z - wp.z) * (nw.z - wp.z) > 0 && this.map.walkableSegment(u.x, u.z, nw.x, nw.z)) { u.pathIdx++; return this.move(u); }
+      for (const a of this.units) {
+        if (a === u || (a.alive && a.team !== u.team) || Math.hypot(a.x - wp.x, a.z - wp.z) > (a.alive ? 0.6 : 0.45)) continue;
+        if (this.map.walkableSegment(u.x, u.z, nw.x, nw.z)) { u.pathIdx++; return this.move(u); }
+        break;
+      }
+    }
     // regard pendant la marche : la cible si l'on en a une ; sinon l'arme pointée vers la dernière position connue d'un ennemi
     // (repéré il y a moins de 5 s) si elle n'est pas dans le dos : on progresse en couvrant l'angle dangereux plutôt qu'en
     // regardant ses pieds
@@ -1344,7 +1362,7 @@
     // séparation douce entre alliés : on se décale pour passer à côté (à ~1 m), sans jamais freiner sa marche — la poussée
     // qui s'opposerait à l'avance est retirée, et un camarade pile sur le chemin est contourné par le côté (sinon les deux
     // restaient collés : poussée et pas s'annulaient)
-    const mx = d > 1e-6 ? (wp.x - u.x) / d : 0, mz = d > 1e-6 ? (wp.z - u.z) / d : 0;
+    const mx = d > 1e-6 ? (wp.x - u.x) / d : 0, mz = d > 1e-6 ? (wp.z - u.z) / d : 0, bx = nx, bz = nz;
     // les corps (tous camps, point de chute ; rayon 0,8 m) se contournent de la même façon (on relève un blessé à côté de lui)
     for (const a of this.units) {
       if (a === u || (a.alive && a.team !== u.team)) continue;
@@ -1360,6 +1378,10 @@
         if (!this.map.insideObstacle(px, pz) && this.map.inBounds(px, pz)) { nx = px; nz = pz; }
       }
     }
+    // décalage amorti : au plus la longueur du pas (jusqu'à 0,55 m d'un coup, soit 5 m/s, l'opérateur était projeté de
+    // côté puis renvoyé au pas suivant : allers-retours de deux camarades qui se croisent)
+    { const sx = nx - bx, sz = nz - bz, sl = Math.hypot(sx, sz);
+      if (sl > stepLen && sl > 1e-6) { const cx = bx + sx / sl * stepLen, cz = bz + sz / sl * stepLen; if (!this.map.insideObstacle(cx, cz) && this.map.inBounds(cx, cz)) { nx = cx; nz = cz; } } }
     u.stats.distance += Math.hypot(nx - u.x, nz - u.z);
     // regard : vers le point de passage visé (pas vers le petit pas de côté de la séparation entre alliés)
     if (!u.target && d > 0.05) { u.facing = aim === null ? mv : aim; u.preaim = aim !== null; }

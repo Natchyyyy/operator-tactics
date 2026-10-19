@@ -297,10 +297,10 @@ crit(id='pieds_se_touchent', partie='bas', lib='Pieds qui se touchent / se trave
      val=lambda r: st(r, 'piedsPied', 'min'), ok=(0, 9), mineur=(-0.02, 9), cle=('piedsPied', 'min'),
      pourquoi='Les bottes ne se croisent pas et ne passent pas l\'une dans l\'autre pendant la foulée.', src='Signalé par l\'utilisateur', vues=['piedsFace', 'semelles'])
 crit(id='coude_appui', partie='haut', lib='Bras d\'appui : angle du coude gauche en visée (°, moyenne ; 180 = tendu)', quand=lambda e: 'vise' in e and 'recharge' not in e,
-     val=lambda r: st(r, 'coudeG', 'moy'), ok=(125, 175), mineur=(105, 180), cle=('coudeG', 'moy'),
+     val=lambda r: st(r, 'coudeG', 'moy'), ok=(140, 178), mineur=(120, 180), cle=('coudeG', 'moy'),   # (vraie vidéo : bras d'appui presque tendu, ≈ 160-175°)
      pourquoi='Le bras d\'appui est presque tendu, main loin devant sur le garde-main (contrôle du canon) ; un coude très plié ramène l\'arme contre le torse.', src=VID, vues=['face', 'troisQuarts'])
 crit(id='main_appui_avant', partie='haut', lib='Main d\'appui : position le long de l\'arme (fraction poignée → bouche, moyenne)', quand=lambda e: 'vise' in e and 'recharge' not in e,
-     val=lambda r: st(r, 'paumeG_fraction', 'moy'), ok=(0.45, 0.85), mineur=(0.35, 0.95), cle=('paumeG_fraction', 'moy'),
+     val=lambda r: st(r, 'paumeG_fraction', 'moy'), ok=(0.55, 0.85), mineur=(0.42, 0.95), cle=('paumeG_fraction', 'moy'),   # (vraie vidéo : main au bout du garde-main, ≈ 0,65-0,8)
      pourquoi='Prise moderne : main d\'appui loin devant sur le garde-main.', src=VID + ' ; Vortex Optics (support hand extended forward)', vues=['mainG', 'troisQuarts'])
 
 # à-coups (vitesse angulaire qui change brutalement, °/s²) : seuils calés sur les animations capturées d'origine (voir RUBRIQUE.md)
