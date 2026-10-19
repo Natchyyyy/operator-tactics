@@ -50,6 +50,9 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   Spine/Spine1/Spine2) et l'arme pointe la caméra ; mode « recul » (cible derrière, hystérésis 10°) : hanches face à la
   cible, marche arrière lente (candidates limitées aux images dont la vitesse part dans la direction demandée ±50°,
   déplacement redressé jusqu'à 45°). Mesuré : direction à ±2° de la touche, arme à ±6° de la caméra, glissement 8-15 cm/s.
+  L'arme ne vise jamais plus loin que 1,1 rad des hanches (v29) : si la caméra tourne plus vite que le corps, l'arme suit
+  le corps et le rattrape ; à l'arrêt, le soldat pivote sur place vers la cible (demi-vie 0,3 s, pieds libérés pendant le
+  pivot, racine figée : dérive 0) — 180° en ~1,2 s, arme sur la cible en 0,7 s.
 - Réactivité : recherche immédiate à chaque changement d'intention (touche), marge de saut retirée au départ / à l'arrêt /
   aux grands changements de vitesse ; frein de racine relâché en 50 ms au départ ; ressort de vitesse vif à l'accélération
   (demi-vie 0,15 s) et réaliste au freinage (0,3 s). Arrêt demandé → recherche limitée aux images « d'arrêt » (futur à 1 s

@@ -2,7 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
-  const VERSION = 28;
+  const VERSION = 29;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);
@@ -304,8 +304,11 @@
       // (≤ 1 rad, réparti sur Spine / Spine1 / Spine2), en plus de la position bladée
       let torsion = 0;
       if (this.viseeYaw != null && pv > 0.001) {
-        let e = this.viseeYaw - Math.atan2(avant.x, avant.z); e = Math.atan2(Math.sin(e), Math.cos(e)); torsion = Math.max(-1.0, Math.min(1.0, e)) * pv;
-        const dCible = V3(Math.sin(this.viseeYaw), 0, Math.cos(this.viseeYaw)); dir.lerp(dCible, pv); if (dir.lengthSq() < 1e-4) dir.copy(dCible); dir.normalize();
+        // l'arme ne peut pas viser plus loin que ce que le tronc permet (≤ 1,1 rad des hanches) : si la caméra tourne plus
+        // vite que le corps, l'arme suit le corps et le rattrape — jamais de bras qui visent derrière le dos
+        const yawH = Math.atan2(avant.x, avant.z);
+        let e = this.viseeYaw - yawH; e = Math.atan2(Math.sin(e), Math.cos(e)); const eA = Math.max(-1.1, Math.min(1.1, e)); torsion = Math.max(-1.0, Math.min(1.0, e)) * pv;
+        const yawA = yawH + eA, dCible = V3(Math.sin(yawA), 0, Math.cos(yawA)); dir.lerp(dCible, pv); if (dir.lengthSq() < 1e-4) dir.copy(dCible); dir.normalize();
       }
       const droite = dir.clone().cross(V3(0, 1, 0)).normalize();
       const yaw = Math.atan2(dir.x, dir.z) + P.cant;
@@ -424,7 +427,7 @@
         if (!contacts[k]) vr.actif = false;
         if (vr.actif) {
           const voulu = vr.cible.clone().sub(pT); voulu.y = 0;
-          const cap = this.reposTotal ? 0.3 : PARAMS.verrouMax;                     // au repos, les appuis ne bougent plus du tout                                            // au-delà, le pied « dérape » plutôt que d'être traîné
+          const cap = this.pivot ? 0 : this.reposTotal ? 0.3 : PARAMS.verrouMax;        // pivot sur place : les pieds tournent avec le corps                     // au repos, les appuis ne bougent plus du tout                                            // au-delà, le pied « dérape » plutôt que d'être traîné
           if (voulu.length() > cap) { vr.cible.sub(voulu.clone().setLength(voulu.length() - cap)); voulu.setLength(cap); }
           // l'écart rejoint la valeur voulue avec une demi-vie courte (pas de saut à la pose du pied)
           const x = [vr.delta.x - voulu.x, 0, vr.delta.z - voulu.z], v = [vr.deltaV.x, 0, vr.deltaV.z];
@@ -661,15 +664,17 @@
       // (le cap corrigé est celui du DÉPLACEMENT : en style Swat les hanches sont bladées de ~12° par rapport à la marche,
       // et les clips capturés serpentent ; l'angle vitesse/hanches du clip, lissé, est compensé pour que le soldat aille
       // exactement là où on le pousse, sans glissement des pieds)
-      if (vGoal.lengthSq() > 0.01 && this.facteurRacine > 0.5) {
+      let errCapR = yGoal - S.yaw; errCapR = Math.atan2(Math.sin(errCapR), Math.cos(errCapR)); const pivote = vGoal.lengthSq() < 0.01 && Math.abs(errCapR) > 0.05;   // pivot sur place (visée, caméra tournée)
+      if ((vGoal.lengthSq() > 0.01 && this.facteurRacine > 0.5) || pivote) {
         const vLoc = Math.hypot(v[i * 3], v[i * 3 + 2]) > 0.3 ? Math.atan2(v[i * 3], v[i * 3 + 2]) : (this.biaisVit || 0);   // angle vitesse / hanches du clip
         this.biaisVit = this.biaisVit == null ? vLoc : this.biaisVit + Math.atan2(Math.sin(vLoc - this.biaisVit), Math.cos(vLoc - this.biaisVit)) * (1 - Math.exp(-dt / 0.2));
         // regard verrouillé (visée) : ce sont les hanches qui doivent faire face à la caméra, pas le déplacement (pas chassé,
         // recul) — sans cette distinction le soldat tournait sur lui-même en visant
         const recule = Ctl.modeVisee(vGoal) === 'recul';
         let err = yGoal - (recule ? S.yaw : S.yaw + this.biaisVit); err = Math.atan2(Math.sin(err), Math.cos(err));
-        const corr = Math.max(-PARAMS.capMax * dt, Math.min(PARAMS.capMax * dt, err * (1 - Math.exp(-dt / PARAMS.capLife))));
-        S.yaw += corr * this.facteurRacine;
+        if (pivote) err = errCapR;
+        const corr = Math.max(-PARAMS.capMax * dt, Math.min(PARAMS.capMax * dt, err * (1 - Math.exp(-dt / (pivote ? 0.3 : PARAMS.capLife)))));
+        S.yaw += corr * (pivote ? 1 : this.facteurRacine);
       }
       // résidu : le déplacement de l'image est tourné vers la direction voulue (≤ 12°, les clips serpentent) ; le verrou des
       // pieds absorbe ce petit écart
@@ -687,7 +692,7 @@
       // encore un mélange : un pied en l'air ne doit ni être verrouillé ni compter comme glissement)
       const cf = Base.contact[this.frame];
       const contacts = S.orteils.map((o, k) => !!(cf & (k ? 1 : 2)) && o.getWorldPosition(V3()).y < seuilOrteil);
-      S.reposTotal = vGoalNul && this.facteurRacine < 0.05;
+      S.reposTotal = vGoalNul && this.facteurRacine < 0.05; S.pivot = pivote && Math.abs(errCapR) > 0.15;
       if (PARAMS.verrou) S.verrouPieds(contacts, dt);
       // tir (clic gauche maintenu en visée) : cadence soutenue du fusil d'assaut du jeu (110 coups/min), recul 1 → 0 en 0,1 s
       this.recul = Math.max(0, (this.recul || 0) - dt * 10); this.tirAcc = Math.max(0, (this.tirAcc || 0) - dt);
