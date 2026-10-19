@@ -1525,7 +1525,7 @@
             // (et posé AU sol : le point d'appui de la semelle à hauteur 0 ; les cycles flottent ou s'enfoncent de 1 à 4 cm)
             const dy = Math.max(-0.04, Math.min(0.05, -(piv === 'A' ? hT : hP)));
             const d = new THREE.Vector3(L.anc.x - P.x, dy, L.anc.z - P.z);
-            if (Math.hypot(d.x, d.z) > 0.22) { L.piv = null; L.w = Math.max(0, L.w - dt / 0.16); }   // (trop loin : pivot sur place, saut)
+            if (Math.hypot(d.x, d.z) > (S.verrouLoin || 0.22)) { L.piv = null; L.w = Math.max(0, L.w - dt / 0.16); }   // (trop loin : pivot sur place, saut)
             else { L.off = d; L.w = Math.min(1, L.w + dt / 0.09); }   // (prise en ~0,09 s, relâche en ~0,16 s : sans à-coup du genou)
           } else { L.piv = null; L.w = Math.max(0, L.w - dt / 0.16); }
           if (L.w > 0 && L.off && L.off.lengthSq() > 1e-8) ikJambe(up, lo, ft, L.off.clone().multiplyScalar(L.w * L.w * (3 - 2 * L.w)), orteils[i]);
