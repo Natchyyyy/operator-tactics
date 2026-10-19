@@ -2,7 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
-  const VERSION = 20;
+  const VERSION = 22;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);
@@ -220,8 +220,10 @@
         const base = (a, n) => { const u = n.clone().addScaledVector(a, -n.dot(a)).normalize(); return new THREE.Matrix4().makeBasis(a, u, V3().crossVectors(a, u)); };
         const R = base(A, Nn).multiply(base(Aloc, N).transpose());
         const q = Q().setFromRotationMatrix(R);
-        const pos = mcp.clone().sub(M1.clone().applyQuaternion(q));          // position de l'os de la main dans le repère de l'arme
+        const kE = (PARAMS.fusil.longueur || 0.86) / 0.86;                   // les places du jeu sont mesurées sur l'arme de 0,86 m
+        const pos = mcp.clone().multiplyScalar(kE).sub(M1.clone().applyQuaternion(q));          // position de l'os de la main dans le repère de l'arme
         out[k] = { pos, q };
+        if (k === 'D') { const idx = chaines[autres[0]]; for (const d of this.doigts) if (idx.includes(d.os)) d.indexD = true; }
       }
       return out;
     }
@@ -254,7 +256,7 @@
     // vers le haut), puis la main gauche est amenée sur le garde-main par IK du bras gauche
     equiperFusil(gltf) {
       const w = new THREE.Group(), c = gltf.scene, b3 = new THREE.Box3().setFromObject(c), ctr = b3.getCenter(V3());
-      const s = 0.86 / (b3.max.x - b3.min.x); c.position.set(-ctr.x, -ctr.y, -ctr.z);
+      const s = (PARAMS.fusil.longueur || 0.86) / (b3.max.x - b3.min.x); c.position.set(-ctr.x, -ctr.y, -ctr.z);
       const k = new THREE.Group(); k.add(c); k.scale.setScalar(s); k.rotation.y = Math.PI / 2; w.add(k);
       c.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
       const P = (x, y) => V3(0, (y - ctr.y) * s, -(x - ctr.x) * s);
@@ -340,12 +342,12 @@
         F.quaternion.multiply(part); F.updateMatrixWorld(true);
         main[2].quaternion.copy(F.getWorldQuaternion(Q()).invert().multiply(qw)); main[2].updateMatrixWorld(true);
       }
-      for (const d of this.doigts) if (d.prise) d.os.quaternion.copy(d.repos).slerp(d.prise, pa);
+      for (const d of this.doigts) if (d.prise) d.os.quaternion.copy(d.repos).slerp(d.prise, pa * (d.indexD ? pv : 1));   // index droit : tendu hors de la détente en low ready, sur la détente en visée
       // épaulé : la tête se penche vers la crosse (joue sur la crosse) et baisse un peu vers le viseur
       const tete = this.os[Base.meta.os.indexOf('Head')];
       if (tete && pv > 0.001) {
         const kT = pa * pv; const rDroite = droite.clone().negate();            // axe vers la gauche du tireur = -droite... (droite = dir × up pointe à droite)
-        const qT = Q().setFromAxisAngle(droite, 0.18 * kT).multiply(Q().setFromAxisAngle(dir, 0.14 * kT));   // baisse (autour de l'axe droite) + roulis vers la droite
+        const qT = Q().setFromAxisAngle(droite, 0.22 * kT).multiply(Q().setFromAxisAngle(dir, 0.3 * kT));   // baisse (autour de l'axe droite) + roulis vers la droite
         tete.quaternion.copy(tete.parent.getWorldQuaternion(Q()).invert().multiply(qT).multiply(tete.getWorldQuaternion(Q()))); tete.updateMatrixWorld(true);
       }
       // repères de mise au point : poignée (jaune), garde-main (cyan), jointure du majeur visée (vert D, bleu G), bout d'os de main (rouge)
@@ -508,7 +510,7 @@
   let renderer, scene, camera, cam = { dist: 4.2, pitch: 0.42 }, horloge = 0;
   let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { avant: 0.06, droite: 0.11, haut: 0.09, tangage: -0.5, tangageMax: -0.85, cant: 0.35, buste: 0.3, lissage: 0.08, appuiZ: 0.12, torsion: 0.6, vrille: 0.45 }, epaule: { avant: 0.08, droite: 0.13, haut: 0.11, tangage: -0.02, tangageMax: -0.3, cant: 0.1 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.01, droite: 0.10, haut: 0.15, tangage: -0.5, tangageMax: -0.65, cant: 0.3, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: 0.05, droite: 0.15, haut: 0.17, tangage: 0.0, tangageMax: -0.05, cant: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -621,7 +623,9 @@
     renderer.shadowMap.enabled = true; renderer.outputColorSpace = THREE.SRGBColorSpace; document.body.appendChild(renderer.domElement);
     scene = new THREE.Scene(); scene.background = new THREE.Color(0x1b1f26); scene.fog = new THREE.Fog(0x1b1f26, 18, 40);
     camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.05, 100);
-    const hemi = new THREE.HemisphereLight(0xbfd4ff, 0x3a2f22, 0.9); scene.add(hemi);
+    const clair = /[?&]clair=1/.test(location.search);
+    const hemi = new THREE.HemisphereLight(0xbfd4ff, 0x3a2f22, clair ? 2.2 : 0.9); scene.add(hemi);
+    if (clair) { const fill = new THREE.DirectionalLight(0xffffff, 1.2); fill.position.set(-6, 4, -3); scene.add(fill); const fill2 = new THREE.DirectionalLight(0xffe8c8, 0.8); fill2.position.set(2, 3, -8); scene.add(fill2); }
     const sun = new THREE.DirectionalLight(0xfff1d6, 1.6); sun.position.set(5, 9, 4); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.camera.left = sun.shadow.camera.bottom = -16; sun.shadow.camera.right = sun.shadow.camera.top = 16; scene.add(sun);
     const sol = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x3c4149, roughness: 0.95 })); sol.rotation.x = -Math.PI / 2; sol.receiveShadow = true; scene.add(sol);
