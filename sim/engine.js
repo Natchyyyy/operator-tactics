@@ -944,10 +944,10 @@
   // ---- « Tenir la position » (ordre au clic droit) : sûreté tous azimuts, comme en vrai --------------------------------
   // Chaque opérateur surveille un secteur autour du point (face à la menace connue d'abord, puis les flancs ouverts, puis
   // l'arrière), depuis son propre couvert, en balayant son secteur du regard. Un ennemi apparaît : ceux qui le voient
-  // l'engagent ; un équipier dont le secteur est calme se décale (dans la position, ≤ 7,5 m du point) vers un couvert
+  // l'engagent ; un équipier dont le secteur est calme se décale (dans la position, ≤ 9,5 m du point) vers un couvert
   // d'où il appuie le côté menacé, pendant qu'un autre garde l'arrière. Menace partie (≥ 4 s), il reprend sa place.
   // Personne ne quitte la position pour poursuivre.
-  const HOLD_ZONE = 7.5, HOLD_MOVE_GAP = 4, HOLD_CONTACT = 20;
+  const HOLD_ZONE = 9.5, HOLD_MOVE_GAP = 4, HOLD_CONTACT = 20;
   // secteurs de base (radians, par rapport à la menace) selon l'effectif : deux vers la menace à partir de cinq
   const SECT_BASE = { 1: [0], 2: [0, Math.PI], 3: [0, 2.1, -2.1], 4: [0, Math.PI / 2, -Math.PI / 2, Math.PI], 5: [0.5, -0.5, 1.75, -1.75, Math.PI] };
   // au contact (menace connue) : tout le monde face à elle, sauf un qui garde l'arrière (à partir de quatre : à deux ou trois,
@@ -1719,6 +1719,13 @@
       for (const a of this.units) {
         if (a === u || (a.alive && a.team !== u.team) || Math.hypot(a.x - wp.x, a.z - wp.z) > (a.alive ? 0.6 : 0.45)) continue;
         if (this.map.walkableSegment(u.x, u.z, nw.x, nw.z)) { u.pathIdx++; return this.move(u); }
+        // un corps sur le point de passage, et pas de ligne droite vers le suivant : le point est déplacé à côté du corps
+        // (sinon la poussée qui contourne le corps et le chemin qui y ramène se contraient : allers-retours sur place)
+        if (!a.alive) {
+          const L = Math.hypot(wp.x - a.x, wp.z - a.z) || 1, qx = wp.x === a.x && wp.z === a.z ? u.x - a.x : wp.x - a.x, qz = wp.x === a.x && wp.z === a.z ? u.z - a.z : wp.z - a.z, Q = Math.hypot(qx, qz) || 1;
+          const px = a.x + qx / Q * 0.85, pz = a.z + qz / Q * 0.85;
+          if (L < 0.85 && this.map.inBounds(px, pz) && !this.map.insideObstacle(px, pz)) { u.path[u.pathIdx] = { x: px, z: pz }; }
+        }
         break;
       }
     }
@@ -1762,6 +1769,8 @@
       for (const [sx, sz] of Math.abs(nx - u.x) > Math.abs(nz - u.z) ? [[nx, u.z], [u.x, nz]] : [[u.x, nz], [nx, u.z]]) {
         if (Math.hypot(sx - u.x, sz - u.z) > stepLen * 0.3 && this.map.inBounds(sx, sz) && !this.map.insideObstacle(sx, sz)) { nx = sx; nz = sz; break; }
       }
+      // point de passage collé à l'obstacle (inatteignable à moins de 0,6 m) : tenu pour atteint, on passe au suivant
+      if (this.map.insideObstacle(nx, nz) && d < 0.6 && u.pathIdx + 1 < u.path.length) { u.pathIdx++; return; }
     }
     if ((this.map.insideObstacle(nx, nz) && !this.map.insideObstacle(u.x, u.z)) || !this.map.inBounds(nx, nz)) {
       u.stuck += DT;

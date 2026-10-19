@@ -38,7 +38,7 @@
   function fillIcons(rootEl) { (rootEl || document).querySelectorAll('[data-ico]').forEach(e => { if (e.dataset.icoDone !== e.dataset.ico && OT.Ico) { e.innerHTML = OT.Ico(e.dataset.ico); e.dataset.icoDone = e.dataset.ico; } }); }
   // scène 1920×1080 mise à l'échelle et centrée dans la fenêtre (même mise en page à toutes les tailles)
   function fitStage() {
-    const z = Math.min(innerWidth / 1920, innerHeight / 1080) || 1; document.documentElement.style.setProperty('--zui', Math.max(0.5, z));
+    const z = Math.min(innerWidth / 1920, innerHeight / 1080) || 1; document.documentElement.style.setProperty('--zui', Math.max(0.5, z)); document.documentElement.style.setProperty('--stage-top', ((innerHeight - 1080 * z) / 2 / z) + 'px');
     for (const el of document.querySelectorAll('.stage1080')) { el.style.setProperty('--z', z); el.style.left = ((innerWidth - 1920 * z) / 2 / z) + 'px'; el.style.top = ((innerHeight - 1080 * z) / 2 / z) + 'px'; }
   }
   window.addEventListener('resize', fitStage); OT.fitStage = fitStage;

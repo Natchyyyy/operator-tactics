@@ -70,6 +70,7 @@
           ${lit ? 'vec3 col = vCol.rgb * uLight; col = mix(col, fogColor, fog); gl_FragColor = vec4(col, a);' : 'gl_FragColor = vec4(vCol.rgb * a * (1.0 - fog), a);'}
         }`,
       transparent: true, depthWrite: false, blending, premultipliedAlpha: !lit,
+      side: T.DoubleSide,   // les quads étirés (traçantes, étincelles, flamme) tournaient le dos à la caméra : ils étaient éliminés (invisibles)
     });
     if (!lit) { mat.blending = T.CustomBlending; mat.blendSrc = T.OneFactor; mat.blendDst = T.OneFactor; mat.blendEquation = T.AddEquation; }
     const mesh = new T.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = lit ? 5 : 6;

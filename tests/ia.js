@@ -231,7 +231,9 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
       const ow = ord.filter(u => u.state === 'overwatch' && !u.target); overwatch += ow.length;
       for (let i = 0; i < ow.length; i++) for (let j = i + 1; j < ow.length; j++) { let d = Math.abs(ow[i].facing - ow[j].facing) % (2 * Math.PI); if (d > Math.PI) d = 2 * Math.PI - d; if (d > 0.45) { spread++; } }
       if (all === null && !ord.length) all = b.t;
-      if (all !== null && b.t > all + 1) for (const u of b.teams[0].units) if (u.alive && (!u.keyOrder || Math.hypot(u.x - u.keyOrder.x, u.z - u.keyOrder.z) > 3)) held = false;
+      // (tenir à 360° : un opérateur peut se décaler dans la position pour appuyer un équipier — à ≤ 8 m de sa place — ou
+      // s'écarter d'une grenade ; il ne la quitte pas)
+      if (all !== null && b.t > all + 1) for (const u of b.teams[0].units) if (u.alive && u.state !== 'evade' && (!u.keyOrder || (Math.hypot(u.x - u.keyOrder.x, u.z - u.keyOrder.z) > 3 && !(u.keyOrder.hx !== undefined && Math.hypot(u.x - u.keyOrder.hx, u.z - u.keyOrder.hz) <= 8)))) held = false;
       if (all !== null && b.t > all + 12) break;
     }
     const us = b.teams[0].units.filter(u => u.alive); let gap = Infinity;
@@ -244,7 +246,7 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   check('méthodique : bonds avec appui — une partie du groupe bouge pendant que l\'autre couvre (> 60 % du trajet), en surveillance', M.mixed > 0.6 && M.overwatch > 100, { mixed: M.mixed, overwatch: M.overwatch });
   check('méthodique : les guetteurs se partagent les secteurs (regards écartés de plus de 25°)', M.spread > 50, { spread: M.spread });
   check('agressif : tout le groupe arrive nettement plus vite qu\'en méthodique', A.all !== null && M.all !== null && A.all < M.all * 0.7, { agressif: A.all, methodique: M.all });
-  check('arrivée « tenir » : arrivés, ils restent à leur poste (≤ 3 m) et le disent (« En place. »)', M.held && A.held && A.b.log.some(l => l.kind === 'enplace' && /En place/.test(l.text)) && A.b.log.some(l => l.kind === 'enplace' && /tiennent la position/.test(l.text)), { m: M.held, a: A.held });
+  check('arrivée « tenir » : arrivés, ils restent dans la position (à leur poste, ou ≤ 8 m de leur place pour un appui) et le disent (« En place. »)', M.held && A.held && A.b.log.some(l => l.kind === 'enplace' && /En place/.test(l.text)) && A.b.log.some(l => l.kind === 'enplace' && /tiennent la position/.test(l.text)), { m: M.held, a: A.held });
   check('arrivée « tenir » : l\'escouade se répartit autour du point (aucune paire à moins de 3 m)', M.gap >= 3 && A.gap >= 3, { methodique: M.gap, agressif: A.gap });
   // sous-groupe : seuls les opérateurs désignés obéissent ; rejouable à l'identique
   const s1 = mkA(9); while (s1.t < 2) s1.step();

@@ -3,6 +3,10 @@
   #otCharge { margin-top: 18px; max-width: 440px; }
   #otCharge .ocBar { height: 6px; background: rgba(255,255,255,.12); border-radius: 3px; overflow: hidden; }
   #otCharge .ocBar i { display: block; height: 100%; width: 0; background: #c9b67a; transition: width .25s; }
+  #otCharge .ocBar i { background: linear-gradient(90deg, #b39a52, #f2d36b); box-shadow: 0 0 10px rgba(242,211,107,.45); border-radius: 3px; }
+  #otCharge .ocBar { position: relative; } #otCharge:not(.erreur) .ocBar::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent); transform: translateX(-100%); animation: ocShim 1.6s ease-in-out infinite; }
+  @keyframes ocShim { to { transform: translateX(100%); } }
+  @media (prefers-reduced-motion: reduce) { #otCharge .ocBar::after { animation: none; display: none; } }
   #otCharge .ocTxt { margin-top: 8px; font-size: 12.5px; color: #9aa6b2; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
   #otCharge.erreur .ocBar i { background: #d0563c; }
   #otCharge.erreur .ocTxt { color: #f2a593; max-width: 560px; line-height: 1.45; letter-spacing: 0; font-size: 14px; }
