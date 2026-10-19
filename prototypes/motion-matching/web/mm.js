@@ -298,6 +298,13 @@
         main[2].quaternion.copy(F.getWorldQuaternion(Q()).invert().multiply(qw)); main[2].updateMatrixWorld(true);
       }
       for (const d of this.doigts) if (d.prise) d.os.quaternion.copy(d.repos).slerp(d.prise, pa);
+      // épaulé : la tête se penche vers la crosse (joue sur la crosse) et baisse un peu vers le viseur
+      const tete = this.os[Base.meta.os.indexOf('Head')];
+      if (tete && pv > 0.001) {
+        const kT = pa * pv; const rDroite = droite.clone().negate();            // axe vers la gauche du tireur = -droite... (droite = dir × up pointe à droite)
+        const qT = Q().setFromAxisAngle(droite, 0.18 * kT).multiply(Q().setFromAxisAngle(dir, 0.14 * kT));   // baisse (autour de l'axe droite) + roulis vers la droite
+        tete.quaternion.copy(tete.parent.getWorldQuaternion(Q()).invert().multiply(qT).multiply(tete.getWorldQuaternion(Q()))); tete.updateMatrixWorld(true);
+      }
       // repères de mise au point : poignée (jaune), garde-main (cyan), jointure du majeur visée (vert D, bleu G), bout d'os de main (rouge)
       if (PARAMS.debug) {
         if (!this.marques) { this.marques = {}; for (const [n, c] of [['grip', 0xffd54a], ['fore', 0x4ad5ff], ['mD', 0x55ff55], ['mG', 0x5555ff], ['hD', 0xff5555], ['hG', 0xff55ff]]) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), new THREE.MeshBasicMaterial({ color: c, depthTest: false })); m.renderOrder = 10; this.group.parent.add(m); this.marques[n] = m; } }
@@ -455,7 +462,7 @@
   let renderer, scene, camera, cam = { dist: 4.2, pitch: 0.42 }, horloge = 0;
   let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { avant: 0.06, droite: -0.08, haut: -0.03, tangage: -0.5, cant: 0.3, buste: 0.3, lissage: 0.06, appuiZ: 0.03, torsion: 0.6 }, epaule: { avant: 0.05, droite: -0.07, haut: 0.03, tangage: -0.02, cant: 0.12 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { avant: 0.06, droite: -0.08, haut: -0.03, tangage: -0.5, cant: 0.3, buste: 0.3, lissage: 0.06, appuiZ: 0.03, torsion: 0.6 }, epaule: { avant: 0.05, droite: -0.07, haut: 0.07, tangage: -0.02, cant: 0.12 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
