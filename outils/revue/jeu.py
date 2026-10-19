@@ -99,7 +99,8 @@ window.ECH = { bandeN: 10, bande: null, img: 0, cat: {}, seg: {}, fin: [], pires
   // canvas du rendu 3D = le plus grand de la page (il y en a d'autres : titre, icônes…)
   // gros plans : on cache le décor (voitures, murs) qui masque souvent le soldat ; seuls restent les soldats
   E.isoler = (u) => { const sc = API.scene(), M = API.meshes(), garde = new Set(Object.values(M).map(m => m.group)), cach = [];
-    for (const o of sc.children) if (!garde.has(o) && o.visible && !o.isLight) { o.visible = false; cach.push(o); }
+    const aLumiere = (o) => { let l = false; o.traverse(x => { if (x.isLight) l = true; }); return l; };   // (un groupe qui contient une lumière reste visible : sinon gros plans tout noirs)
+    for (const o of sc.children) if (!garde.has(o) && o.visible && !o.isLight && !aLumiere(o)) { o.visible = false; cach.push(o); }
     for (const id in M) if (id !== u.id && M[id].group.visible) { M[id].group.visible = false; cach.push(M[id].group); }
     return () => cach.forEach(o => { o.visible = true; }); };
   const cv = () => Array.from(document.querySelectorAll('canvas')).sort((a, b) => b.width * b.height - a.width * a.height)[0];
@@ -107,7 +108,7 @@ window.ECH = { bandeN: 10, bande: null, img: 0, cat: {}, seg: {}, fin: [], pires
     const g = m.group.position, vues = [['face', Math.PI / 2 - m.yaw], ['cote', Math.atan2(Math.sin(m.yaw), -Math.cos(m.yaw))]];
     info.images = [];
     E.actif = false; E.dessin = true; const rendre = E.isoler(u);
-    try { for (const [nom, yaw] of vues) { API.look(g.x, g.z, yaw, 0.22, 3.0, 0.9); const c = cv(); info.images.push([nom, c.toDataURL('image/jpeg', 0.85)]); } }
+    try { for (const [nom, yaw] of vues) { API.look(g.x, g.z, yaw, 0.22, 2.2, 0.9); const c = cv(); info.images.push([nom, c.toDataURL('image/jpeg', 0.85)]); } }
     finally { E.actif = true; E.dessin = false; rendre(); }
     E.alarmes.push(info);
   };
