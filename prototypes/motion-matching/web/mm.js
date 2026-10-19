@@ -2,7 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
-  const VERSION = 26;
+  const VERSION = 27;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);
@@ -75,15 +75,20 @@
     // l'avant, ou presque immobile) — pas de pas chassé ni de marche arrière quand le regard n'est pas verrouillé
     const frontal = new Uint8Array(N); for (let i = 0; i < N; i++) { const o = i * nF; const vx = fiche[o + 12], vz = fiche[o + 14], px = fiche[o + 17], pz = fiche[o + 18];
       const aV = Math.hypot(vx, vz) < 0.3 || Math.abs(Math.atan2(vx, vz)) < 0.87, aP = Math.hypot(px, pz) < 0.25 || Math.abs(Math.atan2(px, pz)) < 0.87; frontal[i] = aV && aP ? 1 : 0; }
-    Object.assign(Base, { meta, N, J, nF, q, hy, v, w, fiche, fn, seq, style, ok, repos, arret, frontal, contact, POIDS });
+    // angle de la vitesse des hanches (repère des hanches) et vitesse, pour filtrer la direction en visée
+    const angV = new Float32Array(N), vitV = new Float32Array(N); for (let i = 0; i < N; i++) { const o = i * nF; angV[i] = Math.atan2(fiche[o + 12], fiche[o + 14]); vitV[i] = Math.hypot(fiche[o + 12], fiche[o + 14]); }
+    Object.assign(Base, { meta, N, J, nF, q, hy, v, w, fiche, fn, seq, style, ok, repos, arret, frontal, angV, vitV, contact, POIDS });
     return Base;
   }
 
   // recherche brute : la meilleure image pour une requête normalisée (seulement le style demandé)
-  function chercher(req, styleVoulu, seulRepos, seulArret, seulFrontal) {
+  // angVoulu (rad, repère des hanches) : en visée, seules les images dont la vitesse part dans cette direction (±50°), ou
+  // presque immobiles, sont candidates — sinon la recherche prenait une marche arrière pour un pas de côté
+  function dirOk(i, angVoulu) { if (angVoulu == null) return true; const { angV, vitV } = Base; if (vitV[i] < 0.3) return true; const e = angV[i] - angVoulu; return Math.abs(Math.atan2(Math.sin(e), Math.cos(e))) < 0.87; }
+  function chercher(req, styleVoulu, seulRepos, seulArret, seulFrontal, angVoulu) {
     const { N, nF, fn, ok, style, repos, arret, frontal } = Base; let best = -1, bc = Infinity;
     for (let i = 0; i < N; i++) {
-      if (!ok[i] || style[i] !== styleVoulu || (seulRepos && !repos[i]) || (seulArret && !arret[i]) || (seulFrontal && !frontal[i])) continue;
+      if (!ok[i] || style[i] !== styleVoulu || (seulRepos && !repos[i]) || (seulArret && !arret[i]) || (seulFrontal && !frontal[i]) || !dirOk(i, angVoulu)) continue;
       let c = 0; const o = i * nF;
       for (let k = 0; k < nF; k++) { const d = fn[o + k] - req[k]; c += d * d; if (c >= bc) break; }
       if (c < bc) { bc = c; best = i; }
@@ -550,7 +555,7 @@
   let renderer, scene, camera, cam = { dist: 4.2, pitch: 0.42 }, horloge = 0;
   let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { capLife: 0.2, capMax: 3.0, warpMax: 0.21, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -597,8 +602,9 @@
         const arretVoulu = vGoal.lengthSq() < 0.01;
         const auRepos = arretVoulu && vitAnimCour < 0.35;
         const seulFrontal = !Ctl.verrouRegard;                                               // il regarde là où il va
-        const [best, bc] = chercher(req, styleVoulu, auRepos, arretVoulu, seulFrontal);
-        const cc = (!finClip && Base.ok[f] && Base.style[f] === styleVoulu && (!auRepos || Base.repos[f]) && (!arretVoulu || Base.arret[f]) && (!seulFrontal || Base.frontal[f])) ? cout(f, req) : Infinity;
+        const angVoulu = Ctl.verrouRegard && vGoal.lengthSq() > 0.01 ? Math.atan2(vGoal.x, vGoal.z) - S.yaw : null;   // visée : direction voulue dans le repère des hanches
+        const [best, bc] = chercher(req, styleVoulu, auRepos, arretVoulu, seulFrontal, angVoulu);
+        const cc = (!finClip && Base.ok[f] && Base.style[f] === styleVoulu && (!auRepos || Base.repos[f]) && (!arretVoulu || Base.arret[f]) && (!seulFrontal || Base.frontal[f]) && dirOk(f, angVoulu)) ? cout(f, req) : Infinity;
         if (this === agents[0]) { JOURNAL.push([+horloge.toFixed(2), +cc.toFixed(1), +bc.toFixed(1), best, f]); if (JOURNAL.length > 400) JOURNAL.shift(); }
         // les marges évitent les sauts inutiles en régime établi ; mais si on veut avancer alors que l'animation est à l'arrêt
         // (départ, ou arrêt forcé à un virage), on prend la meilleure image sans marge : sinon un repos « atypique » peut
@@ -641,15 +647,20 @@
       if (vGoal.lengthSq() > 0.01 && this.facteurRacine > 0.5) {
         const vLoc = Math.hypot(v[i * 3], v[i * 3 + 2]) > 0.3 ? Math.atan2(v[i * 3], v[i * 3 + 2]) : (this.biaisVit || 0);   // angle vitesse / hanches du clip
         this.biaisVit = this.biaisVit == null ? vLoc : this.biaisVit + Math.atan2(Math.sin(vLoc - this.biaisVit), Math.cos(vLoc - this.biaisVit)) * (1 - Math.exp(-dt / 0.2));
-        let err = yGoal - (S.yaw + this.biaisVit); err = Math.atan2(Math.sin(err), Math.cos(err));
+        // regard verrouillé (visée) : ce sont les hanches qui doivent faire face à la caméra, pas le déplacement (pas chassé,
+        // recul) — sans cette distinction le soldat tournait sur lui-même en visant
+        let err = yGoal - (Ctl.verrouRegard ? S.yaw : S.yaw + this.biaisVit); err = Math.atan2(Math.sin(err), Math.cos(err));
         const corr = Math.max(-PARAMS.capMax * dt, Math.min(PARAMS.capMax * dt, err * (1 - Math.exp(-dt / PARAMS.capLife))));
         S.yaw += corr * this.facteurRacine;
       }
       // résidu : le déplacement de l'image est tourné vers la direction voulue (≤ 12°, les clips serpentent) ; le verrou des
       // pieds absorbe ce petit écart
-      if (vGoal.lengthSq() > 0.01 && vl.lengthSq() > 0.09 && !Ctl.verrouRegard) {
+      // (regard verrouillé : les hanches font face à la caméra, c'est donc ce redressement seul qui donne la direction du pas
+      // chassé / du recul ; limite plus large, le verrou des pieds absorbe l'écart)
+      if (vGoal.lengthSq() > 0.01 && vl.lengthSq() > 0.09) {
+        const lim = Ctl.verrouRegard ? PARAMS.warpMaxVisee : PARAMS.warpMax;
         let e = Math.atan2(vGoal.x, vGoal.z) - Math.atan2(vl.x, vl.z); e = Math.atan2(Math.sin(e), Math.cos(e));
-        vl.applyAxisAngle(UP, Math.max(-PARAMS.warpMax, Math.min(PARAMS.warpMax, e)));
+        vl.applyAxisAngle(UP, Math.max(-lim, Math.min(lim, e)));
       }
       S.pos.addScaledVector(vl, dt * this.facteurRacine);
       Ctl.pos.copy(S.pos); Ctl.yaw = S.yaw;

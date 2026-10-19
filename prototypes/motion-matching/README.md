@@ -45,6 +45,9 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   (demi-vie 0,2 s, ≤ 3 rad/s), en compensant l'angle vitesse/hanches du clip (style Swat bladé de ~12°, clips qui
   serpentent) ; le déplacement de l'image est tourné vers la direction voulue (≤ 12°). Mesuré : direction finale à ±8°,
   cap à ±10° sur Q/D/diagonales/demi-tour ; 15 cm parcourus en 0,3-0,6 s. Coût : glissement sur le chemin de démo 8 → 13 cm/s.
+  En visée (regard verrouillé, v27) : les hanches font face à la caméra (pas de compensation du biais), les candidates sont
+  limitées aux images dont la vitesse part dans la direction demandée (±50°, repère des hanches) et le déplacement est
+  redressé jusqu'à 45° : pas de côté / recul / diagonales à ±3° de la touche, glissement 10-20 cm/s.
 - Réactivité : recherche immédiate à chaque changement d'intention (touche), marge de saut retirée au départ / à l'arrêt /
   aux grands changements de vitesse ; frein de racine relâché en 50 ms au départ ; ressort de vitesse vif à l'accélération
   (demi-vie 0,15 s) et réaliste au freinage (0,3 s). Arrêt demandé → recherche limitée aux images « d'arrêt » (futur à 1 s
