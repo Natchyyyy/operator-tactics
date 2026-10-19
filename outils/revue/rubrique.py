@@ -18,6 +18,7 @@ ETIQ = {
     'marche_visee_diagD': {'marche', 'vise', 'diag'},
     'pas_chasse_G': {'marche', 'vise', 'lateral'},
     'pas_chasse_D': {'marche', 'vise', 'lateral'},
+    'pas_chasse_lent_G': {'marche', 'vise', 'lateral'},
     'recul_vise': {'marche', 'vise', 'recul'},
     'recul_diagD': {'marche', 'vise', 'recul'},
     'jog_bas': {'course', 'garde_basse', 'avant'},

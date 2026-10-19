@@ -1360,7 +1360,11 @@
         const bw = this.blendW;
         for (const n in bw) if (!(n in cible)) cible[n] = 0;
         this.basculeT = Math.max(0, (this.basculeT || 0) - dt);
-        let tot = 0; for (const n in cible) { bw[n] = (bw[n] || 0) + (cible[n] - (bw[n] || 0)) * Math.min(1, dt * (this.basculeT > 0 ? 3.5 : 8)); if (bw[n] < 0.004 && cible[n] === 0) bw[n] = 0; tot += bw[n]; }
+        // (poids lissés au 2e ordre — amorti critique, « SmoothDamp » — : vitesse des poids continue, plus d'à-coup du bassin au début
+        // d'un fondu, ex. passage pas chassé joint ↔ marche hanches tournées ; constantes de temps proches de l'ancien 1er ordre)
+        const bv = this.blendV || (this.blendV = {}), om = 2 / (this.basculeT > 0 ? 0.42 : 0.17);
+        let tot = 0; for (const n in cible) { const x0 = bw[n] || 0, ch = x0 - cible[n], x2 = om * dt, ex = 1 / (1 + x2 + 0.48 * x2 * x2 + 0.235 * x2 * x2 * x2), tmp = ((bv[n] || 0) + om * ch) * dt;
+          bv[n] = ((bv[n] || 0) - om * tmp) * ex; bw[n] = Math.max(0, Math.min(1, cible[n] + (ch + tmp) * ex)); if (bw[n] < 0.004 && cible[n] === 0) { bw[n] = 0; bv[n] = 0; } tot += bw[n]; }
         // foulée du mélange : somme VECTORIELLE (en diagonale, avant + côté avancent moins que la somme des longueurs) ;
         // c'est elle qui cale la cadence sur la vitesse réelle (pas de pieds qui glissent)
         // (mesuré : la vraie foulée d'un mélange est entre la somme vectorielle et la somme des longueurs ; on prend la moyenne)

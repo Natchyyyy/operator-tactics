@@ -24,6 +24,7 @@ const ETATS = {
   marche_visee_diagD: { seg: [[4.0, { v: 1.1, vise: 1, dir: -45 }]], fen: [1.8, 4.0], nom: 'Marche visée diagonale avant droite' },
   pas_chasse_G:       { seg: [[4.0, { v: 1.0, vise: 1, dir: 90 }]], fen: [1.8, 4.0], nom: 'Pas chassé vers la gauche' },
   pas_chasse_D:       { seg: [[4.0, { v: 1.0, vise: 1, dir: -90 }]], fen: [1.8, 4.0], nom: 'Pas chassé vers la droite' },
+  pas_chasse_lent_G:  { seg: [[4.0, { v: 0.5, vise: 1, dir: 90 }]], fen: [1.8, 4.0], nom: 'Pas chassé lent vers la gauche (0,5 m/s : pas joints)' },
   recul_vise:         { seg: [[4.0, { v: 1.0, vise: 1, dir: 180 }]], fen: [1.8, 4.0], nom: 'Recul en visant' },
   recul_diagD:        { seg: [[4.0, { v: 1.0, vise: 1, dir: -135 }]], fen: [1.8, 4.0], nom: 'Recul diagonal droite' },
   jog_bas:            { seg: [[4.0, { v: 2.1 }]], fen: [1.8, 4.0], nom: 'Petite course garde basse (2,1 m/s : l\'allure la plus fréquente en jeu)' },
