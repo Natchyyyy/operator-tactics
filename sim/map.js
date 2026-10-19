@@ -115,7 +115,7 @@
           box(71.3, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
           // ---- SUD : places le long du mur de la rue, kiosque à pizzas et consigne à colis (de part et d'autre), quai de la
           // navette (abri et jardinières sur l'îlot, bus le long), fourgons de livraison, point de tri
-          cap(box(7.9, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1), cap(box(15.4, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),   // centrées dans leurs places (lignes tous les 2,5 m depuis x 7,6)
+          cap(box(7.9, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1), cap(box(15.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),   // dans leurs places (lignes tous les 2,5 m depuis x 7,6 ; 15,6 et non 15,4 : chemins des flanqueurs inchangés)
           cap(box(18.0, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1), cap(box(20.5, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
           cap(box(23.0, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
           box(21.2, 33.8, 2.4, 2.4, 3.0, 'wall', 'kiosque'), box(48.4, 33.8, 1.2, 3.0, 2.1, 'wall', 'consigne colis'),
