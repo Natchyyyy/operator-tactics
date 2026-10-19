@@ -79,7 +79,9 @@
     const team = this.battle.teams[this.team];
     if (has(this, 'runner')) v *= 1.15;                                                               // Sprinteur
     if (this.stance === 'crouch') v *= 0.55;
-    if (this.state === 'closing' || this.state === 'retreat') v *= 1.2;        // sprint
+    // sprint : assaut sur un adversaire, repli ; course vers un couvert sous la menace (vu, pris pour cible, touché, à
+    // découvert sous les yeux d'une position ennemie connue — voir act()) : on ne marche pas jusqu'à l'abri sous le feu
+    if (this.state === 'closing' || this.state === 'retreat' || this.dash) v *= 1.2;
     else if (this.state === 'bounding' || this.state === 'advancing') { if (Object.keys(this.knowledge).length) v *= 0.8; } // pas tactique au contact
     const hard = has(this, 'hardened') ? 0.5 : 1;                                                    // Endurci : pénalités de blessure réduites de moitié
     if (this.status === 'wounded') v *= 1 - 0.2 * hard; else if (this.status === 'critical') v *= 1 - 0.5 * hard;
@@ -683,7 +685,7 @@
   // Le point renvoyé est le point plaqué contre l'obstacle ; seul un VRAI couvert local face à la menace est retenu.
   Battle.prototype.findCover = function (u, threat, maxDist, opts) {
     opts = opts || {};
-    let best = null, bestScore = -Infinity;
+    let best = null, bestScore = -Infinity; const cands = [];
     // les autres ennemis connus : on ne va pas se mettre à couvert sous le nez de l'un d'eux (à moins de ~8 m, quand on
     // en est plus loin que ça) — un couvert face à l'un n'en est pas un face à l'autre
     const others = [];
@@ -720,9 +722,21 @@
       if (cv.level === 'partial') s += 3; else s += 1.5;
       if (canShoot) s += opts.wantShoot === false ? 0 : 4;
       s += this.rng.next() * 0.05; // départage aléatoire des ex æquo (sinon l'ordre de la liste favoriserait un côté)
-      if (s > bestScore) { bestScore = s; best = { x: cx, z: cz, obstacle: h.obstacle }; }
+      if (s > bestScore) { bestScore = s; best = { x: cx, z: cz, obstacle: h.obstacle }; cands.push(best); }
     }
-    return best;
+    // un couvert proche à vol d'oiseau mais de l'autre côté d'une rangée de voitures ou d'un mur : le chemin en faisait le
+    // tour (jusqu'à 20 m, dos à l'ennemi, en s'éloignant du couvert avant d'y revenir). On prend alors le précédent meilleur
+    // (au plus trois essais) : chemin au plus ~1,8 × la distance (8 m au moins)
+    for (let i = cands.length - 1, n = 0; i >= 0 && n < 3; i--) {
+      const c = cands[i], dd = Math.hypot(c.x - u.x, c.z - u.z);
+      if (dd < 1.5 || this.map.walkableSegment(u.x, u.z, c.x, c.z)) return c;
+      n++;
+      const p = this.map.findPath(u.x, u.z, c.x, c.z); if (!p) continue;
+      let L = Math.hypot(p[0].x - u.x, p[0].z - u.z) + Math.hypot(c.x - p[p.length - 1].x, c.z - p[p.length - 1].z);
+      for (let j = 1; j < p.length; j++) L += Math.hypot(p[j].x - p[j - 1].x, p[j].z - p[j - 1].z);
+      if (L <= Math.max(8, dd * 1.8 + 2)) return c;
+    }
+    return null;
   };
   const COMMIT = { cover: 3, close: 2.5, bound: 4, advance: 2.5, hide: 4, fallback: 3 };
   // Écarter un point de destination des équipiers : si un allié s'y trouve ou s'y rend (à moins de 2,5 m), on vise à côté,
@@ -1257,6 +1271,24 @@
     this.stop(u); u.state = 'hold'; u.facing = Math.atan2(objective.z - u.z, objective.x - u.x);
   };
 
+  // ---- Course à couvert sous la menace ----------------------------------------------------
+  // Un déplacement vers un couvert (couvert, cachette, bond) se fait au sprint quand l'opérateur est menacé : un ennemi en
+  // vue, des balles qui claquent ou une blessure depuis moins de 2 s, ou à découvert sous les yeux d'une position ennemie
+  // repérée il y a moins de 3 s (vue revérifiée toutes les 0,3 s). Hors menace, l'allure reste celle de l'ordre.
+  // L'abri est sur le côté ou derrière et à plus de 3 m : on se retourne et on court (sans tirer) ; plus près, on y va
+  // à reculons ou en pas chassé en continuant de viser (voir move()).
+  const DASH = { cover: 1, hide: 1, bound: 1 }, DASH_TURN = 0.6, DASH_BACK = 3;
+  Battle.prototype.underThreat = function (u) {
+    if (this.t - u.lastShotByAt < 2 || this.t - u.lastHitAt < 2 || u.visible.size) return true;
+    if (this.t - (u.exposedT || -9) >= DECIDE_EVERY - 1e-6) {
+      u.exposedT = this.t; u.exposed = false;
+      for (const { k } of this.knownEnemies(u)) {
+        if (this.t - k.t >= 3 || Math.hypot(k.x - u.x, k.z - u.z) > 50) continue;
+        if (this.map.hasLOS(k.x, EYE.stand, k.z, u.x, CHEST.stand, u.z)) { u.exposed = true; break; }
+      }
+    }
+    return u.exposed;
+  };
   // ---- Action (chaque pas) ---------------------------------------------------------------
   Battle.prototype.act = function (u) {
     // suppression : décroît avec le sang-froid
@@ -1279,7 +1311,9 @@
     // déplacement
     const wasMoving = u.moving;
     u.moving = false;
+    u.dash = !!(u.path && u.goal && DASH[u.goalKind] && this.underThreat(u));   // course vers un couvert sous la menace : au sprint
     if (u.path && u.goal) this.move(u);
+    if (!u.moving) { u.dashTurned = false; u.dash = false; }
     if (u.moving) u.stillSince = undefined; else if (wasMoving || u.stillSince === undefined) u.stillSince = this.t;
     // accroupi à l'arrêt = « à couvert » : seulement derrière un vrai obstacle face à la menace principale (elle a pu bouger,
     // le décor a pu sauter, on a pu se décaler). Sinon on se relève (et la prochaine décision cherche un vrai couvert).
@@ -1288,11 +1322,12 @@
       const th = this.mainThreat(u);
       if (th ? !this.coverAt(u.x, u.z, th.x, th.z, false) : !this.besideObstacle(u.x, u.z)) u.stance = 'stand';
     }
-    // orientation : vers la cible si on en a une, sinon vers la marche
-    if (u.target && u.target.alive) u.facing = Math.atan2(u.target.z - u.z, u.target.x - u.x);
+    // orientation : vers la cible si on en a une, sinon vers la marche (course retournée vers un couvert : vers la course)
+    if (u.target && u.target.alive && !u.dashTurned) u.facing = Math.atan2(u.target.z - u.z, u.target.x - u.x);
     // tir
     if (u.throwing) { u.fireAcc = 0; return; }   // on ne tire pas en lançant
-    if (u.target && u.target.alive && u.visible.has(u.target.id) && u.state !== 'pinned' && u.state !== 'noammo' && u.state !== 'wait') this.fireAt(u, u.target);
+    if (u.dashTurned) u.fireAcc = Math.min(u.fireAcc, 1);   // on ne tire pas dans son dos en courant vers l'abri
+    else if (u.target && u.target.alive && u.visible.has(u.target.id) && u.state !== 'pinned' && u.state !== 'noammo' && u.state !== 'wait') this.fireAt(u, u.target);
     else if (u.target && u.target.alive && u.state !== 'pinned' && u.state !== 'noammo' && this.canSuppress(u, u.target)) this.suppressAt(u, u.target);
     else { u.fireAcc = Math.min(u.fireAcc, 1); if (u.target && !u.target.alive) u.target = null; }
   };
@@ -1340,7 +1375,16 @@
     // regardant ses pieds
     const mv = Math.atan2(wp.z - u.z, wp.x - u.x); let aim = null;
     if (!u.target && d > 0.05) { let best = 99; for (const { k } of this.knownEnemies(u)) { if (this.t - k.t > 5) continue; const dd = Math.hypot(k.x - u.x, k.z - u.z); const a = Math.atan2(k.z - u.z, k.x - u.x); if (dd < best && angDiff(a, mv) < 1.9) { best = dd; aim = a; } } }
-    const look = u.target && u.target.alive ? Math.atan2(u.target.z - u.z, u.target.x - u.x) : aim;
+    let look = u.target && u.target.alive ? Math.atan2(u.target.z - u.z, u.target.x - u.x) : aim;
+    // course vers l'abri sous la menace (u.dash) : menace de côté ou derrière et plus de 3 m à faire → on se retourne et on
+    // court droit vers l'abri (jusqu'à l'arrivée) ; plus près, on reste face à elle (pas chassé, marche arrière)
+    let turned = false;
+    if (u.dash && look !== null && d > 0.05 && angDiff(look, mv) > DASH_TURN) {
+      if (u.dashTurned) turned = true;
+      else { let rem = d; for (let i = u.pathIdx + 1; i < u.path.length && rem <= DASH_BACK; i++) rem += Math.hypot(u.path[i].x - u.path[i - 1].x, u.path[i].z - u.path[i - 1].z); turned = rem > DASH_BACK; }
+    }
+    u.dashTurned = turned;
+    if (turned) { look = null; aim = null; }
     const stepLen = (look === null || d <= 0.05 ? u.speed() : this.gaitSpeed(u.speed(), angDiff(look, mv))) * DT;
     let nx, nz;
     if (d <= stepLen) { nx = wp.x; nz = wp.z; }
@@ -1384,7 +1428,7 @@
       if (sl > stepLen && sl > 1e-6) { const cx = bx + sx / sl * stepLen, cz = bz + sz / sl * stepLen; if (!this.map.insideObstacle(cx, cz) && this.map.inBounds(cx, cz)) { nx = cx; nz = cz; } } }
     u.stats.distance += Math.hypot(nx - u.x, nz - u.z);
     // regard : vers le point de passage visé (pas vers le petit pas de côté de la séparation entre alliés)
-    if (!u.target && d > 0.05) { u.facing = aim === null ? mv : aim; u.preaim = aim !== null; }
+    if ((!u.target || turned) && d > 0.05) { u.facing = aim === null ? mv : aim; u.preaim = aim !== null; }
     u.x = nx; u.z = nz; u.moving = true;
     if (d <= stepLen) { u.pathIdx++; if (u.pathIdx >= u.path.length) { this.arrive(u); return; } }
     // détection de blocage : pas de progrès depuis 2,5 s → nouveau chemin

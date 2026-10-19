@@ -137,7 +137,7 @@
   const VISEE_HAUT = 1.3;   // hauteur visée sur la cible (m au-dessus de ses pieds : poitrine d'un homme debout)
   const OEIL = { haut: 0.095, avant: 0.085, cote: 0.032 }, VISEE_OPTIQUE = [0, 0.145, -0.03], GARDE = { pique: 0.7, dedans: 0.42, bas: 0.0, avant: 0, recul: 0 };
   // creux de l'épaule de la garde basse (m, par rapport à l'articulation de l'épaule : vers le centre, l'avant, le bas)
-  const POCHE = { dedans: 0.06, avant: 0.05, bas: 0.05 }; S.POCHE = POCHE;
+  const POCHE = { dedans: 0.07, avant: 0.05, bas: 0.04 }; S.POCHE = POCHE;   // (0,06 / 0,05 → 0,07 / 0,04 : crosse à 6-6,5 cm du creux de l’épaule au lieu de 7-7,6)
   // poche de rechargement (m, par rapport à Spine2 : devant, dessous, vers la droite) : poignée du fusil pendant le rechargement
   const RECH = { avant: 0.3, bas: 0.12, lat: 0.04, lacet: 0.26, pique: 0.35, roulis: 0.45, pAvant: 0.17, pBas: 0.3, pLat: 0.06 }; S.RECH = RECH;   // (p… : porte-chargeur du gilet, main gauche)
   S.OEIL = OEIL; S.GARDE = GARDE;
