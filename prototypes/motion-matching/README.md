@@ -41,4 +41,10 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   Glissement mesuré en marche (vitesse de l'orteil pendant les appuis de la base) : 11 cm/s ; données brutes seules : 6.
 - Mesures de référence (`API.mesures()`, traces TRACE) : sans verrou ni saut, orteil ≤ 17 cm de haut, |vy| ≤ 1 m/s ;
   tout réglage qui dépasse nettement ces valeurs crée des pieds qui « remontent » ou rebondissent.
-- Manques : course rapide (100STYLE plafonne vers 1,5 m/s, salle de 4,5 m), accroupi très léger, pas de fusil.
+- Arme (touche V) : style 100STYLE « Swat » (marche d'intervention, genoux fléchis, buste penché) pour tout le corps ; le fusil du
+  jeu est accroché au buste (avant/droite/haut/tangage dans `PARAMS.fusil`, lissé), et les deux mains viennent dessus par IK
+  deux os ; position des mains sur l'arme et doigts refermés lus dans la première image du clip « Rifle_Aim_Turn_Right » du
+  modèle (même règle que le jeu : poignée dans la paume droite, axe vers la paume gauche).
+- Données en plus dans donnees/100style/ : Swat_* (dans la base), StartStop_* (pas encore dans la base : départs/arrêts brusques,
+  à ajouter avec la course CMU ; attention à la taille du .bin, limite 15 Mo pour la page publiée).
+- Manques : course rapide (100STYLE plafonne vers 1,5 m/s, salle de 4,5 m), accroupi (style « Crouched » trop léger, retiré).

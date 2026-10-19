@@ -73,7 +73,7 @@ def main():
     a = ap.parse_args()
     seqs = []
     for f in a.fichiers:
-        style = 1 if 'Crouched' in os.path.basename(f) else 0
+        style = 1 if 'Crouched' in os.path.basename(f) else 2 if 'Swat' in os.path.basename(f) else 3 if 'StartStop' in os.path.basename(f) else 0
         c = traiter(f, style); seqs.append(c)
         print(f"{c['nom']:22s} {c['F']:6d} images  hanches {c['hy'].mean():.2f} m  vitesse moy {np.linalg.norm(c['v'][:, [0, 2]], axis=1).mean():.2f} m/s  contact {c['contact'].mean() * 100:.0f} %", flush=True)
     fiche = np.concatenate([c['fiche'] for c in seqs]); moy = fiche.mean(0); ect = fiche.std(0) + 1e-6

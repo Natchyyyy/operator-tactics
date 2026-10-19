@@ -80,6 +80,30 @@
   }
   function cout(i, req) { const { nF, fn } = Base; let c = 0; const o = i * nF; for (let k = 0; k < nF; k++) { const d = fn[o + k] - req[k]; c += d * d; } return c; }
 
+  // IK deux os : tourne H (racine) et K (milieu) pour amener A (extrémité) sur cibleA, en gardant le plan de flexion actuel
+  // et l'orientation mondiale de A. La cible est ramenée à portée (jamais de membre tendu de force).
+  function ikDeuxOs(H, K, A, cibleA) {
+    const pH = H.getWorldPosition(V3()), pK = K.getWorldPosition(V3()), pA = A.getWorldPosition(V3());
+    const a = pK.distanceTo(pH), b = pA.distanceTo(pK);
+    const maxC = (a + b) * 0.985, delta = cibleA.clone().sub(pA);
+    if (cibleA.distanceTo(pH) > maxC) { let lo = 0, hi = 1; for (let it = 0; it < 12; it++) { const m = (lo + hi) / 2; if (pA.clone().addScaledVector(delta, m).distanceTo(pH) > maxC) hi = m; else lo = m; } cibleA = pA.clone().addScaledVector(delta, lo); }
+    const c = Math.max(0.01, cibleA.distanceTo(pH));
+    const qA = A.getWorldQuaternion(Q());
+    const ang = (u, v) => Math.acos(Math.max(-1, Math.min(1, u.dot(v) / (u.length() * v.length()))));
+    const HK = pK.clone().sub(pH), HA = pA.clone().sub(pH), KH = pH.clone().sub(pK), KA = pA.clone().sub(pK);
+    let axe = HK.clone().cross(HA); if (axe.lengthSq() < 1e-8) axe = V3(1, 0, 0).applyQuaternion(H.getWorldQuaternion(Q())); axe.normalize();
+    const a0 = ang(HK, HA), a1 = Math.acos(Math.max(-1, Math.min(1, (a * a + c * c - b * b) / (2 * a * c))));
+    const b0 = ang(KH, KA), b1 = Math.acos(Math.max(-1, Math.min(1, (a * a + b * b - c * c) / (2 * a * b))));
+    const rH = Q().setFromAxisAngle(axe, a1 - a0), rK = Q().setFromAxisAngle(axe, b1 - b0);
+    const wH = rH.clone().multiply(H.getWorldQuaternion(Q())), wK = rK.clone().multiply(rH).multiply(K.getWorldQuaternion(Q()));
+    const pA2 = pH.clone().add(HK.clone().applyQuaternion(rH)).add(KA.clone().applyQuaternion(rH).applyQuaternion(rK));
+    const rot = Q().setFromUnitVectors(pA2.clone().sub(pH).normalize(), cibleA.clone().sub(pH).normalize());
+    wH.premultiply(rot); wK.premultiply(rot);
+    H.quaternion.copy(H.parent.getWorldQuaternion(Q()).invert().multiply(wH)); H.updateMatrixWorld(true);
+    K.quaternion.copy(K.parent.getWorldQuaternion(Q()).invert().multiply(wK)); K.updateMatrixWorld(true);
+    A.quaternion.copy(A.parent.getWorldQuaternion(Q()).invert().multiply(qA)); A.updateMatrixWorld(true);
+  }
+
   // -------------------------------------------------------------------------------------------- personnage (retarget)
   class Soldat {
     constructor(gltf) {
@@ -130,6 +154,76 @@
       this.orteils = [b('LeftToeBase'), b('RightToeBase')];
       this.jambes = [['LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase'], ['RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase']].map(l => l.map(b));
       this.verrous = [{ actif: false, poids: 0, cible: V3() }, { actif: false, poids: 0, cible: V3() }];
+      this.mains = { D: [b('RightArm'), b('RightForeArm'), b('RightHand')], G: [b('LeftArm'), b('LeftForeArm'), b('LeftHand')] };
+      this.fusil = null; this.gltf = gltf;
+      // doigts (tous les os sous les mains) : pose de repos mémorisée
+      this.doigts = []; for (const h of [this.mains.D[2], this.mains.G[2]]) if (h) h.traverse(o => { if (o !== h && o.isBone) this.doigts.push({ os: o, repos: o.quaternion.clone() }); });
+    }
+    // Prise de référence : première image du clip « Rifle_Aim_Turn_Right » (mains refermées sur une arme). On y place le
+    // fusil par la règle du jeu (poignée dans la paume droite, axe vers la paume gauche, dessus vers le haut) et on note où
+    // est chaque main par rapport à l'arme, plus la pose des doigts. Au jeu : fusil placé → mains et doigts suivent.
+    mesurerPrise() {
+      const clip = (this.gltf.animations || []).find(c => c.name === 'Rifle_Aim_Turn_Right') || (this.gltf.animations || [])[0];
+      if (!clip || !this.fusil) return;
+      const sc = this.gltf.scene, mx = new THREE.AnimationMixer(sc); mx.clipAction(clip).play(); mx.setTime(0); sc.updateMatrixWorld(true);
+      const D = this.mains.D[2], G = this.mains.G[2];
+      const pR = this.paume(this.mains.D), pL = this.paume(this.mains.G);
+      const w = this.fusil, a = w.forePt.clone().sub(w.gripPt).normalize(), bv = pL.clone().sub(pR).normalize();
+      const q = Q().setFromUnitVectors(a, bv);
+      const up = V3(0, 1, 0).applyQuaternion(q), upRef = V3(0, 1, 0).projectOnPlane(bv).normalize(), upCur = up.clone().projectOnPlane(bv).normalize();
+      if (upRef.lengthSq() > 1e-6 && upCur.lengthSq() > 1e-6) q.premultiply(Q().setFromUnitVectors(upCur, upRef));
+      const pos = pR.clone().sub(w.gripPt.clone().applyQuaternion(q));
+      const inv = q.clone().invert();
+      this.prise = {};
+      for (const [k, h] of [['D', D], ['G', G]]) {
+        this.prise[k] = { pos: h.getWorldPosition(V3()).sub(pos).applyQuaternion(inv), q: inv.clone().multiply(h.getWorldQuaternion(Q())) };
+      }
+      for (const d of this.doigts) d.prise = d.os.quaternion.clone();
+      mx.stopAllAction(); mx.uncacheRoot(sc);
+      for (const d of this.doigts) d.os.quaternion.copy(d.repos);
+      sc.updateMatrixWorld(true);
+    }
+    // fusil du jeu (même règle que le jeu : poignée dans la paume droite, axe poignée→garde-main vers la paume gauche, dessus
+    // vers le haut), puis la main gauche est amenée sur le garde-main par IK du bras gauche
+    equiperFusil(gltf) {
+      const w = new THREE.Group(), c = gltf.scene, b3 = new THREE.Box3().setFromObject(c), ctr = b3.getCenter(V3());
+      const s = 0.86 / (b3.max.x - b3.min.x); c.position.set(-ctr.x, -ctr.y, -ctr.z);
+      const k = new THREE.Group(); k.add(c); k.scale.setScalar(s); k.rotation.y = Math.PI / 2; w.add(k);
+      c.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+      const P = (x, y) => V3(0, (y - ctr.y) * s, -(x - ctr.x) * s);
+      w.gripPt = P(0.36, -0.08); w.forePt = P(-0.40, 0.12);
+      this.fusil = w; this.group.add(w); w.visible = false;
+      this.fusilUp = V3(0, 1, 0);
+    }
+    // paume : un peu au-delà de l'os de la main (vers les doigts), centre de la prise
+    paume(main) { const h = main[2], e = h.children.find(x => /Middle1|Index1/.test(x.name)) || h.children[0]; const p = h.getWorldPosition(V3()); if (e) p.lerp(e.getWorldPosition(V3()), 0.6); return p; }
+    tenirFusil(actif, dt) {
+      const w = this.fusil; if (!w) return; w.visible = actif; if (!actif) { for (const d of this.doigts) d.os.quaternion.copy(d.repos); return; }
+      const D = this.mains.D, G = this.mains.G; if (D.some(x => !x) || G.some(x => !x)) return;
+      const P = PARAMS.fusil;
+      // repère du buste (Spine2) : avant = direction du regard du torse projetée, pour que le fusil suive le balancement
+      const sp = this.os[Base.meta.os.indexOf('Spine2')]; const qS = sp.getWorldQuaternion(Q()), pS = sp.getWorldPosition(V3());
+      const avant = V3(0, 0, 1).applyQuaternion(this.worldQ[0]); avant.y = 0; avant.normalize();     // avant des hanches (stable)
+      const avantBuste = V3(0, 0, 1).applyQuaternion(qS).applyQuaternion(this.align[Base.meta.os.indexOf('Spine2')]);
+      const dir = avant.clone().lerp(V3(avantBuste.x, 0, avantBuste.z).normalize(), 0.5).normalize();
+      const droite = dir.clone().cross(V3(0, 1, 0)).normalize();
+      const yaw = Math.atan2(dir.x, dir.z);
+      const q = Q().setFromAxisAngle(V3(0, 1, 0), yaw).multiply(Q().setFromAxisAngle(V3(1, 0, 0), -P.tangage));   // +Z bouche, tangage négatif = canon vers le bas
+      const centre = pS.clone().addScaledVector(dir, P.avant).addScaledVector(droite, P.droite).add(V3(0, P.haut, 0));
+      // lissage (le buste tressaute à chaque pas : le fusil suit avec un petit retard)
+      if (!this.fusilPos) { this.fusilPos = centre.clone(); this.fusilQ = q.clone(); }
+      const k = 1 - Math.exp(-dt / P.lissage); this.fusilPos.lerp(centre, k); this.fusilQ.slerp(q, k);
+      w.quaternion.copy(this.fusilQ); w.position.copy(this.fusilPos).sub(w.gripPt.clone().applyQuaternion(this.fusilQ));
+      // mains : placées sur l'arme comme dans la prise de référence (IK deux os vers la position, orientation reportée)
+      for (const [main, k] of [[D, 'D'], [G, 'G']]) {
+        if (!this.prise) break;
+        const pr = this.prise[k];
+        const cible = w.position.clone().add(pr.pos.clone().applyQuaternion(this.fusilQ));
+        ikDeuxOs(main[0], main[1], main[2], cible);
+        const qw = this.fusilQ.clone().multiply(pr.q); main[2].quaternion.copy(main[2].parent.getWorldQuaternion(Q()).invert().multiply(qw)); main[2].updateMatrixWorld(true);
+      }
+      for (const d of this.doigts) if (d.prise) d.os.quaternion.copy(d.prise);
+      this.group.updateMatrixWorld(true);
     }
     // verrouillage des pieds : quand la base dit « orteil en appui », on garde l'orteil là où il s'est posé (IK deux os).
     // Seulement à l'horizontale (la hauteur reste celle de l'animation), avec un écart qui s'installe et s'efface
@@ -295,7 +389,7 @@
   let dernierSaut = -1, frame = 0, frameT = 0, poseQ, poseY = [0], ancQ, ancY = [0], derniereRecherche = 0, sauts = 0, sautsFen = [], styleCourant = 0;
   const glisse = new Glissement(); let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.05, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.05, fusil: { avant: 0.26, droite: 0.06, haut: -0.06, tangage: -0.3, lissage: 0.08, qD: null, qG: null }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   async function init() {
     renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
@@ -314,6 +408,7 @@
     const gltf = await new Promise((ok, ko) => new THREEX.GLTFLoader().load((window.FICHIERS || {}).modele || 'gign_hd.glb', ok, undefined, ko));
     gltf.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
     soldat = new Soldat(gltf); scene.add(soldat.group);
+    try { const gf = await new Promise((ok, ko) => new THREEX.GLTFLoader().load((window.FICHIERS || {}).fusil || 'fusil.glb', ok, undefined, ko)); soldat.equiperFusil(gf); soldat.mesurerPrise(); } catch (e) { console.warn('fusil :', e); }
     // hauteur de repos des orteils du modèle (pose de liaison) → seuil d'appui
     const yT = Math.min(...soldat.orteils.map(o => o.getWorldPosition(V3()).y)); seuilOrteil = yT + 0.05;
     poseQ = Base.meta.os.map(() => Q()); ancQ = Base.meta.os.map(() => Q());
@@ -384,7 +479,7 @@
     horloge += dt; const now = MANUEL ? horloge * 1000 : performance.now();
     const [vGoal, yGoal] = Ctl.pas(dt);
     // recherche toutes les 0,1 s, ou tout de suite si on change de style
-    const styleVoulu = Ctl.accroupi ? 1 : 0;
+    const styleVoulu = Ctl.visee ? 2 : Ctl.accroupi ? 1 : 0;      // 2 = Swat (arme), 1 = accroupi (pas de données pour l'instant), 0 = neutre
     derniereRecherche += dt;
     if (derniereRecherche >= PARAMS.periode || styleVoulu !== styleCourant) {
       derniereRecherche = 0;
@@ -427,6 +522,7 @@
     const cf = Base.contact[frame];
     const contacts = soldat.orteils.map((o, k) => !!(cf & (k ? 1 : 2)) && o.getWorldPosition(V3()).y < seuilOrteil);
     if (PARAMS.verrou) soldat.verrouPieds(contacts, dt);
+    soldat.tenirFusil(Ctl.visee, dt);
     // glissement
     const inst = glisse.mesurer(soldat.orteils, dt, contacts);
     if (window.TRACE) { const g = soldat.orteils[0].getWorldPosition(V3()), d = soldat.orteils[1].getWorldPosition(V3()); window.TRACE.push([+horloge.toFixed(3), ...g.toArray().map(x => +x.toFixed(4)), ...d.toArray().map(x => +x.toFixed(4)), Base.contact[frame], +(soldat.verrous[0].delta ? soldat.verrous[0].delta.length() : 0).toFixed(3), +(soldat.verrous[1].delta ? soldat.verrous[1].delta.length() : 0).toFixed(3), frame, seuilOrteil]); }
@@ -441,7 +537,7 @@
     const s = Base.meta.sequences[Base.seq[frame]];
     const vit = Math.hypot(v[i * 3], v[i * 3 + 2]);
     const rec = glisse.recentCm(), moy = glisse.moyenneCm();
-    HUD.etat.innerHTML = `<b>${s.nom.replace('.bvh', '')}</b> image ${frame - s.debut}/${s.fin - s.debut}<br>vitesse animation <b>${vit.toFixed(2)} m/s</b> · cible ${vGoal.length().toFixed(2)} m/s<br>sauts : ${(sautsFen.length / 2).toFixed(1)}/s (total ${sauts})<br>mode : ${Ctl.chemin ? 'chemin' : 'clavier'}${Ctl.visee ? ' · <span class=on>visée</span>' : ''}${Ctl.accroupi ? ' · <span class=on>accroupi</span>' : ''}`;
+    HUD.etat.innerHTML = `<b>${s.nom.replace('.bvh', '')}</b> image ${frame - s.debut}/${s.fin - s.debut}<br>vitesse animation <b>${vit.toFixed(2)} m/s</b> · cible ${vGoal.length().toFixed(2)} m/s<br>sauts : ${(sautsFen.length / 2).toFixed(1)}/s (total ${sauts})<br>mode : ${Ctl.chemin ? 'chemin' : 'clavier'}${Ctl.visee ? ' · <span class=on>arme</span>' : ''}${Ctl.accroupi ? ' · <span class=on>accroupi</span>' : ''}`;
     const pct = Math.min(100, rec / 30 * 100); HUD.jauge.style.width = pct + '%'; HUD.jauge.style.background = rec < 5 ? '#5ad17a' : rec < 15 ? '#ffb347' : '#ff6b6b';
     HUD.jaugeTxt.textContent = `glissement des pieds : ${rec.toFixed(1)} cm/s (2 s) · ${moy.toFixed(1)} cm/s depuis le début · instantané ${(inst * 100).toFixed(0)} cm/s`;
     window.__MM = { frame, glisseMoy: moy, glisseRecent: rec, sauts, soldat, Ctl, Base };   // pour les outils de mesure
