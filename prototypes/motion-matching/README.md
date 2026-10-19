@@ -21,3 +21,20 @@ Attribution à mettre dans les crédits du jeu :
 - `outils/preparer.py` — fabrique la base de motion matching (fiches par image) → `web/base.json`.
 - `web/` — page jouable three.js r159 : un soldat, clavier ou chemin, indicateur de glissement des pieds.
 - `donnees/` — captures brutes téléchargées (ignorées par git).
+
+## Fabriquer et lancer
+```
+# données : BVH 100STYLE (Neutral_*, Crouched_*) dans donnees/100style/ + donnees/Geno_bind.bvh (dépôt orangeduck/100style-retarget)
+python3 outils/preparer.py donnees/100style/Neutral_*.bvh donnees/100style/Crouched_*.bvh --sortie web/base --bind donnees/Geno_bind.bvh
+cp ../../web/three.min.js ../../web/gltf.js web/ && cp ../../web/hd/gign_hd.glb web/      # copies, non versionnées
+python3 ../../outils/serveur.py ../.. 8765   →  http://127.0.0.1:8765/prototypes/motion-matching/web/
+```
+Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `API.touches({KeyW:1})`, `API.mesures()`, `PARAMS` (rattrapage, verrou, marges de saut).
+
+## État (19/10)
+- Retargeting Geno → Mixamo par écart à la pose de liaison (lue dans le skin du GLB), avec alignement des directions d'os.
+- Motion matching : fiche 27 nombres (pieds, vitesses, trajectoire future 0,33/0,67/1 s), recherche brute 45 000 images,
+  inertialisation des transitions, racine portée par l'animation + rattrapage limité vers la simulation.
+- Verrouillage des pieds (IK deux os) piloté par les contacts de la base : glissement 20 → 9 cm/s en marche
+  (plancher de la mesure sur les données brutes : 6 cm/s).
+- Manques : course rapide (100STYLE plafonne vers 1,5 m/s, salle de 4,5 m), accroupi très léger, pas de fusil.

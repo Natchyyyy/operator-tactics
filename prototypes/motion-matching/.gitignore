@@ -1,2 +1,7 @@
 donnees/
 *.zip
+web/base.bin
+web/three.min.js
+web/gltf.js
+web/gign_hd.glb
+captures/
