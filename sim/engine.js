@@ -1218,6 +1218,7 @@
   // que le joueur ne dit « Feu ! ») ; 'appui' (sur place, tir de suppression sur la zone menacée — voir appuiZone)
   const FIRE_MODES = { volonte: 'feu à volonté', retenu: 'feu retenu', appui: 'en appui' };
   const MOVE_MODES = { methodique: 'méthodique', agressif: 'agressif', franchir: 'en franchissement', decrocher: 'en décrochage' }, ARRIVALS = { tenir: 'tenir la position', manoeuvre: 'reprendre la manœuvre', encercler: 'encercler' };
+  const VIA_MAX = 2, VIA_GAP = 2.5, VIA_NEAR = 2.2;   // points de passage : 2 au plus, places à 2,5 m en travers, « passé » à 2,2 m
   const ORDER_COOLDOWN = 3, ORDER_GAP = 4, BOUND_MAX = 9, BOUND_BARE = 7, SECTORS = [0, 0.61, -0.61];   // secteurs : ±35°
   // point du sol cliqué → point marchable (dans le terrain, hors obstacle : case libre la plus proche)
   Battle.prototype.orderPoint = function (x, z) {
@@ -1238,10 +1239,14 @@
     if (!units.length) return { ok: false, reason: 'aucun opérateur' };
     const wait = Math.max(...units.map(u => (u.orderAt === undefined ? -99 : u.orderAt) + ORDER_COOLDOWN - this.t));
     if (wait > 1e-6) return { ok: false, reason: `un ordre toutes les ${ORDER_COOLDOWN} s (encore ${Math.ceil(wait)} s)` };
-    if (!this.map.findPath(units[0].x, units[0].z, p.x, p.z)) return { ok: false, reason: 'point inaccessible' };
+    // D7 — points de passage (arg.via : 2 au plus) : le groupe passe par eux, dans l'ordre, du même pas, puis va au point
+    const via = [];
+    for (const w of (Array.isArray(arg.via) ? arg.via : []).slice(0, VIA_MAX)) { const q = this.orderPoint(+w.x, +w.z); if (!q) return { ok: false, reason: 'point de passage hors du terrain' }; via.push(q); }
+    { let a = units[0]; for (const q of via.concat([p])) { if (!this.map.findPath(a.x, a.z, q.x, q.z)) return { ok: false, reason: q === p ? 'point inaccessible' : 'point de passage inaccessible' }; a = q; } }
     const cx = units.reduce((s, u) => s + u.x, 0) / units.length, cz = units.reduce((s, u) => s + u.z, 0) / units.length;
-    let dir = Math.atan2(p.z - cz, p.x - cx);
-    if (Math.hypot(p.x - cx, p.z - cz) < 2) { const e = this.map.spawns[1 - teamIndex]; dir = Math.atan2(e.z - p.z, e.x - p.x); }
+    const from = via.length ? via[via.length - 1] : { x: cx, z: cz };   // sens de l'arrivée : la dernière étape
+    let dir = Math.atan2(p.z - from.z, p.x - from.x);
+    if (Math.hypot(p.x - from.x, p.z - from.z) < 2) { const e = this.map.spawns[1 - teamIndex]; dir = Math.atan2(e.z - p.z, e.x - p.x); }
     // places : le premier sur le point, les suivants de part et d'autre, en travers de la marche (tous les 2,5 m), jamais
     // l'un sur l'autre ni de l'autre côté d'un mur
     // (écart ORDER_GAP : des opérateurs collés se font toucher ensemble — balles perdues, grenades)
@@ -1286,18 +1291,24 @@
     const g = { id, mode, members: units.map(u => u.id), bound: { group: 0, since: this.t, n: 0 } };
     if (mode === 'franchir') {   // franchissement : les espaces découverts du trajet (depuis l'opérateur le plus proche du centre du groupe)
       const u0 = units.slice().sort((a, b) => Math.hypot(a.x - cx, a.z - cz) - Math.hypot(b.x - cx, b.z - cz) || (a.id < b.id ? -1 : 1))[0];
-      Object.assign(g, { cross: this.findCrossings(team, u0.x, u0.z, p.x, p.z), ci: 0, phase: 'move', stage: {}, far: {}, runners: [], crossed: [], queue: [] });
+      let cross = [], a = u0; via.concat([p]).forEach((q, leg) => { cross = cross.concat(this.findCrossings(team, a.x, a.z, q.x, q.z).map(C => Object.assign(C, { leg }))); a = q; });   // étape par étape
+      Object.assign(g, { cross, ci: 0, phase: 'move', stage: {}, far: {}, runners: [], crossed: [], queue: [] });
     }
     team.moveGroups.push(g);
     // réglage de feu de l'ordre (pour tout le groupe, jusqu'au prochain ordre de chacun)
     team.ordInfo = team.ordInfo || {};
     const fumee = !!arg.fumee && (mode === 'franchir' || mode === 'decrocher');
-    team.ordInfo[id] = { feu, px: p.x, pz: p.z, dir, arr, released: feu !== 'retenu', orient: null, zone: null, appuiSaid: false, fumee };
+    team.ordInfo[id] = { feu, px: p.x, pz: p.z, dir, arr, released: feu !== 'retenu', orient: null, zone: null, appuiSaid: false, fumee, via: via.map(q => ({ x: q.x, z: q.z })), viaDone: 0 };
     if (fumee && mode === 'franchir') g.fumee = true;
     units.forEach((u, k) => {
       u.keyOrder = null; u.orderAt = this.t; u.reviving = null;
       u.moveOrder = { id, mode, arrivee: arr, x: spots[k].x, z: spots[k].z, px: p.x, pz: p.z, dir, half: k % 2, goalN: -1, doneN: -1, departAt: mode === 'agressif' ? this.t + rank.indexOf(k) * 0.8 : 0, sect: spots[k].sect, face };
       if (spots[k].hid !== undefined) Object.assign(u.moveOrder, { hid: spots[k].hid + '#' + id, px: spots[k].cx, pz: spots[k].cz, face: spots[k].face, enc: { x: p.x, z: p.z } });
+      if (via.length) {   // sa place à chaque étape : en travers de la marche, à VIA_GAP de ses voisins (sinon sur le point même)
+        let a = { x: cx, z: cz }; const off = k === 0 ? 0 : VIA_GAP * Math.ceil(k / 2) * (k % 2 ? 1 : -1);
+        u.moveOrder.via = via.map(w => { const d = Math.atan2(w.z - a.z, w.x - a.x) + Math.PI / 2, q = off ? this.orderPoint(w.x + Math.cos(d) * off, w.z + Math.sin(d) * off) : null; a = w; return q && this.map.walkableSegment(w.x, w.z, q.x, q.z) ? q : { x: w.x, z: w.z }; });
+        u.moveOrder.vi = 0;
+      }
       this.stop(u); u.commitUntil = 0; u.pauseUntil = 0;
     });
     // décrocher avec fumée : un nuage tout de suite entre le groupe et le danger (l'ennemi connu le plus proche, sinon l'arrière)
@@ -1683,12 +1694,28 @@
     }
   };
   Battle.prototype.followMoveOrder = function (u, threats, beingShot) {
-    const o = u.moveOrder, dNow = Math.hypot(o.x - u.x, o.z - u.z);
+    const o = u.moveOrder;
+    // D7 : étape en cours (point de passage) — même façon de se déplacer, vers sa place à l'étape ; passée à VIA_NEAR m
+    while (o.via && o.vi < o.via.length && Math.hypot(o.via[o.vi].x - u.x, o.via[o.vi].z - u.z) < VIA_NEAR) {
+      o.vi++; const inf = this.teams[u.team].ordInfo && this.teams[u.team].ordInfo[o.id];
+      if (inf && inf.viaDone < o.vi) { inf.viaDone = o.vi; this.logEvent('passage', `${u.callsign} : « Point de passage ${o.vi} ! »`, { unit: u.id, team: u.team, ordre: o.id, silent: true }); }
+    }
+    if (o.via && o.vi < o.via.length) {
+      const w = o.via[o.vi], sx = o.x, sz = o.z, sd = o.dir; o.x = w.x; o.z = w.z; o.dir = Math.atan2(w.z - u.z, w.x - u.x);
+      try { this.followMoveStep(u, o, threats, beingShot, Math.hypot(w.x - u.x, w.z - u.z)); } finally { o.x = sx; o.z = sz; o.dir = sd; }
+      return;
+    }
+    const dNow = Math.hypot(o.x - u.x, o.z - u.z);
     // arrivé (ou sa place est prise par un équipier debout dessus : on s'arrête à côté)
     if (dNow < 0.8 || (dNow < 1.6 && !u.goal && this.teams[u.team].units.some(a => a !== u && a.alive && Math.hypot(a.x - o.x, a.z - o.z) < 0.9))) { this.arriveOrder(u); if (u.keyOrder) this.followKeyOrder(u, threats); return; }
+    this.followMoveStep(u, o, threats, beingShot, dNow);
+  };
+  Battle.prototype.followMoveStep = function (u, o, threats, beingShot, dNow) {
     const th = threats.length ? (beingShot && u.lastShotBy && u.lastShotBy.alive ? u.lastShotBy : (u.target && u.target.alive ? u.target : threats[0])) : this.mainThreat(u);
     const tp = th || { x: o.x + Math.cos(o.dir) * 25, z: o.z + Math.sin(o.dir) * 25 };   // sans menace : dans le sens de la marche
+    const g = o.mode === 'franchir' && (this.teams[u.team].moveGroups || []).find(x => x.id === o.id), C = g && g.cross && g.cross[g.ci];
     if (o.mode === 'agressif') this.orderRush(u, o, tp, threats, beingShot, dNow);
+    else if (o.mode === 'franchir' && C && C.leg > (o.vi || 0)) this.orderBound(u, o, tp, threats, dNow);   // découvert d'une étape plus loin : d'abord le point de passage
     else if (o.mode === 'franchir') this.followCross(u, o, tp, threats, dNow);
     else if (o.mode === 'decrocher') this.orderFallback(u, o, th || { x: u.x - Math.cos(o.dir) * 25, z: u.z - Math.sin(o.dir) * 25 }, threats, dNow);   // sans menace connue : derrière la marche
     else this.orderBound(u, o, tp, threats, dNow);

@@ -509,5 +509,13 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
     b.teams[0].units.forEach(u => { u.grenades.smoke = 0; }); b.teams[0].units.forEach(u => { u.orderAt = -99; });
     const r2 = b.command('aller', 0, { x: 5, z: 23, units: null, mode: 'decrocher', fumee: true });
     check('avec fumée (décrocher) : un fumigène part tout de suite (< 1,5 s) ; plus aucun fumigène : l\'ordre passe, sans fumée', r.ok && r.fumee === true && sm && sm.t - 10 < 1.5 && r2.ok && r2.fumee === false, { r, sm: sm && sm.t, r2 }); }
+  // D7 : points de passage — le groupe passe par chaque étape (sa place à l'étape, à 2,2 m près) avant d'aller au point
+  { const b = mkV(5); while (b.t < 1) b.step();
+    const bad = b.command('aller', 0, { x: 22, z: 23, units: null, mode: 'agressif', via: [{ x: 'nord', z: 6 }] });
+    const r = b.command('aller', 0, { x: 22, z: 23, units: null, mode: 'agressif', arrivee: 'tenir', via: [{ x: 14, z: 6 }, { x: 24, z: 8 }, { x: 40, z: 40 }] });
+    const vis = {}, minZ = {}; let all = null;
+    while (b.t < 60 && !b.over && all === null) { b.step(); for (const u of b.teams[0].units) { minZ[u.id] = Math.min(minZ[u.id] || 99, u.z); if (u.moveOrder && u.moveOrder.via) vis[u.id] = Math.max(vis[u.id] || 0, u.moveOrder.vi); } if (b.teams[0].units.every(u => !u.alive || !u.moveOrder)) all = b.t; }
+    const inf = b.teams[0].ordInfo[r.id];
+    check('points de passage : 2 au plus (le 3e est ignoré) ; chacun passe par les deux étapes dans l\'ordre (par le nord), puis tient le point ; un point de passage invalide est refusé', !bad.ok && r.ok && inf.via.length === 2 && inf.viaDone === 2 && all !== null && b.teams[0].units.every(u => !u.alive || (vis[u.id] === 2 && minZ[u.id] < 9 && u.keyOrder)) && b.log.some(l => l.kind === 'passage') && b.log.some(l => l.kind === 'moveorder'), { bad, vis, minZ, all, viaDone: inf.viaDone }); }
 }
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

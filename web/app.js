@@ -5,6 +5,7 @@
   const { Battle, DATA, DT, fmtT } = OT;
   const params = new URLSearchParams(location.search);
   const MANUAL = params.get('manual') === '1';
+  const SHOW_ROTATION = false;   // D8 Rotation : cachée depuis les points de passage (D7) ; le moteur la garde (battle.rotate)
   if (MANUAL) document.documentElement.classList.add('manual');   // captures reproductibles : pas de transitions CSS (aucune image n'est dessinée entre deux étapes)
 
   const STATE_FR = { rush: 'Fonce (ordre)', crossing: 'Traverse le découvert', tokey: 'Rejoint son poste', holdkey: 'Tient la position', throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié', shaken: 'Ébranlé', appui: 'Tir d’appui' };
@@ -693,7 +694,7 @@
       } else { cam.yaw += dx * 0.005; cam.pitch = Math.max(0.15, Math.min(1.5, cam.pitch + dy * 0.005)); }
       if (MANUAL) render();
     });
-    canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; if (d && d.b === 2 && (d.m || 0) < 5 && e.button === 2) openOrderMenu(e.clientX, e.clientY); else if (d && d.b === 0 && (d.m || 0) < 5 && e.button === 0 && ordOrient) ordOrientClick(e.clientX, e.clientY); });
+    canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; if (d && d.b === 2 && (d.m || 0) < 5 && e.button === 2) { if (d.shift || e.shiftKey) ordAddVia(e.clientX, e.clientY); else openOrderMenu(e.clientX, e.clientY); } else if (d && d.b === 0 && (d.m || 0) < 5 && e.button === 0 && ordOrient) ordOrientClick(e.clientX, e.clientY); });
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (cam.mode !== 'free') return; cam.dist = Math.max(8, Math.min(140, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); if (MANUAL) render(); }, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   })();
@@ -2105,7 +2106,7 @@
       let na = 0; const KEYS = ['A', 'Z', 'E'];
       el.innerHTML = team.tacticIds.map(id => { const t = DATA.TACTICS[id]; const key = ti === 0 && t.active ? KEYS[na++] || '' : ''; return `<div class="tcard ${t.active ? '' : 'passive'} ${ti === 1 ? 'enemy' : ''}" data-tactic="${id}" ${key ? `data-key="${key}"` : ''} title="${escapeHtml(t.desc)}"><div class="ticon">${tacIcon(id)}</div><div class="tname">${escapeHtml(t.name)}</div><div class="tuse"></div><div class="cd"></div></div>`; }).join('');
       // Rotation : faire passer toute l'escouade par une autre voie, en pleine bataille (touches R / F / V : nord / milieu / sud)
-      if (ti === 0 && battle.map.def.voies) el.insertAdjacentHTML('beforeend', `<div class="tcard rotcard" title="Rotation : toute l'escouade (hors tireur d'élite) passe par la voie choisie. Une rotation toutes les 10 s ; impossible en ordre « Tenir ».">
+      if (SHOW_ROTATION && ti === 0 && battle.map.def.voies) el.insertAdjacentHTML('beforeend', `<div class="tcard rotcard" title="Rotation : toute l'escouade (hors tireur d'élite) passe par la voie choisie. Une rotation toutes les 10 s ; impossible en ordre « Tenir ».">
         <div class="tname">Rotation</div><div class="rbtns">${[-1, 0, 1].map(l => `<button data-lane="${l}" data-key="${{ '-1': 'R', 0: 'F', 1: 'V' }[l]}" title="${LANE_NAMES[l]}">${laneSvg(null, l, 'rimg')}<span>${{ '-1': 'Nord', 0: 'Milieu', 1: 'Sud' }[l]}</span></button>`).join('')}</div><div class="tuse"></div><div class="cd"></div></div>`);
       if (ti === 0) el.querySelectorAll('.rotcard button').forEach(bt => bt.addEventListener('click', (e) => {
         e.stopPropagation(); const lane = +bt.dataset.lane;
@@ -2246,7 +2247,7 @@
       `<div class="omsec">${o.titre}${cat === 'mode' ? `<button class="omfum" title="Franchir, Décrocher : le premier qui a un fumigène le lance côté danger pour masquer le passage ou le repli (un fumigène par opérateur)."${nSmoke ? '' : ' disabled'}><span class="omico">${ORD_SVG.smoke}</span>Avec fumée <i>${nSmoke}</i></button>` : ''}</div><div class="omrow">${o.choix.map(c => `<button class="omopt" data-cat="${cat}" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v] || ''}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>`).join('')
       + `<div class="omsec">Feu</div><div class="omfeu">${ORD_FEU.map(c => `<button class="omopt omf" data-cat="feu" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b></button>`).join('')}</div>`
       + `<button class="omplus">Plus…</button><div class="ommore"><div class="omsec">Lancer ici</div><div class="omfeu omgren">${ORD_GREN.map(c => { const n = ordGrenCount(c.v); return `<button class="omopt omf omg" data-g="${c.v}" title="${escapeHtml(c.desc)}"${n ? '' : ' disabled'}><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><i>${n}</i></button>`; }).join('')}</div></div>`
-      + `<button class="omgo">Confirmer</button><div class="omhint">Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
+      + `<button class="omgo">Confirmer</button><div class="omhint">${ordVia.length ? `<b class="omvia">Par ${ordVia.length} point${ordVia.length > 1 ? 's' : ''} de passage</b> · ` : ''}Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
     $('main').appendChild(el);
     const show = () => { el.querySelectorAll('.omopt').forEach(b => b.classList.toggle('on', pick[b.dataset.cat] === b.dataset.v)); el.classList.toggle('fumok', pick.mode === 'franchir' || pick.mode === 'decrocher'); el.querySelector('.omfum').classList.toggle('on', !!pick.fumee); };
     el.querySelector('.omfum').addEventListener('click', () => { pick.fumee = !pick.fumee; show(); });
@@ -2267,6 +2268,19 @@
     el.style.top = (Math.max(8, Math.min(mr.height - H - 8, cy - mr.top - H / 2)) / z).toFixed(1) + 'px';
   }
   let ordPlusOpen = false;
+  // D7 — points de passage : Maj + clic droit sur le sol en pose un (2 au plus) ; le clic droit suivant ouvre le menu de
+  // l'ordre, qui passera par eux dans l'ordre (arg.via). Échap : on les retire. Ligne pointillée entre les marqueurs.
+  const VIA_MAX = 2; let ordVia = [];
+  function ordAddVia(cx, cy) {
+    if (!battle || reviewing || briefing || battle.over || $('#app').classList.contains('hidden')) { openOrderMenu(cx, cy); return; }
+    closeOrderMenu();
+    const q = ordGround(cx, cy); if (!q) { flashBattle('Point de passage : cliquez sur le sol du terrain.'); return; }
+    if (ordVia.length >= VIA_MAX) { flashBattle(`${VIA_MAX} points de passage au plus. Clic droit : la destination · Échap : effacer.`); return; }
+    ordVia.push({ x: Math.round(q.x * 100) / 100, z: Math.round(q.z * 100) / 100 }); ordViaDraw();
+    flashBattle(`Point de passage ${ordVia.length} posé. ${ordVia.length < VIA_MAX ? 'Maj + clic droit : un autre · ' : ''}Clic droit : la destination.`);
+    if (MANUAL) render();
+  }
+  function ordViaClear() { if (!ordVia.length) return; ordVia = []; ordViaDraw(); }
   function ordGrenCount(k) { return ordUnits().filter(u => u.alive).reduce((n, u) => n + (u.grenades[k] || 0), 0); }
   function ordGrenade(kind) {
     if (!ordMenu) return; const { p } = ordMenu;
@@ -2284,19 +2298,21 @@
     const ids = ordSel ? [...ordSel].filter(id => unitById[id] && unitById[id].alive) : null, who = ordWho();
     if (ids && !ids.length) { closeOrderMenu(); flashBattle('Ordre refusé : aucun opérateur choisi n’est en état.'); return; }
     const fum = !!pick.fumee && (pick.mode === 'franchir' || pick.mode === 'decrocher');
-    const r = battle.command('aller', 0, Object.assign({ x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids, mode: pick.mode, arrivee: pick.arrivee, feu: pick.feu }, fum ? { fumee: true } : {}));
-    closeOrderMenu();
+    const via = ordVia.slice();
+    const r = battle.command('aller', 0, Object.assign({ x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids, mode: pick.mode, arrivee: pick.arrivee, feu: pick.feu }, fum ? { fumee: true } : {}, via.length ? { via } : {}));
+    closeOrderMenu(); if (r.ok) ordViaClear();
     if (!r.ok) { flashBattle(`Ordre refusé : ${r.reason}.`); return; }
     ordLast.mode = pick.mode; ordLast.arrivee = pick.arrivee; try { localStorage.setItem('ot-ordre', JSON.stringify(ordLast)); } catch (e) { /* stockage indisponible */ }
     const nm = (cat) => ORD_OPTS[cat].choix.find(c => c.v === pick[cat]).nom.toLowerCase();
     const fe = pick.feu === 'volonte' ? '' : `, feu ${ORD_FEU.find(c => c.v === pick.feu).nom.toLowerCase()}`;
     const fu = fum ? (r.fumee ? ', avec fumée' : ' (fumée impossible : pas de fumigène ou pas de trajectoire)') : '';
-    flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}${fu}, puis ${nm('arrivee')}${fe}.`); pumpLog();
+    const vi = via.length ? ` par ${via.length} point${via.length > 1 ? 's' : ''} de passage` : '';
+    flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}${vi}${fu}, puis ${nm('arrivee')}${fe}.`); pumpLog();
     // A4 : orienter la position — un clic gauche sur le sol montre d'où vient le danger (Échap : direction automatique)
     if (pick.arrivee !== 'manoeuvre' || pick.feu === 'appui') ordOrientStart(r);
     if (MANUAL) render();
   }
-  window.addEventListener('keydown', (e) => { if (ordMenu && e.code === 'Escape') { e.preventDefault(); closeOrderMenu(); } else if (ordOrient && e.code === 'Escape') { e.preventDefault(); ordOrientEnd(); flashBattle('Ils choisiront seuls où surveiller (menace connue, sinon sens de la marche).'); } }, true);
+  window.addEventListener('keydown', (e) => { if (ordMenu && e.code === 'Escape') { e.preventDefault(); closeOrderMenu(); ordViaClear(); } else if (ordVia.length && e.code === 'Escape') { e.preventDefault(); ordViaClear(); flashBattle('Points de passage effacés.'); } else if (ordOrient && e.code === 'Escape') { e.preventDefault(); ordOrientEnd(); flashBattle('Ils choisiront seuls où surveiller (menace connue, sinon sens de la marche).'); } }, true);
   // ---- Orienter la position (A4) : juste après Confirmer, une flèche part du point vers le curseur ; clic gauche = d'où vient
   // le danger (battle.command('orienter', …), rejoué en revue). Échap, clic droit ou nouvel ordre : automatique.
   let ordOrient = null; const ordArrow = new THREE.Group(); ordArrow.visible = false; scene.add(ordArrow);
@@ -2373,8 +2389,27 @@
   function ordFree(g) { ordMarks.remove(g); g.traverse(o => { if (o.isMesh || o.isSprite) { if (o.geometry && o.isMesh) o.geometry.dispose(); o.material.dispose(); } }); }
   let ordGhost = null, ordBattle = null; const ordShown = {};
   function ordMarkGhost(p) { if (ordGhost) { ordFree(ordGhost); ordGhost = null; } if (p) { ordGhost = ordMarkMesh('ghost'); ordGhost.position.set(p.x, 0, p.z); ordMarks.add(ordGhost); } }
+  const ordViaG = new THREE.Group(); ordMarks.add(ordViaG); let ordViaKey = '';
+  const ordDash = new THREE.LineDashedMaterial({ color: 0x9fd0ff, dashSize: 0.7, gapSize: 0.45, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false, fog: false, toneMapped: false });
+  function ordViaLine(pts) {   // pointillés au sol (au-dessus des voitures : visibles)
+    const geo = new THREE.BufferGeometry().setFromPoints(pts.map(q => new THREE.Vector3(q.x, 0.08, q.z))), l = new THREE.Line(geo, ordDash);
+    l.computeLineDistances(); l.renderOrder = 6; return l;
+  }
+  function ordViaDraw() {
+    const sets = [];
+    if (ordVia.length) sets.push({ pts: ordVia.concat(ordMenu ? [ordMenu.p] : []), n: ordVia.length });   // en attente (+ destination du menu)
+    if (battle) { const team = battle.teams[0], oi = team.ordInfo || {}, seen = {};
+      for (const u of team.units) { const o = u.alive && u.moveOrder; if (!o || !o.via || seen[o.id]) continue; seen[o.id] = 1; const inf = oi[o.id]; if (inf && inf.via && inf.viaDone < inf.via.length) sets.push({ pts: inf.via.slice(inf.viaDone).concat([{ x: inf.px, z: inf.pz }]), n: inf.via.length - inf.viaDone }); } }
+    const key = JSON.stringify(sets); if (key === ordViaKey) return; ordViaKey = key;
+    for (const c of ordViaG.children.slice()) { ordViaG.remove(c); c.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material !== ordDash) o.material.dispose(); }); }
+    for (const { pts, n } of sets) {
+      if (pts.length > 1) ordViaG.add(ordViaLine(pts));
+      for (let i = 0; i < n; i++) { const r = groundHolo(0.5, { color: 0x9fd0ff, alpha: 0.9, fill: 0.35 }); r.position.set(pts[i].x, 0.03, pts[i].z); ordViaG.add(r); }
+    }
+  }
   function updateOrderMarks() {
-    if (ordBattle !== battle) { ordBattle = battle; for (const k in ordShown) { ordFree(ordShown[k]); delete ordShown[k]; } closeOrderMenu(); ordOrientEnd(); }
+    if (ordBattle !== battle) { ordBattle = battle; for (const k in ordShown) { ordFree(ordShown[k]); delete ordShown[k]; } closeOrderMenu(); ordOrientEnd(); ordVia = []; }
+    ordViaDraw();
     const live = {};
     for (const u of battle.teams[0].units) if (u.alive && u.moveOrder) live[u.moveOrder.id] = u.moveOrder;
     for (const k in ordShown) if (!live[k]) { ordFree(ordShown[k]); delete ordShown[k]; }
@@ -2654,7 +2689,7 @@
     if (sp) { const b = document.querySelector(`[data-speed="${sp}"]`); if (b) b.click(); return; }
     const ti = { KeyQ: 0, KeyW: 1, KeyE: 2 }[e.code];
     if (ti !== undefined) { const cards = [...document.querySelectorAll('#tactics0 .tcard')].filter(c => !c.classList.contains('passive') && !c.classList.contains('rotcard')); if (cards[ti]) cards[ti].click(); return; }
-    const rl = { KeyR: -1, KeyF: 0, KeyV: 1 }[e.code];
+    const rl = SHOW_ROTATION ? { KeyR: -1, KeyF: 0, KeyV: 1 }[e.code] : undefined;
     if (rl !== undefined) { const bt = document.querySelector(`#tactics0 .rotcard button[data-lane="${rl}"]`); if (bt) bt.click(); return; }
     if (e.code === 'KeyC') { const i = CAMS.indexOf(cam.mode); const b = document.querySelector(`[data-cam="${CAMS[(i + 1) % CAMS.length]}"]`); if (b) b.click(); return; }
     if (e.code === 'KeyJ') { $('#toggleJournal').click(); }
