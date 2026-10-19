@@ -686,7 +686,7 @@
   // Liseré de lune sur les soldats (la nuit seulement) : un léger reflet froid sur les bords de la silhouette (Fresnel), qui
   // détache un uniforme sombre d'une carrosserie ou d'un mur sombres sans éclairer la scène. Ajouté aux matériaux des
   // soldats (en plus de leur teinte d'uniforme) ; intensité commune, 0 le jour.
-  const RIM = { k: { value: 0 }, f: { value: 0 }, c: { value: new THREE.Color(0.55, 0.68, 1.0) }, nuit: 0.07, fond: 0 };
+  const RIM = { k: { value: 0 }, f: { value: 0 }, c: { value: new THREE.Color(0.55, 0.68, 1.0) }, nuit: 0.18, fond: 0.05 };   // (normale lisse : liseré net, sans scintillement du relief)
   function rimPatch(root) {
     root.traverse(o => {
       if (!o.isMesh || !o.material) return;
@@ -697,7 +697,7 @@
           if (prev) prev.call(this, sh, r);
           sh.uniforms.uRimK = RIM.k; sh.uniforms.uRimF = RIM.f; sh.uniforms.uRimC = RIM.c;
           sh.fragmentShader = 'uniform float uRimK, uRimF; uniform vec3 uRimC;\n' + sh.fragmentShader.replace('#include <opaque_fragment>',
-            'outgoingLight += uRimC * (uRimK * pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 2.2) + uRimF * diffuseColor.rgb);\n#include <opaque_fragment>');   // (uRimF : plancher de lumière froide, relatif à la teinte de l\'uniforme)
+            'outgoingLight += uRimC * (uRimK * pow(1.0 - saturate(dot(nonPerturbedNormal, normalize(vViewPosition))), 2.2) + uRimF * diffuseColor.rgb);\n#include <opaque_fragment>');   // (uRimF : plancher de lumière froide, relatif à la teinte de l\'uniforme)
         };
         m.customProgramCacheKey = function () { return (prevKey ? prevKey.call(this) : '') + '|rim'; };
         m.needsUpdate = true;
@@ -1237,8 +1237,11 @@
     else if (u.reloading > 0) {
       mode = 'droite'; const rs = Math.min(2.4, clipSpeed('Standing_Reload') / Math.max(1, u.weapon.reload || 2.5));
       if (!crouch && u.moving && v > 0.15 && m.clips.Standing_Reload_Haut) {   // recharge en marchant : haut du corps seul, jambes en couche séparée
-        m.play('Standing_Reload_Haut', { speed: rs }); const lj = v > 1.4 ? 'Run_Jambes' : 'Walk_Jambes', nat = m.loco[v > 1.4 ? 'Run_and_Shoot' : 'Walk_Fight_Forward'] || 1;
-        m.playLegs(lj, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)) }); legs = true;
+        // (jambes : celles de la marche / petite course de patrouille, posées au sol et retouchées — les cycles bruts « au pistolet »
+        // flottaient de 4 à 6 cm en appui chez « soldat » et glissaient à 0,3-0,5 m/s)
+        const lj = v > 1.4 ? (m.clips.Pas_Trot ? 'Pas_Trot' : 'Run_Jambes') : (m.clips.Pas_Avant_Low ? 'Pas_Avant_Low' : 'Walk_Jambes'), nat = m.loco[lj] || m.loco[v > 1.4 ? 'Run_and_Shoot' : 'Walk_Fight_Forward'] || 1;
+        m.play('Standing_Reload_Haut', { speed: rs });
+        m.playLegs(lj, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)) }); legs = true; m.verrouPieds = true;   // (pieds d'appui cloués aussi en rechargeant en marchant : ils glissaient de 0,3 à 0,5 m/s)
       } else { const n = crouch ? 'Kneeling_Reload' : 'Standing_Reload'; m.play(n, { speed: rs }); }
     }
     else if (dirMarche || grace) {

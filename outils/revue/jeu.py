@@ -23,7 +23,10 @@ window.ECH = { bandeN: 10, bande: null, img: 0, cat: {}, seg: {}, fin: [], pires
   const E = window.ECH, R = API.rendu(), DT = 0.1;
   const catOf = (u, m) => {
     if (!u.alive) return null;
-    const a = m.anim, v = Math.hypot(m.cur.x - m.prev.x, m.cur.z - m.prev.z) / DT, vise = !!(u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture' || u.preaim);
+    const a = m.anim, v = Math.hypot(m.cur.x - m.prev.x, m.cur.z - m.prev.z) / DT, epaule = !!(u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture');
+    // (même règle que animateSkinned : à l'arrêt, « preaim » joue la garde basse — seule l'épaule compte ; en mouvement, preaim = fusil épaulé.
+    // Sans cela, des soldats en garde basse étaient jugés comme en visée : faux « tête à 25° du canon », « œil 23 cm au-dessus ».)
+    const vise = epaule || (!!u.preaim && v > 0.15 && u.moving);
     const accr = u.stance === 'crouch', rech = u.reloading > 0;
     let ec = 0; if (v > 0.15 && Math.hypot(a.vx || 0, a.vz || 0) > 0.1) { ec = (-Math.atan2(a.vz, a.vx) + Math.PI / 2) - m.yaw; while (ec > Math.PI) ec -= 2 * Math.PI; while (ec < -Math.PI) ec += 2 * Math.PI; }
     const deg = Math.abs(ec * 180 / Math.PI), sect = deg < 30 ? 'avant' : deg < 70 ? 'diag' : deg < 115 ? 'lateral' : deg < 150 ? 'diagArr' : 'recul';
@@ -99,8 +102,8 @@ window.ECH = { bandeN: 10, bande: null, img: 0, cat: {}, seg: {}, fin: [], pires
   // canvas du rendu 3D = le plus grand de la page (il y en a d'autres : titre, icônes…)
   // gros plans : on cache le décor (voitures, murs) qui masque souvent le soldat ; seuls restent les soldats
   E.isoler = (u) => { const sc = API.scene(), M = API.meshes(), garde = new Set(Object.values(M).map(m => m.group)), cach = [];
-    const aLumiere = (o) => { let l = false; o.traverse(x => { if (x.isLight) l = true; }); return l; };   // (un groupe qui contient une lumière reste visible : sinon gros plans tout noirs)
-    for (const o of sc.children) if (!garde.has(o) && o.visible && !o.isLight && !aLumiere(o)) { o.visible = false; cach.push(o); }
+    // (on cache les MAILLAGES du décor, pas les groupes entiers : un groupe peut contenir les lumières — gros plans tout noirs sinon)
+    for (const o of sc.children) if (!garde.has(o)) o.traverse(x => { if ((x.isMesh || x.isPoints || x.isSprite || x.isLine) && x.visible) { x.visible = false; cach.push(x); } });
     for (const id in M) if (id !== u.id && M[id].group.visible) { M[id].group.visible = false; cach.push(M[id].group); }
     return () => cach.forEach(o => { o.visible = true; }); };
   const cv = () => Array.from(document.querySelectorAll('canvas')).sort((a, b) => b.width * b.height - a.width * a.height)[0];
