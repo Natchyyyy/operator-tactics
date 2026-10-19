@@ -51,9 +51,10 @@
   // (ancre : appuis tenus fixes, voir ancrer() ; libre : sans la borne de cheville par rapport au tibia — le tibia penché de côté
   // faisait rouler la botte sur sa tranche et la remettait dans le sens du pas, -56°)
   const CHASSE = { actif: true, bassin: 0.2, lacet: 0.6, clr: 0.04, bob: 0.4, haut: 0, libre: true, ancre: true };
-  // (par modèle — gign : bassin du pas chassé remonté de 2 cm ; ses genoux à la pose du pied étaient à 43-48° en diagonale
-  // visée et en pas chassé, contre 36-39° pour le soldat ; au-delà de 2,5 cm, les pieds se rapprochent en pas chassé gauche)
-  const CHASSE_MOD = { gign: { haut: 0.02 } };
+  // (par modèle — gign : bassin du pas chassé remonté de 3 cm ; ses genoux à la pose du pied étaient à 41-48° en diagonale
+  // visée, contre 36-39° pour le soldat → 37° ; au-delà de 2,5 cm les pieds se rapprochaient en pas chassé gauche à 1 m/s,
+  // mais celui-ci est désormais en pas joints, voir PAS.vl1)
+  const CHASSE_MOD = { gign: { haut: 0.03 } };
   // verrou des pieds : durées de prise et de lâcher (s)
   const REECRIT = root.REECRIT_TEST ?? true;   // mixer : réécrire chaque os animé à chaque image (voir update)
   const GB_PAS = root.GB_PAS_TEST ?? true;
