@@ -789,6 +789,12 @@
     // on le saute (sinon un demi-pas en arrière, puis demi-tour — le corps « tournait sur lui-même » à chaque nouveau chemin)
     let i0 = 0; while (i0 < path.length - 1 && (Math.hypot(path[i0].x - u.x, path[i0].z - u.z) < 0.9
       || ((path[i0].x - u.x) * (path[i0 + 1].x - path[i0].x) + (path[i0].z - u.z) * (path[i0 + 1].z - path[i0].z) < 0 && this.map.walkableSegment(u.x, u.z, path[i0 + 1].x, path[i0 + 1].z)))) i0++;
+    // un bond (quelques mètres vers le couvert suivant) qui ferait le tour d'une rangée de voitures ou d'un mur (jusqu'à
+    // 20 m dans l'autre sens, dos à l'ennemi) : refusé, l'appelant se rabat sur autre chose (couvrir, s'approcher)
+    if (kind === 'bound') {
+      let L = Math.hypot(path[i0].x - u.x, path[i0].z - u.z); for (let j = i0 + 1; j < path.length; j++) L += Math.hypot(path[j].x - path[j - 1].x, path[j].z - path[j - 1].z);
+      if (L > Math.max(8, Math.hypot(x - u.x, z - u.z) * 1.8 + 2)) return false;
+    }
     u.path = path; u.pathIdx = i0; u.goal = { x, z }; u.goalReq = req; u.goalKind = kind; u.repathAt = this.t;
     u.commitAt = this.t; u.commitUntil = this.t + (COMMIT[kind] || 2);
     return true;

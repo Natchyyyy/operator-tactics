@@ -48,6 +48,9 @@
   // (ancre : appuis tenus fixes, voir ancrer() ; libre : sans la borne de cheville par rapport au tibia — le tibia penché de côté
   // faisait rouler la botte sur sa tranche et la remettait dans le sens du pas, -56°)
   const CHASSE = { actif: true, bassin: 0.2, lacet: 0.6, clr: 0.04, bob: 0.4, haut: 0, libre: true, ancre: true };
+  // (par modèle — gign : bassin du pas chassé remonté de 2 cm ; ses genoux à la pose du pied étaient à 43-48° en diagonale
+  // visée et en pas chassé, contre 36-39° pour le soldat ; au-delà de 2,5 cm, les pieds se rapprochent en pas chassé gauche)
+  const CHASSE_MOD = { gign: { haut: 0.02 } };
   // verrou des pieds : durées de prise et de lâcher (s)
   const REECRIT = root.REECRIT_TEST ?? true;   // mixer : réécrire chaque os animé à chaque image (voir update)
   const GB_PAS = root.GB_PAS_TEST ?? true;
@@ -757,7 +760,7 @@
         for (const [n, part0] of [['Pas_Gauche', RELEVE.cote], ['Pas_Arriere', RELEVE.arriere]]) { const src = M.clips[n];
           for (const part of [part0, 0.7, 0.55, 0.4]) { const c = src.clone(); c.name = n; const err = releve(M, c, s / 20, part); M.clips[n] = c; M.releveErr[n] = [+err.toFixed(3), part]; if (err <= 0.025) break; } } } }
     // miroir gauche → droite (les repères des os gauche/droite du squelette Mixamo sont symétriques : q → (x, −y, −z, w))
-    { const PC = Object.assign({}, CHASSE, root.CHASSE_TEST || {}); if (PC.actif) { const c = pasChasse(M, M.clips.Pas_Gauche, PC); if (c) { c.name = 'Pas_Gauche'; M.clips.Pas_Gauche = c; M.chasseErr = c.userData.err; } } }
+    { const PC = Object.assign({}, CHASSE, CHASSE_MOD[M.nom] || {}, root.CHASSE_TEST || {}); if (PC.actif) { const c = pasChasse(M, M.clips.Pas_Gauche, PC); if (c) { c.name = 'Pas_Gauche'; M.clips.Pas_Gauche = c; M.chasseErr = c.userData.err; } } }
     const D = legs(M.clips.Pas_Gauche, 'Pas_Droite');   // (celui dont le bassin a été remonté)
     for (const t of D.tracks) {
       t.name = t.name.replace(/Left|Right/g, (w) => (w === 'Left' ? 'Right' : 'Left'));
