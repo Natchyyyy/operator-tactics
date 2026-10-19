@@ -1255,7 +1255,8 @@
     bx(g, 0.2, 0.25, L + 0.4, pm, -s * 0.3, y0 + 3.5, 0);
     const bar = new T.Mesh(new T.BoxGeometry(0.12, 0.2, L - 0.2), rayure); bar.position.set(-s * 0.3, y0 + 3.2, 0); g.add(bar);
     for (const z of [-L / 3, L / 3]) bx(g, 0.02, 0.12, 0.02, K.metalSombre, -s * 0.3, y0 + 3.33, z);
-    panneau(g, 3.2, 0.5, (q, w, h) => { q.fillStyle = '#1f5fbf'; q.fillRect(0, 0, w, h); txt(q, mixte ? 'P  ENTRÉE · SORTIE' : est ? 'SORTIE' : 'P  ENTRÉE', w * 0.38, h / 2 + 6, 'bold 180px Arial', '#fff'); q.fillStyle = '#fff'; q.beginPath(); q.arc(w * 0.84, h / 2, h * 0.4, 0, 7); q.fill(); txt(q, '3,10 m', w * 0.84, h / 2 + 4, 'bold 66px Arial', '#c62828'); }, -s * 0.42, y0 + 3.6, 0, -Math.PI / 2, true);
+    panneau(g, 3.2, 0.5, (q, w, h) => { q.fillStyle = '#1f5fbf'; q.fillRect(0, 0, w, h); const lib = mixte ? 'P  ENTRÉE · SORTIE' : est ? 'SORTIE' : 'P  ENTRÉE'; let fs = 180; do { q.font = `bold ${fs}px Arial`; fs -= 6; } while (q.measureText(lib).width > w * 0.66 && fs > 40);   // le texte tient à gauche du disque
+      txt(q, lib, w * 0.36, h / 2 + 6, q.font, '#fff'); q.fillStyle = '#fff'; q.beginPath(); q.arc(w * 0.84, h / 2, h * 0.4, 0, 7); q.fill(); txt(q, '3,10 m', w * 0.84, h / 2 + 4, 'bold 66px Arial', '#c62828'); }, -s * 0.42, y0 + 3.6, 0, -Math.PI / 2, true);
     return g;
   }
   // muret de la rue : béton bas, couvertine, grille d'acier ; une haie basse côté trottoir

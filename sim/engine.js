@@ -1549,7 +1549,10 @@
     const walkTurned = !turned && !u.target && aim !== null && angDiff(aim, mv) > Math.PI / 3 && (u.walkTurned || far());
     u.walkTurned = walkTurned;
     if (walkTurned) { look = null; aim = null; }
-    const stepLen = (look === null || d <= 0.05 ? u.speed() : this.gaitSpeed(u.speed(), angDiff(look, mv))) * DT;
+    let stepLen = (look === null || d <= 0.05 ? u.speed() : this.gaitSpeed(u.speed(), angDiff(look, mv))) * DT;
+    // demi-tour en pleine course (nouveau chemin dans l'autre sens, > 150°) : un pas d'appui à 1,5 m/s au plus pour
+    // repartir, pas un aller-retour instantané à 2,5-3 m/s
+    if (u.mvAt === Math.round((this.t - DT) * 1000) / 1000 && d > 0.05 && angDiff(mv, u.mvDir) > 2.6) stepLen = Math.min(stepLen, 1.5 * DT);
     let nx, nz;
     if (d <= stepLen) { nx = wp.x; nz = wp.z; }
     else { nx = u.x + (wp.x - u.x) / d * stepLen; nz = u.z + (wp.z - u.z) / d * stepLen; }
@@ -1593,6 +1596,7 @@
     u.stats.distance += Math.hypot(nx - u.x, nz - u.z);
     // regard : vers le point de passage visé (pas vers le petit pas de côté de la séparation entre alliés)
     if ((!u.target || turned) && d > 0.05) { u.facing = aim === null ? mv : aim; u.preaim = aim !== null; }
+    if (Math.hypot(nx - u.x, nz - u.z) > 0.05) { u.mvDir = Math.atan2(nz - u.z, nx - u.x); u.mvAt = this.t; }
     u.x = nx; u.z = nz; u.moving = true;
     if (d <= stepLen) { u.pathIdx++; if (u.pathIdx >= u.path.length) { this.arrive(u); return; } }
     // détection de blocage : pas de progrès depuis 2,5 s → nouveau chemin

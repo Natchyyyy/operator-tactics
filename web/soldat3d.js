@@ -42,7 +42,7 @@
   // pas chassé joint lent (voir pasJoint) : cadence (pas/s), m par cycle, base (m), part du cycle en l'air par pas, levée (m),
   // bassin abaissé (m), rebond (m), pointes ouvertes [gauche, droite] (rad), pied gauche en avant / droit en arrière (m) ;
   // v0 → v1 (m/s) : passage au pas chassé hanches tournées
-  const PAS = Object.assign({ actif: true, cad: 2.5, D: 0.5, base: 0.26, vol: 0.36, lev: 0.05, bas: 0.04, bob: 0.01, lacet: [0.1, 0.1], decal: 0.05, v0: 0.7, v1: 0.8 }, root.PAS_TEST || {});
+  const PAS = Object.assign({ actif: true, cad: 2.5, D: 0.5, base: 0.26, vol: 0.36, lev: 0.05, bas: 0.04, bob: 0.01, lacet: [0.1, 0.1], decal: 0.05, v0: 0.7, v1: 0.8, vl0: 1.3, vl1: 1.4 }, root.PAS_TEST || {});   // (vl0 / vl1 : de côté pur, voir marche)
   // pas chassé refait (voir pasChasse) : bassin ramené vers la cible (rad), lacet max des pieds (rad), garde au sol des pieds
   // qui bougent (m), part gardée du rebond du bassin, bassin remonté (m)
   // (ancre : appuis tenus fixes, voir ancrer() ; libre : sans la borne de cheville par rapport au tibia — le tibia penché de côté
@@ -112,7 +112,7 @@
   // visée : angle (rad) entre la ligne des épaules et la face (0 = carré, ~1,3 = de profil comme les visées Mixamo), voir penche()
   const BIAIS = 0.5;
   // (par modèle : épaules du « soldat » plus larges — un peu plus de face, la crosse vient dans le creux de l'épaule : 6,9 → 5,8 cm)
-  S.BIAIS_M = { soldat: 0.4 };
+  S.BIAIS_M = { soldat: 0.55 };
   const COURSE_BAS = { Trot_Low_Haut: 1, Run_Low_Haut: 1, Run_Low: 1 };   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
   // visée à l'arrêt : rotation du bassin et des jambes vers la cible (rad), voir update()
   const CARRE = 0.61;
@@ -146,7 +146,7 @@
   S.OEIL = OEIL; S.GARDE = GARDE;
   // (PORTEE_G : bras d'appui tendu jusqu'à cette part de sa longueur avant que le fusil ne soit rapproché — 0,97 bloquait le coude
   // à 152° ; PROTRACTION_G : l'épaule d'appui avance vers le garde-main de cette distance, m)
-  const AVANCE_APPUI = 0.06; S.AVANCE_APPUI = AVANCE_APPUI; S.PORTEE_G = 0.995; S.PROTRACTION_G = 0.03;   // visée : main d'appui avancée sur le garde-main (m) ; 0 : les bras du modèle sont déjà tendus (plus loin, le fusil recule vers l'œil)
+  const AVANCE_APPUI = 0.08; S.AVANCE_APPUI = AVANCE_APPUI; S.PORTEE_G = 0.995; S.PROTRACTION_G = 0.08;   // visée : main d'appui avancée sur le garde-main (m) ; 0 : les bras du modèle sont déjà tendus (plus loin, le fusil recule vers l'œil)
   S.CREUX = CREUX;
   function b64ToBuf(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
   // Repère de paume : un point fixe dans chaque main, à la base des doigts (les doigts eux-mêmes sont posés par calculerPrise).
@@ -1259,8 +1259,15 @@
     return new THREE.Quaternion().slerp(qs, s).multiply(new THREE.Quaternion().setFromAxisAngle(a0, th * s)).multiply(qA); };
   // place de la main d'appui tournée de a (rad) autour de la verticale de l'arme, centre au milieu de la paume (voir mainChargeur)
   S.INCL_G = 0.7; S.INCL_EXP = 1; S.PUITS_V = 0.04; S.DEPART_Q = 0.22; S.PUITS_PROF = 0.08; S.PUITS_ENF = 0.6; S.PUITS_HAUT = 0.04; S.COUDE_DEV_R = 0.05;
-  S.LISSE_VISE = 1; S.TORSION_MAX = 0.95;
-  S.PENCHE_LAT = 0.06; S.EP_W = 11; S.DOS_W = 14; S.A0_W = 16; S.PENCHE_W = 6; S.PROT_D = 0; S.PROT_BAS = 0.01;   // (lissages : torsion du dos en marche, part de visée du clip haut, cible de penche)   // visée en pas chassé / en recul : penche du buste réduite d'autant (rad ; ~18,5° → ~15,5°)   // part du lissage de position du fusil retirée en visée (épaulé : crosse à l'épaule, joue sur la crosse ; le fusil suit le buste)
+  S.LISSE_VISE = 1;   // part du lissage de position du fusil retirée en visée (épaulé : crosse à l'épaule, joue sur la crosse ; le fusil suit le buste)
+  S.TORSION_MAX = 0.95;   // en marche visée : épaules à TORSION_MAX rad au plus du bassin
+  S.PENCHE_LAT = 0.06;   // visée en pas chassé / en recul : penche du buste réduite d'autant (rad ; ~18,5° → ~15,5°)
+  S.EP_W = 11; S.DOS_W = 14; S.A0_W = 16; S.PENCHE_W = 6;   // lissages (lisse2) : poids épaulé, torsion du dos en marche, part de visée du clip haut, cible de penche
+  S.PROT_D = 0; S.PROT_BAS = 0.01;   // protraction de l'épaule de tir avant de placer le fusil (essayée : crosse plus loin du creux, l'allonge du bras d'appui limite)
+  // épaulé, « nez au-dessus des orteils » : cou moins redressé (tête en avant et un peu plus bas, joue sur la crosse), épaule
+  // d'appui en protraction (PROTRACTION_G), main d'appui plus loin (AVANCE_APPUI) ; JOUE_M : inclinaison de la tête vers la crosse
+  // (rad ; 0,17 par défaut — « soldat » a l'œil plus au centre du buste)
+  S.COU_AVANT = 0.55; S.JOUE_M = { soldat: 0.24 };
   const hrelIncl = (D, a) => { if (Math.abs(a) < 1e-4) return D.Hrel; const c = D.paumeLoc;
     return new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeRotationY(a)).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(D.Hrel); };
   // suivi de o[k] vers tgt (dt > 0) : ressort amorti critique (w) avec anticipation de la vitesse de la cible (bornée à vmax : un
@@ -1442,7 +1449,7 @@
         { const pur = !!PAS.vl1 && (cible[PG] > 0 || cible[PD] > 0) && Math.abs(Math.abs(wrap(ecart)) - Math.PI / 2) <= (PAS.latA ?? 0.45);
           const v0 = pur ? PAS.vl0 : PAS.v0, v1 = pur ? PAS.vl1 : PAS.v1;
           const j0 = this.jointOn; this.jointOn = j0 === undefined || !this.blendW ? v < (v0 + v1) / 2 : j0 ? v < v1 : v < v0; if (j0 !== undefined && j0 !== this.jointOn && (cible[PG] > 0 || cible[PD] > 0)) this.basculeT = 0.35;
-          if (pur && this.jointOn && v >= PAS.v0) { const sc = (cible[PG] || 0) >= (cible[PD] || 0) ? PG : PD; for (const n in cible) cible[n] = 0; cible[sc] = 1; tau = 0; } }
+          if (pur && this.jointOn && v >= (PAS.vf ?? 0)) { const sc = (cible[PG] || 0) >= (cible[PD] || 0) ? PG : PD; for (const n in cible) cible[n] = 0; cible[sc] = 1; tau = 0; } }
         { const kJ = this.jointOn ? 1 : 0;
           for (const [sc, jn] of [[PG, 'Pas_Joint_D'], [PD, 'Pas_Joint_G']]) if (M.clips[jn] && M.loco[jn] && cible[sc] > 0) { cible[jn] = cible[sc] * kJ; cible[sc] *= 1 - kJ; } }
         if (mix) { const wa = cible[avant] || 0; cible[avant] = 0; for (const n in mix) if (M.clips[n] && M.loco[n]) cible[n] = (cible[n] || 0) + wa * mix[n]; }
@@ -1742,7 +1749,7 @@
             // pose d'arrêt et ses retouches — avance du pied de la garde basse — ne le font pas sauter ni glisser)
             const dep = !L.piv && L.w <= 0 && (this.marcheK || 0) < 0.15 && this.vu && VERROU.dep !== false && Math.hypot(this.vu[i][K[piv]].x - P.x, this.vu[i][K[piv]].z - P.z) < 0.2;
             if (dep) { L.anc = this.vu[i][K[piv]].clone(); L.piv = piv; L.w = 1; }
-            else if (L.piv !== piv) { L.anc = (VERROU.cont !== false && L.pr && L.w > 0 ? L.pr[K[piv]] : P).clone(); if (L.off && L.w > 0) L.anc.addScaledVector(L.off, L.w * L.w * (3 - 2 * L.w)); if (VERROU.prise0 !== false && !L.piv && (!(L.w > 0) || VERROU.prise0w !== false)) L.w = 1; L.piv = piv; }   // (prise neuve : l'ancre est la position actuelle, décalage nul — pas d'à-coup — : cloué tout de suite au lieu de glisser 0,09 s à la pose du pied)
+            else if (L.piv !== piv) { L.anc = (VERROU.cont !== false && L.pr && L.w > 0 ? L.pr[K[piv]] : P).clone(); if (L.off && L.w > 0) L.anc.addScaledVector(L.off, L.w * L.w * (3 - 2 * L.w)); if (VERROU.prise0 !== false && !L.piv && (!(L.w > 0) || VERROU.prise0w !== false)) L.w = 1; L.piv = piv; }   // (prise neuve : l'ancre est la position actuelle, décalage nul — pas d'à-coup — : cloué tout de suite au lieu de glisser 0,09 s à la pose du pied ; aussi quand le lâcher précédent n'était pas fini — vol de 0,13 s en pas joint rapide, plus court que le lâcher de 0,16 s — : l'ancre est alors la position affichée, pied glissé de 2-3 cm à chaque pose sinon)
             // (et posé AU sol : le point d'appui de la semelle à hauteur 0 ; les cycles flottent ou s'enfoncent de 1 à 4 cm)
             const dy = Math.max(-0.04, Math.min(0.05, -(piv === 'A' ? hT : piv === 'B' ? hB : hP)));
             const d = new THREE.Vector3(L.anc.x - P.x, dy, L.anc.z - P.z);
@@ -1985,7 +1992,7 @@
           { const qh = WQ(H), fa = faceL.clone().applyQuaternion(qh).normalize(), u = new THREE.Vector3(0, 1, 0).applyQuaternion(qh), up = new THREE.Vector3(0, 1, 0).addScaledVector(fa, -fa.y);
             if (up.lengthSq() > 1e-4) { up.normalize(); u.addScaledVector(fa, -u.dot(fa)).normalize();
               // (en visée, la joue vient sur la crosse : tête inclinée de ~10° vers la droite, pas plus — la version exagérée déplaisait)
-              const ang = (Math.atan2(new THREE.Vector3().crossVectors(u, up).dot(fa), u.dot(up)) + 0.17 * (this.epK || 0) + roul) * kA, qr = new THREE.Quaternion().setFromAxisAngle(fa, ang);
+              const ang = (Math.atan2(new THREE.Vector3().crossVectors(u, up).dot(fa), u.dot(up)) + ((S.JOUE_M && S.JOUE_M[M.nom]) ?? 0.17) * (this.epK || 0) + roul) * kA, qr = new THREE.Quaternion().setFromAxisAngle(fa, ang);
               H.quaternion.copy(WQ(H.parent).invert().multiply(qr).multiply(qh)); H.updateMatrixWorld(true); } }
           return;
         }
