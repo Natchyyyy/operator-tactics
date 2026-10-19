@@ -537,5 +537,22 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
       return { r, up: a.alive, at: b.t - t0, keep: ms.every(u => u.keyOrder), rev: b.log.find(l => l.kind === 'revive') }; };
     const A = run(false), B = run(true);
     check('relève en Tenir : un équipier tombé dans la position est relevé au calme (le sauveteur garde son poste) ; pas tant qu\'un équipier de l\'ordre voit l\'ennemi', A.r.ok && A.up && A.keep && A.rev && B.up && B.at > 5 + 5, { A: { up: A.up, at: A.at, keep: A.keep }, B: { up: B.up, at: B.at } }); }
+  // rejouabilité : grenades sur ordre, avec fumée, points de passage, fouiller → bataille revue identique, pas à pas
+  { const play = (o) => {
+      const b = new Battle(Object.assign({ seed: 11, mapId: 'parking', teams: [{ name: 'Alpha', order: 'assault', operators: GIGN, tactics: ['tiroir'] }, { name: 'Bravo', order: 'assault', operators: KARST, tactics: ['tiroir'] }] }, o || {}));
+      const trace = [];
+      while (!b.over && b.t < 160) {
+        if (!b.replayQueue) {
+          if (Math.abs(b.t - 1) < 0.05) { b.command('aller', 0, { x: 22, z: 23, units: ['0:op_lynx', '0:op_granit'], mode: 'agressif', arrivee: 'fouiller', via: [{ x: 14, z: 8 }] }); b.command('aller', 0, { x: 25, z: 38, units: ['0:op_vautour', '0:op_bastion', '0:op_belier'], mode: 'franchir', arrivee: 'tenir', fumee: true }); }
+          if (Math.abs(b.t - 6) < 0.05) { b.command('grenade', 0, { x: 24, z: 23, kind: 'smoke', units: null }); b.command('grenade', 0, { x: 26, z: 20, kind: 'flash', units: null }); }
+          if (Math.abs(b.t - 25) < 0.05) b.command('grenade', 0, { x: 34, z: 23, kind: 'frag', units: null });
+          if (Math.abs(b.t - 40) < 0.05) b.command('aller', 0, { x: 8, z: 23, units: null, mode: 'decrocher', arrivee: 'tenir', fumee: true });
+        }
+        b.step(); if (b.tick % 10 === 0) trace.push(b.units.map(u => u.x.toFixed(2) + ',' + u.z.toFixed(2) + ',' + u.state).join(';'));
+      }
+      return { b, trace: trace.join('|') };
+    };
+    const P1 = play(), P2 = play({ replayInputs: P1.b.inputs }), types = P1.b.inputs.map(c => c.type);
+    check('vague 2 : la bataille revue (grenades sur ordre, avec fumée, points de passage, fouiller, décrocher) est identique, pas à pas', types.filter(t => t === 'grenade').length >= 2 && types.filter(t => t === 'aller').length === 3 && P1.trace === P2.trace && JSON.stringify(P1.b.result) === JSON.stringify(P2.b.result), { types: types.join() }); }
 }
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

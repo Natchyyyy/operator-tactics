@@ -1558,7 +1558,7 @@
   // ---------------------------------------------------------------------------------------------
   let muted = false; try { muted = localStorage.getItem('ot-mute') === '1'; } catch (e) { /* stockage indisponible */ }
   // ---- Réglages (volume général, musique, vitesse et caméra par défaut, qualité, ombres) : gardés dans ce navigateur ----
-  const SETTINGS = Object.assign({ vol: 0.9, music: 1, speed: 1, cam: 'director', quality: 'haute', shadows: true, voice: true, fog: true }, (() => { try { return JSON.parse(localStorage.getItem('ot-settings') || '{}'); } catch (e) { return {}; } })());
+  const SETTINGS = Object.assign({ vol: 0.9, music: 1, speed: 1, cam: 'director', quality: 'haute', shadows: true, voice: true, fog: true, ordAdv: false }, (() => { try { return JSON.parse(localStorage.getItem('ot-settings') || '{}'); } catch (e) { return {}; } })());
   try { const m = localStorage.getItem('ot-music'); if (m !== null && localStorage.getItem('ot-settings') === null) SETTINGS.music = parseFloat(m) || 0; } catch (e) { /* rien */ }
   function applyQuality() {
     const dpr = window.devicePixelRatio || 1;
@@ -2194,20 +2194,32 @@
   };
   const ordLast = { mode: 'methodique', arrivee: 'tenir' };
   try { const s = JSON.parse(localStorage.getItem('ot-ordre') || 'null'); if (s) for (const k in ordLast) if (s[k] && ORD_OPTS[k].choix.some(c => c.v === s[k])) ordLast[k] = s[k]; } catch (e) { /* stockage indisponible */ }
-  let ordSel = null, ordSelHist = [], ordMenu = null;   // ordSel : null = Tous, sinon Set d'identifiants d'opérateurs
+  let ordSel = null, ordSelHist = [], ordMenu = null, ordGroups = [new Set(), new Set()];   // ordSel : null = Tous, sinon Set d'identifiants d'opérateurs
   function ordUnits() { return ordSel ? battle.teams[0].units.filter(u => ordSel.has(u.id)) : battle.teams[0].units; }
   function ordWho() { const us = ordUnits().filter(u => u.alive); return ordSel ? us.map(u => u.callsign).join(', ') || 'personne' : `Tous (${us.length})`; }
   function ordShowSel() {
     document.querySelectorAll('#roster0 .card').forEach(c => c.classList.toggle('osel', !!ordSel && ordSel.has(c.dataset.id)));
     const all = $('#roster0 .oall'); if (all) all.classList.toggle('on', !ordSel);
+    const same = (a, b) => !!a && a.size === b.size && [...a].every(id => b.has(id));
+    document.querySelectorAll('#roster0 .ogrp button').forEach(b => b.classList.toggle('on', same(ordSel, ordGroups[+b.dataset.g])));
     if (ordMenu) ordMenu.el.querySelector('.omwho').textContent = ordWho();
   }
   function ordSetSel(s) { ordSelHist.push({ t: performance.now(), s: ordSel ? new Set(ordSel) : null }); if (ordSelHist.length > 4) ordSelHist.shift(); ordSel = s && s.size ? s : null; ordShowSel(); }
   function ordSelUndoDbl() { const h = ordSelHist.length >= 2 ? ordSelHist[ordSelHist.length - 2] : null; if (h && performance.now() - h.t < 700) { ordSel = h.s; ordShowSel(); } }   // un double-clic (suivre) ne change pas la sélection
   function ordRosterHooks(el) {
-    if (ordRosterHooks.battle !== battle) { ordRosterHooks.battle = battle; ordSel = null; ordSelHist = []; }   // nouvelle bataille : « Tous »
-    el.insertAdjacentHTML('afterbegin', '<button class="oall on" title="Les ordres de déplacement (clic droit sur le sol) vont à toute l’escouade. Clic sur une carte : un seul opérateur ; Maj+clic : plusieurs.">Tous</button>');
+    if (ordRosterHooks.battle !== battle) {   // nouvelle bataille : « Tous » ; groupes par défaut = les deux moitiés du Tiroir (3 + 2)
+      ordRosterHooks.battle = battle; ordSel = null; ordSelHist = [];
+      const us = battle.teams[0].units; ordGroups = [0, 1].map(k => new Set(us.filter((u, i) => (u.boundGroup === 0 || u.boundGroup === 1 ? u.boundGroup : i % 2) === k).map(u => u.id)));
+    }
+    el.insertAdjacentHTML('afterbegin', '<button class="oall on" title="Les ordres de déplacement (clic droit sur le sol) vont à toute l’escouade. Clic sur une carte : un seul opérateur ; Maj+clic : plusieurs.">Tous</button>'
+      + '<div class="ogrp">' + [0, 1].map(k => `<button data-g="${k}" title="Groupe ${k + 1} — clic : le choisir · Maj+clic : y ranger la sélection en cours">G${k + 1}</button>`).join('') + '</div>');
     el.querySelector('.oall').addEventListener('click', () => ordSetSel(null));
+    el.querySelectorAll('.ogrp button').forEach(b => b.addEventListener('click', (e) => {
+      const k = +b.dataset.g;
+      if (e.shiftKey) { if (!ordSel) { flashBattle('Groupe : choisissez d’abord des opérateurs (cartes), puis Maj+clic sur G' + (k + 1) + '.'); return; } ordGroups[k] = new Set(ordSel); flashBattle(`Groupe ${k + 1} : ${ordWho()}.`); ordShowSel(); return; }
+      const s2 = new Set([...ordGroups[k]].filter(id => unitById[id] && unitById[id].alive)); if (!s2.size) { flashBattle(`Groupe ${k + 1} : personne en état.`); return; }
+      ordSetSel(s2);
+    }));
     el.querySelectorAll('.card').forEach(c => c.addEventListener('click', (e) => {
       const id = c.dataset.id, u = unitById[id]; if (!u || !u.alive) return;
       if (e.shiftKey) { const s = ordSel ? new Set(ordSel) : new Set(); if (s.has(id)) s.delete(id); else s.add(id); ordSetSel(s); }
@@ -2242,12 +2254,14 @@
     if (battle.over) { flashBattle('La bataille est terminée.'); return; }
     const p = ordGround(cx, cy); if (!p) { flashBattle('Ordre : cliquez sur le sol du terrain.'); return; }
     ordOrientEnd();
+    const adv = !!SETTINGS.ordAdv;   // « Ordres avancés » (réglages) : sinon seulement Déplacement et Arrivée
     const pick = Object.assign({}, ordLast, { feu: 'volonte' });   // le feu revient toujours à « À volonté »
-    const el = document.createElement('div'); el.className = 'ordmenu';
+    if (!adv && !ORD_OPTS.arrivee.choix.some(c => c.v === pick.arrivee)) pick.arrivee = 'tenir';
+    const el = document.createElement('div'); el.className = 'ordmenu' + (adv ? '' : ' simple');
     const nSmoke = ordGrenCount('smoke');
     el.innerHTML = `<div class="omhead"><b>Ordre</b><span class="omwho"></span></div>` + Object.entries(ORD_OPTS).map(([cat, o]) =>
       `<div class="omsec">${o.titre}${cat === 'mode' ? `<button class="omfum" title="Franchir, Décrocher : le premier qui a un fumigène le lance côté danger pour masquer le passage ou le repli (un fumigène par opérateur)."${nSmoke ? '' : ' disabled'}><span class="omico">${ORD_SVG.smoke}</span>Avec fumée <i>${nSmoke}</i></button>` : ''}</div><div class="omrow">${o.choix.map(c => `<button class="omopt" data-cat="${cat}" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v] || ''}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>`).join('')
-      + `<div class="omsec">Feu</div><div class="omfeu">${ORD_FEU.map(c => `<button class="omopt omf" data-cat="feu" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b></button>`).join('')}</div>`
+      + `<div class="omsec omsecfeu">Feu</div><div class="omfeu">${ORD_FEU.map(c => `<button class="omopt omf" data-cat="feu" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b></button>`).join('')}</div>`
       + `<button class="omplus">Plus…</button><div class="ommore"><div class="omsec">Autre arrivée</div><div class="omrow">${ORD_PLUS_ARR.map(c => `<button class="omopt" data-cat="arrivee" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div><div class="omsec">Lancer ici</div><div class="omfeu omgren">${ORD_GREN.map(c => { const n = ordGrenCount(c.v); return `<button class="omopt omf omg" data-g="${c.v}" title="${escapeHtml(c.desc)}"${n ? '' : ' disabled'}><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><i>${n}</i></button>`; }).join('')}</div></div>`
       + `<button class="omgo">Confirmer</button><div class="omhint">${ordVia.length ? `<b class="omvia">Par ${ordVia.length} point${ordVia.length > 1 ? 's' : ''} de passage</b> · ` : ''}Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
     $('main').appendChild(el);
@@ -2299,7 +2313,7 @@
     if (!ordMenu) return; const { p, pick } = ordMenu;
     const ids = ordSel ? [...ordSel].filter(id => unitById[id] && unitById[id].alive) : null, who = ordWho();
     if (ids && !ids.length) { closeOrderMenu(); flashBattle('Ordre refusé : aucun opérateur choisi n’est en état.'); return; }
-    const fum = !!pick.fumee && (pick.mode === 'franchir' || pick.mode === 'decrocher');
+    const fum = !!SETTINGS.ordAdv && !!pick.fumee && (pick.mode === 'franchir' || pick.mode === 'decrocher');
     const via = ordVia.slice();
     const r = battle.command('aller', 0, Object.assign({ x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids, mode: pick.mode, arrivee: pick.arrivee, feu: pick.feu }, fum ? { fumee: true } : {}, via.length ? { via } : {}));
     closeOrderMenu(); if (r.ok) ordViaClear();

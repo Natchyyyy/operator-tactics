@@ -1390,6 +1390,7 @@
   #app .ordmenu .omf b { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #app .ordmenu .omf[data-v="retenu"].on { background: rgba(255,170,60,.2); border-color: #ffaa3c; box-shadow: inset 0 0 0 1px #ffaa3c, 0 0 12px rgba(255,170,60,.25); }
   #app .ordmenu .omf[data-v="appui"].on { background: rgba(255,138,42,.22); border-color: #ff8a2a; box-shadow: inset 0 0 0 1px #ff8a2a, 0 0 12px rgba(255,138,42,.28); }
+  #app .ordmenu.simple .omfeu:not(.omgren), #app .ordmenu.simple .omsecfeu, #app .ordmenu.simple .omplus, #app .ordmenu.simple .ommore, #app .ordmenu.simple .omfum { display: none !important; }
   #app .ordmenu .omplus { display: block; margin: 10px 0 0 auto; padding: 3px 9px; border-radius: 7px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.04); color: rgba(220,230,240,.8); font: 600 11px/1.2 var(--ui, sans-serif); letter-spacing: .06em; cursor: pointer; }
   #app .ordmenu .omplus::after { content: ' ▸'; } #app .ordmenu.plus .omplus::after { content: ' ▾'; } #app .ordmenu .omplus:hover { border-color: rgba(255,255,255,.3); color: #fff; }
   #app .ordmenu .ommore { display: none; } #app .ordmenu.plus .ommore { display: block; } #app .ordmenu .ommore .omsec:first-child { margin-top: 4px; }
@@ -1406,6 +1407,9 @@
   #app #orhint { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); zoom: clamp(1, var(--zui, 1), 1.6); z-index: 6; pointer-events: none; padding: 9px 18px; border-radius: 10px; border: 1px solid #ffa23a; background: rgba(28,18,6,.92); color: #ffe2b8; font-size: 14px; max-width: min(720px, 92vw); text-align: center; line-height: 1.35; box-shadow: 0 4px 18px rgba(0,0,0,.45); }
   #app #orhint b { color: #ffb45a; font-weight: 700; }
   #app .roster .oall { flex: none; align-self: stretch; width: 54px; padding: 0; border-radius: 10px; border: 1px solid rgba(255,255,255,.14); background: linear-gradient(180deg, rgba(16,22,30,.78), rgba(10,14,19,.62)); color: rgba(220,230,240,.75); font-family: 'Rajdhani', var(--ui, sans-serif); font-weight: 700; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; backdrop-filter: blur(10px); cursor: pointer; }
+  #app .roster .ogrp { flex: none; align-self: stretch; display: flex; flex-direction: column; gap: 4px; }
+  #app .roster .ogrp button { flex: 1; width: 38px; padding: 0; border-radius: 8px; border: 1px solid rgba(255,255,255,.14); background: linear-gradient(180deg, rgba(16,22,30,.78), rgba(10,14,19,.62)); color: rgba(220,230,240,.75); font-family: 'Rajdhani', var(--ui, sans-serif); font-weight: 700; font-size: 12px; letter-spacing: .06em; backdrop-filter: blur(10px); cursor: pointer; }
+  #app .roster .ogrp button:hover { border-color: rgba(255,255,255,.32); color: #fff; } #app .roster .ogrp button.on { border-color: #f2d36b; color: #ffe9a8; box-shadow: inset 0 -2px 0 #f2d36b; }
   #app .roster .oall.on { border-color: #f2d36b; color: #ffe9a8; background: linear-gradient(180deg, rgba(60,50,20,.8), rgba(30,24,10,.7)); box-shadow: inset 0 -2px 0 #f2d36b; }
   #app .card.osel, #app.hud3 .card.osel { border-color: #f2d36b; box-shadow: inset 3px 0 0 #f2d36b, 0 0 0 1px rgba(242,211,107,.75), 0 0 16px rgba(242,211,107,.35); }
   #app .tcard.rotcard, #app.hud3 .tcard.rotcard { width: auto; cursor: default; } #app.hud3 .tcard.rotcard.off { opacity: 1; } #app .rotcard .tname { margin: 2px 0 5px; }
@@ -1800,6 +1804,7 @@
   <div class="setrow"><span>Caméra par défaut</span><div class="seg" id="setCam"><button data-v="director">Réalisateur</button><button data-v="follow">Suivre</button><button data-v="sat">Sat</button><button data-v="free">Libre</button></div><span></span></div>
   <div class="setrow"><span>Qualité d'affichage</span><div class="seg" id="setQuality"><button data-v="haute">Haute</button><button data-v="moyenne">Moyenne</button><button data-v="basse">Basse</button></div><span></span></div>
   <div class="setrow" style="display:none"><span>Voix radio (synthèse vocale)</span><div class="seg" id="setVoice"><button data-v="1">Oui</button><button data-v="0">Non</button></div><span></span></div>
+  <div class="setrow"><span>Ordres avancés (clic droit : Feu, Plus…, fumée)</span><div class="seg" id="setAdv" title="Oui : le menu d'ordre montre aussi la ligne Feu, « Plus… » (Fouiller, grenades) et « Avec fumée ». Non : seulement Déplacement et Arrivée."><button data-v="1">Oui</button><button data-v="0">Non</button></div><span></span></div>
   <div class="setrow"><span>Ombres</span><div class="seg" id="setShadows"><button data-v="1">Oui</button><button data-v="0">Non</button></div><span></span></div>
   <div class="setrow"><span>Ennemis visibles seulement s'ils sont repérés</span><div class="seg" id="setFog" title="Oui : un ennemi n'apparaît que tant qu'un de vos opérateurs le voit. Non : tout est visible (spectateur)."><button data-v="1">Oui</button><button data-v="0">Non</button></div><span></span></div>
   <div class="setrow save"><span>Sauvegarde de la carrière</span><div class="seg"><button id="setExport" title="Télécharge un fichier .json avec toute la carrière">Exporter</button><button id="setImport" title="Recharge une carrière depuis un fichier .json exporté">Importer</button><input type="file" id="setFile" accept=".json,application/json" hidden></div></div>
@@ -1817,7 +1822,7 @@
     $('#setMusic').value = Math.round(g.music * 100); $('#setMusicV').textContent = Math.round(g.music * 100) + ' %';
     const seg = (id, v) => $(id).querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(v)));
     seg('#setSound', window.OT_MUTE && window.OT_MUTE.get() ? 0 : 1); soundState();
-    seg('#setSpeed', g.speed); seg('#setCam', g.cam); seg('#setQuality', g.quality); seg('#setShadows', g.shadows ? 1 : 0); seg('#setVoice', g.voice ? 1 : 0); seg('#setFog', g.fog === false ? 0 : 1);
+    seg('#setSpeed', g.speed); seg('#setCam', g.cam); seg('#setQuality', g.quality); seg('#setShadows', g.shadows ? 1 : 0); seg('#setVoice', g.voice ? 1 : 0); seg('#setFog', g.fog === false ? 0 : 1); seg('#setAdv', g.ordAdv ? 1 : 0);
   }
   // état du lecteur de sons, lisible par le joueur (diagnostic : contexte bloqué par le navigateur, sons non décodés…)
   function soundState() {
@@ -1840,6 +1845,7 @@
   $('#setQuality').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('quality', v); sync(); } });
   $('#setShadows').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('shadows', v === '1'); sync(); } });
   $('#setVoice').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('voice', v === '1'); sync(); } });
+  $('#setAdv').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('ordAdv', v === '1'); sync(); } });
   $('#setFog').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('fog', v === '1'); sync(); } });
   // export : dans une page publiée sur claude.ai, la capacité « downloads » (le visiteur confirme) ; ailleurs, un lien de téléchargement
   let dl = null; if (window.claude && window.claude.use) window.claude.use('downloads').then(d => { dl = d; }).catch(() => {});
