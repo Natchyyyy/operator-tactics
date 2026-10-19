@@ -1204,7 +1204,10 @@
       // la torsion allait jusqu'à 110° puis les pieds tournaient d'un coup en glissant au sol)
       // (le replacement ne repart que si les pas précédents sont finis — repas() renvoie false sinon — : la torsion des jambes est
       // gardée en attendant, pieds plantés ; avant, elle était remise à 0 et les pieds tournaient avec le corps en glissant)
-      if (Math.abs(jambes) > 0.7 || (a.stopT > 1.2 && Math.abs(jambes) > 0.25) || crouch) { if (crouch || !m.repas || m.repas() !== false) { a.piedsYaw = m.yaw; jambes = 0; } }
+      // (pivot continu : les pieds se replacent EN AVANCE sur la rotation — vitesse de lacet × 0,3 s, ≤ 34° — : le bassin passe
+      // d'en avance à en retard entre deux replacements au lieu d'être toujours en retard ; avant, pendant un demi-tour en
+      // visant, les jambes traînaient de 20-25° et les pieds se retrouvaient l'un derrière l'autre vus de face)
+      if (Math.abs(jambes) > 0.7 || (a.stopT > 1.2 && Math.abs(jambes) > 0.25) || crouch) { if (crouch || !m.repas || m.repas() !== false) { const av = crouch ? 0 : Math.max(-0.6, Math.min(0.6, (m.yawV || 0) * 0.3)); a.piedsYaw = m.yaw + av; jambes = av; } }
     }
     // marche (pas la course, pas accroupi) : jambes directionnelles (soldat3d.marche) quand le modèle a les pas chassés
     // marche OU course (petites foulées) directionnelles jusqu'à 3,2 m/s ; au-delà (sprint) l'ancienne méthode. Marche ou

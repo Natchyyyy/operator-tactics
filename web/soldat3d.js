@@ -52,6 +52,14 @@
   const REECRIT = root.REECRIT_TEST ?? true;   // mixer : réécrire chaque os animé à chaque image (voir update)
   const GB_PAS = root.GB_PAS_TEST ?? true;
   const PIN_POSE = root.PIN_POSE_TEST ?? true;
+  const POSE_ANTICIPE = root.POSE_ANTICIPE_TEST ?? true;
+  const REPAS_ARRET = root.REPAS_ARRET_TEST ?? true;
+  const REPRISE = root.REPRISE_TEST ?? true;   // marche qui reprend la couche de jambes du rechargement (voir marche)   // replacement des pieds permis pendant les pas d'arrêt (voir repas)   // pas de pose visant la place finale du pied (voir poserPieds)
+  // garde basse (« low ready ») : av / ar = pied gauche avancé / pied droit reculé (m), hf = bassin vers l'avant (m), hy = bassin
+  // (m), bl = bassin de trois quarts (°, hanche gauche en avant)
+  // (mesuré, deux modèles : bassin et épaules à 21°, chevilles à 37 cm de large, pied droit 17 cm derrière et ouvert de 30-40°,
+  // genoux à 13°, bassin 9-10 cm devant le milieu des chevilles — sur le milieu des pieds)
+  const LOWR = Object.assign({ av: 0.05, ar: 0.12, hf: 0.04, hy: 0.005, bl: 22 }, root.LOWR_TEST || {});
   const DORSI_MAX = (root.DORSI_MAX_TEST ?? 36) * Math.PI / 180;   // butée de flexion dorsale d'un pied en l'air (voir cheville)
   const APPUI_POSE = root.APPUI_POSE_TEST ?? true;   // pied reposé cloué jusqu'à la fin de la pose (voir poserPieds)   // pied avancé de la garde basse porté par le pas de pose (voir appui)
   const VERROU = Object.assign({ prise: 0.09, lache: 0.16 }, root.VERROU_TEST || {});
@@ -1220,9 +1228,14 @@
     if (pv !== null) { while (th - pv > Math.PI) th -= 2 * Math.PI; while (th - pv < -Math.PI) th += 2 * Math.PI; } m[cle] = { th, t: o.t };
     return new THREE.Quaternion().slerp(qs, s).multiply(new THREE.Quaternion().setFromAxisAngle(a0, th * s)).multiply(qA); };
   // place de la main d'appui tournée de a (rad) autour de la verticale de l'arme, centre au milieu de la paume (voir mainChargeur)
-  S.INCL_G = 0.7; S.INCL_EXP = 1; S.PUITS_V = 0.04;
+  S.INCL_G = 0.7; S.INCL_EXP = 1; S.PUITS_V = 0.04; S.ALIGNE = 0.8; S.ALIGNE_DEB = 0;
   const hrelIncl = (D, a) => { if (Math.abs(a) < 1e-4) return D.Hrel; const c = D.paumeLoc;
     return new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeRotationY(a)).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(D.Hrel); };
+  // suivi de o[k] vers tgt (dt > 0) : ressort amorti critique (w) avec anticipation de la vitesse de la cible (bornée à vmax : un
+  // saut de cible n'est pas pris pour une vitesse), accélération bornée à amax (rad/s²) ; aucun retard sur une cible qui tourne
+  // régulièrement, un saut devient un mouvement lisse
+  const suivi = (o, k, tgt, dt, w, vmax, amax) => { const rp = o[k + 'R']; const vT = rp === undefined ? 0 : Math.max(-vmax, Math.min(vmax, (tgt - rp) / dt)); o[k + 'R'] = tgt;
+    const x = o[k], v = o[k + 'V'] || 0, a = Math.max(-amax, Math.min(amax, w * w * (tgt - x) + 2 * w * (vT - v))); o[k + 'V'] = v + a * dt; o[k] = x + o[k + 'V'] * dt; return o[k]; };
   const ressort = (x, v, c, w, dt) => { if (!(dt > 0)) return [c, 0]; const a = w * w * (c - x) - 2 * w * v; v += a * dt; x += v * dt; if (x < 0) { x = 0; v = 0; } else if (x > 1) { x = 1; v = 0; } return [x, v]; };
   // un soldat : group (posé par le jeu), pose (chute), weapon (avec .muzzle), anim
   // o.modele : 'gign' (équipe du joueur) ou 'soldat' (adversaire) ; par défaut le premier modèle chargé
@@ -1320,7 +1333,10 @@
       },
       // couche « jambes » jouée en plus de l'animation principale (qui ne doit alors pas animer les jambes) ; null : l'enlever
       playLegs(name, opts = {}) {
-        if (!name) { if (this.legClip) { actions[this.legClip].fadeOut(0.2); this.legClip = null; } return; }
+        // (0,35 s, la durée d'entrée de la marche — marcheK — : les deux couches se croisent à poids total 1 ; avec 0,2 s, le total
+        // tombait à 0,57 et le mixer complétait avec la pose d'origine : à-coup du bassin de 2 800 °/s² à la reprise de la marche
+        // après un rechargement)
+        if (!name) { if (this.legClip) { actions[this.legClip].fadeOut(0.35); this.legClip = null; } return; }
         const a = act(name); if (!a) return;
         if (this.legClip !== name) { const prev = this.legClip && actions[this.legClip]; a.reset(); a.setEffectiveWeight(1); a.fadeIn(0.15); a.play(); if (prev) prev.fadeOut(0.15); this.legClip = name; }
         a.timeScale = opts.speed || 1;
@@ -1403,6 +1419,12 @@
         this.ph = ((this.ph || 0) + dt * v / Math.max(0.25, (Math.hypot(fx, fz) + fl) / 2)) % 1;
         // entrée en marche : la couche des jambes monte en ~0,2 s (l'animation précédente s'efface pendant ce temps)
         this.marcheK = Math.min(1, (this.marcheK || 0) + dt / 0.35);
+        // (reprise après une couche de jambes — rechargement en marchant — qui jouait le MÊME cycle : même action three.js ; on
+        // reprend sa phase et son poids au lieu de la remettre à 0,1 et à la phase de la marche : saut du bassin de 2 800 °/s²)
+        { const n = this.legClip;   // (le jeu appelle marche() AVANT playLegs(null) : la couche est encore là)
+          if (n && REPRISE && tot > 0 && bw[n] / tot > 0.5) { const a = act(n); if (a) {
+            this.ph = ((((a.time + dt * a.getEffectiveTimeScale()) / a.getClip().duration) - (M.phase0[n] || 0) - ((M.decal && M.decal[avant] && M.decal[avant][n]) || 0)) % 1 + 1) % 1;
+            this.marcheK = Math.max(this.marcheK, a.getEffectiveWeight()); this.legClip = null; } } }
         let psi = 0;
         for (const n in bw) {
           const a = act(n); if (!a) continue;
@@ -1435,7 +1457,7 @@
         // arrêt après une marche / course : les pieds sont « cloués » là où ils étaient affichés (positions monde de l'image
         // précédente, lues AVANT d'effacer les retouches), puis posé() les amène un par un à la pose d'arrêt
         const changeRepos = this.clipVu && this.clipVu !== this.clip && REPOS[this.clipVu] && REPOS[this.clip];   // garde basse <-> visée à l'arrêt
-        if ((this.blendW && !enMarche || changeRepos) && !keepYaw && pieds[0][2] && pieds[1][2]) this.pose0 = { t: 0, lock: pieds.map(l => new THREE.Vector3().setFromMatrixPosition(l[2].matrixWorld)), lockQ: pieds.map(l => { const q = new THREE.Quaternion(); l[2].matrixWorld.decompose(V(), q, V()); return q; }) };
+        if ((this.blendW && !enMarche || changeRepos) && !keepYaw && pieds[0][2] && pieds[1][2]) this.pose0 = { t: 0, arret: true, lock: pieds.map(l => new THREE.Vector3().setFromMatrixPosition(l[2].matrixWorld)), lockQ: pieds.map(l => { const q = new THREE.Quaternion(); l[2].matrixWorld.decompose(V(), q, V()); return q; }) };
         for (const [b, q, p] of mods) { b.quaternion.copy(q); b.position.copy(p); } mods.length = 0;
         if (this.blendW && !enMarche) {   // plus en marche directionnelle : les jambes mélangées s'effacent
           for (const n in this.blendW) { const a = actions[n]; if (a && a.isScheduled() && this.blendW[n] > 0) a.fadeOut(0.3); }
@@ -1514,7 +1536,9 @@
       // pivot sur place (app.js) : les pieds, cloués pendant que le torse tourne, se replacent face au torse par deux petits pas
       // (même mécanique que l'arrêt : pieds partant de leur position affichée, voir poserPieds)
       repas() {
-        if (!pieds[0][2] || !pieds[1][2] || (this.pose0 && this.pose0.t < 0.38)) return false;   // (pas précédents pas finis)
+        // (pas précédents pas finis : refusé ; SAUF les pas d'arrêt — l'arrêt suivi d'un quart de tour vers la cible : attendre
+        // 0,38 s laissait les jambes vrillées vers l'ancienne direction ; les pas repartent de la position affichée)
+        if (!pieds[0][2] || !pieds[1][2] || (this.pose0 && this.pose0.t < 0.38 && !(this.pose0.arret && REPAS_ARRET) && !(REPAS_ARRET && this.pose0.t > 0.2 && Math.abs(this.jambesCible || 0) > 1.2))) return false;   // (torsion de plus de 70° — quart de tour rapide — : on n'attend pas la fin des pas)
         this.pose0 = { t: 0, lock: pieds.map(l => new THREE.Vector3().setFromMatrixPosition(l[2].matrixWorld)), lockQ: pieds.map(l => { const q = new THREE.Quaternion(); l[2].matrixWorld.decompose(V(), q, V()); return q; }) };
         return true;
       },
@@ -1527,21 +1551,28 @@
         group.updateMatrixWorld(true);
         const cur = pieds.map(l => WP(l[2]));
         // (pied gauche avancé de la garde basse : ajouté APRÈS, par appui() ; le pas part donc de la position clouée moins cette avance)
-        const av = GB_PAS ? new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())).multiplyScalar(0.17 * (this.gbPiedK || 0)) : null;
+        const fwG = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())), av = GB_PAS ? [0, 1].map(i => this.gbOff(i, fwG, this.gbPiedK || 0)) : null;
         if (!P.ordre) { if (Math.max(cur[0].distanceTo(P.lock[0]), cur[1].distanceTo(P.lock[1])) > 0.8) { this.pose0 = null; return; }   // (téléporté)
           P.ordre = P.lock[0].y >= P.lock[1].y ? [0, 1] : [1, 0]; }
+        // (cible ANTICIPÉE : là où le pied sera une fois la torsion des jambes rattrapée — le bassin tourne encore de « rem » autour
+        // de la hanche, jambesCible et carré visés — ; avant, le pied visait sa place du moment, en retard de 0,2-0,6 s sur un arrêt
+        // suivi d'un quart de tour : jambes vrillées, genou de côté, pieds croisés pendant 0,4-0,8 s (vu en jeu))
+        const carreT = this.clip === 'Rifle_Aim_Turn_Right' || this.clip === 'Standing_Reload' ? 1 : 0;
+        const rem = POSE_ANTICIPE ? Math.max(-1.6, Math.min(1.6, (this.jambesCible || 0) - (this.jambes || 0) + CARRE * (carreT - (this.carreK || 0)))) : 0;
+        const qR = new THREE.Quaternion().setFromAxisAngle(UP, rem), hP = WP(hipsB);
+        const tgt = cur.map(c => c.clone().sub(hP).applyQuaternion(qR).add(hP).setY(c.y)), qTgt = pieds.map(l => qR.clone().multiply(WQ(l[2])));
         P.ordre.forEach((i, rang) => {
           const x = Math.max(0, Math.min(1, (P.t - rang * 0.16) / 0.24)), s = x * x * (3 - 2 * x);
           // (pied reposé : cloué là où il s'est posé jusqu'à la fin de la pose — relâché en douceur de 0,50 à 0,62 s — ; avant, il
           // suivait aussitôt les jambes, dont la torsion rattrape le pivot avec ~0,2 s de retard : au pivot sur place, chaque pied
           // glissait de 3-5 cm à 0,15-0,3 m/s après chaque petit pas)
-          if (s >= 1) { const ft = pieds[i][2]; if (!PIN_POSE) return; P.fin = P.fin || []; if (!P.fin[i]) P.fin[i] = [cur[i].clone(), WQ(ft)];
+          if (s >= 1) { const ft = pieds[i][2]; if (!PIN_POSE) return; P.fin = P.fin || []; if (!P.fin[i]) P.fin[i] = [tgt[i].clone(), qTgt[i].clone()];
             const z = Math.max(0, Math.min(1, (P.t - 0.5) / 0.12)), wp = 1 - z * z * (3 - 2 * z); if (wp <= 0) return;
             const d = P.fin[i][0].clone().sub(cur[i]).multiplyScalar(wp), qC = WQ(ft); if (d.lengthSq() > 1e-8) ikJambe(pieds[i][0], pieds[i][1], ft, d, orteils[i]);
             mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(qC.slerp(P.fin[i][1], wp))); ft.updateMatrixWorld(true); return; }
-          const L = i === 0 && av ? P.lock[i].clone().sub(av) : P.lock[i], C = cur[i], dl = Math.hypot(C.x - L.x, C.z - L.z), h = Math.min(0.11, Math.max(0.45 * dl, Math.min(0.04, 3 * dl)));   // (un vrai pas : pied levé de 4 à 11 cm, pas traîné ; un pas de 1-9 cm se lève quand même de 3-4 cm)
+          const L = av ? P.lock[i].clone().sub(av[i]) : P.lock[i], C = tgt[i], dl = Math.hypot(C.x - L.x, C.z - L.z), h = Math.min(0.11, Math.max(0.45 * dl, Math.min(0.04, 3 * dl)));   // (un vrai pas : pied levé de 4 à 11 cm, pas traîné ; un pas de 1-9 cm se lève quand même de 3-4 cm)
           const T = L.clone().lerp(C, s); T.y += h * Math.sin(Math.PI * s);
-          const ft = pieds[i][2], qC = WQ(ft), d = T.sub(C); if (d.lengthSq() > 1e-8) ikJambe(pieds[i][0], pieds[i][1], ft, d, orteils[i]);
+          const ft = pieds[i][2], qC = qTgt[i], d = T.sub(cur[i]); if (d.lengthSq() > 1e-8) ikJambe(pieds[i][0], pieds[i][1], ft, d, orteils[i]);
           // orientation du pied aussi (sinon la pointe pivote autour de la cheville cloué et glisse)
           mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(P.lockQ[i].clone().slerp(qC, s))); ft.updateMatrixWorld(true);
         });
@@ -1734,22 +1765,28 @@
       },
       // Report du poids au repos : le bassin glisse lentement (~5,5 s) d'une jambe sur l'autre, s'abaisse un peu et s'incline
       // vers la jambe libre ; les pieds restent au sol (IK), les épaules restent à peu près droites.
+      gbOff(i, fw, k) { return fw.clone().multiplyScalar((i === 0 ? LOWR.av : -LOWR.ar) * k); },   // décalage avant / arrière des pieds en garde basse
       appui(dt, actif) {
         this.reposK = (this.reposK || 0) + ((actif ? 1 : 0) - (this.reposK || 0)) * Math.min(1, dt * 1.5);
-        if (Math.max(this.reposK, GB_PAS ? this.gbPiedK || 0 : 0) < 0.01 || !hipsB || !pieds[0][2] || !pieds[1][2]) return;
+        // (posture de garde basse : poids propre, lissé — ressort amorti critique — ; elle se défait en ~0,4 s au départ au lieu de
+        // tomber d'un coup quand l'animation du haut quitte Garde_Basse : bassin de trois quarts et avancé)
+        this.lowK = lisse2(this, 'lowK', this.lowK || 0, this.clip === 'Garde_Basse' && actif ? 1 : 0, 5, dt);
+        if (Math.max(this.reposK, this.lowK, GB_PAS ? this.gbPiedK || 0 : 0) < 0.01 || !hipsB || !pieds[0][2] || !pieds[1][2]) return;
         group.updateMatrixWorld(true);
         const s0 = Math.sin(this.t * 1.14 + graine), s = Math.sign(s0) * Math.pow(Math.abs(s0), 0.6) * this.reposK;   // (s'attarde sur chaque jambe)
         const avant = pieds.map(l => WP(l[2])), gq = group.getWorldQuaternion(new THREE.Quaternion());
         const lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq);
         mod(hipsB);
-        const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022).addScaledVector(fw, -0.05 * this.reposK); h1.y -= 0.008 * Math.abs(s);   // (bassin un peu en arrière : poids sur l'avant des pieds)
+        const gb = Math.max(0, Math.min(1, this.lowK)), gbP = GB_PAS ? this.gbPiedK || 0 : gb;
+        const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022).addScaledVector(fw, -0.05 * Math.max(0, this.reposK - gb) + LOWR.hf * gb); h1.y -= 0.008 * Math.abs(s);   // (bassin un peu en arrière : poids sur l'avant des pieds ; garde basse : voir LOWR)
         hipsB.position.add(hipsB.parent.worldToLocal(h1).sub(hipsB.parent.worldToLocal(h0.clone()))); hipsB.updateMatrixWorld(true);
         const roule = (b, a) => { b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
         roule(hipsB, -s * 0.035); if (spine1) { mod(spine1); roule(spine1, s * 0.03); }
-        // garde basse : pied gauche ~17 cm en avant (appui décalé) et bassin 3 cm plus bas (genoux fléchis ~15-20°)
-        const gb = this.clip === 'Garde_Basse' ? this.reposK : 0, gbP = GB_PAS ? this.gbPiedK || 0 : gb;
-        if (gbP > 0.01) avant[0].addScaledVector(fw, 0.17 * gbP);
-        if (gb > 0.01) { hipsB.position.add(hipsB.parent.worldToLocal(WP(hipsB).add(new THREE.Vector3(0, -0.03 * gb, 0))).sub(hipsB.parent.worldToLocal(WP(hipsB)))); hipsB.updateMatrixWorld(true); }
+        // garde basse « prêt à tirer, arme basse » (voir LOWR) : pieds décalés — pied fort (droit) en arrière —, bassin de trois quarts
+        // (épaules et arme suivent), genoux souples, poids légèrement vers l'avant
+        if (gbP > 0.01) for (let i = 0; i < 2; i++) avant[i].add(this.gbOff(i, fw, gbP));
+        if (gb > 0.01) { hipsB.position.add(hipsB.parent.worldToLocal(WP(hipsB).add(new THREE.Vector3(0, LOWR.hy * gb, 0))).sub(hipsB.parent.worldToLocal(WP(hipsB)))); hipsB.updateMatrixWorld(true);
+          if (LOWR.bl) twist(hipsB, -LOWR.bl * Math.PI / 180 * gb); }
         // visée debout : genoux « légèrement fléchis » (~22°, réglement : 10 à 25°) et non accroupis (l'animation et la charnière
         // de hanche les amenaient à 44-47°) : le bassin remonte de ce qu'il faut, les pieds restent en place
         if (this.clip === 'Rifle_Aim_Turn_Right') {
@@ -1797,7 +1834,7 @@
           const acl = actions[this.clip], pas = this.blendW && this.blendFrame === frameK - 1 ? (this.ph || 0) : acl && M.loco && M.loco[this.clip] && acl.timeScale > 0 ? acl.time / acl.getClip().duration : null, bob = pas === null ? 0 : 0.018 * Math.sin(4 * Math.PI * pas), roul = pas === null ? 0 : 0.014 * Math.sin(2 * Math.PI * pas);
           const cible = new THREE.Vector3(Math.sin(y) * Math.cos(p + bob), Math.sin(p + bob), Math.cos(y) * Math.cos(p + bob));
           // visée : le regard suit le canon (direction donnée par poseArme à l'image précédente)
-          if (this.visee && (this.epK || 0) > 0.01) { cible.lerp(this.visee, this.epK).normalize(); if (bob) cible.y += bob; cible.normalize(); }
+          if (this.visee && (this.epK || 0) > 0.01) { cible.lerp(this.viseeTete || this.visee, this.epK).normalize(); if (bob) cible.y += bob; cible.normalize(); }
           const tourne = (b, part) => { const face = faceL.clone().applyQuaternion(WQ(H)).normalize(), q = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(face, cible), part * kA);
             b.quaternion.copy(WQ(b.parent).invert().multiply(q).multiply(WQ(b))); b.updateMatrixWorld(true); };
           // cou redressé (60 % vers la verticale : le dos penché l'entraîne), puis visage vers la cible, puis roulis : le haut de
@@ -1888,8 +1925,8 @@
       // choisi sur le cercle de ses positions possibles : avant-bras aligné sur la main (poignet peu cassé), proche de la pose de
       // l'animation, assez bas (garde basse plus bas qu'en visée), jamais rentré dans le buste ; la moitié de la torsion de la main
       // autour de l'avant-bras est portée par l'avant-bras. D : prise de cette main (doigt du milieu, pour l'axe de la main).
-      // limP (0..1, facultatif) : main libre (rechargement) — si le poignet plie au-delà de 45°, la main est tournée vers l'axe de
-      // l'avant-bras de cette part de l'excédent (la main tient un chargeur ou porte le fusil : son orientation exacte compte moins qu'un poignet cassé)
+      // limP (0..1, facultatif) : main libre (rechargement) — l'axe de la main est ramené vers celui de
+      // l'avant-bras de cette part (la main tient un chargeur : son orientation exacte compte moins qu'un poignet cassé)
       poserBras(h, arm, fore, hand, tp, tq, k, D, limP) {
         this.osDoigts = this.osDoigts || {};
         mod(arm); mod(fore); mod(hand);
@@ -1922,8 +1959,6 @@
           const tv = this.twAv || (this.twAv = {}), pv = tv[h] && this.t - tv[h].t < 0.2 ? tv[h].th : null;
           if (pv !== null) { while (th - pv > Math.PI) th -= 2 * Math.PI; while (th - pv < -Math.PI) th += 2 * Math.PI; } tv[h] = { th, t: this.t };
           const half = new THREE.Quaternion().setFromAxisAngle(ax, 0.5 * k * th); fore.quaternion.copy(WQ(fore.parent).invert().multiply(half).multiply(WQ(fore))); fore.updateMatrixWorld(true); }
-        if (limP) { const fa = T.clone().sub(WP(fore)).normalize(), ha = this.osDoigts[D.ordre[2]].position.clone().normalize().applyQuaternion(qH), ang = Math.acos(Math.max(-1, Math.min(1, fa.dot(ha))));
-          if (ang > 0.79 && ang < 2.6) qH.premultiply(new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(ha, fa), Math.min(1, limP) * (ang - 0.79) / ang)); }
         hand.quaternion.copy(WQ(hand.parent).invert().multiply(qH)); hand.updateMatrixWorld(true);
       },
       // Prise (voir calculerPrise) : mains amenées à leur place sur le fusil (IK des bras, orientation imposée) si « mains »,
@@ -1981,7 +2016,28 @@
         else d = fwd.clone().multiplyScalar(Math.cos(VISEE_TANGAGE)).addScaledVector(up, Math.sin(VISEE_TANGAGE));
         { let ay = Math.atan2(d.dot(lat), d.dot(fwd)), ap = Math.asin(Math.max(-1, Math.min(1, d.y))); ay = Math.max(-0.6, Math.min(0.6, ay)); ap = Math.max(-0.5, Math.min(0.4, ap));
           d = fwd.clone().multiplyScalar(Math.cos(ay) * Math.cos(ap)).addScaledVector(lat, Math.sin(ay) * Math.cos(ap)).addScaledVector(up, Math.sin(ap)); }
+        // direction de visée suivie DANS LE MONDE (voir suivi : sans retard sur une cible qui se déplace ou un pivot, mais un saut de
+        // cible devient un mouvement de ~0,2 s) : quand le soldat changeait de cible, le fusil pivotait en UNE image (jusqu'à 27°,
+        // 24 000 °/s² en jeu) ; la tête regarde la cible brute (tete()) et devance donc le fusil. Lissé dans le monde, pas dans le
+        // repère du groupe qui tourne aussi.
+        { const dW = d.clone().transformDirection(group.matrixWorld); let yw = Math.atan2(dW.x, dW.z); const pw = Math.asin(Math.max(-1, Math.min(1, dW.y)));
+          const dtA = this.tVis === undefined ? -1 : this.t - this.tVis;
+          if (dtA < 0 || dtA > 0.25 || this.visY === undefined) { this.visY = yw; this.visP = pw; this.visYV = 0; this.visPV = 0; this.visYR = yw; this.visPR = pw; }
+          else if (dtA > 0) { while (yw - this.visY > Math.PI) yw -= 2 * Math.PI; while (yw - this.visY < -Math.PI) yw += 2 * Math.PI;
+            while (this.visYR - yw > Math.PI) this.visYR -= 2 * Math.PI; while (this.visYR - yw < -Math.PI) this.visYR += 2 * Math.PI;
+            const h = Math.min(0.1, dtA); suivi(this, 'visY', yw, h, 12, 4, 35); suivi(this, 'visP', pw, h, 12, 3, 35);
+            // (la tête : même suivi, plus vif — elle devance le fusil d'environ 0,1 s sur un changement de cible)
+            if (this.tetY === undefined) { this.tetY = this.visY; this.tetP = this.visP; }
+            while (this.tetY - this.visY > Math.PI) this.tetY -= 2 * Math.PI; while (this.tetY - this.visY < -Math.PI) this.tetY += 2 * Math.PI;
+            if (this.tetYR !== undefined) { while (this.tetYR - yw > Math.PI) this.tetYR -= 2 * Math.PI; while (this.tetYR - yw < -Math.PI) this.tetYR += 2 * Math.PI; }
+            suivi(this, 'tetY', yw, h, 18, 4, 42); suivi(this, 'tetP', pw, h, 18, 3, 42); }
+          if (dtA < 0 || dtA > 0.25 || this.tetY === undefined) { this.tetY = this.visY; this.tetP = this.visP; this.tetYV = 0; this.tetPV = 0; this.tetYR = this.visY; this.tetPR = this.visP; }
+          this.tVis = this.t;
+          const ds = new THREE.Vector3(Math.sin(this.visY) * Math.cos(this.visP), Math.sin(this.visP), Math.cos(this.visY) * Math.cos(this.visP)).transformDirection(inv);
+          let ay = Math.atan2(ds.dot(lat), ds.dot(fwd)), ap = Math.asin(Math.max(-1, Math.min(1, ds.y))); ay = Math.max(-0.6, Math.min(0.6, ay)); ap = Math.max(-0.5, Math.min(0.4, ap));
+          d = fwd.clone().multiplyScalar(Math.cos(ay) * Math.cos(ap)).addScaledVector(lat, Math.sin(ay) * Math.cos(ap)).addScaledVector(up, Math.sin(ap)); }
         this.visee = d.clone().transformDirection(group.matrixWorld);
+        { const dt2 = new THREE.Vector3(Math.sin(this.tetY) * Math.cos(this.tetP), Math.sin(this.tetP), Math.cos(this.tetY) * Math.cos(this.tetP)); this.viseeTete = dt2; }
         const qA = repere(d), E0 = oeil.clone().sub(new THREE.Vector3().fromArray(VISEE_OPTIQUE).applyQuaternion(qA)), PB = creux.clone().sub(butt.clone().applyQuaternion(qA));
         const pA = E0.addScaledVector(d, PB.clone().sub(E0).dot(d));
         if (ea > 0.999) return { q: qA, p: pA };
@@ -1998,7 +2054,7 @@
         const kk = dt > 0 ? Math.min(1, dt * 8) : deja && this.t > 0 ? 0 : 1;   // (deux appels dans la même image : un seul pas de lissage)
         // ressort amorti critique (~0,3 s, départ en douceur : pas d'à-coup des mains au début / à la fin d'un rechargement)
         const c = tient ? 1 : 0; if (this.priseK === undefined || (dt === 0 && kk === 1)) { this.priseK = this.priseK === undefined ? 1 : c; this.priseV = 0; }
-        else if (dt > 0) { this.priseK = Math.max(0, Math.min(1, lisse2(this, 'prise', this.priseK, c, 13, dt))); if (this.priseK === 0 || this.priseK === 1) this.priseV = 0; }   // (cible filtrée : le fusil et les mains partent sans à-coup)
+        else if (dt > 0) { this.priseK = Math.max(0, Math.min(1, lisse2(this, 'prise', this.priseK, c, 10, dt))); if (this.priseK === 0 || this.priseK === 1) this.priseV = 0; }   // (cible filtrée : le fusil et les mains partent sans à-coup)
         return kk;
       },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
