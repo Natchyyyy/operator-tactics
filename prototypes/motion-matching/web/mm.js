@@ -100,7 +100,8 @@
         const enfants = { Hips: 'Spine', Head: 'HeadTop_End', LeftHand: 'LeftHandMiddle1', RightHand: 'RightHandMiddle1', LeftToeBase: 'LeftToe_End', RightToeBase: 'RightToe_End' };
         let e = enfants[n] ? b(enfants[n]) : null;
         if (!e) e = o.children.find(c => /mixamorig/.test(c.name)) || null;
-        if (!e || n === 'Hips') return Q();
+        // pieds et orteils : on garde l'inclinaison propre du modèle (sinon la semelle prend l'angle du pied Geno → « chaussures de lutin »)
+        if (!e || n === 'Hips' || /Foot$|ToeBase$/.test(n)) return Q();
         const dT = bindPos(e).sub(bindPos(o)).normalize();
         const g = bind[n]; const dG = V3().fromArray(g.posEnfant).sub(V3().fromArray(g.pos)).normalize();
         return Q().setFromUnitVectors(dG, dT);          // A : direction Geno → direction modèle
@@ -109,8 +110,10 @@
       // « tous les os vers +Y », pas à cette pose) : on travaille avec l'écart par rapport à la liaison
       this.genoBindInv = Base.meta.os.map(n => bind[n] ? Q().fromArray(bind[n].quat).invert() : Q());
       // échelle verticale : hanches modèle / hanches Geno
-      const hipsY = bindPos(this.hips).y;
-      this.echelle = hipsY / bind.Hips.pos[1];
+      // échelle : hauteur hanches→orteils du modèle / celle de Geno, et décalage pour poser les orteils au sol du modèle
+      const hipsY = bindPos(this.hips).y, toeY = Math.min(bindPos(b('LeftToeBase')).y, bindPos(b('RightToeBase')).y);
+      const genoToeY = Math.min(bind.LeftToeBase.pos[1], bind.RightToeBase.pos[1]);
+      this.echelle = (hipsY - toeY) / (bind.Hips.pos[1] - genoToeY); this.solY = toeY - genoToeY * this.echelle;
       this.diag = { hipsY, bras: this.align[Base.meta.os.indexOf('LeftArm')].clone(), cuisse: this.align[Base.meta.os.indexOf('LeftUpLeg')].clone() };
       // os parents (dans notre liste) pour composer les rotations mondiales sans recalcul complet
       this.parentIdx = this.os.map(o => { let p = o.parent; while (p) { const k = this.os.indexOf(p); if (k >= 0) return k; p = p.parent; } return -1; });
@@ -191,7 +194,7 @@
         o.quaternion.copy(parentQ).invert().multiply(w);
       }
       // position des hanches
-      const h = (poseY[0] + this.offY[0]) * this.echelle;
+      const h = (poseY[0] + this.offY[0]) * this.echelle + this.solY;
       const monde = this.tmpV.set(this.pos.x, h, this.pos.z);
       this.hips.parent.updateWorldMatrix(true, false);
       this.hips.position.copy(this.hips.parent.worldToLocal(monde));
@@ -311,7 +314,7 @@
       touches(o) { Ctl.touches = Object.assign({}, o || {}); }, set(o) { Object.assign(Ctl, o); },
       razGlisse() { glisse.cumul = 0; glisse.tContact = 0; sauts = 0; }, mesures() { return { frame, seq: Base.meta.sequences[Base.seq[frame]].nom, glisseMoy: glisse.moyenneCm(), glisseRecent: glisse.recentCm(), sauts, pos: soldat.pos.toArray(), yaw: soldat.yaw, simPos: Ctl.pos.toArray(), vitAnim: Math.hypot(Base.v[frame * 3], Base.v[frame * 3 + 2]) }; },
       os(n) { const o = soldat.os[Base.meta.os.indexOf(n)]; return o ? o.getWorldPosition(V3()).toArray() : null; },
-      camera(yaw, pitch, dist) { Ctl.camYaw = yaw; cam.pitch = pitch; cam.dist = dist; }
+      camera(yaw, pitch, dist, cibleY) { Ctl.camYaw = yaw; cam.pitch = pitch; cam.dist = dist; cam.cibleY = cibleY; }
     };
     window.PRET = true;
     if (!MANUEL) requestAnimationFrame(boucleAuto);
@@ -409,7 +412,7 @@
     if (window.TRACE) { const g = soldat.orteils[0].getWorldPosition(V3()), d = soldat.orteils[1].getWorldPosition(V3()); window.TRACE.push([+horloge.toFixed(3), ...g.toArray().map(x => +x.toFixed(4)), ...d.toArray().map(x => +x.toFixed(4)), Base.contact[frame], +soldat.verrous[0].poids.toFixed(2), +soldat.verrous[1].poids.toFixed(2), frame, seuilOrteil]); }
     while (glisse.empreintes.length) { const e = glisse.empreintes.shift(); const m = new THREE.Mesh(new THREE.CircleGeometry(0.06, 16), new THREE.MeshBasicMaterial({ color: e.k ? 0x4fc3f7 : 0xff7b7b, transparent: true, opacity: 0.8 })); m.rotation.x = -Math.PI / 2; m.position.copy(e.p).setY(0.004); scene.add(m); empreintesMesh.push(m); if (empreintesMesh.length > 60) scene.remove(empreintesMesh.shift()); }
     // caméra orbitale
-    const cible = soldat.pos.clone().setY(1.0);
+    const cible = soldat.pos.clone().setY(cam.cibleY ?? 1.0);
     camera.position.set(cible.x + Math.sin(Ctl.camYaw + Math.PI) * cam.dist * Math.cos(cam.pitch), cible.y + cam.dist * Math.sin(cam.pitch), cible.z + Math.cos(Ctl.camYaw + Math.PI) * cam.dist * Math.cos(cam.pitch));
     camera.lookAt(cible);
     renderer.render(scene, camera);
