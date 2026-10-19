@@ -1923,7 +1923,7 @@
     if (u.drag) { if (this.continueDrag(u, threats)) return; }
     else if (this.tryDrag(u, threats)) return;
     if (threats.length) u.sawEnemyAt = this.t;
-    if (!threats.length && !beingShot && u.suppression < 0.4 && !u.throwing && u.state !== 'noammo' && !u.moveOrder && (!u.keyOrder || (process.env.NOR2 !== '1' && u.keyOrder.grp !== undefined && this.holdCalm(u)))) {   // en route sur ordre : il obéit ; en poste « tenir » : seulement au calme (R2)
+    if (!threats.length && !beingShot && u.suppression < 0.4 && !u.throwing && u.state !== 'noammo' && !u.moveOrder && (!u.keyOrder || (u.keyOrder.grp !== undefined && this.holdCalm(u)))) {   // en route sur ordre : il obéit ; en poste « tenir » : seulement au calme (R2)
       let a = this.downedToRevive(u);
       if (a && u.keyOrder) { const k = u.keyOrder, hx = k.hx !== undefined ? k.hx : k.x, hz = k.hz !== undefined ? k.hz : k.z; if (Math.hypot(a.x - hx, a.z - hz) > HOLD_REVIVE) a = null; }   // dans la position seulement
       if (a) {

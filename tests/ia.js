@@ -399,8 +399,9 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
     for (let i = 0; i < 5; i++) b.step();
     check('feu retenu : seuls les opérateurs de l\'ordre retiennent leur feu ; command(\'feu\') le lève pour tout le groupe (une fois) ; le feu revient « à volonté » au prochain ordre', r.ok && held === 'Granit,Lynx' && rf.ok && !again.ok && b.teams[0].units.every(u => !u.holdFire) && b.log.some(l => l.kind === 'feu' && /ordre d’ouvrir le feu/.test(l.text)) && b.teams[0].ordInfo[r.id].released, { held, rf, again }); }
   // F2 — Appui : au premier contact, deux opérateurs d'assaut en appui (orientés vers le contact), trois encerclent
+  // (8 batailles : d'une graine à l'autre le tir d'appui va de 0 à 80 coups ; 4 ne suffisaient plus à lisser le hasard)
   let supShots = 0, supBy = new Set(), lowAmmo = 0, pinnedT = 0, zoneSeen = 0;
-  for (let sd = 1; sd <= 4; sd++) {
+  for (let sd = 1; sd <= 8; sd++) {
     const b = mkW(sd, 'careful', 'careful'); let done = false, id = null;
     const sa = b.suppressAt.bind(b); b.suppressAt = function (u, e) { if (u.team === 0) { supShots++; supBy.add(u.role.id + ':' + u.callsign); if (u.totalAmmo() < u.weapon.mag * (u.weapon.kit + 1) * 0.4 - 1) lowAmmo++; } return sa(u, e); };
     while (!b.over && b.t < 150) {
