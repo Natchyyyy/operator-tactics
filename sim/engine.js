@@ -81,7 +81,7 @@
     if (this.stance === 'crouch') v *= 0.55;
     // sprint : assaut sur un adversaire, repli ; course vers un couvert sous la menace (vu, pris pour cible, touché, à
     // découvert sous les yeux d'une position ennemie connue — voir act()) : on ne marche pas jusqu'à l'abri sous le feu
-    if (this.state === 'closing' || this.state === 'retreat' || this.state === 'rush' || this.state === 'evade' || this.dash) v *= 1.2;   // (evade : loin d'une grenade)   // rush : ordre de déplacement « agressif »
+    if (this.state === 'closing' || this.state === 'retreat' || this.state === 'rush' || this.state === 'crossing' || this.state === 'evade' || this.dash) v *= 1.2;   // (evade : loin d'une grenade)   // rush : ordre de déplacement « agressif »
     else if (this.state === 'bounding' || this.state === 'advancing') { if (Object.keys(this.knowledge).length) v *= 0.8; } // pas tactique au contact
     const hard = has(this, 'hardened') ? 0.5 : 1;                                                    // Endurci : pénalités de blessure réduites de moitié
     if (this.status === 'wounded') v *= 1 - 0.2 * hard; else if (this.status === 'critical') v *= 1 - 0.5 * hard;
@@ -993,7 +993,7 @@
   };
   // membres d'une même position tenue (arrivés, ou encore en route pour elle)
   Battle.prototype.holdMembers = function (team, ordre) {
-    return team.units.filter(a => a.alive && ((a.keyOrder && a.keyOrder.ordre === ordre) || (a.moveOrder && a.moveOrder.id === ordre && a.moveOrder.sect !== undefined)));
+    return team.units.filter(a => a.alive && ((a.keyOrder && a.keyOrder.ordre === ordre) || (a.moveOrder && (a.moveOrder.hid !== undefined ? a.moveOrder.hid : a.moveOrder.id) === ordre && a.moveOrder.sect !== undefined)));
   };
   // secteurs du moment : recalculés quand l'effectif change (un équipier tombé, les autres se partagent son secteur) ;
   // chacun garde le secteur le plus proche de sa place
@@ -1005,7 +1005,8 @@
     let th = null, bd = 45;
     for (const a of ms) for (const e of this.enemiesOf(a)) { const k = a.knowledge[e.id]; if (!e.alive || !k || this.t - k.t > 10) continue; const d = Math.hypot(k.x - o.cx, k.z - o.cz); if (d < bd) { bd = d; th = k; } }
     if (th) { o.contactFace = Math.atan2(th.z - o.cz, th.x - o.cx); team.holdContact = team.holdContact || {}; team.holdContact[o.ordre] = { until: this.t + HOLD_CONTACT, face: o.contactFace }; }
-    const hc = team.holdContact && team.holdContact[o.ordre], contact = hc && this.t < hc.until, face = contact ? hc.face : o.face0;
+    // encercler : le point est le secteur principal (secteurs resserrés face à lui, en permanence)
+    const hc = team.holdContact && team.holdContact[o.ordre], contact = o.enc !== undefined || (hc && this.t < hc.until), face = o.enc !== undefined ? o.face0 : contact ? hc.face : o.face0;
     const key = ms.map(a => a.id).join(',') + (contact ? '|c' + Math.round(face / (Math.PI / 6)) : '|q');
     if (!pl || pl.key !== key) {
       const sect = this.holdSectors(o.cx, o.cz, face, ms.length, contact);
@@ -1150,7 +1151,7 @@
   //  - arrivée « tenir » : un vrai couvert tout proche (≤ 4 m) face à la menace (ou au sens de la marche), et on y reste :
   //    c'est le poste de l'ordre « tenir » (followKeyOrder). Sans ordre, rien ne change.
   // Un ordre au plus toutes les 3 s par opérateur (garde-fou contre la micro-gestion).
-  const MOVE_MODES = { methodique: 'méthodique', agressif: 'agressif' }, ARRIVALS = { tenir: 'tenir la position', manoeuvre: 'reprendre la manœuvre' };
+  const MOVE_MODES = { methodique: 'méthodique', agressif: 'agressif', franchir: 'en franchissement' }, ARRIVALS = { tenir: 'tenir la position', manoeuvre: 'reprendre la manœuvre', encercler: 'encercler' };
   const ORDER_COOLDOWN = 3, ORDER_GAP = 4, BOUND_MAX = 9, BOUND_BARE = 7, SECTORS = [0, 0.61, -0.61];   // secteurs : ±35°
   // point du sol cliqué → point marchable (dans le terrain, hors obstacle : case libre la plus proche)
   Battle.prototype.orderPoint = function (x, z) {
@@ -1201,7 +1202,10 @@
     // travers de la marche (une couronne mettait des opérateurs derrière leurs équipiers : ils ne pouvaient plus tirer
     // vers l'avant, et la position tenait mal face à un assaut) : les ailes prennent les flancs, un autre l'arrière
     const face = this.holdFace(team, p, dir);
-    if (arrivee === 'tenir') {
+    // arrivée « encercler » : deux sous-groupes, de deux côtés du point (à moins de trois : « tenir »)
+    let arr = arrivee;
+    if (arr === 'encercler') { const enc = units.length >= 3 ? this.encircleSpots(team, units, p, dir) : null; if (enc) enc.forEach((q, k) => { spots[k] = q; }); else arr = 'tenir'; }
+    if (arr === 'tenir') {
       const sect = this.holdSectors(p.x, p.z, face, units.length);
       const perm = bestAssign(spots.map(q => { const c = Math.hypot(q.x - p.x, q.z - p.z) < 1; return sect.map(sa => c ? angDiff(face, sa) * 0.5 : angDiff(Math.atan2(q.z - p.z, q.x - p.x), sa)); }));
       spots.forEach((q, k) => { q.sect = perm[k] >= 0 ? sect[perm[k]] : face; });
@@ -1210,14 +1214,199 @@
     const rank = units.map((u, k) => k).sort((i, j) => Math.hypot(units[i].x - p.x, units[i].z - p.z) - Math.hypot(units[j].x - p.x, units[j].z - p.z) || i - j);
     const id = this.orderSeq = (this.orderSeq || 0) + 1;
     team.moveGroups = (team.moveGroups || []).filter(g => this.groupActive(g));
-    team.moveGroups.push({ id, mode, members: units.map(u => u.id), bound: { group: 0, since: this.t, n: 0 } });
+    const g = { id, mode, members: units.map(u => u.id), bound: { group: 0, since: this.t, n: 0 } };
+    if (mode === 'franchir') {   // franchissement : les espaces découverts du trajet (depuis l'opérateur le plus proche du centre du groupe)
+      const u0 = units.slice().sort((a, b) => Math.hypot(a.x - cx, a.z - cz) - Math.hypot(b.x - cx, b.z - cz) || (a.id < b.id ? -1 : 1))[0];
+      Object.assign(g, { cross: this.findCrossings(team, u0.x, u0.z, p.x, p.z), ci: 0, phase: 'move', stage: {}, far: {}, runners: [], crossed: [], queue: [] });
+    }
+    team.moveGroups.push(g);
     units.forEach((u, k) => {
       u.keyOrder = null; u.orderAt = this.t; u.reviving = null;
-      u.moveOrder = { id, mode, arrivee, x: spots[k].x, z: spots[k].z, px: p.x, pz: p.z, dir, half: k % 2, goalN: -1, doneN: -1, departAt: mode === 'agressif' ? this.t + rank.indexOf(k) * 0.8 : 0, sect: spots[k].sect, face };
+      u.moveOrder = { id, mode, arrivee: arr, x: spots[k].x, z: spots[k].z, px: p.x, pz: p.z, dir, half: k % 2, goalN: -1, doneN: -1, departAt: mode === 'agressif' ? this.t + rank.indexOf(k) * 0.8 : 0, sect: spots[k].sect, face };
+      if (spots[k].hid !== undefined) Object.assign(u.moveOrder, { hid: spots[k].hid + '#' + id, px: spots[k].cx, pz: spots[k].cz, face: spots[k].face, enc: { x: p.x, z: p.z } });
       this.stop(u); u.commitUntil = 0; u.pauseUntil = 0;
     });
-    this.logEvent('moveorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — déplacement ${MOVE_MODES[mode]}, puis ${ARRIVALS[arrivee]}.`, { team: teamIndex, unit: units[0].id, ordre: id, mode });
+    this.logEvent('moveorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — déplacement ${MOVE_MODES[mode]}, puis ${ARRIVALS[arrivee]}${arr !== arrivee ? ` (à ${units.length}, ${ARRIVALS[arr]})` : ''}.`, { team: teamIndex, unit: units[0].id, ordre: id, mode });
     return { ok: true, id, x: p.x, z: p.z };
+  };
+  // ---- Encercler (arrivée) : « localiser et circonscrire » ----------------------------------------------------------------
+  // Le groupe se partage en deux sous-groupes qui prennent position de deux côtés du point (à ~8–14 m, à ~80–125° l'un de
+  // l'autre autour de lui, du côté d'où l'on vient : jamais face à face, pas de tirs croisés entre eux), sur des couverts
+  // d'où l'on voit le point et qu'un chemin rejoint. Chacun y tient face au point (son secteur principal). Renvoie une place
+  // par opérateur ({ x, z, sect, hid, cx, cz, face }) ou null (pas de place : on retombe sur « tenir »).
+  const ENC_R = [8, 14], ENC_SIDE = 0.85, ENC_WIN = 0.25;
+  Battle.prototype.encircleSpots = function (team, units, p, dir) {
+    const back = dir + Math.PI, sides = [back + ENC_SIDE, back - ENC_SIDE], m = this.map;
+    // à chacun le côté le plus proche de lui (autour du point), moitié-moitié
+    const sd = (u) => { let d = Math.atan2(u.z - p.z, u.x - p.x) - back; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
+    const order = units.map((u, k) => k).sort((i, j) => sd(units[j]) - sd(units[i]) || i - j), nA = Math.ceil(units.length / 2);
+    const out = new Array(units.length), taken = [];
+    const free = (x, z) => !taken.some(q => Math.hypot(q.x - x, q.z - z) < ORDER_GAP - 0.5);
+    for (let s = 0; s < 2; s++) {
+      const ks = s === 0 ? order.slice(0, nA) : order.slice(nA), from = units[ks[0]];
+      const score = (x, z, a0) => {
+        const d = Math.hypot(x - p.x, z - p.z), a = Math.atan2(z - p.z, x - p.x);
+        if (d < ENC_R[0] || d > ENC_R[1] || (a0 !== null && angDiff(a, a0) > ENC_WIN) || !free(x, z) || this.nearCorpse(x, z)) return -Infinity;
+        return -Math.abs(d - 11) * 0.3 - (a0 === null ? 0 : angDiff(a, a0) * 4) + (this.coverAt(x, z, p.x, p.z, true) ? 3 : 0) + (m.hasLOS(x, EYE.stand, z, p.x, CHEST.stand, p.z) ? 2 : 0);
+      };
+      // le centre du sous-groupe : le meilleur couvert dans la fenêtre de son côté, sinon un point libre à 11 m
+      let best = null, bs = -Infinity;
+      for (const c0 of m.coverPoints) { const h = this.hug(c0), sc = score(h.hx, h.hz, sides[s]); if (sc > bs && m.findPath(from.x, from.z, h.hx, h.hz)) { bs = sc; best = { x: h.hx, z: h.hz }; } }
+      if (!best) for (const R of [11, 9, 13]) { const q = this.orderPoint(p.x + Math.cos(sides[s]) * R, p.z + Math.sin(sides[s]) * R); if (q && free(q.x, q.z) && m.findPath(from.x, from.z, q.x, q.z)) { best = q; break; } }
+      if (!best) return null;
+      const face = Math.atan2(p.z - best.z, p.x - best.x), hid = 'e' + s;
+      ks.forEach((k, i) => {
+        let q = null;
+        if (i === 0) q = best;
+        else {
+          let qs = -Infinity;
+          for (const c0 of m.coverPoints) { const h = this.hug(c0); if (Math.hypot(h.hx - best.x, h.hz - best.z) > 5.5) continue; const sc = score(h.hx, h.hz, null) - Math.hypot(h.hx - best.x, h.hz - best.z) * 0.4; if (sc > qs && m.findPath(units[k].x, units[k].z, h.hx, h.hz)) { qs = sc; q = { x: h.hx, z: h.hz }; } }
+          for (let j = 1; j < 8 && !q; j++) { const off = ORDER_GAP * Math.ceil(j / 2) * (j % 2 ? 1 : -1), r = this.orderPoint(best.x + Math.cos(face + Math.PI / 2) * off, best.z + Math.sin(face + Math.PI / 2) * off); if (r && free(r.x, r.z) && m.findPath(units[k].x, units[k].z, r.x, r.z)) q = r; }
+          if (!q) q = best;
+        }
+        taken.push(q);
+        out[k] = { x: q.x, z: q.z, sect: Math.atan2(p.z - q.z, p.x - q.x), hid, cx: best.x, cz: best.z, face };
+      });
+    }
+    return out;
+  };
+  // ---- Franchissement (déplacement) : traverser un espace découvert sous appui --------------------------------------------
+  // (« la rue tue » ; conception/doctrines/france.md §5 C3.) Le trajet est examiné à l'ordre : un tronçon d'au moins 5 m
+  // sans obstacle à moins de 1,5 m et vu de l'ennemi (une position ennemie connue en vue, sinon une grande ouverture vers le
+  // camp adverse — map.openness) est un « découvert ». Ailleurs, on progresse comme en méthodique. Au bord d'un découvert :
+  //  1) halte, chacun à couvert au bord (place à soi), face au côté dangereux ;
+  //  2) on traverse un par un (par deux à partir de quatre), au sprint, jusqu'à un couvert de l'autre côté ;
+  //  3) le premier passé couvre l'autre côté, les suivants passent l'un après l'autre (0,6 s d'écart), les autres couvrent ;
+  //  4) tous passés : on reprend la progression (découvert suivant, ou le point).
+  const CROSS_CLEAR = 1.5, CROSS_OPEN = 3, CROSS_MIN = 6, CROSS_SKIP = 4, CROSS_GAP = 0.6, CROSS_RUN_MAX = 12, CROSS_WAIT = 8;
+  Battle.prototype.clearance = function (x, z) {
+    let n = Infinity; for (const o of this.map.obstacles) if (o.h >= COVER_MIN_H) n = Math.min(n, edgeDist(x, z, o)); return n;
+  };
+  Battle.prototype.pathLen = function (x0, z0, x1, z1) {
+    if (this.map.walkableSegment(x0, z0, x1, z1)) return Math.hypot(x1 - x0, z1 - z0);
+    const p = this.map.findPath(x0, z0, x1, z1); if (!p) return null;
+    let L = Math.hypot(p[0].x - x0, p[0].z - z0) + Math.hypot(x1 - p[p.length - 1].x, z1 - p[p.length - 1].z);
+    for (let i = 1; i < p.length; i++) L += Math.hypot(p[i].x - p[i - 1].x, p[i].z - p[i - 1].z);
+    return L;
+  };
+  Battle.prototype.findCrossings = function (team, x0, z0, x1, z1) {
+    const path = this.map.findPath(x0, z0, x1, z1); if (!path) return [];
+    // le trajet échantillonné tous les mètres (abscisse curviligne)
+    const pts = [{ x: x0, z: z0 }].concat(path), S = [];
+    let acc = 0, next = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], c = pts[i], L = Math.hypot(c.x - a.x, c.z - a.z);
+      while (next <= acc + L) { const t = L > 1e-6 ? (next - acc) / L : 0; S.push({ x: a.x + (c.x - a.x) * t, z: a.z + (c.z - a.z) * t }); next += 1; }
+      acc += L;
+    }
+    S.push({ x: x1, z: z1 });
+    const dirx = Math.sign(this.map.spawns[1 - team.index].x - this.map.spawns[team.index].x) || 1, known = [];
+    for (const a of team.units) if (a.alive) for (const id in a.knowledge) { const k = a.knowledge[id], e = this.unitById(id); if (e && e.alive && this.t - k.t < 30) known.push(k); }
+    const open = S.map(q => this.clearance(q.x, q.z) >= CROSS_CLEAR && (known.some(k => Math.hypot(k.x - q.x, k.z - q.z) < 60 && this.map.hasLOS(k.x, EYE.stand, k.z, q.x, CHEST.stand, q.z)) || this.map.openness(q.x, q.z, dirx, 8) >= CROSS_OPEN));
+    for (let i = 1; i < open.length - 1; i++) if (!open[i] && open[i - 1] && (open[i + 1] || (i + 2 < open.length && open[i + 2]))) open[i] = true;   // trous de 1–2 m : un seul découvert
+    const out = [];
+    for (let i = 0; i < open.length; i++) {
+      if (!open[i]) continue;
+      let j = i; while (j + 1 < open.length && open[j + 1]) j++;
+      if (j - i + 1 >= CROSS_MIN && i >= CROSS_SKIP && out.length < 3) {
+        const A = S[i - 1], B = S[Math.min(S.length - 1, j + 1)], L = Math.hypot(B.x - A.x, B.z - A.z) || 1, M = S[(i + j) >> 1];
+        out.push({ ax: A.x, az: A.z, bx: B.x, bz: B.z, mx: M.x, mz: M.z, fx: (B.x - A.x) / L, fz: (B.z - A.z) / L, end: j + 1 >= S.length - 1 });
+      }
+      i = j;
+    }
+    return out;
+  };
+  // côté dangereux d'un découvert : l'ennemi connu le plus proche du milieu ; sinon, de travers, du côté du camp adverse
+  // (en enfilade de l'allée) — ou devant si l'on traverse droit vers lui
+  Battle.prototype.crossDanger = function (team, C) {
+    let best = null, bd = 60;
+    for (const a of team.units) if (a.alive) for (const id in a.knowledge) { const k = a.knowledge[id], e = this.unitById(id); if (!e || !e.alive || this.t - k.t > 20) continue; const d = Math.hypot(k.x - C.mx, k.z - C.mz); if (d < bd) { bd = d; best = k; } }
+    if (best) return { x: best.x, z: best.z };
+    const ex = Math.sign(this.map.spawns[1 - team.index].x - this.map.spawns[team.index].x) || 1;
+    if (Math.abs(C.fx) > 0.7 && C.fx * ex > 0) return { x: C.bx + C.fx * 20, z: C.bz + C.fz * 20 };
+    const n = (-C.fz * ex) >= 0 ? { x: -C.fz, z: C.fx } : { x: C.fz, z: -C.fx };
+    return { x: C.mx + n.x * 20, z: C.mz + n.z * 20 };
+  };
+  // une place à couvert au bord (côté départ : far = false) ou de l'autre côté (far = true) du découvert, à soi seul
+  Battle.prototype.crossSpot = function (u, g, C, far) {
+    const tab = far ? g.far : g.stage; if (tab[u.id]) return tab[u.id];
+    const o = u.moveOrder, ref = far ? { x: C.bx, z: C.bz } : { x: C.ax, z: C.az }, dg = this.crossDanger(this.teams[u.team], C);
+    if (far && C.end) return (tab[u.id] = { x: o.x, z: o.z });                 // le découvert va jusqu'au point : sa place d'arrivée
+    const others = Object.keys(tab).map(k => tab[k]);
+    const ok = (x, z) => !others.some(q => Math.hypot(q.x - x, q.z - z) < 2.2) && !this.nearCorpse(x, z);
+    let best = null, bs = -Infinity;
+    for (const c0 of this.map.coverPoints) {
+      const h = this.hug(c0), d = Math.hypot(h.hx - ref.x, h.hz - ref.z); if (d > 6) continue;
+      const pr = (h.hx - ref.x) * C.fx + (h.hz - ref.z) * C.fz; if (far ? pr < -0.5 : pr > 0.5) continue;   // du bon côté du découvert
+      if (!ok(h.hx, h.hz)) continue;
+      let sc = -d + (this.coverAt(h.hx, h.hz, dg.x, dg.z, true) ? 3 : 0);
+      if (sc - Math.hypot(h.hx - u.x, h.hz - u.z) * 0.3 <= bs) continue;
+      // par un chemin court (pas de détour qui ramène en arrière ou fait le tour d'une rangée de voitures)
+      const L = this.pathLen(u.x, u.z, h.hx, h.hz); if (L === null || L > Math.hypot(ref.x - u.x, ref.z - u.z) + 6) continue;
+      sc -= L * 0.3;
+      if (sc > bs) { bs = sc; best = { x: h.hx, z: h.hz }; }
+    }
+    for (let j = 0; j < 9 && !best; j++) {
+      const off = 2.5 * Math.ceil(j / 2) * (j % 2 ? 1 : -1), q = this.orderPoint(ref.x - C.fz * off, ref.z + C.fx * off);
+      if (q && ok(q.x, q.z) && this.map.findPath(u.x, u.z, q.x, q.z)) best = q;
+    }
+    return (tab[u.id] = best || { x: ref.x, z: ref.z });
+  };
+  // phases du groupe (appelé à chaque pas, avant les bonds) : halte au bord → passages un par un (ou deux par deux)
+  Battle.prototype.updateCrossing = function (team, g, act) {
+    const C = g.cross && g.cross[g.ci]; if (!C || !act.length) return;
+    if (g.phase === 'move') {
+      const at = act.filter(u => g.stage[u.id] && !u.goal && Math.hypot(g.stage[u.id].x - u.x, g.stage[u.id].z - u.z) < 1.3);
+      if (at.length && g.firstAt === undefined) g.firstAt = this.t;
+      if (at.length === act.length || (at.length && this.t - g.firstAt > CROSS_WAIT)) {
+        g.phase = 'cross'; g.runners = []; g.crossed = []; g.nextAt = this.t + 0.4;
+        g.queue = act.map(u => u.id).sort((i, j) => { const a = this.unitById(i), b = this.unitById(j); return Math.hypot(a.x - C.bx, a.z - C.bz) - Math.hypot(b.x - C.bx, b.z - C.bz) || (i < j ? -1 : 1); });
+        this.logEvent('franchir', `${team.name} : découvert devant — on passe ${act.length >= 4 ? 'deux par deux' : 'un par un'}, sous appui.`, { team: team.index, ordre: g.id, unit: act[0].id, silent: true });
+      }
+      return;
+    }
+    // passage en cours : un coureur est arrivé (marqué par followCross), tombé, ou n'est plus de l'ordre
+    const live = (id) => { const u = this.unitById(id); return u && u.alive && u.moveOrder && u.moveOrder.id === g.id; };
+    for (const id of g.runners) if (!g.crossed.includes(id) && (!live(id) || this.t - g.runAt > CROSS_RUN_MAX)) g.crossed.push(id);
+    if (!g.runners.every(id => g.crossed.includes(id))) { g.nextAt = this.t + CROSS_GAP; return; }
+    g.queue = g.queue.filter(live);
+    if (!g.queue.length) {
+      g.ci++; g.phase = 'move'; g.firstAt = undefined; g.stage = {}; g.far = {}; g.runners = []; g.bound.since = this.t; g.bound.n++;
+      this.logEvent('franchir', `${team.name} : tout le monde est passé.`, { team: team.index, ordre: g.id, silent: true });
+      return;
+    }
+    if (this.t < g.nextAt) return;
+    g.runners = g.queue.splice(0, act.length >= 4 ? 2 : 1); g.runAt = this.t;
+    const cover = act.filter(u => !g.runners.includes(u.id));
+    this.logEvent('bond', `${team.name} — ${g.runners.map(id => this.unitById(id).callsign).join(', ')} : « Je passe ! »${cover.length ? ` ${cover[0].callsign} : « Couvert ! »` : ''}`, { team: team.index, unit: g.runners[0], couvre: cover.length ? cover[0].id : null, silent: true });
+  };
+  // un opérateur d'un groupe en franchissement
+  Battle.prototype.followCross = function (u, o, tp, threats, dNow) {
+    const g = (this.teams[u.team].moveGroups || []).find(x => x.id === o.id), C = g && g.cross && g.cross[g.ci];
+    if (!C) { this.orderBound(u, o, tp, threats, dNow); return; }
+    const dg = this.crossDanger(this.teams[u.team], C);
+    const holdAt = (q, cov) => {                                             // à sa place : couvre le côté dangereux
+      if (Math.hypot(q.x - u.x, q.z - u.z) > 1.0 && this.setGoal(u, q.x, q.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; }
+      this.stop(u); o.doneN = g.bound.n;
+      if (threats.length) { u.state = 'engage'; u.stance = (u.reloading > 0 && this.coverAt(u.x, u.z, dg.x, dg.z, true)) ? 'crouch' : 'stand'; return; }
+      if (!u.target || !u.target.alive) u.facing = Math.atan2(dg.z - u.z, dg.x - u.x) + (cov ? 0 : 0.35 * Math.sin(this.t * 0.7 + u.idx));
+      u.state = 'overwatch'; u.stance = this.waitStance(u, dg);
+    };
+    if (g.phase === 'move') {
+      const st = this.crossSpot(u, g, C, false), d = Math.hypot(st.x - u.x, st.z - u.z);
+      if (d < 1.3 && !(u.goal && u.goalKind === 'bound')) { holdAt(st, true); return; }
+      const sx = o.x, sz = o.z; o.x = st.x; o.z = st.z;                       // bonds méthodiques jusqu'au bord
+      try { this.orderBound(u, o, tp, threats, d); } finally { o.x = sx; o.z = sz; }
+      return;
+    }
+    if (g.crossed.includes(u.id)) { holdAt(this.crossSpot(u, g, C, true), false); return; }   // passé : couvre l'autre côté
+    if (g.runners.includes(u.id)) {
+      const f = this.crossSpot(u, g, C, true);
+      if (Math.hypot(f.x - u.x, f.z - u.z) < 1.0) { g.crossed.push(u.id); holdAt(f, false); return; }
+      if (this.setGoal(u, f.x, f.z, 'cover')) { u.state = 'crossing'; u.stance = 'stand'; return; }
+      g.crossed.push(u.id); holdAt(u, false); return;
+    }
+    holdAt(this.crossSpot(u, g, C, false), true);                             // attend son tour au bord, en appui
   };
   Battle.prototype.groupActive = function (g) { return g.members.some(id => { const u = this.unitById(id); return u && u.alive && u.moveOrder && u.moveOrder.id === g.id; }); };
   const boundingNow = (u, b) => u.moveOrder.half === b.group && u.moveOrder.doneN !== b.n;
@@ -1227,8 +1416,9 @@
       if (!team.moveGroups || !team.moveGroups.length) continue;
       team.moveGroups = team.moveGroups.filter(g => this.groupActive(g));
       for (const g of team.moveGroups) {
-        if (g.mode !== 'methodique') continue;
+        if (g.mode !== 'methodique' && g.mode !== 'franchir') continue;
         const act = g.members.map(id => this.unitById(id)).filter(u => u && u.alive && u.moveOrder && u.moveOrder.id === g.id);
+        if (g.mode === 'franchir') { this.updateCrossing(team, g, act); if (g.phase === 'cross') continue; }   // pas de bonds pendant un passage
         const b = g.bound, movers = act.filter(u => u.moveOrder.half === b.group), others = act.filter(u => u.moveOrder.half !== b.group);
         const el = this.t - b.since;
         const done = !movers.length || (el > 2.5 && movers.every(u => u.moveOrder.doneN === b.n || BUSY[u.state])) || el > 12;
@@ -1247,6 +1437,7 @@
     const th = threats.length ? (beingShot && u.lastShotBy && u.lastShotBy.alive ? u.lastShotBy : (u.target && u.target.alive ? u.target : threats[0])) : this.mainThreat(u);
     const tp = th || { x: o.x + Math.cos(o.dir) * 25, z: o.z + Math.sin(o.dir) * 25 };   // sans menace : dans le sens de la marche
     if (o.mode === 'agressif') this.orderRush(u, o, tp, threats, beingShot, dNow);
+    else if (o.mode === 'franchir') this.followCross(u, o, tp, threats, dNow);
     else this.orderBound(u, o, tp, threats, dNow);
   };
   Battle.prototype.orderRush = function (u, o, tp, threats, beingShot, dNow) {
@@ -1328,14 +1519,15 @@
       }
       if (best && this.map.findPath(u.x, u.z, best.x, best.z)) post = best;
     }
-    u.keyOrder = { id: 'ordre' + o.id, nom: 'point ordonné', x: post.x, z: post.z, r: 2.5, menace: face, held: true, ordre: o.id };
+    u.keyOrder = { id: 'ordre' + o.id, nom: 'point ordonné', x: post.x, z: post.z, r: 2.5, menace: face, held: true, ordre: o.hid !== undefined ? o.hid : o.id, grp: o.id };
     if (ring) Object.assign(u.keyOrder, { cx: o.px, cz: o.pz, face0: o.face, sect: o.sect, hx: post.x, hz: post.z });
+    if (o.enc) u.keyOrder.enc = o.enc;
     this.stop(u); u.commitUntil = 0;
     this.logEvent('enplace', `${u.callsign} : « En place. »`, { unit: u.id, team: u.team, ordre: o.id, silent: true });
     const team = this.teams[u.team], g = (team.moveGroups || []).find(x => x.id === o.id);
     if (g && !this.groupActive(g)) {
-      const here = g.members.map(id => this.unitById(id)).filter(a => a && a.alive && a.keyOrder && a.keyOrder.ordre === o.id).map(a => a.callsign);
-      this.logEvent('enplace', `${team.name} : ${here.join(', ')} ${here.length > 1 ? 'sont en place et tiennent' : 'est en place et tient'} la position.`, { team: u.team, ordre: o.id });
+      const here = g.members.map(id => this.unitById(id)).filter(a => a && a.alive && a.keyOrder && a.keyOrder.grp === o.id).map(a => a.callsign);
+      this.logEvent('enplace', `${team.name} : ${here.join(', ')} ${here.length > 1 ? 'sont en place et tiennent' : 'est en place et tient'} ${o.enc ? 'le point encerclé, de deux côtés' : 'la position'}.`, { team: u.team, ordre: o.id });
     }
   };
   // arrivée « reprendre la manœuvre » : l'ordre s'efface et l'opérateur reprend la conduite autonome de l'escouade (voies,

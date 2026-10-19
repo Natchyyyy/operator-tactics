@@ -266,7 +266,7 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
         if (!u.alive) continue;
         if (!u.moveOrder && b.t > 1.2 && !arr[u.id]) arr[u.id] = { t: b.t, x: u.x, moved: false, key: false, back: 0 };
         const a = arr[u.id]; if (!a || b.t > a.t + 5) continue;
-        if (u.moving) a.moved = true; if (u.keyOrder || u.state === 'holdkey') a.key = true;
+        if (u.moving || u.state === 'overwatch') a.moved = true; if (u.keyOrder || u.state === 'holdkey') a.key = true;
         a.back = Math.max(a.back, (a.x - u.x) * dirx);
       }
       if (Math.abs(b.t - Math.round(b.t)) < 0.05) trace.push(b.units.map(u => u.x.toFixed(2) + ',' + u.z.toFixed(2)).join(';'));
@@ -276,7 +276,40 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   const R1 = runM(4), R2 = runM(4, { replayInputs: R1.b.inputs });
   const rec = R1.b.inputs.filter(c => c.type === 'aller');
   check('arrivée « reprendre la manœuvre » : ordre accepté, enregistré (arrivee: manoeuvre) et journalisé', R1.r.ok && rec.length === 1 && rec[0].arg.arrivee === 'manoeuvre' && R1.b.log.some(l => l.kind === 'moveorder' && /puis reprendre la manœuvre/.test(l.text)) && R1.b.log.some(l => l.kind === 'reprise' && /reprennent la manœuvre/.test(l.text)), { r: R1.r, rec });
-  check('arrivée « reprendre la manœuvre » : à l\'arrivée, plus d\'ordre (ni poste « tenir ») ; chacun repart seul dans les 5 s, sans revenir en arrière (≤ 3 m)', R1.arr.length === 5 && R1.arr.every(a => !a.key && a.moved && a.back <= 3) && R1.b.teams[0].units.every(u => !u.keyOrder), { arr: R1.arr });
+  check('arrivée « reprendre la manœuvre » : à l\'arrivée, plus d\'ordre (ni poste « tenir ») ; chacun reprend la manœuvre dans les 5 s (il avance, ou couvre le bond du Tiroir), sans revenir en arrière (≤ 3 m)', R1.arr.length === 5 && R1.arr.every(a => !a.key && a.moved && a.back <= 3) && R1.b.teams[0].units.every(u => !u.keyOrder), { arr: R1.arr });
   check('arrivée « reprendre la manœuvre » : la bataille revue est identique (positions seconde par seconde, résultat)', R1.trace === R2.trace && JSON.stringify(R1.b.result) === JSON.stringify(R2.b.result) && R2.b.inputs.length === R1.b.inputs.length);
+  // déplacement « franchissement » : halte au bord du découvert, puis passages un par un (deux par deux à 4–5), sous appui
+  const runF = (o) => {
+    const b = mkA(4, o); while (b.t < 1) b.step();
+    if (!b.replayQueue) b.command('aller', 0, { x: 25, z: 38, units: null, mode: 'franchir', arrivee: 'tenir' });
+    const g = b.teams[0].moveGroups && b.teams[0].moveGroups[0], nCross = g && g.cross ? g.cross.length : 0;
+    let maxC = 0, crossT = 0, all = null, halt = 0, trace = [];
+    while (b.t < 100 && !b.over) {
+      b.step();
+      const A = b.teams[0].units.filter(u => u.alive), c = A.filter(u => u.state === 'crossing').length;
+      maxC = Math.max(maxC, c); if (c) crossT += 0.1;
+      if (c && A.filter(u => u.moveOrder && u.state !== 'crossing' && !u.moving).length >= 2) halt++;   // pendant qu'on passe, d'autres couvrent, arrêtés
+      if (all === null && !A.some(u => u.moveOrder)) all = b.t;
+      if (Math.abs(b.t - Math.round(b.t)) < 0.05) trace.push(b.units.map(u => u.x.toFixed(2) + ',' + u.z.toFixed(2)).join(';'));
+      if (all !== null && b.t > all + 2) break;
+    }
+    return { b, nCross, maxC, crossT, all, halt, trace: trace.join('|') };
+  };
+  const F1 = runF(), F2 = runF({ replayInputs: F1.b.inputs });
+  check('franchissement : découverts trouvés sur le trajet ; jamais plus de deux à traverser en même temps, les autres couvrent ; tout le monde passe et arrive', F1.nCross >= 1 && F1.maxC >= 1 && F1.maxC <= 2 && F1.crossT > 3 && F1.halt > 20 && F1.all !== null && F1.b.log.some(l => l.kind === 'franchir' && /tout le monde est passé/.test(l.text)), { nCross: F1.nCross, maxC: F1.maxC, crossT: F1.crossT, halt: F1.halt, all: F1.all });
+  check('franchissement : la bataille revue est identique', F1.trace === F2.trace && F1.all === F2.all);
+  // arrivée « encercler » : deux sous-groupes de deux côtés du point (≥ 60° autour de lui), face à lui ; à deux : « tenir »
+  const runE = (units) => {
+    const b = mkA(4); while (b.t < 1) b.step();
+    const r = b.command('aller', 0, { x: 35, z: 23, units, mode: 'methodique', arrivee: 'encercler' });
+    let all = null; while (b.t < 80 && !b.over) { b.step(); if (all === null && !b.teams[0].units.some(u => u.alive && u.moveOrder)) all = b.t; if (all !== null && b.t > all + 3) break; }
+    const gs = {}; for (const u of b.teams[0].units) if (u.alive && u.keyOrder) (gs[u.keyOrder.ordre] = gs[u.keyOrder.ordre] || []).push(u);
+    const ang = Object.values(gs).map(us => Math.atan2(us.reduce((s, u) => s + u.z, 0) / us.length - r.z, us.reduce((s, u) => s + u.x, 0) / us.length - r.x));
+    let sep = ang.length === 2 ? Math.abs(ang[0] - ang[1]) % (2 * Math.PI) : 0; if (sep > Math.PI) sep = 2 * Math.PI - sep;
+    return { b, r, all, groups: Object.keys(gs).length, sizes: Object.values(gs).map(us => us.length), sep: sep * 180 / Math.PI };
+  };
+  const E = runE(null), E2 = runE(['0:op_lynx', '0:op_granit']);
+  check('encercler : deux sous-groupes arrivés de deux côtés du point, à plus de 60° (et moins de 140°) l\'un de l\'autre, qui le tiennent', E.r.ok && E.all !== null && E.groups === 2 && E.sep >= 60 && E.sep <= 140 && E.b.teams[0].units.filter(u => u.alive && u.keyOrder).every(u => u.keyOrder.enc) && E.b.log.some(l => /de deux côtés/.test(l.text)), { all: E.all, groups: E.groups, sizes: E.sizes, sep: E.sep });
+  check('encercler : à deux opérateurs, retombe sur « tenir la position »', E2.r.ok && E2.groups === 1 && E2.b.log.some(l => l.kind === 'moveorder' && /\(à 2, tenir la position\)/.test(l.text)), { groups: E2.groups });
 }
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

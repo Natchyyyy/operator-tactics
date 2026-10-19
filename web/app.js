@@ -7,7 +7,7 @@
   const MANUAL = params.get('manual') === '1';
   if (MANUAL) document.documentElement.classList.add('manual');   // captures reproductibles : pas de transitions CSS (aucune image n'est dessinée entre deux étapes)
 
-  const STATE_FR = { rush: 'Fonce (ordre)', tokey: 'Rejoint son poste', holdkey: 'Tient la position', throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié', shaken: 'Ébranlé' };
+  const STATE_FR = { rush: 'Fonce (ordre)', crossing: 'Traverse le découvert', tokey: 'Rejoint son poste', holdkey: 'Tient la position', throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié', shaken: 'Ébranlé' };
   const STATUS_FR = { ok: 'Indemne', wounded: 'Blessé', critical: 'Grave', down: 'Neutralisé' };
   const TEAM = [
     { name: 'Alpha', color: 0x4f9cf0, css: '#4f9cf0', uniform: 0x3a4a3c, vest: 0x2b352d },
@@ -88,7 +88,7 @@
     DIRECTOR.pending = { kind, x, z, at: simTime };
   }
   function engagedUnits(win) { win = win || 2.5; return battle.units.filter(u => u.alive && (battle.t - u.lastShotAt < win || battle.t - u.lastShotByAt < win)); }
-  const MOVE_STATES = { tocover: 2, bounding: 1.5, advancing: 1, closing: 1.5, tozone: 1.5, torevive: 2.5, fallback: 1.5, retreat: 1.5, reposition: 1, evade: 2.5 };
+  const MOVE_STATES = { crossing: 2, tocover: 2, bounding: 1.5, advancing: 1, closing: 1.5, tozone: 1.5, torevive: 2.5, fallback: 1.5, retreat: 1.5, reposition: 1, evade: 2.5 };
   function recentlyShown(id, kind) {   // pénalité de répétition : même soldat ou même type de plan dans les 25 dernières secondes
     let p = 0;
     for (const h of DIRECTOR.hist) { const k = 1 - (DIRECTOR.clock - h.at) / 25; if (k <= 0) continue; if (id && h.id === id) p += 2.5 * k; if (h.kind === kind) p += 1.2 * k; }
@@ -1374,7 +1374,7 @@
     a.aim = lerp(a.aim, u.alive && (u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture') ? 1 : 0, Math.min(1, dt * 6));
     if (!u.alive) a.fall = Math.min(1, Math.max(0, (simTime + postEnd - (u.downAt || 0)) * 2.2));
     a.recoil = Math.max(0, a.recoil - dt * 10); a.flinch = Math.max(0, a.flinch - dt * 4);
-    const walking = u.alive && u.moving, running = walking && (u.state === 'closing' || u.state === 'retreat' || u.state === 'evade' || u.state === 'tozone');
+    const walking = u.alive && u.moving, running = walking && (u.state === 'closing' || u.state === 'crossing' || u.state === 'retreat' || u.state === 'evade' || u.state === 'tozone');
     if (walking) a.phase += dt * (running ? 11 : 8.5);
     const swing = walking ? Math.sin(a.phase) : 0, swingAmp = (running ? 0.7 : 0.5) * (1 - a.crouch * 0.6);
     // jambes : hanche et genou ; accroupi = cuisses vers l'avant, genoux pliés, bassin abaissé
@@ -2040,14 +2040,20 @@
   const ORD_SVG = {
     methodique: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 22l5-5 5 5M5 15l5-5 5 5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/><path d="M17 17l5-5 5 5M17 10l5-5 5 5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="27" r="2.2" fill="currentColor" opacity=".55"/><circle cx="22" cy="21" r="2.2" fill="currentColor"/></svg>',
     agressif: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 8l8 8-8 8M15 8l8 8-8 8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 9v14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
+    franchir: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="7" width="4" height="18" rx="1.2" fill="currentColor" opacity=".55"/><rect x="25" y="7" width="4" height="18" rx="1.2" fill="currentColor" opacity=".55"/><path d="M10 16h3M15.5 16h3" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M19.5 11.5L23 16l-3.5 4.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.5" cy="24.5" r="1.8" fill="currentColor" opacity=".55"/><circle cx="22.5" cy="24.5" r="1.8" fill="currentColor"/></svg>',
+    encercler: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="11" r="4" fill="none" stroke="currentColor" stroke-width="2.6"/><circle cx="16" cy="11" r="1.2" fill="currentColor"/><path d="M4 27l7.5-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M28 27l-7.5-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M7.5 18h4v4M24.5 18h-4v4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    manoeuvre: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="8" cy="22" r="3.2" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M11.5 19.5C15 15 18 13 24 12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M19 7l6 5-5 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     tenir: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4l10 4v7c0 6.5-4.3 11-10 13-5.7-2-10-6.5-10-13V8z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M11 16l4 4 6-7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   };
   const ORD_OPTS = {
     mode: { titre: 'Déplacement', choix: [
       { v: 'methodique', nom: 'Méthodique', aide: 'Bonds, appui mutuel', desc: 'Doctrine française : une moitié bondit de couvert en couvert pendant que l’autre couvre, chacun son secteur ; pauses à chaque couvert.' },
-      { v: 'agressif', nom: 'Agressif', aide: 'Vite, tire en avançant', desc: 'Droit au point au pas de course, en tirant sur ce qu’on voit ; courte halte à couvert seulement sous le feu.' }] },
+      { v: 'agressif', nom: 'Agressif', aide: 'Vite, tire en avançant', desc: 'Droit au point au pas de course, en tirant sur ce qu’on voit ; courte halte à couvert seulement sous le feu.' },
+      { v: 'franchir', nom: 'Franchissement', aide: 'Un par un sous appui', desc: 'Comme Méthodique, mais un espace découvert sur le trajet se traverse un par un (deux par deux à 4 ou 5), au sprint, pendant que les autres couvrent le côté dangereux depuis le bord ; le premier passé couvre l’autre côté.' }] },
     arrivee: { titre: 'Arrivée', choix: [
-      { v: 'tenir', nom: 'Tenir la position', aide: 'À couvert, face à la menace', desc: 'Sur place : un couvert tout proche, face à la menace (ou dans le sens de la marche), et on y reste.' }] },
+      { v: 'tenir', nom: 'Tenir la position', aide: 'À couvert, face à la menace', desc: 'Sur place : un couvert tout proche, face à la menace (ou dans le sens de la marche), et on y reste.' },
+      { v: 'encercler', nom: 'Encercler', aide: 'Prendre la position par deux côtés', desc: 'L’escouade se partage en deux : chaque moitié prend position d’un côté du point (à 8–14 m, à angle d’environ 100°, sans se faire face), à couvert, et le tient. À moins de trois : tenir la position.' },
+      { v: 'manoeuvre', nom: 'Reprendre la manœuvre', aide: 'Puis l’escouade continue seule', desc: 'Une fois sur le point, l’ordre s’efface : l’escouade reprend sa progression d’elle-même (voies, Tiroir, ordre de l’équipe) à partir de là, sans revenir en arrière.' }] },
   };
   const ordLast = { mode: 'methodique', arrivee: 'tenir' };
   try { const s = JSON.parse(localStorage.getItem('ot-ordre') || 'null'); if (s) for (const k in ordLast) if (s[k] && ORD_OPTS[k].choix.some(c => c.v === s[k])) ordLast[k] = s[k]; } catch (e) { /* stockage indisponible */ }
@@ -2171,7 +2177,7 @@
     grenade: ['Grenade !'], throw: ['Grenade, à couvert !', 'Je lance !'], flank: ['Je contourne !', 'Je le prends par le flanc !'],
     noammo: ['Plus de munitions !'], revive_start: ['Je m\u2019occupe de lui !', 'J\u2019arrive, tiens bon !'], revive: ['Debout, on y retourne !', 'Je te tiens !'],
     flash: ['Je ne vois plus rien !', 'Aveuglé !'], shaken: ['Repli !', 'Je décroche !', 'Ça chauffe trop !'], suppress: ['Feu de suppression !', 'Je les cloue !'], down: ['Homme à terre !', 'On a un blessé !', 'Il est touché !'],
-    bouge: ['Je bouge !'], couvert: ['Couvert !'], enplace: ['En place.'],   // ordres de déplacement (clic droit)
+    bouge: ['Je bouge !'], couvert: ['Couvert !'], enplace: ['En place.'], reprise: ['Je reprends ma progression.'],   // ordres de déplacement (clic droit)
   };
   function bark(u, kind) {
     const m = u && meshes[u.id]; if (!m || !u.alive || ended || (m.barkUntil && simTime < m.barkUntil - 1.2)) return;
@@ -2216,6 +2222,7 @@
     else if (e.kind === 'moveorder' || e.kind === 'bond') { bark(u, 'bouge'); if (e.couvre) bark(unitById[e.couvre], 'couvert'); }
     else if (e.kind === 'couvre') bark(u, 'couvert');
     else if (e.kind === 'enplace' && u) bark(u, 'enplace');
+    else if (e.kind === 'reprise' && u) bark(u, 'reprise');
     else if (e.kind === 'down' && e.enemy && unitById[e.enemy]) {   // le coéquipier debout le plus proche du blessé
       const d = unitById[e.enemy]; let best = null, bd = 25; for (const a of battle.units) { if (!a.alive || a.team !== d.team) continue; const k = Math.hypot(a.x - d.x, a.z - d.z); if (k < bd) { bd = k; best = a; } }
       bark(best, 'down');
