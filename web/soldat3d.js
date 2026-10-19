@@ -93,7 +93,7 @@
   const TROT = { cap: 0.13, s: 0.47, hs: 0.6, rise: 0.5, dos: 0.45, kp: 0.55, foulee: { vol: { h0: 0.05, h1: 0.09, tb: 0.4, tf: -0.15, zb: -0.3, zf: 0.25, clr: 0.03 } } };   // kp : part gardée de la cambrure du pied
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
   const PENCHE = 0.21;
-  S.VIS_W = 12; S.VIS_A = 35;   // suivi de la direction de visée (poseArme) : pulsation (rad/s), accélération max (rad/s²)
+  S.VIS_W = 14; S.VIS_A = 45;   // suivi de la direction de visée (poseArme) : pulsation (rad/s), accélération max (rad/s²)
   S.PENCHE_ARRET = 0.26;   // visée à l'arrêt : cible de la penche (rad, repère de penche() ; 0,44 quand la penche était répartie sur trois os)
   S.PENCHE_EP = 0.5;   // direction de la penche (0,3 → 0,5 : roulis du buste 6-8° → 4-6°) : part de la normale des épaules (le reste : axe de visée)
   // visée : angle (rad) entre la ligne des épaules et la face (0 = carré, ~1,3 = de profil comme les visées Mixamo), voir penche()
@@ -1529,7 +1529,10 @@
         // le bassin des pas chassés / de la marche arrière n'est pas orienté comme celui de la marche avant : le dos rattrape
         if (this.dosComp && Math.abs(this.dosComp) > 0.01 && spine3.length) { body.updateMatrixWorld(true); mod(spine3[0]); twist(spine3[0], -this.dosComp); }   // (sur Spine : voir plus haut)
         // respiration (poses fixes : garde basse, visée) : légère flexion du dos
-        if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { mod(spine1); spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
+        // (sur Spine, qui porte la peau du buste — sur Spine1, seuls bras et tête « respiraient » ; poids lissé : plus de saut au
+        // changement de pose)
+        { const rk = this.respK = dt > 0 ? Math.max(0, Math.min(1, lisse2(this, 'respK', this.respK || 0, (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right') && !keepYaw ? 1 : 0, 4, dt))) : (this.respK || 0);
+          if (spine3[0] && rk > 0.01) { mod(spine3[0]); spine3[0].rotation.x += Math.sin(this.t * 1.9) * 0.012 * rk; spine3[0].rotation.z += Math.sin(this.t * 0.7) * 0.006 * rk; } }
         // (cible filtrée + ressort : la penche du buste et la tête, proportionnelles à gbK, démarrent sans à-coup — sortie de
         // rechargement : le ressort seul donnait 10 000 °/s² au buste à la 1re image)
         this.gbK = Math.max(0, Math.min(1, lisse2(this, 'gb', this.gbK || 0, this.clip === 'Garde_Basse' || this.clip === 'Walk_Low_Haut' || this.clip === 'Run_Low_Haut' || this.clip === 'Trot_Low_Haut' || BAS[this.clip] ? 1 : 0, 10, dt)));
