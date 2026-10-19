@@ -375,7 +375,7 @@
   }
 
   // -------------------------------------------------------------------------------------------- contrôleur
-  const Ctl = {
+  const nouveauControleur = () => ({
     pos: V3(), vel: V3(), acc: V3(), yaw: 0, yawV: 0, hPos: 0.25, hYaw: 0.15,
     touches: {}, visee: true, accroupi: false, chemin: null, cheminIdx: 0, camYaw: 0.6,
     vitesses: { marche: 1.25, course: 2.6, lat: 1.0 },
@@ -423,7 +423,7 @@
       [this.yaw, this.yawV] = ressortAngle(this.yaw, this.yawV, yGoal, this.hYaw, dt);
       return [vGoal, yGoal];
     }
-  };
+  });
 
   // -------------------------------------------------------------------------------------------- mesure du glissement
   class Glissement {
@@ -449,11 +449,101 @@
   }
 
   // -------------------------------------------------------------------------------------------- scène
-  let renderer, scene, camera, soldat, cam = { dist: 4.2, pitch: 0.42 }, horloge = 0;
-  let facteurRacine = 1, dernierSaut = -1, frame = 0, frameT = 0, poseQ, poseY = [0], ancQ, ancY = [0], derniereRecherche = 0, sauts = 0, sautsFen = [], styleCourant = 0;
-  const glisse = new Glissement(); let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
+  let renderer, scene, camera, cam = { dist: 4.2, pitch: 0.42 }, horloge = 0;
+  let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.05, fusil: { avant: 0.06, droite: -0.08, haut: -0.03, tangage: -0.5, cant: 0.3, buste: 0.3, lissage: 0.06, appuiZ: 0.03, torsion: 0.6 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { avant: 0.06, droite: -0.08, haut: -0.03, tangage: -0.5, cant: 0.3, buste: 0.3, lissage: 0.06, appuiZ: 0.03, torsion: 0.6 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+
+  // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
+  // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
+  class Agent {
+    constructor(soldat, ctl) {
+      this.soldat = soldat; this.ctl = ctl;
+      this.frame = Base.meta.sequences.find(s => /Swat_ID/.test(s.nom)).debut + 10; this.frameT = 0;
+      this.poseQ = Base.meta.os.map(() => Q()); this.poseY = [0]; this.ancQ = Base.meta.os.map(() => Q()); this.ancY = [0];
+      this.derniereRecherche = Math.random() * PARAMS.periode;   // recherches décalées entre agents
+      this.dernierSaut = -1; this.styleCourant = -1; this.facteurRacine = 1; this.sauts = 0; this.sautsFen = []; this.glisse = new Glissement();
+      soldat.poseDe(this.frame, 0, this.poseQ, this.poseY);
+    }
+    // requête : partie pose = fiche de l'image courante ; partie trajectoire = prédiction du contrôleur dans le repère du personnage
+    requete(vGoal, yGoal) {
+      const { nF, fn, meta, POIDS } = Base; const req = new Float32Array(nF);
+      const o = this.frame * nF; for (let k = 0; k < 15; k++) req[k] = fn[o + k];
+      const temps = meta.futur.map(f => f / meta.fps);
+      const [P, D] = this.ctl.predire(temps, vGoal, yGoal);
+      const inv = Q().setFromAxisAngle(UP, -this.soldat.yaw);
+      for (let k = 0; k < 3; k++) {
+        const p = P[k].clone().sub(this.soldat.pos); p.y = 0; p.applyQuaternion(inv); const d = D[k].clone().applyQuaternion(inv);
+        req[15 + 2 * k] = p.x; req[16 + 2 * k] = p.z; req[21 + 2 * k] = d.x; req[22 + 2 * k] = d.z;
+      }
+      for (let k = 15; k < nF; k++) req[k] = (req[k] - meta.moyenne[k]) / meta.ecartType[k] * POIDS[k];
+      return req;
+    }
+    pas(dt, now) {
+      const S = this.soldat, Ctl = this.ctl;
+      const [vGoal, yGoal] = Ctl.pas(dt);
+      // recherche toutes les 0,1 s, ou tout de suite si on change de style
+      const styleVoulu = Ctl.visee ? 2 : Ctl.accroupi ? 1 : 0;      // 2 = Swat (arme), 1 = accroupi (pas de données pour l'instant), 0 = neutre
+      this.derniereRecherche += dt;
+      if (this.derniereRecherche >= PARAMS.periode || styleVoulu !== this.styleCourant) {
+        this.derniereRecherche = 0;
+        const req = this.requete(vGoal, yGoal);
+        // à l'arrêt voulu et presque atteint : on ne cherche que dans les séquences de repos (sinon ping-pong entre des
+        // instants d'arrêt situés juste avant des départs, et piétinement)
+        const f = this.frame, vitAnimCour = Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]);
+        const auRepos = vGoal.lengthSq() < 0.01 && vitAnimCour < 0.35 && Ctl.vel.lengthSq() < 0.04;
+        const [best, bc] = chercher(req, styleVoulu, auRepos);
+        const cc = (Base.ok[f] && Base.style[f] === styleVoulu && (!auRepos || Base.repos[f])) ? cout(f, req) : Infinity;
+        if (this === agents[0]) { JOURNAL.push([+horloge.toFixed(2), +cc.toFixed(1), +bc.toFixed(1), best, f]); if (JOURNAL.length > 400) JOURNAL.shift(); }
+        if (best >= 0 && bc < cc * PARAMS.margeRel - PARAMS.margeSaut && Math.abs(best - f) > 2 && (horloge - this.dernierSaut >= (auRepos ? 0.6 : PARAMS.minSaut) || styleVoulu !== this.styleCourant)) {
+          this.dernierSaut = horloge; S.hLife = PARAMS.hLife;
+          // transition : écart entre la pose courante (telle qu'affichée) et la nouvelle
+          for (let k = 0; k < Base.J; k++) this.ancQ[k].copy(this.poseQ[k]); this.ancY[0] = this.poseY[0];
+          this.frame = best; this.frameT = 0; S.poseDe(this.frame, 0, this.poseQ, this.poseY);
+          S.transition(this.ancQ, this.ancY, this.poseQ, this.poseY); this.sauts++; this.sautsFen.push(now);
+        }
+        this.styleCourant = styleVoulu;
+      }
+      // avance dans la séquence
+      this.frameT += dt * Base.meta.fps;
+      while (this.frameT >= 1) { this.frameT -= 1; this.frame++; if (!Base.ok[this.frame] || Base.seq[this.frame] !== Base.seq[this.frame - 1]) { this.frame--; this.frameT = 0.999; break; } }
+      S.poseDe(this.frame, this.frameT, this.poseQ, this.poseY);
+      // déplacement par la racine de l'animation (vitesse locale → monde). La simulation du clavier est ensuite RECALÉE sur le
+      // personnage : elle ne garde que sa vitesse (l'intention), jamais un écart de position — sinon la requête demande en
+      // permanence « reviens de 30 cm » et le soldat marche tout seul, souvent à reculons.
+      const { v, w } = Base; const i = this.frame;
+      const vl = V3(v[i * 3], 0, v[i * 3 + 2]).applyAxisAngle(UP, S.yaw);
+      // à l'arrêt voulu, la racine ne se déplace plus (les « repos » capturés contiennent de lents piétinements : 10 cm/s qui
+      // feraient dériver le soldat de 50 cm en quelques secondes) ; le verrou des pieds garde les appuis en place
+      const vGoalNul = vGoal.lengthSq() < 0.01 && Ctl.vel.lengthSq() < 0.04 && Math.hypot(v[i * 3], v[i * 3 + 2]) < 0.35;
+      this.facteurRacine += ((vGoalNul ? 0 : 1) - this.facteurRacine) * Math.min(1, dt / 0.3);
+      S.yaw += w[i] * dt * this.facteurRacine; S.pos.addScaledVector(vl, dt * this.facteurRacine);
+      Ctl.pos.copy(S.pos); Ctl.yaw = S.yaw;
+      S.appliquer(this.poseQ, this.poseY, dt);
+      // appui = la base dit « en appui » ET l'orteil affiché est bas (juste après un saut de séquence, la pose affichée est
+      // encore un mélange : un pied en l'air ne doit ni être verrouillé ni compter comme glissement)
+      const cf = Base.contact[this.frame];
+      const contacts = S.orteils.map((o, k) => !!(cf & (k ? 1 : 2)) && o.getWorldPosition(V3()).y < seuilOrteil);
+      if (PARAMS.verrou) S.verrouPieds(contacts, dt);
+      S.tenirFusil(Ctl.visee, dt);
+      this.inst = this.glisse.mesurer(S.orteils, dt, contacts);
+      this.vGoal = vGoal; this.contacts = contacts;
+      while (this.sautsFen.length && now - this.sautsFen[0] > 2000) this.sautsFen.shift();
+    }
+  }
+  const agents = []; let gltfBuffer = null, fusilBuffer = null;
+
+  async function chargerGLB(url) { return new Promise((ok, ko) => new THREEX.GLTFLoader().load(url, ok, undefined, ko)); }
+  function fetchBuf(url) { return fetch(url).then(r => r.arrayBuffer()); }
+  async function nouveauSoldat(pos, yaw) {
+    const gltf = await new Promise((ok, ko) => new THREEX.GLTFLoader().parse(gltfBuffer.slice(0), '', ok, ko));
+    gltf.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+    const soldat = new Soldat(gltf); scene.add(soldat.group);
+    if (fusilBuffer) { try { const gf = await new Promise((ok, ko) => new THREEX.GLTFLoader().parse(fusilBuffer.slice(0), '', ok, ko)); soldat.equiperFusil(gf); soldat.mesurerPrise(); } catch (e) { console.warn('fusil :', e); } }
+    soldat.pos.copy(pos); soldat.yaw = yaw;
+    const ctl = nouveauControleur(); ctl.pos.copy(pos); ctl.yaw = yaw;
+    const A = new Agent(soldat, ctl); agents.push(A); return A;
+  }
 
   async function init() {
     renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
@@ -462,32 +552,31 @@
     camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.05, 100);
     const hemi = new THREE.HemisphereLight(0xbfd4ff, 0x3a2f22, 0.9); scene.add(hemi);
     const sun = new THREE.DirectionalLight(0xfff1d6, 1.6); sun.position.set(5, 9, 4); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.left = sun.shadow.camera.bottom = -8; sun.shadow.camera.right = sun.shadow.camera.top = 8; scene.add(sun);
+    sun.shadow.camera.left = sun.shadow.camera.bottom = -10; sun.shadow.camera.right = sun.shadow.camera.top = 10; scene.add(sun);
     const sol = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x3c4149, roughness: 0.95 })); sol.rotation.x = -Math.PI / 2; sol.receiveShadow = true; scene.add(sol);
     const grille = new THREE.GridHelper(60, 60, 0x5a6270, 0x2c3139); grille.position.y = 0.002; scene.add(grille);
     HUD.etat = document.getElementById('etat'); HUD.jauge = document.getElementById('jauge'); HUD.jaugeTxt = document.getElementById('jaugeTxt'); HUD.msg = document.getElementById('msg');
-    HUD.msg.textContent = 'Chargement de la base (13,6 Mo)…';
+    HUD.msg.textContent = 'Chargement de la base (13 Mo)…';
     await chargerBase();
     HUD.msg.textContent = 'Chargement du modèle…';
-    const gltf = await new Promise((ok, ko) => new THREEX.GLTFLoader().load((window.FICHIERS || {}).modele || 'gign_hd.glb', ok, undefined, ko));
-    gltf.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
-    soldat = new Soldat(gltf); scene.add(soldat.group);
-    try { const gf = await new Promise((ok, ko) => new THREEX.GLTFLoader().load((window.FICHIERS || {}).fusil || 'fusil.glb', ok, undefined, ko)); soldat.equiperFusil(gf); soldat.mesurerPrise(); } catch (e) { console.warn('fusil :', e); }
+    gltfBuffer = await fetchBuf((window.FICHIERS || {}).modele || 'gign_hd.glb');
+    try { fusilBuffer = await fetchBuf((window.FICHIERS || {}).fusil || 'fusil.glb'); } catch (e) { console.warn('fusil :', e); }
+    const A0 = await nouveauSoldat(V3(0, 0, 0), 0);
     // hauteur de repos des orteils du modèle (pose de liaison) → seuil d'appui
-    const yT = Math.min(...soldat.orteils.map(o => o.getWorldPosition(V3()).y)); seuilOrteil = yT + 0.05;
-    poseQ = Base.meta.os.map(() => Q()); ancQ = Base.meta.os.map(() => Q());
-    frame = Base.meta.sequences.find(s => /Neutral_ID/.test(s.nom)).debut + 10;
-    soldat.poseDe(frame, 0, poseQ, poseY);
+    const yT = Math.min(...A0.soldat.orteils.map(o => o.getWorldPosition(V3()).y)); seuilOrteil = yT + 0.05;
     HUD.msg.textContent = '';
     evenements();
     MANUEL = /[?&]manual=1/.test(location.search);
-    // API de test (mode manuel : ?manual=1) — pas de boucle automatique, on avance pas à pas
+    // API de test (mode manuel : ?manual=1) — pas de boucle automatique, on avance pas à pas ; les mesures portent sur l'agent 0
     window.API = {
-      step(n = 1, dt = 1 / 30) { for (let k = 0; k < n; k++) boucle(dt); return frame; },
-      touches(o) { Ctl.touches = Object.assign({}, o || {}); }, set(o) { Object.assign(Ctl, o); },
-      poids(p) { Object.assign(PARAMS.poids, p); Base.ponderer(PARAMS.poids); }, razGlisse() { glisse.cumul = 0; glisse.tContact = 0; sauts = 0; }, mesures() { return { frame, seq: Base.meta.sequences[Base.seq[frame]].nom, glisseMoy: glisse.moyenneCm(), glisseRecent: glisse.recentCm(), sauts, pos: soldat.pos.toArray(), yaw: soldat.yaw, simPos: Ctl.pos.toArray(), vitAnim: Math.hypot(Base.v[frame * 3], Base.v[frame * 3 + 2]) }; },
-      os(n) { const o = soldat.os[Base.meta.os.indexOf(n)]; return o ? o.getWorldPosition(V3()).toArray() : null; },
-      camera(yaw, pitch, dist, cibleY) { Ctl.camYaw = yaw; cam.pitch = pitch; cam.dist = dist; cam.cibleY = cibleY; }
+      step(n = 1, dt = 1 / 30) { for (let k = 0; k < n; k++) boucle(dt); return agents[0].frame; },
+      touches(o) { agents[0].ctl.touches = Object.assign({}, o || {}); }, set(o) { Object.assign(agents[0].ctl, o); },
+      poids(p) { Object.assign(PARAMS.poids, p); Base.ponderer(PARAMS.poids); },
+      razGlisse() { const A = agents[0]; A.glisse.cumul = 0; A.glisse.tContact = 0; A.sauts = 0; },
+      mesures() { const A = agents[0], f = A.frame; return { frame: f, seq: Base.meta.sequences[Base.seq[f]].nom, glisseMoy: A.glisse.moyenneCm(), glisseRecent: A.glisse.recentCm(), sauts: A.sauts, pos: A.soldat.pos.toArray(), yaw: A.soldat.yaw, simPos: A.ctl.pos.toArray(), vitAnim: Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]) }; },
+      os(n) { const o = agents[0].soldat.os[Base.meta.os.indexOf(n)]; return o ? o.getWorldPosition(V3()).toArray() : null; },
+      camera(yaw, pitch, dist, cibleY) { agents[0].ctl.camYaw = yaw; cam.pitch = pitch; cam.dist = dist; cam.cibleY = cibleY; },
+      escouade: ajouterEscouade, agents
     };
     window.PRET = true;
     if (!MANUEL) requestAnimationFrame(boucleAuto);
@@ -503,122 +592,78 @@
     if (n === 0) rendre();
   }
 
+  // escouade : 4 soldats de plus, chacun sur son chemin (boucles décalées autour du premier), arme sortie — le cas du jeu
+  const CHEMINS_ESCOUADE = [
+    [[6, 0, 6], [6, 0, -6], [9, 0, -6], [9, 0, 6]],
+    [[-6, 0, 6], [-6, 0, -6], [-9, 0, -4], [-9, 0, 4]],
+    [[-3, 0, 9], [3, 0, 9], [4, 0, 12], [-4, 0, 12]],
+    [[-3, 0, -9], [3, 0, -9], [5, 0, -12], [-5, 0, -12]],
+  ];
+  async function ajouterEscouade() {
+    if (agents.length > 1) return agents.length;
+    for (const ch of CHEMINS_ESCOUADE) {
+      const pts = ch.map(p => V3(...p)); const A = await nouveauSoldat(pts[0].clone().add(V3(0.5, 0, 0)), 0);
+      A.ctl.chemin = pts; A.ctl.cheminIdx = 1; A.ctl.visee = true; A.ctl.touches = {};
+    }
+    dessinerChemin(); return agents.length;
+  }
+
   function evenements() {
-    addEventListener('keydown', e => { Ctl.touches[e.code] = true; if (e.code === 'KeyV') { Ctl.visee = !Ctl.visee; } if (e.code === 'KeyC') { Ctl.accroupi = !Ctl.accroupi; } if (e.code === 'KeyP') basculerChemin(); if (e.code === 'KeyR') reinit(); if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
-    addEventListener('keyup', e => { Ctl.touches[e.code] = false; });
-    addEventListener('blur', () => { Ctl.touches = {}; });
+    const Ctl = () => agents[0].ctl;
+    addEventListener('keydown', e => { const c = Ctl(); c.touches[e.code] = true; if (e.code === 'KeyV') { c.visee = !c.visee; } if (e.code === 'KeyC') { c.accroupi = !c.accroupi; } if (e.code === 'KeyP') basculerChemin(); if (e.code === 'KeyR') reinit(); if (e.code === 'KeyE') ajouterEscouade(); if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
+    addEventListener('keyup', e => { Ctl().touches[e.code] = false; });
+    addEventListener('blur', () => { Ctl().touches = {}; Ctl().verrouRegard = false; });
     let drag = null;
-    renderer.domElement.addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, b: e.button, moved: false }; if (e.button === 2) Ctl.verrouRegard = true; });
-    addEventListener('mousemove', e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; Ctl.camYaw -= dx * 0.006; cam.pitch = Math.max(0.08, Math.min(1.3, cam.pitch + dy * 0.004)); drag.x = e.clientX; drag.y = e.clientY; });
-    addEventListener('mouseup', e => { if (drag && !drag.moved && Ctl.chemin && e.button === 0) ajouterPoint(e); drag = null; if (e.button === 2) Ctl.verrouRegard = false; });
-    addEventListener('blur', () => { Ctl.verrouRegard = false; });
+    renderer.domElement.addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, b: e.button, moved: false }; if (e.button === 2) Ctl().verrouRegard = true; });
+    addEventListener('mousemove', e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; Ctl().camYaw -= dx * 0.006; cam.pitch = Math.max(0.08, Math.min(1.3, cam.pitch + dy * 0.004)); drag.x = e.clientX; drag.y = e.clientY; });
+    addEventListener('mouseup', e => { if (drag && !drag.moved && Ctl().chemin && e.button === 0) ajouterPoint(e); drag = null; if (e.button === 2) Ctl().verrouRegard = false; });
     renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
-    addEventListener('wheel', e => { cam.dist = Math.max(1.5, Math.min(12, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); });
+    addEventListener('wheel', e => { cam.dist = Math.max(1.5, Math.min(14, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); });
     addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
     document.getElementById('btnChemin').onclick = basculerChemin; document.getElementById('btnReinit').onclick = reinit;
-    document.getElementById('btnVisee').onclick = () => { Ctl.visee = !Ctl.visee; }; document.getElementById('btnAccroupi').onclick = () => { Ctl.accroupi = !Ctl.accroupi; };
+    document.getElementById('btnVisee').onclick = () => { Ctl().visee = !Ctl().visee; }; document.getElementById('btnAccroupi').onclick = () => { Ctl().accroupi = !Ctl().accroupi; };
     document.getElementById('btnDemo').onclick = cheminDemo;
+    const be = document.getElementById('btnEscouade'); if (be) be.onclick = ajouterEscouade;
   }
   function ajouterPoint(e) {
     const r = new THREE.Raycaster(); r.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
-    const p = V3(); if (!r.ray.intersectPlane(new THREE.Plane(UP, 0), p)) return; Ctl.chemin.push(p); dessinerChemin();
+    const p = V3(); if (!r.ray.intersectPlane(new THREE.Plane(UP, 0), p)) return; agents[0].ctl.chemin.push(p); dessinerChemin();
   }
-  function basculerChemin() { if (Ctl.chemin) { Ctl.chemin = null; } else { Ctl.chemin = []; Ctl.cheminIdx = 0; } dessinerChemin(); }
-  function cheminDemo() { Ctl.chemin = [V3(4, 0, 0), V3(4, 0, 4), V3(-3, 0, 5), V3(-4, 0, -2), V3(1, 0, -4)]; Ctl.cheminIdx = 0; dessinerChemin(); }
+  function basculerChemin() { const c = agents[0].ctl; if (c.chemin) { c.chemin = null; } else { c.chemin = []; c.cheminIdx = 0; } dessinerChemin(); }
+  function cheminDemo() { const c = agents[0].ctl; c.chemin = [V3(4, 0, 0), V3(4, 0, 4), V3(-3, 0, 5), V3(-4, 0, -2), V3(1, 0, -4)]; c.cheminIdx = 0; dessinerChemin(); }
   function dessinerChemin() {
-    for (const t of traits) scene.remove(t); traits.length = 0; if (!Ctl.chemin) return;
-    Ctl.chemin.forEach((p, i) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.02, 24), new THREE.MeshBasicMaterial({ color: 0xffb347 })); m.position.copy(p).setY(0.01); scene.add(m); traits.push(m); });
-    if (Ctl.chemin.length > 1) { const g = new THREE.BufferGeometry().setFromPoints([...Ctl.chemin, Ctl.chemin[0]].map(p => p.clone().setY(0.015))); const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xffb347 })); scene.add(l); traits.push(l); }
+    for (const t of traits) scene.remove(t); traits.length = 0;
+    agents.forEach((A, ai) => {
+      const ch = A.ctl.chemin; if (!ch || !ch.length) return; const couleur = ai === 0 ? 0xffb347 : 0x6fa8dc;
+      ch.forEach((p) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.02, 24), new THREE.MeshBasicMaterial({ color: couleur })); m.position.copy(p).setY(0.01); scene.add(m); traits.push(m); });
+      if (ch.length > 1) { const g = new THREE.BufferGeometry().setFromPoints([...ch, ch[0]].map(p => p.clone().setY(0.015))); const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color: couleur })); scene.add(l); traits.push(l); }
+    });
   }
-  function reinit() { Ctl.pos.set(0, 0, 0); Ctl.vel.set(0, 0, 0); Ctl.acc.set(0, 0, 0); Ctl.yaw = 0; Ctl.yawV = 0; soldat.pos.set(0, 0, 0); soldat.yaw = 0; glisse.cumul = 0; glisse.tContact = 0; glisse.empreintes.length = 0; for (const m of empreintesMesh) scene.remove(m); empreintesMesh.length = 0; sauts = 0; }
+  function reinit() { const A = agents[0], c = A.ctl; c.pos.set(0, 0, 0); c.vel.set(0, 0, 0); c.acc.set(0, 0, 0); c.yaw = 0; c.yawV = 0; A.soldat.pos.set(0, 0, 0); A.soldat.yaw = 0; A.glisse.cumul = 0; A.glisse.tContact = 0; for (const B of agents) B.glisse.empreintes.length = 0; for (const m of empreintesMesh) scene.remove(m); empreintesMesh.length = 0; A.sauts = 0; }
 
-  // requête : partie pose = fiche de l'image courante ; partie trajectoire = prédiction du contrôleur dans le repère du personnage
-  function requete(vGoal, yGoal) {
-    const { nF, fn, fiche, meta, POIDS } = Base; const req = new Float32Array(nF);
-    const o = frame * nF; for (let k = 0; k < 15; k++) req[k] = fn[o + k];
-    const temps = meta.futur.map(f => f / meta.fps);
-    const [P, D] = Ctl.predire(temps, vGoal, yGoal);
-    const inv = Q().setFromAxisAngle(UP, -soldat.yaw);
-    for (let k = 0; k < 3; k++) {
-      const p = P[k].clone().sub(soldat.pos); p.y = 0; p.applyQuaternion(inv); const d = D[k].clone().applyQuaternion(inv);
-      req[15 + 2 * k] = p.x; req[16 + 2 * k] = p.z; req[21 + 2 * k] = d.x; req[22 + 2 * k] = d.z;
-    }
-    for (let k = 15; k < nF; k++) req[k] = (req[k] - meta.moyenne[k]) / meta.ecartType[k] * POIDS[k];
-    return req;
-  }
-
-  let dernierT = performance.now();
+  let dernierT = performance.now(), tempsPas = 0;
   function rendre() { if (!window.SANS_RENDU) renderer.render(scene, camera); }
   function boucle(dt) {
     horloge += dt; const now = MANUEL ? horloge * 1000 : performance.now();
-    const [vGoal, yGoal] = Ctl.pas(dt);
-    // recherche toutes les 0,1 s, ou tout de suite si on change de style
-    const styleVoulu = Ctl.visee ? 2 : Ctl.accroupi ? 1 : 0;      // 2 = Swat (arme), 1 = accroupi (pas de données pour l'instant), 0 = neutre
-    derniereRecherche += dt;
-    if (derniereRecherche >= PARAMS.periode || styleVoulu !== styleCourant) {
-      derniereRecherche = 0;
-      const req = requete(vGoal, yGoal);
-      // à l'arrêt voulu et presque atteint : on ne cherche que dans les séquences de repos (sinon ping-pong entre des
-      // instants d'arrêt situés juste avant des départs, et piétinement)
-      const vitAnimCour = Math.hypot(Base.v[frame * 3], Base.v[frame * 3 + 2]);
-      const auRepos = vGoal.lengthSq() < 0.01 && vitAnimCour < 0.35 && Ctl.vel.lengthSq() < 0.04;
-      const [best, bc] = chercher(req, styleVoulu, auRepos);
-      const cc = (Base.ok[frame] && Base.style[frame] === styleVoulu && (!auRepos || Base.repos[frame])) ? cout(frame, req) : Infinity;
-      JOURNAL.push([+horloge.toFixed(2), +cc.toFixed(1), +bc.toFixed(1), best, frame]); if (JOURNAL.length > 400) JOURNAL.shift();
-      if (best >= 0 && bc < cc * PARAMS.margeRel - PARAMS.margeSaut && Math.abs(best - frame) > 2 && (horloge - dernierSaut >= (auRepos ? 0.6 : PARAMS.minSaut) || styleVoulu !== styleCourant)) {
-        dernierSaut = horloge; soldat.hLife = PARAMS.hLife;
-        // transition : écart entre la pose courante (telle qu'affichée) et la nouvelle
-        for (let k = 0; k < Base.J; k++) ancQ[k].copy(poseQ[k]); ancY[0] = poseY[0];
-        frame = best; frameT = 0; soldat.poseDe(frame, 0, poseQ, poseY);
-        soldat.transition(ancQ, ancY, poseQ, poseY); sauts++; sautsFen.push(now);
-      }
-      styleCourant = styleVoulu;
-    }
-    // avance dans la séquence
-    frameT += dt * Base.meta.fps;
-    while (frameT >= 1) { frameT -= 1; frame++; if (!Base.ok[frame] || Base.seq[frame] !== Base.seq[frame - 1]) { frame--; frameT = 0.999; break; } }
-    soldat.poseDe(frame, frameT, poseQ, poseY);
-    // déplacement par la racine de l'animation (vitesse locale → monde). La simulation du clavier est ensuite RECALÉE sur le
-    // personnage : elle ne garde que sa vitesse (l'intention), jamais un écart de position — sinon la requête demande en
-    // permanence « reviens de 30 cm » et le soldat marche tout seul, souvent à reculons.
-    const { v, w } = Base; const i = frame;
-    const vl = V3(v[i * 3], 0, v[i * 3 + 2]).applyAxisAngle(UP, soldat.yaw);
-    // à l'arrêt voulu, la racine ne se déplace plus (les « repos » capturés contiennent de lents piétinements : 10 cm/s qui
-    // feraient dériver le soldat de 50 cm en quelques secondes) ; le verrou des pieds garde les appuis en place
-    const vGoalNul = vGoal.lengthSq() < 0.01 && Ctl.vel.lengthSq() < 0.04 && Math.hypot(v[i * 3], v[i * 3 + 2]) < 0.35;
-    facteurRacine += ((vGoalNul ? 0 : 1) - facteurRacine) * Math.min(1, dt / 0.3);
-    soldat.yaw += w[i] * dt * facteurRacine; soldat.pos.addScaledVector(vl, dt * facteurRacine);
-    if (PARAMS.rattrapage > 0) {
-      const d = Ctl.pos.clone().sub(soldat.pos); d.y = 0;
-      const maxPas = PARAMS.rattrapage * vl.length() * dt + 0.0005;
-      const vouloir = d.multiplyScalar(1 - Math.exp(-dt / 0.3)); if (vouloir.length() > maxPas) vouloir.setLength(maxPas); soldat.pos.add(vouloir);
-    }
-    Ctl.pos.copy(soldat.pos); Ctl.yaw = soldat.yaw;
-    soldat.appliquer(poseQ, poseY, dt);
-    // appui = la base dit « en appui » ET l'orteil affiché est bas (juste après un saut de séquence, la pose affichée est
-    // encore un mélange : un pied en l'air ne doit ni être verrouillé ni compter comme glissement)
-    const cf = Base.contact[frame];
-    const contacts = soldat.orteils.map((o, k) => !!(cf & (k ? 1 : 2)) && o.getWorldPosition(V3()).y < seuilOrteil);
-    if (PARAMS.verrou) soldat.verrouPieds(contacts, dt);
-    soldat.tenirFusil(Ctl.visee, dt);
-    // glissement
-    const inst = glisse.mesurer(soldat.orteils, dt, contacts);
-    if (window.TRACE) { const g = soldat.orteils[0].getWorldPosition(V3()), d = soldat.orteils[1].getWorldPosition(V3()); window.TRACE.push([+horloge.toFixed(3), ...g.toArray().map(x => +x.toFixed(4)), ...d.toArray().map(x => +x.toFixed(4)), Base.contact[frame], +(soldat.verrous[0].delta ? soldat.verrous[0].delta.length() : 0).toFixed(3), +(soldat.verrous[1].delta ? soldat.verrous[1].delta.length() : 0).toFixed(3), frame, seuilOrteil]); }
-    while (glisse.empreintes.length) { const e = glisse.empreintes.shift(); const m = new THREE.Mesh(new THREE.CircleGeometry(0.06, 16), new THREE.MeshBasicMaterial({ color: e.k ? 0x4fc3f7 : 0xff7b7b, transparent: true, opacity: 0.8 })); m.rotation.x = -Math.PI / 2; m.position.copy(e.p).setY(0.004); scene.add(m); empreintesMesh.push(m); if (empreintesMesh.length > 60) scene.remove(empreintesMesh.shift()); }
-    // caméra orbitale
-    const cible = soldat.pos.clone().setY(cam.cibleY ?? 1.0);
+    const t0 = performance.now();
+    for (const A of agents) A.pas(dt, now);
+    tempsPas = tempsPas * 0.95 + (performance.now() - t0) * 0.05;
+    const A = agents[0], S = A.soldat, Ctl = A.ctl;
+    if (window.TRACE) { const g = S.orteils[0].getWorldPosition(V3()), d = S.orteils[1].getWorldPosition(V3()); window.TRACE.push([+horloge.toFixed(3), ...g.toArray().map(x => +x.toFixed(4)), ...d.toArray().map(x => +x.toFixed(4)), Base.contact[A.frame], +(S.verrous[0].delta ? S.verrous[0].delta.length() : 0).toFixed(3), +(S.verrous[1].delta ? S.verrous[1].delta.length() : 0).toFixed(3), A.frame, seuilOrteil]); }
+    for (const B of agents) while (B.glisse.empreintes.length) { const e = B.glisse.empreintes.shift(); const m = new THREE.Mesh(new THREE.CircleGeometry(0.06, 16), new THREE.MeshBasicMaterial({ color: e.k ? 0x4fc3f7 : 0xff7b7b, transparent: true, opacity: 0.8 })); m.rotation.x = -Math.PI / 2; m.position.copy(e.p).setY(0.004); scene.add(m); empreintesMesh.push(m); if (empreintesMesh.length > 60 * agents.length) scene.remove(empreintesMesh.shift()); }
+    // caméra orbitale autour de l'agent 0
+    const cible = S.pos.clone().setY(cam.cibleY ?? 1.0);
     camera.position.set(cible.x + Math.sin(Ctl.camYaw + Math.PI) * cam.dist * Math.cos(cam.pitch), cible.y + cam.dist * Math.sin(cam.pitch), cible.z + Math.cos(Ctl.camYaw + Math.PI) * cam.dist * Math.cos(cam.pitch));
     camera.lookAt(cible);
     rendre();
     // HUD
-    while (sautsFen.length && now - sautsFen[0] > 2000) sautsFen.shift();
-    const s = Base.meta.sequences[Base.seq[frame]];
-    const vit = Math.hypot(v[i * 3], v[i * 3 + 2]);
-    const rec = glisse.recentCm(), moy = glisse.moyenneCm();
-    HUD.etat.innerHTML = `<b>${s.nom.replace('.bvh', '')}</b> image ${frame - s.debut}/${s.fin - s.debut}<br>vitesse animation <b>${vit.toFixed(2)} m/s</b> · cible ${vGoal.length().toFixed(2)} m/s<br>sauts : ${(sautsFen.length / 2).toFixed(1)}/s (total ${sauts})<br>mode : ${Ctl.chemin ? 'chemin' : 'clavier'}${Ctl.visee ? ' · <span class=on>arme</span>' : ''}${Ctl.verrouRegard ? ' · <span class=on>regard verrouillé</span>' : ''}${Ctl.accroupi ? ' · <span class=on>accroupi</span>' : ''}`;
+    const f = A.frame, s = Base.meta.sequences[Base.seq[f]];
+    const vit = Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]);
+    const rec = A.glisse.recentCm(), moy = A.glisse.moyenneCm();
+    HUD.etat.innerHTML = `<b>${s.nom.replace('.bvh', '')}</b> image ${f - s.debut}/${s.fin - s.debut}<br>vitesse animation <b>${vit.toFixed(2)} m/s</b> · cible ${A.vGoal.length().toFixed(2)} m/s<br>sauts : ${(A.sautsFen.length / 2).toFixed(1)}/s (total ${A.sauts}) · ${agents.length} soldat${agents.length > 1 ? 's' : ''} · simulation ${tempsPas.toFixed(2)} ms/pas<br>mode : ${Ctl.chemin ? 'chemin' : 'clavier'}${Ctl.visee ? ' · <span class=on>arme</span>' : ''}${Ctl.verrouRegard ? ' · <span class=on>regard verrouillé</span>' : ''}${Ctl.accroupi ? ' · <span class=on>accroupi</span>' : ''}`;
     const pct = Math.min(100, rec / 30 * 100); HUD.jauge.style.width = pct + '%'; HUD.jauge.style.background = rec < 5 ? '#5ad17a' : rec < 15 ? '#ffb347' : '#ff6b6b';
-    HUD.jaugeTxt.textContent = `glissement des pieds : ${rec.toFixed(1)} cm/s (2 s) · ${moy.toFixed(1)} cm/s depuis le début · instantané ${(inst * 100).toFixed(0)} cm/s`;
-    window.__MM = { frame, glisseMoy: moy, glisseRecent: rec, sauts, soldat, Ctl, Base, facteurRacine };   // pour les outils de mesure
+    HUD.jaugeTxt.textContent = `glissement des pieds : ${rec.toFixed(1)} cm/s (2 s) · ${moy.toFixed(1)} cm/s depuis le début · instantané ${((A.inst || 0) * 100).toFixed(0)} cm/s`;
+    window.__MM = { frame: f, glisseMoy: moy, glisseRecent: rec, sauts: A.sauts, soldat: S, Ctl, Base, facteurRacine: A.facteurRacine, agents, tempsPas };   // pour les outils de mesure
   }
 
   init().catch(e => { document.getElementById('msg').textContent = 'Erreur : ' + e.message; console.error(e); });
