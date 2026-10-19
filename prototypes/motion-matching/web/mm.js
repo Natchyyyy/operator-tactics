@@ -505,7 +505,12 @@
         const [best, bc] = chercher(req, styleVoulu, auRepos);
         const cc = (Base.ok[f] && Base.style[f] === styleVoulu && (!auRepos || Base.repos[f])) ? cout(f, req) : Infinity;
         if (this === agents[0]) { JOURNAL.push([+horloge.toFixed(2), +cc.toFixed(1), +bc.toFixed(1), best, f]); if (JOURNAL.length > 400) JOURNAL.shift(); }
-        if (best >= 0 && bc < cc * PARAMS.margeRel - PARAMS.margeSaut && Math.abs(best - f) > 2 && (horloge - this.dernierSaut >= (auRepos ? 0.6 : PARAMS.minSaut) || styleVoulu !== this.styleCourant)) {
+        // les marges évitent les sauts inutiles en régime établi ; mais si on veut avancer alors que l'animation est à l'arrêt
+        // (départ, ou arrêt forcé à un virage), on prend la meilleure image sans marge : sinon un repos « atypique » peut
+        // retenir le soldat indéfiniment (pose trop éloignée de tous les départs)
+        const veutPartir = vGoal.lengthSq() > 0.25 && vitAnimCour < 0.2;
+        const seuil = veutPartir ? cc : auRepos ? cc * 0.6 - PARAMS.margeSaut : cc * PARAMS.margeRel - PARAMS.margeSaut;   // au repos : très peu de sauts (pas de tressautement)
+        if (best >= 0 && bc < seuil && Math.abs(best - f) > 2 && (horloge - this.dernierSaut >= (auRepos ? 1.0 : veutPartir ? 0.1 : PARAMS.minSaut) || styleVoulu !== this.styleCourant)) {
           this.dernierSaut = horloge; S.hLife = PARAMS.hLife;
           // transition : écart entre la pose courante (telle qu'affichée) et la nouvelle
           for (let k = 0; k < Base.J; k++) this.ancQ[k].copy(this.poseQ[k]); this.ancY[0] = this.poseY[0];
@@ -586,7 +591,8 @@
       mesures() { const A = agents[0], f = A.frame; return { frame: f, seq: Base.meta.sequences[Base.seq[f]].nom, glisseMoy: A.glisse.moyenneCm(), glisseRecent: A.glisse.recentCm(), sauts: A.sauts, pos: A.soldat.pos.toArray(), yaw: A.soldat.yaw, simPos: A.ctl.pos.toArray(), vitAnim: Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]) }; },
       os(n) { const o = agents[0].soldat.os[Base.meta.os.indexOf(n)]; return o ? o.getWorldPosition(V3()).toArray() : null; },
       camera(yaw, pitch, dist, cibleY) { agents[0].ctl.camYaw = yaw; cam.pitch = pitch; cam.dist = dist; cam.cibleY = cibleY; },
-      escouade: ajouterEscouade, agents
+      escouade: ajouterEscouade, agents,
+      diag(i) { const A = agents[i]; const c = A.ctl; const vg = c.vitesseCible(), yg = c.yawCible(vg); const req = A.requete(vg, yg); const f = A.frame; const vit = Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]); const auRepos = vg.lengthSq() < 0.01 && vit < 0.35 && c.vel.lengthSq() < 0.04; const [best, bc] = chercher(req, c.visee ? 2 : 0, auRepos); return { frame: f, auRepos, best, bc, cc: cout(f, req), seqBest: Base.meta.sequences[Base.seq[best]].nom, req: Array.from(req).map(x => +x.toFixed(2)), fnCour: Array.from(Base.fn.slice(f * Base.nF, (f + 1) * Base.nF)).map(x => +x.toFixed(2)), fnBest: Array.from(Base.fn.slice(best * Base.nF, (best + 1) * Base.nF)).map(x => +x.toFixed(2)) }; }
     };
     window.PRET = true;
     if (!MANUEL) requestAnimationFrame(boucleAuto);

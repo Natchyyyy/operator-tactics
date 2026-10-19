@@ -37,7 +37,9 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
 - Motion matching : fiche 27 nombres (pieds ×2, vitesses pieds et hanches, trajectoire future 0,33/0,67/1 s), poids
   pieds 2 / vitesses pieds 1,5 / hanches 1 / trajectoire 1 / regard 1,5 ; recherche brute 41 600 images toutes les 0,1 s
   (0,37 ms par pas de simulation sur une machine lente) ; saut seulement si 20 % mieux, 0,25 s mini entre deux sauts ;
-  au repos : séquences de repos seulement et racine figée. La simulation du clavier est recalée sur le personnage à chaque pas.
+  au repos : séquences de repos seulement (sauts rares : 40 % mieux, 1 s mini) et racine figée ; si on veut avancer alors
+  que l'animation est arrêtée (départ, virage serré), la meilleure image est prise sans marge (sinon un repos atypique peut
+  bloquer un agent). La simulation du clavier est recalée sur le personnage à chaque pas.
 - Styles : Neutral (sans arme) et Swat (arme, défaut). Verrou des pieds horizontal (IK deux os robuste, écart ≤ 8 cm).
 - Arme (V, active par défaut) : low ready — crosse dans le creux de l'épaule droite (`PARAMS.fusil` : avant/droite/haut par
   rapport à l'épaule, tangage −0,5 rad, cant 0,3 rad vers l'intérieur, lissage 60 ms) ; direction = regard du soldat mélangé
