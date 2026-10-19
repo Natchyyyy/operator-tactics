@@ -26,7 +26,7 @@ description: Revue « AAA » des animations de personnages (soldats, armes, marc
 ```
 python3 outils/revue/revue.py revue --sortie captures/revue/NOM
 ```
-- Options : `--etats patrouille,accroupi` (quelques états seulement), `--modeles gign`, `--preuves 14` (nombre de planches de preuve).
+- Options : `--etats patrouille,accroupi` (quelques états seulement), `--modeles gign`, `--preuves 14` (nombre de planches de preuve), `--groupe 15` (états mesurés par prise du verrou : sur une machine partagée très chargée, chaque prise peut attendre plusieurs minutes ; 15 états ≈ 35 s de verrou).
 - Résultat : `captures/revue/NOM/rapport.md`, soit les scores par état puis les défauts triés (haut / bas du corps), chacun avec la valeur mesurée, la zone attendue, la raison réelle, la source et le chemin de l'image de preuve.
 - Tableau compact : `python3 outils/revue/matrice.py captures/revue/NOM/rapport.json --partie haut` (ou `bas`, ou `--critere id1,id2`).
 

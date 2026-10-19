@@ -51,7 +51,9 @@
   const GENOU_OUT = 1.0, GENOU_IN = root.GENOU_IN_TEST !== undefined ? root.GENOU_IN_TEST : 0.15;
   // à genou : hauteur du genou arrière posé (os, m), de sa cheville (pointe du pied au sol), cheville du pied avant à plat
   const GENOU = { genou: 0.075, cheville: 0.13, chevilleAv: 0.15, baisse: 0.035 };   // baisse : bassin abaissé (m) pour que le genou arrière touche le sol
-  const TROT = { cap: 0.17, s: 0.38, hs: 0.6, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
+  // (cap 0,13 et pied en l'air dessiné — vol, voir foulee() — : talon 33 → 21-23 cm, vidéo réelle ≤ 25 ; foulée 0,47 et non 0,38 :
+  // cadence 173-200 pas/min à 2,1-2,4 m/s au lieu de 180-204, foulée un peu plus longue comme un vrai petit trot)
+  const TROT = { cap: 0.13, s: 0.47, hs: 0.6, rise: 0.5, dos: 0.45, kp: 0.55, foulee: { vol: { h0: 0.05, h1: 0.09, tb: 0.4, tf: -0.15, zb: -0.3, zf: 0.25, clr: 0.03 } } };   // kp : part gardée de la cambrure du pied
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
   const PENCHE = 0.21;
   // visée : angle (rad) entre la ligne des épaules et la face (0 = carré, ~1,3 = de profil comme les visées Mixamo), voir penche()
@@ -477,9 +479,6 @@
       if (tR !== null && fr[0] && fr[1]) { const j = out[0].y + fr[0].y < out[1].y + fr[1].y ? 0 : 1, ty = out[j].y + fr[j].y, w = Math.max(0, Math.min(1, 1 - (ty - tR) / (0.08 * k)));
         if (w > 0) out[j].y += (tR - ty) * w * (1 - wSw[j]); }   // (sauf un pied en oscillation : il retombait d'une image à l'autre)
       return out; }, (i) => dy - (P.bas || 0) * kk + (P.bob !== undefined ? (P.bob - 1) * (ech[i][0].y - hy) : 0), false, ouv);
-    // (pied dessiné : la vitesse naturelle mesurée par mesureLoco sur l'os des orteils, qui tourne autrement, sous-estimait de 13 %
-    // le recul du pied d'appui (cadence trop haute) ; on donne celle de l'appui, chevilles inchangées)
-    if (clipF && P.vol) clipF.userData = Object.assign(clipF.userData || {}, { vitCuite: (AN ? vA : vSt) / (2 * src.duration / N) * HEIGHT / RAW_H, dirCuite: 0 });
     return clipF;
   }
   // Pieds au sol : la plupart des cycles de la bibliothèque « flottent » (la pointe la plus basse du cycle 1 à 6 cm au-dessus
@@ -1003,14 +1002,14 @@
       // 2b. bout du doigt (articulation du bout) amené au point « cible » sans entrer dans l'arme : recherche en grille puis
       // descente par coordonnées sur [flexion 1, 2, 3, écartement]
       const cibler = (k, cible, o) => {
-        const C = new THREE.Vector3().fromArray(cible);
+        const C = cible ? new THREE.Vector3().fromArray(cible) : new THREE.Vector3();
         if (o.auto) {   // index tendu : bout droit devant sa base, le long du flanc de la carcasse, au-dessus du pontet
           const m0 = fk(k, [0, 0, 0, 0]), base = V().setFromMatrixPosition(m0[0]), Lf = V().setFromMatrixPosition(m0[1]).distanceTo(base) + V().setFromMatrixPosition(m0[2]).distanceTo(V().setFromMatrixPosition(m0[1])) + p.copy(bout[k]).applyMatrix4(m0[2]).distanceTo(V().setFromMatrixPosition(m0[2]));
           C.set(cible[0], Math.max(cible[1], base.y + 0.004), base.z + Math.sqrt(Math.max(0, Lf * Lf * 0.94 - (cible[0] - base.x) ** 2))); o.pAuto = C.toArray(); }
         else if (o.flanc) {   // doigt d'appui : bout posé sur le flanc droit du garde-main (x, y), à la hauteur (z) de sa base
           const base = V().setFromMatrixPosition(fk(k, [0, 0, 0, 0])[0]); C.set(o.flanc[0], o.flanc[1], base.z + (o.flanc[2] || 0)); o.pAuto = C.toArray(); }
-        const cout = (th) => { const ms = fk(k, th), d = Math.min(...dSeg(k, th, ms));
-          return p.copy(bout[k]).applyMatrix4(ms[2]).distanceTo(C) + 6 * Math.max(0, -d - 0.002) + (o.reg || 0.004) * (Math.abs(th[1]) + Math.abs(th[2])) + 0.004 * Math.abs(th[3]); };
+        const cout = (th) => { const ms = fk(k, th), ds = dSeg(k, th, ms), d = Math.min(...ds);
+          return p.copy(bout[k]).applyMatrix4(ms[2]).distanceTo(C) + 6 * Math.max(0, -d - 0.002) + (o.contact || 0) * Math.max(0, Math.min(ds[1], ds[2]) - 0.003) + (o.reg || 0.004) * (Math.abs(th[1]) + Math.abs(th[2])) + 0.004 * Math.abs(th[3]); };
         let best = null;
         for (let a = o.f1[0]; a <= o.f1[1]; a += 0.1) for (let e = -(o.ecart || 0.35); e <= (o.ecart || 0.35); e += 0.07) for (let c = 0; c <= o.f2; c += 0.12) { const th = [a, c, c * 0.8, e], v = cout(th); if (!best || v < best[0]) best = [v, th]; }
         let th = best[1], v = best[0];
