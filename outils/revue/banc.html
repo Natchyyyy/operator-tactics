@@ -43,6 +43,7 @@ const ETATS = {
   depart_arret:       { seg: [[1.0, { v: 0 }], [1.8, { v: 1.35 }], [1.6, { v: 0 }]], fen: [0.8, 4.4], nom: 'Départ / arrêt (garde basse)' },
   depart_arret_vise:  { seg: [[1.0, { v: 0, vise: 1 }], [1.8, { v: 1.1, vise: 1 }], [1.6, { v: 0, vise: 1 }]], fen: [0.8, 4.4], nom: 'Départ / arrêt (visée)' },
   virage_patrouille:  { seg: [[1.5, { v: 1.35 }], [2.0, { v: 1.35, courbe: 60 }]], fen: [1.0, 3.5], nom: 'Patrouille en virage (60°/s)' },
+  virage_jog:         { seg: [[1.5, { v: 2.1 }], [2.5, { v: 2.1, courbe: 70 }]], fen: [1.2, 4.0], nom: 'Petite course garde basse en virage (2,1 m/s, 70°/s)' },
 };
 let PILOTE = null;
 // extrait une fonction de app.js (comptage des accolades, en sautant chaînes, gabarits, commentaires et regex simples)

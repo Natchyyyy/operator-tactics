@@ -37,6 +37,7 @@ ETIQ = {
     'depart_arret': {'transition', 'garde_basse'},
     'depart_arret_vise': {'transition', 'vise'},
     'virage_patrouille': {'marche', 'garde_basse', 'virage'},
+    'virage_jog': {'course', 'garde_basse', 'virage'},
     'jeu_jog_bas_oblique': {'course', 'garde_basse', 'diag'},   # (en jeu seulement : petite course garde basse en diagonale / de côté)
 }
 DEUX_MAINS = lambda e: 'recharge' not in e

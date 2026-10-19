@@ -1265,8 +1265,14 @@
       let haut = course ? (vise ? 'Run_and_Shoot_Haut' : 'Run_Low_Haut') : (vise ? 'Walk_Aim_Haut' : 'Walk_Low_Haut'), avant = course ? 'Pas_Avant_Course' : vise ? 'Pas_Avant_Aim' : 'Pas_Avant_Low', mix = null;
       if (vise && m.clips.Pas_Glisse) {
         // en visant : marche « glissée » (genoux fléchis, talon-pointe) jusqu'à ~2,3 m/s, course épaulée au-delà (hystérésis)
-        if (!grace) a.courseV = a.courseV ? a.vLis > 2.2 : a.vLis > 2.45;
-        if (a.courseV) { avant = 'Pas_Avant_Course'; haut = 'Run_and_Shoot_Haut'; } else { avant = 'Pas_Glisse'; haut = 'Walk_Aim_Haut'; }
+        // (course épaulée : jambes de la petite course / course — Pas_Trot, Pas_Run — et non « Run_and_Shoot » : course accroupie de
+        // 0,63 m par pas, jouée à 2,6 m/s elle faisait 248 pas/min, pieds au ras du sol, genoux à 60-90° ; la marche glissée
+        // passe la main dès ~2,1 m/s : à 2,3 m/s elle faisait 212-221 pas/min)
+        const CV = OT.COURSE_V_TEST || [1.95, 2.15], trotV = !!(m.clips.Pas_Trot && OT.COURSE_TROT_TEST !== false);
+        if (!grace) a.courseV = a.courseV ? a.vLis > (trotV ? CV[0] : 2.2) : a.vLis > (trotV ? CV[1] : 2.45);
+        if (a.courseV) { avant = 'Pas_Avant_Course'; haut = 'Run_and_Shoot_Haut';
+          if (trotV) { const sm = (x, a0, a1) => { const t = Math.max(0, Math.min(1, (x - a0) / (a1 - a0))); return t * t * (3 - 2 * t); }, kR = m.clips.Pas_Run ? sm(a.vLis, 2.2, 3.7) : 0; mix = { Pas_Trot: 1 - kR, Pas_Run: kR }; } }
+        else { avant = 'Pas_Glisse'; haut = 'Walk_Aim_Haut'; }
       }
       if (patrouille) {
         // marche jusqu'à ~1,9 m/s (marche rapide), puis petite course, qui se mélange à la vraie course de 2,7 à 3,7 m/s (même

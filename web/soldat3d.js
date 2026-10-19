@@ -55,11 +55,14 @@
   const POSE_ANTICIPE = root.POSE_ANTICIPE_TEST ?? true;
   const REPAS_ARRET = root.REPAS_ARRET_TEST ?? true;
   const REPRISE = root.REPRISE_TEST ?? true;
-  const RUN_BAKE = root.RUN_BAKE_TEST ?? true;   // course pleine (Pas_Run) refaite par foulee (voir directions)
+  const RUN_BAKE = root.RUN_BAKE_TEST ?? true;
+  const COURSE_BAKE = root.COURSE_BAKE_TEST ?? true;   // course épaulée (Pas_Avant_Course) refaite par foulee   // course pleine (Pas_Run) refaite par foulee (voir directions)
   const PIVOT_PLANTE = root.PIVOT_PLANTE_TEST ?? true;
   const REPAS_DERIVE = root.REPAS_DERIVE_TEST ?? true;
   const ORDRE_TOUR = root.ORDRE_TOUR_TEST ?? true;
-  const JAMBES_FILTRE = root.JAMBES_FILTRE_TEST ?? 12;   // filtre (1/s) de la cible de torsion des jambes à l'arrêt ; 0 : aucun   // au quart de tour, le pied du côté du tour part le premier   // nouveaux pas si le bassin a tourné au-dessus des pieds cloués (voir poserPieds)
+  // filtre (1/s) de la cible de torsion des jambes à l'arrêt ; 0 : aucun (essai à 12 : à-coup du bassin au pivot 4 200 → 2 600,
+  // mais glissement par appui 7 → 8 cm : les pieds relâchés suivent un bassin en retard ; écarté)
+  const JAMBES_FILTRE = root.JAMBES_FILTRE_TEST ?? 0;   // au quart de tour, le pied du côté du tour part le premier   // nouveaux pas si le bassin a tourné au-dessus des pieds cloués (voir poserPieds)
   // (essai, désactivé : bassin plus vif pendant les pas de pose ; mesuré : pied / bassin −2°, à-coup du bassin ×1,7)
   const JAMBES_POSE = root.JAMBES_POSE_TEST ? Object.assign({ vj: 6, st: 0.13 }, root.JAMBES_POSE_TEST) : null;   // torsion des jambes pendant les pas de pose (rad/s, s)
   const PIV_P = Object.assign({ lim: 0.7, w: 8, hanche: 0.9 }, root.PIV_P_TEST || {});   // (écart toléré, rad ; vitesse de pivot max, rad/s ; hanche : écart au-delà duquel le pied tourne autour du bassin, rad)   // pied en attente qui pivote sur la plante au quart de tour (voir poserPieds)   // marche qui reprend la couche de jambes du rechargement (voir marche)   // replacement des pieds permis pendant les pas d'arrêt (voir repas)   // pas de pose visant la place finale du pied (voir poserPieds)
@@ -68,13 +71,14 @@
   // (mesuré, deux modèles : bassin et épaules à 21°, chevilles à 37 cm de large, pied droit 17 cm derrière et ouvert de 30-40°,
   // genoux à 13°, bassin 9-10 cm devant le milieu des chevilles — sur le milieu des pieds)
   const LOWR = Object.assign({ av: 0.05, ar: 0.12, hf: 0.04, hy: 0.005, bl: 22 }, root.LOWR_TEST || {});
-  const DORSI_MAX = (root.DORSI_MAX_TEST ?? 36) * Math.PI / 180;   // butée de flexion dorsale d'un pied en l'air (voir cheville)
+  const DORSI_MAX = (root.DORSI_MAX_TEST ?? 36) * Math.PI / 180;
+  const PLANT_MAX = (root.PLANT_MAX_TEST ?? 28) * Math.PI / 180;   // butée de flexion plantaire d'un pied en l'air (voir cheville)   // butée de flexion dorsale d'un pied en l'air (voir cheville)
   const APPUI_POSE = root.APPUI_POSE_TEST ?? true;   // pied reposé cloué jusqu'à la fin de la pose (voir poserPieds)   // pied avancé de la garde basse porté par le pas de pose (voir appui)
   const VERROU = Object.assign({ prise: 0.09, lache: 0.16 }, root.VERROU_TEST || {});
   // pied qui bouge = pied levé (voir decolle()) : hauteur de semelle visée (m), vitesses (m/s) de début / pleine levée, temps (s)
   // (réponse 0,025 s et non 0,06 : au premier image d'un lâcher de verrou, ou à l'approche de la pose en petite course de côté,
   // le pied partait / arrivait à 3-5 m/s encore au ras du sol — patinage 0,37-0,42 → 0,09-0,10 en course latérale)
-  const DECOLLE = Object.assign({ h: 0.035, v0: 0.4, v1: 1.2, t: 0.025 }, root.DECOLLE_TEST || {});
+  const DECOLLE = Object.assign({ h: 0.035, h2: 0.045, v0: 0.4, v1: 1.2, t: 0.025 }, root.DECOLLE_TEST || {});
   // marche de patrouille (Pas_Avant_Low) refaite par foulee() — null : l'ancienne (marche de la bibliothèque resserrée)
   // (talon 30-32 → 17-19 cm, vidéo / réglement ≤ 25 ; rebond 6,7 → 5 cm ; base 20 cm comme l'ancienne marche resserrée)
   const PATROUILLE = { cap: 0.12, larg: 0.105, bob: 0.75, vol: { h0: 0.02, h1: 0.05, tb: 0.35, tf: -0.12, zb: -0.25, zf: 0.2, clr: 0.03 } };
@@ -763,8 +767,8 @@
     // il fallait la jouer 2 fois trop vite (257 pas/min). Foulée allongée (× RECUL) : ~170 pas/min à 1,7 m/s, bassin un peu
     // plus bas (jambes plus écartées d'avant en arrière)
     // (talon 26 → 10 cm, rebond 5,2 → 2,1 cm, genou à la pose 56-73° → 34-43° : levée non amplifiée — hs 1 et non 1,5 —,
-    // plafonnée, pied en l'air dessiné, bassin remonté de 4 cm)
-    { const RA = Object.assign({ hs: 1, kp: 1, P: { cap: 0.07, bas: -0.04, bob: 0.4, vol: { h0: 0.02, h1: 0.05, tb: 0.3, tf: -0.1, zb: -0.25, zf: 0.2, clr: 0.03 } } }, root.RECUL_TEST || {});
+    // plafonnée, pied en l'air dessiné, bassin remonté de 4 cm ; puis 6 cm : recul rapide, genou à la pose 51 → 44° / 44 → 37°)
+    { const RA = Object.assign({ hs: 1, kp: 1, P: { cap: 0.07, bas: -0.06, bob: 0.4, vol: { h0: 0.02, h1: 0.05, tb: 0.3, tf: -0.1, zb: -0.25, zf: 0.2, clr: 0.03 } } }, root.RECUL_TEST || {});
       if (M.clips.Pas_Arriere) { const r = foulee(M, M.clips.Pas_Arriere, 'Pas_Arriere', RECUL, RA.hs, 0.6, RA.kp, OUV_PIED, RA.P); if (r) M.clips.Pas_Arriere = r; } }
     M.clips.Pas_Avant_Aim = legs(M.clips.Walk_Fight_Forward, 'Pas_Avant_Aim');
     M.clips.Pas_Avant_Low = legs(M.clips.Walking || M.clips.Walk_Fight_Forward, 'Pas_Avant_Low');
@@ -777,6 +781,9 @@
       // (la course pleine refaite comme la petite course — foulée entière, talon et pied en l'air dessinés — : brute, son talon
       // montait à 33-50 cm, visible dès qu'elle se mélange à la petite course)
       if (RUN_BAKE) { const RB = Object.assign({ s: 1.1, hs: TR.hs, P: { pmax: 0.35 } }, RUN_BAKE === true ? {} : RUN_BAKE), r = foulee(M, M.clips.Running, 'Pas_Run', RB.s, RB.hs, TR.rise, undefined, OUV_PIED, Object.assign({ cap: TR.cap }, TR.foulee || {}, RB.P || {})); if (r) M.clips.Pas_Run = r; } }
+    // course épaulée (Run_and_Shoot, > 2,2-2,45 m/s en visant) refaite de même : brute, pied d'appui glissant de 0,22 m/s,
+    // patinage 0,23-0,52, talon 26 cm, genou à 65° à la pose
+    if (COURSE_BAKE && M.clips.Run_and_Shoot) { const CB = Object.assign({ s: 1, hs: TR.hs, P: { pmax: 0.35 } }, COURSE_BAKE === true ? {} : COURSE_BAKE), r = foulee(M, M.clips.Run_and_Shoot, 'Pas_Avant_Course', CB.s, CB.hs, TR.rise, undefined, OUV_PIED, Object.assign({ cap: TR.cap }, TR.foulee || {}, CB.P || {})); if (r) M.clips.Pas_Avant_Course = r; }
     // marche en visant (« Pas_Glisse ») : la marche naturelle, bassin abaissé de GLISSE m (genoux fléchis, pieds aux mêmes
     // places) : la marche « glissée » d'un tireur qui progresse arme épaulée (talon-pointe, buste stable), au lieu du pas
     // d'affût très lent de Walk_Fight_Forward ou de la course accroupie de Run_and_Shoot
@@ -1243,7 +1250,8 @@
     if (pv !== null) { while (th - pv > Math.PI) th -= 2 * Math.PI; while (th - pv < -Math.PI) th += 2 * Math.PI; } m[cle] = { th, t: o.t };
     return new THREE.Quaternion().slerp(qs, s).multiply(new THREE.Quaternion().setFromAxisAngle(a0, th * s)).multiply(qA); };
   // place de la main d'appui tournée de a (rad) autour de la verticale de l'arme, centre au milieu de la paume (voir mainChargeur)
-  S.INCL_G = 0.7; S.INCL_EXP = 1; S.PUITS_V = 0.04; S.DEPART_Q = 0.22;
+  S.INCL_G = 0.7; S.INCL_EXP = 1; S.PUITS_V = 0.04; S.DEPART_Q = 0.22; S.PUITS_PROF = 0.08; S.PUITS_ENF = 0.6; S.PUITS_HAUT = 0.04; S.COUDE_DEV_R = 0.05;
+  S.LISSE_VISE = 1; S.TORSION_MAX = 0.95;   // part du lissage de position du fusil retirée en visée (épaulé : crosse à l'épaule, joue sur la crosse ; le fusil suit le buste)
   const hrelIncl = (D, a) => { if (Math.abs(a) < 1e-4) return D.Hrel; const c = D.paumeLoc;
     return new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeRotationY(a)).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(D.Hrel); };
   // suivi de o[k] vers tgt (dt > 0) : ressort amorti critique (w) avec anticipation de la vitesse de la cible (bornée à vmax : un
@@ -1640,7 +1648,12 @@
           const L = Lk[i], S = so[i], h = bas(S), hT = S.talon.y - gy, hP = Math.min(S.plante.y, S.bout.y) - gy;
           // vitesse (monde) du pied tel que l'animation le place : un pied d'appui est presque immobile au sol, un pied en l'air
           // qui passe près du sol avance à 2-3 fois la vitesse du corps (il ne doit pas être cloué en plein pas)
-          const vA = L.pA && dt > 0 ? Math.hypot(S.plante.x - L.pA.x, S.plante.z - L.pA.z) / dt : 0; L.pA = S.plante.clone();
+          let vA = L.pA && dt > 0 ? Math.hypot(S.plante.x - L.pA.x, S.plante.z - L.pA.z) / dt : 0; L.pA = S.plante.clone();
+          // (saut de l'animation — passage marche ↔ petite course, changement de cycle — : un pied d'appui immobile qui « bondit » de
+          // 20 cm en une image n'est pas un pied qui part ; on garde le verrou cette image-là au lieu de lâcher puis reprendre 7 cm plus loin)
+          // (essai désactivé — VERROU.saut — : les pas chassés / diagonales en ont souffert, pieds croisés ; le vrai cas — pied qui
+          // retombe sur le talon au passage marche ↔ course — est traité plus bas : pas de lâcher sur un passage au talon chargé)
+          { const vP = L.vAp ?? 0; L.vAp = vA; if (VERROU.saut === true && L.piv && vP < 0.8 && vA > 2.2 && Math.min(S.talon.y, S.plante.y, S.bout.y) - gy < 0.03) vA = vP; }
           // appui : semelle à moins de 3 cm du sol, plus basse que l'autre, et pied (presque) immobile ; pivot : talon posé →
           // talon, sinon la plante
           // (S.verrouLeve, essai désactivé : relâcher dès que l'animation lève le pied — semelle remontée de 1,2 cm au-dessus de son
@@ -1652,12 +1665,13 @@
           // (fin du déroulé : quand le bout de la semelle passe nettement sous la plante, pivot sur le bout — 'B' — : le pied qui
           // tourne en lacet au décollement pivotait autour de la plante et son bout, seul au sol, balayait 3-4 cm)
           const hB = S.bout.y - gy, bout = VERROU.B !== false && hT > 0.04 && hB < S.plante.y - gy - (L.piv === 'B' ? 0 : VERROU.Bd ?? 0.01);
-          let piv = !actif ? null : appui && hT < 0.02 ? 'A' : appui ? (bout ? 'B' : 'T') : (!leve && L.piv && h < (S.verrouH || 0.05) && vA < (L.piv === 'B' || (L.piv === 'T' && VERROU.kT !== false) ? Math.max(2.2, (VERROU.kB ?? 1) * vC) : 2.2) ? (L.piv === 'T' && bout && VERROU.TB !== false ? 'B' : L.piv) : null);   // (pied qui repart en rasant le sol — pas chassé — : relâché)
+          let piv = !actif ? null : appui && hT < 0.02 ? 'A' : appui ? (bout ? 'B' : 'T') : (!leve && L.piv && h < (S.verrouH || 0.05) && vA < (L.piv === 'B' ? Math.max(VERROU.vB ?? 2.2, (VERROU.kB ?? 1) * vC) : L.piv === 'T' && VERROU.kT !== false ? Math.max(2.2, (VERROU.kB ?? 1) * vC) : 2.2) ? (L.piv === 'T' && bout && VERROU.TB !== false ? 'B' : L.piv) : null);   // (pied qui repart en rasant le sol — pas chassé — : relâché)
           // (changement de pivot sur un pied que l'animation emporte déjà — plus vite que 1,4 m/s ou 0,8 × le corps — : c'est le
           // décollement ; on lâche en douceur au lieu de ré-ancrer — retenir le pied le jette dans l'autre en pas chassé, le
           // ré-ancrer sur sa position animée le fait sauter de 5 cm)
-          if (piv && L.piv && piv !== L.piv && !(L.piv === 'T' && piv === 'B') && L.w > 0 && VERROU.cont !== false && vA >= Math.max(VERROU.contV || 1.4, 0.8 * vC)) piv = null;
+          if (piv && L.piv && piv !== L.piv && !(L.piv === 'T' && piv === 'B') && !(piv === 'A' && h < (VERROU.hA ?? 0.006)) && L.w > 0 && VERROU.cont !== false && vA >= Math.max(VERROU.contV || 1.4, 0.8 * vC)) piv = null;
           const K = { A: 'talon', T: 'plante', B: 'bout' };
+          if (root.Soldat3D && root.Soldat3D.dbgVerrou) L.dbg = { h: +h.toFixed(3), hT: +hT.toFixed(3), vA: +vA.toFixed(2), vC: +vC.toFixed(2), appui, piv0: L.piv, piv, autre: +bas(so[1 - i]).toFixed(3) };
           if (piv) {
             const P = S[K[piv]];
             // (changement de pivot : la nouvelle ancre est là où ce point ÉTAIT AFFICHÉ à l'image précédente — position animée
@@ -1687,11 +1701,13 @@
       // à 3-5 m/s à 1-2 cm du sol, mélanges marche / pas chassé. Un pied qui ralentit se repose.
       decolle(dt, actif) {
         const D = this.decol || (this.decol = [{ y: 0, v: 0 }, { y: 0, v: 0 }]); if (!pieds[0][2] || !M.semelle || !(dt > 0)) return;
-        group.updateMatrixWorld(true); const gy = group.getWorldPosition(V()).y, Lk = this.lock;
+        group.updateMatrixWorld(true); const gp = group.getWorldPosition(V()), gy = gp.y, Lk = this.lock, vCd = this.decolGp ? Math.hypot(gp.x - this.decolGp.x, gp.z - this.decolGp.z) / dt : 0; this.decolGp = gp.clone();
+        // (course — corps à plus de ~2 m/s — et marche en rechargeant : levée DECOLLE.h2, un peu plus haute ; la marche visée garde DECOLLE.h, talon ≤ 12 cm)
+        const kC = this.verrouPieds && vCd > 0.5 ? 1 : Math.max(0, Math.min(1, (vCd - 1.8) / 0.5)), hD = DECOLLE.h + ((DECOLLE.h2 ?? DECOLLE.h) - DECOLLE.h) * kC * kC * (3 - 2 * kC);
         pieds.forEach(([up, lo, ft], i) => {
           const d = D[i], S = semW(i), h = (S.min !== undefined ? S.min : Math.min(S.talon.y, S.plante.y, S.bout.y)) - gy, p = S.plante;
           const v = d.p ? Math.hypot(p.x - d.p.x, p.z - d.p.z) / dt : 0, lw = Lk && Lk[i] && Lk[i].piv ? Lk[i].w || 0 : 0;   // (verrou qui lâche — plus de pivot — : le pied rattrape l'animation EN L'AIR, petit pas vif, pas en glissant)
-          const x = Math.max(0, Math.min(1, (v - DECOLLE.v0) / (DECOLLE.v1 - DECOLLE.v0))), c = actif && v < 8 ? DECOLLE.h * x * x * (3 - 2 * x) * Math.max(0, 1 - 2 * lw) : 0;
+          const x = Math.max(0, Math.min(1, (v - DECOLLE.v0) / (DECOLLE.v1 - DECOLLE.v0))), c = actif && v < 8 ? hD * x * x * (3 - 2 * x) * Math.max(0, 1 - 2 * lw) : 0;
           // (levée voulue ressort amorti critique, ~0,06 s : pas d'à-coup du genou)
           // (pas exact « SmoothDamp » : stable quel que soit dt — un ressort explicite divergeait à 30 images/s)
           // (un pied enfoncé est l'affaire de sol() : la levée se compte depuis le sol)
@@ -1711,7 +1727,9 @@
         group.updateMatrixWorld(true); const gy = group.getWorldPosition(V()).y;
         pieds.forEach(([up, lo, ft], i) => { const c0 = M.cheville0[i]; if (c0 === null) return;
           const S = semW(i), h = (S.min !== undefined ? S.min : Math.min(S.talon.y, S.plante.y, S.bout.y)) - gy, x = Math.max(0, Math.min(1, (h - 0.015) / 0.025)), w = x * x * (3 - 2 * x); if (w <= 0) return;
-          const shin = WP(ft).sub(WP(lo)), a1 = WP(orteils[i]).sub(WP(ft)), ex = shin.angleTo(a1) - c0 - DORSI_MAX; if (ex <= 0) return;
+          // (ex > 0 : pointe trop relevée, tournée vers le tibia ; < 0 : trop tendue — flexion plantaire au-delà de PLANT_MAX —, tournée
+          // dans l'autre sens ; mesuré : recul rapide, pied en l'air à 30,0-30,3°)
+          const shin = WP(ft).sub(WP(lo)), a1 = WP(orteils[i]).sub(WP(ft)), ang = shin.angleTo(a1), ex = ang - c0 - DORSI_MAX > 0 ? ang - c0 - DORSI_MAX : PLANT_MAX && c0 - ang > PLANT_MAX ? -(c0 - ang - PLANT_MAX) : 0; if (!ex) return;
           const ax = new THREE.Vector3().crossVectors(a1, shin); if (ax.lengthSq() < 1e-10) return; ax.normalize();
           mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(new THREE.Quaternion().setFromAxisAngle(ax, ex * w)).multiply(WQ(ft))); ft.updateMatrixWorld(true); });
       },
@@ -1741,7 +1759,7 @@
         { const ek = this.epK || 0; if (ek > 0.01 && !S.sansCarre) { const e = WP(B.la).sub(WP(B.ra)).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()).invert());
           // en marche : épaules à 0,95 rad au plus du bassin (bassinM, donné par marche()) — un tireur droitier qui se déplace vers
           // sa gauche se met de face au lieu de se tordre
-          let Sv = -((S.BIAIS_M && S.BIAIS_M[M.nom]) || BIAIS); if (this.bassinM !== undefined && this.blendW && this.blendFrame === frameK - 1) Sv = Math.max(this.bassinM - 0.95, Math.min(this.bassinM + 0.95, Sv));
+          let Sv = -((S.BIAIS_M && S.BIAIS_M[M.nom]) || BIAIS); if (this.bassinM !== undefined && this.blendW && this.blendFrame === frameK - 1) Sv = Math.max(this.bassinM - S.TORSION_MAX, Math.min(this.bassinM + S.TORSION_MAX, Sv));
           this.epS = this.epS === undefined ? Sv : this.epS + (Sv - this.epS) * 0.15;
           const d = Math.max(-1, Math.min(1, Math.PI / 2 + this.epS - Math.atan2(e.x, e.z))) * ek; if (Math.abs(d) > 0.01) { mod(spine3[0]); twist(spine3[0], d); } } }   // (sur Spine, qui porte la peau du buste)
         const lat = WP(B.la).sub(WP(B.ra)); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();
@@ -1937,7 +1955,7 @@
         const gq = group.getWorldQuaternion(new THREE.Quaternion()), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
         const poche = WP(B.spine).addScaledVector(fw, RECH.pAvant * sc).addScaledVector(new THREE.Vector3(0, 1, 0), -RECH.pBas * sc).addScaledVector(lat, RECH.pLat * sc);
         const well = weapon.localToWorld(weapon.magCenter.clone()), down = weapon.localToWorld(new THREE.Vector3(0, -1, 0)).sub(weapon.localToWorld(V())).normalize();
-        const T = poche.lerp(well.addScaledVector(down, 0.07 * sc), sm((p - 0.45) / 0.15)), palm = B.lm ? WP(B.lh).lerp(WP(B.lm), 0.6) : WP(B.lh);
+        const T = poche.clone().lerp(well.addScaledVector(down, 0.07 * sc), sm((p - 0.45) / 0.15)), palm = B.lm ? WP(B.lh).lerp(WP(B.lm), 0.6) : WP(B.lh);
         // orientation de la main : celle de sa prise sous le garde-main (paume vers le haut, comme pour pousser le chargeur), au
         // lieu de celle de l'animation qui tourne brusquement ; coude choisi pour un poignet peu cassé (poserBras)
         if (M.prise && M.prise.L && !S.sansPrise) { const tq = new THREE.Quaternion(); new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, M.prise.L.Hrel).decompose(V(), tq, V());
@@ -1946,7 +1964,10 @@
           // poignet cassait si elle tournait sur place), par pro-/supination surtout (voir chemin)
           const ins = sm((p - 0.4) / 0.22);
           // au porte-chargeur : main dans le prolongement épaule → poche, paume vers le ventre
-          const Dl = M.prise.L, n = Dl.ordre[2], mid = (this.osDoigts && this.osDoigts[n]) || body.getObjectByName(n), cible = WP(B.lh).add(T.clone().sub(palm));
+          const Dl = M.prise.L, n = Dl.ordre[2], mid = (this.osDoigts && this.osDoigts[n]) || body.getObjectByName(n),
+            // (estimation du poignet avec l'orientation de la main à l'image précédente : sert d'axe épaule → main)
+            qPr = this.qMainG && this.t - this.tMainG < 0.2 ? this.qMainG : null,
+            cible = qPr ? T.clone().sub(palm.clone().sub(WP(B.lh)).applyQuaternion(WQ(B.lh).invert()).applyQuaternion(qPr)) : WP(B.lh).add(T.clone().sub(palm));
           const base = (a, nn) => { const x = a.clone().normalize(), y = nn.clone().addScaledVector(x, -nn.dot(x)).normalize(); return new THREE.Matrix4().makeBasis(x, y, new THREE.Vector3().crossVectors(x, y)); };
           // (main dans l'axe épaule → poche : poignet droit, 20-45° ; une orientation plus proche de la prise, paume au ventre doigts
           // vers la droite, cassait le poignet à 160°)
@@ -1966,7 +1987,14 @@
           // long du canon ; la main est tournée de INCL_G autour de la verticale de l'arme, doigts plus vers l'avant — poignet ~45° au
           // lieu de 80-100° ; la rotation s'efface après la sortie, voir tenir)
           this.inclG = 1; const sp2 = V(), sq2 = new THREE.Quaternion(); new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, hrelIncl(Dl, S.INCL_G)).decompose(sp2, sq2, V());
-          let cib = cible; if (fin > 0) { cib = cible.clone().lerp(sp2, fin); qV.slerp(sq2, fin); }
+          // (paume en T : son décalage au poignet est pris dans le repère de la main ORIENTÉE (qV), et non de la pose de
+          // l'animation, tournée de ~170° — la main tenait le chargeur ~10 cm devant le puits)
+          let cib = cible; { const qi = WQ(B.lh).invert(), lh0 = WP(B.lh), dec = (pt) => pt.clone().sub(lh0).applyQuaternion(qi).applyQuaternion(qV);
+            // (au puits : chargeur() porte le chargeur 6 cm sous la base des doigts ; la main l'amène sous le puits, PUITS_PROF plus
+            // bas, puis l'enfonce (60-72 %, base des doigts PUITS_HAUT au-dessus du centre du chargeur en place) avant de repartir vers le garde-main — le chargeur ne glisse plus seul hors de la main)
+            const e = sm((p - S.PUITS_ENF) / 0.12), Tw = weapon.localToWorld(weapon.magCenter.clone()).addScaledVector(down, (S.PUITS_PROF * (1 - e) - S.PUITS_HAUT) * sc);
+            cib = poche.clone().sub(dec(palm)).lerp(Tw.sub(dec(B.lm ? WP(B.lm) : palm)), sm((p - 0.45) / 0.15)); }
+          if (fin > 0) { cib = cib.clone().lerp(sp2, fin); qV.slerp(sq2, fin); }
           // début : la main part de SA PLACE sous le garde-main (et non de la pose de l'animation mêlée à la prise qui s'efface)
           // vers le porte-chargeur, en ~0,7 s (smootherstep : accélération nulle au départ ; avant, 0,3 s et 17 000 °/s²)
           const xL = Math.max(0, Math.min(1, p / 0.28)), wL = xL * xL * xL * (xL * (xL * 6 - 15) + 10); const xQ = Math.max(0, Math.min(1, p / S.DEPART_Q)), wQ = xQ * xQ * xQ * (xQ * (xQ * 6 - 15) + 10);   // (la main se retourne vers le porte-chargeur un peu avant d'y arriver)
@@ -1993,16 +2021,23 @@
         const seuilC = RECHARGE[this.clip] && S.SEUIL_REL !== undefined ? S.SEUIL_REL : 0.55 - 0.25 * (this.epK || 0);   // (coude au moins à mi-hauteur du bras sous l'épaule en garde basse, un peu plus haut en visée)
         const coude = (ph) => C.clone().addScaledVector(u, r * Math.cos(ph)).addScaledVector(w, r * Math.sin(ph));
         const dedans = new THREE.Vector3(h === 'R' ? 1 : -1, 0, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()));   // vers le centre du corps
-        const cout = (ph) => { const E = coude(ph), f = T.clone().sub(E).normalize(); return Math.acos(Math.max(-1, Math.min(1, f.dot(Aw)))) + 0.25 * Math.abs(ph) + 3 * Math.max(0, E.clone().sub(S0).dot(up) / a + seuilC) + 3 * Math.max(0, E.clone().sub(S0).dot(dedans) / a - 0.05); };   // (coude jamais rentré dans le buste)
+        // (rechargement : écart à l'animation peu pénalisé — sa pose de bras ne correspond plus à la main menée par mainChargeur ;
+        // 0,25 retenait le coude du mauvais côté puis le faisait basculer en route, poignet à 84°)
+        const kDev = RECHARGE[this.clip] ? S.COUDE_DEV_R : 0.25;
+        const cout = (ph) => { const E = coude(ph), f = T.clone().sub(E).normalize(); return Math.acos(Math.max(-1, Math.min(1, f.dot(Aw)))) + kDev * Math.abs(ph) + 3 * Math.max(0, E.clone().sub(S0).dot(up) / a + seuilC) + 3 * Math.max(0, E.clone().sub(S0).dot(dedans) / a - 0.05); };   // (coude jamais rentré dans le buste)
         // (cohérence d'une image à l'autre : recherche locale autour du coude précédent, changement limité ; recherche complète
         // seulement à la première image ou après une pause)
-        const sw = this.coudePh || (this.coudePh = {}), prev = sw[h] && this.t - sw[h].t < 0.2 ? sw[h].ph : null;
+        const sw = this.coudePh || (this.coudePh = {}), gqC = group.getWorldQuaternion(new THREE.Quaternion());
+        let prev = sw[h] && this.t - sw[h].t < 0.2 ? sw[h].ph : null;
+        // (coude précédent repris dans le repère du corps puis projeté sur le cercle actuel : l'angle relatif à l'animation
+        // seul faisait sauter le coude quand l'animation de référence change vite, en fondu entre deux clips)
+        if (prev !== null && sw[h].v) { const v = sw[h].v.clone().applyQuaternion(gqC); v.addScaledVector(dir, -v.dot(dir)); if (v.lengthSq() > 1e-8) prev = Math.atan2(v.dot(w), v.dot(u)); }
         let ph = prev === null ? 0 : prev, cb = cout(ph);
         if (prev === null) for (let x = -2.4; x <= 2.4; x += 0.2) { const cx = cout(x); if (cx < cb) { cb = cx; ph = x; } }
         for (const st of [0.08, 0.03, 0.01]) for (const sg of [-1, 1]) { let n = 0; while (n++ < 40 && cout(ph + sg * st) < cb) { ph += sg * st; cb = cout(ph); } }
         if (prev !== null) { let gp = ph, gc = cb; for (let x = -2.4; x <= 2.4; x += 0.4) { const cx = cout(x); if (cx < gc) { gc = cx; gp = x; } } if (gc < cb - 0.25) ph = gp; }   // (bien meilleur ailleurs : on y va, à vitesse limitée)
         if (prev !== null) { const lim = Math.max(0.03, (RECHARGE[this.clip] || (this.priseK !== undefined && this.priseK < 0.97) ? 8 : 4) * (this.t - sw[h].t)); ph = prev + Math.max(-lim, Math.min(lim, ph - prev)); }   // (≤ 4 rad/s ; 8 en rechargement : poignet moins cassé à la reprise du garde-main)
-        sw[h] = { ph, t: this.t };
+        sw[h] = { ph, t: this.t, v: coude(ph).sub(C).applyQuaternion(gqC.clone().invert()) };
         const E1 = coude(ph * k);
         turn(arm, E0.clone().sub(S0), E1.clone().sub(S0)); const E2 = WP(fore); turn(fore, WP(hand).sub(E2), T.clone().sub(E2));
         // torsion : la moitié de la rotation de la main autour de l'avant-bras est portée par l'avant-bras (poignet moins vrillé)
@@ -2229,8 +2264,9 @@
           const k2 = two || this.armeDroite ? pk : 0; weapon.quaternion.copy(qS.slerp(weapon.quaternion, k2)); pos.copy(pS.lerp(pos, k2)); }
         if (procW > 0.01) { const Pp = this.poseArme(loc, inv);
           // position lissée (ressort ~0,1 s, repère du groupe) : le fusil n'encaisse pas tout le rebond des pas (les bras l'absorbent)
+          // — en garde basse seulement : épaulé, il bougeait jusqu'à 6 cm par rapport à l'épaule et à l'œil (course visée, LISSE_VISE)
           if (this.tPose !== undefined && this.t > this.tPose && this.pArme && !S.sansLisse) { const dtp = Math.min(0.1, this.t - this.tPose), w0 = 11, e = Pp.p.clone().sub(this.pArme), a = e.multiplyScalar(w0 * w0).addScaledVector(this.vArme, -2 * w0);
-            this.vArme.addScaledVector(a, dtp); this.pArme.addScaledVector(this.vArme, dtp); { const e2 = this.pArme.clone().sub(Pp.p), L2 = e2.length(); if (L2 > 0.03) { this.pArme.copy(Pp.p).addScaledVector(e2, 0.03 / L2); this.vArme.multiplyScalar(0.5); } } Pp.p.copy(this.pArme); }   // (retard limité à 3 cm : transitions rapides sans à-coup)
+            this.vArme.addScaledVector(a, dtp); this.pArme.addScaledVector(this.vArme, dtp); { const e2 = this.pArme.clone().sub(Pp.p), L2 = e2.length(); if (L2 > 0.03) { this.pArme.copy(Pp.p).addScaledVector(e2, 0.03 / L2); this.vArme.multiplyScalar(0.5); } } Pp.p.lerp(this.pArme, 1 - (S.LISSE_VISE || 0) * Math.max(0, Math.min(1, this.epK || 0))); }   // (retard limité à 3 cm : transitions rapides sans à-coup)
           else if (this.tPose !== this.t || !this.pArme) { this.pArme = Pp.p.clone(); this.vArme = V(); }
           this.tPose = this.t;
           const w = procW * (M.prise && !S.sansPrise ? pk : 1); weapon.quaternion.slerp(Pp.q, w); pos.lerp(Pp.p, w); }
