@@ -175,7 +175,7 @@ async def main():
             box = await pg.evaluate("() => { const r = document.querySelector('#scene').getBoundingClientRect(); return [r.left + r.width * 0.5, r.top + r.height * 0.55]; }")
             await pg.mouse.move(box[0], box[1]); await pg.mouse.down(button="right"); await pg.mouse.move(box[0] + 2, box[1] + 1); await pg.mouse.up(button="right"); await pg.wait_for_timeout(250)
             if not await pg.evaluate("() => !!document.querySelector('.ordmenu')"): return [False, await pg.evaluate("() => (document.querySelector('#bflash') || {}).textContent || ''")]
-            await pg.click(".ordmenu .omgo"); await pg.wait_for_timeout(150)
+            await pg.evaluate("() => document.querySelector('.ordmenu .omgo').click()"); await pg.wait_for_timeout(150)   # (rendu logiciel lent : clic direct)
             return [True, await pg.evaluate("() => API.battle().teams[0].units.filter(u => u.alive).every(u => u.moveOrder || u.keyOrder)")]
         await pg.click("#resNew"); await pg.evaluate("() => { API.pause(true); API.stepRaw(20); }")
         o1 = await clic_droit()

@@ -27,6 +27,8 @@
     cell(12, (c) => { g.fillStyle = '#fff'; g.beginPath(); g.moveTo(c * 0.3, c * 0.2); g.lineTo(c * 0.8, c * 0.35); g.lineTo(c * 0.65, c * 0.8); g.lineTo(c * 0.2, c * 0.6); g.closePath(); g.fill(); });
     cell(13, (c) => radial(c, [[0, 'rgba(255,255,255,1)'], [0.5, 'rgba(255,255,255,0.9)'], [0.7, 'rgba(255,255,255,0)'], [1, 'rgba(255,255,255,0)']]));
     cell(14, (c) => radial(c, [[0, 'rgba(255,255,255,0)'], [0.72, 'rgba(255,255,255,0)'], [0.86, 'rgba(255,255,255,1)'], [1, 'rgba(255,255,255,0)']]));
+    // 15 : langue de flamme le long de u (base à gauche, pointe à droite), bords irréguliers : éclair de bouche vu de profil
+    cell(15, (c) => { for (let k = 0; k < 40; k++) { const t = k / 39, x = c * (0.07 + 0.86 * t), y = c * (0.5 + (R() - 0.5) * 0.06 * t), r = c * (0.035 + 0.17 * Math.pow(1 - t, 0.8)) * (0.8 + R() * 0.4); const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(255,255,255,${0.32 * Math.pow(1 - t, 1.3) + 0.03})`); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, c, c); } });
   });
   ATLAS.generateMipmaps = true; ATLAS.minFilter = T.LinearMipmapLinearFilter;
   // ---- réserve de particules en billboards instanciés
@@ -50,7 +52,8 @@
           vec3 wp;
           float L = length(iAxis);
           if (L > 1e-4) {   // étiré le long d'un axe (traçante, étincelle) : largeur perpendiculaire à la vue
-            vec3 ax = iAxis / L, toCam = normalize(cameraPosition - iPos), side = normalize(cross(ax, toCam));
+            vec3 ax = iAxis / L, toCam = normalize(cameraPosition - iPos), side = cross(ax, toCam); float sl = length(side);
+            side = sl > 1e-3 ? side / sl : camR;   // axe pointé vers la caméra : pas de normale nulle (NaN)
             wp = iPos + ax * position.x * L + side * position.y * iSize.x;
           } else {
             float c = cos(iSize.y), s = sin(iSize.y); vec2 q = vec2(c * position.x - s * position.y, s * position.x + c * position.y) * iSize.x;
@@ -89,16 +92,63 @@
           if (q.delay > 0) continue;
           const k = q.age / q.life, fadeIn = q.fadeIn ? Math.min(1, q.age / q.fadeIn) : 1, a = q.a0 * fadeIn * (q.fadePow ? Math.pow(1 - k, q.fadePow) : 1 - k);
           A.p[n * 3] = q.p.x; A.p[n * 3 + 1] = q.p.y; A.p[n * 3 + 2] = q.p.z;
-          A.s[n * 2] = q.size * (1 + q.grow * k); A.s[n * 2 + 1] = q.rot;
+          const cs = q.size * (1 + q.grow * k); A.s[n * 2] = cs; A.s[n * 2 + 1] = q.rot;
           const cc = q.col2 ? [q.col[0] + (q.col2[0] - q.col[0]) * k, q.col[1] + (q.col2[1] - q.col[1]) * k, q.col[2] + (q.col2[2] - q.col[2]) * k] : q.col;
           A.c[n * 4] = cc[0]; A.c[n * 4 + 1] = cc[1]; A.c[n * 4 + 2] = cc[2]; A.c[n * 4 + 3] = Math.max(0, a);
           if (q.axis) { A.ax[n * 3] = q.axis.x; A.ax[n * 3 + 1] = q.axis.y; A.ax[n * 3 + 2] = q.axis.z; }
-          else if (q.stretch) { const sp = q.v.length(); const L = Math.max(q.size, sp * q.stretch); A.ax[n * 3] = q.v.x / (sp || 1) * L; A.ax[n * 3 + 1] = q.v.y / (sp || 1) * L; A.ax[n * 3 + 2] = q.v.z / (sp || 1) * L; }
+          else if (q.stretch) { const sp = q.v.length(); const L = Math.max(cs, sp * q.stretch); /* taille courante : une bouffée qui ralentit s'arrondit au lieu de s'aplatir */ A.ax[n * 3] = q.v.x / (sp || 1) * L; A.ax[n * 3 + 1] = q.v.y / (sp || 1) * L; A.ax[n * 3 + 2] = q.v.z / (sp || 1) * L; }
           else { A.ax[n * 3] = A.ax[n * 3 + 1] = A.ax[n * 3 + 2] = 0; }
           A.f[n * 2] = q.frame; n++;
         }
         geo.instanceCount = n;
         for (const k of ['iPos', 'iSize', 'iCol', 'iAxis', 'iFrame']) geo.attributes[k].needsUpdate = true;
+      },
+    };
+  }
+  // ---- ronds de pluie au sol : anneaux plats qui s'élargissent, réapparus au hasard autour de ce que regarde la caméra
+  // (un seul appel de dessin ; le sol des obstacles les cache naturellement)
+  function Ripples(N) {
+    const base = new T.PlaneGeometry(1, 1); base.rotateX(-Math.PI / 2);
+    const geo = new T.InstancedBufferGeometry(); geo.index = base.index; geo.attributes.position = base.attributes.position;
+    const A = new Float32Array(N * 4); for (let i = 0; i < N; i++) A[i * 4 + 2] = -99;   // x, z, naissance, taille
+    geo.setAttribute('iR', new T.InstancedBufferAttribute(A, 4).setUsage(T.DynamicDrawUsage)); geo.instanceCount = N;
+    const mat = new T.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uLife: { value: 0.6 }, uCol: { value: new T.Color(0.62, 0.68, 0.74) }, fogColor: { value: new T.Color() }, fogDensity: { value: 0 } },
+      vertexShader: `
+        attribute vec4 iR; uniform float uTime, uLife; varying vec2 vQ; varying float vAge, vFog;
+        void main() {
+          vAge = (uTime - iR.z) / uLife; vQ = position.xz * 2.0;
+          vec3 wp = vec3(iR.x + position.x * iR.w, 0.012, iR.y + position.z * iR.w);
+          vec4 mv = viewMatrix * vec4(wp, 1.0); gl_Position = projectionMatrix * mv; vFog = -mv.z;
+          if (vAge < 0.0 || vAge > 1.0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);   // hors de vie : hors écran
+        }`,
+      fragmentShader: `
+        uniform vec3 uCol, fogColor; uniform float fogDensity; varying vec2 vQ; varying float vAge, vFog;
+        void main() {
+          float r = length(vQ), w = 0.07 + 0.05 * vAge;
+          float ring = smoothstep(w, 0.0, abs(r - vAge * 0.92)) + 0.45 * smoothstep(w, 0.0, abs(r - vAge * 0.55));
+          float a = ring * pow(1.0 - vAge, 1.6) * 0.42 * (1.0 - step(1.0, r));
+          float fog = 1.0 - exp(-fogDensity * fogDensity * vFog * vFog); a *= 1.0 - fog;
+          if (a < 0.004) discard;
+          gl_FragColor = vec4(uCol, a);
+        }`,
+      transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3,
+    });
+    const mesh = new T.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 3; mesh.visible = false;
+    let t = 0; const fw = new T.Vector3();
+    return {
+      mesh, mat,
+      update(dt, cam) {
+        if (!mesh.visible) return; t += dt; mat.uniforms.uTime.value = t;
+        let cx = 0, cz = 0, R = 16;
+        if (cam) { cam.getWorldDirection(fw); const h = Math.max(1, cam.position.y), fl = Math.hypot(fw.x, fw.z) || 1, ahead = Math.min(18, h * 1.6 + 4); cx = cam.position.x + fw.x / fl * ahead; cz = cam.position.z + fw.z / fl * ahead; R = Math.min(26, 8 + h * 0.9); }
+        const life = mat.uniforms.uLife.value; let ch = false;
+        for (let i = 0; i < N; i++) {
+          if (t - A[i * 4 + 2] < life) continue;
+          const a = Math.random() * 6.28, d = Math.sqrt(Math.random()) * R;
+          A[i * 4] = cx + Math.cos(a) * d; A[i * 4 + 1] = cz + Math.sin(a) * d; A[i * 4 + 2] = t + Math.random() * life * 0.5; A[i * 4 + 3] = 0.16 + Math.random() * 0.16; ch = true;
+        }
+        if (ch) geo.attributes.iR.needsUpdate = true;
       },
     };
   }
@@ -150,21 +200,34 @@
     const debris = Bodies(300, new T.DodecahedronGeometry(0.04, 0), new T.MeshStandardMaterial({ color: 0x6b6660, roughness: 0.95 })); scene.add(debris.mesh);
     const holes = Decals(500, holeTex, {}), blood = Decals(120, bloodTex, { rough: 0.3 }), scorch = Decals(40, scorchTex, {});
     scene.add(holes.mesh); scene.add(blood.mesh); scene.add(scorch.mesh);
+    const ripples = Ripples(700); scene.add(ripples.mesh);
     // réserve de lumières : toujours dans la scène, éteintes
     const lights = []; for (let i = 0; i < 6; i++) { const l = new T.PointLight(0xffb469, 0, 9, 2); l.position.set(0, -50, 0); scene.add(l); lights.push({ l, until: 0, i0: 0, dur: 0.05 }); }
     let li = 0, now = 0;
     const light = (p, color, inten, dist, dur) => { const L = lights[li]; li = (li + 1) % lights.length; L.l.position.copy(p); L.l.color.setHex(color); L.l.distance = dist; L.i0 = inten; L.l.intensity = inten; L.until = now + dur; L.dur = dur; L.fresh = true; };
     const V = (x, y, z) => new T.Vector3(x, y, z), rnd = (a, b) => a + Math.random() * (b - a);
+    const basis = (d) => { const u = new T.Vector3().crossVectors(d, Math.abs(d.y) < 0.9 ? V(0, 1, 0) : V(1, 0, 0)).normalize(); return [u, new T.Vector3().crossVectors(d, u)]; };
     const E = { casings, holes, blood, scorch, debris, pools: { add, alpha }, sound: null };
     // éclair de bouche : origine p, direction d (unitaire)
     E.muzzle = function (p, d, silenced) {
       if (silenced) { alpha.add({ p: p.clone(), v: d.clone().multiplyScalar(0.6).add(V(0, 0.3, 0)), life: 0.6, size: 0.08, grow: 3, frame: 4 + Math.floor(Math.random() * 4), col: [0.7, 0.7, 0.7], a0: 0.25, drag: 2 }); return; }
-      const hot = [4.6, 3.1, 1.3];
-      add.add({ p: p.clone().addScaledVector(d, 0.05), life: 0.045, size: rnd(0.11, 0.17), rot: Math.random() * 6.28, frame: 1, col: hot, a0: 1 });
-      for (let k = 0; k < 2; k++) add.add({ p: p.clone().addScaledVector(d, 0.12 + k * 0.08), axis: d.clone().multiplyScalar(rnd(0.22, 0.34)), life: 0.04, size: 0.07 - k * 0.02, frame: 2, col: hot, a0: 0.9 });
-      for (let k = 0; k < 3; k++) add.add({ p: p.clone(), v: d.clone().multiplyScalar(rnd(6, 14)).add(V(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1))), life: rnd(0.05, 0.12), size: 0.012, stretch: 0.012, frame: 3, col: [8, 5, 2], a0: 1 });
-      alpha.add({ p: p.clone().addScaledVector(d, 0.1), v: d.clone().multiplyScalar(0.8).add(V(0, 0.35, 0)), life: rnd(0.6, 1.1), size: 0.09, grow: 4, frame: 4 + Math.floor(Math.random() * 4), col: [0.62, 0.6, 0.58], a0: 0.22, drag: 2.5, fadeIn: 0.05, rot: Math.random() * 6, spin: rnd(-1, 1) });
-      light(p.clone().addScaledVector(d, 0.2), 0xffb26b, rnd(7, 11), 7, 0.05);
+      // chaque coup est différent (taille, pétales) ; cœur court et pas trop gros (le halo l'élargit déjà), flamme vers l'avant
+      // (langue étirée le long du canon, visible de profil), trois pétales du cache-flamme en étoile (visibles de face)
+      const k = rnd(0.75, 1.25), hot = [5.2, 3.3, 1.35], o = p.clone().addScaledVector(d, 0.02);
+      add.add({ p: o.clone(), life: 0.04, size: rnd(0.07, 0.1) * k, rot: Math.random() * 6.28, frame: 1, col: [4, 2.9, 1.5], a0: 1 });
+      const L = rnd(0.2, 0.34) * k;
+      add.add({ p: o.clone().addScaledVector(d, L * 0.5), axis: d.clone().multiplyScalar(L), life: 0.04, size: 0.2 * k, frame: 15, col: hot, a0: 1 });
+      const [bu, bw] = basis(d), a0 = Math.random() * 6.28;
+      for (let i = 0; i < 3; i++) {
+        if (Math.random() < 0.2) continue;
+        const a = a0 + i * 2.094 + rnd(-0.3, 0.3), s = d.clone().multiplyScalar(0.6).addScaledVector(bu, Math.cos(a)).addScaledVector(bw, Math.sin(a)).normalize(), l = rnd(0.06, 0.11) * k;
+        add.add({ p: o.clone().addScaledVector(s, l * 0.5), axis: s.multiplyScalar(l), life: 0.035, size: 0.075 * k, frame: 15, col: hot, a0: 0.85 });
+      }
+      for (let i = 0; i < 3; i++) add.add({ p: p.clone(), v: d.clone().multiplyScalar(rnd(6, 14)).add(V(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1))), life: rnd(0.05, 0.12), size: 0.01, stretch: 0.012, frame: 3, col: [8, 5, 2], a0: 1 });
+      // fumée de poudre : une bouffée chassée vers l'avant, une autre qui traîne et monte
+      alpha.add({ p: p.clone().addScaledVector(d, 0.12), v: d.clone().multiplyScalar(rnd(1.6, 2.6)).add(V(0, 0.25, 0)), life: rnd(0.5, 0.8), size: 0.07, grow: 5, frame: 4 + Math.floor(Math.random() * 4), col: [0.62, 0.6, 0.58], a0: 0.2, drag: 4.5, fadeIn: 0.03, fadePow: 1.4, rot: Math.random() * 6, spin: rnd(-1, 1) });
+      alpha.add({ p: p.clone().addScaledVector(d, 0.05), v: d.clone().multiplyScalar(0.3).add(V(rnd(-0.1, 0.1), 0.3, rnd(-0.1, 0.1))), life: rnd(1.0, 1.6), size: 0.06, grow: 6, frame: 4 + Math.floor(Math.random() * 4), col: [0.6, 0.59, 0.57], a0: 0.14, drag: 1.5, fadeIn: 0.08, rot: Math.random() * 6, spin: rnd(-0.6, 0.6) });
+      light(p.clone().addScaledVector(d, 0.2), 0xffb26b, rnd(7, 11) * k, 7, 0.05);
     };
     // traçante : de a à b, vitesse (m/s), part après « delay »
     E.tracer = function (a, b, speed, team) {
@@ -174,18 +237,36 @@
     };
     // matière d'un obstacle (nom) → famille d'impact
     E.impact = function (p, n, matter, delay) {
-      delay = delay || 0; const up = n.y > 0.7;
+      delay = delay || 0; const up = n.y > 0.7, P = p.clone();
+      // briques : éclair (petite étoile brève, pas une boule), étincelles, éclats, jet de poussière (rapide, étiré, freiné net)
+      // puis nuage qui s'arrondit et traîne
+      const flash = (s, col) => add.add({ p: P.clone().addScaledVector(n, 0.02), life: 0.035, size: s, rot: Math.random() * 6.28, frame: 1, col, a0: 1, delay });
+      const sparks = (N, sp, life, col) => { for (let k = 0; k < N; k++) add.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.3, 1) * sp).add(V(rnd(-1, 1), rnd(-0.2, 1), rnd(-1, 1)).multiplyScalar(sp * 0.55)), life: rnd(life * 0.4, life), size: 0.01, stretch: 0.02, frame: 3, col, grav: 9.8, delay, floor: 0.01 }); };
+      const chips = (N, col, sp, a0) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.4, 1) * sp).add(V(rnd(-1, 1), rnd(0.2, 1.2), rnd(-1, 1)).multiplyScalar(sp * 0.45)), life: rnd(0.35, 0.8), size: rnd(0.01, 0.024), frame: 12, col, a0: a0 || 1, grav: 9.8, delay, floor: 0.01, rot: Math.random() * 6, spin: rnd(-14, 14) }); };
+      const jet = (N, col, a0, sp) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.03), v: n.clone().multiplyScalar(rnd(0.6, 1) * sp).add(V(rnd(-1, 1), rnd(-0.2, 1), rnd(-1, 1)).multiplyScalar(sp * 0.2)), life: rnd(0.4, 0.7), size: rnd(0.04, 0.06), grow: 5, stretch: 0.05, frame: 4 + Math.floor(Math.random() * 4), col, a0, drag: 7, delay, fadePow: 1.3, rot: Math.random() * 6 }); };
+      const puff = (N, col, a0, sz, life, sp) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.05), v: n.clone().multiplyScalar(rnd(0.3, 1) * sp).add(V(rnd(-0.3, 0.3), rnd(0, 0.35), rnd(-0.3, 0.3))), life: rnd(life * 0.6, life), size: rnd(sz * 0.7, sz), grow: rnd(3, 5), frame: 4 + Math.floor(Math.random() * 4), col, a0, drag: 3, delay, fadeIn: 0.03, fadePow: 1.5, rot: Math.random() * 6, spin: rnd(-0.6, 0.6) }); };
+      let hole = up ? rnd(0.07, 0.11) : rnd(0.06, 0.09);
       if (matter === 'impact_metal') {
-        for (let k = 0; k < 9; k++) add.add({ p: p.clone(), v: n.clone().multiplyScalar(rnd(2, 6)).add(V(rnd(-3, 3), rnd(0, 3), rnd(-3, 3))), life: rnd(0.15, 0.4), size: 0.012, stretch: 0.02, frame: 3, col: [10, 6, 2], grav: 9.8, delay, floor: 0.01 });
-        add.add({ p: p.clone().addScaledVector(n, 0.03), life: 0.06, size: 0.12, frame: 1, col: [6, 4, 2], delay });
+        flash(0.09, [6, 4, 2]); sparks(10, 6, 0.4, [10, 6, 2]); puff(1, [0.45, 0.44, 0.42], 0.25, 0.07, 0.8, 0.6); hole = rnd(0.04, 0.06);
+      } else if (matter === 'impact_carrosserie') {   // tôle peinte : quelques étincelles, éclats de peinture, peu de poussière
+        flash(0.07, [5, 3.6, 1.8]); sparks(5, 4.5, 0.28, [9, 5.5, 2]); chips(4, [0.3, 0.3, 0.32], 2.5); puff(2, [0.5, 0.5, 0.5], 0.26, 0.06, 0.9, 0.6); hole = rnd(0.035, 0.05);
+      } else if (matter === 'impact_verre') {   // vitre : pluie d'éclats clairs qui scintillent, pas d'étincelle
+        flash(0.05, [3, 3.2, 3.4]); chips(12, [1.15, 1.25, 1.35], 2.4, 0.85);
+        for (let k = 0; k < 6; k++) add.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-1, 1), rnd(0, 1.2), rnd(-1, 1))), life: rnd(0.25, 0.55), size: 0.008, stretch: 0.01, frame: 3, col: [2.2, 2.4, 2.6], grav: 9.8, delay, floor: 0.01 });
+        puff(1, [0.75, 0.78, 0.8], 0.2, 0.06, 0.6, 0.5); hole = 0;
+      } else if (matter === 'impact_sol' && E.wet) {   // sol détrempé : gerbe d'eau, pas de poussière
+        for (let k = 0; k < 10; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.02), v: V(rnd(-0.8, 0.8), rnd(1.5, 3.5), rnd(-0.8, 0.8)), life: rnd(0.3, 0.55), size: rnd(0.012, 0.022), stretch: 0.012, frame: 13, col: [0.72, 0.77, 0.82], a0: 0.8, grav: 9.8, delay, floor: 0.01 });
+        puff(2, [0.68, 0.72, 0.76], 0.22, 0.08, 0.6, 0.6); chips(3, [0.12, 0.12, 0.12], 2.5);
       } else {
         const dusty = matter === 'impact_sol', wood = matter === 'impact_bois';
-        const c = wood ? [0.45, 0.33, 0.2] : dusty ? [0.5, 0.45, 0.38] : [0.58, 0.56, 0.52];
-        for (let k = 0; k < (dusty ? 5 : 4); k++) alpha.add({ p: p.clone().addScaledVector(n, 0.05), v: n.clone().multiplyScalar(rnd(0.6, 1.8)).add(V(rnd(-0.5, 0.5), rnd(0, dusty ? 1.4 : 0.6), rnd(-0.5, 0.5))), life: rnd(0.7, 1.6), size: rnd(0.06, 0.12), grow: rnd(3, 6), frame: 4 + Math.floor(Math.random() * 4), col: c, a0: dusty ? 0.5 : 0.42, drag: 3, delay, rot: Math.random() * 6 });
-        for (let k = 0; k < 6; k++) alpha.add({ p: p.clone(), v: n.clone().multiplyScalar(rnd(1.5, 4)).add(V(rnd(-1.5, 1.5), rnd(0.5, 2.5), rnd(-1.5, 1.5))), life: rnd(0.3, 0.7), size: rnd(0.012, 0.025), frame: 12, col: wood ? [0.4, 0.3, 0.18] : [0.32, 0.31, 0.3], a0: 1, grav: 9.8, delay, floor: 0.01, spin: rnd(-12, 12) });
-        if (!dusty) add.add({ p: p.clone().addScaledVector(n, 0.02), life: 0.05, size: 0.07, frame: 0, col: [4, 3, 2], delay });
+        const c = wood ? [0.45, 0.33, 0.2] : dusty ? [0.48, 0.44, 0.38] : [0.6, 0.58, 0.54];
+        if (!dusty) flash(0.06, [3.2, 2.4, 1.5]);
+        jet(3, c, dusty ? 0.6 : 0.55, dusty ? 4.5 : 5);
+        puff(3, c, dusty ? 0.5 : 0.45, dusty ? 0.14 : 0.12, dusty ? 1.6 : 1.9, dusty ? 0.7 : 1);
+        chips(dusty ? 6 : 7, wood ? [0.4, 0.3, 0.18] : dusty ? [0.16, 0.15, 0.14] : [0.36, 0.35, 0.33], 3);
+        if (!dusty && !wood && Math.random() < 0.35) sparks(2, 4, 0.18, [8, 5, 2]);
       }
-      E.hole(p, n, up ? rnd(0.07, 0.11) : rnd(0.06, 0.09));
+      if (hole) E.hole(p, n, hole);
     };
     E.hole = function (p, n, s) { holes.add(p, n, s); };
     E.bloodHit = function (p, dir, delay) {
@@ -232,10 +313,13 @@
       now += dt;
       add.update(dt); alpha.update(dt);
       if (sunCol) alpha.mat.uniforms.uLight.value.copy(sunCol);
-      if (fog && fog.isFogExp2) { for (const P of [add, alpha]) { P.mat.uniforms.fogColor.value.copy(fog.color); P.mat.uniforms.fogDensity.value = fog.density; } }
+      if (fog && fog.isFogExp2) { for (const P of [add, alpha, ripples]) { P.mat.uniforms.fogColor.value.copy(fog.color); P.mat.uniforms.fogDensity.value = fog.density; } }
+      ripples.update(dt, cam);
       casings.update(dt, (b) => { if (E.sound && Math.random() < 0.35) E.sound(b.p); }); debris.update(dt);
       for (const L of lights) { if (L.fresh) { L.fresh = false; L.until = now + L.dur; continue; } if (now >= L.until) { L.l.intensity = 0; continue; } const k = (L.until - now) / L.dur; L.l.intensity = L.i0 * k * (0.7 + Math.random() * 0.3); }
     };
+    // pluie : ronds au sol et impacts au sol en gerbes d'eau
+    E.setRain = function (on) { ripples.mesh.visible = !!on; E.wet = !!on; };
     E.clear = function () { add.parts.length = 0; alpha.parts.length = 0; casings.list.length = 0; debris.list.length = 0; holes.clear(); blood.clear(); scorch.clear(); for (const L of lights) L.l.intensity = 0; add.update(0); alpha.update(0); casings.update(0); debris.update(0); };
     return E;
   }

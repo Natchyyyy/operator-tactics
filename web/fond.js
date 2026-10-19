@@ -60,6 +60,18 @@
   function apply() {
     try { if (!url) url = draw(1920, 1080, 11).toDataURL('image/jpeg', 0.88); document.documentElement.style.setProperty('--fond', `url(${url})`); } catch (e) { /* canevas indisponible : fond noir */ }
   }
-  root.Fond = { draw, apply };
-  apply();
+  // fond aux proportions de la fenêtre (--fondv) : posé derrière la scène 1920×1080 des menus, il remplit les bandes
+  // latérales d'un écran ultra-large (ou haut/bas d'un écran 4:3) sans couture ni étirement visible
+  let vKey = '';
+  function applyView() {
+    try {
+      const a = Math.max(1.2, Math.min(3.6, (innerWidth || 1920) / (innerHeight || 1080))), W = Math.round(1080 * a / 16) * 16, key = String(W);
+      if (key === vKey) return; vKey = key;
+      const u = Math.abs(W - 1920) < 40 && url ? url : draw(W, 1080, 11).toDataURL('image/jpeg', 0.85);
+      document.documentElement.style.setProperty('--fondv', `url(${u})`);
+    } catch (e) { /* fond noir */ }
+  }
+  let rT = 0; window.addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(applyView, 250); });
+  root.Fond = { draw, apply, applyView };
+  apply(); applyView();
 })(window.OT = window.OT || {});

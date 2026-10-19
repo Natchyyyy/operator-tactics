@@ -776,21 +776,28 @@
       if (scene.userData.dome) scene.userData.dome.visible = L.dome;
     }
     if (rain) { scene.remove(rain); rain.geometry.dispose(); rain.material.dispose(); rain = null; }
-    if (id === 'pluie') {   // gouttes en traits (segments) qui tombent dans un volume autour de la caméra
-      const N = 3500, pos = new Float32Array(N * 6);
-      for (let i = 0; i < N; i++) { const x = Math.random() * 90 - 13, y = Math.random() * 30, z = Math.random() * 70 - 15; pos.set([x, y, z, x + 0.05, y + 0.7, z + 0.02], i * 6); }
+    if (id === 'pluie') {   // gouttes en traits (segments) qui tombent dans un volume qui suit la caméra (dense de près, en gros plan aussi)
+      const N = 4500, pos = new Float32Array(N * 6);
+      for (let i = 0; i < N; i++) { const x = Math.random() * RAIN_BOX - RAIN_BOX / 2, y = Math.random() * 24, z = Math.random() * RAIN_BOX - RAIN_BOX / 2, l = 0.45 + Math.random() * 0.45; pos.set([x, y, z, x + 0.13 * l, y + l, z + 0.04 * l], i * 6); }
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xa8b8c8, transparent: true, opacity: 0.35, depthWrite: false })); rain.frustumCulled = false; scene.add(rain);
+      rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xa8b8c8, transparent: true, opacity: 0.3, depthWrite: false })); rain.frustumCulled = false; scene.add(rain);
     }
+    if (EFX && EFX.setRain) EFX.setRain(id === 'pluie');   // ronds de pluie au sol, impacts au sol en gerbes d'eau
     $('#app').dataset.cond = id || 'jour';
     if (OT.Parking && battle && battle.map.id === 'parking') { OT.Parking.setConditions(id || 'jour', scene); buildLamps(false); } else buildLamps(id === 'nuit' || id === 'brouillard');
     RIM.k.value = id === 'nuit' ? RIM.nuit : 0; RIM.f.value = id === 'nuit' ? RIM.fond : 0; if (RENDU) RIM.d.value.copy(RENDU.lightDir);   // liseré de lune des soldats (côté lune)
     buildSteam();
     meteoSound();   // couche sonore de la météo (pluie, vent, nuit, oiseaux)
   }
+  const RAIN_BOX = 44;   // côté du volume de pluie autour de la caméra (m)
   function updateRain(dt) {
-    if (!rain) return; const a = rain.geometry.attributes.position.array, v = 26 * dt;
-    for (let i = 0; i < a.length; i += 6) { a[i + 1] -= v; a[i + 4] -= v; if (a[i + 1] < 0) { a[i + 1] += 30; a[i + 4] += 30; } }
+    if (!rain) return; const a = rain.geometry.attributes.position.array, v = 26 * dt, cx = camera.position.x, cz = camera.position.z, B = RAIN_BOX, h = B / 2;
+    for (let i = 0; i < a.length; i += 6) {
+      a[i + 1] -= v; a[i + 4] -= v; if (a[i + 1] < 0) { a[i + 1] += 24; a[i + 4] += 24; }
+      const dx = a[i] - cx, dz = a[i + 2] - cz;   // goutte sortie du volume : replacée de l'autre côté (même après un changement de plan)
+      if (dx > h || dx < -h) { const k = Math.floor((dx + h) / B) * B; a[i] -= k; a[i + 3] -= k; }
+      if (dz > h || dz < -h) { const k = Math.floor((dz + h) / B) * B; a[i + 2] -= k; a[i + 5] -= k; }
+    }
     rain.geometry.attributes.position.needsUpdate = true;
   }
 
