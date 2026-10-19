@@ -433,6 +433,10 @@
         const q3 = inFuture(1.2, () => { const f3 = frameShot(s, 0); return f3 ? shotQuality(f3, null, false, s) : -1; });
         if (q3 < q - 0.4) q -= 0.4;
       }
+      if (q > 0 && OCC.use && (s.kind === 'shoulder' || s.kind === 'duel')) {   // la cible qui s'accroupit derrière son couvert reste-t-elle visible ? (préférer ce côté, cette hauteur)
+        const low = f.pts.filter(Boolean).map(e => V3(e.x, Math.min(e.y, 0.85), e.z));
+        if (low.length && low.filter(e => subjectSeen(f.pos, e, false)).length / low.length < 0.5) q -= 0.2;
+      }
       if (q >= 0 && OCC.use) q -= clutter(f.pos, f.look, f.fov) * 0.9;   // un mur, un bac ou une carrosserie qui remplit le premier plan
       if (q >= 0 && f.pos.y < 9 && !(f.noBoom && OCC.use)) { const c = clipBoom(f.pivot, f.pos); if (c.y - f.pos.y > 0.4 || c.distanceTo(f.pos) > 0.8) q -= 0.6; }   // la perche devrait se replier ou monter : cadrage dénaturé
       if (q > bq + 1e-6) { bq = q; best = s; }
@@ -446,7 +450,7 @@
       if (s.kind === 'dolly') { for (const [ang, dd] of [[0, 3.8], [0.45, 3.4], [-0.45, 3.4], [0, 2.7]]) out.push(Object.assign({}, s, { side, ang, dd })); continue; }
       out.push(Object.assign({}, s, { side, yaw: (s.yaw || 0) + y }));
       // repli si le décor dessiné gêne : épaule plus courte ou plus haute, duel et zone vus de plus haut
-      if (s.kind === 'shoulder') { out.push(Object.assign({}, s, { side, back: 1.5 }), Object.assign({}, s, { side, lift: 0.7 })); }
+      if (s.kind === 'shoulder') { out.push(Object.assign({}, s, { side, back: 1.5 }), Object.assign({}, s, { side, lift: 0.7 }), Object.assign({}, s, { side, lift: 1.4, back: 2.6 })); }   // (plus haut et plus en arrière : vue plongeante par-dessus le couvert de la cible)
       if (s.kind === 'duel') out.push(Object.assign({}, s, { side, lift: 1.6 }));
       if (s.kind === 'capture') out.push(Object.assign({}, s, { side, yaw: (s.yaw || 0) + y, h: 5.4 }));
     }

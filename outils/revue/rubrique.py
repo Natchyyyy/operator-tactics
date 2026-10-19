@@ -285,7 +285,7 @@ def _pied_ouvert(r):
     return best or (None, None)
 crit(id='pied_vs_bassin', partie='bas', lib='Pied au sol tourné par rapport au bassin (°, + = pointe vers l\'extérieur, pire image)', quand=lambda e: ('lateral' in e or 'diag' in e or 'recul' in e or 'pivot' in e or 'vise' in e) and 'accroupi' not in e and 'recharge' not in e,
      val=lambda r: _pied_ouvert(r)[0], t=lambda r: _pied_ouvert(r)[1], ok=None, mineur=None, cle=(),
-     bornes=lambda e: ((-15, 45), (-25, 65)) if 'arret' in e else ((-15, 35), (-25, 50)),   # (à l'arrêt : appui décalé, pied arrière plus ouvert)
+     bornes=lambda e: ((-15, 45), (-25, 65)) if ('arret' in e or 'transition' in e) else ((-15, 35), (-25, 50)),   # (à l'arrêt, et à la fin d'un départ / arrêt : appui décalé, pied arrière plus ouvert)
      pourquoi='En pas chassé, en recul ou en visée, les pieds restent tournés vers la menace (pointes 10-30° vers l\'extérieur) ; une pointe tournée à 60-90° dans le sens du pas (pied « en canard ») casse la base de tir et se voit de face et de profil.', src='TC 3-22.9 ch. 9 (lateral movement : pas glissés, pieds vers l\'avant) ; vraie vidéo (captures/reference_video/)', vues=['dessus', 'piedsFace'])
 crit(id='flexion_dorsale', partie='bas', lib='Cheville : flexion dorsale max (pointe relevée vers le tibia, vs liaison, °)', quand=lambda e: 'accroupi' not in e,
      val=lambda r: (lambda a, b: None if a is None else -min(a, b if b is not None else a))(st(r, 'plantaireG', 'min'), st(r, 'plantaireD', 'min')), ok=(-99, 38), mineur=(-99, 46), cle=('plantaireG', 'plantaireD', 'min'),
