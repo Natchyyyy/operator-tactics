@@ -62,13 +62,14 @@
   const ORDRE_TOUR = root.ORDRE_TOUR_TEST ?? true;
   // (tw : écart max — rad — où l'on tourne d'abord le bassin ; k : part de la torsion permise ; mesuré, 1,66 m/s visée 20-30° à
   // gauche : 210-215 → 171-187 pas/min, torsion 48-57°)
+  const CAD_MAX = root.CAD_MAX_TEST ?? 190;   // cadence plafonnée des mélanges riches en pas chassé (pas/min ; 0 : aucune) — voir marche
   const TORS_PART = root.TORS_PART_TEST === false ? null : Object.assign({ tw: 1.0, k: 0.9 }, root.TORS_PART_TEST || {});   // marche visée de biais : bassin tourné jusqu'à la torsion permise, puis mélange (voir marche)
   // filtre (1/s) de la cible de torsion des jambes à l'arrêt ; 0 : aucun (essai à 12 : à-coup du bassin au pivot 4 200 → 2 600,
   // mais glissement par appui 7 → 8 cm : les pieds relâchés suivent un bassin en retard ; écarté)
   const JAMBES_FILTRE = root.JAMBES_FILTRE_TEST ?? 0;   // au quart de tour, le pied du côté du tour part le premier   // nouveaux pas si le bassin a tourné au-dessus des pieds cloués (voir poserPieds)
   // (essai, désactivé : bassin plus vif pendant les pas de pose ; mesuré : pied / bassin −2°, à-coup du bassin ×1,7)
   const JAMBES_POSE = root.JAMBES_POSE_TEST ? Object.assign({ vj: 6, st: 0.13 }, root.JAMBES_POSE_TEST) : null;   // torsion des jambes pendant les pas de pose (rad/s, s)
-  const PIV_P = Object.assign({ lim: 0.7, w: 8, hanche: 0.9 }, root.PIV_P_TEST || {});   // (écart toléré, rad ; vitesse de pivot max, rad/s ; hanche : écart au-delà duquel le pied tourne autour du bassin, rad)   // pied en attente qui pivote sur la plante au quart de tour (voir poserPieds)   // marche qui reprend la couche de jambes du rechargement (voir marche)   // replacement des pieds permis pendant les pas d'arrêt (voir repas)   // pas de pose visant la place finale du pied (voir poserPieds)
+  const PIV_P = Object.assign({ lim: 0.7, w: 8, hanche: 1.0 }, root.PIV_P_TEST || {});   // (écart toléré, rad ; vitesse de pivot max, rad/s ; hanche : écart au-delà duquel le pied tourne autour du bassin, rad)   // pied en attente qui pivote sur la plante au quart de tour (voir poserPieds)   // marche qui reprend la couche de jambes du rechargement (voir marche)   // replacement des pieds permis pendant les pas d'arrêt (voir repas)   // pas de pose visant la place finale du pied (voir poserPieds)
   // garde basse (« low ready ») : av / ar = pied gauche avancé / pied droit reculé (m), hf = bassin vers l'avant (m), hy = bassin
   // (m), bl = bassin de trois quarts (°, hanche gauche en avant)
   // (mesuré, deux modèles : bassin et épaules à 21°, chevilles à 37 cm de large, pied droit 17 cm derrière et ouvert de 30-40°,
@@ -1255,7 +1256,7 @@
   // place de la main d'appui tournée de a (rad) autour de la verticale de l'arme, centre au milieu de la paume (voir mainChargeur)
   S.INCL_G = 0.7; S.INCL_EXP = 1; S.PUITS_V = 0.04; S.DEPART_Q = 0.22; S.PUITS_PROF = 0.08; S.PUITS_ENF = 0.6; S.PUITS_HAUT = 0.04; S.COUDE_DEV_R = 0.05;
   S.LISSE_VISE = 1; S.TORSION_MAX = 0.95;
-  S.PENCHE_LAT = 0.06; S.EP_W = 11;   // visée en pas chassé / en recul : penche du buste réduite d'autant (rad ; ~18,5° → ~15,5°)   // part du lissage de position du fusil retirée en visée (épaulé : crosse à l'épaule, joue sur la crosse ; le fusil suit le buste)
+  S.PENCHE_LAT = 0.06; S.EP_W = 11; S.DOS_W = 14; S.A0_W = 16; S.PENCHE_W = 6;   // (lissages : torsion du dos en marche, part de visée du clip haut, cible de penche)   // visée en pas chassé / en recul : penche du buste réduite d'autant (rad ; ~18,5° → ~15,5°)   // part du lissage de position du fusil retirée en visée (épaulé : crosse à l'épaule, joue sur la crosse ; le fusil suit le buste)
   const hrelIncl = (D, a) => { if (Math.abs(a) < 1e-4) return D.Hrel; const c = D.paumeLoc;
     return new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeRotationY(a)).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(D.Hrel); };
   // suivi de o[k] vers tgt (dt > 0) : ressort amorti critique (w) avec anticipation de la vitesse de la cible (bornée à vmax : un
@@ -1382,7 +1383,7 @@
         // (a0 lissé sur ~0,2 s comme le fondu des hauts du corps : passer de la visée à la garde basse, ou de la marche à la
         // course, ne fait plus sauter la torsion du dos)
         const a0c = (M.aimYaw && M.aimYaw[haut.replace(/_Haut$/, '')]) || 0;
-        if (!this.blendW || this.a0s === undefined) { this.a0s = a0c; lisse2(this, 'a0s', a0c, a0c, 16, 0); } else this.a0s = S.A0_PREMIER ? this.a0s + (a0c - this.a0s) * Math.min(1, dt * 12) : lisse2(this, 'a0s', this.a0s, a0c, 16, dt);   // (cible filtrée + ressort : le 1er ordre faisait tourner le dos de 40 % de l'écart dès la 1re image — Spine2 35 000 °/s² en passant à la course épaulée)
+        if (!this.blendW || this.a0s === undefined) { this.a0s = a0c; lisse2(this, 'a0s', a0c, a0c, 16, 0); } else this.a0s = S.A0_PREMIER ? this.a0s + (a0c - this.a0s) * Math.min(1, dt * 12) : lisse2(this, 'a0s', this.a0s, a0c, S.A0_W, dt);   // (cible filtrée + ressort : le 1er ordre faisait tourner le dos de 40 % de l'écart dès la 1re image — Spine2 35 000 °/s² en passant à la course épaulée)
         const a0 = this.a0s, B = -a0 * (1 - DOS_VISEE);
         let e = ecart - B; while (e > Math.PI) e -= 2 * Math.PI; while (e < -Math.PI) e += 2 * Math.PI;
         const wrap = (x) => { while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
@@ -1448,7 +1449,12 @@
         // c'est elle qui cale la cadence sur la vitesse réelle (pas de pieds qui glissent)
         // (mesuré : la vraie foulée d'un mélange est entre la somme vectorielle et la somme des longueurs ; on prend la moyenne)
         let fx = 0, fz = 0, fl = 0; for (const n in bw) if (bw[n] > 0) { const L = bw[n] / tot * foul(n), t = D[n] || 0; fx += L * Math.sin(t); fz += L * Math.cos(t); fl += L; }
-        this.ph = ((this.ph || 0) + dt * v / Math.max(0.25, (Math.hypot(fx, fz) + fl) / 2)) % 1;
+        // (CAD_MAX : cadence plafonnée — en pas/min — quand le mélange contient beaucoup de pas chassé (foulée courte) : en
+        // diagonale visée à 2 m/s, le mélange marche glissée / pas chassé tournait à 260-270 pas/min ; au-delà, la foulée s'allonge,
+        // les pieds d'appui restent cloués par le verrou et le pied en l'air rattrape)
+        { let dph = dt * v / Math.max(0.25, (Math.hypot(fx, fz) + fl) / 2); const kC = CAD_MAX && tot > 0 ? Math.min(1, (((bw.Pas_Gauche || 0) + (bw.Pas_Droite || 0)) / tot) / 0.25) : 0;
+          if (kC > 0 && dt > 0) { const cap = CAD_MAX / 120 * dt; if (dph > cap) dph = dph + (cap - dph) * kC; }
+          this.ph = ((this.ph || 0) + dph) % 1; }
         // entrée en marche : la couche des jambes monte en ~0,2 s (l'animation précédente s'efface pendant ce temps)
         this.marcheK = Math.min(1, (this.marcheK || 0) + dt / 0.35);
         // (reprise après une couche de jambes — rechargement en marchant — qui jouait le MÊME cycle : même action three.js ; on
@@ -1524,6 +1530,9 @@
         // de yawM, le dos fait le reste, calculé sur l'orientation ACTUELLE du corps pour que le fusil reste sur la cible
         // pendant que le corps pivote) ; pondérée par marcheK (entrée / sortie en fondu, comme les animations)
         this.dosComp = (this.marcheK || 0) > 0 ? this.marcheK * ((this.dosM || 0) + (enMarche ? body.rotation.y : 0)) : 0;
+        // (filtrée — cible filtrée + ressort : le bassin estimé des cycles (psi) saute quand la marche avant change de clip,
+        // glissée → course, alors que les jambes, elles, passent en fondu ; le dos tournait de 25° en une image, 19 000 °/s²)
+        if (S.DOS_W > 0) { if (dt > 0 && this.dosCompF !== undefined) this.dosComp = lisse2(this, 'dosCF', this.dosCompF, this.dosComp, S.DOS_W, dt); else lisse2(this, 'dosCF', this.dosComp, this.dosComp, S.DOS_W, 0); this.dosCompF = this.dosComp; }
         // (cible filtrée à l'arrêt — ~0,08 s — avant le ressort : un replacement des pieds fait sauter la cible de ~1 rad d'un coup,
         // à-coup du bassin de 4 200 °/s² au pivot)
         let jc = this.jambesCible;
@@ -1785,7 +1794,14 @@
         // orientation gardée) ; elle fait pencher tout le buste d'un coup, sans voûter le dos
         // (visée : « nez au-dessus des orteils » ; course en garde basse : buste nettement penché, comme un coureur)
         // (à genou, Accroupi_* : l'animation a le buste 35° EN ARRIÈRE ; plafond de correction plus haut, cible ~12°)
-        const genou = /^Accroupi/.test(this.clip), cible = this.clip === 'Rifle_Aim_Turn_Right' ? S.PENCHE_ARRET : COURSE_BAS[this.clip] ? 0.42 : genou ? PENCHE : (this.epK || 0) > 0.5 ? PENCHE + 0.12 - (S.PENCHE_LAT || 0) * (this.blendFrame >= frameK - 1 ? Math.min(1, (this.coteK || 0) + (this.arrK || 0) + (this.jointK || 0)) : 0) : PENCHE, plafond = genou ? 0.95 : 0.6;
+        const genou = /^Accroupi/.test(this.clip), cibleB = this.clip === 'Rifle_Aim_Turn_Right' ? S.PENCHE_ARRET : COURSE_BAS[this.clip] ? 0.42 : genou ? PENCHE : (this.epK || 0) > 0.5 ? PENCHE + 0.12 - (S.PENCHE_LAT || 0) * (this.blendFrame >= frameK - 1 ? Math.min(1, (this.coteK || 0) + (this.arrK || 0) + (this.jointK || 0)) : 0) : PENCHE, plafond = genou ? 0.95 : 0.6;
+        // (cible lissée — cible filtrée + ressort, ~0,4 s : elle change d'un coup avec le clip du haut du corps — course en garde basse
+        // 0,42 → visée — ou au passage d'epK par 0,5 ; le bas du dos tournait de ~10° en une image, 15 000 °/s²)
+        let cible; { const dP = this.tPen === undefined ? -1 : this.t - this.tPen; this.tPen = this.t;
+          if (!(S.PENCHE_W > 0)) cible = cibleB;
+          else if (this.penC === undefined || dP < 0 || dP > 0.25) { cible = cibleB; lisse2(this, 'penF', cibleB, cibleB, S.PENCHE_W, 0); }
+          else cible = dP === 0 ? this.penC : lisse2(this, 'penF', this.penC, cibleB, S.PENCHE_W, dP);
+          this.penC = cible; }
         // (toutes les corrections sont calculées entières puis appliquées au prorata de k : réponse LINÉAIRE en k — avant, les
         // itérations à gain 1,5·k et les plafonds saturaient dès k ≈ 0,3 : le buste basculait d'un coup au début des fondus)
         if (pieds[0][2] && pieds[1][2]) { const v0 = WP(cou0).sub(WP(hipsB)), hg = k * Math.max(0, Math.min(0.12, (cible - Math.atan2(v0.dot(fw), Math.max(0.05, v0.y))) * 0.5));
