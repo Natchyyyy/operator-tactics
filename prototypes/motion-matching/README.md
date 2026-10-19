@@ -40,6 +40,11 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   au repos : séquences de repos seulement (sauts rares : 40 % mieux, 1 s mini) et racine figée ; si on veut avancer alors
   que l'animation est arrêtée (départ, virage serré), la meilleure image est prise sans marge (sinon un repos atypique peut
   bloquer un agent). La simulation du clavier est recalée sur le personnage à chaque pas.
+- Cap et direction (v26) : la recherche se limite aux images « frontales » (vitesse et trajectoire à moins de 50° de l'avant)
+  quand le regard n'est pas verrouillé ; le cap du soldat est ramené vers le cap voulu en plus de la rotation du clip
+  (demi-vie 0,2 s, ≤ 3 rad/s), en compensant l'angle vitesse/hanches du clip (style Swat bladé de ~12°, clips qui
+  serpentent) ; le déplacement de l'image est tourné vers la direction voulue (≤ 12°). Mesuré : direction finale à ±8°,
+  cap à ±10° sur Q/D/diagonales/demi-tour ; 15 cm parcourus en 0,3-0,6 s. Coût : glissement sur le chemin de démo 8 → 13 cm/s.
 - Réactivité : recherche immédiate à chaque changement d'intention (touche), marge de saut retirée au départ / à l'arrêt /
   aux grands changements de vitesse ; frein de racine relâché en 50 ms au départ ; ressort de vitesse vif à l'accélération
   (demi-vie 0,15 s) et réaliste au freinage (0,3 s). Arrêt demandé → recherche limitée aux images « d'arrêt » (futur à 1 s
