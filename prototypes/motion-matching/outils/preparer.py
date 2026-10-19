@@ -69,23 +69,29 @@ def traiter(chemin, style):
     return corps
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument('fichiers', nargs='+'); ap.add_argument('--sortie', default='web/base'); ap.add_argument('--bind', default='/home/claude/orangeduck/100style-retarget/Geno_bind.bvh')
+    ap = argparse.ArgumentParser(); ap.add_argument('fichiers', nargs='+'); ap.add_argument('--sortie', default='web/base'); ap.add_argument('--parties', type=int, default=1); ap.add_argument('--bind', default='/home/claude/orangeduck/100style-retarget/Geno_bind.bvh')
     a = ap.parse_args()
     seqs = []
     for f in a.fichiers:
-        style = 1 if 'Crouched' in os.path.basename(f) else 2 if 'Swat' in os.path.basename(f) else 3 if 'StartStop' in os.path.basename(f) else 0
+        nb = os.path.basename(f); style = 1 if 'Crouched' in nb else 2 if ('Swat' in nb or 'Rushed' in nb) else 3 if 'StartStop' in nb else 0   # 2 = arme (Swat marche d'intervention + Rushed course basse)
         c = traiter(f, style); seqs.append(c)
         print(f"{c['nom']:22s} {c['F']:6d} images  hanches {c['hy'].mean():.2f} m  vitesse moy {np.linalg.norm(c['v'][:, [0, 2]], axis=1).mean():.2f} m/s  contact {c['contact'].mean() * 100:.0f} %", flush=True)
     fiche = np.concatenate([c['fiche'] for c in seqs]); moy = fiche.mean(0); ect = fiche.std(0) + 1e-6
     N = len(fiche)
     # écriture binaire : image par image, structure fixe
+    meta_octets = 22 * 4 * 2 + 5 * 4 + len(NOMS_FICHE) * 4
     out = bytearray()
     for c in seqs:
         qi = np.clip(np.round(c['q'] * 32767), -32767, 32767).astype('<i2')           # (F,22,4)
         divers = np.stack([c['hy'], c['v'][:, 0], c['v'][:, 1], c['v'][:, 2], c['w']], 1).astype('<f4')
         for i in range(c['F']):
             out += qi[i].tobytes(); out += divers[i].tobytes(); out += c['fiche'][i].astype('<f4').tobytes()
-    open(a.sortie + '.bin', 'wb').write(out)
+    # écriture en N parties de taille égale (limite de 16 Mo par fichier chez l'hébergeur)
+    npart = max(1, a.parties); taille = (len(out) + npart - 1) // npart; taille -= taille % meta_octets
+    parties = []
+    for k in range(npart):
+        morceau = out[k * taille:(k + 1) * taille] if k < npart - 1 else out[k * taille:]
+        nom = a.sortie + ('.bin' if npart == 1 else f'.{k}.bin'); open(nom, 'wb').write(morceau); parties.append(os.path.basename(nom))
     deb = 0; sequences = []
     for c in seqs:
         sequences.append({'nom': c['nom'], 'debut': deb, 'fin': deb + c['F'], 'style': c['style']}); deb += c['F']
@@ -102,11 +108,11 @@ def main():
             e = ENFANT.get(n) or next((c for c, p in zip(sqb['noms'], sqb['parents']) if p == sqb['noms'].index(n) and not c.endswith('End')), None)
             bind[n] = {'pos': gpb[sqb['noms'].index(n)].round(4).tolist(), 'quat': gqb[sqb['noms'].index(n)].round(5).tolist(), 'enfant': e, 'posEnfant': gpb[sqb['noms'].index(e)].round(4).tolist()}
     meta = {'fps': FPS, 'os': OS, 'futur': FUTUR, 'bind': bind, 'nFiche': len(NOMS_FICHE), 'nomsFiche': NOMS_FICHE, 'N': N,
-            'octetsParImage': 22 * 4 * 2 + 5 * 4 + len(NOMS_FICHE) * 4,
+            'octetsParImage': meta_octets, 'parties': parties,
             'moyenne': moy.tolist(), 'ecartType': ect.tolist(), 'sequences': sequences,
             'contact': ''.join(str(int(x[0] * 2 + x[1])) for x in np.concatenate([c['contact'] for c in seqs])),
             'licence': '100STYLE dataset (Ian Mason, CC BY 4.0), retargeted by Daniel Holden (CC BY 4.0)'}
     json.dump(meta, open(a.sortie + '.json', 'w'))
-    print(f"{N} images → {len(out) / 1e6:.1f} Mo ({a.sortie}.bin), méta {os.path.getsize(a.sortie + '.json') / 1e3:.0f} ko")
+    print(f"{N} images → {len(out) / 1e6:.1f} Mo en {npart} partie(s), méta {os.path.getsize(a.sortie + '.json') / 1e3:.0f} ko")
 
 if __name__ == '__main__': main()

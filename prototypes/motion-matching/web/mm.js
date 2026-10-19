@@ -2,7 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
-  const VERSION = 18;
+  const VERSION = 20;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);
@@ -41,7 +41,12 @@
   const Base = {};
   async function chargerBase() {
     const meta = await (await fetch('base.json')).json();
-    const buf = await (await fetch((window.FICHIERS || {}).base || 'base.bin')).arrayBuffer();
+    // base en une ou plusieurs parties (meta.parties) ; FICHIERS.base peut renommer les parties (hébergeur)
+    const F = window.FICHIERS || {};
+    const noms = meta.parties && meta.parties.length ? meta.parties.map((p, i) => F.base ? F.base.replace(/\.(\w+)$/, `.${i}.$1`) : p) : [F.base || 'base.bin'];
+    const morceaux = await Promise.all(noms.map(n => fetch(n).then(r => { if (!r.ok) throw new Error('base : ' + n); return r.arrayBuffer(); })));
+    const total = morceaux.reduce((a, b) => a + b.byteLength, 0); const u8 = new Uint8Array(total); let off = 0; for (const m of morceaux) { u8.set(new Uint8Array(m), off); off += m.byteLength; }
+    const buf = u8.buffer;
     const N = meta.N, J = meta.os.length, nF = meta.nFiche, stride = meta.octetsParImage;
     const dv = new DataView(buf);
     const q = new Float32Array(N * J * 4), hy = new Float32Array(N), v = new Float32Array(N * 3), w = new Float32Array(N), fiche = new Float32Array(N * nF);
@@ -65,7 +70,7 @@
     meta.sequences.forEach((s, si) => { const r = /_ID\./.test(s.nom) ? 1 : 0; for (let i = s.debut; i < s.fin; i++) { seq[i] = si; style[i] = s.style; ok[i] = i < s.fin - 35 ? 1 : 0; repos[i] = r; } });
     const contact = new Uint8Array(N); for (let i = 0; i < N; i++) contact[i] = +meta.contact[i];
     // images « d'arrêt » : le personnage est à moins de 35 cm de sa position actuelle 1 s plus tard (repos, freinages)
-    const arret = new Uint8Array(N); for (let i = 0; i < N; i++) { const o = i * nF; arret[i] = Math.hypot(fiche[o + 19], fiche[o + 20]) < 0.35 ? 1 : 0; }
+    const arret = new Uint8Array(N); for (let i = 0; i < N; i++) { const o = i * nF; arret[i] = ok[i] && Math.hypot(fiche[o + 19], fiche[o + 20]) < 0.35 ? 1 : 0; }   // (jamais en fin de clip : futur tronqué)
     Object.assign(Base, { meta, N, J, nF, q, hy, v, w, fiche, fn, seq, style, ok, repos, arret, contact, POIDS });
     return Base;
   }
@@ -269,11 +274,10 @@
       // deux ports : low ready (défaut) et épaulé en visée (regard verrouillé) ; fondu entre les deux
       this.poidsVisee = Math.max(0, Math.min(1, (this.poidsVisee ?? 0) + ((this.viseeEpaulee ? 1 : -1) * dt / 0.3)));
       const pv = this.poidsVisee, L = PARAMS.fusil, E = PARAMS.epaule;
-      const P = { vrille: L.vrille, reculMax: L.reculMax, avant: L.avant + (E.avant - L.avant) * pv, droite: L.droite + (E.droite - L.droite) * pv, haut: L.haut + (E.haut - L.haut) * pv, tangage: L.tangage + (E.tangage - L.tangage) * pv, cant: L.cant + (E.cant - L.cant) * pv, buste: L.buste, lissage: L.lissage, appuiZ: L.appuiZ, torsion: L.torsion };
+      const P = { vrille: L.vrille, tangageMax: L.tangageMax + (E.tangageMax - L.tangageMax) * pv, avant: L.avant + (E.avant - L.avant) * pv, droite: L.droite + (E.droite - L.droite) * pv, haut: L.haut + (E.haut - L.haut) * pv, tangage: L.tangage + (E.tangage - L.tangage) * pv, cant: L.cant + (E.cant - L.cant) * pv, buste: L.buste, lissage: L.lissage, appuiZ: L.appuiZ, torsion: L.torsion };
       // Low ready comme un vrai tireur : la CROSSE reste dans le creux de l'épaule droite, le canon pivote vers le bas.
       // Direction : le regard du soldat (ses hanches), un peu mélangé au buste pour vivre avec la marche ; léger cant vers
       // l'intérieur (le fusil barre la poitrine).
-      const ep = this.mains.D[0].getWorldPosition(V3());                                   // articulation de l'épaule droite
       const avant = V3(0, 0, 1).applyQuaternion(this.worldQ[0]); avant.y = 0; avant.normalize();
       const sp = this.os[Base.meta.os.indexOf('Spine2')]; const qS = sp.getWorldQuaternion(Q());
       const avantBuste = V3(0, 0, 1).applyQuaternion(qS).applyQuaternion(this.align[Base.meta.os.indexOf('Spine2')]); avantBuste.y = 0; avantBuste.normalize();
@@ -287,23 +291,28 @@
         for (const n of ['Spine', 'Spine1', 'Spine2']) { const o = this.os[Base.meta.os.indexOf(n)]; if (!o) continue; const wq = o.getWorldQuaternion(Q()); o.quaternion.copy(o.parent.getWorldQuaternion(Q()).invert().multiply(qv).multiply(wq)); o.updateMatrixWorld(true); }
         this.group.updateMatrixWorld(true);
       }
-      const q = Q().setFromAxisAngle(V3(0, 1, 0), yaw).multiply(Q().setFromAxisAngle(V3(1, 0, 0), -P.tangage));
-      const ep2 = this.mains.D[0].getWorldPosition(V3());
-      const creux = ep2.clone().addScaledVector(dir, P.avant).addScaledVector(droite, P.droite).add(V3(0, P.haut, 0));
+      // Ancrage de la CROSSE d'après les photos de référence : posée sur le DESSUS de l'épaule droite, près du cou ; repère
+      // du buste (Spine2, qui ne balance pas avec les bras capturés : l'arme reste calme au repos). Le canon plonge.
+      const pS2 = sp.getWorldPosition(V3());
+      const creux = pS2.clone().addScaledVector(dir, P.avant).addScaledVector(droite, P.droite).add(V3(0, P.haut, 0));
+      // Tangage adaptatif : si la main d'appui ne peut pas atteindre sa place sur le garde-main, le canon plonge davantage
+      // (jusqu'à P.tangageMax) — ce que fait un tireur aux bras courts — au lieu de rentrer l'arme dans le corps. Lissé.
+      let tangage = P.tangage;
+      if (this.prise && G[0] && G[1] && G[2]) {
+        const epG = G[0].getWorldPosition(V3()), portee = (G[1].getWorldPosition(V3()).distanceTo(epG) + G[2].getWorldPosition(V3()).distanceTo(G[1].getWorldPosition(V3()))) * 0.96;
+        const posG = this.prise.G.pos.clone(); if (P.appuiZ != null) posG.z = P.appuiZ;
+        for (let it = 0; it < 40 && tangage > P.tangageMax; it++) {
+          const qt = Q().setFromAxisAngle(V3(0, 1, 0), yaw).multiply(Q().setFromAxisAngle(V3(1, 0, 0), -tangage));
+          const cible = creux.clone().sub(w.buttPt.clone().applyQuaternion(qt)).add(posG.clone().applyQuaternion(qt));
+          if (cible.distanceTo(epG) <= portee) break;
+          tangage -= 0.02;
+        }
+      }
+      this.tangageLisse = this.tangageLisse == null ? tangage : this.tangageLisse + (tangage - this.tangageLisse) * (1 - Math.exp(-dt / 0.2));
+      const q = Q().setFromAxisAngle(V3(0, 1, 0), yaw).multiply(Q().setFromAxisAngle(V3(1, 0, 0), -this.tangageLisse));
       if (!this.fusilPos) { this.fusilPos = creux.clone(); this.fusilQ = q.clone(); }
       const k = 1 - Math.exp(-dt / P.lissage); this.fusilPos.lerp(creux, k); this.fusilQ.slerp(q, k);
       w.quaternion.copy(this.fusilQ); w.position.copy(this.fusilPos).sub(w.buttPt.clone().applyQuaternion(this.fusilQ));
-      // garde-main hors de portée du bras gauche : on RENTRE l'arme vers le tireur (crosse plus profonde dans l'épaule) plutôt
-      // que de reculer la main vers le chargeur ; recul lissé, 12 cm au plus
-      if (this.prise && G[0] && G[1] && G[2]) {
-        const epG = G[0].getWorldPosition(V3()), portee = (G[1].getWorldPosition(V3()).distanceTo(epG) + G[2].getWorldPosition(V3()).distanceTo(G[1].getWorldPosition(V3()))) * 0.95;
-        const posG = this.prise.G.pos.clone(); if (P.appuiZ != null) posG.z = P.appuiZ;
-        const axeW = V3(0, 0, 1).applyQuaternion(this.fusilQ);
-        let recul = 0; const cibleG = w.position.clone().add(posG.applyQuaternion(this.fusilQ));
-        for (let it = 0; it < 24 && cibleG.clone().addScaledVector(axeW, -recul).distanceTo(epG) > portee && recul < P.reculMax; it++) recul += 0.005;
-        this.reculArme = (this.reculArme ?? 0) + (recul - (this.reculArme ?? 0)) * (1 - Math.exp(-dt / 0.1));
-        w.position.addScaledVector(axeW, -this.reculArme);
-      }
       // mains : placées sur l'arme comme dans la prise de référence (IK deux os vers la position, orientation reportée)
       for (const [main, k] of [[D, 'D'], [G, 'G']]) {
         if (!this.prise) break;
@@ -361,7 +370,7 @@
         if (!contacts[k]) vr.actif = false;
         if (vr.actif) {
           const voulu = vr.cible.clone().sub(pT); voulu.y = 0;
-          const cap = PARAMS.verrouMax;                                            // au-delà, le pied « dérape » plutôt que d'être traîné
+          const cap = this.reposTotal ? 0.3 : PARAMS.verrouMax;                     // au repos, les appuis ne bougent plus du tout                                            // au-delà, le pied « dérape » plutôt que d'être traîné
           if (voulu.length() > cap) { vr.cible.sub(voulu.clone().setLength(voulu.length() - cap)); voulu.setLength(cap); }
           // l'écart rejoint la valeur voulue avec une demi-vie courte (pas de saut à la pose du pied)
           const x = [vr.delta.x - voulu.x, 0, vr.delta.z - voulu.z], v = [vr.deltaV.x, 0, vr.deltaV.z];
@@ -499,7 +508,7 @@
   let renderer, scene, camera, cam = { dist: 4.2, pitch: 0.42 }, horloge = 0;
   let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { avant: 0.06, droite: -0.08, haut: -0.03, tangage: -0.5, cant: 0.15, buste: 0.3, lissage: 0.06, appuiZ: 0.15, torsion: 0.6, vrille: 0.3, reculMax: 0.07 }, epaule: { avant: 0.05, droite: -0.07, haut: 0.07, tangage: -0.02, cant: 0.12 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { avant: 0.06, droite: 0.11, haut: 0.09, tangage: -0.5, tangageMax: -0.85, cant: 0.35, buste: 0.3, lissage: 0.08, appuiZ: 0.12, torsion: 0.6, vrille: 0.45 }, epaule: { avant: 0.08, droite: 0.13, haut: 0.11, tangage: -0.02, tangageMax: -0.3, cant: 0.1 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -535,7 +544,9 @@
       // recherche immédiate dès que l'intention change (touche pressée / relâchée, direction) : réactivité au clavier
       const intention = vGoal.x.toFixed(1) + ',' + vGoal.z.toFixed(1) + ',' + (Ctl.verrouRegard ? 1 : 0);
       const changement = intention !== this.intentionPrec; this.intentionPrec = intention;
-      if (this.derniereRecherche >= PARAMS.periode || styleVoulu !== this.styleCourant || changement) {
+      // fin de clip (les 36 dernières images ne sont jamais jouées : la lecture s'y figerait) → recherche et saut forcés
+      const finClip = !Base.ok[this.frame + 1] || Base.seq[this.frame + 1] !== Base.seq[this.frame];
+      if (this.derniereRecherche >= PARAMS.periode || styleVoulu !== this.styleCourant || changement || finClip) {
         this.derniereRecherche = 0;
         const req = this.requete(vGoal, yGoal);
         // à l'arrêt voulu et presque atteint : on ne cherche que dans les séquences de repos (sinon ping-pong entre des
@@ -544,7 +555,7 @@
         const arretVoulu = vGoal.lengthSq() < 0.01;
         const auRepos = arretVoulu && vitAnimCour < 0.35;
         const [best, bc] = chercher(req, styleVoulu, auRepos, arretVoulu);
-        const cc = (Base.ok[f] && Base.style[f] === styleVoulu && (!auRepos || Base.repos[f]) && (!arretVoulu || Base.arret[f])) ? cout(f, req) : Infinity;
+        const cc = (!finClip && Base.ok[f] && Base.style[f] === styleVoulu && (!auRepos || Base.repos[f]) && (!arretVoulu || Base.arret[f])) ? cout(f, req) : Infinity;
         if (this === agents[0]) { JOURNAL.push([+horloge.toFixed(2), +cc.toFixed(1), +bc.toFixed(1), best, f]); if (JOURNAL.length > 400) JOURNAL.shift(); }
         // les marges évitent les sauts inutiles en régime établi ; mais si on veut avancer alors que l'animation est à l'arrêt
         // (départ, ou arrêt forcé à un virage), on prend la meilleure image sans marge : sinon un repos « atypique » peut
@@ -554,7 +565,7 @@
         const vitGoal = Math.sqrt(vGoal.lengthSq()), ecartVit = Math.abs(vitGoal - vitAnimCour);
         const sansMarge = veutPartir || veutArreter || ecartVit > 0.6;                     // (ou grand changement de vitesse)
         const seuil = sansMarge ? cc : auRepos ? cc * 0.6 - PARAMS.margeSaut : cc * PARAMS.margeRel - PARAMS.margeSaut;   // au repos : très peu de sauts (pas de tressautement)
-        if (best >= 0 && bc < seuil && Math.abs(best - f) > 2 && (horloge - this.dernierSaut >= (auRepos ? 1.0 : sansMarge ? 0.1 : PARAMS.minSaut) || styleVoulu !== this.styleCourant || (changement && horloge - this.dernierSaut >= 0.08))) {
+        if (best >= 0 && bc < seuil && Math.abs(best - f) > 2 && (horloge - this.dernierSaut >= (auRepos ? 1.0 : sansMarge ? 0.1 : PARAMS.minSaut) || styleVoulu !== this.styleCourant || finClip || (changement && horloge - this.dernierSaut >= 0.08))) {
           this.dernierSaut = horloge; S.hLife = PARAMS.hLife;
           // transition : écart entre la pose courante (telle qu'affichée) et la nouvelle
           for (let k = 0; k < Base.J; k++) this.ancQ[k].copy(this.poseQ[k]); this.ancY[0] = this.poseY[0];
@@ -583,6 +594,7 @@
       // encore un mélange : un pied en l'air ne doit ni être verrouillé ni compter comme glissement)
       const cf = Base.contact[this.frame];
       const contacts = S.orteils.map((o, k) => !!(cf & (k ? 1 : 2)) && o.getWorldPosition(V3()).y < seuilOrteil);
+      S.reposTotal = vGoalNul && this.facteurRacine < 0.05;
       if (PARAMS.verrou) S.verrouPieds(contacts, dt);
       S.viseeEpaulee = !!Ctl.verrouRegard; S.tenirFusil(Ctl.visee, dt);
       this.inst = this.glisse.mesurer(S.orteils, dt, contacts);
@@ -615,7 +627,7 @@
     const sol = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x3c4149, roughness: 0.95 })); sol.rotation.x = -Math.PI / 2; sol.receiveShadow = true; scene.add(sol);
     const grille = new THREE.GridHelper(60, 60, 0x5a6270, 0x2c3139); grille.position.y = 0.002; scene.add(grille);
     HUD.etat = document.getElementById('etat'); HUD.jauge = document.getElementById('jauge'); HUD.jaugeTxt = document.getElementById('jaugeTxt'); HUD.msg = document.getElementById('msg');
-    HUD.msg.textContent = 'Chargement de la base (13 Mo)…';
+    HUD.msg.textContent = 'Chargement de la base (17 Mo)…';
     await chargerBase();
     HUD.msg.textContent = 'Chargement du modèle…';
     gltfBuffer = await fetchBuf((window.FICHIERS || {}).modele || 'gign_hd.glb');
