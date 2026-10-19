@@ -1363,17 +1363,18 @@
   #app .card .lane:empty, #app #roster1 .lane { display: none; }   /* voies adverses : inconnues du joueur */ #app .card .lane.l0 { background: #5ec8e8; } #app .card .lane.l1 { background: #b9c4cf; } #app .card .lane.l2 { background: #f0b45a; }
   #app .tcard .lanesvg { color: #cfe8d8; }
   /* ordres de déplacement (clic droit) : menu carré au curseur, sélection des opérateurs, bouton « Tous » */
-  #app .ordmenu { position: absolute; z-index: 12; width: 292px; padding: 12px; border-radius: 14px; background: linear-gradient(180deg, rgba(16,22,30,.94), rgba(10,14,19,.9)); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 16px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06); backdrop-filter: blur(10px); font-family: var(--ui, system-ui, sans-serif); color: #eef3f8; user-select: none; }
+  #app .ordmenu { position: absolute; z-index: 12; width: 308px; box-sizing: border-box; padding: 12px; border-radius: 14px; background: linear-gradient(180deg, rgba(16,22,30,.94), rgba(10,14,19,.9)); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 16px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06); backdrop-filter: blur(10px); font-family: var(--ui, system-ui, sans-serif); color: #eef3f8; user-select: none; }
   #app .ordmenu .omhead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.08); }
   #app .ordmenu .omhead b { font-family: 'Rajdhani', var(--ui, sans-serif); font-weight: 700; font-size: 16px; letter-spacing: .2em; text-transform: uppercase; }
   #app .ordmenu .omwho { font-size: 11px; color: rgba(220,230,240,.72); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px; }
   #app .ordmenu .omsec { margin: 10px 0 6px; font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: rgba(220,230,240,.6); }
-  #app .ordmenu .omrow { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } #app .ordmenu .omrow .omopt:only-child { grid-column: 1 / -1; }
-  #app .ordmenu .omopt { display: grid; grid-template-columns: 30px 1fr; grid-template-rows: auto auto; column-gap: 8px; row-gap: 2px; align-items: center; text-align: left; padding: 8px; border-radius: 10px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); color: #eef3f8; font-weight: 400; cursor: pointer; }
+  #app .ordmenu .omrow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; } #app .ordmenu .omrow .omopt:only-child { grid-column: 1 / -1; }
+  #app .ordmenu .omopt { display: grid; grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 7px; row-gap: 2px; align-items: center; text-align: left; min-width: 0; margin: 0; padding: 8px; box-sizing: border-box; border-radius: 10px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); color: #eef3f8; font-weight: 400; cursor: pointer; }
   #app .ordmenu .omopt:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.26); }
   #app .ordmenu .omopt.on { background: rgba(74,163,255,.22); border-color: #4aa3ff; color: #fff; box-shadow: inset 0 0 0 1px #4aa3ff, 0 0 14px rgba(74,163,255,.3); }
-  #app .ordmenu .omico { grid-row: span 2; width: 30px; height: 30px; color: #9fd0ff; } #app .ordmenu .omico svg { display: block; width: 30px; height: 30px; } #app .ordmenu .omopt.on .omico { color: #fff; }
+  #app .ordmenu .omico { grid-row: span 2; width: 28px; height: 28px; color: #9fd0ff; } #app .ordmenu .omico svg { display: block; width: 28px; height: 28px; } #app .ordmenu .omopt.on .omico { color: #fff; }
   #app .ordmenu .omopt b { font-family: 'Rajdhani', var(--ui, sans-serif); font-weight: 700; font-size: 15px; letter-spacing: .04em; line-height: 1.05; }
+  #app .ordmenu .omopt b, #app .ordmenu .omopt small { min-width: 0; overflow-wrap: break-word; }
   #app .ordmenu .omopt small { font-size: 10px; line-height: 1.15; color: rgba(220,230,240,.66); }
   #app .ordmenu .omgo { display: block; width: 100%; margin-top: 12px; padding: 9px; border: 0; border-radius: 9px; background: linear-gradient(180deg, #3d9bff, #1f6fe0); color: #fff; font-family: 'Rajdhani', var(--ui, sans-serif); font-weight: 700; font-size: 15px; letter-spacing: .16em; text-transform: uppercase; box-shadow: 0 4px 14px rgba(31,111,224,.45); cursor: pointer; }
   #app .ordmenu .omgo:hover { filter: brightness(1.12); }
