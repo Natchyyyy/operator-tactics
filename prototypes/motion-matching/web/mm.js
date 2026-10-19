@@ -60,18 +60,18 @@
     };
     Base.ponderer(PARAMS.poids);
     // séquence et style de chaque image, et « image utilisable » (pas trop près de la fin : la trajectoire future doit exister)
-    const seq = new Int16Array(N), style = new Uint8Array(N), ok = new Uint8Array(N);
-    meta.sequences.forEach((s, si) => { for (let i = s.debut; i < s.fin; i++) { seq[i] = si; style[i] = s.style; ok[i] = i < s.fin - 35 ? 1 : 0; } });
+    const seq = new Int16Array(N), style = new Uint8Array(N), ok = new Uint8Array(N), repos = new Uint8Array(N);
+    meta.sequences.forEach((s, si) => { const r = /_ID\./.test(s.nom) ? 1 : 0; for (let i = s.debut; i < s.fin; i++) { seq[i] = si; style[i] = s.style; ok[i] = i < s.fin - 35 ? 1 : 0; repos[i] = r; } });
     const contact = new Uint8Array(N); for (let i = 0; i < N; i++) contact[i] = +meta.contact[i];
-    Object.assign(Base, { meta, N, J, nF, q, hy, v, w, fiche, fn, seq, style, ok, contact, POIDS });
+    Object.assign(Base, { meta, N, J, nF, q, hy, v, w, fiche, fn, seq, style, ok, repos, contact, POIDS });
     return Base;
   }
 
   // recherche brute : la meilleure image pour une requête normalisée (seulement le style demandé)
-  function chercher(req, styleVoulu) {
-    const { N, nF, fn, ok, style } = Base; let best = -1, bc = Infinity;
+  function chercher(req, styleVoulu, seulRepos) {
+    const { N, nF, fn, ok, style, repos } = Base; let best = -1, bc = Infinity;
     for (let i = 0; i < N; i++) {
-      if (!ok[i] || style[i] !== styleVoulu) continue;
+      if (!ok[i] || style[i] !== styleVoulu || (seulRepos && !repos[i])) continue;
       let c = 0; const o = i * nF;
       for (let k = 0; k < nF; k++) { const d = fn[o + k] - req[k]; c += d * d; if (c >= bc) break; }
       if (c < bc) { bc = c; best = i; }
@@ -295,7 +295,7 @@
   let dernierSaut = -1, frame = 0, frameT = 0, poseQ, poseY = [0], ancQ, ancY = [0], derniereRecherche = 0, sauts = 0, sautsFen = [], styleCourant = 0;
   const glisse = new Glissement(); let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.0, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.05, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.05, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   async function init() {
     renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
@@ -389,10 +389,14 @@
     if (derniereRecherche >= PARAMS.periode || styleVoulu !== styleCourant) {
       derniereRecherche = 0;
       const req = requete(vGoal, yGoal);
-      const [best, bc] = chercher(req, styleVoulu);
-      const cc = (Base.ok[frame] && Base.style[frame] === styleVoulu) ? cout(frame, req) : Infinity;
+      // à l'arrêt voulu et presque atteint : on ne cherche que dans les séquences de repos (sinon ping-pong entre des
+      // instants d'arrêt situés juste avant des départs, et piétinement)
+      const vitAnimCour = Math.hypot(Base.v[frame * 3], Base.v[frame * 3 + 2]);
+      const auRepos = vGoal.lengthSq() < 0.01 && vitAnimCour < 0.35 && Ctl.vel.lengthSq() < 0.04;
+      const [best, bc] = chercher(req, styleVoulu, auRepos);
+      const cc = (Base.ok[frame] && Base.style[frame] === styleVoulu && (!auRepos || Base.repos[frame])) ? cout(frame, req) : Infinity;
       JOURNAL.push([+horloge.toFixed(2), +cc.toFixed(1), +bc.toFixed(1), best, frame]); if (JOURNAL.length > 400) JOURNAL.shift();
-      if (best >= 0 && bc < cc * PARAMS.margeRel - PARAMS.margeSaut && Math.abs(best - frame) > 2 && (horloge - dernierSaut >= PARAMS.minSaut || styleVoulu !== styleCourant)) {
+      if (best >= 0 && bc < cc * PARAMS.margeRel - PARAMS.margeSaut && Math.abs(best - frame) > 2 && (horloge - dernierSaut >= (auRepos ? 0.6 : PARAMS.minSaut) || styleVoulu !== styleCourant)) {
         dernierSaut = horloge; soldat.hLife = PARAMS.hLife;
         // transition : écart entre la pose courante (telle qu'affichée) et la nouvelle
         for (let k = 0; k < Base.J; k++) ancQ[k].copy(poseQ[k]); ancY[0] = poseY[0];
@@ -405,20 +409,18 @@
     frameT += dt * Base.meta.fps;
     while (frameT >= 1) { frameT -= 1; frame++; if (!Base.ok[frame] || Base.seq[frame] !== Base.seq[frame - 1]) { frame--; frameT = 0.999; break; } }
     soldat.poseDe(frame, frameT, poseQ, poseY);
-    // déplacement par la racine de l'animation (vitesse locale → monde), puis petit rattrapage vers la simulation
+    // déplacement par la racine de l'animation (vitesse locale → monde). La simulation du clavier est ensuite RECALÉE sur le
+    // personnage : elle ne garde que sa vitesse (l'intention), jamais un écart de position — sinon la requête demande en
+    // permanence « reviens de 30 cm » et le soldat marche tout seul, souvent à reculons.
     const { v, w } = Base; const i = frame;
     const vl = V3(v[i * 3], 0, v[i * 3 + 2]).applyAxisAngle(UP, soldat.yaw);
     soldat.yaw += w[i] * dt; soldat.pos.addScaledVector(vl, dt);
-    {
+    if (PARAMS.rattrapage > 0) {
       const d = Ctl.pos.clone().sub(soldat.pos); d.y = 0;
-      const maxPas = PARAMS.rattrapage * vl.length() * dt + 0.0005;             // le rattrapage ne peut glisser que si l'animation bouge
+      const maxPas = PARAMS.rattrapage * vl.length() * dt + 0.0005;
       const vouloir = d.multiplyScalar(1 - Math.exp(-dt / 0.3)); if (vouloir.length() > maxPas) vouloir.setLength(maxPas); soldat.pos.add(vouloir);
-      let dy = Ctl.yaw - soldat.yaw; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI;
-      const maxY = PARAMS.rattrapage * Math.abs(w[i]) * dt + 0.002; soldat.yaw += Math.sign(dy) * Math.min(Math.abs(dy) * (1 - Math.exp(-dt / 0.3)), maxY);
-      // si la simulation s'éloigne trop, on la ramène (évite les divergences)
-      const e = Ctl.pos.clone().sub(soldat.pos); e.y = 0; if (e.length() > 0.3) Ctl.pos.copy(soldat.pos).addScaledVector(e.normalize(), 0.3);
-      let dy2 = Ctl.yaw - soldat.yaw; while (dy2 > Math.PI) dy2 -= 2 * Math.PI; while (dy2 < -Math.PI) dy2 += 2 * Math.PI; if (Math.abs(dy2) > 0.6) Ctl.yaw = soldat.yaw + Math.sign(dy2) * 0.6;
     }
+    Ctl.pos.copy(soldat.pos); Ctl.yaw = soldat.yaw;
     soldat.appliquer(poseQ, poseY, dt);
     // appui = la base dit « en appui » ET l'orteil affiché est bas (juste après un saut de séquence, la pose affichée est
     // encore un mélange : un pied en l'air ne doit ni être verrouillé ni compter comme glissement)
