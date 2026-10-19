@@ -98,6 +98,8 @@ window.ECH = { bandeN: 10, bande: null, img: 0, cat: {}, seg: {}, fin: [], pires
     ['arme_dans_corps', (mm) => mm.armeTronc < -0.045 ? mm.armeTronc : null],
     ['torsion', (mm) => Math.abs(mm.torsion) > 62 ? mm.torsion : null],
     ['genou_envers', (mm) => Math.max(mm.genouSensG || 0, mm.genouSensD || 0) > 100 ? Math.max(mm.genouSensG, mm.genouSensD) : null],
+    // pied au sol tourné de plus de 80° par rapport au bassin (jambe vrillée après un arrêt / pivot)
+    ['pied_vs_bassin', (mm) => { let w = null; for (const s of ['G', 'D']) { if (mm['piedAz' + s] === undefined || (mm['solMin' + s] || 0) > 0.03) continue; let d = mm['piedAz' + s] - mm.bassinAz; while (d > 180) d -= 360; while (d < -180) d += 360; if (Math.abs(d) > 80 && (w === null || Math.abs(d) > Math.abs(w))) w = d; } return w; }],
   ];
   // canvas du rendu 3D = le plus grand de la page (il y en a d'autres : titre, icônes…)
   // gros plans : on cache le décor (voitures, murs) qui masque souvent le soldat ; seuls restent les soldats

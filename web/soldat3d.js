@@ -57,6 +57,7 @@
   const REPRISE = root.REPRISE_TEST ?? true;
   const RUN_BAKE = root.RUN_BAKE_TEST ?? true;   // course pleine (Pas_Run) refaite par foulee (voir directions)
   const PIVOT_PLANTE = root.PIVOT_PLANTE_TEST ?? true;
+  const REPAS_DERIVE = root.REPAS_DERIVE_TEST ?? true;   // nouveaux pas si le bassin a tourné au-dessus des pieds cloués (voir poserPieds)
   // (essai, désactivé : bassin plus vif pendant les pas de pose ; mesuré : pied / bassin −2°, à-coup du bassin ×1,7)
   const JAMBES_POSE = root.JAMBES_POSE_TEST ? Object.assign({ vj: 6, st: 0.13 }, root.JAMBES_POSE_TEST) : null;   // torsion des jambes pendant les pas de pose (rad/s, s)
   const PIV_P = Object.assign({ lim: 0.7, w: 6 }, root.PIV_P_TEST || {});   // (écart toléré, rad ; vitesse de pivot max, rad/s)   // pied en attente qui pivote sur la plante au quart de tour (voir poserPieds)   // marche qui reprend la couche de jambes du rechargement (voir marche)   // replacement des pieds permis pendant les pas d'arrêt (voir repas)   // pas de pose visant la place finale du pied (voir poserPieds)
@@ -1518,10 +1519,12 @@
         const tj = this.jambes + CARRE * this.carreK;
         if (Math.abs(tj) > 0.01 && hipsB && spine3.length) {
           body.updateMatrixWorld(true); mod(hipsB); twist(hipsB, tj);
-          for (const sb of spine3) { mod(sb); twist(sb, -tj / spine3.length); }
+          // (contre-torsion entière sur Spine : sur les modèles Meshy TOUTE la peau du buste est liée à Spine — Spine1 et Spine2 ne
+          // déforment que bras, cou et tête ; réparti sur les trois os, le gilet restait tourné avec le bassin, épaules déboîtées)
+          mod(spine3[0]); twist(spine3[0], -tj);
         }
         // le bassin des pas chassés / de la marche arrière n'est pas orienté comme celui de la marche avant : le dos rattrape
-        if (this.dosComp && Math.abs(this.dosComp) > 0.01 && spine3.length) { body.updateMatrixWorld(true); for (const sb of spine3) { mod(sb); twist(sb, -this.dosComp / spine3.length); } }
+        if (this.dosComp && Math.abs(this.dosComp) > 0.01 && spine3.length) { body.updateMatrixWorld(true); mod(spine3[0]); twist(spine3[0], -this.dosComp); }   // (sur Spine : voir plus haut)
         // respiration (poses fixes : garde basse, visée) : légère flexion du dos
         if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { mod(spine1); spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
         // (cible filtrée + ressort : la penche du buste et la tête, proportionnelles à gbK, démarrent sans à-coup — sortie de
@@ -1573,6 +1576,13 @@
         const rem = POSE_ANTICIPE ? Math.max(-1.6, Math.min(1.6, (this.jambesCible || 0) - (this.jambes || 0) + (root.ANTICIPE_CARRE_TEST ?? 0) * CARRE * (carreT - (this.carreK || 0)))) : 0;   // (le « carré » de la visée, rapide — ~0,3 s —, n'est pas anticipé : pieds tournés avant le bassin, pied / bassin 73°)
         const qR = new THREE.Quaternion().setFromAxisAngle(UP, rem), hP = WP(hipsB);
         const tgt = cur.map(c => c.clone().sub(hP).applyQuaternion(qR).add(hP).setY(c.y)), qTgt = pieds.map(l => qR.clone().multiply(WQ(l[2])));
+        // (pieds reposés et cloués, mais le bassin a encore tourné — cible changée en visée — : s'ils sont à plus de 30° ou 12 cm
+        // de leur place, nouveaux petits pas depuis là où ils sont, au lieu de laisser le bassin tourner au-dessus de pieds cloués :
+        // jambes croisées, tibias l'un dans l'autre, vu en jeu)
+        if (REPAS_DERIVE && P.fin && P.fin[0] && P.fin[1] && P.t > 0.42) {
+          const yawOf = (q) => { const v = new THREE.Vector3(0, 0, 1).applyQuaternion(q); return Math.atan2(v.x, v.z); };
+          const der = [0, 1].some(i => { let a = yawOf(P.fin[i][1]) - yawOf(qTgt[i]); while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return Math.abs(a) > 0.52 || Math.hypot(P.fin[i][0].x - tgt[i].x, P.fin[i][0].z - tgt[i].z) > 0.12; });
+          if (der) { this.pose0 = { t: 0, lock: [0, 1].map(i => P.fin[i][0].clone().add(av ? av[i] : V())), lockQ: [0, 1].map(i => P.fin[i][1].clone()) }; return this.poserPieds(0, repos); } }
         P.ordre.forEach((i, rang) => {
           const x = Math.max(0, Math.min(1, (P.t - rang * 0.16) / 0.24)), s = x * x * (3 - 2 * x);
           // (pied qui attend son tour, encore au sol, pendant un quart de tour rapide : il PIVOTE sur la plante pour rester à 40° au
@@ -1716,7 +1726,7 @@
           // sa gauche se met de face au lieu de se tordre
           let Sv = -((S.BIAIS_M && S.BIAIS_M[M.nom]) || BIAIS); if (this.bassinM !== undefined && this.blendW && this.blendFrame === frameK - 1) Sv = Math.max(this.bassinM - 0.95, Math.min(this.bassinM + 0.95, Sv));
           this.epS = this.epS === undefined ? Sv : this.epS + (Sv - this.epS) * 0.15;
-          const d = Math.max(-1, Math.min(1, Math.PI / 2 + this.epS - Math.atan2(e.x, e.z))) * ek; if (Math.abs(d) > 0.01) for (const sb of spine3) { mod(sb); twist(sb, d / spine3.length); } } }
+          const d = Math.max(-1, Math.min(1, Math.PI / 2 + this.epS - Math.atan2(e.x, e.z))) * ek; if (Math.abs(d) > 0.01) { mod(spine3[0]); twist(spine3[0], d); } } }   // (sur Spine, qui porte la peau du buste)
         const lat = WP(B.la).sub(WP(B.ra)); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();
         // direction : 30 % normale des épaules, 70 % axe de visée (le tireur étant de profil, sinon il penche vers sa droite)
         const fwG = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())); fwG.y = 0; fwG.normalize();
@@ -1741,7 +1751,7 @@
           const w2 = WP(cou0).sub(WP(spine3[2])), h2 = Math.atan2(w2.dot(fw), Math.max(0.05, w2.y)); if (h2 > 0.3) { axe(spine3[2], -(h2 - 0.3)); acc[2] -= h2 - 0.3; }
           const v = WP(cou0).sub(WP(hipsB)), a = Math.min(plafond - tot,(cible - Math.atan2(v.dot(fw), Math.max(0.05, v.y))) * 1.5);   // (visée à l'arrêt : l'animation a le poids sur l'arrière, on penche plus)
           if (a < 0.005) continue;   // (seulement vers l'avant : une course déjà penchée n'est pas redressée)
-          axe(spine3[0], a * 0.55); axe(spine3[1], a * 0.45); acc[0] += a * 0.55; acc[1] += a * 0.45; tot += a;
+          axe(spine3[0], a); acc[0] += a; tot += a;   // (tout sur Spine : la peau du buste y est liée, la penche se voit en entier)
         }
         if (k < 0.999) for (let j = 0; j < 3; j++) if (acc[j]) axe(spine3[j], (k - 1) * acc[j]);   // (même axe : les angles s'additionnent)
         // roulis : les visées de la bibliothèque penchent le buste sur le côté (10 à 18°) ; ramené à 4° au plus (bas du dos)
@@ -1749,8 +1759,8 @@
         let accR = 0;
         for (let it = 0; it < 2; it++) { const v = WP(cou0).sub(WP(hipsB)), r = Math.atan2(v.dot(lat), Math.max(0.05, v.y)), ex = r - Math.max(-0.07, Math.min(0.07, r));
           if (Math.abs(ex) < 0.004) break;
-          rou(spine3[0], ex * 0.5); rou(spine3[1], ex * 0.5); accR += ex * 0.5; }
-        if (k < 0.999 && accR) { rou(spine3[0], (k - 1) * accR); rou(spine3[1], (k - 1) * accR); }
+          rou(spine3[0], ex); accR += ex; }
+        if (k < 0.999 && accR) rou(spine3[0], (k - 1) * accR);
       },
       // Pieds jamais croisés (pas chassés et marche arrière « au pistolet » de la bibliothèque : pas très serrés, bottes l'une sur
       // l'autre, genoux qui se touchent) : écart minimal des chevilles le long de la ligne du bassin (les deux pieds poussés
@@ -1847,7 +1857,7 @@
         // garde basse : le buste accompagne les coups d'œil (« tourelle » : tête, buste et canon ensemble, voir poseArme) ; ~35 %
         // du lacet de la tête porté par le dos (avant, le canon restait figé ~25° à gauche pendant que la tête balayait ±37° :
         // jusqu'à 50° entre la tête et le canon)
-        { const kg = (this.gbK || 0) * (1 - (this.epK || 0)) * kA; if (actif && kg > 0.01 && Math.abs(this.teteA) > 0.003 && spine3.length) { body.updateMatrixWorld(true); for (const sb of spine3) { mod(sb); twist(sb, 0.35 * this.teteA * kg / spine3.length); } } }
+        { const kg = (this.gbK || 0) * (1 - (this.epK || 0)) * kA; if (actif && kg > 0.01 && Math.abs(this.teteA) > 0.003 && spine3.length) { body.updateMatrixWorld(true); mod(spine3[0]); twist(spine3[0], 0.35 * this.teteA * kg); } }
         if (kA > 0.01) {
           // En visée, les animations collent la joue sur la crosse (tête roulée vers la droite et penchée sur le fusil) ; notre
           // fusil est plus bas : tête et cou ramenés vers leur pose droite (celle de la garde basse), puis la face tournée vers
