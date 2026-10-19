@@ -1390,10 +1390,16 @@
   #app .ordmenu .omf b { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #app .ordmenu .omf[data-v="retenu"].on { background: rgba(255,170,60,.2); border-color: #ffaa3c; box-shadow: inset 0 0 0 1px #ffaa3c, 0 0 12px rgba(255,170,60,.25); }
   #app .ordmenu .omf[data-v="appui"].on { background: rgba(255,138,42,.22); border-color: #ff8a2a; box-shadow: inset 0 0 0 1px #ff8a2a, 0 0 12px rgba(255,138,42,.28); }
+  #app .ordmenu .omplus { display: block; margin: 10px 0 0 auto; padding: 3px 9px; border-radius: 7px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.04); color: rgba(220,230,240,.8); font: 600 11px/1.2 var(--ui, sans-serif); letter-spacing: .06em; cursor: pointer; }
+  #app .ordmenu .omplus::after { content: ' ▸'; } #app .ordmenu.plus .omplus::after { content: ' ▾'; } #app .ordmenu .omplus:hover { border-color: rgba(255,255,255,.3); color: #fff; }
+  #app .ordmenu .ommore { display: none; } #app .ordmenu.plus .ommore { display: block; } #app .ordmenu .ommore .omsec:first-child { margin-top: 4px; }
+  #app .ordmenu .omg { grid-template-columns: 16px minmax(0, 1fr) auto; } #app .ordmenu .omg i { font-style: normal; font-size: 10.5px; color: rgba(220,230,240,.6); }
+  #app .ordmenu .omopt:disabled { opacity: .38; cursor: default; } #app .ordmenu .omopt:disabled:hover { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.09); }
+  #app .ordmenu .omg:not(:disabled):hover { border-color: #ffb45a; background: rgba(255,180,90,.14); }
   /* feu retenu : main levée sur la carte (clic : ouvrir le feu) ; bandeau d'orientation après Confirmer */
   #app .card .ofire { position: absolute; right: 5px; bottom: 5px; z-index: 2; width: 20px; height: 20px; padding: 2px; margin: 0; border-radius: 6px; border: 1px solid #ffaa3c; background: rgba(40,24,6,.82); color: #ffc46e; cursor: pointer; line-height: 0; }
   #app .card .ofire svg { width: 100%; height: 100%; } #app .card .ofire:hover { background: rgba(120,60,10,.9); color: #fff; }
-  #app #orhint { position: absolute; left: 50%; top: 112px; transform: translateX(-50%); zoom: clamp(1, var(--zui, 1), 1.6); z-index: 6; pointer-events: none; padding: 6px 14px; border-radius: 8px; border: 1px solid #ffa23a; background: rgba(28,18,6,.88); color: #ffe2b8; font-size: 12px; white-space: nowrap; }
+  #app #orhint { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); zoom: clamp(1, var(--zui, 1), 1.6); z-index: 6; pointer-events: none; padding: 9px 18px; border-radius: 10px; border: 1px solid #ffa23a; background: rgba(28,18,6,.92); color: #ffe2b8; font-size: 14px; max-width: min(720px, 92vw); text-align: center; line-height: 1.35; box-shadow: 0 4px 18px rgba(0,0,0,.45); }
   #app #orhint b { color: #ffb45a; font-weight: 700; }
   #app .roster .oall { flex: none; align-self: stretch; width: 54px; padding: 0; border-radius: 10px; border: 1px solid rgba(255,255,255,.14); background: linear-gradient(180deg, rgba(16,22,30,.78), rgba(10,14,19,.62)); color: rgba(220,230,240,.75); font-family: 'Rajdhani', var(--ui, sans-serif); font-weight: 700; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; backdrop-filter: blur(10px); cursor: pointer; }
   #app .roster .oall.on { border-color: #f2d36b; color: #ffe9a8; background: linear-gradient(180deg, rgba(60,50,20,.8), rgba(30,24,10,.7)); box-shadow: inset 0 -2px 0 #f2d36b; }

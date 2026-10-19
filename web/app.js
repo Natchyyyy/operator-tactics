@@ -2158,6 +2158,11 @@
     manoeuvre: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="8" cy="22" r="3.2" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M11.5 19.5C15 15 18 13 24 12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M19 7l6 5-5 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     tenir: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4l10 4v7c0 6.5-4.3 11-10 13-5.7-2-10-6.5-10-13V8z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M11 16l4 4 6-7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     decrocher: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M17 8l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/><path d="M26 12l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 7v18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="23" cy="7" r="2.2" fill="currentColor" opacity=".55"/></svg>',
+    // « Plus… » : grenades sur ordre, fouiller
+    frag: '<svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="15" cy="19" rx="8" ry="9" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M11 10h8M15 10V6.5M15 6.5h5l3 3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 19h12M15 13v12" stroke="currentColor" stroke-width="1.6" opacity=".6"/></svg>',
+    flash: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="10" y="10" width="12" height="17" rx="3" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M13 10V7h6v3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M4 9l3 2M28 9l-3 2M3 18h3M29 18h-3" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M17 13l-3 5h4l-3 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    smoke: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 24a5 5 0 010-10 7 7 0 0113-2 5.5 5.5 0 013 10.6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M7 28h18M11 20h10" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" opacity=".6"/></svg>',
+    fouiller: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="14" cy="14" r="7.5" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M19.5 19.5L27 27" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M4 4h5M4 4v5M28 4h-5M28 4v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".55"/></svg>',
     // ligne « Feu » (petits pictogrammes)
     volonte: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="8" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M16 3v7M16 22v7M3 16h7M22 16h7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="16" cy="16" r="2" fill="currentColor"/></svg>',
     retenu: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M11 17V9.5a2 2 0 014 0V15M15 15V7.5a2 2 0 014 0V15M19 15V9.5a2 2 0 014 0V19c0 5.5-3.4 9-8 9-3.4 0-5.6-1.8-7-4.6l-2.6-5a2 2 0 013.3-2.2L11 19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -2168,6 +2173,11 @@
     { v: 'volonte', nom: 'À volonté', desc: 'Chacun tire sur ce qu’il voit (par défaut).' },
     { v: 'retenu', nom: 'Retenu', desc: 'Embuscade : personne ne tire ni ne lance de grenade tant que le groupe n’est pas repéré, pris à partie, ou qu’un ennemi n’arrive tout près — alors tout le groupe ouvre le feu d’un coup (« Feu ! »). Clic sur la main d’une carte : ouvrir le feu tout de suite.' },
     { v: 'appui', nom: 'Appui', desc: 'Une fois en place, le groupe arrose la zone menacée (le point montré par le clic d’orientation, sinon la menace connue la plus proche) : tir de suppression qui cloue l’ennemi, même à couvert, pendant qu’un autre groupe bouge. Munitions bridées (on cesse sous 40 %).' }];
+  // « Plus… » : grenade sur ordre (E1, E2, E3) — action immédiate au point cliqué, par le plus proche des opérateurs choisis
+  // qui en a une et est à portée (battle.command('grenade', …), rejoué en revue)
+  const ORD_GREN = [{ v: 'frag', nom: 'Grenade', desc: 'Grenade à fragmentation au point cliqué (8 à 24 m du lanceur). Refusée si un équipier est à moins de 5 m du point.' },
+    { v: 'flash', nom: 'Flash', desc: 'Grenade incapacitante au point cliqué (8 à 24 m) : aveugle quelques secondes ceux qui voient l’éclair (alliés compris).' },
+    { v: 'smoke', nom: 'Fumigène', desc: 'Nuage au point cliqué (3 à 24 m) : bloque la vue des deux côtés pendant 14 s.' }];
   const ORD_OPTS = {
     mode: { titre: 'Déplacement', choix: [
       { v: 'methodique', nom: 'Méthodique', aide: 'Bonds, appui mutuel', desc: 'Doctrine française : une moitié bondit de couvert en couvert pendant que l’autre couvre, chacun son secteur ; pauses à chaque couvert.' },
@@ -2234,17 +2244,36 @@
     el.innerHTML = `<div class="omhead"><b>Ordre</b><span class="omwho"></span></div>` + Object.entries(ORD_OPTS).map(([cat, o]) =>
       `<div class="omsec">${o.titre}</div><div class="omrow">${o.choix.map(c => `<button class="omopt" data-cat="${cat}" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v] || ''}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>`).join('')
       + `<div class="omsec">Feu</div><div class="omfeu">${ORD_FEU.map(c => `<button class="omopt omf" data-cat="feu" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b></button>`).join('')}</div>`
+      + `<button class="omplus">Plus…</button><div class="ommore"><div class="omsec">Lancer ici</div><div class="omfeu omgren">${ORD_GREN.map(c => { const n = ordGrenCount(c.v); return `<button class="omopt omf omg" data-g="${c.v}" title="${escapeHtml(c.desc)}"${n ? '' : ' disabled'}><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><i>${n}</i></button>`; }).join('')}</div></div>`
       + `<button class="omgo">Confirmer</button><div class="omhint">Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
-    const main = $('main'), mr = main.getBoundingClientRect(); main.appendChild(el);
-    // taille réelle à l'écran (le menu suit l'échelle du HUD, CSS zoom) ; left/top s'expriment avant ce zoom
-    const z = parseFloat(getComputedStyle(el).zoom) || 1, br = el.getBoundingClientRect(), W = br.width, H = br.height;
-    el.style.left = (Math.max(8, Math.min(mr.width - W - 8, cx - mr.left + 14)) / z).toFixed(1) + 'px';
-    el.style.top = (Math.max(8, Math.min(mr.height - H - 8, cy - mr.top - H / 2)) / z).toFixed(1) + 'px';
+    $('main').appendChild(el);
     const show = () => el.querySelectorAll('.omopt').forEach(b => b.classList.toggle('on', pick[b.dataset.cat] === b.dataset.v));
     el.querySelectorAll('.omopt').forEach(b => b.addEventListener('click', () => { const was = pick[b.dataset.cat] === b.dataset.v; pick[b.dataset.cat] = b.dataset.v; show(); if (was) ordConfirm(); }));
     el.querySelector('.omgo').addEventListener('click', () => ordConfirm());
+    el.classList.toggle('plus', ordPlusOpen);
+    el.querySelector('.omplus').addEventListener('click', () => { ordPlusOpen = !ordPlusOpen; el.classList.toggle('plus', ordPlusOpen); ordPlace(el, cx, cy); });
+    el.querySelectorAll('.omg').forEach(b => b.addEventListener('click', () => ordGrenade(b.dataset.g)));
     el.addEventListener('contextmenu', (e) => e.preventDefault());
+    ordPlace(el, cx, cy);
     ordMenu = { el, p, pick }; show(); ordShowSel(); ordMarkGhost(p);
+    if (MANUAL) render();
+  }
+  // taille réelle à l'écran (le menu suit l'échelle du HUD, CSS zoom) ; left/top s'expriment avant ce zoom
+  function ordPlace(el, cx, cy) {
+    const mr = $('main').getBoundingClientRect(), z = parseFloat(getComputedStyle(el).zoom) || 1, br = el.getBoundingClientRect(), W = br.width, H = br.height;
+    el.style.left = (Math.max(8, Math.min(mr.width - W - 8, cx - mr.left + 14)) / z).toFixed(1) + 'px';
+    el.style.top = (Math.max(8, Math.min(mr.height - H - 8, cy - mr.top - H / 2)) / z).toFixed(1) + 'px';
+  }
+  let ordPlusOpen = false;
+  function ordGrenCount(k) { return ordUnits().filter(u => u.alive).reduce((n, u) => n + (u.grenades[k] || 0), 0); }
+  function ordGrenade(kind) {
+    if (!ordMenu) return; const { p } = ordMenu;
+    const ids = ordSel ? [...ordSel].filter(id => unitById[id] && unitById[id].alive) : null;
+    closeOrderMenu();
+    if (ids && !ids.length) { flashBattle('Grenade : aucun opérateur choisi n’est en état.'); return; }
+    const r = battle.command('grenade', 0, { x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, kind, units: ids });
+    const nom = ORD_GREN.find(c => c.v === kind).nom.toLowerCase();
+    flashBattle(r.ok ? `${r.callsign} lance : ${nom}.` : `${ORD_GREN.find(c => c.v === kind).nom} impossible : ${r.reason}.`); pumpLog();
     if (MANUAL) render();
   }
   function closeOrderMenu() { if (!ordMenu) return; ordMenu.el.remove(); ordMenu = null; ordMarkGhost(null); }
@@ -2263,7 +2292,7 @@
     if (pick.arrivee !== 'manoeuvre' || pick.feu === 'appui') ordOrientStart(r);
     if (MANUAL) render();
   }
-  window.addEventListener('keydown', (e) => { if (ordMenu && e.code === 'Escape') { e.preventDefault(); closeOrderMenu(); } else if (ordOrient && e.code === 'Escape') { e.preventDefault(); ordOrientEnd(); flashBattle('Orientation : automatique (menace connue, sinon sens de la marche).'); } }, true);
+  window.addEventListener('keydown', (e) => { if (ordMenu && e.code === 'Escape') { e.preventDefault(); closeOrderMenu(); } else if (ordOrient && e.code === 'Escape') { e.preventDefault(); ordOrientEnd(); flashBattle('Ils choisiront seuls où surveiller (menace connue, sinon sens de la marche).'); } }, true);
   // ---- Orienter la position (A4) : juste après Confirmer, une flèche part du point vers le curseur ; clic gauche = d'où vient
   // le danger (battle.command('orienter', …), rejoué en revue). Échap, clic droit ou nouvel ordre : automatique.
   let ordOrient = null; const ordArrow = new THREE.Group(); ordArrow.visible = false; scene.add(ordArrow);
@@ -2274,18 +2303,45 @@
     const a = Math.atan2(q.z - p.z, q.x - p.x), L = len || Math.max(1.5, Math.min(14, Math.hypot(q.x - p.x, q.z - p.z)));
     g.position.set(p.x, 0.06, p.z); g.rotation.set(0, -a, 0); g.scale.set(L, 1, Math.min(2.2, 0.8 + L * 0.1)); g.visible = true;
   }
-  function ordOrientStart(r) {
-    ordOrientEnd(); ordOrient = { id: r.id, p: { x: r.x, z: r.z } };
-    let el = $('#orhint'); if (!el) { el = document.createElement('div'); el.id = 'orhint'; $('main').appendChild(el); }
-    el.innerHTML = '<b>Orienter la position</b> · clic gauche sur le sol : d’où vient le danger · Échap : automatique'; el.style.display = 'block';
+  // Éventail « zone surveillée » (orienter la position) : secteur de 100° et 8 m devant le point d'arrivée, flèche au milieu ;
+  // il tourne en douceur vers le curseur (pas de saut quand le curseur passe sur une voiture, longueur fixe).
+  const ordFan = new THREE.Group(); ordFan.visible = false; scene.add(ordFan);
+  { const mk = (geo, op) => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffa23a, transparent: true, opacity: op, depthTest: false, depthWrite: false, fog: false, toneMapped: false, side: THREE.DoubleSide })); m.rotation.x = Math.PI / 2; m.renderOrder = 7; ordFan.add(m); return m; };
+    const A = 50 * Math.PI / 180;
+    mk(new THREE.RingGeometry(1.0, 8, 40, 1, -A, 2 * A), 0.22);           // secteur plein, léger
+    mk(new THREE.RingGeometry(7.75, 8, 40, 1, -A, 2 * A), 0.85);          // bord extérieur net
+    for (const s of [-1, 1]) { const g = new THREE.PlaneGeometry(7, 0.16); g.translate(4.5, 0, 0); const m = mk(g, 0.75); m.rotation.z = s * A; }   // bords latéraux
+    const sh = new THREE.Shape(); sh.moveTo(1.2, -0.22); sh.lineTo(5.6, -0.22); sh.lineTo(5.6, -0.6); sh.lineTo(6.9, 0); sh.lineTo(5.6, 0.6); sh.lineTo(5.6, 0.22); sh.lineTo(1.2, 0.22); sh.closePath();
+    mk(new THREE.ShapeGeometry(sh), 0.95); }
+  // direction du curseur vue depuis le point : simple plan du sol (sans « coller » aux voitures), ou direction de la caméra
+  function ordDirTo(cx, cy, p) {
+    const r = canvas.getBoundingClientRect(); if (!r.width || !r.height) return null;
+    ordRay.setFromCamera(new THREE.Vector2((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
+    const q = new THREE.Vector3(); let dx, dz;
+    if (ordRay.ray.intersectPlane(ordPlane, q)) { dx = q.x - p.x; dz = q.z - p.z; } else { dx = ordRay.ray.direction.x; dz = ordRay.ray.direction.z; }
+    if (Math.hypot(dx, dz) < 0.3) return null; return Math.atan2(dz, dx);
   }
-  function ordOrientEnd() { ordOrient = null; ordArrow.visible = false; const el = $('#orhint'); if (el) el.style.display = 'none'; }
-  function ordOrientMove(cx, cy) { if (!ordOrient) return; const q = ordGround(cx, cy); if (q) { ordArrowAt(ordArrow, ordOrient.p, q); if (MANUAL) render(); } }
+  const ordPtr = { x: null, y: null }; canvas.addEventListener('pointermove', (e) => { ordPtr.x = e.clientX; ordPtr.y = e.clientY; });
+  function ordOrientStart(r) {
+    ordOrientEnd(); ordOrient = { id: r.id, p: { x: r.x, z: r.z }, a: null, ta: null, t: performance.now() };
+    let el = $('#orhint'); if (!el) { el = document.createElement('div'); el.id = 'orhint'; $('main').appendChild(el); }
+    el.innerHTML = '<b>Où doivent-ils surveiller ?</b> Bouge la souris pour tourner l’éventail orange, puis clic gauche · <b>Échap</b> : ils choisissent seuls'; el.style.display = 'block';
+    if (ordPtr.x !== null) ordOrientMove(ordPtr.x, ordPtr.y);
+  }
+  function ordOrientEnd() { ordOrient = null; ordFan.visible = false; ordArrow.visible = false; const el = $('#orhint'); if (el) el.style.display = 'none'; }
+  function ordOrientMove(cx, cy) { if (!ordOrient) return; const a = ordDirTo(cx, cy, ordOrient.p); if (a === null) return; ordOrient.ta = a; if (ordOrient.a === null || MANUAL) ordOrient.a = a; ordOrientFrame(); if (MANUAL) render(); }
+  function ordOrientFrame() {   // à chaque image : l'éventail rattrape la direction voulue en douceur (chemin angulaire le plus court)
+    const o = ordOrient; if (!o || o.ta === null) return;
+    const now = performance.now(), dt = Math.min(0.1, (now - o.t) / 1000); o.t = now;
+    let d = o.ta - o.a; d = Math.atan2(Math.sin(d), Math.cos(d)); o.a += d * Math.min(1, dt * 16);
+    ordFan.position.set(o.p.x, 0.07, o.p.z); ordFan.rotation.set(0, -o.a, 0); ordFan.visible = true;
+  }
   function ordOrientClick(cx, cy) {
-    if (!ordOrient) return false; const o = ordOrient, q = ordGround(cx, cy); ordOrientEnd();
-    if (!q || !battle || battle.over) return true;
+    if (!ordOrient) return false; const o = ordOrient, a = ordDirTo(cx, cy, o.p) ?? o.ta; ordOrientEnd();
+    if (a === null || a === undefined || !battle || battle.over) return true;
+    const q = { x: o.p.x + Math.cos(a) * 10, z: o.p.z + Math.sin(a) * 10 };   // un point à 10 m dans la direction choisie
     const r = battle.command('orienter', 0, { ordre: o.id, x: Math.round(q.x * 100) / 100, z: Math.round(q.z * 100) / 100 });
-    flashBattle(r.ok ? 'Position orientée : le danger est attendu de ce côté.' : `Orientation refusée : ${r.reason}.`); pumpLog(); if (MANUAL) render();
+    flashBattle(r.ok ? 'C’est noté : ils surveilleront de ce côté en arrivant.' : `Orientation refusée : ${r.reason}.`); pumpLog(); if (MANUAL) render();
     return true;
   }
   canvas.addEventListener('pointermove', (e) => { if (ordOrient && !e.buttons) ordOrientMove(e.clientX, e.clientY); });
@@ -2342,8 +2398,8 @@
     }
     for (const k in ordDirs) if (!dl[k]) { ordMarks.remove(ordDirs[k]); delete ordDirs[k]; }
     for (const k in dl) {
-      if (!ordDirs[k]) { const g = ordArrow.clone(); ordMarks.add(g); ordDirs[k] = g; }
-      const inf = dl[k]; ordArrowAt(ordDirs[k], { x: inf.px, z: inf.pz }, inf.orient, 4.5);
+      if (!ordDirs[k]) { const g = ordFan.clone(); g.scale.setScalar(0.55); ordMarks.add(g); ordDirs[k] = g; }   // petit éventail : zone que le groupe surveillera
+      const inf = dl[k], g = ordDirs[k]; g.position.set(inf.px, 0.06, inf.pz); g.rotation.set(0, -Math.atan2(inf.orient.z - inf.pz, inf.orient.x - inf.px), 0); g.visible = true;
     }
     for (const c of document.querySelectorAll('#roster0 .card')) {
       const u = unitById[c.dataset.id], o = u && u.alive && battle.orderOf(u), held = !!(o && o.inf.feu === 'retenu' && !o.inf.released);
@@ -2361,7 +2417,7 @@
   // ---- Répliques radio (bulles au-dessus des soldats), tirées des événements réels de la simulation ----
   const BARKS = {
     spot: ['Contact !', 'Contact, droit devant !', 'Ennemi en vue !'], reload: ['Je recharge !', 'Rechargement !', 'Couvrez-moi, je recharge !'],
-    grenade: ['Grenade !'], throw: ['Grenade, à couvert !', 'Je lance !'], flank: ['Je contourne !', 'Je le prends par le flanc !'],
+    grenade: ['Grenade !'], throw: ['Grenade, à couvert !', 'Je lance !'], flashbang: ['Flash !', 'Incapacitante !'], flank: ['Je contourne !', 'Je le prends par le flanc !'],
     noammo: ['Plus de munitions !'], revive_start: ['Je m\u2019occupe de lui !', 'J\u2019arrive, tiens bon !'], revive: ['Debout, on y retourne !', 'Je te tiens !'],
     flash: ['Je ne vois plus rien !', 'Aveuglé !'], shaken: ['Repli !', 'Je décroche !', 'Ça chauffe trop !'], suppress: ['Feu de suppression !', 'Je les cloue !'], down: ['Homme à terre !', 'On a un blessé !', 'Il est touché !'],
     bouge: ['Je bouge !'], couvert: ['Couvert !'], enplace: ['En place.'], reprise: ['Je reprends ma progression.'],   // ordres de déplacement (clic droit)
@@ -2405,7 +2461,7 @@
     const u = e.unit && unitById[e.unit];
     if (e.kind === 'spot' && /contact/.test(e.text)) bark(u, 'spot');
     else if (e.kind === 'reload' && Math.random() < 0.35) bark(u, 'reload');
-    else if (e.kind === 'grenade' && u) bark(u, /lance une/.test(e.text) ? 'throw' : 'grenade');
+    else if (e.kind === 'grenade' && u) bark(u, /lance une/.test(e.text) ? (e.gk === 'flash' ? 'flashbang' : 'throw') : 'grenade');
     else if (e.kind === 'flank' || e.kind === 'noammo' || e.kind === 'revive_start' || e.kind === 'revive' || e.kind === 'flash' || e.kind === 'shaken' || e.kind === 'drag' || e.kind === 'smoke') bark(u, e.kind);
     else if (e.kind === 'suppress' && Math.random() < 0.5) bark(u, 'suppress');
     else if (e.kind === 'moveorder' || e.kind === 'bond') { bark(u, e.mode === 'decrocher' ? 'decroche' : 'bouge'); if (e.couvre) bark(unitById[e.couvre], 'couvert'); }
@@ -2607,7 +2663,7 @@
   }
   // secousse de caméra (explosions) : décalage aléatoire qui s'amortit
   function applyShake() { if (!cam.shake || cam.shake < 0.01) return; const k = cam.shake * 0.25; camera.position.x += (Math.random() - 0.5) * k; camera.position.y += (Math.random() - 0.5) * k; camera.position.z += (Math.random() - 0.5) * k; cam.shake *= 0.86; }
-  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); updateSteam(MANUAL ? 0.2 : frameDt + 0.003); if (battle.zone) updateZone(); updateHolos(); updateOrderMarks(); if (OT.Parking) OT.Parking.tick(performance.now() / 1000); if (RENDU) RENDU.render(); else renderer.render(scene, camera); updateLabels(); updateRosters(); }
+  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); updateSteam(MANUAL ? 0.2 : frameDt + 0.003); if (battle.zone) updateZone(); updateHolos(); updateOrderMarks(); ordOrientFrame(); if (OT.Parking) OT.Parking.tick(performance.now() / 1000); if (RENDU) RENDU.render(); else renderer.render(scene, camera); updateLabels(); updateRosters(); }
 
   // musique dynamique : plus présente quand les échanges de tirs s'intensifient, en retrait pendant la progression
   let lastMusicAdj = 0, musicLevel = 0.7;

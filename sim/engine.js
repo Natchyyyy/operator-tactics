@@ -50,6 +50,7 @@
     this.grenades = Object.assign({}, this.role.grenades || {});   // dotation par rôle
     if (has(this, 'grenadier')) this.grenades.frag = (this.grenades.frag || 0) + 1;   // Grenadier : une frag de plus
     this.grenades.smoke = 1;   // un fumigène chacun : il sert à couvrir l'évacuation d'un blessé (voir tryDrag)
+    if (/GIGN/.test(def.unit || '') && !this.grenades.flash) this.grenades.flash = 1;   // une incapacitante par opérateur de l'unité d'intervention (décision 6)
     this.throwing = null; this.lastGrenadeAt = -99; this.blindUntil = -99; this.evade = null;
     this.aimTimer = 0; this.fireAcc = 0; this.burst = 0;
     this.target = null; this.lastShotAt = -99; this.lastShotBy = null; this.lastShotByAt = -99; this.lastHitAt = -99;
@@ -288,14 +289,17 @@
   // Commande du joueur : appliquée et enregistrée (pas, type, équipe, paramètre) pour pouvoir revoir la bataille.
   Battle.prototype.command = function (type, team, arg) {
     if (this.replayQueue) return { ok: false, reason: 'bataille revue : commandes désactivées' };
-    const r = type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : type === 'tenir' ? this.holdKeyPosition(team, arg && arg.pos, arg && arg.units) : type === 'aller' ? this.moveOrder(team, arg) : type === 'orienter' ? this.orientOrder(team, arg) : type === 'feu' ? this.releaseFire(team, arg) : { ok: false };
+    const r = this.applyCommand(type, team, arg);
     if (r && r.ok) this.inputs.push({ tick: this.tick, type, team, arg });
     return r;
+  };
+  Battle.prototype.applyCommand = function (type, team, arg) {
+    return type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : type === 'tenir' ? this.holdKeyPosition(team, arg && arg.pos, arg && arg.units) : type === 'aller' ? this.moveOrder(team, arg) : type === 'orienter' ? this.orientOrder(team, arg) : type === 'feu' ? this.releaseFire(team, arg) : type === 'grenade' ? this.grenadeOrder(team, arg) : { ok: false };
   };
   Battle.prototype.step = function () {
     if (this.over) return;
     if (this.replayQueue) while (this.replayQueue.length && this.replayQueue[0].tick === this.tick) {   // revoir : mêmes commandes au même pas
-      const c = this.replayQueue.shift(); if (c.type === 'tactic') this.useTactic(c.team, c.arg); else if (c.type === 'order') this.setOrder(c.team, c.arg); else if (c.type === 'rotate') this.rotate(c.team, c.arg); else if (c.type === 'tenir') this.holdKeyPosition(c.team, c.arg && c.arg.pos, c.arg && c.arg.units); else if (c.type === 'aller') this.moveOrder(c.team, c.arg); else if (c.type === 'orienter') this.orientOrder(c.team, c.arg); else if (c.type === 'feu') this.releaseFire(c.team, c.arg); this.inputs.push(c);
+      const c = this.replayQueue.shift(); this.applyCommand(c.type, c.team, c.arg); this.inputs.push(c);
     }
     this.t = Math.round((this.t + DT) * 1000) / 1000; this.tick++;
     this.updateTactics();
@@ -363,8 +367,55 @@
     const g = { kind: th.kind, team: u.team, thrower: u, from: { x: u.x, z: u.z }, x, z, landAt: this.t + flight, explodeAt: this.t + flight + G.fuse, landed: false };
     this.grenadesInFlight.push(g);
     if (th.kind === 'smoke') this.logEvent('smoke', `${u.callsign} : « Fumigène ! »`, { unit: u.id, team: u.team });
-    else this.logEvent('grenade', `${u.callsign} lance une ${G.name} vers ${th.target}.`, { unit: u.id, team: u.team });
+    else this.logEvent('grenade', `${u.callsign} lance une ${G.name} vers ${th.target}.`, { unit: u.id, team: u.team, gk: th.kind });
     this.emit({ type: 'grenade_throw', kind: th.kind, from: { x: u.x, y: 1.7, z: u.z }, to: { x, y: 0.1, z }, flight, explodeAt: g.explodeAt });
+  };
+  // E1 / E2 / E3 — grenade sur ordre : battle.command('grenade', équipe, { x, z, kind: 'frag' | 'flash' | 'smoke', units: [ids] | null }).
+  // Parmi les opérateurs désignés, le plus proche du point qui a encore cette grenade, est libre (ni lancer, ni blessé à
+  // tirer, ni aveuglé) et à portée (frag et flash : 8 à 24 m — 30 m Grenadier ; fumigène : 3 à 24 m), avec une trajectoire
+  // possible, lance au point. Frag : refusée si un équipier est à moins de 5 m du point. L'IA garde ses lancers à elle.
+  const GREN_RANGE = { frag: [8, 24], flash: [8, 24], smoke: [3, 24] };
+  Battle.prototype.grenadeOrder = function (teamIndex, arg) {
+    const team = this.teams[teamIndex]; if (!team || this.over || !arg) return { ok: false, reason: 'bataille terminée' };
+    const kind = arg.kind; if (!GREN_RANGE[kind]) return { ok: false, reason: 'grenade inconnue' };
+    const p = this.orderPoint(+arg.x, +arg.z); if (!p) return { ok: false, reason: 'point hors du terrain' };
+    const ids = Array.isArray(arg.units) && arg.units.length ? arg.units : null;
+    const us = team.units.filter(u => u.alive && (!ids || ids.includes(u.id) || ids.includes(u.def.id)));
+    const G = GRENADES[kind], nom = kind === 'frag' ? 'grenade' : kind === 'flash' ? 'incapacitante' : 'fumigène';
+    const withK = us.filter(u => (u.grenades[kind] || 0) > 0);
+    if (!withK.length) return { ok: false, reason: `plus de ${nom}` };
+    if (kind === 'frag' && team.units.some(a => a.alive && Math.hypot(a.x - p.x, a.z - p.z) < 5)) return { ok: false, reason: 'un équipier est trop près du point' };
+    let best = null, bd = Infinity; const no = {};
+    for (const u of withK) {
+      if (u.throwing || u.drag || this.t < u.blindUntil) { no.busy = 1; continue; }
+      const d = Math.hypot(p.x - u.x, p.z - u.z), [lo, hi0] = GREN_RANGE[kind], hi = kind !== 'smoke' && has(u, 'grenadier') ? 30 : hi0;
+      if (d < lo) { no.near = lo; continue; }
+      if (d > hi) { no.far = hi; continue; }
+      if (!this.map.hasLOS(u.x, 2.3, u.z, p.x, 1.4, p.z)) { no.los = 1; continue; }
+      if (d < bd) { bd = d; best = u; }
+    }
+    const why = no.los ? 'pas de trajectoire (un obstacle haut)' : no.near ? `trop près (${no.near} m au moins)` : no.far ? `trop loin (${no.far} m au plus)` : 'tous occupés';
+    if (!best) return { ok: false, reason: why };
+    const u = best; this.stop(u); u.reviving = null; u.state = 'throw'; u.stance = 'stand'; u.target = null; u.facing = Math.atan2(p.z - u.z, p.x - u.x);
+    u.throwing = { at: this.t + 0.6 + (1 - u.def.reflexes / 100) * 0.4, x: p.x, z: p.z, d: bd, kind, target: 'le point désigné', ordre: true };
+    this.logEvent('grenadeorder', `${team.name} : ${u.callsign} — ordre : ${G.name} sur le point désigné.`, { unit: u.id, team: teamIndex, gk: kind, silent: true });
+    return { ok: true, unit: u.id, callsign: u.callsign, kind };
+  };
+  // E3 — « avec fumée » (Franchir, Décrocher) : le premier des opérateurs qui a encore un fumigène et une trajectoire le lance
+  // entre (mx, mz) et le danger (dx, dz), à 6 m au plus de (mx, mz). Renvoie { u, ready } (nuage en place à ready), sinon null.
+  Battle.prototype.coverSmoke = function (units, mx, mz, dx, dz, why) {
+    const L = Math.hypot(dx - mx, dz - mz) || 1, k = Math.min(6, L * 0.5), q = this.orderPoint(mx + (dx - mx) / L * k, mz + (dz - mz) / L * k);
+    if (!q) return null;
+    let best = null, bd = Infinity;
+    for (const u of units) {
+      if (!u.alive || !((u.grenades.smoke || 0) > 0) || u.throwing || u.drag || this.t < u.blindUntil) continue;
+      const d = Math.hypot(q.x - u.x, q.z - u.z); if (d < 2 || d > 24 || !this.map.hasLOS(u.x, 2.3, u.z, q.x, 1.4, q.z)) continue;
+      if (d < bd) { bd = d; best = u; }
+    }
+    if (!best) return null;
+    const u = best; this.stop(u); u.reviving = null; u.state = 'throw'; u.stance = 'stand'; u.target = null; u.facing = Math.atan2(q.z - u.z, q.x - u.x);
+    u.throwing = { at: this.t + 0.5 + (1 - u.def.reflexes / 100) * 0.3, x: q.x, z: q.z, d: bd, kind: 'smoke', target: why || 'le passage' };
+    return { u, ready: u.throwing.at + 0.45 + bd / 22 + GRENADES.smoke.fuse };
   };
   Battle.prototype.startEvade = function (u) {
     const ev = u.evade; ev.started = true;
@@ -1240,15 +1291,25 @@
     team.moveGroups.push(g);
     // réglage de feu de l'ordre (pour tout le groupe, jusqu'au prochain ordre de chacun)
     team.ordInfo = team.ordInfo || {};
-    team.ordInfo[id] = { feu, px: p.x, pz: p.z, dir, arr, released: feu !== 'retenu', orient: null, zone: null, appuiSaid: false };
+    const fumee = !!arg.fumee && (mode === 'franchir' || mode === 'decrocher');
+    team.ordInfo[id] = { feu, px: p.x, pz: p.z, dir, arr, released: feu !== 'retenu', orient: null, zone: null, appuiSaid: false, fumee };
+    if (fumee && mode === 'franchir') g.fumee = true;
     units.forEach((u, k) => {
       u.keyOrder = null; u.orderAt = this.t; u.reviving = null;
       u.moveOrder = { id, mode, arrivee: arr, x: spots[k].x, z: spots[k].z, px: p.x, pz: p.z, dir, half: k % 2, goalN: -1, doneN: -1, departAt: mode === 'agressif' ? this.t + rank.indexOf(k) * 0.8 : 0, sect: spots[k].sect, face };
       if (spots[k].hid !== undefined) Object.assign(u.moveOrder, { hid: spots[k].hid + '#' + id, px: spots[k].cx, pz: spots[k].cz, face: spots[k].face, enc: { x: p.x, z: p.z } });
       this.stop(u); u.commitUntil = 0; u.pauseUntil = 0;
     });
-    this.logEvent('moveorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — déplacement ${MOVE_MODES[mode]}, puis ${ARRIVALS[arrivee]}${arr !== arrivee ? (feu === 'appui' ? ` (en appui : ${ARRIVALS[arr]})` : ` (à ${units.length}, ${ARRIVALS[arr]})`) : ''}${feu !== 'volonte' ? `, ${FIRE_MODES[feu]}` : ''}.`, { team: teamIndex, unit: units[0].id, ordre: id, mode, feu });
-    return { ok: true, id, x: p.x, z: p.z };
+    // décrocher avec fumée : un nuage tout de suite entre le groupe et le danger (l'ennemi connu le plus proche, sinon l'arrière)
+    let smoke = null;
+    if (fumee && mode === 'decrocher') {
+      let dg = null, dd = 45;
+      for (const a of team.units) if (a.alive) for (const eid in a.knowledge) { const k = a.knowledge[eid], e = this.unitById(eid); if (!e || !e.alive || this.t - k.t > 20) continue; const d = Math.hypot(k.x - cx, k.z - cz); if (d < dd) { dd = d; dg = k; } }
+      if (!dg) dg = { x: cx - Math.cos(dir) * 15, z: cz - Math.sin(dir) * 15 };
+      smoke = this.coverSmoke(units, cx, cz, dg.x, dg.z, 'le repli');
+    }
+    this.logEvent('moveorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — déplacement ${MOVE_MODES[mode]}${fumee ? ' avec fumée' : ''}, puis ${ARRIVALS[arrivee]}${arr !== arrivee ? (feu === 'appui' ? ` (en appui : ${ARRIVALS[arr]})` : ` (à ${units.length}, ${ARRIVALS[arr]})`) : ''}${feu !== 'volonte' ? `, ${FIRE_MODES[feu]}` : ''}.`, { team: teamIndex, unit: units[0].id, ordre: id, mode, feu });
+    return { ok: true, id, x: p.x, z: p.z, fumee: fumee ? (mode === 'franchir' ? units.some(u => (u.grenades.smoke || 0) > 0) : !!smoke) : undefined };
   };
   // ---- Feu et orientation des ordres du clic droit (vague 1 : strategies_gign.md F1, F2, A4) ---------------------------
   // l'ordre en cours d'un opérateur (en route, ou à son poste) : { id, inf } (inf = team.ordInfo[id]), sinon null
@@ -1547,6 +1608,10 @@
       if (at.length === act.length || (at.length && this.t - g.firstAt > CROSS_WAIT)) {
         g.phase = 'cross'; g.runners = []; g.crossed = []; g.nextAt = this.t + 0.4;
         g.queue = act.map(u => u.id).sort((i, j) => { const a = this.unitById(i), b = this.unitById(j); return Math.hypot(a.x - C.bx, a.z - C.bz) - Math.hypot(b.x - C.bx, b.z - C.bz) || (i < j ? -1 : 1); });
+        if (g.fumee) {   // avec fumée : le premier qui a un fumigène le lance côté danger ; on passe quand le nuage est là (lui en dernier)
+          const dg = this.crossDanger(team, C), sm = this.coverSmoke(act, C.mx, C.mz, dg.x, dg.z, 'le passage');
+          if (sm) { g.nextAt = Math.max(g.nextAt, sm.ready + 0.3); g.queue = g.queue.filter(id => id !== sm.u.id).concat([sm.u.id]); }
+        }
         this.logEvent('franchir', `${team.name} : découvert devant — on passe ${act.length >= 4 ? 'deux par deux' : 'un par un'}, sous appui.`, { team: team.index, ordre: g.id, unit: act[0].id, silent: true });
       }
       return;
