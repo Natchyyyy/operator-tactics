@@ -247,8 +247,11 @@
     // paume : un peu au-delà de l'os de la main (vers les doigts), centre de la prise
     paume(main) { const h = main[2], e = h.children.find(x => /Middle1|Index1/.test(x.name)) || h.children[0]; const p = h.getWorldPosition(V3()); if (e) p.lerp(e.getWorldPosition(V3()), 0.6); return p; }
     tenirFusil(actif, dt) {
-      const w = this.fusil; if (!w) return; w.visible = actif;
-      if (!actif) { for (const d of this.doigts) d.os.quaternion.copy(d.repos); this.fusilPos = null; return; }   // (position oubliée : à la sortie suivante, l'arme apparaît directement en place)
+      const w = this.fusil; if (!w) return;
+      // fondu : la prise s'installe / se défait en ~0,25 s (mains, doigts), le fusil apparaît quand la prise est à moitié faite
+      this.poidsArme = Math.max(0, Math.min(1, (this.poidsArme ?? 0) + (actif ? 1 : -1) * dt / 0.25));
+      const pa = this.poidsArme; w.visible = pa > 0.5;
+      if (pa <= 0) { for (const d of this.doigts) d.os.quaternion.copy(d.repos); this.fusilPos = null; return; }
       const D = this.mains.D, G = this.mains.G; if (D.some(x => !x) || G.some(x => !x)) return;
       const P = PARAMS.fusil;
       // Low ready comme un vrai tireur : la CROSSE reste dans le creux de l'épaule droite, le canon pivote vers le bas.
@@ -272,13 +275,15 @@
         const pr = this.prise[k];
         const posPr = pr.pos.clone(); if (k === 'G' && P.appuiZ != null) posPr.z = P.appuiZ;      // main d'appui : position choisie sur le garde-main
         let cible = w.position.clone().add(posPr.applyQuaternion(this.fusilQ));
+        const mainData = main[2].getWorldPosition(V3()), qData = main[2].getWorldQuaternion(Q());   // pose de la capture (avant IK)
         if (k === 'G') {   // garde-main hors de portée : la main glisse vers l'arrière le long du canon jusqu'à pouvoir tenir
           const ep = main[0].getWorldPosition(V3()), portee = (main[1].getWorldPosition(V3()).distanceTo(ep) + main[2].getWorldPosition(V3()).distanceTo(main[1].getWorldPosition(V3()))) * 0.96;
           const axe = V3(0, 0, 1).applyQuaternion(this.fusilQ);
           for (let it = 0; it < 20 && cible.distanceTo(ep) > portee; it++) cible.addScaledVector(axe, -0.02);
         }
+        cible = mainData.clone().lerp(cible, pa);
         ikDeuxOs(main[0], main[1], main[2], cible, V3(0, -1, 0).addScaledVector(dir, -0.4).normalize());
-        const qw = this.fusilQ.clone().multiply(pr.q);
+        const qw = qData.clone().slerp(this.fusilQ.clone().multiply(pr.q), pa);
         // orientation de la main sur l'arme ; la torsion du poignet est partagée avec l'avant-bras (il roule autour de son axe,
         // ce qui ne déplace pas la main) pour éviter un poignet vrillé
         const F = main[1]; let qLoc = F.getWorldQuaternion(Q()).invert().multiply(qw);          // main dans le repère de l'avant-bras
@@ -289,7 +294,7 @@
         F.quaternion.multiply(part); F.updateMatrixWorld(true);
         main[2].quaternion.copy(F.getWorldQuaternion(Q()).invert().multiply(qw)); main[2].updateMatrixWorld(true);
       }
-      for (const d of this.doigts) if (d.prise) d.os.quaternion.copy(d.prise);
+      for (const d of this.doigts) if (d.prise) d.os.quaternion.copy(d.repos).slerp(d.prise, pa);
       // repères de mise au point : poignée (jaune), garde-main (cyan), jointure du majeur visée (vert D, bleu G), bout d'os de main (rouge)
       if (PARAMS.debug) {
         if (!this.marques) { this.marques = {}; for (const [n, c] of [['grip', 0xffd54a], ['fore', 0x4ad5ff], ['mD', 0x55ff55], ['mG', 0x5555ff], ['hD', 0xff5555], ['hG', 0xff55ff]]) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), new THREE.MeshBasicMaterial({ color: c, depthTest: false })); m.renderOrder = 10; this.group.parent.add(m); this.marques[n] = m; } }
@@ -372,7 +377,7 @@
   // -------------------------------------------------------------------------------------------- contrôleur
   const Ctl = {
     pos: V3(), vel: V3(), acc: V3(), yaw: 0, yawV: 0, hPos: 0.25, hYaw: 0.15,
-    touches: {}, visee: false, accroupi: false, chemin: null, cheminIdx: 0, camYaw: 0.6,
+    touches: {}, visee: true, accroupi: false, chemin: null, cheminIdx: 0, camYaw: 0.6,
     vitesses: { marche: 1.25, course: 2.6, lat: 1.0 },
     direction() {
       const t = this.touches; let x = 0, z = 0;
@@ -448,7 +453,7 @@
   let facteurRacine = 1, dernierSaut = -1, frame = 0, frameT = 0, poseQ, poseY = [0], ancQ, ancY = [0], derniereRecherche = 0, sauts = 0, sautsFen = [], styleCourant = 0;
   const glisse = new Glissement(); let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.05, fusil: { avant: 0.03, droite: -0.09, haut: -0.03, tangage: -0.45, cant: 0.45, buste: 0.3, lissage: 0.06, appuiZ: 0.05, torsion: 0.6 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.05, fusil: { avant: 0.03, droite: -0.09, haut: -0.03, tangage: -0.5, cant: 0.3, buste: 0.3, lissage: 0.06, appuiZ: 0.03, torsion: 0.6 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   async function init() {
     renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);

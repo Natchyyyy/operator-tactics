@@ -31,20 +31,23 @@ python3 ../../outils/serveur.py ../.. 8765   →  http://127.0.0.1:8765/prototyp
 ```
 Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `API.touches({KeyW:1})`, `API.mesures()`, `PARAMS` (rattrapage, verrou, marges de saut).
 
-## État (19/10)
-- Retargeting Geno → Mixamo par écart à la pose de liaison (lue dans le skin du GLB), avec alignement des directions d'os.
-- Motion matching : fiche 27 nombres (pieds, vitesses, trajectoire future 0,33/0,67/1 s), recherche brute 45 000 images,
-  inertialisation des transitions, racine portée par l'animation + rattrapage limité vers la simulation.
-- Verrouillage des pieds (IK deux os) piloté par les contacts de la base, horizontal seulement, écart plafonné à 5 cm,
-  engagé seulement si l'orteil affiché est bas. Le « rattrapage » du personnage vers la simulation est à 0 : à 0,15 il
-  créait un glissement constant de ~20 cm/s (et le verrou, en luttant, faisait remonter le pied puis rebondir).
-  Glissement mesuré en marche (vitesse de l'orteil pendant les appuis de la base) : 11 cm/s ; données brutes seules : 6.
-- Mesures de référence (`API.mesures()`, traces TRACE) : sans verrou ni saut, orteil ≤ 17 cm de haut, |vy| ≤ 1 m/s ;
-  tout réglage qui dépasse nettement ces valeurs crée des pieds qui « remontent » ou rebondissent.
-- Arme (touche V) : style 100STYLE « Swat » (marche d'intervention, genoux fléchis, buste penché) pour tout le corps ; le fusil du
-  jeu est accroché au buste (avant/droite/haut/tangage dans `PARAMS.fusil`, lissé), et les deux mains viennent dessus par IK
-  deux os ; position des mains sur l'arme et doigts refermés lus dans la première image du clip « Rifle_Aim_Turn_Right » du
-  modèle (même règle que le jeu : poignée dans la paume droite, axe vers la paume gauche).
-- Données en plus dans donnees/100style/ : Swat_* (dans la base), StartStop_* (pas encore dans la base : départs/arrêts brusques,
-  à ajouter avec la course CMU ; attention à la taille du .bin, limite 15 Mo pour la page publiée).
-- Manques : course rapide (100STYLE plafonne vers 1,5 m/s, salle de 4,5 m), accroupi (style « Crouched » trop léger, retiré).
+## État (19/10, soir)
+- Simulation à pas fixe 1/60 s (affichage libre). Retargeting Geno → Mixamo par écart à la pose de liaison du skin, pieds et
+  orteils gardant l'inclinaison du modèle, échelle hanches→orteils.
+- Motion matching : fiche 27 nombres (pieds ×2, vitesses pieds et hanches, trajectoire future 0,33/0,67/1 s), poids
+  pieds 2 / vitesses pieds 1,5 / hanches 1 / trajectoire 1 / regard 1,5 ; recherche brute 41 600 images toutes les 0,1 s
+  (0,37 ms par pas de simulation sur une machine lente) ; saut seulement si 20 % mieux, 0,25 s mini entre deux sauts ;
+  au repos : séquences de repos seulement et racine figée. La simulation du clavier est recalée sur le personnage à chaque pas.
+- Styles : Neutral (sans arme) et Swat (arme, défaut). Verrou des pieds horizontal (IK deux os robuste, écart ≤ 8 cm).
+- Arme (V, active par défaut) : low ready — crosse dans le creux de l'épaule droite (`PARAMS.fusil` : avant/droite/haut par
+  rapport à l'épaule, tangage −0,5 rad, cant 0,3 rad vers l'intérieur, lissage 60 ms) ; direction = regard du soldat mélangé
+  30 % au buste. Mains : places du jeu (`PRISE` de soldat3d.js, par modèle) → IK deux os (coudes vers le bas), main d'appui
+  glissée vers l'arrière si le garde-main est hors de portée (bras de 46 cm sur ce modèle), torsion du poignet partagée 60 %
+  avec l'avant-bras, doigts de la première image de « Rifle_Aim_Turn_Right » ; fondu 0,25 s à la sortie / au rangement.
+- Commandes : ZQSD relatif à la caméra, le soldat regarde là où il va ; clic droit maintenu = regard verrouillé sur la caméra
+  (pas de côté, recul) ; la caméra seule ne fait jamais tourner le soldat.
+- Mesures (scénarios 60 Hz, `scratchpad/scenario.py`, `robuste.js`) : main droite sur la poignée à < 0,01 mm ; 90 s d'entrées
+  aléatoires sans NaN ; dérive à l'arrêt 0 ; chemin de démo : 9 points en 60 s, 0,3 s bloquées ; glissement en marche Swat
+  7 cm/s (données seules 4,5), 15-19 avec changements de direction toutes les 2 s (transitions).
+- Manques : course rapide (100STYLE plafonne vers 1,9 m/s en Swat), accroupi, tête qui suit une cible, mode épaulé/tir.
+  Données StartStop_* présentes dans donnees/100style/ mais pas dans la base.
