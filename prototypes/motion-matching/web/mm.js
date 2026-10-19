@@ -2,7 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
-  const VERSION = 27;
+  const VERSION = 28;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);
@@ -300,12 +300,19 @@
       const sp = this.os[Base.meta.os.indexOf('Spine2')]; const qS = sp.getWorldQuaternion(Q());
       const avantBuste = V3(0, 0, 1).applyQuaternion(qS).applyQuaternion(this.align[Base.meta.os.indexOf('Spine2')]); avantBuste.y = 0; avantBuste.normalize();
       const dir = avant.clone().lerp(avantBuste, P.buste).normalize();
+      // visée : l'arme pointe vers la cible (caméra), quelle que soit la direction de marche ; le tronc vrille vers elle
+      // (≤ 1 rad, réparti sur Spine / Spine1 / Spine2), en plus de la position bladée
+      let torsion = 0;
+      if (this.viseeYaw != null && pv > 0.001) {
+        let e = this.viseeYaw - Math.atan2(avant.x, avant.z); e = Math.atan2(Math.sin(e), Math.cos(e)); torsion = Math.max(-1.0, Math.min(1.0, e)) * pv;
+        const dCible = V3(Math.sin(this.viseeYaw), 0, Math.cos(this.viseeYaw)); dir.lerp(dCible, pv); if (dir.lengthSq() < 1e-4) dir.copy(dCible); dir.normalize();
+      }
       const droite = dir.clone().cross(V3(0, 1, 0)).normalize();
       const yaw = Math.atan2(dir.x, dir.z) + P.cant;
       // (direction de l'arme déjà fixée) Position « bladée » : le tronc vrille vers la droite (épaule gauche en avant) comme un tireur, ce qui rapproche la
       // main d'appui du garde-main. Répartie sur Spine / Spine1 / Spine2, proportionnelle au poids de la prise.
-      if (P.vrille) {
-        const ang = P.vrille * pa / 3, qv = Q().setFromAxisAngle(V3(0, 1, 0), -ang);
+      if (P.vrille || torsion) {
+        const ang = (P.vrille * pa - torsion) / 3, qv = Q().setFromAxisAngle(V3(0, 1, 0), -ang);
         for (const n of ['Spine', 'Spine1', 'Spine2']) { const o = this.os[Base.meta.os.indexOf(n)]; if (!o) continue; const wq = o.getWorldQuaternion(Q()); o.quaternion.copy(o.parent.getWorldQuaternion(Q()).invert().multiply(qv).multiply(wq)); o.updateMatrixWorld(true); }
         this.group.updateMatrixWorld(true);
       }
@@ -497,13 +504,22 @@
       const d = this.direction(); if (!d) return V3();
       const sprint = this.touches['ShiftLeft'] || this.touches['ShiftRight'];
       let v = sprint ? this.vitesses.course : this.vitesses.marche;
-      if (this.verrouRegard) v = Math.min(v, this.vitesses.lat);
+      if (this.verrouRegard && this.modeVisee(d.clone().multiplyScalar(v)) === 'recul') v = Math.min(v, this.vitesses.lat);   // à reculons : lent ; vers l'avant : marche normale (arme en joue)
       return d.multiplyScalar(v);
+    },
+    // Visée (regard verrouillé) : déplacement TACTIQUE, pas de pas chassé. « avant » : il marche vers là où on le pousse
+    // (diagonales comprises), le buste et l'arme restent tournés vers la cible (vrille du tronc jusqu'à ~70°) ;
+    // « recul » : la cible est derrière le déplacement (> 100°), il marche à reculons en lui faisant face ; hystérésis 10°.
+    modeVisee(vGoal) {
+      if (!this.verrouRegard || (this.chemin && this.chemin.length)) return null;
+      if (vGoal.lengthSq() < 1e-4) return 'arret';
+      let e = Math.atan2(vGoal.x, vGoal.z) - this.camYaw; e = Math.abs(Math.atan2(Math.sin(e), Math.cos(e)));
+      this.modeV = e <= (this.modeV === 'recul' ? 1.66 : 1.83) ? 'avant' : 'recul'; return this.modeV;
     },
     yawCible(vGoal) {
       // il regarde là où il va ; bouton droit de la souris maintenu : regard verrouillé sur la direction de la caméra
-      // (pas de côté, recul) — la caméra seule ne fait jamais tourner le soldat
-      if (this.verrouRegard && !(this.chemin && this.chemin.length)) return this.camYaw;
+      // (marche tactique vers la touche, buste vers la cible ; recul si la cible est derrière) — la caméra seule ne fait jamais tourner le soldat
+      if (this.verrouRegard && !(this.chemin && this.chemin.length)) { const m = this.modeVisee(vGoal); if (m !== 'avant') return this.camYaw; }
       if (vGoal.lengthSq() < 1e-4) return this.yaw;
       return Math.atan2(vGoal.x, vGoal.z);
     },
@@ -601,8 +617,9 @@
         const f = this.frame, vitAnimCour = Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]);
         const arretVoulu = vGoal.lengthSq() < 0.01;
         const auRepos = arretVoulu && vitAnimCour < 0.35;
-        const seulFrontal = !Ctl.verrouRegard;                                               // il regarde là où il va
-        const angVoulu = Ctl.verrouRegard && vGoal.lengthSq() > 0.01 ? Math.atan2(vGoal.x, vGoal.z) - S.yaw : null;   // visée : direction voulue dans le repère des hanches
+        const modeV = Ctl.modeVisee(vGoal), recule = modeV === 'recul';
+        const seulFrontal = !recule;                                                          // il marche vers là où il va (même en visée)
+        const angVoulu = recule && vGoal.lengthSq() > 0.01 ? Math.atan2(vGoal.x, vGoal.z) - S.yaw : null;   // recul en visée : direction voulue dans le repère des hanches
         const [best, bc] = chercher(req, styleVoulu, auRepos, arretVoulu, seulFrontal, angVoulu);
         const cc = (!finClip && Base.ok[f] && Base.style[f] === styleVoulu && (!auRepos || Base.repos[f]) && (!arretVoulu || Base.arret[f]) && (!seulFrontal || Base.frontal[f]) && dirOk(f, angVoulu)) ? cout(f, req) : Infinity;
         if (this === agents[0]) { JOURNAL.push([+horloge.toFixed(2), +cc.toFixed(1), +bc.toFixed(1), best, f]); if (JOURNAL.length > 400) JOURNAL.shift(); }
@@ -649,7 +666,8 @@
         this.biaisVit = this.biaisVit == null ? vLoc : this.biaisVit + Math.atan2(Math.sin(vLoc - this.biaisVit), Math.cos(vLoc - this.biaisVit)) * (1 - Math.exp(-dt / 0.2));
         // regard verrouillé (visée) : ce sont les hanches qui doivent faire face à la caméra, pas le déplacement (pas chassé,
         // recul) — sans cette distinction le soldat tournait sur lui-même en visant
-        let err = yGoal - (Ctl.verrouRegard ? S.yaw : S.yaw + this.biaisVit); err = Math.atan2(Math.sin(err), Math.cos(err));
+        const recule = Ctl.modeVisee(vGoal) === 'recul';
+        let err = yGoal - (recule ? S.yaw : S.yaw + this.biaisVit); err = Math.atan2(Math.sin(err), Math.cos(err));
         const corr = Math.max(-PARAMS.capMax * dt, Math.min(PARAMS.capMax * dt, err * (1 - Math.exp(-dt / PARAMS.capLife))));
         S.yaw += corr * this.facteurRacine;
       }
@@ -658,7 +676,7 @@
       // (regard verrouillé : les hanches font face à la caméra, c'est donc ce redressement seul qui donne la direction du pas
       // chassé / du recul ; limite plus large, le verrou des pieds absorbe l'écart)
       if (vGoal.lengthSq() > 0.01 && vl.lengthSq() > 0.09) {
-        const lim = Ctl.verrouRegard ? PARAMS.warpMaxVisee : PARAMS.warpMax;
+        const lim = Ctl.modeVisee(vGoal) === 'recul' ? PARAMS.warpMaxVisee : PARAMS.warpMax;
         let e = Math.atan2(vGoal.x, vGoal.z) - Math.atan2(vl.x, vl.z); e = Math.atan2(Math.sin(e), Math.cos(e));
         vl.applyAxisAngle(UP, Math.max(-lim, Math.min(lim, e)));
       }
@@ -674,7 +692,7 @@
       // tir (clic gauche maintenu en visée) : cadence soutenue du fusil d'assaut du jeu (110 coups/min), recul 1 → 0 en 0,1 s
       this.recul = Math.max(0, (this.recul || 0) - dt * 10); this.tirAcc = Math.max(0, (this.tirAcc || 0) - dt);
       if (Ctl.tir && Ctl.visee && Ctl.verrouRegard && (S.poidsVisee || 0) > 0.9 && this.tirAcc <= 0) { this.recul = 1; this.tirAcc = 60 / 110; this.tirs = (this.tirs || 0) + 1; if (S.fusil && S.fusil.flash) S.fusil.flashT = 0.04; }
-      S.recul = this.recul; S.viseeEpaulee = !!Ctl.verrouRegard; S.tenirFusil(Ctl.visee, dt);
+      S.recul = this.recul; S.viseeEpaulee = !!Ctl.verrouRegard; S.viseeYaw = Ctl.verrouRegard ? Ctl.camYaw : null; S.tenirFusil(Ctl.visee, dt);
       this.inst = this.glisse.mesurer(S.orteils, dt, contacts);
       this.vGoal = vGoal; this.contacts = contacts;
       while (this.sautsFen.length && now - this.sautsFen[0] > 2000) this.sautsFen.shift();
