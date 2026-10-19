@@ -2,7 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
-  const VERSION = 24;
+  const VERSION = 25;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);
@@ -260,7 +260,14 @@
       const k = new THREE.Group(); k.add(c); k.scale.setScalar(s); k.rotation.y = Math.PI / 2; w.add(k);
       c.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
       const P = (x, y) => V3(0, (y - ctr.y) * s, -(x - ctr.x) * s);
-      w.gripPt = P(0.36, -0.08); w.forePt = P(-0.40, 0.12); w.buttPt = P(b3.max.x, 0.05);
+      w.gripPt = P(0.36, -0.08); w.forePt = P(-0.40, 0.12); w.buttPt = P(b3.max.x, 0.05); w.bouchePt = P(b3.min.x, 0.03);
+      // éclair de bouche (même esprit que le jeu : cœur court + langue de flamme vers l'avant + lumière, 40 ms)
+      const fl = new THREE.Group(); fl.visible = false; fl.position.copy(w.bouchePt);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffd28a, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
+      const coeur = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), mat); fl.add(coeur);
+      const langue = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.22, 7), mat.clone()); langue.material.opacity = 0.8; langue.rotation.x = Math.PI / 2; langue.position.z = 0.12; fl.add(langue);
+      const lum = new THREE.PointLight(0xffb26b, 0, 6, 2); lum.position.z = 0.2; fl.add(lum);
+      w.add(fl); w.flash = fl; w.flashLum = lum; w.flashT = 0;
       this.fusil = w; this.group.add(w); w.visible = false;
       this.fusilUp = V3(0, 1, 0);
     }
@@ -292,6 +299,10 @@
         const ang = P.vrille * pa / 3, qv = Q().setFromAxisAngle(V3(0, 1, 0), -ang);
         for (const n of ['Spine', 'Spine1', 'Spine2']) { const o = this.os[Base.meta.os.indexOf(n)]; if (!o) continue; const wq = o.getWorldQuaternion(Q()); o.quaternion.copy(o.parent.getWorldQuaternion(Q()).invert().multiply(qv).multiply(wq)); o.updateMatrixWorld(true); }
         this.group.updateMatrixWorld(true);
+      }
+      if ((this.recul || 0) > 0.001) {   // le buste encaisse le recul (jeu : dos.rotation.x −0,05 × recul) : Spine2 bascule vers l'arrière
+        const o = this.os[Base.meta.os.indexOf('Spine2')]; const qr = Q().setFromAxisAngle(droite, 0.05 * this.recul);
+        if (o) { const wq = o.getWorldQuaternion(Q()); o.quaternion.copy(o.parent.getWorldQuaternion(Q()).invert().multiply(qr).multiply(wq)); o.updateMatrixWorld(true); this.group.updateMatrixWorld(true); }
       }
       // Ancrage de la CROSSE d'après les photos de référence : posée sur le DESSUS de l'épaule droite, près du cou ; repère
       // du buste (Spine2, qui ne balance pas avec les bras capturés : l'arme reste calme au repos). Le canon plonge.
@@ -332,13 +343,18 @@
       if (!this.fusilPosLoc) { this.fusilPosLoc = creuxLoc.clone(); this.fusilQLoc = qLoc.clone(); }
       const k = 1 - Math.exp(-dt / P.lissage); this.fusilPosLoc.lerp(creuxLoc, k); this.fusilQLoc.slerp(qLoc, k);
       this.fusilPos = this.fusilPosLoc.clone().applyMatrix4(gM); this.fusilQ = gQ.clone().multiply(this.fusilQLoc);
-      w.quaternion.copy(this.fusilQ); w.position.copy(this.fusilPos).sub(w.buttPt.clone().applyQuaternion(this.fusilQ));
+      // recul du tir (valeurs du jeu, placeWeapon) : l'arme recule de 4 cm le long du canon et la bouche se relève de ~2°
+      // autour de la crosse ; les mains suivent (IK), le buste encaisse (voir plus haut). Appliqué après le lissage : c'est un à-coup.
+      const rc = this.recul || 0, qF = this.fusilQ.clone(), pF = this.fusilPos.clone();
+      if (rc > 0.001) { const canon = V3(0, 0, 1).applyQuaternion(qF), ax = canon.clone().cross(V3(0, 1, 0)); if (ax.lengthSq() > 1e-6) qF.premultiply(Q().setFromAxisAngle(ax.normalize(), rc * 0.035)); pF.addScaledVector(V3(0, 0, 1).applyQuaternion(qF), -rc * 0.04); }
+      w.quaternion.copy(qF); w.position.copy(pF).sub(w.buttPt.clone().applyQuaternion(qF)); this.fusilQAff = qF;
+      if (w.flash) { w.flashT = Math.max(0, w.flashT - dt); w.flash.visible = w.flashT > 0; w.flashLum.intensity = w.flashT > 0 ? 9 : 0; if (w.flashT > 0) w.flash.rotation.z = Math.random() * 6.28; }
       // mains : placées sur l'arme comme dans la prise de référence (IK deux os vers la position, orientation reportée)
       for (const [main, k] of [[D, 'D'], [G, 'G']]) {
         if (!this.prise) break;
         const pr = this.prise[k];
         const posPr = pr.pos.clone(); if (k === 'G' && P.appuiZ != null) posPr.z = P.appuiZ;      // main d'appui : position choisie sur le garde-main
-        let cible = w.position.clone().add(posPr.applyQuaternion(this.fusilQ));
+        let cible = w.position.clone().add(posPr.applyQuaternion(this.fusilQAff || this.fusilQ));
         const mainData = main[2].getWorldPosition(V3()), qData = main[2].getWorldQuaternion(Q());   // pose de la capture (avant IK)
         if (k === 'G') {   // garde-main hors de portée : la main glisse vers l'arrière le long du canon jusqu'à pouvoir tenir
           const ep = main[0].getWorldPosition(V3()), portee = (main[1].getWorldPosition(V3()).distanceTo(ep) + main[2].getWorldPosition(V3()).distanceTo(main[1].getWorldPosition(V3()))) * 0.96;
@@ -349,7 +365,7 @@
         // pôles : coudes vers le bas ; le droit rentré vers le corps (pas d'« aile de poulet »), le gauche un peu en arrière
         const pole = k === 'D' ? V3(0, -1, 0).addScaledVector(dir, -0.25).addScaledVector(droite, -0.5).normalize() : V3(0, -1, 0).addScaledVector(dir, -0.35).normalize();
         ikDeuxOs(main[0], main[1], main[2], cible, pole);
-        const qw = qData.clone().slerp(this.fusilQ.clone().multiply(pr.q), pa);
+        const qw = qData.clone().slerp((this.fusilQAff || this.fusilQ).clone().multiply(pr.q), pa);
         // orientation de la main sur l'arme ; la torsion du poignet est partagée avec l'avant-bras (il roule autour de son axe,
         // ce qui ne déplace pas la main) pour éviter un poignet vrillé
         const F = main[1]; let qLoc = F.getWorldQuaternion(Q()).invert().multiply(qw);          // main dans le repère de l'avant-bras
@@ -618,7 +634,10 @@
       const contacts = S.orteils.map((o, k) => !!(cf & (k ? 1 : 2)) && o.getWorldPosition(V3()).y < seuilOrteil);
       S.reposTotal = vGoalNul && this.facteurRacine < 0.05;
       if (PARAMS.verrou) S.verrouPieds(contacts, dt);
-      S.viseeEpaulee = !!Ctl.verrouRegard; S.tenirFusil(Ctl.visee, dt);
+      // tir (clic gauche maintenu en visée) : cadence soutenue du fusil d'assaut du jeu (110 coups/min), recul 1 → 0 en 0,1 s
+      this.recul = Math.max(0, (this.recul || 0) - dt * 10); this.tirAcc = Math.max(0, (this.tirAcc || 0) - dt);
+      if (Ctl.tir && Ctl.visee && Ctl.verrouRegard && (S.poidsVisee || 0) > 0.9 && this.tirAcc <= 0) { this.recul = 1; this.tirAcc = 60 / 110; this.tirs = (this.tirs || 0) + 1; if (S.fusil && S.fusil.flash) S.fusil.flashT = 0.04; }
+      S.recul = this.recul; S.viseeEpaulee = !!Ctl.verrouRegard; S.tenirFusil(Ctl.visee, dt);
       this.inst = this.glisse.mesurer(S.orteils, dt, contacts);
       this.vGoal = vGoal; this.contacts = contacts;
       while (this.sautsFen.length && now - this.sautsFen[0] > 2000) this.sautsFen.shift();
@@ -668,7 +687,7 @@
       touches(o) { agents[0].ctl.touches = Object.assign({}, o || {}); }, set(o) { Object.assign(agents[0].ctl, o); },
       poids(p) { Object.assign(PARAMS.poids, p); Base.ponderer(PARAMS.poids); },
       razGlisse() { const A = agents[0]; A.glisse.cumul = 0; A.glisse.tContact = 0; A.sauts = 0; },
-      mesures() { const A = agents[0], f = A.frame; return { frame: f, seq: Base.meta.sequences[Base.seq[f]].nom, glisseMoy: A.glisse.moyenneCm(), glisseRecent: A.glisse.recentCm(), sauts: A.sauts, pos: A.soldat.pos.toArray(), yaw: A.soldat.yaw, simPos: A.ctl.pos.toArray(), vitAnim: Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]) }; },
+      mesures() { const A = agents[0], f = A.frame; return { frame: f, seq: Base.meta.sequences[Base.seq[f]].nom, glisseMoy: A.glisse.moyenneCm(), glisseRecent: A.glisse.recentCm(), sauts: A.sauts, pos: A.soldat.pos.toArray(), yaw: A.soldat.yaw, simPos: A.ctl.pos.toArray(), vitAnim: Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]), tirs: A.tirs || 0, recul: A.recul || 0 }; },
       os(n) { const o = agents[0].soldat.os[Base.meta.os.indexOf(n)]; return o ? o.getWorldPosition(V3()).toArray() : null; },
       camera(yaw, pitch, dist, cibleY) { agents[0].ctl.camYaw = yaw; cam.pitch = pitch; cam.dist = dist; cam.cibleY = cibleY; cam.cible = null; },
       escouade: ajouterEscouade, agents,
@@ -710,11 +729,11 @@
     const Ctl = () => agents[0].ctl;
     addEventListener('keydown', e => { const c = Ctl(); c.touches[e.code] = true; if (e.code === 'KeyV') { c.visee = !c.visee; } if (e.code === 'KeyC') { c.accroupi = !c.accroupi; } if (e.code === 'KeyP') basculerChemin(); if (e.code === 'KeyR') reinit(); if (e.code === 'KeyE') ajouterEscouade(); if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
     addEventListener('keyup', e => { Ctl().touches[e.code] = false; });
-    addEventListener('blur', () => { Ctl().touches = {}; Ctl().verrouRegard = false; });
+    addEventListener('blur', () => { Ctl().touches = {}; Ctl().verrouRegard = false; Ctl().tir = false; });
     let drag = null;
-    renderer.domElement.addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, b: e.button, moved: false }; if (e.button === 2) Ctl().verrouRegard = true; });
+    renderer.domElement.addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, b: e.button, moved: false }; if (e.button === 2) Ctl().verrouRegard = true; if (e.button === 0 && Ctl().verrouRegard) Ctl().tir = true; });
     addEventListener('mousemove', e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; Ctl().camYaw -= dx * 0.006; cam.pitch = Math.max(0.08, Math.min(1.3, cam.pitch + dy * 0.004)); drag.x = e.clientX; drag.y = e.clientY; });
-    addEventListener('mouseup', e => { if (drag && !drag.moved && Ctl().chemin && e.button === 0) ajouterPoint(e); drag = null; if (e.button === 2) Ctl().verrouRegard = false; });
+    addEventListener('mouseup', e => { if (drag && !drag.moved && Ctl().chemin && e.button === 0) ajouterPoint(e); drag = null; if (e.button === 2) { Ctl().verrouRegard = false; Ctl().tir = false; } if (e.button === 0) Ctl().tir = false; });
     renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
     addEventListener('wheel', e => { cam.dist = Math.max(1.5, Math.min(14, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); });
     addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });

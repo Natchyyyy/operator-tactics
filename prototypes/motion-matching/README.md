@@ -60,6 +60,10 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   droite 0,12 / haut −0,04), canon horizontal, vrille 0,55 ; pour épauler l'arme est poussée de 8 cm vers l'avant puis vient se caler dans l'épaule
   (excursion maximale à mi-fondu) ; joue sur la crosse : cou + tête penchés vers l'avant (0,45 rad)
   et roulés vers la crosse (0,35 rad), moitié sur le cou, moitié sur la tête.
+- Tir (clic gauche maintenu en visée) : mêmes valeurs que le jeu (`placeWeapon` / app.js) — recul 1 → 0 en 0,1 s, arme reculée
+  de 4 cm le long du canon, bouche relevée de 2° autour de la crosse, Spine2 basculé de 0,05 rad vers l'arrière, mains qui
+  suivent par IK (0 mm d'écart) ; cadence soutenue du fusil d'assaut (sim/data.js : 110 coups/min) ; éclair de bouche simple
+  (cœur + langue + lumière, 40 ms). Pas de douilles ni de traçantes ici (effets du jeu).
 - Agent critique (sous-agent indépendant, photos de référence vs captures éclairées `?clair=1`) : v22 38-64 %, v23
   85 % → 92-94 % en low ready après corrections (crosse derrière l'épaule, plongée 27°, roulis) ; voir captures/crit-*.png.
 - Commandes : ZQSD relatif à la caméra, le soldat regarde là où il va ; clic droit maintenu = épaulé (`PARAMS.epaule`, fondu
