@@ -1004,7 +1004,11 @@
         mesh = new THREE.Group(); const two = Math.max(o.w, o.d) > 1.2;   // un ou deux fûts dans la boîte
         for (let j = 0; j < (two ? 2 : 1); j++) { const r = Math.min(o.w, o.d) * 0.95, p = M3.fit('fut', r, o.h, r, { byHeight: true, rot: i + j }); if (two) { const off = (j - 0.5) * Math.max(o.w, o.d) * 0.48; p.position.set(o.w >= o.d ? off : 0, 0, o.w >= o.d ? 0 : off); } mesh.add(p); }
       } else if (has3('kiosque') && nm.startsWith('kiosque')) {   // rideau du kiosque (face +z du modèle) tourné vers o.face (radians), sinon vers le nord
-        mesh = M3.fit('kiosque', o.w, o.h, o.d, { tol: 0.3, rot: o.face !== undefined ? o.face : Math.PI });
+        // (le modèle est plus long en z qu'en x : fit() le tourne déjà de 90° dans une boîte carrée — on le retranche, sinon le
+        // rideau principal, sous l'auvent, regardait l'ouest et la porte l'est)
+        const ks = M3.boxes.kiosque.getSize(new THREE.Vector3()), kq = (ks.x >= ks.z) === (o.w >= o.d) ? 0 : Math.PI / 2;
+        mesh = M3.fit('kiosque', o.w, o.h, o.d, { tol: 0.3, rot: (o.face !== undefined ? o.face : Math.PI) - kq });
+        mesh.traverse(m => { if (m.isMesh && m.material && m.material.color) { m.material = m.material.clone(); m.material.color.multiply(new THREE.Color(0x8fae7e)); } });   // tôle peinte en vert : la texture du modèle (gris clair très contrasté) faisait papier froissé
       } else if (has3('abribus') && nm.startsWith('abribus')) {   // côté ouvert (face +z du modèle) vers le bus, au sud
         mesh = M3.fit('abribus', o.w, o.h, o.d, { tol: 0.3 });
       } else if (has3('arbre') && /^(arbre|palmier)/.test(nm)) {   // arbre d'alignement (sa grille de pied disparaît dans le bac)

@@ -180,8 +180,16 @@
     p.fillStyle = white;
     const arrow = (x, z, dir) => { p.save(); p.translate(M(x), M(z)); p.rotate(dir); p.beginPath(); p.moveTo(M(-1.6), M(-0.18)); p.lineTo(M(0.4), M(-0.18)); p.lineTo(M(0.4), M(-0.55)); p.lineTo(M(1.6), 0); p.lineTo(M(0.4), M(0.55)); p.lineTo(M(0.4), M(0.18)); p.lineTo(M(-1.6), M(0.18)); p.closePath(); p.fill(); p.restore(); };
     const N_ = -Math.PI / 2, S_ = Math.PI / 2, E_ = 0, O_ = Math.PI;
-    // (aucune flèche sous un îlot ni dans la partie fermée pour travaux : la boucle sud-est est coupée par le chantier)
-    void O_; for (const [x, z, d] of [[10, 32, N_], [10, 18, N_], [18, 13.2, E_], [26.6, 19, S_], [26.6, 30, S_], [45.6, 31, N_], [45.6, 19.5, N_], [54, 13.4, E_], [65.2, 19, S_], [65.2, 32.4, S_], [13.8, 38.6, E_]]) arrow(x, z, d);
+    // (aucune flèche sous un îlot ni dans la partie fermée pour travaux). La boucle est (entrée → allée x 46–49 vers le nord →
+    // allée du haut vers l'est → allée x 59–67 vers le sud) est coupée par le chantier : marquage provisoire JAUNE (il prime
+    // sur le blanc) — demi-tour au bout de l'allée est, retour par l'autre voie des mêmes allées jusqu'à la sortie. Les
+    // flèches blanches sont sur la voie de droite (on roule à droite) pour laisser la gauche au retour.
+    for (const [x, z, d] of [[10, 32, N_], [10, 18, N_], [18, 13.2, E_], [26.6, 19, S_], [26.6, 30, S_], [47.9, 31, N_], [47.9, 19.5, N_], [54, 14.3, E_], [61.6, 18.6, S_], [61.6, 28.4, S_], [13.8, 38.6, E_]]) arrow(x, z, d);
+    p.fillStyle = yellow; for (const [x, z, d] of [[64.9, 21, N_], [61.2, 12.1, O_], [45.2, 18.6, S_], [45.2, 29.4, S_]]) arrow(x, z, d);
+    { const xa = 61.7, xb = 64.9, zc = 32.3, r = (xb - xa) / 2, w = 0.18;   // demi-tour : descente sur la voie ouest, boucle, remontée à l'est
+      p.beginPath(); p.moveTo(M(xa - w), M(31.0)); p.lineTo(M(xa - w), M(zc)); p.arc(M(xa + r), M(zc), M(r + w), Math.PI, 0, true); p.lineTo(M(xb + w), M(31.2));
+      p.lineTo(M(xb + 0.55), M(31.2)); p.lineTo(M(xb), M(30.0)); p.lineTo(M(xb - 0.55), M(31.2)); p.lineTo(M(xb - w), M(31.2)); p.lineTo(M(xb - w), M(zc)); p.arc(M(xa + r), M(zc), M(r - w), 0, Math.PI, false); p.lineTo(M(xa + w), M(31.0)); p.closePath(); p.fill(); }
+    p.fillStyle = white;
     // entrée et sortie : lignes d'arrêt, inscriptions, flèches
     const gate = OB.find(o => o.name === 'mur portail sud');
     if (gate) { const gx = gate.x, gw = gate.w; p.fillStyle = white; p.fillRect(M(gx + 0.1), M(44.2), M(gw / 2 - 0.6), M(0.3)); text(gx + gw * 0.78, 41.4, 'ENTRÉE', 0, 0.7); text(gx + gw * 0.25, 37.6, 'SORTIE', 0, 0.7); arrow(gx + gw * 0.78, 44.6, N_); arrow(gx + gw * 0.25, 36.0, S_);   // on roule à droite : entrée à l'est, sortie à l'ouest
@@ -191,7 +199,9 @@
     if (bus) { p.strokeStyle = yellow; p.lineWidth = M(0.14); for (const zz of [bus.z - 0.25, bus.z + bus.d + 0.25]) { p.beginPath(); for (let x = bus.x - 1.5, k = 0; x <= bus.x + bus.w + 1.5; x += 0.8, k++) p[k ? 'lineTo' : 'moveTo'](M(x), M(zz + (k % 2 ? 0.35 : -0.35) * (zz < bus.z ? -1 : 1))); p.stroke(); }
       text(bus.x - 2.6, bus.z + bus.d / 2, 'BUS', -Math.PI / 2, 1.0, yellow); }
     const abri = OB.find(o => o.name === 'abribus');
-    if (abri) { p.fillStyle = 'rgba(168,164,156,1)'; p.fillRect(M(abri.x - 1.2), M(abri.z - 0.3), M(abri.w + 2.4), M(abri.d + 0.5)); zebra(abri.x + 0.4, 33.8, abri.x + abri.w - 0.4, abri.z - 0.3, true); }
+    // (le passage ne traverse que la voie de circulation, du quai au bord sud des jardinières : il ne bute plus sur le
+    // pare-chocs du fourgon garé sur l'aire de séchage — 1,8 m devant)
+    if (abri) { p.fillStyle = 'rgba(168,164,156,1)'; p.fillRect(M(abri.x - 1.2), M(abri.z - 0.3), M(abri.w + 2.4), M(abri.d + 0.5)); zebra(abri.x + 0.4, 34.9, abri.x + abri.w - 0.4, abri.z - 0.3, true); }
     // passages piétons alignés sur les ouvertures du grillage (portes arrière des boutiques)
     if (ruelle.length) { const segs = ruelle.map(o => [o.x, o.x + o.w]).sort((a, b) => a[0] - b[0]); for (let k = 0; k + 1 < segs.length; k++) { const a = segs[k][1], b = segs[k + 1][0]; if (b - a > 1.5 && b - a < 8) zebra(a + 0.2, ruelle[0].z + ruelle[0].d + 0.3, b - 0.2, 15.2, true); } }
     // station de lavage : pistes, numéros, entrée ; aspirateurs : places dessinées autour des voitures
@@ -304,11 +314,12 @@
     const X = window.THREEX; if (!X || !X.Reflector) return null;
     const W = map.width, D = map.depth;
     const shader = {
-      uniforms: { color: { value: null }, tDiffuse: { value: null }, textureMatrix: { value: null }, tData: { value: maps.data }, uSize: { value: new T.Vector2(W, D) }, uWet: U.wet, time: U.time },
+      uniforms: { color: { value: null }, tDiffuse: { value: null }, textureMatrix: { value: null }, tData: { value: maps.data }, uSize: { value: new T.Vector2(W, D) }, uWet: U.wet, time: U.time, uFade: { value: 1 } },
       vertexShader: `uniform mat4 textureMatrix; varying vec4 vUv; varying vec3 vWP;
         void main() { vUv = textureMatrix * vec4(position, 1.0); vWP = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-      fragmentShader: `uniform sampler2D tDiffuse, tData; uniform vec2 uSize; uniform float uWet, time; varying vec4 vUv; varying vec3 vWP;
+      fragmentShader: `uniform sampler2D tDiffuse, tData; uniform vec2 uSize; uniform float uWet, time, uFade; varying vec4 vUv; varying vec3 vWP;
         void main() {
+          if (uFade < 0.004) discard;
           vec2 muv = clamp(vWP.xz / uSize, 0.0, 1.0); float g = texture2D(tData, muv).g; float wet = max(g, uWet * g * 1.2);
           float m = smoothstep(0.6, 0.85, wet); if (m < 0.01) discard;
           // légère ondulation de la surface (vent, pluie)
@@ -319,20 +330,21 @@
           // pellicule d'eau mince : le bitume mouillé (assombri par le sol) reste visible dessous ; le reflet s'y pose selon
           // Fresnel (faible vu d'en haut, miroir en lumière rasante) ; l'eau assombrit un peu le fond (~28 %)
           float k = clamp(f * 1.3 + 0.06, 0.0, 0.9), a = k + 0.28 * (1.0 - k);
-          gl_FragColor = vec4(refl * 0.85 * k / max(a, 1e-3), m * a);
+          gl_FragColor = vec4(refl * 0.85 * k / max(a, 1e-3), m * a * uFade);
         }`,
     };
     const r = new X.Reflector(new T.PlaneGeometry(W, D), { shader, textureWidth: 512, textureHeight: 512, clipBias: 0.003, multisample: 0 });   // reflet flou de flaque : demi-résolution, sans MSAA
     r.material.transparent = true; r.material.depthWrite = false;
     r.rotation.x = -Math.PI / 2; r.position.set(W / 2, 0.004, D / 2); r.userData.keep = true; r.renderOrder = 1;
     // coût : la réflexion redessine toute la scène. On ne la refait pas quand la caméra n'a (presque) pas bougé depuis la
-    // dernière fois (une image sur deux au plus dans ce cas), ni en vue haute (au-dessus de 12 m, les reflets ne se voient
-    // presque plus : la texture précédente reste)
-    let img = 0; const ob = r.onBeforeRender, lastP = new T.Vector3(1e9, 0, 0), lastQ = new T.Quaternion();
+    // dernière fois (une image sur deux au plus dans ce cas), ni en vue haute : de 9 à 12 m d'altitude la couche des reflets
+    // s'efface en fondu, au-dessus elle n'est plus ni calculée ni affichée (jamais d'ancienne image vue d'un autre point de
+    // vue) ; il reste le sol mouillé, sombre et lisse, qui renvoie déjà le ciel par son propre matériau
+    let img = 0; const ob = r.onBeforeRender, lastP = new T.Vector3(1e9, 0, 0), lastQ = new T.Quaternion(), fade = r.material.uniforms.uFade;
     r.onBeforeRender = function (renderer, scene, camera) {
       if (scene.overrideMaterial || camera.isOrthographicCamera) return; const rt = renderer.getRenderTarget(); if (rt && rt.__reflet) return;
       const deja = r.userData.deja;
-      if (deja && camera.position.y > 12) return;
+      fade.value = 1 - T.MathUtils.smoothstep(camera.position.y, 9, 12); if (fade.value <= 0) return;
       const calme = camera.position.distanceToSquared(lastP) < 4e-4 && Math.abs(camera.quaternion.dot(lastQ)) > 0.999999;
       if (deja && calme && (img++ & 1)) return;
       r.userData.deja = true; lastP.copy(camera.position); lastQ.copy(camera.quaternion); ob.call(this, renderer, scene, camera);
@@ -827,7 +839,9 @@
     return canvasTexP(256, (g, N) => { g.fillStyle = '#f4f4f0'; g.fillRect(0, 0, N, N);
       if (kind === 'P') { g.fillStyle = '#1f5fbf'; g.fillRect(10, 10, N - 20, N - 20); g.fillStyle = '#fff'; g.font = 'bold 190px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('P', N / 2, N / 2 + 10); }
       else if (kind === '10') { g.fillStyle = '#fff'; g.beginPath(); g.arc(N / 2, N / 2, N / 2 - 4, 0, 7); g.fill(); g.strokeStyle = '#d0201a'; g.lineWidth = 30; g.beginPath(); g.arc(N / 2, N / 2, N / 2 - 22, 0, 7); g.stroke(); g.fillStyle = '#111'; g.font = 'bold 110px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('10', N / 2, N / 2 + 6); }
-      else { g.fillStyle = '#1a7a3a'; g.fillRect(6, 6, N - 12, N - 12); g.fillStyle = '#fff'; g.font = 'bold 54px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('SORTIE', N / 2, N / 2 - 30); g.beginPath(); g.moveTo(N / 2 - 50, N / 2 + 40); g.lineTo(N / 2 + 40, N / 2 + 40); g.lineTo(N / 2 + 40, N / 2 + 15); g.lineTo(N / 2 + 85, N / 2 + 55); g.lineTo(N / 2 + 40, N / 2 + 95); g.lineTo(N / 2 + 40, N / 2 + 70); g.lineTo(N / 2 - 50, N / 2 + 70); g.fill(); }
+      else {   // 'P<' : jalonnement vers l'entrée du parking (P et flèche vers la gauche de qui lit le panneau)
+        g.fillStyle = '#1f5fbf'; g.fillRect(10, 10, N - 20, N - 20); g.fillStyle = '#fff'; g.font = 'bold 140px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('P', N / 2, N / 2 - 34);
+        g.beginPath(); g.moveTo(N / 2 + 80, N / 2 + 58); g.lineTo(N / 2 - 30, N / 2 + 58); g.lineTo(N / 2 - 30, N / 2 + 36); g.lineTo(N / 2 - 85, N / 2 + 72); g.lineTo(N / 2 - 30, N / 2 + 108); g.lineTo(N / 2 - 30, N / 2 + 86); g.lineTo(N / 2 + 80, N / 2 + 86); g.closePath(); g.fill(); }
     }, true);
   }
   function props(map, group) {
@@ -874,8 +888,18 @@
       const face = new T.Mesh(round ? new T.CircleGeometry(0.32, 32) : new T.PlaneGeometry(0.6, 0.6), new T.MeshStandardMaterial({ map: signTexP(kind), roughness: 0.35, metalness: 0.1 })); face.position.set(0, 2.35, 0.045); g.add(face);
       const back = new T.Mesh(round ? new T.CircleGeometry(0.32, 32) : new T.PlaneGeometry(0.6, 0.6), poleM); back.position.set(0, 2.35, 0.04); back.rotation.y = Math.PI; g.add(back);
       g.position.set(x, 0.14, z); g.rotation.y = rot; g.traverse(o => { if (o.isMesh) o.castShadow = true; }); group.add(g); };
-    // (face vers la rue, pas vers le mur aveugle du parking)
-    sign('P', -3.4, D + 3.4, -Math.PI * 0.25, false); sign('10', W + 3.4, D * 0.5 - 6, Math.PI / 2, true); sign('S', W + 3.4, D * 0.5 + 6, Math.PI / 2, false); sign('P', W + 3.4, D + 3.4, Math.PI * 0.25, false); sign('10', -3.4, D * 0.5, -Math.PI / 2, true);
+    // (face vers la rue, pas vers le mur aveugle du parking ; trottoir est : pas de sortie de ce côté, le panneau indique
+    // l'entrée-sortie unique, au sud — à gauche de qui le lit depuis la rue)
+    sign('P', -3.4, D + 3.4, -Math.PI * 0.25, false); sign('10', W + 3.4, D * 0.5 - 6, Math.PI / 2, true); sign('P<', W + 3.4, D * 0.5 + 6, Math.PI / 2, false); sign('P', W + 3.4, D + 3.4, Math.PI * 0.25, false); sign('10', -3.4, D * 0.5, -Math.PI / 2, true);
+    // chantier : panneau provisoire « ROUTE BARRÉE » bridé sur le séparateur au bout de l'allée est, face aux voitures qui
+    // descendent (le demi-tour est peint en jaune devant) ; rien de plus au sol : pas d'objet hors des boîtes de la simulation
+    { const bar = map.obstacles.find(o => o.name === 'barrière' && o.x > W * 0.8);
+      if (bar) { const g = new T.Group(); g.position.set(bar.x + 0.75, 0, bar.z - 0.03); g.rotation.y = Math.PI; group.add(g);
+        for (const s of [-0.3, 0.3]) { const c = new T.Mesh(new T.CylinderGeometry(0.018, 0.018, 1.2, 8), poleM); c.position.set(s, 1.2, 0.02); c.castShadow = true; g.add(c); }
+        const f = panneau(g, 0.8, 0.5, (q, w, h) => { q.fillStyle = '#f2c200'; q.fillRect(0, 0, w, h); q.strokeStyle = '#111'; q.lineWidth = 12; q.strokeRect(12, 12, w - 24, h - 24);
+          let fs = 84; do { q.font = `bold ${fs}px Arial`; fs -= 4; } while (q.measureText('ROUTE BARRÉE').width > w - 56 && fs > 30); txt(q, 'ROUTE BARRÉE', w / 2, h * 0.42, q.font, '#111');
+          txt(q, 'SAUF CHANTIER', w / 2, h * 0.74, 'bold 34px Arial', '#111'); }, 0, 1.55, 0.045, 0);
+        f.castShadow = true; const bk = new T.Mesh(new T.PlaneGeometry(0.8, 0.5), poleM); bk.position.set(0, 1.55, 0.04); bk.rotation.y = Math.PI; g.add(bk); } }
     // caméras de surveillance au sommet de mâts, tournées vers le parking
     const camM = mat('cameraVS', () => new T.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.4, metalness: 0.3 }));
     for (const [x, z] of [[0.22, 0.22], [W - 0.6, 0.6], [-2.2, D + 2.2], [W + 2.2, D + 2.2]]) {   // (nord-ouest : dans l'angle, à côté de la benne et pas à travers)

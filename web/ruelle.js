@@ -173,6 +173,28 @@
     const aw = add(q, new T.BoxGeometry(1.5, 0.04, 0.85), k.galva, 0, 2.62, 0.42); aw.rotation.x = 0.22;
     for (const s of [-1, 1]) { const b = add(q, new T.BoxGeometry(0.04, 0.04, 0.85), k.acierNoir, s * 0.65, 2.32, 0.38); b.rotation.x = -0.62; }
     const l = add(q, new T.SphereGeometry(0.09, 10, 8), k.lampe, 0, 2.42, 0.1); if (!LAMPES.includes(k.lampe)) LAMPES.push(k.lampe);
+    doorGlow(q);
+  }
+  // la nuit, la lampe de la porte éclaire un peu le seuil : pas une vraie lumière (une par porte coûterait sur tout l'écran),
+  // deux nappes additives précalculées — une tache au sol devant la porte, un halo sur le mur et la porte, coupé au-dessus
+  // par l'auvent ; allumées seulement la nuit (NUITS), même teinte chaude que la lampe
+  function glowMat(kind) {
+    return mat('rlueur' + kind, () => {
+      const N = 128, c = canvas(N), g = c.getContext('2d'), sol = kind === 'sol';
+      g.fillStyle = '#000'; g.fillRect(0, 0, N, N);
+      // tache elliptique (plus longue vers le bas sur le mur, vers la ruelle au sol), nulle avant les bords : aucun contour
+      g.save(); g.translate(N / 2, sol ? 26 : 9); g.scale(1, sol ? 1.4 : 1.9);
+      const gr = g.createRadialGradient(0, 0, 0, 0, 0, 61); gr.addColorStop(0, '#fff'); gr.addColorStop(0.3, 'rgb(120,120,120)'); gr.addColorStop(0.65, 'rgb(34,34,34)'); gr.addColorStop(1, '#000');
+      g.fillStyle = gr; g.fillRect(-N, -N, 2 * N, 2 * N); g.restore();
+      if (!sol) { g.globalCompositeOperation = 'destination-out'; const lg = g.createLinearGradient(0, 0, 0, 14); lg.addColorStop(0, 'rgba(0,0,0,0.9)'); lg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = lg; g.fillRect(0, 0, N, 14); g.globalCompositeOperation = 'source-over'; }   // au-dessus de la lampe : l'auvent fait de l'ombre
+      const t = new T.CanvasTexture(c); t.colorSpace = T.NoColorSpace;
+      return new T.MeshBasicMaterial({ map: t, color: new T.Color(0xffc98a).multiplyScalar(sol ? 0.11 : 0.08), transparent: true, blending: T.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    });
+  }
+  function doorGlow(q) {
+    const s = new T.Mesh(new T.PlaneGeometry(3.2, 3.0), glowMat('sol')); s.rotation.x = -Math.PI / 2; s.position.set(0, 0.016, 1.5); s.renderOrder = 3;
+    const w = new T.Mesh(new T.PlaneGeometry(2.4, 2.6), glowMat('mur')); w.position.set(0, 1.3, 0.15); w.renderOrder = 3;
+    for (const m of [s, w]) { m.visible = false; q.add(m); NUITS.push(m); }
   }
   // enseigne de boutique (nom inventé) : caisson lumineux, lettres claires sur fond de couleur
   function signTex(name, sub, bg, fg) {
