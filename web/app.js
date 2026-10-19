@@ -2176,6 +2176,8 @@
     { v: 'appui', nom: 'Appui', desc: 'Une fois en place, le groupe arrose la zone menacée (le point montré par le clic d’orientation, sinon la menace connue la plus proche) : tir de suppression qui cloue l’ennemi, même à couvert, pendant qu’un autre groupe bouge. Munitions bridées (on cesse sous 40 %).' }];
   // « Plus… » : grenade sur ordre (E1, E2, E3) — action immédiate au point cliqué, par le plus proche des opérateurs choisis
   // qui en a une et est à portée (battle.command('grenade', …), rejoué en revue)
+  // « Plus… » : arrivée rare (A5)
+  const ORD_PLUS_ARR = [{ v: 'fouiller', nom: 'Fouiller', aide: 'Débusquer autour (12 m)', desc: 'Une fois sur le point, chacun va voir derrière les couverts autour (12 m) pour débusquer un ennemi caché ; un ennemi en vue : on se bat. Fini : on tient là où l’on est.' }];
   const ORD_GREN = [{ v: 'frag', nom: 'Grenade', desc: 'Grenade à fragmentation au point cliqué (8 à 24 m du lanceur). Refusée si un équipier est à moins de 5 m du point.' },
     { v: 'flash', nom: 'Flash', desc: 'Grenade incapacitante au point cliqué (8 à 24 m) : aveugle quelques secondes ceux qui voient l’éclair (alliés compris).' },
     { v: 'smoke', nom: 'Fumigène', desc: 'Nuage au point cliqué (3 à 24 m) : bloque la vue des deux côtés pendant 14 s.' }];
@@ -2246,7 +2248,7 @@
     el.innerHTML = `<div class="omhead"><b>Ordre</b><span class="omwho"></span></div>` + Object.entries(ORD_OPTS).map(([cat, o]) =>
       `<div class="omsec">${o.titre}${cat === 'mode' ? `<button class="omfum" title="Franchir, Décrocher : le premier qui a un fumigène le lance côté danger pour masquer le passage ou le repli (un fumigène par opérateur)."${nSmoke ? '' : ' disabled'}><span class="omico">${ORD_SVG.smoke}</span>Avec fumée <i>${nSmoke}</i></button>` : ''}</div><div class="omrow">${o.choix.map(c => `<button class="omopt" data-cat="${cat}" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v] || ''}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>`).join('')
       + `<div class="omsec">Feu</div><div class="omfeu">${ORD_FEU.map(c => `<button class="omopt omf" data-cat="feu" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b></button>`).join('')}</div>`
-      + `<button class="omplus">Plus…</button><div class="ommore"><div class="omsec">Lancer ici</div><div class="omfeu omgren">${ORD_GREN.map(c => { const n = ordGrenCount(c.v); return `<button class="omopt omf omg" data-g="${c.v}" title="${escapeHtml(c.desc)}"${n ? '' : ' disabled'}><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><i>${n}</i></button>`; }).join('')}</div></div>`
+      + `<button class="omplus">Plus…</button><div class="ommore"><div class="omsec">Autre arrivée</div><div class="omrow">${ORD_PLUS_ARR.map(c => `<button class="omopt" data-cat="arrivee" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div><div class="omsec">Lancer ici</div><div class="omfeu omgren">${ORD_GREN.map(c => { const n = ordGrenCount(c.v); return `<button class="omopt omf omg" data-g="${c.v}" title="${escapeHtml(c.desc)}"${n ? '' : ' disabled'}><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><i>${n}</i></button>`; }).join('')}</div></div>`
       + `<button class="omgo">Confirmer</button><div class="omhint">${ordVia.length ? `<b class="omvia">Par ${ordVia.length} point${ordVia.length > 1 ? 's' : ''} de passage</b> · ` : ''}Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
     $('main').appendChild(el);
     const show = () => { el.querySelectorAll('.omopt').forEach(b => b.classList.toggle('on', pick[b.dataset.cat] === b.dataset.v)); el.classList.toggle('fumok', pick.mode === 'franchir' || pick.mode === 'decrocher'); el.querySelector('.omfum').classList.toggle('on', !!pick.fumee); };
@@ -2303,13 +2305,13 @@
     closeOrderMenu(); if (r.ok) ordViaClear();
     if (!r.ok) { flashBattle(`Ordre refusé : ${r.reason}.`); return; }
     ordLast.mode = pick.mode; ordLast.arrivee = pick.arrivee; try { localStorage.setItem('ot-ordre', JSON.stringify(ordLast)); } catch (e) { /* stockage indisponible */ }
-    const nm = (cat) => ORD_OPTS[cat].choix.find(c => c.v === pick[cat]).nom.toLowerCase();
+    const nm = (cat) => ORD_OPTS[cat].choix.concat(cat === 'arrivee' ? ORD_PLUS_ARR : []).find(c => c.v === pick[cat]).nom.toLowerCase();
     const fe = pick.feu === 'volonte' ? '' : `, feu ${ORD_FEU.find(c => c.v === pick.feu).nom.toLowerCase()}`;
     const fu = fum ? (r.fumee ? ', avec fumée' : ' (fumée impossible : pas de fumigène ou pas de trajectoire)') : '';
     const vi = via.length ? ` par ${via.length} point${via.length > 1 ? 's' : ''} de passage` : '';
     flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}${vi}${fu}, puis ${nm('arrivee')}${fe}.`); pumpLog();
     // A4 : orienter la position — un clic gauche sur le sol montre d'où vient le danger (Échap : direction automatique)
-    if (pick.arrivee !== 'manoeuvre' || pick.feu === 'appui') ordOrientStart(r);
+    if ((pick.arrivee !== 'manoeuvre' && pick.arrivee !== 'fouiller') || pick.feu === 'appui') ordOrientStart(r);
     if (MANUAL) render();
   }
   window.addEventListener('keydown', (e) => { if (ordMenu && e.code === 'Escape') { e.preventDefault(); closeOrderMenu(); ordViaClear(); } else if (ordVia.length && e.code === 'Escape') { e.preventDefault(); ordViaClear(); flashBattle('Points de passage effacés.'); } else if (ordOrient && e.code === 'Escape') { e.preventDefault(); ordOrientEnd(); flashBattle('Ils choisiront seuls où surveiller (menace connue, sinon sens de la marche).'); } }, true);

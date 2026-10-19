@@ -1217,7 +1217,7 @@
   // feu (arg.feu, absent = « à volonté ») : 'retenu' (embuscade : on ne tire pas tant qu'on n'est pas vu, pris à partie ou
   // que le joueur ne dit « Feu ! ») ; 'appui' (sur place, tir de suppression sur la zone menacée — voir appuiZone)
   const FIRE_MODES = { volonte: 'feu à volonté', retenu: 'feu retenu', appui: 'en appui' };
-  const MOVE_MODES = { methodique: 'méthodique', agressif: 'agressif', franchir: 'en franchissement', decrocher: 'en décrochage' }, ARRIVALS = { tenir: 'tenir la position', manoeuvre: 'reprendre la manœuvre', encercler: 'encercler' };
+  const MOVE_MODES = { methodique: 'méthodique', agressif: 'agressif', franchir: 'en franchissement', decrocher: 'en décrochage' }, ARRIVALS = { tenir: 'tenir la position', manoeuvre: 'reprendre la manœuvre', encercler: 'encercler', fouiller: 'fouiller les alentours' };
   const VIA_MAX = 2, VIA_GAP = 2.5, VIA_NEAR = 2.2;   // points de passage : 2 au plus, places à 2,5 m en travers, « passé » à 2,2 m
   const ORDER_COOLDOWN = 3, ORDER_GAP = 4, BOUND_MAX = 9, BOUND_BARE = 7, SECTORS = [0, 0.61, -0.61];   // secteurs : ±35°
   // point du sol cliqué → point marchable (dans le terrain, hors obstacle : case libre la plus proche)
@@ -1682,7 +1682,8 @@
         const act = g.members.map(id => this.unitById(id)).filter(u => u && u.alive && u.moveOrder && u.moveOrder.id === g.id);
         if (act.length < g.members.length) this.rebalanceHalves(team, act, u => u.moveOrder.half, (u, h) => { u.moveOrder.half = h; });   // un équipier tombé : moitiés refaites
         if (g.mode === 'franchir') { this.updateCrossing(team, g, act); if (g.phase === 'cross') continue; }   // pas de bonds pendant un passage
-        const b = g.bound, movers = act.filter(u => u.moveOrder.half === b.group), others = act.filter(u => u.moveOrder.half !== b.group);
+        const mv = act.filter(u => !u.moveOrder.fouille); if (!mv.length) continue;   // A5 : ceux qui fouillent ne font plus de bonds
+        const b = g.bound, movers = mv.filter(u => u.moveOrder.half === b.group), others = mv.filter(u => u.moveOrder.half !== b.group);
         const el = this.t - b.since, fast = g.mode === 'decrocher';   // décrocher : on inverse dès que les coureurs sont à couvert
         const done = !movers.length || (el > (fast ? 1 : 2.5) && movers.every(u => u.moveOrder.doneN === b.n || BUSY[u.state])) || el > (fast ? 8 : 12);
         if (!done) continue;
@@ -1706,7 +1707,9 @@
       return;
     }
     const dNow = Math.hypot(o.x - u.x, o.z - u.z);
+    if (o.fouille) { this.orderSearch(u, o, threats); return; }
     // arrivé (ou sa place est prise par un équipier debout dessus : on s'arrête à côté)
+    if ((dNow < 0.8 || (dNow < 1.6 && !u.goal && this.teams[u.team].units.some(a => a !== u && a.alive && Math.hypot(a.x - o.x, a.z - o.z) < 0.9))) && o.arrivee === 'fouiller') { o.fouille = { since: this.t }; this.orderSearch(u, o, threats); return; }
     if (dNow < 0.8 || (dNow < 1.6 && !u.goal && this.teams[u.team].units.some(a => a !== u && a.alive && Math.hypot(a.x - o.x, a.z - o.z) < 0.9))) { this.arriveOrder(u); if (u.keyOrder) this.followKeyOrder(u, threats); return; }
     this.followMoveStep(u, o, threats, beingShot, dNow);
   };
@@ -1719,6 +1722,38 @@
     else if (o.mode === 'franchir') this.followCross(u, o, tp, threats, dNow);
     else if (o.mode === 'decrocher') this.orderFallback(u, o, th || { x: u.x - Math.cos(o.dir) * 25, z: u.z - Math.sin(o.dir) * 25 }, threats, dNow);   // sans menace connue : derrière la marche
     else this.orderBound(u, o, tp, threats, dNow);
+  };
+  // A5 — arrivée « fouiller » : arrivé, chacun va voir derrière les couverts autour du point (rayon FOUILLE_R, au plus
+  // FOUILLE_N places, partagées par le groupe : le plus proche d'une place libre la prend) pour débusquer un ennemi caché ;
+  // un ennemi en vue : on se bat (d'un couvert proche) ; tout est vu (ou FOUILLE_MAX s) : on tient là où l'on est.
+  const FOUILLE_R = 12, FOUILLE_N = 8, FOUILLE_MAX = 40;
+  Battle.prototype.orderSearch = function (u, o, threats) {
+    const team = this.teams[u.team], inf = team.ordInfo && team.ordInfo[o.id] || {};
+    if (!inf.fx) {   // les places à voir : derrière les couverts autour du point, espacées d'au moins 3 m, les plus proches d'abord
+      const P = { x: o.enc ? o.enc.x : inf.px !== undefined ? inf.px : o.x, z: o.enc ? o.enc.z : inf.pz !== undefined ? inf.pz : o.z }, L = [];
+      const cs = this.map.coverPoints.map(c0 => { const h = this.hug(c0); return { x: h.hx, z: h.hz, d: Math.hypot(h.hx - P.x, h.hz - P.z) }; }).filter(c => c.d <= FOUILLE_R).sort((a, b) => a.d - b.d || a.x - b.x || a.z - b.z);
+      for (const c of cs) { if (L.length >= FOUILLE_N) break; if (!L.some(q => Math.hypot(q.x - c.x, q.z - c.z) < 3) && this.map.findPath(P.x, P.z, c.x, c.z)) L.push({ x: c.x, z: c.z, seen: false, by: null }); }
+      inf.fx = L; inf.fSaid = false;
+    }
+    if (threats.length) {   // contact : on se bat, d'un couvert proche si l'on est à découvert
+      const tp = threats[0];
+      if (!this.coverAt(u.x, u.z, tp.x, tp.z, true) && !(u.goal && u.goalKind === 'cover')) { const cp = this.findCover(u, tp, 5, { requireShoot: true }); if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.6 && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; } }
+      if (!(u.goal && u.goalKind === 'cover')) { this.stop(u); u.state = 'engage'; u.stance = 'stand'; }
+      return;
+    }
+    for (const q of inf.fx) if (!q.seen && Math.hypot(q.x - u.x, q.z - u.z) < 1.5) q.seen = true;   // vu
+    let q = inf.fx.find(f => f.by === u.id && !f.seen);
+    if (!q) {
+      const taken = (f) => { if (!f.by || f.by === u.id) return false; const a = this.unitById(f.by); return !!(a && a.alive && a.moveOrder && a.moveOrder.id === o.id); };   // pris par un équipier qui fouille encore
+      let bd = Infinity; for (const f of inf.fx) { if (f.seen || taken(f)) continue; const d = Math.hypot(f.x - u.x, f.z - u.z); if (d < bd) { bd = d; q = f; } }
+      if (q) q.by = u.id;
+    }
+    if (!q || this.t - o.fouille.since > FOUILLE_MAX) {
+      if (!inf.fSaid) { inf.fSaid = true; this.logEvent('fouille', `${team.name} : secteur fouillé${q ? ' (en partie)' : ''}, on tient.`, { team: u.team, unit: u.id, ordre: o.id }); }
+      o.arrivee = 'tenir'; o.fouille = null; o.sect = undefined; this.arriveOrder(u); if (u.keyOrder) this.followKeyOrder(u, threats); return;
+    }
+    if (!(u.goal && u.goalKind === 'advance' && Math.hypot(u.goal.x - q.x, u.goal.z - q.z) < 0.5)) { if (!this.setGoal(u, q.x, q.z, 'advance')) { q.seen = true; return; } }
+    u.state = 'search'; u.stance = 'stand';
   };
   Battle.prototype.orderRush = function (u, o, tp, threats, beingShot, dNow) {
     const face = () => { if (!u.target || !u.target.alive) u.facing = Math.atan2(tp.z - u.z, tp.x - u.x); };

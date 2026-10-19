@@ -517,5 +517,13 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
     while (b.t < 60 && !b.over && all === null) { b.step(); for (const u of b.teams[0].units) { minZ[u.id] = Math.min(minZ[u.id] || 99, u.z); if (u.moveOrder && u.moveOrder.via) vis[u.id] = Math.max(vis[u.id] || 0, u.moveOrder.vi); } if (b.teams[0].units.every(u => !u.alive || !u.moveOrder)) all = b.t; }
     const inf = b.teams[0].ordInfo[r.id];
     check('points de passage : 2 au plus (le 3e est ignoré) ; chacun passe par les deux étapes dans l\'ordre (par le nord), puis tient le point ; un point de passage invalide est refusé', !bad.ok && r.ok && inf.via.length === 2 && inf.viaDone === 2 && all !== null && b.teams[0].units.every(u => !u.alive || (vis[u.id] === 2 && minZ[u.id] < 9 && u.keyOrder)) && b.log.some(l => l.kind === 'passage') && b.log.some(l => l.kind === 'moveorder'), { bad, vis, minZ, all, viaDone: inf.viaDone }); }
+  // A5 : fouiller — arrivés, ils vont voir derrière les couverts autour du point (places partagées, à 12 m au plus), puis tiennent
+  { const b = mkV(5); while (b.t < 1) b.step();
+    const r = b.command('aller', 0, { x: 20, z: 23, units: null, mode: 'agressif', arrivee: 'fouiller' });
+    let srch = 0, bonds = 0; const nb = () => b.log.filter(l => l.kind === 'bond').length; const b0 = nb();
+    while (b.t < 60 && !b.over && (b.t < 2 || b.teams[0].units.some(u => u.alive && u.moveOrder))) { b.step(); srch += b.teams[0].units.filter(u => u.state === 'search').length; }
+    bonds = nb() - b0;
+    const inf = b.teams[0].ordInfo[r.id], fx = inf.fx || [];
+    check('fouiller : des places à voir derrière les couverts à 12 m au plus du point, visitées (réparties entre plusieurs) ; puis chacun tient (poste), sans bonds', r.ok && fx.length >= 3 && fx.every(f => Math.hypot(f.x - 20, f.z - 23) <= 12.5) && fx.filter(f => f.seen).length >= 3 && new Set(fx.map(f => f.by).filter(Boolean)).size >= 2 && srch > 20 && b.teams[0].units.every(u => !u.alive || (u.keyOrder && !u.moveOrder)) && bonds === 0, { n: fx.length, seen: fx.filter(f => f.seen).length, by: [...new Set(fx.map(f => f.by))], srch, bonds }); }
 }
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);
