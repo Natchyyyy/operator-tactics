@@ -18,7 +18,7 @@ async def main():
             else: await pg.evaluate(f"() => document.querySelector('.tabs [data-tab={t}]').click()")
             await pg.wait_for_timeout(120)
         async def cont():   # « Continuer » fait défiler les panneaux de récompenses puis ferme l'écran
-            for _ in range(6):
+            for _ in range(14):   # autant de clics que de panneaux (leur nombre varie : succès, blessés, extra)
                 if not await pg.is_visible("#rewards"): break
                 await pg.click("#rwContinue"); await pg.wait_for_timeout(150)
         url = sys.argv[1] + ("&" if "?" in sys.argv[1] else "?") + "seed=3"
