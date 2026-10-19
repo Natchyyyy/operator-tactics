@@ -234,7 +234,9 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
       if (all !== null && b.t > all + 1) for (const u of b.teams[0].units) if (u.alive && (!u.keyOrder || Math.hypot(u.x - u.keyOrder.x, u.z - u.keyOrder.z) > 3)) held = false;
       if (all !== null && b.t > all + 12) break;
     }
-    return { b, r, spam, all, mixed: samples ? mixed / samples : 0, overwatch, spread, held };
+    const us = b.teams[0].units.filter(u => u.alive); let gap = Infinity;
+    for (let i = 0; i < us.length; i++) for (let j = i + 1; j < us.length; j++) gap = Math.min(gap, Math.hypot(us[i].x - us[j].x, us[i].z - us[j].z));
+    return { b, r, spam, all, mixed: samples ? mixed / samples : 0, overwatch, spread, held, gap };
   };
   const M = run('methodique', 4), A = run('agressif', 4);
   check('ordre de déplacement : accepté, journalisé, enregistré dans les commandes ; un 2e ordre dans les 3 s refusé', M.r.ok && A.r.ok && !M.spam.ok && /toutes les 3 s/.test(M.spam.reason) && M.b.inputs.filter(c => c.type === 'aller').length === 1 && M.b.log.some(l => l.kind === 'moveorder' && /déplacement méthodique, puis tenir la position/.test(l.text)), { r: M.r, spam: M.spam });
@@ -243,6 +245,7 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   check('méthodique : les guetteurs se partagent les secteurs (regards écartés de plus de 25°)', M.spread > 50, { spread: M.spread });
   check('agressif : tout le groupe arrive nettement plus vite qu\'en méthodique', A.all !== null && M.all !== null && A.all < M.all * 0.7, { agressif: A.all, methodique: M.all });
   check('arrivée « tenir » : arrivés, ils restent à leur poste (≤ 3 m) et le disent (« En place. »)', M.held && A.held && A.b.log.some(l => l.kind === 'enplace' && /En place/.test(l.text)) && A.b.log.some(l => l.kind === 'enplace' && /tiennent la position/.test(l.text)), { m: M.held, a: A.held });
+  check('arrivée « tenir » : l\'escouade se répartit autour du point (aucune paire à moins de 3 m)', M.gap >= 3 && A.gap >= 3, { methodique: M.gap, agressif: A.gap });
   // sous-groupe : seuls les opérateurs désignés obéissent ; rejouable à l'identique
   const s1 = mkA(9); while (s1.t < 2) s1.step();
   const rs = s1.command('aller', 0, { x: 30, z: 12, units: ['0:op_lynx', '0:op_granit'], mode: 'methodique', arrivee: 'tenir' });

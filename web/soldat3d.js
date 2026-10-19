@@ -42,7 +42,10 @@
   // pas chassé joint lent (voir pasJoint) : cadence (pas/s), m par cycle, base (m), part du cycle en l'air par pas, levée (m),
   // bassin abaissé (m), rebond (m), pointes ouvertes [gauche, droite] (rad), pied gauche en avant / droit en arrière (m) ;
   // v0 → v1 (m/s) : passage au pas chassé hanches tournées
-  const PAS = Object.assign({ actif: true, cad: 2.5, D: 0.5, base: 0.26, vol: 0.36, lev: 0.05, bas: 0.04, bob: 0.01, lacet: [0.1, 0.1], decal: 0.05, v0: 0.7, v1: 0.8, vl0: 1.3, vl1: 1.4 }, root.PAS_TEST || {});   // (vl0 / vl1 : de côté pur, voir marche)
+  // (D 0,7 / base 0,18 et non 0,5 / 0,26 : pas joints jusqu'à 1,3 m/s — voir marche — ; à 1 m/s, 240 pas/min, frénétique ;
+  // ainsi 171-176 pas/min, chevilles de 30 à 82 cm ; pied levé de 8 cm et non 5 : pas plus longs, le pied passait au ras du
+  // sol — patinage 0,054-0,060 → 0,036-0,045 — et le genou rentrait, valgus 8-9° → 4-5°)
+  const PAS = Object.assign({ actif: true, cad: 2.5, D: 0.7, base: 0.18, vol: 0.36, lev: 0.08, bas: 0.04, bob: 0.01, lacet: [0.1, 0.1], decal: 0.05, v0: 0.7, v1: 0.8, vl0: 1.3, vl1: 1.4 }, root.PAS_TEST || {});   // (vl0 / vl1 : de côté pur, voir marche)
   // pas chassé refait (voir pasChasse) : bassin ramené vers la cible (rad), lacet max des pieds (rad), garde au sol des pieds
   // qui bougent (m), part gardée du rebond du bassin, bassin remonté (m)
   // (ancre : appuis tenus fixes, voir ancrer() ; libre : sans la borne de cheville par rapport au tibia — le tibia penché de côté
@@ -91,7 +94,9 @@
   // (talon 30-32 → 17-19 cm, vidéo / réglement ≤ 25 ; rebond 6,7 → 5 cm ; base 20 cm comme l'ancienne marche resserrée)
   const PATROUILLE = { cap: 0.12, larg: 0.105, bob: 0.75, vol: { h0: 0.02, h1: 0.05, tb: 0.35, tf: -0.12, zb: -0.25, zf: 0.2, clr: 0.03 } };
   // recul : foulée de la marche arrière allongée (rapport)
-  const RECUL = 1.45;
+  // (1,1 et non 1,45 : la foulée cuite faisait 1,57 m par cycle — 130 pas/min à 1,7 m/s, 77 à 1 m/s, grandes enjambées en
+  // arrière — ; ainsi 170 pas/min à 1,7 m/s : petits pas rapides du recul en visant)
+  const RECUL = root.RECUL_K_TEST ?? 1.1;
   // ouverture des pieds en marche / course (rad, pointe vers l'extérieur ; réel : 5 à 10°)
   const OUV_PIED = 0.12;
   // pied en l'air : écart max de la cheville à sa pose de repos (rad) ; pli max des orteils au déroulé (rad)
@@ -116,6 +121,7 @@
   const COURSE_BAS = { Trot_Low_Haut: 1, Run_Low_Haut: 1, Run_Low: 1 };   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
   // visée à l'arrêt : rotation du bassin et des jambes vers la cible (rad), voir update()
   const CARRE = 0.61;
+  const PIED_VISEE = root.PIED_VISEE_TEST === false ? null : (root.PIED_VISEE_TEST || [-25, 15]);   // (°, pied gauche / droit, voir appui)
   // tangage voulu du canon dans les poses épaulées (rad ; légèrement vers le bas : la cible est à hauteur de poitrine)
   const VISEE_TANGAGE = -0.035;
   // (rechargements : joués une fois et figés sur la dernière image si le jeu recharge plus longtemps que le clip — en boucle,
@@ -1267,7 +1273,7 @@
   // épaulé, « nez au-dessus des orteils » : cou moins redressé (tête en avant et un peu plus bas, joue sur la crosse), épaule
   // d'appui en protraction (PROTRACTION_G), main d'appui plus loin (AVANCE_APPUI) ; JOUE_M : inclinaison de la tête vers la crosse
   // (rad ; 0,17 par défaut — « soldat » a l'œil plus au centre du buste)
-  S.COU_AVANT = 1.0; S.JOUE_M = { soldat: 0.24 };   // (COU_AVANT 1 : le cou suit la penche du buste sans être redressé — course épaulée : crosse 10-11 → 6-7 cm)
+  S.ROUL_EP = 1; S.ROUL_MAX = 0.07; S.COU_AVANT = 1.0; S.JOUE_M = { soldat: 0.24 };   // (COU_AVANT 1 : le cou suit la penche du buste sans être redressé — course épaulée : crosse 10-11 → 6-7 cm)
   const hrelIncl = (D, a) => { if (Math.abs(a) < 1e-4) return D.Hrel; const c = D.paumeLoc;
     return new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeRotationY(a)).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(D.Hrel); };
   // suivi de o[k] vers tgt (dt > 0) : ressort amorti critique (w) avec anticipation de la vitesse de la cible (bornée à vmax : un
@@ -1869,9 +1875,13 @@
         }
         if (k < 0.999) for (let j = 0; j < 3; j++) if (acc[j]) axe(spine3[j], (k - 1) * acc[j]);   // (même axe : les angles s'additionnent)
         // roulis : les visées de la bibliothèque penchent le buste sur le côté (10 à 18°) ; ramené à 4° au plus (bas du dos)
-        const rou = (b, a) => { mod(b); b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
+        // (mesuré dans le repère des ÉPAULES — ligne des épaules / sa normale — et non celui de la penche, à mi-chemin de l'axe de
+        // visée : en garde de biais la penche vers la cible se lisait comme 9-10° d'inclinaison latérale des épaules)
+        const latR = lat.clone(), fwR = fw.clone();
+        if (S.ROUL_EP) { const e = WP(B.la).sub(WP(B.ra)); e.y = 0; if (e.lengthSq() > 1e-6) { latR.copy(e.normalize()); fwR.crossVectors(latR, new THREE.Vector3(0, 1, 0)).normalize(); } }
+        const rou = (b, a) => { mod(b); b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fwR, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
         let accR = 0;
-        for (let it = 0; it < 2; it++) { const v = WP(cou0).sub(WP(hipsB)), r = Math.atan2(v.dot(lat), Math.max(0.05, v.y)), ex = r - Math.max(-0.07, Math.min(0.07, r));
+        for (let it = 0; it < 2; it++) { const v = WP(cou0).sub(WP(hipsB)), r = Math.atan2(v.dot(latR), Math.max(0.05, v.y)), ex = r - Math.max(-S.ROUL_MAX, Math.min(S.ROUL_MAX, r));
           if (Math.abs(ex) < 0.004) break;
           rou(spine3[0], ex); accR += ex; }
         if (k < 0.999 && accR) rou(spine3[0], (k - 1) * accR);
@@ -1945,6 +1955,11 @@
         pieds.forEach((l, i) => { const d = avant[i].clone().sub(WP(l[2])); if (d.lengthSq() > 1e-8) ikJambe(l[0], l[1], l[2], d, orteils[i]); });
         // visée : le genou avant ne rentre pas vers l'intérieur (légère rotation des genoux vers l'extérieur, pieds immobiles)
         if (this.clip === 'Rifle_Aim_Turn_Right') this.ecarte(this.reposK, 0, 0.6);
+        // visée : pointes vers la menace (PIED_VISEE, ° autour de la verticale, pied gauche / droit) ; l'animation ouvrait le pied
+        // avant à 57° du bassin (pointe 23° à gauche de la cible) et le pied arrière à 53° de la cible — position de tir moderne :
+        // pied avant vers la menace, pied arrière ouvert de 25-40°
+        if (PIED_VISEE && this.clip === 'Rifle_Aim_Turn_Right' && this.reposK > 0.01) pieds.forEach(([, , ft], i) => { const a = PIED_VISEE[i] * Math.PI / 180 * this.reposK; if (!a) return;
+          mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(new THREE.Quaternion().setFromAxisAngle(UP, a)).multiply(WQ(ft))); ft.updateMatrixWorld(true); });
       },
       // Tête : regarde la cible (this.regard = {x, z} dans le monde, donné par le jeu ; limité en visée, la joue est sur la
       // crosse) ; sans cible, au repos, coups d'œil lents à gauche / à droite. Réparti sur le cou et la tête.
