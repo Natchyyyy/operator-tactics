@@ -57,7 +57,8 @@
   const REPRISE = root.REPRISE_TEST ?? true;
   const RUN_BAKE = root.RUN_BAKE_TEST ?? true;   // course pleine (Pas_Run) refaite par foulee (voir directions)
   const PIVOT_PLANTE = root.PIVOT_PLANTE_TEST ?? true;
-  const REPAS_DERIVE = root.REPAS_DERIVE_TEST ?? true;   // nouveaux pas si le bassin a tourné au-dessus des pieds cloués (voir poserPieds)
+  const REPAS_DERIVE = root.REPAS_DERIVE_TEST ?? true;
+  const ORDRE_TOUR = root.ORDRE_TOUR_TEST ?? true;   // au quart de tour, le pied du côté du tour part le premier   // nouveaux pas si le bassin a tourné au-dessus des pieds cloués (voir poserPieds)
   // (essai, désactivé : bassin plus vif pendant les pas de pose ; mesuré : pied / bassin −2°, à-coup du bassin ×1,7)
   const JAMBES_POSE = root.JAMBES_POSE_TEST ? Object.assign({ vj: 6, st: 0.13 }, root.JAMBES_POSE_TEST) : null;   // torsion des jambes pendant les pas de pose (rad/s, s)
   const PIV_P = Object.assign({ lim: 0.7, w: 6 }, root.PIV_P_TEST || {});   // (écart toléré, rad ; vitesse de pivot max, rad/s)   // pied en attente qui pivote sur la plante au quart de tour (voir poserPieds)   // marche qui reprend la couche de jambes du rechargement (voir marche)   // replacement des pieds permis pendant les pas d'arrêt (voir repas)   // pas de pose visant la place finale du pied (voir poserPieds)
@@ -1322,7 +1323,7 @@
     const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true, modele: M.nom, mod, clips: M.clips, yawFix: M.yawFix, loco: M.loco || {}, chuteY: M.chuteY || {}, legClip: null,
       jambes: 0, jambesCible: 0, mode: 'deux', handLocal: { droite: null, gauche: null }, t: 0,
       bones: { rh: bone('RightHand'), lh: bone('LeftHand'), rm: body.getObjectByName('PalmeD'), lm: body.getObjectByName('PalmeG'),
-        ra: bone('RightArm'), rf: bone('RightForeArm'), la: bone('LeftArm'), lf: bone('LeftForeArm'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips') },
+        ra: bone('RightArm'), rf: bone('RightForeArm'), la: bone('LeftArm'), lf: bone('LeftForeArm'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips'), dos: bone('Spine') },   // (dos : l'os qui porte la peau du buste)
       // joue (en fondu) l'animation demandée ; time : figer à un instant (pose fixe) ; speed : vitesse du cycle
       play(name, opts = {}) {
         const a = act(name); if (!a) return;
@@ -1576,6 +1577,9 @@
         const rem = POSE_ANTICIPE ? Math.max(-1.6, Math.min(1.6, (this.jambesCible || 0) - (this.jambes || 0) + (root.ANTICIPE_CARRE_TEST ?? 0) * CARRE * (carreT - (this.carreK || 0)))) : 0;   // (le « carré » de la visée, rapide — ~0,3 s —, n'est pas anticipé : pieds tournés avant le bassin, pied / bassin 73°)
         const qR = new THREE.Quaternion().setFromAxisAngle(UP, rem), hP = WP(hipsB);
         const tgt = cur.map(c => c.clone().sub(hP).applyQuaternion(qR).add(hP).setY(c.y)), qTgt = pieds.map(l => qR.clone().multiply(WQ(l[2])));
+        // (quart de tour : le pied du côté où l'on tourne part le premier — sinon l'autre passe devant lui, jambes croisées, tibias
+        // l'un dans l'autre — ; sauf pied déjà levé à l'arrêt, qui se pose d'abord)
+        if (!P.ordreT) { P.ordreT = true; if (ORDRE_TOUR && Math.abs(rem) > 0.35 && Math.abs(P.lock[0].y - P.lock[1].y) < 0.03) P.ordre = rem > 0 ? [0, 1] : [1, 0]; }
         // (pieds reposés et cloués, mais le bassin a encore tourné — cible changée en visée — : s'ils sont à plus de 30° ou 12 cm
         // de leur place, nouveaux petits pas depuis là où ils sont, au lieu de laisser le bassin tourner au-dessus de pieds cloués :
         // jambes croisées, tibias l'un dans l'autre, vu en jeu)

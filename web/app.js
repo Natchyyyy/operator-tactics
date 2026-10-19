@@ -1298,13 +1298,18 @@
     // inclinaison dans les virages en courant (le torse se penche vers l'intérieur de la courbe)
     { const va = Math.atan2(a.vz || 0, a.vx || 0), sp = Math.hypot(a.vx || 0, a.vz || 0); let tr = a.vAng === undefined ? 0 : va - a.vAng; while (tr > Math.PI) tr -= 2 * Math.PI; while (tr < -Math.PI) tr += 2 * Math.PI; a.vAng = va;
       const want = u.alive && sp > 1 && dt > 0 ? Math.max(-0.16, Math.min(0.16, (tr / dt) * sp * 0.025)) : 0; a.bank = lerp(a.bank || 0, want, Math.min(1, dt * 5));
-      if (m.bones.spine && Math.abs(a.bank) > 0.005) { m.mod(m.bones.spine); m.bones.spine.rotation.z += a.bank; } }
+      // (sur l'os du buste qui porte la peau — « dos » = Spine pour les modèles Meshy, voir soldat3d — sinon seuls bras et tête bougeaient)
+      const dos = m.bones.dos || m.bones.spine;
+      if (dos && Math.abs(a.bank) > 0.005) { m.mod(dos); dos.rotation.z += a.bank; } }
     if (m.bones.spine && (a.recoil > 0 || a.flinch > 0)) {
-      m.mod(m.bones.spine); m.bones.spine.rotation.x -= a.recoil * 0.05;
+      const dos = m.bones.dos || m.bones.spine;
+      m.mod(dos); dos.rotation.x -= a.recoil * 0.05;
       if (a.flinch > 0 && u.alive) {   // impact : le torse encaisse dans le sens de la balle (secousse brève), la tête suit
         const hd = a.hitDir || { x: 0, z: 0 }, fw = hd.x * Math.sin(m.yaw) + hd.z * Math.cos(m.yaw), sd = hd.x * Math.cos(m.yaw) - hd.z * Math.sin(m.yaw);
-        const e = Math.sin(Math.min(1, (1 - a.flinch) * 2.2) * Math.PI) * 0.6 + a.flinch * 0.4;
-        m.bones.spine.rotation.x += fw * 0.32 * e; m.bones.spine.rotation.z -= sd * 0.22 * e; m.bones.spine.rotation.y += sd * 0.28 * e;
+        // (enveloppe à départ doux, pic à 70 ms puis retour : avant, 40 % de la secousse appliqués dès la 1re image — à-coup de la
+        // tête de 14 000-24 000 °/s² en jeu)
+        const ti = (1 - a.flinch) / 4 / 0.07, e = 0.95 * ti * ti * Math.exp(2 * (1 - ti)) * Math.min(1, a.flinch * 6);
+        dos.rotation.x += fw * 0.32 * e; dos.rotation.z -= sd * 0.22 * e; dos.rotation.y += sd * 0.28 * e;
         if (m.bones.head) { m.mod(m.bones.head); m.bones.head.rotation.x += fw * 0.25 * e; m.bones.head.rotation.z -= sd * 0.2 * e; }
       }
     }
