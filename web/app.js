@@ -2063,7 +2063,12 @@
   }
   function openOrderMenu(cx, cy) {
     closeOrderMenu();
-    if (!battle || battle.over || reviewing || briefing || $('#app').classList.contains('hidden') || !$('#result').classList.contains('hidden')) return;
+    if (!battle || $('#app').classList.contains('hidden') || !$('#result').classList.contains('hidden')) return;
+    // refus expliqués (avant : rien ne se passait — « Revoir la bataille », le gros bouton de l'écran de fin, rejoue la
+    // bataille à l'identique et ressemble à une nouvelle partie où le clic droit ne marchait plus)
+    if (reviewing) { flashBattle('Revue de la bataille : elle est rejouée à l’identique, les ordres sont désactivés. Lancez une nouvelle bataille pour donner des ordres.'); return; }
+    if (briefing) { flashBattle('Ordre : lancez d’abord la mission.'); return; }
+    if (battle.over) { flashBattle('La bataille est terminée.'); return; }
     const p = ordGround(cx, cy); if (!p) { flashBattle('Ordre : cliquez sur le sol du terrain.'); return; }
     const pick = Object.assign({}, ordLast);
     const el = document.createElement('div'); el.className = 'ordmenu';

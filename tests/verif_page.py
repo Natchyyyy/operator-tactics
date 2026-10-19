@@ -170,6 +170,26 @@ async def main():
         # « Résultat immédiat » : même résultat que la simulation complète de la même graine
         sk = await pg.evaluate("() => { const b = window.API.battle(); const ref = new OT.Battle(b.opts).run(); document.querySelector('#skip').click(); const r = window.API.battle().result; return [!!r, r && r.winner === ref.winner && r.duration === ref.duration, !document.querySelector('#result').classList.contains('hidden')]; }")
         check("« Résultat immédiat » donne le même résultat que la simulation complète et ouvre l'écran de résultat", sk == [True, True, True], sk)
+        # ordre au clic droit : il marche, et il marche encore après une nouvelle bataille ; en revue, le refus est expliqué
+        async def clic_droit():
+            box = await pg.evaluate("() => { const r = document.querySelector('#scene').getBoundingClientRect(); return [r.left + r.width * 0.5, r.top + r.height * 0.55]; }")
+            await pg.mouse.move(box[0], box[1]); await pg.mouse.down(button="right"); await pg.mouse.move(box[0] + 2, box[1] + 1); await pg.mouse.up(button="right"); await pg.wait_for_timeout(250)
+            if not await pg.evaluate("() => !!document.querySelector('.ordmenu')"): return [False, await pg.evaluate("() => (document.querySelector('#bflash') || {}).textContent || ''")]
+            await pg.click(".ordmenu .omgo"); await pg.wait_for_timeout(150)
+            return [True, await pg.evaluate("() => API.battle().teams[0].units.filter(u => u.alive).every(u => u.moveOrder || u.keyOrder)")]
+        await pg.click("#resNew"); await pg.evaluate("() => { API.pause(true); API.stepRaw(20); }")
+        o1 = await clic_droit()
+        await pg.evaluate("() => { API.pause(true); API.runToEnd(); }"); await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=60000)
+        await pg.click("#resNew"); await pg.evaluate("() => { API.pause(true); API.stepRaw(20); }")
+        o2 = await clic_droit()
+        check("clic droit : l'ordre est donné, et encore après « Nouvelle bataille »", o1 == [True, True] and o2 == [True, True], (o1, o2))
+        await pg.evaluate("() => { API.runToEnd(); }"); await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=60000)
+        await pg.click("#resReview"); await pg.evaluate("() => { API.pause(true); API.stepRaw(20); }")
+        o3 = await clic_droit()
+        await pg.evaluate("() => { API.runToEnd(); }"); await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=60000)
+        await pg.click("#resNew"); await pg.evaluate("() => { API.pause(true); API.stepRaw(20); }")
+        o4 = await clic_droit()
+        check("clic droit en revue : pas d'ordre mais un message ; après la revue, une nouvelle bataille reprend les ordres", o3[0] is False and "Revue" in o3[1] and o4 == [True, True], (o3, o4))
         # de bout en bout : une bataille jouée par le jeu fait entendre des coups de feu (lecteur → play() → Son.jouer)
         tirs = await pg.evaluate("() => { const n = () => Object.entries(Son.etat().joues).filter(([k]) => /^tir/.test(k)).reduce((a, [, v]) => a + v, 0); const n0 = n(); window.OT_MUTE && window.OT_MUTE.set(false); API.start({ mapId: 'parking', seed: 3 }); for (let i = 0; i < 120 && n() === n0; i++) API.stepRaw(10); return [n() - n0, Son.etat().contexte]; }")
         check("en bataille, les coups de feu sont réellement joués", tirs[0] > 0 and tirs[1] == "running", tirs)

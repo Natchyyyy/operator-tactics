@@ -522,7 +522,8 @@
       const range = lit ? baseRange : visRange;
       if (d <= range) {
         const ang = Math.atan2(e.z - u.z, e.x - u.x);
-        const inFov = d < 7 || angDiff(ang, u.facing) < fov / 2 || u.visible.has(e.id);
+        // (pris pour cible par lui : les balles claquent, on tourne la tête vers le tireur — même hors du champ visuel)
+        const inFov = d < 7 || angDiff(ang, u.facing) < fov / 2 || u.visible.has(e.id) || (u.lastShotBy === e && this.t - u.lastShotByAt < 1.5);
         if (inFov && this.canSee(u, e)) {
           let p;
           if (u.visible.has(e.id)) p = 1;                   // on suit une cible déjà repérée
@@ -1573,7 +1574,11 @@
     let turned = false;
     // (un ennemi en vue à moins de ~8 m : on ne lui tourne pas le dos, on recule ou on se décale en le tenant en joue)
     const foeClose = () => { for (const e of this.enemiesOf(u)) if (e.alive && u.visible.has(e.id) && dist2(u, e) < MIN_CLOSE) return true; return false; };
-    if (u.dash && look !== null && d > 0.05 && angDiff(look, mv) > DASH_TURN) turned = (u.dashTurned || far()) && !foeClose();
+    // (riposte au contact : une cible acquise depuis moins de 2 s, on lui envoie d'abord sa rafale en se déplaçant vers
+    // l'abri, au lieu de lui tourner le dos ; les deux camps se voyaient, se retournaient ensemble et couraient sans un coup
+    // de feu)
+    const riposte = () => !!(u.target && u.target.alive && u.visible.has(u.target.id) && this.t - (u.targetAt || -99) < 2);
+    if (u.dash && look !== null && d > 0.05 && angDiff(look, mv) > DASH_TURN) turned = (u.dashTurned || (far() && !riposte())) && !foeClose();
     u.dashTurned = turned;
     if (turned) { look = null; aim = null; }
     const walkTurned = !turned && !u.target && aim !== null && angDiff(aim, mv) > Math.PI / 3 && (u.walkTurned || far());
@@ -1922,7 +1927,9 @@
   Battle.prototype.fireAt = function (u, e) {
     if (u.reloading > 0) return;
     if (u.ammo <= 0) return;
-    if (u.aimTimer > 0) { u.aimTimer -= DT; return; }
+    // mise en joue terminée : le premier coup part aussitôt (il attendait encore une cadence de tir entière, ~0,5 s, qui
+    // s'ajoutait au repérage et à la visée : « ils se voient et ne tirent pas »)
+    if (u.aimTimer > 0) { u.aimTimer -= DT; if (u.aimTimer <= 0) u.fireAcc = Math.max(u.fireAcc, 1); return; }
     if (this.t < (u.burstPauseUntil || 0)) return;   // entre deux rafales : on reprend la visée (et on se baisse derrière un couvert)
     const d = dist2(u, e);
     // sans ligne de vue sur la poitrine, pas de tir (la perception l'a vérifié ce pas-ci, on re-vérifie par sécurité)
