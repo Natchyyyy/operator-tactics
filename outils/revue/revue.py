@@ -84,6 +84,11 @@ async def cmd_revue(a):
             for v in rubrique.noter(r, e):
                 v.update(modele=m, etat=e, nom=r['nom'], t=instant(r, v) if v['niveau'] != 'OK' else None); verdicts.append(v)
         mauvais = sorted([v for v in verdicts if v['niveau'] != 'OK'], key=lambda v: (v['niveau'] != 'majeur', -min(v['ecart'], 50)))
+        # (rapport.json provisoire dès la fin des mesures : les planches de preuve peuvent prendre longtemps sur une machine chargée)
+        json.dump({'date': datetime.datetime.now().isoformat(timespec='seconds'), 'provisoire': True, 'verdicts': [{k: v[k] for k in v if k not in ('quand',)} for v in verdicts],
+                   'mesures': {f'{m}/{e}': {'bilan': {k: x for k, x in r['bilan'].items() if k != 'stat'}, 'stat': r['bilan'].get('stat')} for (m, e), r in res.items()}},
+                  open(os.path.join(out, 'rapport.json'), 'w'), default=str, indent=0)
+        print('rapport.json provisoire écrit', flush=True)
         # preuves : planches par (modèle, état) pour les pires problèmes
         choix = {}
         for v in mauvais:

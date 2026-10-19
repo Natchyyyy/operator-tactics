@@ -49,6 +49,7 @@
   // faisait rouler la botte sur sa tranche et la remettait dans le sens du pas, -56°)
   const CHASSE = { actif: true, bassin: 0.2, lacet: 0.6, clr: 0.04, bob: 0.4, haut: 0, libre: true, ancre: true };
   // verrou des pieds : durées de prise et de lâcher (s)
+  const GB_PAS = root.GB_PAS_TEST ?? true;   // pied avancé de la garde basse porté par le pas de pose (voir appui)
   const VERROU = Object.assign({ prise: 0.09, lache: 0.16 }, root.VERROU_TEST || {});
   // pied qui bouge = pied levé (voir decolle()) : hauteur de semelle visée (m), vitesses (m/s) de début / pleine levée, temps (s)
   // (réponse 0,025 s et non 0,06 : au premier image d'un lâcher de verrou, ou à l'approche de la pose en petite course de côté,
@@ -73,9 +74,11 @@
   const TROT = { cap: 0.13, s: 0.47, hs: 0.6, rise: 0.5, dos: 0.45, kp: 0.55, foulee: { vol: { h0: 0.05, h1: 0.09, tb: 0.4, tf: -0.15, zb: -0.3, zf: 0.25, clr: 0.03 } } };   // kp : part gardée de la cambrure du pied
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
   const PENCHE = 0.21;
-  S.PENCHE_EP = 0.3;   // direction de la penche : part de la normale des épaules (le reste : axe de visée)
+  S.PENCHE_EP = 0.5;   // direction de la penche (0,3 → 0,5 : roulis du buste 6-8° → 4-6°) : part de la normale des épaules (le reste : axe de visée)
   // visée : angle (rad) entre la ligne des épaules et la face (0 = carré, ~1,3 = de profil comme les visées Mixamo), voir penche()
   const BIAIS = 0.5;
+  // (par modèle : épaules du « soldat » plus larges — un peu plus de face, la crosse vient dans le creux de l'épaule : 6,9 → 5,8 cm)
+  S.BIAIS_M = { soldat: 0.4 };
   const COURSE_BAS = { Trot_Low_Haut: 1, Run_Low_Haut: 1, Run_Low: 1 };   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
   // visée à l'arrêt : rotation du bassin et des jambes vers la cible (rad), voir update()
   const CARRE = 0.61;
@@ -1482,6 +1485,10 @@
         else if (this.verrouPieds && !keepYaw) this.ecarte(1, 0, 0);   // (marche accroupie, course épaulée : chevilles jamais croisées)
         this.verrou(dt, !keepYaw && (enMarche || !!this.verrouPieds) && !S.sansVerrou);
         const repos = (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right') && !enMarche && !keepYaw;
+        // pied gauche avancé de la garde basse (appui) : porté par le petit pas de pose (poserPieds) et appliqué d'un coup, au
+        // lieu de suivre reposK (~2 s) : le pied glissait de 17 cm au sol à l'arrêt (0,1-0,25 m/s)
+        { const gbT = repos && this.clip === 'Garde_Basse' && GB_PAS;
+          this.gbPiedK = gbT && (this.pose0 || !this.clipVu) ? 1 : gbT ? Math.max(this.gbPiedK || 0, this.reposK || 0) : Math.min(this.gbPiedK || 0, this.reposK || 0); }
         if (this.pose0) this.poserPieds(dt, repos);
         this.appui(dt, repos && !this.pose0);
         this.decolle(dt, !keepYaw && !S.sansDecolle);
@@ -1504,11 +1511,14 @@
         if (!repos || P.t > 0.62) { this.pose0 = null; return; }
         group.updateMatrixWorld(true);
         const cur = pieds.map(l => WP(l[2]));
+        // (pied gauche avancé de la garde basse : ajouté APRÈS, par appui() ; le pas part donc de la position clouée moins cette avance)
+        const av = GB_PAS ? new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())).multiplyScalar(0.17 * (this.gbPiedK || 0)) : null;
         if (!P.ordre) { if (Math.max(cur[0].distanceTo(P.lock[0]), cur[1].distanceTo(P.lock[1])) > 0.8) { this.pose0 = null; return; }   // (téléporté)
           P.ordre = P.lock[0].y >= P.lock[1].y ? [0, 1] : [1, 0]; }
         P.ordre.forEach((i, rang) => {
-          const x = Math.max(0, Math.min(1, (P.t - rang * 0.16) / 0.24)), s = x * x * (3 - 2 * x); if (s >= 1) return;
-          const L = P.lock[i], C = cur[i], h = Math.min(0.11, 0.45 * Math.hypot(C.x - L.x, C.z - L.z));   // (un vrai pas : pied levé de 4 à 11 cm, pas traîné)
+          const x = Math.max(0, Math.min(1, (P.t - rang * 0.16) / 0.24)), s = x * x * (3 - 2 * x);
+          if (s >= 1) return;
+          const L = i === 0 && av ? P.lock[i].clone().sub(av) : P.lock[i], C = cur[i], h = Math.min(0.11, 0.45 * Math.hypot(C.x - L.x, C.z - L.z));   // (un vrai pas : pied levé de 4 à 11 cm, pas traîné)
           const T = L.clone().lerp(C, s); T.y += h * Math.sin(Math.PI * s);
           const ft = pieds[i][2], qC = WQ(ft), d = T.sub(C); if (d.lengthSq() > 1e-8) ikJambe(pieds[i][0], pieds[i][1], ft, d, orteils[i]);
           // orientation du pied aussi (sinon la pointe pivote autour de la cheville cloué et glisse)
@@ -1541,16 +1551,19 @@
           const appui = !leve && h < 0.03 && h <= bas(so[1 - i]) + 0.02 && vA < (L.piv ? 2.2 : 1.1);
           // (fin du déroulé : quand le bout de la semelle passe nettement sous la plante, pivot sur le bout — 'B' — : le pied qui
           // tourne en lacet au décollement pivotait autour de la plante et son bout, seul au sol, balayait 3-4 cm)
-          const hB = S.bout.y - gy, bout = VERROU.B !== false && hT > 0.04 && hB < S.plante.y - gy - (L.piv === 'B' ? 0 : 0.01);
-          const piv = !actif ? null : appui && hT < 0.02 ? 'A' : appui ? (bout ? 'B' : 'T') : (!leve && L.piv && h < (S.verrouH || 0.05) && vA < 2.2 ? L.piv : null);   // (pied qui repart en rasant le sol — pas chassé — : relâché)
+          const hB = S.bout.y - gy, bout = VERROU.B !== false && hT > 0.04 && hB < S.plante.y - gy - (L.piv === 'B' ? 0 : VERROU.Bd ?? 0.01);
+          let piv = !actif ? null : appui && hT < 0.02 ? 'A' : appui ? (bout ? 'B' : 'T') : (!leve && L.piv && h < (S.verrouH || 0.05) && vA < (L.piv === 'B' || (L.piv === 'T' && VERROU.kT !== false) ? Math.max(2.2, (VERROU.kB ?? 1) * vC) : 2.2) ? (L.piv === 'T' && bout && VERROU.TB !== false ? 'B' : L.piv) : null);   // (pied qui repart en rasant le sol — pas chassé — : relâché)
+          // (changement de pivot sur un pied que l'animation emporte déjà — plus vite que 1,4 m/s ou 0,8 × le corps — : c'est le
+          // décollement ; on lâche en douceur au lieu de ré-ancrer — retenir le pied le jette dans l'autre en pas chassé, le
+          // ré-ancrer sur sa position animée le fait sauter de 5 cm)
+          if (piv && L.piv && piv !== L.piv && !(L.piv === 'T' && piv === 'B') && L.w > 0 && VERROU.cont !== false && vA >= Math.max(VERROU.contV || 1.4, 0.8 * vC)) piv = null;
           const K = { A: 'talon', T: 'plante', B: 'bout' };
           if (piv) {
             const P = S[K[piv]];
             // (changement de pivot : la nouvelle ancre est là où ce point ÉTAIT AFFICHÉ à l'image précédente — position animée
             // précédente + décalage — et non sa position animée courante + décalage : sinon le pied saute de ce que l'animation
             // a dérivé pendant l'image, 3 cm en petite course au passage talon → plante)
-            // (sauf pied qui part déjà — > 1,4 m/s —, pas chassé : le retenir une image de plus le jette dans l'autre)
-            if (L.piv !== piv) { L.anc = (VERROU.cont !== false && L.pr && L.w > 0 && vA < Math.max(VERROU.contV || 1.4, 0.8 * vC) ? L.pr[K[piv]] : P).clone(); if (L.off && L.w > 0) L.anc.addScaledVector(L.off, L.w * L.w * (3 - 2 * L.w)); L.piv = piv; }
+            if (L.piv !== piv) { L.anc = (VERROU.cont !== false && L.pr && L.w > 0 ? L.pr[K[piv]] : P).clone(); if (L.off && L.w > 0) L.anc.addScaledVector(L.off, L.w * L.w * (3 - 2 * L.w)); L.piv = piv; }
             // (et posé AU sol : le point d'appui de la semelle à hauteur 0 ; les cycles flottent ou s'enfoncent de 1 à 4 cm)
             const dy = Math.max(-0.04, Math.min(0.05, -(piv === 'A' ? hT : piv === 'B' ? hB : hP)));
             const d = new THREE.Vector3(L.anc.x - P.x, dy, L.anc.z - P.z);
@@ -1608,7 +1621,7 @@
         { const ek = this.epK || 0; if (ek > 0.01 && !S.sansCarre) { const e = WP(B.la).sub(WP(B.ra)).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()).invert());
           // en marche : épaules à 0,95 rad au plus du bassin (bassinM, donné par marche()) — un tireur droitier qui se déplace vers
           // sa gauche se met de face au lieu de se tordre
-          let Sv = -BIAIS; if (this.bassinM !== undefined && this.blendW && this.blendFrame === frameK - 1) Sv = Math.max(this.bassinM - 0.95, Math.min(this.bassinM + 0.95, Sv));
+          let Sv = -((S.BIAIS_M && S.BIAIS_M[M.nom]) || BIAIS); if (this.bassinM !== undefined && this.blendW && this.blendFrame === frameK - 1) Sv = Math.max(this.bassinM - 0.95, Math.min(this.bassinM + 0.95, Sv));
           this.epS = this.epS === undefined ? Sv : this.epS + (Sv - this.epS) * 0.15;
           const d = Math.max(-1, Math.min(1, Math.PI / 2 + this.epS - Math.atan2(e.x, e.z))) * ek; if (Math.abs(d) > 0.01) for (const sb of spine3) { mod(sb); twist(sb, d / spine3.length); } } }
         const lat = WP(B.la).sub(WP(B.ra)); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();
@@ -1684,7 +1697,7 @@
       // vers la jambe libre ; les pieds restent au sol (IK), les épaules restent à peu près droites.
       appui(dt, actif) {
         this.reposK = (this.reposK || 0) + ((actif ? 1 : 0) - (this.reposK || 0)) * Math.min(1, dt * 1.5);
-        if (this.reposK < 0.01 || !hipsB || !pieds[0][2] || !pieds[1][2]) return;
+        if (Math.max(this.reposK, GB_PAS ? this.gbPiedK || 0 : 0) < 0.01 || !hipsB || !pieds[0][2] || !pieds[1][2]) return;
         group.updateMatrixWorld(true);
         const s0 = Math.sin(this.t * 1.14 + graine), s = Math.sign(s0) * Math.pow(Math.abs(s0), 0.6) * this.reposK;   // (s'attarde sur chaque jambe)
         const avant = pieds.map(l => WP(l[2])), gq = group.getWorldQuaternion(new THREE.Quaternion());
@@ -1695,8 +1708,9 @@
         const roule = (b, a) => { b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
         roule(hipsB, -s * 0.035); if (spine1) { mod(spine1); roule(spine1, s * 0.03); }
         // garde basse : pied gauche ~17 cm en avant (appui décalé) et bassin 3 cm plus bas (genoux fléchis ~15-20°)
-        const gb = this.clip === 'Garde_Basse' ? this.reposK : 0;
-        if (gb > 0.01) { avant[0].addScaledVector(fw, 0.17 * gb); hipsB.position.add(hipsB.parent.worldToLocal(WP(hipsB).add(new THREE.Vector3(0, -0.03 * gb, 0))).sub(hipsB.parent.worldToLocal(WP(hipsB)))); hipsB.updateMatrixWorld(true); }
+        const gb = this.clip === 'Garde_Basse' ? this.reposK : 0, gbP = GB_PAS ? this.gbPiedK || 0 : gb;
+        if (gbP > 0.01) avant[0].addScaledVector(fw, 0.17 * gbP);
+        if (gb > 0.01) { hipsB.position.add(hipsB.parent.worldToLocal(WP(hipsB).add(new THREE.Vector3(0, -0.03 * gb, 0))).sub(hipsB.parent.worldToLocal(WP(hipsB)))); hipsB.updateMatrixWorld(true); }
         // visée debout : genoux « légèrement fléchis » (~22°, réglement : 10 à 25°) et non accroupis (l'animation et la charnière
         // de hanche les amenaient à 44-47°) : le bassin remonte de ce qu'il faut, les pieds restent en place
         if (this.clip === 'Rifle_Aim_Turn_Right') {

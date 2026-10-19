@@ -686,7 +686,10 @@
   // Liseré de lune sur les soldats (la nuit seulement) : un léger reflet froid sur les bords de la silhouette (Fresnel), qui
   // détache un uniforme sombre d'une carrosserie ou d'un mur sombres sans éclairer la scène. Ajouté aux matériaux des
   // soldats (en plus de leur teinte d'uniforme) ; intensité commune, 0 le jour.
-  const RIM = { k: { value: 0 }, f: { value: 0 }, c: { value: new THREE.Color(0.55, 0.68, 1.0) }, nuit: 0.18, fond: 0.05 };   // (normale lisse : liseré net, sans scintillement du relief)
+  // Liseré calculé sur la normale interpolée des sommets (pas la carte de relief), à pente douce, plus fort du côté de la lune,
+  // éteint sur les arêtes vives (là où la normale tourne d'un pixel à l'autre : bords de poches, sangles → c'étaient les
+  // pointillés), sans aucune modulation par la texture. uRimF : lumière froide enveloppée venant de la lune, lisse.
+  const RIM = { k: { value: 0 }, f: { value: 0 }, c: { value: new THREE.Color(0.55, 0.68, 1.0) }, d: { value: new THREE.Vector3(-0.42, 0.58, 0.7).normalize() }, nuit: 0.13, fond: 0.035 };
   function rimPatch(root) {
     root.traverse(o => {
       if (!o.isMesh || !o.material) return;
@@ -695,9 +698,14 @@
         const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey;
         m.onBeforeCompile = function (sh, r) {
           if (prev) prev.call(this, sh, r);
-          sh.uniforms.uRimK = RIM.k; sh.uniforms.uRimF = RIM.f; sh.uniforms.uRimC = RIM.c;
-          sh.fragmentShader = 'uniform float uRimK, uRimF; uniform vec3 uRimC;\n' + sh.fragmentShader.replace('#include <opaque_fragment>',
-            'outgoingLight += uRimC * (uRimK * pow(1.0 - saturate(dot(nonPerturbedNormal, normalize(vViewPosition))), 2.2) + uRimF * diffuseColor.rgb);\n#include <opaque_fragment>');   // (uRimF : plancher de lumière froide, relatif à la teinte de l\'uniforme)
+          sh.uniforms.uRimK = RIM.k; sh.uniforms.uRimF = RIM.f; sh.uniforms.uRimC = RIM.c; sh.uniforms.uRimD = RIM.d;
+          sh.fragmentShader = 'uniform float uRimK, uRimF; uniform vec3 uRimC, uRimD;\n' + sh.fragmentShader.replace('#include <opaque_fragment>', `
+            { vec3 rN = normalize(nonPerturbedNormal), rV = normalize(vViewPosition), rL = normalize((viewMatrix * vec4(uRimD, 0.0)).xyz);
+              float rF = smoothstep(0.3, 0.95, 1.0 - saturate(dot(rN, rV))), rS = 0.3 + 0.7 * saturate(dot(rN, rL) * 0.5 + 0.5);
+              rF *= 1.0 - smoothstep(0.12, 0.45, length(fwidth(rN)));   // arêtes vives (bords de poches, sangles) : pas de pointillés
+              float rW = saturate((dot(rN, rL) + 0.4) / 1.4);   // côté lune, éclairage enveloppé et lisse
+              outgoingLight += uRimC * (uRimK * rF * rF * rS + uRimF * (0.25 + 0.75 * rW * rW)); }
+            #include <opaque_fragment>`);
         };
         m.customProgramCacheKey = function () { return (prevKey ? prevKey.call(this) : '') + '|rim'; };
         m.needsUpdate = true;
@@ -770,7 +778,7 @@
     }
     $('#app').dataset.cond = id || 'jour';
     if (OT.Parking && battle && battle.map.id === 'parking') { OT.Parking.setConditions(id || 'jour', scene); buildLamps(false); } else buildLamps(id === 'nuit' || id === 'brouillard');
-    RIM.k.value = id === 'nuit' ? RIM.nuit : 0; RIM.f.value = id === 'nuit' ? RIM.fond : 0;   // liseré de lune des soldats
+    RIM.k.value = id === 'nuit' ? RIM.nuit : 0; RIM.f.value = id === 'nuit' ? RIM.fond : 0; if (RENDU) RIM.d.value.copy(RENDU.lightDir);   // liseré de lune des soldats (côté lune)
     buildSteam();
     meteoSound();   // couche sonore de la météo (pluie, vent, nuit, oiseaux)
   }
