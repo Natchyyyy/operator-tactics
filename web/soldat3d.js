@@ -1827,7 +1827,11 @@
         { const ek = this.epK || 0; if (ek > 0.01 && !S.sansCarre) { const e = WP(B.la).sub(WP(B.ra)).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()).invert());
           // en marche : épaules à 0,95 rad au plus du bassin (bassinM, donné par marche()) — un tireur droitier qui se déplace vers
           // sa gauche se met de face au lieu de se tordre
-          let Sv = -((S.BIAIS_M && S.BIAIS_M[M.nom]) || BIAIS); if (this.bassinM !== undefined && this.blendW && this.blendFrame === frameK - 1) Sv = Math.max(this.bassinM - S.TORSION_MAX, Math.min(this.bassinM + S.TORSION_MAX, Sv));
+          let Sv = -((S.BIAIS_M && S.BIAIS_M[M.nom]) || BIAIS);
+          // (le buste suit aussi la visée quand elle s'écarte de l'orientation du corps — cible de côté en courant : le fusil
+          // tournait seul jusqu'à 34°, bras d'appui replié à 90-110°)
+          if (S.CARRE_VIS && this.ayVis !== undefined && this.t - this.tAyVis < 0.2) Sv += S.CARRE_VIS * this.ayVis;
+          if (this.bassinM !== undefined && this.blendW && this.blendFrame === frameK - 1) Sv = Math.max(this.bassinM - S.TORSION_MAX, Math.min(this.bassinM + S.TORSION_MAX, Sv));
           this.epS = this.epS === undefined ? Sv : this.epS + (Sv - this.epS) * 0.15;
           const d = Math.max(-1, Math.min(1, Math.PI / 2 + this.epS - Math.atan2(e.x, e.z))) * ek; if (Math.abs(d) > 0.01) { mod(spine3[0]); twist(spine3[0], d); } } }   // (sur Spine, qui porte la peau du buste)
         const lat = WP(B.la).sub(WP(B.ra)); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();
@@ -2201,7 +2205,7 @@
           if (dtA < 0 || dtA > 0.25 || this.tetY === undefined) { this.tetY = this.visY; this.tetP = this.visP; this.tetYV = 0; this.tetPV = 0; this.tetYR = this.visY; this.tetPR = this.visP; }
           this.tVis = this.t;
           const ds = new THREE.Vector3(Math.sin(this.visY) * Math.cos(this.visP), Math.sin(this.visP), Math.cos(this.visY) * Math.cos(this.visP)).transformDirection(inv);
-          let ay = Math.atan2(ds.dot(lat), ds.dot(fwd)), ap = Math.asin(Math.max(-1, Math.min(1, ds.y))); ay = Math.max(-0.6, Math.min(0.6, ay)); ap = Math.max(-0.5, Math.min(0.4, ap));
+          let ay = Math.atan2(ds.dot(lat), ds.dot(fwd)), ap = Math.asin(Math.max(-1, Math.min(1, ds.y))); ay = Math.max(-0.6, Math.min(0.6, ay)); ap = Math.max(-0.5, Math.min(0.4, ap)); this.ayVis = ay; this.tAyVis = this.t;
           d = fwd.clone().multiplyScalar(Math.cos(ay) * Math.cos(ap)).addScaledVector(lat, Math.sin(ay) * Math.cos(ap)).addScaledVector(up, Math.sin(ap)); }
         this.visee = d.clone().transformDirection(group.matrixWorld);
         { const dt2 = new THREE.Vector3(Math.sin(this.tetY) * Math.cos(this.tetP), Math.sin(this.tetP), Math.cos(this.tetY) * Math.cos(this.tetP)); this.viseeTete = dt2; }
