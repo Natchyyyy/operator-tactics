@@ -2161,7 +2161,7 @@
     // ligne « Feu » (petits pictogrammes)
     volonte: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="8" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M16 3v7M16 22v7M3 16h7M22 16h7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="16" cy="16" r="2" fill="currentColor"/></svg>',
     retenu: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M11 17V9.5a2 2 0 014 0V15M15 15V7.5a2 2 0 014 0V15M19 15V9.5a2 2 0 014 0V19c0 5.5-3.4 9-8 9-3.4 0-5.6-1.8-7-4.6l-2.6-5a2 2 0 013.3-2.2L11 19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-    appui: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 10h13M4 16h16M4 22h13" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3 3"/><path d="M24 7c3 2.5 4.5 5.5 4.5 9s-1.5 6.5-4.5 9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>',
+    appui: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M3 10h8M3 16h10M3 22h8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="23" cy="16" r="6.5" fill="none" stroke="currentColor" stroke-width="2.6"/><circle cx="23" cy="16" r="2" fill="currentColor"/></svg>',
   };
   // Feu (3e ligne, petite) : un réglage, revient à « À volonté » après chaque ordre (un « Retenu » oublié coûte cher)
   const ORD_FEU = [
@@ -2172,7 +2172,7 @@
     mode: { titre: 'Déplacement', choix: [
       { v: 'methodique', nom: 'Méthodique', aide: 'Bonds, appui mutuel', desc: 'Doctrine française : une moitié bondit de couvert en couvert pendant que l’autre couvre, chacun son secteur ; pauses à chaque couvert.' },
       { v: 'agressif', nom: 'Agressif', aide: 'Vite, tire en avançant', desc: 'Droit au point au pas de course, en tirant sur ce qu’on voit ; courte halte à couvert seulement sous le feu.' },
-      { v: 'franchir', nom: 'Franchissement', aide: 'Un par un sous appui', desc: 'Comme Méthodique, mais un espace découvert sur le trajet se traverse un par un (deux par deux à 4 ou 5), au sprint, pendant que les autres couvrent le côté dangereux depuis le bord ; le premier passé couvre l’autre côté.' },
+      { v: 'franchir', nom: 'Franchir', aide: 'Un par un sous appui', desc: 'Comme Méthodique, mais un espace découvert sur le trajet se traverse un par un (deux par deux à 4 ou 5), au sprint, pendant que les autres couvrent le côté dangereux depuis le bord ; le premier passé couvre l’autre côté.' },
       { v: 'decrocher', nom: 'Décrocher', aide: 'Repli par bonds, sous appui', desc: 'Pour quitter un combat qui tourne mal : clic droit en arrière. Une moitié tire pour couvrir pendant que l’autre court jusqu’au couvert suivant vers le point, puis on inverse, sans halte pour engager. Arrivée : face au danger.' }] },
     arrivee: { titre: 'Arrivée', choix: [
       { v: 'tenir', nom: 'Tenir la position', aide: 'À couvert, face à la menace', desc: 'Sur place : un couvert tout proche, face à la menace (ou dans le sens de la marche), et on y reste.' },

@@ -2730,7 +2730,7 @@
     if (this.t < u.blindUntil) p *= 0.25;                                             // aveuglé
     const cv = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
     // derrière un couvert, seuls la tête et les épaules dépassent quand il se lève pour tirer : cible bien plus petite
-    if (cv) p *= cv.level === 'partial' ? 0.38 : 0.15;
+    if (cv) p *= cv.level === 'partial' ? 0.28 : 0.12;
     return { p: clamp(p, 0.03, 0.95), cover: cv };
   };
   Battle.prototype.fireAt = function (u, e) {
