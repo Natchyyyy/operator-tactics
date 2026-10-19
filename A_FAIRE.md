@@ -207,9 +207,17 @@ Principe : moins de contenu, mais chaque chose refaite proprement, une à la foi
 - [simulation, à reprendre] Déblocage : un soldat coincé 1,5 s contre un obstacle est poussé de 0,5 m de côté en un seul pas (≈ 1 fois pour 1000 pas rapides) : glissade visible. Étaler sur plusieurs pas change un peu la façon de se dégager, donc à décider plus tard.
 
 ## Animations — en pause (19/10, 09:40), liste pour reprendre
+
+- (19/10, vague 1) Sprint en reculant (« Décrocher ») : la jambe arrière part presque à l'horizontale (Vautour) — pour le motion matching.
+- (19/10, combat) Tirer un blessé : pas d'animation (le corps glisse) — pour le motion matching.
 Bilan : gros défauts 402 (début de nuit) → 2 ; mineurs 328 → 172. Rapport : captures/revue-anim-nuit/n12/rapport.md. Méthode : outils/revue/ (SKILL.md, RUBRIQUE.md).
 - Jambes : gign marche visée diagonale, genou au contact 40,6° ; course visée diagonale à 225 pas/min (compromis documenté) ; recul rapide à grandes foulées (130 pas/min, réel ≈ 170) ; pied arrière de la posture debout tourné à 56° (cible ≈ 35°).
 - Haut du corps (MAJEUR) : course visée à 2,9 m/s, crosse à 10-11 cm du creux de l'épaule (18,5 cm en jeu), coude d'appui qui s'effondre à 114° en jeu.
 - Haut du corps : crosse à 6-8 cm (banc) / 10-14 cm (jeu) en visée → avancer l'épaule plutôt que raccourcir le bras ; à-coups en jeu (entrée accroupi, entrée en garde basse, grand changement de cible) ; roulis du buste 9-10° ; poignets au rechargement 57-63°.
 - À vérifier en jeu : pas chassés rapides (banc propre), sprint visé, pieds cloués à l'arrêt.
 - Relancer : `python3 outils/revue/revue.py revue --groupe 17 --sans-trot`, puis `python3 outils/revue/jeu.py --carte parking --graine 7`.
+
+
+## IA — couverts (19/10, rapport combat)
+- L'exposition à découvert n'a pas baissé (0,175 → 0,198 du temps de combat) : 59 % du temps en vue de l'ennemi est passé à courir vers un couvert. Il faudrait revoir la recherche de couvert (choisir un couvert plus proche / moins exposé).
+- Équilibre GIGN / Karst passé à 70/49 avec les tirs plus précis : à régler lors de la grande passe d'équilibre.
