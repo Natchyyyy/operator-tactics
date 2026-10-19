@@ -1865,7 +1865,7 @@
   // Réglage « Ennemis visibles seulement s'ils sont repérés » (activé par défaut ; désactivé en mode manuel — outils de
   // capture — sauf ?fog=1 ; ?fog=0 le coupe partout). La fin de bataille révèle tout.
   const FOG = { spotted: new Set(), seenT: {}, deadSeen: {}, hp: {}, ghosts: {}, rt: 0 }, FOG_PARAM = params.get('fog'), GHOST_LIFE = 5;
-  function fogOn() { return !!battle && !battle.over && (FOG_PARAM !== null ? FOG_PARAM === '1' : !MANUAL && SETTINGS.fog !== false); }
+  function fogOn() { return !!battle && !battle.over && (FOG.force !== undefined ? FOG.force : FOG_PARAM !== null ? FOG_PARAM === '1' : !MANUAL && SETTINGS.fog !== false); }
   function fogShown(u) { if (!u || u.team !== 1 || !fogOn()) return true; return u.alive ? FOG.spotted.has(u.id) : !!FOG.deadSeen[u.id]; }
   function fogUpdate() {   // après chaque pas de simulation : qui l'escouade voit-elle en ce moment ?
     const prev = FOG.spotted, now = new Set(), on = fogOn();
@@ -2584,6 +2584,7 @@
     review: () => { review(); return battle.replayQueue.length; },
     meshes: () => meshes, scene: () => scene,
     // ennemis non repérés : ce que voit l'escouade (simulation) et ce qui est dessiné (modèles, étiquettes, repères « ? »)
+    fogForce: (v) => { FOG.force = v; },   // (outils : true / false impose, undefined rend la main au réglage)
     fog: () => { const E = battle.teams[1].units, vis = (u) => !!(meshes[u.id] && meshes[u.id].group.visible); return { on: fogOn(), spotted: [...FOG.spotted], alive: E.filter(u => u.alive).map(u => u.id), drawn: E.filter(u => u.alive && vis(u)).map(u => u.id), fading: E.filter(u => meshes[u.id] && meshes[u.id].fogA > 0 && meshes[u.id].fogA < 1).map(u => u.id), labels: E.filter(u => u.alive && meshes[u.id] && meshes[u.id].label.style.display !== 'none').map(u => u.id), deadDrawn: E.filter(u => !u.alive && vis(u)).map(u => u.id), deadSeen: Object.assign({}, FOG.deadSeen), ghosts: Object.keys(FOG.ghosts).filter(id => FOG.ghosts[id].visible) }; },
     efx: () => EFX, rendu: () => RENDU,
     look: (x, z, yaw, pitch, dist, y) => { setCamMode('free'); cam.follow = null; cam.init = false; cam.target.set(x, y === undefined ? 0.9 : y, z); cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; for (let i = 0; i < 30; i++) applyCamera(); render(); return 0; },
