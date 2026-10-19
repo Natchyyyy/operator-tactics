@@ -583,7 +583,7 @@
     for (let k = 0; k < pa.count; k++) {
       n.fromBufferAttribute(pa, k).normalize(); let r = 0.82;
       for (const [d, a] of lobes) r += a * Math.pow(Math.max(0, n.dot(d)), 2.5);
-      r += 0.05 * Math.sin(n.x * 11 + n.y * 7) * Math.sin(n.z * 13 - n.y * 5) + (h(+n.x.toFixed(3), +n.y.toFixed(3), +n.z.toFixed(3)) - 0.5) * 0.07;   // feuilles
+      r += 0.05 * Math.sin(n.x * 11 + n.y * 7) * Math.sin(n.z * 13 - n.y * 5) + (h(+n.x.toFixed(3), +n.y.toFixed(3), +n.z.toFixed(3)) - 0.5) * 0.16;   // feuilles : silhouette déchiquetée
       v.copy(n).multiplyScalar(r); if (v.y < -0.35) v.y = -0.35 - (v.y + 0.35) * 0.3;   // posée sur la terre
       pa.setXYZ(k, v.x, v.y, v.z);
       const ao = 0.45 + 0.55 * Math.min(1, Math.max(0, (n.y + 0.55) / 1.2)), j = 0.82 + 0.3 * h(+n.z.toFixed(3), +n.x.toFixed(3), 3.1);
@@ -598,7 +598,7 @@
       sh.vertexShader = 'varying vec3 vLeafP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vLeafP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
       sh.fragmentShader = 'varying vec3 vLeafP;\nvec3 leafH(vec3 q) { return fract(sin(vec3(dot(q, vec3(127.1, 311.7, 74.7)), dot(q, vec3(269.5, 183.3, 246.1)), dot(q, vec3(113.5, 271.9, 124.6)))) * 43758.5453); }\n' + sh.fragmentShader
         .replace('#include <color_fragment>', `#include <color_fragment>
-          vec3 lp = vLeafP * 20.0, lb = floor(lp - 0.5), lid = lb, lv = vec3(0.0); float ld = 9.0;   // bruit cellulaire : feuilles arrondies
+          vec3 lp = vLeafP * 30.0, lb = floor(lp - 0.5), lid = lb, lv = vec3(0.0); float ld = 9.0;   // bruit cellulaire : feuilles arrondies
           for (int i = 0; i < 2; i++) for (int j = 0; j < 2; j++) for (int k = 0; k < 2; k++) { vec3 c = lb + vec3(float(i), float(j), float(k)), f = c + 0.15 + 0.7 * leafH(c), e = lp - f; float dd = dot(e, e); if (dd < ld) { ld = dd; lid = c; lv = e; } }
           ld = sqrt(ld); vec3 leafR = leafH(lid + 7.0);
           diffuseColor.rgb *= (0.62 + 0.6 * leafR.x) * (1.0 - 0.4 * smoothstep(0.3, 0.75, ld));`)

@@ -789,7 +789,8 @@
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
       rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xa8b8c8, transparent: true, opacity: 0.3, depthWrite: false })); rain.frustumCulled = false; scene.add(rain);
     }
-    if (EFX && EFX.setRain) EFX.setRain(id === 'pluie');   // ronds de pluie au sol, impacts au sol en gerbes d'eau
+    if (EFX && EFX.setRain) EFX.setRain(id === 'pluie');
+    if (EFX) EFX.night = id === 'nuit';   // traçantes plus vives de nuit   // ronds de pluie au sol, impacts au sol en gerbes d'eau
     $('#app').dataset.cond = id || 'jour';
     if (OT.Parking && battle && battle.map.id === 'parking') { OT.Parking.setConditions(id || 'jour', scene); buildLamps(false); } else buildLamps(id === 'nuit' || id === 'brouillard');
     RIM.k.value = id === 'nuit' ? RIM.nuit : 0; RIM.f.value = id === 'nuit' ? RIM.fond : 0; if (RENDU) RIM.d.value.copy(RENDU.lightDir);   // liseré de lune des soldats (côté lune)
@@ -1501,9 +1502,22 @@
     setTimeout(() => play('explosion_lourde', { x: ev.cx, y: 1, z: ev.cz }, { vol: 1, espace: true }), 400);
     cam.shake = Math.max(cam.shake || 0, 0.6);
   }
+  // corps qui touche le sol (chute animée ou pantin physique) : bouffée de poussière, ou gerbe d'eau sous la pluie
+  function fallDust() {
+    if (!EFX || !battle) return;
+    for (const u of battle.units) {
+      const m = meshes[u.id]; if (!m || !m.isSkinned) continue;
+      const p = bodyPos(m);
+      if (p.y > 0.75) { m._dusted = false; continue; }   // (bassin d'un corps allongé : ~0,45 m au-dessus du sol)
+      if (m._dusted || p.y > 0.52) continue;
+      m._dusted = true;
+      if (condNow === 'pluie') { EFX.footstep(p.x, p.z, true, 3); EFX.footstep(p.x + 0.3, p.z - 0.2, true, 3); } else EFX.dustPuff(p.x, p.z, 2);
+    }
+  }
   function updateFx() {
+    fallDust();
     const dt = Math.max(0, simTime - fxLast); fxLast = simTime;
-    if (EFX) EFX.update(Math.min(0.1, frameDt), camera, sun.color.clone().multiplyScalar(0.55).add(new THREE.Color(0.25, 0.27, 0.3)), scene.fog);
+    if (EFX) { const k = condNow === 'nuit' ? 0.2 : 1; EFX.update(Math.min(0.1, frameDt), camera, sun.color.clone().multiplyScalar(0.55 * k).add(new THREE.Color(0.25, 0.27, 0.3).multiplyScalar(0.35 + 0.65 * k)), scene.fog); }   // fumée et poussière sombres de nuit (la lune éclaire peu)
     for (let i = fx.length - 1; i >= 0; i--) {
       const f = fx[i];
       if (f.kind === 'tracer') {

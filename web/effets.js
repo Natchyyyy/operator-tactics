@@ -59,7 +59,7 @@
             float c = cos(iSize.y), s = sin(iSize.y); vec2 q = vec2(c * position.x - s * position.y, s * position.x + c * position.y) * iSize.x;
             wp = iPos + camR * q.x + camU * q.y;
           }
-          float fr = iFrame.x; vUv = (vec2(mod(fr, 4.0), 3.0 - floor(fr / 4.0)) + uv) / 4.0; vCol = iCol; vSoft = (fr >= 4.0 && fr < 12.0) ? wp.y : 99.0;   // fumée : fondu au ras du sol (pas d'arête nette)
+          float fr = iFrame.x; vUv = (vec2(mod(fr, 4.0), 3.0 - floor(fr / 4.0)) + uv) / 4.0; vCol = iCol; vSoft = (fr >= 4.0 && fr < 12.0) ? wp.y / clamp(0.35 * iSize.x, 0.08, 0.5) * 0.5 : 99.0;   // fumée : fondu au ras du sol (pas d'arête nette), sur une hauteur à l'échelle de la bouffée (la poussière basse restait invisible)
           vec4 mv = viewMatrix * vec4(wp, 1.0); gl_Position = projectionMatrix * mv; vFog = -mv.z;
         }`,
       fragmentShader: `
@@ -232,10 +232,13 @@
     };
     // traçante : de a à b, vitesse (m/s), part après « delay »
     E.tracer = function (a, b, speed, team) {
-      // trait de ~2 m (le flou de bouger d'une image à 140 m/s), allumé un peu après la bouche (pas de « laser » collé à l'arme)
-      const d = b.clone().sub(a), L = d.length(); if (L < 1.2) return; const dir = d.multiplyScalar(1 / L), off = Math.min(0.5, L * 0.2), seg = Math.min(L - off, 2.2);
-      const col = team === 0 ? [5.5, 4.2, 2.5] : [6.4, 3.4, 1.8];
-      add.add({ p: a.clone().addScaledVector(dir, off + seg / 2), v: dir.clone().multiplyScalar(speed), axis: dir.clone().multiplyScalar(seg), life: Math.max(0.03, (L - seg - off) / speed), size: 0.015, frame: 0, col, a0: 0.95, fadePow: 0.5 });
+      // une balle sur quatre est traçante (alternance par équipe, départ au hasard) ; trait court (~1,6 m) dégradé : tête
+      // chaude et claire, queue rouge qui s'éteint (case 3 de l'atlas, étirée), allumé une image après l'éclair et 0,5 m
+      // devant la bouche ; de jour bien plus discret qu'à la nuit
+      const tc = E._tc || (E._tc = [Math.floor(Math.random() * 4), Math.floor(Math.random() * 4)]); if ((tc[team ? 1 : 0]++ % 4) !== 0) return;
+      const d = b.clone().sub(a), L = d.length(); if (L < 2.5) return; const dir = d.multiplyScalar(1 / L), off = 0.5, dl = 0.02, seg = Math.min(L - off - speed * dl, 1.3); if (seg < 0.4) return;
+      const k = E.night ? 1 : 0.45, col = team === 0 ? [4.2 * k, 1.7 * k, 0.5 * k] : [4.6 * k, 1.4 * k, 0.4 * k];   // orangé-rouge (au-delà de 1 : le halo le prend)
+      add.add({ p: a.clone().addScaledVector(dir, off + seg / 2), v: dir.clone().multiplyScalar(speed), axis: dir.clone().multiplyScalar(seg), life: Math.max(0.03, (L - seg - off) / speed), size: 0.12, frame: 3, col, a0: 1, fadePow: 0.3, delay: dl });
     };
     // matière d'un obstacle (nom) → famille d'impact
     E.impact = function (p, n, matter, delay) {
@@ -272,7 +275,7 @@
     };
     E.hole = function (p, n, s) { holes.add(p, n, s); };
     E.bloodHit = function (p, dir, delay) {
-      for (let k = 0; k < 6; k++) alpha.add({ p: p.clone(), v: dir.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-0.6, 0.6), rnd(-0.2, 0.8), rnd(-0.6, 0.6))), life: rnd(0.3, 0.6), size: rnd(0.05, 0.1), grow: 2.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.28, 0.02, 0.02], a0: 0.75, drag: 3, delay });
+      for (let k = 0; k < 4; k++) alpha.add({ p: p.clone(), v: dir.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-0.6, 0.6), rnd(-0.2, 0.8), rnd(-0.6, 0.6))), life: rnd(0.3, 0.6), size: rnd(0.05, 0.1), grow: 2.2, frame: 4 + Math.floor(Math.random() * 4), col: [0.16, 0.02, 0.018], a0: 0.5, drag: 3.5, delay, fadePow: 1.6 });   // brume brève et sombre (pas de « peinture » rose)
       for (let k = 0; k < 8; k++) alpha.add({ p: p.clone(), v: dir.clone().multiplyScalar(rnd(1, 3)).add(V(rnd(-1, 1), rnd(0, 1.5), rnd(-1, 1))), life: rnd(0.3, 0.6), size: rnd(0.012, 0.02), frame: 13, col: [0.25, 0.01, 0.01], a0: 1, grav: 9.8, delay, floor: 0.01 });
     };
     E.bloodPool = function (x, z, s) { blood.add(V(x, 0.003, z), V(0, 1, 0), s); };
@@ -285,7 +288,7 @@
       add.add({ p: g.clone().add(V(0, 0.5, 0)), life: 0.12, size: 2.6, frame: 1, col: [12, 8, 4], a0: 1 });
       for (let k = 0; k < 26; k++) { const v = V(rnd(-1, 1), rnd(0.2, 1.2), rnd(-1, 1)).normalize().multiplyScalar(rnd(2, 7)); add.add({ p: g.clone(), v, life: rnd(0.4, 0.8), size: rnd(0.7, 1.2), grow: 2.2, frame: 8 + Math.floor(Math.random() * 4), col: [9, 4.2, 1.2], col2: [1.2, 0.3, 0.05], a0: 0.9, drag: 4, rot: Math.random() * 6, spin: rnd(-2, 2), fadePow: 1.5 }); }
       for (let k = 0; k < 28; k++) { const v = V(rnd(-1, 1), rnd(0.3, 1.4), rnd(-1, 1)).normalize().multiplyScalar(rnd(6, 18)); add.add({ p: g.clone(), v, life: rnd(0.3, 0.9), size: 0.02, stretch: 0.03, frame: 3, col: [10, 6, 2.5], grav: 9.8, floor: 0.01 }); }
-      for (let k = 0; k < 40; k++) { const v = V(rnd(-1, 1), rnd(0.1, 1.0), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.8, 3.2)); alpha.add({ p: g.clone().add(V(rnd(-0.4, 0.4), rnd(0, 0.6), rnd(-0.4, 0.4))), v: v.add(V(0, rnd(0.6, 1.6), 0)), life: rnd(4, 8), size: rnd(0.9, 1.5), grow: rnd(2.5, 4.5), frame: 4 + Math.floor(Math.random() * 4), col: [0.12, 0.11, 0.1], col2: [0.4, 0.39, 0.38], a0: 1, fadePow: 0.7, drag: 1.4, fadeIn: 0.15, rot: Math.random() * 6, spin: rnd(-0.4, 0.4), delay: rnd(0, 0.15) }); }
+      for (let k = 0; k < 36; k++) { const v = V(rnd(-1, 1), rnd(0.1, 1.0), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.8, 3.6)), b = rnd(0.65, 1.15); alpha.add({ p: g.clone().add(V(rnd(-0.4, 0.4), rnd(0, 0.6), rnd(-0.4, 0.4))), v: v.add(V(0, rnd(0.6, 1.9), 0)), life: rnd(4, 8), size: rnd(0.6, 1.15), grow: rnd(2.5, 4.5), frame: 4 + Math.floor(Math.random() * 4), col: [0.09 * b, 0.085 * b, 0.08 * b], col2: [0.3 * b, 0.29 * b, 0.28 * b], a0: rnd(0.75, 0.95), fadePow: 0.7, drag: 1.4, fadeIn: 0.15, rot: Math.random() * 6, spin: rnd(-0.4, 0.4), delay: rnd(0, 0.15) }); }
       for (let k = 0; k < 10; k++) alpha.add({ p: g.clone(), v: V(rnd(-1, 1), 0, rnd(-1, 1)).normalize().multiplyScalar(rnd(6, 9)), life: rnd(0.8, 1.4), size: rnd(0.5, 0.8), grow: 3, frame: 4 + Math.floor(Math.random() * 4), col: [0.5, 0.46, 0.4], a0: 0.45, drag: 3.5, rot: Math.random() * 6 });
       alpha.add({ p: V(p.x, 0.05, p.z), life: 0.45, size: 0.6, grow: 14, frame: 14, col: [0.75, 0.72, 0.68], a0: 0.55 });
       for (let k = 0; k < 16; k++) debris.add({ p: g.clone(), v: V(rnd(-1, 1), rnd(0.4, 1.6), rnd(-1, 1)).normalize().multiplyScalar(rnd(4, 11)), r: 0.03, s: rnd(0.6, 1.6), wx: rnd(-20, 20), wy: rnd(-20, 20), wz: rnd(-20, 20), life: 20 });
@@ -310,7 +313,8 @@
         alpha.add({ p: V(x, 0.02, z), life: 0.45, size: 0.12, grow: 2.5, frame: 4, col: [0.7, 0.74, 0.78], a0: 0.18 }); }
       else for (let k = 0; k < 2; k++) alpha.add({ p: V(x + rnd(-0.15, 0.15), 0.05, z + rnd(-0.15, 0.15)), v: V(rnd(-0.3, 0.3), rnd(0.1, 0.3), rnd(-0.3, 0.3)), life: rnd(0.5, 0.9), size: 0.12, grow: 2.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.52, 0.5, 0.46], a0: 0.16 * Math.min(1, v / 3), drag: 2 });
     };
-    E.dustPuff = function (x, z, s) { for (let k = 0; k < 4; k++) alpha.add({ p: V(x + rnd(-0.2, 0.2), 0.05, z + rnd(-0.2, 0.2)), v: V(rnd(-0.4, 0.4), rnd(0.1, 0.4), rnd(-0.4, 0.4)), life: rnd(0.6, 1.2), size: 0.15 * s, grow: 3, frame: 4 + Math.floor(Math.random() * 4), col: [0.5, 0.47, 0.42], a0: 0.35, drag: 2 }); };
+    // corps qui tombe : poussière chassée à ras du sol tout autour, qui s'étale et retombe
+    E.dustPuff = function (x, z, s) { for (let k = 0; k < 9; k++) { const a = Math.random() * 6.28, sp = rnd(0.6, 1.6); alpha.add({ p: V(x + Math.cos(a) * 0.25, 0.06, z + Math.sin(a) * 0.25), v: V(Math.cos(a) * sp, rnd(0.05, 0.35), Math.sin(a) * sp), life: rnd(0.9, 1.6), size: 0.12 * s, grow: 3.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.62, 0.58, 0.52], a0: 0.5, drag: 2.5, fadeIn: 0.05, fadePow: 1.3, rot: Math.random() * 6 }); } };
     E.update = function (dt, cam, sunCol, fog) {
       now += dt;
       add.update(dt); alpha.update(dt);
