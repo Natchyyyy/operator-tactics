@@ -947,9 +947,12 @@
   // l'engagent ; un équipier dont le secteur est calme se décale (dans la position, ≤ 7,5 m du point) vers un couvert
   // d'où il appuie le côté menacé, pendant qu'un autre garde l'arrière. Menace partie (≥ 4 s), il reprend sa place.
   // Personne ne quitte la position pour poursuivre.
-  const HOLD_R = 4.5, HOLD_ZONE = 7.5, HOLD_MOVE_GAP = 4;
+  const HOLD_ZONE = 7.5, HOLD_MOVE_GAP = 4, HOLD_CONTACT = 20;
   // secteurs de base (radians, par rapport à la menace) selon l'effectif : deux vers la menace à partir de cinq
   const SECT_BASE = { 1: [0], 2: [0, Math.PI], 3: [0, 2.1, -2.1], 4: [0, Math.PI / 2, -Math.PI / 2, Math.PI], 5: [0.5, -0.5, 1.75, -1.75, Math.PI] };
+  // au contact (menace connue) : tout le monde face à elle, sauf un qui garde l'arrière (à partir de quatre : à deux ou trois,
+  // chaque fusil compte face à l'assaut — mesuré)
+  const SECT_CONTACT = { 1: [0], 2: [0.3, -0.3], 3: [0.45, 0, -0.45], 4: [0.55, 0, -0.55, Math.PI], 5: [0.7, 0.25, -0.25, -0.7, Math.PI] };
   const SECT_CAND = [0, Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2, 3 * Math.PI / 4, -3 * Math.PI / 4, Math.PI];
   // à chacun l'élément le moins coûteux (somme minimale ; permutations jusqu'à 6, sinon au plus proche) — cost[i][j]
   // (moins d'éléments que de demandeurs : -1 pour ceux qui n'en ont pas)
@@ -976,8 +979,8 @@
   };
   // n secteurs autour de (x, z) : un secteur fermé par un mur tout proche (< 4 m dégagés) ne se surveille pas ; il est
   // remplacé par la direction ouverte la plus utile (la menace compte plus que l'arrière)
-  Battle.prototype.holdSectors = function (x, z, face, n) {
-    const base = SECT_BASE[n] || Array.from({ length: n }, (v, i) => (i - (n - 1) / 2) * 2 * Math.PI / n);
+  Battle.prototype.holdSectors = function (x, z, face, n, contact) {
+    const base = (contact ? SECT_CONTACT[n] : SECT_BASE[n]) || Array.from({ length: n }, (v, i) => (i - (n - 1) / 2) * 2 * Math.PI / n);
     const out = base.filter(r => this.openDist(x, z, face + r, 4) >= 4);
     const w = (r) => 1.5 - 0.6 * Math.abs(r) / Math.PI;
     while (out.length < base.length) {
@@ -995,13 +998,21 @@
   // secteurs du moment : recalculés quand l'effectif change (un équipier tombé, les autres se partagent son secteur) ;
   // chacun garde le secteur le plus proche de sa place
   Battle.prototype.holdPlan = function (u, o) {
-    const team = this.teams[u.team], ms = this.holdMembers(team, o.ordre), key = ms.map(a => a.id).join(',');
+    const team = this.teams[u.team], ms = this.holdMembers(team, o.ordre);
     team.holdPlans = team.holdPlans || {};
     let pl = team.holdPlans[o.ordre];
+    // au contact (un ennemi vu ou entendu par l'un d'eux il y a moins de 5 s, gardé 8 s) : secteurs resserrés face à lui
+    let th = null, bd = 45;
+    for (const a of ms) for (const e of this.enemiesOf(a)) { const k = a.knowledge[e.id]; if (!e.alive || !k || this.t - k.t > 10) continue; const d = Math.hypot(k.x - o.cx, k.z - o.cz); if (d < bd) { bd = d; th = k; } }
+    if (th) { o.contactFace = Math.atan2(th.z - o.cz, th.x - o.cx); team.holdContact = team.holdContact || {}; team.holdContact[o.ordre] = { until: this.t + HOLD_CONTACT, face: o.contactFace }; }
+    const hc = team.holdContact && team.holdContact[o.ordre], contact = hc && this.t < hc.until, face = contact ? hc.face : o.face0;
+    const key = ms.map(a => a.id).join(',') + (contact ? '|c' + Math.round(face / (Math.PI / 6)) : '|q');
     if (!pl || pl.key !== key) {
-      const sect = this.holdSectors(o.cx, o.cz, o.face0, ms.length);
+      const sect = this.holdSectors(o.cx, o.cz, face, ms.length, contact);
       const home = (a) => { const q = a.keyOrder && a.keyOrder.ordre === o.ordre ? a.keyOrder : a.moveOrder; return { x: q.hx !== undefined ? q.hx : q.x, z: q.hz !== undefined ? q.hz : q.z, s: q.sect }; };
-      const perm = bestAssign(ms.map(a => { const h = home(a), b = Math.hypot(h.x - o.cx, h.z - o.cz) < 1 && h.s !== undefined ? h.s : Math.atan2(h.z - o.cz, h.x - o.cx); return sect.map(s => angDiff(b, s)); }));
+      // au contact, l'arrière revient de préférence à qui ne voit pas la menace (on y perd le moins de feu)
+      const sees = (a) => contact && th ? this.map.hasLOS(a.x, EYE.stand, a.z, th.x, CHEST.stand, th.z) : false;
+      const perm = bestAssign(ms.map(a => { const h = home(a), b = Math.hypot(h.x - o.cx, h.z - o.cz) < 1 && h.s !== undefined ? h.s : Math.atan2(h.z - o.cz, h.x - o.cx), sv = sees(a); return sect.map(s => angDiff(b, s) + (sv && angDiff(s, face) > 2 ? 2 : 0)); }));
       pl = team.holdPlans[o.ordre] = { key, ms, sect: {} };
       ms.forEach((a, i) => { pl.sect[a.id] = sect[perm[i]]; });
     }
@@ -1018,7 +1029,8 @@
     const canMove = this.t - (o.movedAt || -99) > HOLD_MOVE_GAP;
     const beingShot = this.t - u.lastShotByAt < 1.5 && u.lastShotBy && u.lastShotBy.alive;
     // 1) une cible en vue : feu depuis son poste ; s'il ne couvre pas d'elle et qu'on est sous le feu, un couvert voisin de la
-    //    position d'où l'on tire (au plus une fois toutes les 4 s)
+    //    position d'où l'on tire (au plus un déplacement toutes les 4 s ; se déplacer plus tôt, à découvert, coûtait plus cher
+    //    que de tirer d'où l'on est : mesuré)
     if (threats.length) {
       const th = u.target && u.target.alive ? u.target : threats[0], cover = this.coverAt(u.x, u.z, th.x, th.z, true);
       if (!cover && beingShot && canMove) { const cp = this.holdSpot(u, o, th); if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.8 && moveTo(cp.x, cp.z)) return; }
@@ -1062,10 +1074,11 @@
     if (watch) dir = Math.atan2(watch.z - u.z, watch.x - u.x) + 0.12 * Math.sin(this.t * 0.9 + u.idx * 1.9);
     else dir = mine + 0.4 * Math.sin(this.t * 0.7 + u.idx * 1.9);
     if (!u.target || !u.target.alive) u.facing = dir;
-    // accroupi derrière un couvert seulement si l'on voit encore par-dessus (sinon debout pour observer)
+    // derrière un couvert : baissé, et l'on se relève régulièrement pour observer par-dessus (~1,2 à 1,6 s toutes les 4 s) ;
+    // si l'on voit déjà par-dessus en restant baissé, on reste baissé. Sans couvert : debout.
     const sx = u.x + Math.cos(dir) * 12, sz = u.z + Math.sin(dir) * 12;
-    const cov = this.coverAt(u.x, u.z, sx, sz, true);
-    u.state = 'holdkey'; u.stance = cov && this.map.hasLOS(u.x, EYE.crouch, u.z, sx, CHEST.stand, sz) ? 'crouch' : 'stand';
+    const cov = this.coverAt(u.x, u.z, sx, sz, true), peek = ((this.t * 0.25 + u.idx * 0.37 + u.team * 0.19) % 1) < (watch ? 0.3 : 0.4);
+    u.state = 'holdkey'; u.stance = cov && (!peek || this.map.hasLOS(u.x, EYE.crouch, u.z, sx, CHEST.stand, sz)) ? 'crouch' : 'stand';
   };
   // ---- Ordre de déplacement du joueur (clic droit sur le sol) ----------------------------------------------------------
   // battle.command('aller', équipe, { x, z, units: [ids] | null (tous), mode: 'methodique' | 'agressif', arrivee: 'tenir' }) :
@@ -1112,31 +1125,7 @@
       let L = 0; for (let i = 1; i < pa.length; i++) L += Math.hypot(pa[i].x - pa[i - 1].x, pa[i].z - pa[i - 1].z);
       return L <= D * 2 + 3;
     };
-    // arrivée « tenir » : défense tous azimuts — un secteur par opérateur (holdSectors), sa place à ~4,5 m du point sur son
-    // secteur ; à chacun la place la plus proche de lui (personne ne traverse le groupe). Place introuvable : comme avant.
-    const face = this.holdFace(team, p, dir), sect = arrivee === 'tenir' ? this.holdSectors(p.x, p.z, face, units.length) : null;
-    const ring = (sect || []).map(() => null);
-    if (sect) sect.forEach((sa, i) => {
-      for (const R of [HOLD_R, HOLD_R - 1.5, HOLD_R + 1.5]) {
-        const q = this.orderPoint(p.x + Math.cos(sa) * R, p.z + Math.sin(sa) * R);
-        if (q && !ring.some(o => o && Math.hypot(o.x - q.x, o.z - q.z) < ORDER_GAP - 1) && near(q)) { ring[i] = { x: q.x, z: q.z, sect: sa }; break; }
-      }
-    });
-    const fixed = ring.filter(Boolean);
-    if (sect && fixed.length) {
-      const perm = bestAssign(units.map(u => fixed.map(q => Math.hypot(q.x - u.x, q.z - u.z))));
-      units.forEach((u, k) => { spots[k] = perm[k] >= 0 ? fixed[perm[k]] : null; });
-      const spare = sect.filter((sa, i) => !ring[i]);   // secteurs sans place : ceux qui restent les gardent depuis une place de repli
-      units.forEach((u, k) => {
-        if (spots[k]) return;
-        let s = null;
-        for (let r = ORDER_GAP; r <= ORDER_GAP * 2.5 && !s; r += ORDER_GAP * 0.75) for (let i = 0; i < 8 && !s; i++) {
-          const q = this.orderPoint(p.x + Math.cos(dir + Math.PI + i * Math.PI / 4) * r, p.z + Math.sin(dir + Math.PI + i * Math.PI / 4) * r);
-          if (q && !spots.some(o => o && Math.hypot(o.x - q.x, o.z - q.z) < ORDER_GAP - 0.5) && near(q)) s = q;
-        }
-        spots[k] = Object.assign({}, s || p, { sect: spare.shift() });
-      });
-    } else units.forEach((u, k) => {
+    units.forEach((u, k) => {
       let s = null;
       for (let j = k; j < k + 10 && !s; j++) {
         const off = j === 0 ? 0 : ORDER_GAP * Math.ceil(j / 2) * (j % 2 ? 1 : -1), q = this.orderPoint(p.x + Math.cos(a) * off, p.z + Math.sin(a) * off);
@@ -1147,8 +1136,17 @@
         const q = this.orderPoint(p.x + Math.cos(dir + Math.PI + i * Math.PI / 4) * r, p.z + Math.sin(dir + Math.PI + i * Math.PI / 4) * r);
         if (q && apart(q, ORDER_GAP - 0.5) && near(q)) s = q;
       }
-      spots.push(s || p);
+      spots.push(Object.assign({}, s || p));
     });
+    // arrivée « tenir » : sûreté tous azimuts — un secteur par opérateur (holdSectors) ; les places restent en ligne, en
+    // travers de la marche (une couronne mettait des opérateurs derrière leurs équipiers : ils ne pouvaient plus tirer
+    // vers l'avant, et la position tenait mal face à un assaut) : les ailes prennent les flancs, un autre l'arrière
+    const face = this.holdFace(team, p, dir);
+    if (arrivee === 'tenir') {
+      const sect = this.holdSectors(p.x, p.z, face, units.length);
+      const perm = bestAssign(spots.map(q => { const c = Math.hypot(q.x - p.x, q.z - p.z) < 1; return sect.map(sa => c ? angDiff(face, sa) * 0.5 : angDiff(Math.atan2(q.z - p.z, q.x - p.x), sa)); }));
+      spots.forEach((q, k) => { q.sect = perm[k] >= 0 ? sect[perm[k]] : face; });
+    }
     // agressif : départs échelonnés (le plus proche du point d'abord), pas une meute qui court collée
     const rank = units.map((u, k) => k).sort((i, j) => Math.hypot(units[i].x - p.x, units[i].z - p.z) - Math.hypot(units[j].x - p.x, units[j].z - p.z) || i - j);
     const id = this.orderSeq = (this.orderSeq || 0) + 1;
@@ -1249,8 +1247,8 @@
   // arrivée « tenir » : poste sur un vrai couvert tout proche face à la menace (ou au sens de la marche) → ordre de poste
   Battle.prototype.arriveOrder = function (u) {
     const o = u.moveOrder; u.moveOrder = null;
-    // (tous azimuts : le poste couvre de son secteur)
-    const th = this.mainThreat(u), ring = o.sect !== undefined, face = ring ? o.sect : th ? Math.atan2(th.z - u.z, th.x - u.x) : o.dir;
+    // (tous azimuts : le poste couvre de la menace connue, ou de son secteur ; le serre-file, de l'arrière)
+    const th = this.mainThreat(u), thb = th ? Math.atan2(th.z - u.z, th.x - u.x) : null, ring = o.sect !== undefined, face = ring ? (thb !== null && angDiff(o.sect, thb) < 2.1 ? thb : o.sect) : thb !== null ? thb : o.dir;
     const tp = { x: u.x + Math.cos(face) * 20, z: u.z + Math.sin(face) * 20 };
     // poste : un vrai couvert face à la menace à ≤ 5 m de sa place, à ORDER_GAP au moins de tout équipier (debout, en route,
     // ou à son poste) — l'escouade se répartit sur les couverts autour du point au lieu de s'agglutiner

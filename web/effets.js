@@ -240,18 +240,18 @@
       delay = delay || 0; const up = n.y > 0.7, P = p.clone();
       // briques : éclair (petite étoile brève, pas une boule), étincelles, éclats, jet de poussière (rapide, étiré, freiné net)
       // puis nuage qui s'arrondit et traîne
-      const flash = (s, col) => add.add({ p: P.clone().addScaledVector(n, 0.02), life: 0.035, size: s, rot: Math.random() * 6.28, frame: 1, col, a0: 1, delay });
+      const flash = (s, col) => add.add({ p: P.clone().addScaledVector(n, 0.02), life: 0.03, size: s, rot: Math.random() * 6.28, frame: 1, col, a0: 1, delay });   // (bref et petit : de jour, une boule lumineuse qui reste au pied d'un mur se lit comme un objet)
       const sparks = (N, sp, life, col) => { for (let k = 0; k < N; k++) add.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.3, 1) * sp).add(V(rnd(-1, 1), rnd(-0.2, 1), rnd(-1, 1)).multiplyScalar(sp * 0.55)), life: rnd(life * 0.4, life), size: 0.01, stretch: 0.02, frame: 3, col, grav: 9.8, delay, floor: 0.01 }); };
       const chips = (N, col, sp, a0) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.4, 1) * sp).add(V(rnd(-1, 1), rnd(0.2, 1.2), rnd(-1, 1)).multiplyScalar(sp * 0.45)), life: rnd(0.35, 0.8), size: rnd(0.01, 0.024), frame: 12, col, a0: a0 || 1, grav: 9.8, delay, floor: 0.01, rot: Math.random() * 6, spin: rnd(-14, 14) }); };
       const jet = (N, col, a0, sp) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.03), v: n.clone().multiplyScalar(rnd(0.6, 1) * sp).add(V(rnd(-1, 1), rnd(-0.2, 1), rnd(-1, 1)).multiplyScalar(sp * 0.2)), life: rnd(0.4, 0.7), size: rnd(0.04, 0.06), grow: 5, stretch: 0.05, frame: 4 + Math.floor(Math.random() * 4), col, a0, drag: 7, delay, fadePow: 1.3, rot: Math.random() * 6 }); };
       const puff = (N, col, a0, sz, life, sp) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.05), v: n.clone().multiplyScalar(rnd(0.3, 1) * sp).add(V(rnd(-0.3, 0.3), rnd(0, 0.35), rnd(-0.3, 0.3))), life: rnd(life * 0.6, life), size: rnd(sz * 0.7, sz), grow: rnd(3, 5), frame: 4 + Math.floor(Math.random() * 4), col, a0, drag: 3, delay, fadeIn: 0.03, fadePow: 1.5, rot: Math.random() * 6, spin: rnd(-0.6, 0.6) }); };
       let hole = up ? rnd(0.07, 0.11) : rnd(0.06, 0.09);
       if (matter === 'impact_metal') {
-        flash(0.09, [6, 4, 2]); sparks(10, 6, 0.4, [10, 6, 2]); puff(1, [0.45, 0.44, 0.42], 0.25, 0.07, 0.8, 0.6); hole = rnd(0.04, 0.06);
+        flash(0.07, [5, 3.4, 1.8]); sparks(10, 6, 0.4, [10, 6, 2]); puff(1, [0.45, 0.44, 0.42], 0.25, 0.07, 0.8, 0.6); hole = rnd(0.04, 0.06);
       } else if (matter === 'impact_carrosserie') {   // tôle peinte : quelques étincelles, éclats de peinture, peu de poussière
-        flash(0.07, [5, 3.6, 1.8]); sparks(5, 4.5, 0.28, [9, 5.5, 2]); chips(4, [0.3, 0.3, 0.32], 2.5); puff(2, [0.5, 0.5, 0.5], 0.26, 0.06, 0.9, 0.6); hole = rnd(0.035, 0.05);
+        flash(0.055, [4, 3, 1.6]); sparks(5, 4.5, 0.28, [9, 5.5, 2]); chips(4, [0.3, 0.3, 0.32], 2.5); puff(2, [0.5, 0.5, 0.5], 0.26, 0.06, 0.9, 0.6); hole = rnd(0.035, 0.05);
       } else if (matter === 'impact_verre') {   // vitre : pluie d'éclats clairs qui scintillent, pas d'étincelle
-        flash(0.05, [3, 3.2, 3.4]); chips(12, [1.15, 1.25, 1.35], 2.4, 0.85);
+        flash(0.04, [2.4, 2.6, 2.8]); chips(12, [1.15, 1.25, 1.35], 2.4, 0.85);
         for (let k = 0; k < 6; k++) add.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-1, 1), rnd(0, 1.2), rnd(-1, 1))), life: rnd(0.25, 0.55), size: 0.008, stretch: 0.01, frame: 3, col: [2.2, 2.4, 2.6], grav: 9.8, delay, floor: 0.01 });
         puff(1, [0.75, 0.78, 0.8], 0.2, 0.06, 0.6, 0.5); hole = 0;
       } else if (matter === 'impact_sol' && E.wet) {   // sol détrempé : gerbe d'eau, pas de poussière
@@ -260,7 +260,7 @@
       } else {
         const dusty = matter === 'impact_sol', wood = matter === 'impact_bois';
         const c = wood ? [0.45, 0.33, 0.2] : dusty ? [0.48, 0.44, 0.38] : [0.6, 0.58, 0.54];
-        if (!dusty) flash(0.06, [3.2, 2.4, 1.5]);
+        if (!dusty) flash(0.045, [2.4, 1.9, 1.3]);
         jet(3, c, dusty ? 0.6 : 0.55, dusty ? 4.5 : 5);
         puff(3, c, dusty ? 0.5 : 0.45, dusty ? 0.14 : 0.12, dusty ? 1.6 : 1.9, dusty ? 0.7 : 1);
         chips(dusty ? 6 : 7, wood ? [0.4, 0.3, 0.18] : dusty ? [0.16, 0.15, 0.14] : [0.36, 0.35, 0.33], 3);

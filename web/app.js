@@ -406,8 +406,8 @@
       return { pos: V3(Z.x + Math.cos(a) * d, s.h || 3.4, Z.z + Math.sin(a) * d), look: V3(Z.x, 0.6, Z.z), pts: who.slice(0, 3), fov: 48, st: 0.8, lst: 0.6, pivot: V3(Z.x, 1.5, Z.z) };
     }
     if (s.kind === 'killcam') {   // plan serré sur la victime, qui se resserre pendant la chute
-      const m = meshes[s.vid]; if (!m) return null; const P = m.group.position, a = s.yaw || 0, d = (s.dd || 4.4) - Math.min(1.1, age * 0.35);
-      return { pos: V3(P.x + Math.cos(a) * d, 1.6 - Math.min(0.45, age * 0.15), P.z + Math.sin(a) * d), look: V3(P.x, 0.55, P.z), pts: [V3(P.x, 0.9, P.z)], fov: 40 - Math.min(6, age * 2), st: 0.3, lst: 0.2, pivot: V3(P.x, 1.2, P.z) };
+      const m = meshes[s.vid]; if (!m) return null; const P = bodyPos(m), a = s.yaw || 0, d = (s.dd || 4.4) - Math.min(1.1, age * 0.35);   // (le corps réel : le pantin physique peut glisser loin de la position de la simulation)
+      return { pos: V3(P.x + Math.cos(a) * d, 1.6 - Math.min(0.45, age * 0.15), P.z + Math.sin(a) * d), look: V3(P.x, 0.55, P.z), pts: [V3(P.x, Math.max(0.35, Math.min(0.9, P.y)), P.z)], fov: 40 - Math.min(6, age * 2), st: 0.3, lst: 0.2, pivot: V3(P.x, 1.2, P.z) };
     }
     if (s.kind === 'blast') {
       const a = (s.yaw || 0) + age * 0.18;
@@ -455,6 +455,13 @@
       if (s.kind === 'capture') out.push(Object.assign({}, s, { side, yaw: (s.yaw || 0) + y, h: 5.4 }));
     }
     return out;
+  }
+  // position du corps affiché (bassin), pas celle du groupe : après une chute physique le corps peut être à plusieurs mètres
+  const _bp = new THREE.Vector3();
+  function bodyPos(m) {
+    if (m._hips === undefined) { m._hips = null; m.group.traverse(o => { if (!m._hips && o.isBone && /Hips$/.test(o.name)) m._hips = o; }); }
+    if (!m._hips) return _bp.copy(m.group.position).setY(0.9);
+    m._hips.getWorldPosition(_bp); return _bp;
   }
   function eventShot(ev) {
     if (ev.kind === 'down') {

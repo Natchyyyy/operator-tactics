@@ -1416,6 +1416,9 @@
   #hq [data-panel="cartes"] .hqgrid.two { grid-template-columns: 540px 1fr; }
   #hq .pack2 button { white-space: nowrap; font-size: 16px; padding-left: 6px; padding-right: 6px; }
   #hq .tgrid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  /* QG — Équipe › Équipement : caractéristiques de l'arme et de la protection lisibles (le panneau a la place) */
+  #hq .tmbody .equip .wspec { font-size: 15px; line-height: 1.45; margin-top: 4px; } #hq .tmbody .lanehint { font-size: 14px; }
+  #hq .tmside .syn:not(.on) span { color: #93a69d; }
   /* QG — Ligue : les deux équipes alignées en haut, noms plus lisibles, bouton dans le style des autres */
   #hq .lgnext { align-items: start; } #hq .lgvs { align-self: center; } #hq .lgside b { font-size: 22px; }
   #hq #lgPlay { text-transform: uppercase; letter-spacing: .1em; font-size: 18px; padding: 10px; }
@@ -1437,8 +1440,11 @@
   #app.hud3 #mute .ico { width: 15px; height: 15px; display: block; } #app.hud3 #mute.muted { color: #ff8a7a; background: rgba(255,90,72,.14); }
   /* résultat : médaille d'Alpha aux couleurs de l'équipe (bleue), raison de fin lisible sur le faisceau lumineux */
   #result .resband .rb0 .re { background: radial-gradient(circle at 40% 35%, #4aa3ff, #1a56b0); border-color: #0a1a30; }
-  #resReason { font-size: 17px; color: #e3efe8; }
-  #resReason:not(:empty) { left: 50%; width: max-content; max-width: 880px; box-sizing: border-box; transform: translateX(-50%); padding: 6px 16px; border-radius: 8px; background: rgba(4,8,6,.72); border: 1px solid rgba(255,255,255,.08); }
+  #resReason { font-size: 14.5px; line-height: 1.35; color: #e3efe8; }
+  #resReason:not(:empty) { left: 50%; width: max-content; max-width: 1440px; box-sizing: border-box; transform: translateX(-50%); padding: 6px 16px; border-radius: 8px; background: rgba(4,8,6,.72); border: 1px solid rgba(255,255,255,.08); }
+  /* bataille — fil des neutralisations : toujours à gauche de la colonne des tactiques adverses (largeur bornée), jamais dessus */
+  #app.hud3 .tactics.right { max-width: 108px; } #app.hud3 .tactics.right .tcard { width: 104px; max-width: 104px; box-sizing: border-box; overflow: hidden; }
+  #app.hud3 #killfeed { right: 136px; max-width: 520px; }
   /* bataille — options « ⋯ » : nom de carte complet */
   #app.hud3 .morepanel { width: 420px; }
 </style>
