@@ -1857,7 +1857,7 @@
         // trop s'écarter de celle de l'animation, coude plutôt bas (pas « en aile de poulet »)
         const u = E0.clone().sub(S0); u.addScaledVector(dir, -u.dot(dir)); if (u.lengthSq() < 1e-8) u.set(0, -1, 0).addScaledVector(dir, -dir.y); u.normalize();
         const w = new THREE.Vector3().crossVectors(dir, u), Aw = (this.osDoigts[D.ordre[2]] || (this.osDoigts[D.ordre[2]] = body.getObjectByName(D.ordre[2]))).position.clone().normalize().applyQuaternion(qH), up = new THREE.Vector3(0, 1, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()));
-        const seuilC = 0.55 - 0.25 * (this.epK || 0);   // (coude au moins à mi-hauteur du bras sous l'épaule en garde basse, un peu plus haut en visée)
+        const seuilC = RECHARGE[this.clip] && S.SEUIL_REL !== undefined ? S.SEUIL_REL : 0.55 - 0.25 * (this.epK || 0);   // (coude au moins à mi-hauteur du bras sous l'épaule en garde basse, un peu plus haut en visée)
         const coude = (ph) => C.clone().addScaledVector(u, r * Math.cos(ph)).addScaledVector(w, r * Math.sin(ph));
         const dedans = new THREE.Vector3(h === 'R' ? 1 : -1, 0, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()));   // vers le centre du corps
         const cout = (ph) => { const E = coude(ph), f = T.clone().sub(E).normalize(); return Math.acos(Math.max(-1, Math.min(1, f.dot(Aw)))) + 0.25 * Math.abs(ph) + 3 * Math.max(0, E.clone().sub(S0).dot(up) / a + seuilC) + 3 * Math.max(0, E.clone().sub(S0).dot(dedans) / a - 0.05); };   // (coude jamais rentré dans le buste)
