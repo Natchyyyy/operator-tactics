@@ -40,6 +40,8 @@
   // (ancre : appuis tenus fixes, voir ancrer() ; libre : sans la borne de cheville par rapport au tibia — le tibia penché de côté
   // faisait rouler la botte sur sa tranche et la remettait dans le sens du pas, -56°)
   const CHASSE = { actif: true, bassin: 0.2, lacet: 0.6, clr: 0.04, bob: 0.4, haut: 0, libre: true, ancre: true };
+  // pied qui bouge = pied levé (voir decolle()) : hauteur de semelle visée (m), vitesses (m/s) de début / pleine levée, temps (s)
+  const DECOLLE = Object.assign({ h: 0.03, v0: 0.4, v1: 1.2, t: 0.06 }, root.DECOLLE_TEST || {});
   // recul : foulée de la marche arrière allongée (rapport)
   const RECUL = 1.45;
   // ouverture des pieds en marche / course (rad, pointe vers l'extérieur ; réel : 5 à 10°)
@@ -454,7 +456,8 @@
     // P.ancre : appuis tenus fixes dans le monde (voir ancrer) ; vitesse d'appui = celle du pied qui recule le plus (en z)
     let AN = null, vA = vSt;
     if (P.ancre) { const tg = ech.map(([H, A]) => A.map((a, j) => cib(H, a, j).sub(H))), rel = (n, j) => tg[(n + N) % N][j];
-      vA = 0; for (let n = 0; n < N; n++) vA -= Math.min(rel(n + 1, 0).z - rel(n - 1, 0).z, rel(n + 1, 1).z - rel(n - 1, 1).z); vA = Math.max(1e-4, vA / N);
+      // (vitesse d'appui : pied qui recule le plus ET posé — en course, pendant la phase de vol aucun pied n'est en appui)
+      let nv = 0; vA = 0; for (let n = 0; n < N; n++) { const d = [0, 1].map(j => rel(n + 1, j).z - rel(n - 1, j).z), j = d[0] < d[1] ? 0 : 1; if (ech[n][1][j].y < gy + 0.025 * kk) { vA -= d[j]; nv++; } } vA = Math.max(1e-4, nv ? vA / nv : vSt);
       AN = ancrer(rel, N, new THREE.Vector3(0, 0, vA / 2), (n, j) => Math.abs(rel(n + 1, j).z - rel(n - 1, j).z + vA) < 0.6 * vA); }
     const clipF = jambesIK(M, src, nom, (i, H, A, Aq) => {
       const H0 = H.clone(), out = A.map((a, j) => cib(H0, a, j)), fr = [null, null];
@@ -479,6 +482,8 @@
       if (tR !== null && fr[0] && fr[1]) { const j = out[0].y + fr[0].y < out[1].y + fr[1].y ? 0 : 1, ty = out[j].y + fr[j].y, w = Math.max(0, Math.min(1, 1 - (ty - tR) / (0.08 * k)));
         if (w > 0) out[j].y += (tR - ty) * w * (1 - wSw[j]); }   // (sauf un pied en oscillation : il retombait d'une image à l'autre)
       return out; }, (i) => dy - (P.bas || 0) * kk + (P.bob !== undefined ? (P.bob - 1) * (ech[i][0].y - hy) : 0), false, ouv);
+    // (appuis ancrés : la vitesse naturelle du cycle est exactement celle de l'appui ancré)
+    if (clipF && AN) clipF.userData = Object.assign(clipF.userData || {}, { vitCuite: vA / (2 * src.duration / N) * HEIGHT / RAW_H, dirCuite: 0 });
     return clipF;
   }
   // Pieds au sol : la plupart des cycles de la bibliothèque « flottent » (la pointe la plus basse du cycle 1 à 6 cm au-dessus
@@ -1392,6 +1397,7 @@
         const repos = (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right') && !enMarche && !keepYaw;
         if (this.pose0) this.poserPieds(dt, repos);
         this.appui(dt, repos && !this.pose0);
+        this.decolle(dt, !keepYaw && !S.sansDecolle);
         if (!keepYaw && !S.sansSol) this.sol();
         this.tete(dt, keepYaw ? null : repos || enMarche || !!EPAULE[this.clip] || !!BAS[this.clip]);
         this.clipVu = this.clip;
@@ -1455,6 +1461,26 @@
             else { L.off = d; L.w = Math.min(1, L.w + dt / 0.09); }   // (prise en ~0,09 s, relâche en ~0,16 s : sans à-coup du genou)
           } else { L.piv = null; L.w = Math.max(0, L.w - dt / 0.16); }
           if (L.w > 0 && L.off && L.off.lengthSq() > 1e-8) ikJambe(up, lo, ft, L.off.clone().multiplyScalar(L.w * L.w * (3 - 2 * L.w)), orteils[i]);
+        });
+      },
+      // Pied qui bouge = pied levé (« anti-patinage ») : un pied NON cloué qui se déplace dans le monde à plus de ~0,4 m/s alors
+      // que sa semelle est à moins de DECOLLE.h du sol est remonté (IK de la jambe, orientation gardée) jusqu'à cette hauteur,
+      // en douceur. Cas mesurés : départ (la marche entre en fondu sur la pose d'arrêt : le pied qui part ne se lève qu'au
+      // prorata du fondu et glisse 0,25 s à 2-3 m/s), lâcher du verrou au ras du sol, pose du pied en petite course qui arrive
+      // à 3-5 m/s à 1-2 cm du sol, mélanges marche / pas chassé. Un pied qui ralentit se repose.
+      decolle(dt, actif) {
+        const D = this.decol || (this.decol = [{ y: 0, v: 0 }, { y: 0, v: 0 }]); if (!pieds[0][2] || !M.semelle || !(dt > 0)) return;
+        group.updateMatrixWorld(true); const gy = group.getWorldPosition(V()).y, Lk = this.lock;
+        pieds.forEach(([up, lo, ft], i) => {
+          const d = D[i], S = semW(i), h = (S.min !== undefined ? S.min : Math.min(S.talon.y, S.plante.y, S.bout.y)) - gy, p = S.plante;
+          const v = d.p ? Math.hypot(p.x - d.p.x, p.z - d.p.z) / dt : 0, lw = Lk && Lk[i] ? Lk[i].w || 0 : 0;
+          const x = Math.max(0, Math.min(1, (v - DECOLLE.v0) / (DECOLLE.v1 - DECOLLE.v0))), c = actif && v < 8 ? DECOLLE.h * x * x * (3 - 2 * x) * Math.max(0, 1 - 2 * lw) : 0;
+          // (levée voulue ressort amorti critique, ~0,06 s : pas d'à-coup du genou)
+          // (pas exact « SmoothDamp » : stable quel que soit dt — un ressort explicite divergeait à 30 images/s)
+          const want = Math.max(0, Math.min(0.08, c - h)), om = 2 / DECOLLE.t, x2 = om * dt, ex = 1 / (1 + x2 + 0.48 * x2 * x2 + 0.235 * x2 * x2 * x2), ch = d.y - want, tmp = (d.v + om * ch) * dt;
+          d.v = (d.v - om * tmp) * ex; d.y = Math.max(0, Math.min(0.08, want + (ch + tmp) * ex));
+          if (d.y > 0.001) { ikJambe(up, lo, ft, new THREE.Vector3(0, d.y, 0), orteils[i]); }
+          const S2 = d.y > 0.001 ? semW(i) : S; d.p = S2.plante.clone();
         });
       },
       // Sol : aucun point de semelle sous le sol (debout, accroupi, en marche) : le pied est remonté par l'IK de la jambe.
