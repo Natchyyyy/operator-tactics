@@ -1656,6 +1656,9 @@
       poserPieds(dt, repos) {
         const P = this.pose0; P.t += dt;
         if (!repos || P.t > 0.62) { this.pose0 = null; return; }
+        // (orientation de départ prise sur le pied affiché : on en retire les pointes vers la menace de la visée — PIED_VISEE —,
+        // qu'appui() rajoute après les pas ; sinon comptées deux fois, le pied tournait d'un coup de 15-25° au premier pas)
+        if (!P.qVY) { P.qVY = true; const a = this.piedVY || [0, 0]; if (P.lockQ && !P.sansVY) for (let i = 0; i < 2; i++) if (a[i]) P.lockQ[i] = new THREE.Quaternion().setFromAxisAngle(UP, -a[i]).multiply(P.lockQ[i]); }
         group.updateMatrixWorld(true);
         const cur = pieds.map(l => WP(l[2]));
         // (pied gauche avancé de la garde basse : ajouté APRÈS, par appui() ; le pas part donc de la position clouée moins cette avance)
@@ -1678,7 +1681,7 @@
         if (REPAS_DERIVE && P.fin && P.fin[0] && P.fin[1] && P.t > 0.42) {
           const yawOf = (q) => { const v = new THREE.Vector3(0, 0, 1).applyQuaternion(q); return Math.atan2(v.x, v.z); };
           const der = [0, 1].some(i => { let a = yawOf(P.fin[i][1]) - yawOf(qTgt[i]); while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return Math.abs(a) > 0.52 || Math.hypot(P.fin[i][0].x - tgt[i].x, P.fin[i][0].z - tgt[i].z) > 0.12; });
-          if (der) { this.pose0 = { t: 0, lock: [0, 1].map(i => P.fin[i][0].clone().add(av ? av[i] : V())), lockQ: [0, 1].map(i => P.fin[i][1].clone()) }; return this.poserPieds(0, repos); } }
+          if (der) { this.pose0 = { t: 0, lock: [0, 1].map(i => P.fin[i][0].clone().add(av ? av[i] : V())), lockQ: [0, 1].map(i => P.fin[i][1].clone()), qVY: true }; return this.poserPieds(0, repos); } }
         P.ordre.forEach((i, rang) => {
           const x = Math.max(0, Math.min(1, (P.t - rang * 0.16) / 0.24)), s = x * x * (3 - 2 * x);
           // (pied qui attend son tour, encore au sol, pendant un quart de tour rapide : il PIVOTE sur la plante pour rester à 40° au
@@ -1925,6 +1928,7 @@
       // vers la jambe libre ; les pieds restent au sol (IK), les épaules restent à peu près droites.
       gbOff(i, fw, k) { return fw.clone().multiplyScalar((i === 0 ? LOWR.av : -LOWR.ar) * k); },   // décalage avant / arrière des pieds en garde basse
       appui(dt, actif) {
+        this.piedVY = [0, 0];
         this.reposK = (this.reposK || 0) + ((actif ? 1 : 0) - (this.reposK || 0)) * Math.min(1, dt * 1.5);
         // (posture de garde basse : poids propre, lissé — ressort amorti critique — ; elle se défait en ~0,4 s au départ au lieu de
         // tomber d'un coup quand l'animation du haut quitte Garde_Basse : bassin de trois quarts et avancé)
@@ -1958,8 +1962,16 @@
         // visée : pointes vers la menace (PIED_VISEE, ° autour de la verticale, pied gauche / droit) ; l'animation ouvrait le pied
         // avant à 57° du bassin (pointe 23° à gauche de la cible) et le pied arrière à 53° de la cible — position de tir moderne :
         // pied avant vers la menace, pied arrière ouvert de 25-40°
-        if (PIED_VISEE && this.clip === 'Rifle_Aim_Turn_Right' && this.reposK > 0.01) pieds.forEach(([, , ft], i) => { const a = PIED_VISEE[i] * Math.PI / 180 * this.reposK; if (!a) return;
-          mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(new THREE.Quaternion().setFromAxisAngle(UP, a)).multiply(WQ(ft))); ft.updateMatrixWorld(true); });
+        // (angle appliqué gardé — piedVY — : les pas de pose partent de l'orientation affichée, qui le contient déjà, voir poserPieds)
+        // (poids lissé ~0,15 s : au départ — le haut du corps quitte la visée d'un coup — le pied ne pivote pas en une image)
+        this.piedVK = (this.piedVK || 0) + ((this.clip === 'Rifle_Aim_Turn_Right' ? this.reposK : 0) - (this.piedVK || 0)) * Math.min(1, dt * 7);
+        // (pivot sur la plante — point d'appui — et non la cheville : le pied cloué par le verrou au départ ne glisse pas)
+        if (PIED_VISEE && this.piedVK > 0.01) pieds.forEach(([up, lo, ft], i) => { const a = PIED_VISEE[i] * Math.PI / 180 * this.piedVK; this.piedVY[i] = a; if (!a) return;
+          // (pied tenu par le verrou — départ — : pivot sur SON point d'appui, talon ou plante, qui reste ainsi cloué)
+          const Lk = this.lock && this.lock[i], kP = Lk && Lk.w > 0 && Lk.piv ? { A: 'talon', T: 'plante', B: 'bout' }[Lk.piv] : 'plante';
+          const qY = new THREE.Quaternion().setFromAxisAngle(UP, a), qN = qY.clone().multiply(WQ(ft)), A = WP(ft), piv = M.semelle ? semW(i)[kP] : WP(orteils[i]);
+          const d = A.clone().sub(piv).applyQuaternion(qY).add(piv).sub(A); d.y = 0; if (d.lengthSq() > 1e-8) ikJambe(up, lo, ft, d, orteils[i]);
+          mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(qN)); ft.updateMatrixWorld(true); });
       },
       // Tête : regarde la cible (this.regard = {x, z} dans le monde, donné par le jeu ; limité en visée, la joue est sur la
       // crosse) ; sans cible, au repos, coups d'œil lents à gauche / à droite. Réparti sur le cou et la tête.

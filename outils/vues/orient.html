@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Orientation d'un modèle</title><style>body{margin:0;background:#222}canvas{display:block}</style></head><body>
+<script src="../../web/three.min.js"></script><script src="../../web/gltf.js"></script>
+<script>
+// Orientation d'un modèle Meshy dans SON repère (avant ajustement à la boîte du jeu) : quatre vues, depuis +X, −X, +Z, −Z,
+// plus une vue de dessus. ?m=kiosque&dir=../../dist/hd/ — axes : rouge +X, bleu +Z (vert +Y).
+const q = new URLSearchParams(location.search), nom = q.get('m') || 'kiosque', dir = q.get('dir') || '../../art/meshy/decor/';
+const W = 1500, H = 600, r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setSize(W, H); r.outputColorSpace = THREE.SRGBColorSpace; r.setScissorTest(true); document.body.appendChild(r.domElement);
+const sc = new THREE.Scene(); sc.background = new THREE.Color(0x56606a);
+sc.add(new THREE.HemisphereLight(0xdce6ee, 0x6a6052, 1.6)); const d = new THREE.DirectionalLight(0xfff0d4, 2.0); d.position.set(3, 8, 4); sc.add(d);
+new THREEX.GLTFLoader().load(dir + nom + '.glb', (g) => {
+  const o = g.scene; const b = new THREE.Box3().setFromObject(o), c = b.getCenter(new THREE.Vector3()), s = b.getSize(new THREE.Vector3());
+  o.position.set(-c.x, -b.min.y, -c.z); sc.add(o); const R = Math.max(s.x, s.y, s.z);
+  const ax = new THREE.AxesHelper(R * 0.9); ax.position.y = 0.02; sc.add(ax);
+  window.INFO = { size: s.toArray().map(v => +v.toFixed(3)) };
+  const views = [['+X', [1, 0.35, 0]], ['-X', [-1, 0.35, 0]], ['+Z', [0, 0.35, 1]], ['-Z', [0, 0.35, -1]], ['haut', [0.001, 1, 0.0001]]];
+  const vw = W / 5;
+  views.forEach(([lab, v], i) => {
+    const cam = new THREE.PerspectiveCamera(35, vw / H, 0.01, 100); cam.position.set(v[0] * R * 2.6, s.y / 2 + v[1] * R * 2.6, v[2] * R * 2.6); cam.lookAt(0, s.y / 2, 0);
+    r.setViewport(i * vw, 0, vw, H); r.setScissor(i * vw, 0, vw, H); r.render(sc, cam);
+  });
+  window.PRET = true;
+}, undefined, (e) => { document.title = 'ERR ' + e; window.PRET = true; });
+</script></body></html>
