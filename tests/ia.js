@@ -495,5 +495,19 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
     check('grenade sur ordre : le plus proche des désignés qui a une incapacitante et est à portée la lance au point ; trop loin, inconnue ou frag près d\'un équipier : refusé avec la raison', r.ok && exp && r.unit === exp.u.id && thrower.grenades.flash === 0 && b.log.some(l => l.kind === 'grenade' && l.gk === 'flash' && l.unit === r.unit) && !far.ok && /trop loin/.test(far.reason) && !bad.ok && !fr.ok && /équipier/.test(fr.reason), { r, far, fr });
     const one = b.command('grenade', 0, { x: 18, z: 23, kind: 'flash', units: [r.unit] });
     check('grenade sur ordre : pas de grenade illimitée (« plus de … » quand le désigné n\'en a plus)', !one.ok && /plus d/.test(one.reason), one); }
+  // E3 : « avec fumée » — Franchir : un fumigène côté danger au bord du découvert, on ne passe qu'une fois le nuage en place
+  // (le lanceur en dernier) ; Décrocher : un fumigène tout de suite entre le groupe et le danger ; sans fumigène : ordre sans fumée
+  { const b = new Battle({ seed: 4, mapId: 'parking', teams: [{ name: 'Alpha', order: 'assault', operators: GIGN, tactics: ['tiroir'] }, { name: 'Bravo', order: 'hold', operators: KARST, tactics: ['tiroir'] }] }); while (b.t < 1) b.step();
+    const r = b.command('aller', 0, { x: 25, z: 38, units: null, mode: 'franchir', arrivee: 'tenir', fumee: true });
+    while (b.t < 40 && !b.over && !b.log.some(l => l.kind === 'franchir' && /tout le monde/.test(l.text))) b.step();
+    const sm = b.log.find(l => l.kind === 'smoke' && l.team === 0), go = b.log.find(l => l.kind === 'bond' && /Je passe/.test(l.text));
+    const pass = b.log.filter(l => l.kind === 'bond' && /Je passe/.test(l.text)), last = pass.length && pass[pass.length - 1].unit;
+    check('avec fumée (franchir) : au bord, un fumigène est lancé avant le premier passage ; le lanceur passe en dernier', r.ok && r.fumee === true && sm && go && sm.t <= go.t && go.t - sm.t >= 1 && last === sm.unit && b.log.some(l => l.kind === 'moveorder' && /avec fumée/.test(l.text)), { sm: sm && sm.t, go: go && go.t, last, thrower: sm && sm.unit }); }
+  { const b = mkV(4, 'hold', 'assault'); while (b.t < 1) b.step(); b.command('aller', 0, { x: 20, z: 23, units: null, mode: 'agressif' }); while (b.t < 10) b.step();
+    const r = b.command('aller', 0, { x: 3, z: 23, units: null, mode: 'decrocher', arrivee: 'tenir', fumee: true }); while (b.t < 12) b.step();
+    const sm = b.log.find(l => l.kind === 'smoke' && l.team === 0);
+    b.teams[0].units.forEach(u => { u.grenades.smoke = 0; }); b.teams[0].units.forEach(u => { u.orderAt = -99; });
+    const r2 = b.command('aller', 0, { x: 5, z: 23, units: null, mode: 'decrocher', fumee: true });
+    check('avec fumée (décrocher) : un fumigène part tout de suite (< 1,5 s) ; plus aucun fumigène : l\'ordre passe, sans fumée', r.ok && r.fumee === true && sm && sm.t - 10 < 1.5 && r2.ok && r2.fumee === false, { r, sm: sm && sm.t, r2 }); }
 }
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

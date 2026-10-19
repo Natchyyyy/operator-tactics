@@ -2241,13 +2241,15 @@
     ordOrientEnd();
     const pick = Object.assign({}, ordLast, { feu: 'volonte' });   // le feu revient toujours à « À volonté »
     const el = document.createElement('div'); el.className = 'ordmenu';
+    const nSmoke = ordGrenCount('smoke');
     el.innerHTML = `<div class="omhead"><b>Ordre</b><span class="omwho"></span></div>` + Object.entries(ORD_OPTS).map(([cat, o]) =>
-      `<div class="omsec">${o.titre}</div><div class="omrow">${o.choix.map(c => `<button class="omopt" data-cat="${cat}" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v] || ''}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>`).join('')
+      `<div class="omsec">${o.titre}${cat === 'mode' ? `<button class="omfum" title="Franchir, Décrocher : le premier qui a un fumigène le lance côté danger pour masquer le passage ou le repli (un fumigène par opérateur)."${nSmoke ? '' : ' disabled'}><span class="omico">${ORD_SVG.smoke}</span>Avec fumée <i>${nSmoke}</i></button>` : ''}</div><div class="omrow">${o.choix.map(c => `<button class="omopt" data-cat="${cat}" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v] || ''}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>`).join('')
       + `<div class="omsec">Feu</div><div class="omfeu">${ORD_FEU.map(c => `<button class="omopt omf" data-cat="feu" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b></button>`).join('')}</div>`
       + `<button class="omplus">Plus…</button><div class="ommore"><div class="omsec">Lancer ici</div><div class="omfeu omgren">${ORD_GREN.map(c => { const n = ordGrenCount(c.v); return `<button class="omopt omf omg" data-g="${c.v}" title="${escapeHtml(c.desc)}"${n ? '' : ' disabled'}><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><i>${n}</i></button>`; }).join('')}</div></div>`
       + `<button class="omgo">Confirmer</button><div class="omhint">Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
     $('main').appendChild(el);
-    const show = () => el.querySelectorAll('.omopt').forEach(b => b.classList.toggle('on', pick[b.dataset.cat] === b.dataset.v));
+    const show = () => { el.querySelectorAll('.omopt').forEach(b => b.classList.toggle('on', pick[b.dataset.cat] === b.dataset.v)); el.classList.toggle('fumok', pick.mode === 'franchir' || pick.mode === 'decrocher'); el.querySelector('.omfum').classList.toggle('on', !!pick.fumee); };
+    el.querySelector('.omfum').addEventListener('click', () => { pick.fumee = !pick.fumee; show(); });
     el.querySelectorAll('.omopt').forEach(b => b.addEventListener('click', () => { const was = pick[b.dataset.cat] === b.dataset.v; pick[b.dataset.cat] = b.dataset.v; show(); if (was) ordConfirm(); }));
     el.querySelector('.omgo').addEventListener('click', () => ordConfirm());
     el.classList.toggle('plus', ordPlusOpen);
@@ -2281,13 +2283,15 @@
     if (!ordMenu) return; const { p, pick } = ordMenu;
     const ids = ordSel ? [...ordSel].filter(id => unitById[id] && unitById[id].alive) : null, who = ordWho();
     if (ids && !ids.length) { closeOrderMenu(); flashBattle('Ordre refusé : aucun opérateur choisi n’est en état.'); return; }
-    const r = battle.command('aller', 0, { x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids, mode: pick.mode, arrivee: pick.arrivee, feu: pick.feu });
+    const fum = !!pick.fumee && (pick.mode === 'franchir' || pick.mode === 'decrocher');
+    const r = battle.command('aller', 0, Object.assign({ x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids, mode: pick.mode, arrivee: pick.arrivee, feu: pick.feu }, fum ? { fumee: true } : {}));
     closeOrderMenu();
     if (!r.ok) { flashBattle(`Ordre refusé : ${r.reason}.`); return; }
     ordLast.mode = pick.mode; ordLast.arrivee = pick.arrivee; try { localStorage.setItem('ot-ordre', JSON.stringify(ordLast)); } catch (e) { /* stockage indisponible */ }
     const nm = (cat) => ORD_OPTS[cat].choix.find(c => c.v === pick[cat]).nom.toLowerCase();
     const fe = pick.feu === 'volonte' ? '' : `, feu ${ORD_FEU.find(c => c.v === pick.feu).nom.toLowerCase()}`;
-    flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}, puis ${nm('arrivee')}${fe}.`); pumpLog();
+    const fu = fum ? (r.fumee ? ', avec fumée' : ' (fumée impossible : pas de fumigène ou pas de trajectoire)') : '';
+    flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}${fu}, puis ${nm('arrivee')}${fe}.`); pumpLog();
     // A4 : orienter la position — un clic gauche sur le sol montre d'où vient le danger (Échap : direction automatique)
     if (pick.arrivee !== 'manoeuvre' || pick.feu === 'appui') ordOrientStart(r);
     if (MANUAL) render();
