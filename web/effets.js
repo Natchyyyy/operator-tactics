@@ -232,9 +232,10 @@
     };
     // traçante : de a à b, vitesse (m/s), part après « delay »
     E.tracer = function (a, b, speed, team) {
-      const d = b.clone().sub(a), L = d.length(); if (L < 0.5) return; const dir = d.multiplyScalar(1 / L), seg = Math.min(L, 3.2);
-      const col = team === 0 ? [7, 5.4, 3.2] : [8, 4.2, 2.2];
-      add.add({ p: a.clone().addScaledVector(dir, seg / 2), v: dir.clone().multiplyScalar(speed), axis: dir.clone().multiplyScalar(seg), life: Math.max(0.03, (L - seg) / speed), size: 0.018, frame: 0, col, a0: 0.95 });
+      // trait de ~2 m (le flou de bouger d'une image à 140 m/s), allumé un peu après la bouche (pas de « laser » collé à l'arme)
+      const d = b.clone().sub(a), L = d.length(); if (L < 1.2) return; const dir = d.multiplyScalar(1 / L), off = Math.min(0.5, L * 0.2), seg = Math.min(L - off, 2.2);
+      const col = team === 0 ? [5.5, 4.2, 2.5] : [6.4, 3.4, 1.8];
+      add.add({ p: a.clone().addScaledVector(dir, off + seg / 2), v: dir.clone().multiplyScalar(speed), axis: dir.clone().multiplyScalar(seg), life: Math.max(0.03, (L - seg - off) / speed), size: 0.015, frame: 0, col, a0: 0.95, fadePow: 0.5 });
     };
     // matière d'un obstacle (nom) → famille d'impact
     E.impact = function (p, n, matter, delay) {

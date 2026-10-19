@@ -1127,13 +1127,13 @@
       if (!buckets.has(k)) buckets.set(k, []); buckets.get(k).push(o);
     });
     const merge = (list, withNormal) => {
-      const useUv = list.every(m => m.geometry.attributes.uv);
+      const useUv = list.every(m => m.geometry.attributes.uv), useCol = withNormal && list.some(m => m.geometry.attributes.color);   // couleurs par sommet (sinon un matériau « vertexColors » sortirait noir)
       const parts = list.map(m => { const g = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()); g.applyMatrix4(m.matrixWorld); return g; });
       const n = parts.reduce((s, g) => s + g.attributes.position.count, 0), out = new THREE.BufferGeometry();
-      const pos = new Float32Array(n * 3), nor = withNormal ? new Float32Array(n * 3) : null, uv = useUv && withNormal ? new Float32Array(n * 2) : null;
+      const pos = new Float32Array(n * 3), nor = withNormal ? new Float32Array(n * 3) : null, uv = useUv && withNormal ? new Float32Array(n * 2) : null, col = useCol ? new Float32Array(n * 3).fill(1) : null;
       let o3 = 0, o2 = 0;
-      for (const g of parts) { pos.set(g.attributes.position.array, o3); if (nor) nor.set(g.attributes.normal.array, o3); if (uv) uv.set(g.attributes.uv.array, o2); o3 += g.attributes.position.count * 3; o2 += g.attributes.position.count * 2; g.dispose(); }
-      out.setAttribute('position', new THREE.BufferAttribute(pos, 3)); if (nor) out.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); if (uv) out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      for (const g of parts) { pos.set(g.attributes.position.array, o3); if (nor) nor.set(g.attributes.normal.array, o3); if (uv) uv.set(g.attributes.uv.array, o2); if (col && g.attributes.color && g.attributes.color.itemSize === 3) col.set(g.attributes.color.array, o3); o3 += g.attributes.position.count * 3; o2 += g.attributes.position.count * 2; g.dispose(); }
+      out.setAttribute('position', new THREE.BufferAttribute(pos, 3)); if (nor) out.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); if (uv) out.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); if (col) out.setAttribute('color', new THREE.BufferAttribute(col, 3));
       out.computeBoundingSphere(); return out;
     };
     for (const list of buckets.values()) {

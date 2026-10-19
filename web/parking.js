@@ -591,13 +591,28 @@
     }
     g.setAttribute('color', new T.BufferAttribute(col, 3)); g.computeVertexNormals(); return (BUSH[i] = g);
   }
+  // feuillage : la surface lisse des touffes est cassée en « feuilles » de ~4 cm (normale et teinte tirées au hasard par
+  // cellule de l'espace) ; coût : quelques instructions par pixel, aucune texture
+  function feuillage(m) {
+    m.onBeforeCompile = (sh) => {
+      sh.vertexShader = 'varying vec3 vLeafP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vLeafP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = 'varying vec3 vLeafP;\nvec3 leafH(vec3 q) { return fract(sin(vec3(dot(q, vec3(127.1, 311.7, 74.7)), dot(q, vec3(269.5, 183.3, 246.1)), dot(q, vec3(113.5, 271.9, 124.6)))) * 43758.5453); }\n' + sh.fragmentShader
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          vec3 lp = vLeafP * 20.0, lb = floor(lp - 0.5), lid = lb, lv = vec3(0.0); float ld = 9.0;   // bruit cellulaire : feuilles arrondies
+          for (int i = 0; i < 2; i++) for (int j = 0; j < 2; j++) for (int k = 0; k < 2; k++) { vec3 c = lb + vec3(float(i), float(j), float(k)), f = c + 0.15 + 0.7 * leafH(c), e = lp - f; float dd = dot(e, e); if (dd < ld) { ld = dd; lid = c; lv = e; } }
+          ld = sqrt(ld); vec3 leafR = leafH(lid + 7.0);
+          diffuseColor.rgb *= (0.62 + 0.6 * leafR.x) * (1.0 - 0.4 * smoothstep(0.3, 0.75, ld));`)
+        .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n normal = normalize(normal + normalize(lv + 1e-4) * 0.45 + (leafR - 0.5) * 0.6);');
+    };
+    m.customProgramCacheKey = () => 'feuillage'; return m;
+  }
   // bac à fleurs : jardinière en béton, terre, petites plantes
   function planter(o) {
     const K = M3(), g = new T.Group();
     const outer = new T.Mesh(new T.BoxGeometry(o.w, o.h, o.d), K.betonClair); g.add(outer);
     const soil = new T.Mesh(new T.BoxGeometry(o.w - 0.2, 0.05, o.d - 0.2), mat('terre', () => new T.MeshStandardMaterial({ color: 0x3a2c20, roughness: 1 }))); soil.position.y = o.h / 2 - 0.08; g.add(soil);
     // couvre-sol : touffes basses et irrégulières (deux verts, un peu de paille), pas de « boules »
-    const leaf = mat('buisV', () => new T.MeshStandardMaterial({ color: 0x41592c, roughness: 0.9, vertexColors: true })), leaf2 = mat('buis2V', () => new T.MeshStandardMaterial({ color: 0x5b6b33, roughness: 0.95, vertexColors: true })), paille = mat('pailleV', () => new T.MeshStandardMaterial({ color: 0x8a7a4a, roughness: 1, vertexColors: true }));
+    const leaf = mat('buisV', () => feuillage(new T.MeshStandardMaterial({ color: 0x41592c, roughness: 0.9, vertexColors: true }))), leaf2 = mat('buis2V', () => feuillage(new T.MeshStandardMaterial({ color: 0x5b6b33, roughness: 0.95, vertexColors: true }))), paille = mat('pailleV', () => feuillage(new T.MeshStandardMaterial({ color: 0x8a7a4a, roughness: 1, vertexColors: true })));
     const R = rng(Math.floor(o.x * 13 + o.z * 7)), n = Math.round((o.w * o.d) * 5);
     for (let k = 0; k < n; k++) { const r = 0.07 + R() * 0.11, b = new T.Mesh(bushGeo(k, true), R() < 0.15 ? paille : R() < 0.5 ? leaf2 : leaf); b.scale.setScalar(r); b.position.set((R() - 0.5) * (o.w - 0.3), o.h / 2 - 0.03 + r * 0.3, (R() - 0.5) * (o.d - 0.3)); b.scale.set(r * (1 + R() * 0.6), r * (0.35 + R() * 0.35), r * (1 + R() * 0.6)); b.rotation.y = R() * 6; b.castShadow = true; g.add(b); }
     // du volume : arbustes bas (boules irrégulières de 30 à 55 cm) et touffes de graminées (lames fines)
