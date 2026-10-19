@@ -338,7 +338,7 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
     const walk = (() => { const st = u.state; u.state = 'idle'; const v = u.speed(); u.state = st; return v; })();
     while (b.t < 40 && !b.over) {
       b.step();
-      if (u.drag && u.drag.phase === 'pull' && u.moving && prev) { sp.push(Math.hypot(u.x - prev.x, u.z - prev.z) / OT.DT); pullPos.push(Math.round(a.x * 100) + ',' + Math.round(a.z * 100)); }
+      if (u.drag && u.drag.phase === 'pull' && u.state === 'dragging' && u.moving && prev) { sp.push(Math.hypot(u.x - prev.x, u.z - prev.z) / OT.DT); pullPos.push(Math.round(a.x * 100) + ',' + Math.round(a.z * 100)); }
       prev = { x: u.x, z: u.z };
       if (a.alive && revivedAt === null) { revivedAt = b.t; break; }
     }
@@ -362,8 +362,120 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   b.updateGrenades(); b.t += 0.1; b.updateGrenades();
   const during = b.map.dynamic.length === 1 && !b.canSee(u, e) && !b.canSee(e, u), until = b.map.dynamic[0] && b.map.dynamic[0].until;
   const ev = b.drainEvents ? b.drainEvents().some(x => x.type === 'smoke') : true;
-  let lasted = true; while (b.t < until - 0.2) { b.step(); u.x = 10; u.z = 20; e.x = 30; e.z = 20; if (b.canSee(u, e)) lasted = false; }
-  while (b.t < until + 0.5) b.step(); u.x = 10; u.z = 20; e.x = 30; e.z = 20;
+  // (le temps passe : expiration des fumées comme à chaque pas, updateTactics)
+  let lasted = true; while (b.t < until - 0.2) { b.t = Math.round((b.t + 0.1) * 1000) / 1000; b.updateTactics(); if (b.canSee(u, e)) lasted = false; }
+  while (b.t < until + 0.5) { b.t = Math.round((b.t + 0.1) * 1000) / 1000; b.updateTactics(); }
   check('fumigène : bloque la ligne de vue dans les deux sens pendant ' + G.duration + ' s, puis se dissipe', before && during && ev && lasted && b.map.dynamic.length === 0 && b.canSee(u, e), { before, during, ev, lasted, left: b.map.dynamic.length });
+  // bataille complète (graine où l'on évacue et où l'on lance des fumigènes) jouée deux fois : identique
+  const full = () => { const x = new Battle({ seed: 1, mapId: 'parking' }); x.run(); return x; }, F1 = full(), F2 = full();
+  const nd = F1.log.filter(l => l.kind === 'drag').length, ns = F1.log.filter(l => l.kind === 'smoke').length;
+  check('évacuation et fumigène en bataille : ils ont lieu, et la bataille revue est identique (journal, résultat)', nd >= 1 && ns >= 1 && JSON.stringify(F1.log) === JSON.stringify(F2.log) && JSON.stringify(F1.result) === JSON.stringify(F2.result), { nd, ns });
+}
+{
+  // ---- Vague 1 des stratégies GIGN : feu retenu, appui, décrocher, orienter, relève dans les bonds, rejouabilité ----
+  const mkW = (seed, bo, ao) => new Battle({ seed, mapId: 'parking', teams: [{ name: 'Alpha', order: ao || 'assault', operators: GIGN, tactics: ['tiroir'] }, { name: 'Bravo', order: bo || 'assault', operators: KARST, tactics: ['tiroir'] }] });
+  // F1 — Retenu : pas un coup (ni une grenade) avant le déclenchement ; déclenché seulement repéré, pris à partie ou ennemi tout près
+  let heldShots = 0, releases = 0, badWhy = 0, afterShots = 0, orders = 0;
+  for (let sd = 1; sd <= 4; sd++) {
+    const b = mkW(sd); while (b.t < 1) b.step();
+    const r = b.command('aller', 0, { x: 22, z: 23, units: null, mode: 'agressif', arrivee: 'tenir', feu: 'retenu' }); if (r.ok) orders++;
+    const inf = b.teams[0].ordInfo[r.id];
+    const sh = b.shoot.bind(b), sa = b.suppressAt.bind(b), gr = b.tryGrenade.bind(b);
+    const mine = (u) => { const o = b.orderOf(u); return o && o.id === r.id; };
+    b.shoot = function (u, e, d) { if (u.team === 0 && mine(u)) { if (!inf.released) heldShots++; else afterShots++; } return sh(u, e, d); };
+    b.suppressAt = function (u, e) { if (u.team === 0 && mine(u) && !inf.released) heldShots++; return sa(u, e); };
+    b.tryGrenade = function (u) { const t = gr(u); if (t && u.team === 0 && mine(u) && !inf.released) heldShots++; return t; };
+    while (!b.over && b.t < 90) b.step();
+    const rl = b.log.filter(l => l.kind === 'feu'); releases += rl.length; badWhy += rl.filter(l => !['repérés', 'pris à partie', 'ennemi tout près'].includes(l.why)).length;
+  }
+  check('feu retenu : aucun tir ni grenade du groupe avant le déclenchement ; déclenché (repéré, pris à partie, ennemi tout près) puis le groupe tire', orders === 4 && heldShots === 0 && releases >= 3 && badWhy === 0 && afterShots > 50, { heldShots, releases, badWhy, afterShots });
+  { const b = mkW(2, 'hold'); while (b.t < 1) b.step();
+    const r = b.command('aller', 0, { x: 14, z: 23, units: ['0:op_lynx', '0:op_granit'], mode: 'methodique', feu: 'retenu' });
+    for (let i = 0; i < 30; i++) b.step();
+    const held = b.teams[0].units.filter(u => u.holdFire).map(u => u.callsign).sort().join(), rf = b.command('feu', 0, { units: ['0:op_lynx'] }), again = b.command('feu', 0, { units: null });
+    for (let i = 0; i < 5; i++) b.step();
+    check('feu retenu : seuls les opérateurs de l\'ordre retiennent leur feu ; command(\'feu\') le lève pour tout le groupe (une fois) ; le feu revient « à volonté » au prochain ordre', r.ok && held === 'Granit,Lynx' && rf.ok && !again.ok && b.teams[0].units.every(u => !u.holdFire) && b.log.some(l => l.kind === 'feu' && /ordre d’ouvrir le feu/.test(l.text)) && b.teams[0].ordInfo[r.id].released, { held, rf, again }); }
+  // F2 — Appui : au premier contact, deux opérateurs d'assaut en appui (orientés vers le contact), trois encerclent
+  let supShots = 0, supBy = new Set(), lowAmmo = 0, pinnedT = 0, zoneSeen = 0;
+  for (let sd = 1; sd <= 4; sd++) {
+    const b = mkW(sd, 'careful', 'careful'); let done = false, id = null;
+    const sa = b.suppressAt.bind(b); b.suppressAt = function (u, e) { if (u.team === 0) { supShots++; supBy.add(u.role.id + ':' + u.callsign); if (u.totalAmmo() < u.weapon.mag * (u.weapon.kit + 1) * 0.4 - 1) lowAmmo++; } return sa(u, e); };
+    while (!b.over && b.t < 150) {
+      b.step();
+      if (id !== null) { const inf = b.teams[0].ordInfo[id]; if (inf.zone && inf.zone.x !== null) zoneSeen++; for (const e of b.teams[1].units) if (e.alive && e.suppression > 0.5) pinnedT += 0.1; }
+      if (done) continue;
+      const A = b.teams[0].units.filter(u => u.alive), kn = b.teamKnownEnemies(b.teams[0]).filter(k => b.t - k.t < 1);
+      if (!kn.length || b.t < 3) continue; done = true;
+      const k = kn[0], so = A.slice().sort((p, q) => Math.hypot(p.x - k.x, p.z - k.z) - Math.hypot(q.x - k.x, q.z - k.z)), sup = so.slice(0, 2);
+      const r = b.command('aller', 0, { x: sup.reduce((s, u) => s + u.x, 0) / 2, z: sup.reduce((s, u) => s + u.z, 0) / 2, units: sup.map(u => u.id), mode: 'methodique', arrivee: 'tenir', feu: 'appui' });
+      if (r.ok) { id = r.id; b.command('orienter', 0, { ordre: r.id, x: k.x, z: k.z }); }
+      b.command('aller', 0, { x: k.x, z: k.z, units: so.slice(2).map(u => u.id), mode: 'methodique', arrivee: 'encercler' });
+    }
+  }
+  check('appui : des opérateurs d\'assaut (pas le rôle Appui) font du tir de suppression sur la zone ; une zone est suivie ; jamais sous 40 % de munitions', supShots > 40 && [...supBy].every(s => s.startsWith('assault')) && zoneSeen > 100 && lowAmmo === 0, { supShots, supBy: [...supBy], zoneSeen, lowAmmo, pinnedT });
+  // D4 — Décrocher : l'escouade, avancée au contact, se replie par bonds : une moitié tire (arrêtée), l'autre court sans tirer
+  const runD = (mode, seed) => {
+    const b = mkW(seed), us = b.teams[0].units;
+    us.forEach((u, i) => { const f = b.map.nearestFree(40, 15 + i * 4), c = b.map.centerOf(f.c, f.r); u.x = c.x; u.z = c.z; });
+    while (b.t < 6) b.step();
+    const x0 = us.reduce((s, u) => s + u.x, 0) / 5, r = b.command('aller', 0, { x: 10, z: 23, units: null, mode, arrivee: 'tenir' });
+    let mixed = 0, n = 0, runShots = 0, coverShots = 0, all = null, runT = 0;
+    const sh = b.shoot.bind(b); b.shoot = function (u, e, d) { if (u.team === 0 && u.moveOrder) { if (u.state === 'retreat') runShots++; else coverShots++; } return sh(u, e, d); };
+    while (!b.over && b.t < 100) {
+      b.step(); const ord = us.filter(u => u.alive && u.moveOrder);
+      if (ord.length >= 2) { n++; const m = ord.filter(u => u.moving).length; if (m > 0 && m < ord.length) mixed++; }
+      runT += ord.filter(u => u.state === 'retreat' && u.moving).length * 0.1;
+      if (all === null && !ord.length) all = b.t - 6;
+      if (all !== null) break;
+    }
+    const x1 = us.filter(u => u.alive).reduce((s, u, i, a) => s + u.x / a.length, 0);
+    return { r, mixed: n ? mixed / n : 0, runShots, coverShots, all, back: x0 - x1, runT, lost: us.filter(u => !u.alive).length };
+  };
+  const D = [1, 2, 3].map(s => runD('decrocher', s)), Mt = [1, 2, 3].map(s => runD('methodique', s));
+  const sum = (a, k) => a.reduce((s, x) => s + (x[k] || 0), 0);
+  check('décrocher : repli par bonds — une moitié bouge pendant que l\'autre couvre (> 50 % du trajet), ceux qui courent ne tirent pas, ceux qui couvrent tirent ; recul de plus de 20 m ; plus rapide que « méthodique » vers le même point',
+    D.every(d => d.r.ok && d.all !== null && d.back > 20 && d.mixed > 0.5) && sum(D, 'runShots') === 0 && sum(D, 'coverShots') > 0 && sum(D, 'runT') > 10 && sum(D, 'all') < sum(Mt, 'all'), { D: D.map(d => ({ all: d.all, back: d.back, mixed: d.mixed, run: d.runShots, cov: d.coverShots, lost: d.lost })), M: Mt.map(d => d.all) });
+  // A4 — Orienter : tenir orienté au nord → plan de secteurs face au nord ; encercler orienté → les deux sous-groupes du côté opposé
+  { const b = mkW(3, 'hold'); while (b.t < 1) b.step();
+    const r = b.command('aller', 0, { x: 12, z: 23, units: ['0:op_lynx', '0:op_granit', '0:op_bastion'], mode: 'agressif', arrivee: 'tenir' });
+    const ro = b.command('orienter', 0, { ordre: r.id, x: 12, z: 8 }), near = b.command('orienter', 0, { ordre: r.id, x: 12.5, z: 23 });
+    while (b.t < 25) b.step();
+    const ms = b.teams[0].units.filter(u => u.alive && u.keyOrder && u.keyOrder.grp === r.id), pl = b.teams[0].holdPlans && b.teams[0].holdPlans[r.id];
+    const ad = (a, c) => { let d = Math.abs(a - c) % (2 * Math.PI); return d > Math.PI ? 2 * Math.PI - d : d; };
+    // (au contact, la règle existante l'emporte : les secteurs se resserrent face à l'ennemi réellement connu)
+    check('orienter (tenir) : l\'orientation est enregistrée ; arrivés, chacun garde la direction montrée comme base, un secteur la tient, et hors contact le plan de secteurs part d\'elle (± 5°) ; un clic sur le point est refusé', ro.ok && !near.ok && ms.length === 3 && pl && ms.every(u => ad(u.keyOrder.face0, -Math.PI / 2) < 1e-6) && ms.some(u => ad(u.keyOrder.sect, -Math.PI / 2) < 0.6) && (pl.contact || ad(pl.face, -Math.PI / 2) < 0.09) && b.log.some(l => l.kind === 'orienter' && /vers le nord/.test(l.text)), { ro, near, face: pl && pl.face, contact: pl && pl.contact, n: ms.length });
+    const e = mkW(3, 'hold'); while (e.t < 1) e.step();
+    const re = e.command('aller', 0, { x: 22, z: 23, units: null, mode: 'agressif', arrivee: 'encercler' }); e.command('orienter', 0, { ordre: re.id, x: 22, z: 40 });   // danger au sud
+    while (e.t < 40 && e.teams[0].units.some(u => u.alive && u.moveOrder)) e.step();
+    const gs = {}; for (const u of e.teams[0].units) if (u.alive && u.keyOrder && u.keyOrder.enc) (gs[u.keyOrder.ordre] = gs[u.keyOrder.ordre] || []).push(u);
+    const north = Object.values(gs).map(g => g.reduce((s, u) => s + u.z, 0) / g.length < re.z);
+    check('orienter (encercler) : les deux sous-groupes se placent du côté opposé au danger montré (au nord du point, danger au sud)', Object.keys(gs).length === 2 && north.every(Boolean), { n: Object.keys(gs).length, north }); }
+  // R3 — relève : deux tombés dans la même moitié du Tiroir → moitiés rééquilibrées (écart ≤ 1), « Je prends sa place ! »
+  { const b = mkW(5); while (b.t < 3) b.step();
+    const h1 = b.teams[0].units.filter(u => u.boundGroup === 1); h1.slice(0, 2).forEach(u => { u.alive = false; u.hp = 0; u.status = 'down'; });
+    b.step(); const g = (k) => b.teams[0].units.filter(u => u.alive && u.boundGroup === k).length;
+    check('relève : toute une moitié du Tiroir tombe (3 + 2 → 3 + 0) → les moitiés sont refaites (écart ≤ 1) et le remplaçant le dit', Math.abs(g(0) - g(1)) <= 1 && g(0) >= 1 && g(1) >= 1 && b.log.some(l => l.kind === 'releve'), { g0: g(0), g1: g(1) });
+    const c = mkW(5, 'hold'); while (c.t < 1) c.step();
+    const r = c.command('aller', 0, { x: 30, z: 23, units: null, mode: 'methodique' }); c.step();
+    c.teams[0].units.filter(u => u.moveOrder.half === 1).forEach(u => { u.alive = false; u.hp = 0; });
+    c.step(); const hs = c.teams[0].units.filter(u => u.alive).map(u => u.moveOrder && u.moveOrder.half);
+    check('relève : un ordre « méthodique » dont une moitié tombe se repartage en deux moitiés', r.ok && hs.includes(0) && hs.includes(1), hs); }
+  // rejouabilité : tous les nouveaux ordres (retenu, feu, orienter, appui, décrocher) → bataille revue identique
+  { const play = (o) => {
+      const b = new Battle(Object.assign({ seed: 7, mapId: 'parking', teams: [{ name: 'Alpha', order: 'assault', operators: GIGN, tactics: ['tiroir'] }, { name: 'Bravo', order: 'assault', operators: KARST, tactics: ['tiroir'] }] }, o || {}));
+      const trace = [];
+      while (!b.over && b.t < 200) {
+        if (!b.replayQueue) {
+          if (Math.abs(b.t - 1) < 0.05) { const r = b.command('aller', 0, { x: 24, z: 20, units: ['0:op_lynx', '0:op_granit'], mode: 'methodique', arrivee: 'tenir', feu: 'appui' }); b.command('orienter', 0, { ordre: r.id, x: 44, z: 23 }); b.command('aller', 0, { x: 22, z: 34, units: ['0:op_vautour', '0:op_bastion', '0:op_belier'], mode: 'agressif', arrivee: 'tenir', feu: 'retenu' }); }
+          if (Math.abs(b.t - 20) < 0.05) b.command('feu', 0, { units: null });
+          if (Math.abs(b.t - 30) < 0.05) b.command('aller', 0, { x: 10, z: 23, units: null, mode: 'decrocher', arrivee: 'encercler' });
+        }
+        b.step(); if (b.tick % 10 === 0) trace.push(b.units.map(u => u.x.toFixed(2) + ',' + u.z.toFixed(2) + ',' + u.state).join(';'));
+      }
+      return { b, trace: trace.join('|') };
+    };
+    const P1 = play(), P2 = play({ replayInputs: P1.b.inputs });
+    const types = P1.b.inputs.map(c => c.type).join();
+    check('vague 1 : la bataille revue (aller + feu + orienter, appui, retenu, décrocher) est identique, pas à pas', types.split(',').filter(t => t === 'aller').length === 3 && types.includes('orienter') && P1.trace === P2.trace && JSON.stringify(P1.b.result) === JSON.stringify(P2.b.result), { types }); }
 }
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

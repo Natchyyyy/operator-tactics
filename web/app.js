@@ -7,7 +7,7 @@
   const MANUAL = params.get('manual') === '1';
   if (MANUAL) document.documentElement.classList.add('manual');   // captures reproductibles : pas de transitions CSS (aucune image n'est dessinée entre deux étapes)
 
-  const STATE_FR = { rush: 'Fonce (ordre)', crossing: 'Traverse le découvert', tokey: 'Rejoint son poste', holdkey: 'Tient la position', throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié', shaken: 'Ébranlé' };
+  const STATE_FR = { rush: 'Fonce (ordre)', crossing: 'Traverse le découvert', tokey: 'Rejoint son poste', holdkey: 'Tient la position', throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié', shaken: 'Ébranlé', appui: 'Tir d’appui' };
   const STATUS_FR = { ok: 'Indemne', wounded: 'Blessé', critical: 'Grave', down: 'Neutralisé' };
   const TEAM = [
     { name: 'Alpha', color: 0x4f9cf0, css: '#4f9cf0', uniform: 0x3a4a3c, vest: 0x2b352d },
@@ -683,7 +683,7 @@
       if (!drag) return;
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
       drag.m = (drag.m || 0) + Math.abs(dx) + Math.abs(dy);
-      if (drag.b === 2 && drag.m < 5) return;   // clic droit sans glisser (< 5 px) : ordre de déplacement, pas de caméra
+      if ((drag.b === 2 || ordOrient) && drag.m < 5) return;   // clic droit sans glisser (< 5 px) : ordre de déplacement, pas de caméra (de même le clic gauche d'orientation)
       if (cam.mode !== 'free') { if (Math.abs(dx) + Math.abs(dy) > 3) { setCamMode('free'); cam.yaw = Math.atan2(camera.position.z - cam.target.z, camera.position.x - cam.target.x); cam.pitch = Math.max(0.15, Math.min(1.5, Math.atan2(camera.position.y, Math.hypot(camera.position.x - cam.target.x, camera.position.z - cam.target.z)))); cam.dist = camera.position.distanceTo(cam.target); } return; }
       if (drag.b === 2 || drag.shift) {
         cam.follow = null;
@@ -693,7 +693,7 @@
       } else { cam.yaw += dx * 0.005; cam.pitch = Math.max(0.15, Math.min(1.5, cam.pitch + dy * 0.005)); }
       if (MANUAL) render();
     });
-    canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; if (d && d.b === 2 && (d.m || 0) < 5 && e.button === 2) openOrderMenu(e.clientX, e.clientY); });
+    canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; if (d && d.b === 2 && (d.m || 0) < 5 && e.button === 2) openOrderMenu(e.clientX, e.clientY); else if (d && d.b === 0 && (d.m || 0) < 5 && e.button === 0 && ordOrient) ordOrientClick(e.clientX, e.clientY); });
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (cam.mode !== 'free') return; cam.dist = Math.max(8, Math.min(140, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); if (MANUAL) render(); }, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   })();
@@ -2157,12 +2157,23 @@
     encercler: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="11" r="4" fill="none" stroke="currentColor" stroke-width="2.6"/><circle cx="16" cy="11" r="1.2" fill="currentColor"/><path d="M4 27l7.5-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M28 27l-7.5-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M7.5 18h4v4M24.5 18h-4v4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     manoeuvre: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="8" cy="22" r="3.2" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M11.5 19.5C15 15 18 13 24 12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M19 7l6 5-5 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     tenir: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4l10 4v7c0 6.5-4.3 11-10 13-5.7-2-10-6.5-10-13V8z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M11 16l4 4 6-7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    decrocher: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M17 8l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/><path d="M26 12l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 7v18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="23" cy="7" r="2.2" fill="currentColor" opacity=".55"/></svg>',
+    // ligne « Feu » (petits pictogrammes)
+    volonte: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="8" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M16 3v7M16 22v7M3 16h7M22 16h7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="16" cy="16" r="2" fill="currentColor"/></svg>',
+    retenu: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M11 17V9.5a2 2 0 014 0V15M15 15V7.5a2 2 0 014 0V15M19 15V9.5a2 2 0 014 0V19c0 5.5-3.4 9-8 9-3.4 0-5.6-1.8-7-4.6l-2.6-5a2 2 0 013.3-2.2L11 19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    appui: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 10h13M4 16h16M4 22h13" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3 3"/><path d="M24 7c3 2.5 4.5 5.5 4.5 9s-1.5 6.5-4.5 9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>',
   };
+  // Feu (3e ligne, petite) : un réglage, revient à « À volonté » après chaque ordre (un « Retenu » oublié coûte cher)
+  const ORD_FEU = [
+    { v: 'volonte', nom: 'À volonté', desc: 'Chacun tire sur ce qu’il voit (par défaut).' },
+    { v: 'retenu', nom: 'Retenu', desc: 'Embuscade : personne ne tire ni ne lance de grenade tant que le groupe n’est pas repéré, pris à partie, ou qu’un ennemi n’arrive tout près — alors tout le groupe ouvre le feu d’un coup (« Feu ! »). Clic sur la main d’une carte : ouvrir le feu tout de suite.' },
+    { v: 'appui', nom: 'Appui', desc: 'Une fois en place, le groupe arrose la zone menacée (le point montré par le clic d’orientation, sinon la menace connue la plus proche) : tir de suppression qui cloue l’ennemi, même à couvert, pendant qu’un autre groupe bouge. Munitions bridées (on cesse sous 40 %).' }];
   const ORD_OPTS = {
     mode: { titre: 'Déplacement', choix: [
       { v: 'methodique', nom: 'Méthodique', aide: 'Bonds, appui mutuel', desc: 'Doctrine française : une moitié bondit de couvert en couvert pendant que l’autre couvre, chacun son secteur ; pauses à chaque couvert.' },
       { v: 'agressif', nom: 'Agressif', aide: 'Vite, tire en avançant', desc: 'Droit au point au pas de course, en tirant sur ce qu’on voit ; courte halte à couvert seulement sous le feu.' },
-      { v: 'franchir', nom: 'Franchissement', aide: 'Un par un sous appui', desc: 'Comme Méthodique, mais un espace découvert sur le trajet se traverse un par un (deux par deux à 4 ou 5), au sprint, pendant que les autres couvrent le côté dangereux depuis le bord ; le premier passé couvre l’autre côté.' }] },
+      { v: 'franchir', nom: 'Franchissement', aide: 'Un par un sous appui', desc: 'Comme Méthodique, mais un espace découvert sur le trajet se traverse un par un (deux par deux à 4 ou 5), au sprint, pendant que les autres couvrent le côté dangereux depuis le bord ; le premier passé couvre l’autre côté.' },
+      { v: 'decrocher', nom: 'Décrocher', aide: 'Repli par bonds, sous appui', desc: 'Pour quitter un combat qui tourne mal : clic droit en arrière. Une moitié tire pour couvrir pendant que l’autre court jusqu’au couvert suivant vers le point, puis on inverse, sans halte pour engager. Arrivée : face au danger.' }] },
     arrivee: { titre: 'Arrivée', choix: [
       { v: 'tenir', nom: 'Tenir la position', aide: 'À couvert, face à la menace', desc: 'Sur place : un couvert tout proche, face à la menace (ou dans le sens de la marche), et on y reste.' },
       { v: 'encercler', nom: 'Encercler', aide: 'Prendre la position par deux côtés', desc: 'L’escouade se partage en deux : chaque moitié prend position d’un côté du point (à 8–14 m, à angle d’environ 100°, sans se faire face), à couvert, et le tient. À moins de trois : tenir la position.' },
@@ -2217,10 +2228,12 @@
     if (briefing) { flashBattle('Ordre : lancez d’abord la mission.'); return; }
     if (battle.over) { flashBattle('La bataille est terminée.'); return; }
     const p = ordGround(cx, cy); if (!p) { flashBattle('Ordre : cliquez sur le sol du terrain.'); return; }
-    const pick = Object.assign({}, ordLast);
+    ordOrientEnd();
+    const pick = Object.assign({}, ordLast, { feu: 'volonte' });   // le feu revient toujours à « À volonté »
     const el = document.createElement('div'); el.className = 'ordmenu';
     el.innerHTML = `<div class="omhead"><b>Ordre</b><span class="omwho"></span></div>` + Object.entries(ORD_OPTS).map(([cat, o]) =>
       `<div class="omsec">${o.titre}</div><div class="omrow">${o.choix.map(c => `<button class="omopt" data-cat="${cat}" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v] || ''}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>`).join('')
+      + `<div class="omsec">Feu</div><div class="omfeu">${ORD_FEU.map(c => `<button class="omopt omf" data-cat="feu" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b></button>`).join('')}</div>`
       + `<button class="omgo">Confirmer</button><div class="omhint">Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
     const main = $('main'), mr = main.getBoundingClientRect(); main.appendChild(el);
     // taille réelle à l'écran (le menu suit l'échelle du HUD, CSS zoom) ; left/top s'expriment avant ce zoom
@@ -2239,14 +2252,43 @@
     if (!ordMenu) return; const { p, pick } = ordMenu;
     const ids = ordSel ? [...ordSel].filter(id => unitById[id] && unitById[id].alive) : null, who = ordWho();
     if (ids && !ids.length) { closeOrderMenu(); flashBattle('Ordre refusé : aucun opérateur choisi n’est en état.'); return; }
-    const r = battle.command('aller', 0, { x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids, mode: pick.mode, arrivee: pick.arrivee });
+    const r = battle.command('aller', 0, { x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids, mode: pick.mode, arrivee: pick.arrivee, feu: pick.feu });
     closeOrderMenu();
     if (!r.ok) { flashBattle(`Ordre refusé : ${r.reason}.`); return; }
-    Object.assign(ordLast, pick); try { localStorage.setItem('ot-ordre', JSON.stringify(ordLast)); } catch (e) { /* stockage indisponible */ }
+    ordLast.mode = pick.mode; ordLast.arrivee = pick.arrivee; try { localStorage.setItem('ot-ordre', JSON.stringify(ordLast)); } catch (e) { /* stockage indisponible */ }
     const nm = (cat) => ORD_OPTS[cat].choix.find(c => c.v === pick[cat]).nom.toLowerCase();
-    flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}, puis ${nm('arrivee')}.`); pumpLog(); if (MANUAL) render();
+    const fe = pick.feu === 'volonte' ? '' : `, feu ${ORD_FEU.find(c => c.v === pick.feu).nom.toLowerCase()}`;
+    flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}, puis ${nm('arrivee')}${fe}.`); pumpLog();
+    // A4 : orienter la position — un clic gauche sur le sol montre d'où vient le danger (Échap : direction automatique)
+    if (pick.arrivee !== 'manoeuvre' || pick.feu === 'appui') ordOrientStart(r);
+    if (MANUAL) render();
   }
-  window.addEventListener('keydown', (e) => { if (ordMenu && e.code === 'Escape') { e.preventDefault(); closeOrderMenu(); } }, true);
+  window.addEventListener('keydown', (e) => { if (ordMenu && e.code === 'Escape') { e.preventDefault(); closeOrderMenu(); } else if (ordOrient && e.code === 'Escape') { e.preventDefault(); ordOrientEnd(); flashBattle('Orientation : automatique (menace connue, sinon sens de la marche).'); } }, true);
+  // ---- Orienter la position (A4) : juste après Confirmer, une flèche part du point vers le curseur ; clic gauche = d'où vient
+  // le danger (battle.command('orienter', …), rejoué en revue). Échap, clic droit ou nouvel ordre : automatique.
+  let ordOrient = null; const ordArrow = new THREE.Group(); ordArrow.visible = false; scene.add(ordArrow);
+  { const sh = new THREE.Shape(); sh.moveTo(0, -0.18); sh.lineTo(0.78, -0.18); sh.lineTo(0.78, -0.42); sh.lineTo(1, 0); sh.lineTo(0.78, 0.42); sh.lineTo(0.78, 0.18); sh.lineTo(0, 0.18); sh.closePath();
+    const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color: 0xffa23a, transparent: true, opacity: 0.85, depthTest: false, depthWrite: false, fog: false, toneMapped: false, side: THREE.DoubleSide }));
+    m.rotation.x = Math.PI / 2; m.renderOrder = 7; ordArrow.add(m); ordArrow.userData.m = m; }
+  function ordArrowAt(g, p, q, len) {   // flèche plate au sol de p vers q (longueur len, ou jusqu'à q)
+    const a = Math.atan2(q.z - p.z, q.x - p.x), L = len || Math.max(1.5, Math.min(14, Math.hypot(q.x - p.x, q.z - p.z)));
+    g.position.set(p.x, 0.06, p.z); g.rotation.set(0, -a, 0); g.scale.set(L, 1, Math.min(2.2, 0.8 + L * 0.1)); g.visible = true;
+  }
+  function ordOrientStart(r) {
+    ordOrientEnd(); ordOrient = { id: r.id, p: { x: r.x, z: r.z } };
+    let el = $('#orhint'); if (!el) { el = document.createElement('div'); el.id = 'orhint'; $('main').appendChild(el); }
+    el.innerHTML = '<b>Orienter la position</b> · clic gauche sur le sol : d’où vient le danger · Échap : automatique'; el.style.display = 'block';
+  }
+  function ordOrientEnd() { ordOrient = null; ordArrow.visible = false; const el = $('#orhint'); if (el) el.style.display = 'none'; }
+  function ordOrientMove(cx, cy) { if (!ordOrient) return; const q = ordGround(cx, cy); if (q) { ordArrowAt(ordArrow, ordOrient.p, q); if (MANUAL) render(); } }
+  function ordOrientClick(cx, cy) {
+    if (!ordOrient) return false; const o = ordOrient, q = ordGround(cx, cy); ordOrientEnd();
+    if (!q || !battle || battle.over) return true;
+    const r = battle.command('orienter', 0, { ordre: o.id, x: Math.round(q.x * 100) / 100, z: Math.round(q.z * 100) / 100 });
+    flashBattle(r.ok ? 'Position orientée : le danger est attendu de ce côté.' : `Orientation refusée : ${r.reason}.`); pumpLog(); if (MANUAL) render();
+    return true;
+  }
+  canvas.addEventListener('pointermove', (e) => { if (ordOrient && !e.buttons) ordOrientMove(e.clientX, e.clientY); });
   document.addEventListener('pointerdown', (e) => { if (ordMenu && !ordMenu.el.contains(e.target)) closeOrderMenu(); }, true);
   // marqueurs au sol : un par ordre en cours (icône du mode), retiré quand tout le groupe est arrivé ; fantôme pendant le menu
   const ordMarks = new THREE.Group(); scene.add(ordMarks); const ordTex = {};
@@ -2272,7 +2314,7 @@
   let ordGhost = null, ordBattle = null; const ordShown = {};
   function ordMarkGhost(p) { if (ordGhost) { ordFree(ordGhost); ordGhost = null; } if (p) { ordGhost = ordMarkMesh('ghost'); ordGhost.position.set(p.x, 0, p.z); ordMarks.add(ordGhost); } }
   function updateOrderMarks() {
-    if (ordBattle !== battle) { ordBattle = battle; for (const k in ordShown) { ordFree(ordShown[k]); delete ordShown[k]; } closeOrderMenu(); }
+    if (ordBattle !== battle) { ordBattle = battle; for (const k in ordShown) { ordFree(ordShown[k]); delete ordShown[k]; } closeOrderMenu(); ordOrientEnd(); }
     const live = {};
     for (const u of battle.teams[0].units) if (u.alive && u.moveOrder) live[u.moveOrder.id] = u.moveOrder;
     for (const k in ordShown) if (!live[k]) { ordFree(ordShown[k]); delete ordShown[k]; }
@@ -2280,6 +2322,38 @@
     for (const k in live) {
       if (!ordShown[k]) { const m = ordMarkMesh(live[k].mode); m.position.set(live[k].px, 0, live[k].pz); ordMarks.add(m); ordShown[k] = m; }
       ordShown[k].userData.sp.position.y = 3.8 + bob;
+    }
+    ordFireMarks();
+  }
+  // Feu (vague 1) : flèche d'orientation des ordres en route, zone arrosée par un groupe en appui (anneau orange), main
+  // levée sur les cartes des opérateurs en feu retenu (clic : « Feu ! »)
+  const ordZones = {}, ordDirs = {};
+  function ordFireMarks() {
+    const team = battle.teams[0], oi = team.ordInfo || {}, zl = {}, dl = {};
+    for (const u of team.units) {
+      if (!u.alive) continue; const o = battle.orderOf(u); if (!o) continue;
+      if (u.moveOrder && o.inf.orient) dl[o.id] = o.inf;
+      if (o.inf.feu === 'appui' && u.keyOrder && o.inf.zone && o.inf.zone.x !== null && battle.t - o.inf.zone.t < 1.5) zl[o.id] = o.inf.zone;
+    }
+    for (const k in ordZones) if (!zl[k] || Math.abs(ordZones[k].userData.r - zl[k].r) > 0.5) { ordFree(ordZones[k]); delete ordZones[k]; }
+    for (const k in zl) {
+      if (!ordZones[k]) { const g = new THREE.Group(), ring = groundHolo(zl[k].r, { color: 0xff8a2a, alpha: 0.8, fill: 0.25 }); ring.position.y = 0.04; g.add(ring); g.userData.r = zl[k].r; ordMarks.add(g); ordZones[k] = g; }
+      ordZones[k].position.set(zl[k].x, 0, zl[k].z);
+    }
+    for (const k in ordDirs) if (!dl[k]) { ordMarks.remove(ordDirs[k]); delete ordDirs[k]; }
+    for (const k in dl) {
+      if (!ordDirs[k]) { const g = ordArrow.clone(); ordMarks.add(g); ordDirs[k] = g; }
+      const inf = dl[k]; ordArrowAt(ordDirs[k], { x: inf.px, z: inf.pz }, inf.orient, 4.5);
+    }
+    for (const c of document.querySelectorAll('#roster0 .card')) {
+      const u = unitById[c.dataset.id], o = u && u.alive && battle.orderOf(u), held = !!(o && o.inf.feu === 'retenu' && !o.inf.released);
+      let f = c.querySelector('.ofire');
+      if (held && !f) {
+        f = document.createElement('button'); f.className = 'ofire'; f.title = 'Feu retenu — clic : ouvrir le feu maintenant'; f.innerHTML = ORD_SVG.retenu; c.appendChild(f);
+        f.addEventListener('click', (e) => { e.stopPropagation(); const r = battle.command('feu', 0, { units: [c.dataset.id] }); if (!r.ok) flashBattle(`Feu : ${r.reason}.`); pumpLog(); if (MANUAL) render(); });
+        f.addEventListener('dblclick', (e) => e.stopPropagation());
+      }
+      if (f) f.style.display = held ? '' : 'none';
     }
   }
   let bflashTimer = null;
@@ -2291,6 +2365,7 @@
     noammo: ['Plus de munitions !'], revive_start: ['Je m\u2019occupe de lui !', 'J\u2019arrive, tiens bon !'], revive: ['Debout, on y retourne !', 'Je te tiens !'],
     flash: ['Je ne vois plus rien !', 'Aveuglé !'], shaken: ['Repli !', 'Je décroche !', 'Ça chauffe trop !'], suppress: ['Feu de suppression !', 'Je les cloue !'], down: ['Homme à terre !', 'On a un blessé !', 'Il est touché !'],
     bouge: ['Je bouge !'], couvert: ['Couvert !'], enplace: ['En place.'], reprise: ['Je reprends ma progression.'],   // ordres de déplacement (clic droit)
+    feu: ['Feu !'], enappui: ['En appui !'], decroche: ['Je décroche !'], releve: ['Je prends sa place !'],               // feu retenu levé, appui, décrocher, relève dans les bonds
   };
   function bark(u, kind) {
     const m = u && meshes[u.id]; if (!m || !u.alive || ended || (m.barkUntil && simTime < m.barkUntil - 1.2)) return;
@@ -2332,7 +2407,8 @@
     else if (e.kind === 'grenade' && u) bark(u, /lance une/.test(e.text) ? 'throw' : 'grenade');
     else if (e.kind === 'flank' || e.kind === 'noammo' || e.kind === 'revive_start' || e.kind === 'revive' || e.kind === 'flash' || e.kind === 'shaken') bark(u, e.kind);
     else if (e.kind === 'suppress' && Math.random() < 0.5) bark(u, 'suppress');
-    else if (e.kind === 'moveorder' || e.kind === 'bond') { bark(u, 'bouge'); if (e.couvre) bark(unitById[e.couvre], 'couvert'); }
+    else if (e.kind === 'moveorder' || e.kind === 'bond') { bark(u, e.mode === 'decrocher' ? 'decroche' : 'bouge'); if (e.couvre) bark(unitById[e.couvre], 'couvert'); }
+    else if ((e.kind === 'feu' || e.kind === 'enappui' || e.kind === 'releve') && u) bark(u, e.kind);
     else if (e.kind === 'couvre') bark(u, 'couvert');
     else if (e.kind === 'enplace' && u) bark(u, 'enplace');
     else if (e.kind === 'reprise' && u) bark(u, 'reprise');
