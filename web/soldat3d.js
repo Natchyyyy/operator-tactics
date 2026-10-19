@@ -1228,7 +1228,7 @@
     if (pv !== null) { while (th - pv > Math.PI) th -= 2 * Math.PI; while (th - pv < -Math.PI) th += 2 * Math.PI; } m[cle] = { th, t: o.t };
     return new THREE.Quaternion().slerp(qs, s).multiply(new THREE.Quaternion().setFromAxisAngle(a0, th * s)).multiply(qA); };
   // place de la main d'appui tournée de a (rad) autour de la verticale de l'arme, centre au milieu de la paume (voir mainChargeur)
-  S.INCL_G = 0.7; S.INCL_EXP = 1; S.PUITS_V = 0.04; S.ALIGNE = 0.8; S.ALIGNE_DEB = 0;
+  S.INCL_G = 0.7; S.INCL_EXP = 1; S.PUITS_V = 0.04;
   const hrelIncl = (D, a) => { if (Math.abs(a) < 1e-4) return D.Hrel; const c = D.paumeLoc;
     return new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeRotationY(a)).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(D.Hrel); };
   // suivi de o[k] vers tgt (dt > 0) : ressort amorti critique (w) avec anticipation de la vitesse de la cible (bornée à vmax : un
@@ -1925,9 +1925,7 @@
       // choisi sur le cercle de ses positions possibles : avant-bras aligné sur la main (poignet peu cassé), proche de la pose de
       // l'animation, assez bas (garde basse plus bas qu'en visée), jamais rentré dans le buste ; la moitié de la torsion de la main
       // autour de l'avant-bras est portée par l'avant-bras. D : prise de cette main (doigt du milieu, pour l'axe de la main).
-      // limP (0..1, facultatif) : main libre (rechargement) — l'axe de la main est ramené vers celui de
-      // l'avant-bras de cette part (la main tient un chargeur : son orientation exacte compte moins qu'un poignet cassé)
-      poserBras(h, arm, fore, hand, tp, tq, k, D, limP) {
+      poserBras(h, arm, fore, hand, tp, tq, k, D) {
         this.osDoigts = this.osDoigts || {};
         mod(arm); mod(fore); mod(hand);
         const qH = WQ(hand).slerp(tq, k), S0 = WP(arm), E0 = WP(fore), H0 = WP(hand), T = H0.clone().lerp(tp, k);
