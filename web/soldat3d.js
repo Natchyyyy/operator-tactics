@@ -925,7 +925,10 @@
     L: { A: [-0.816, 0.149, 0.559], N: [0.106, 0.988, -0.109], mcp: [-0.036, 0.002, 0.174],
       cibles: { 0: { p: [0.04, 0.07, 0.2], f1: [-0.15, 1.2], f2: 1.0 } } },
     // places propres à un modèle (mêmes champs, remplacent ceux du dessus) : les mains n'ont pas la même forme
-    soldat: { L: { A: [-0.885, 0.06, 0.462], N: [0.225, 0.923, 0.311], mcp: [-0.042, 0.04, 0.154] } },
+    // (soldat, main d'appui : refermés jusqu'au contact, l'index et l'annulaire s'arrêtaient tôt, bout ~2 cm AU-DESSUS du
+    // garde-main ; ils sont posés sur son flanc droit, ~2,5 cm sous le dessus, au contact)
+    soldat: { L: { A: [-0.885, 0.06, 0.462], N: [0.225, 0.923, 0.311], mcp: [-0.042, 0.04, 0.154],
+      cibles: { 0: { p: [0.04, 0.07, 0.2], f1: [-0.15, 1.2], f2: 1.0 }, 1: { f1: [-0.15, 1.5], f2: 1.7, reg: 0.01, ecart: 0.2, flanc: [-0.039, 0.08], contact: 1 }, 3: { f1: [-0.15, 1.5], f2: 1.7, reg: 0.01, ecart: 0.2, flanc: [-0.039, 0.08], contact: 1 } } } },
     gign: { R: { A: [0.008, 0.261, 0.965], N: [1, 0.027, -0.015], mcp: [-0.04, -0.039, -0.131] }, L: { A: [-0.88, 0.12, 0.459], N: [0.274, 0.918, 0.286], mcp: [-0.048, 0.044, 0.14] } },
   };
   S.PRISE = PRISE;
@@ -1477,8 +1480,9 @@
           const x = Math.max(0, Math.min(1, (v - DECOLLE.v0) / (DECOLLE.v1 - DECOLLE.v0))), c = actif && v < 8 ? DECOLLE.h * x * x * (3 - 2 * x) * Math.max(0, 1 - 2 * lw) : 0;
           // (levée voulue ressort amorti critique, ~0,06 s : pas d'à-coup du genou)
           // (pas exact « SmoothDamp » : stable quel que soit dt — un ressort explicite divergeait à 30 images/s)
-          const want = Math.max(0, Math.min(0.08, c - h)), om = 2 / DECOLLE.t, x2 = om * dt, ex = 1 / (1 + x2 + 0.48 * x2 * x2 + 0.235 * x2 * x2 * x2), ch = d.y - want, tmp = (d.v + om * ch) * dt;
-          d.v = (d.v - om * tmp) * ex; d.y = Math.max(0, Math.min(0.08, want + (ch + tmp) * ex));
+          // (un pied enfoncé est l'affaire de sol() : la levée se compte depuis le sol)
+          const want = c > 0 ? Math.max(0, Math.min(0.08, c - Math.max(0, h))) : 0, om = 2 / DECOLLE.t, x2 = om * dt, ex = 1 / (1 + x2 + 0.48 * x2 * x2 + 0.235 * x2 * x2 * x2), ch = d.y - want, tmp = (d.v + om * ch) * dt;
+          d.v = (d.v - om * tmp) * ex; d.y = Math.max(0, Math.min(0.08, want + (ch + tmp) * ex)); if (root.Soldat3D && root.Soldat3D.dbgDecolle) d.dbg = [v, h, c, want];
           if (d.y > 0.001) { ikJambe(up, lo, ft, new THREE.Vector3(0, d.y, 0), orteils[i]); }
           const S2 = d.y > 0.001 ? semW(i) : S; d.p = S2.plante.clone();
         });
