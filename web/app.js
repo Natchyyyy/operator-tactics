@@ -2331,7 +2331,7 @@
     // soldat (le chef de l'escouade), nom d'équipe, lieu, texte qui se tape lettre à lettre comme dans le jeu d'origine
     const lead = battle.teams[0].units[0]; let fac = DATA.UNIFORMS.find(x => x.id === battle.teams[0].uniform) || DATA.FACTIONS.allied;
     $('#brFig').src = (lead && OT.Portrait && OT.Portrait.render({ id: lead.def.id, modele: lead.def.faction ? 'soldat' : 'gign', weapon: lead.weapon.id, uniform: fac.uniform, vest: fac.vest, headgear: lead.def.headgear || 'casque', full: true, w: 420, h: 640, aiming: true })) || '';
-    $('#brTeam').textContent = battle.teams[0].name; $('#brSub').textContent = OT.MAPS[mis.mapId].name; $('#brLoc').textContent = `${String(8 + Math.floor(Math.random() * 10)).padStart(2, '0')}00 — ${OT.MAPS[mis.mapId].name}`;
+    $('#brTeam').textContent = battle.teams[0].name; $('#brSub').textContent = OT.MAPS[mis.mapId].name; $('#brLoc').textContent = `${String(mis.conditions === 'nuit' ? (22 + Math.floor(Math.random() * 6)) % 24 : 8 + Math.floor(Math.random() * 10)).padStart(2, '0')} h 00 — ${OT.MAPS[mis.mapId].name}`;   // heure cohérente avec les conditions (nuit : 22 h – 3 h)
     const full = mis.desc || ''; $('#brDesc').textContent = MANUAL ? full : ''; let ci = 0; clearInterval(showBriefing.tw);
     if (!MANUAL) showBriefing.tw = setInterval(() => { ci += 2; $('#brDesc').textContent = full.slice(0, ci) + (ci < full.length ? ' |' : ''); if (ci >= full.length) clearInterval(showBriefing.tw); }, 30);
     briefing = { t0: performance.now() / 1000, a0: Math.random() * 6.28 }; $('#briefing').classList.remove('hidden');

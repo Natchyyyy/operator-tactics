@@ -88,7 +88,7 @@
           vec3 col = mix(vec3(0.028, 0.034, 0.052), vec3(0.004, 0.006, 0.014), pow(up, 0.45));
           col += vec3(0.055, 0.034, 0.018) * exp(-up * 9.0);   // pollution lumineuse de la ville
           vec3 g = d * 240.0, f = fract(g) - 0.5; float sd = h3(floor(g));
-          float star = step(0.986, sd) * smoothstep(0.22, 0.0, length(f)) * smoothstep(0.06, 0.35, up);
+          float star = step(0.986, sd) * (1.0 - smoothstep(0.0, 0.22, length(f))) * smoothstep(0.06, 0.35, up);
           col += vec3(0.75, 0.82, 1.0) * star * (0.4 + 1.6 * fract(sd * 37.0));
           float m = max(dot(d, moonDir), 0.0);
           col += vec3(1.0, 0.97, 0.9) * smoothstep(0.99955, 0.9997, m) * 2.5 + vec3(0.22, 0.27, 0.4) * pow(m, 220.0) * 0.8 + vec3(0.03, 0.04, 0.07) * pow(m, 10.0);

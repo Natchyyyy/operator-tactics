@@ -1409,6 +1409,7 @@
   /* scènes 1920×1080 (QG, VS, récompenses, résultat) : le fond couvre toute la fenêtre, plus de bandes vides ni de HUD visible autour */
   #hq::before, .overlay.rawov::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: #000 var(--fondv, var(--fond)) center / 100% 100% no-repeat; }
   #hq, .overlay.rawov, #rewards.rawov, #result.rawov { background: transparent !important; }
+  #vs .vs3::before { position: fixed; }   /* vignette de l'écran VS sur toute la fenêtre (plus de couture aux bords de la scène) */
   #hq header.rawbar { backdrop-filter: none; }   /* (le flou crée un bloc conteneur qui piégerait la bande fixe) */
   #hq header.rawbar::before { content: ''; position: fixed; top: var(--stage-top, 0px); height: 64px; left: 0; right: 0; z-index: -1; pointer-events: none; background: inherit; border-bottom: inherit; }
   /* barres de défilement sombres et fines partout (au lieu des barres claires du navigateur) */

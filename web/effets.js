@@ -119,16 +119,16 @@
         attribute vec4 iR; uniform float uTime, uLife; varying vec2 vQ; varying float vAge, vFog;
         void main() {
           vAge = (uTime - iR.z) / uLife; vQ = position.xz * 2.0;
-          vec3 wp = vec3(iR.x + position.x * iR.w, 0.012, iR.y + position.z * iR.w);
+          vec3 wp = vec3(iR.x + position.x * iR.w, 0.022, iR.y + position.z * iR.w);
           vec4 mv = viewMatrix * vec4(wp, 1.0); gl_Position = projectionMatrix * mv; vFog = -mv.z;
           if (vAge < 0.0 || vAge > 1.0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);   // hors de vie : hors écran
         }`,
       fragmentShader: `
         uniform vec3 uCol, fogColor; uniform float fogDensity; varying vec2 vQ; varying float vAge, vFog;
         void main() {
-          float r = length(vQ), w = 0.07 + 0.05 * vAge;
-          float ring = smoothstep(w, 0.0, abs(r - vAge * 0.92)) + 0.45 * smoothstep(w, 0.0, abs(r - vAge * 0.55));
-          float a = ring * pow(1.0 - vAge, 1.6) * 0.42 * (1.0 - step(1.0, r));
+          float r = length(vQ), w = 0.1 + 0.08 * vAge;
+          float ring = 1.0 - smoothstep(0.0, w, abs(r - vAge * 0.92)) + 0.45 * (1.0 - smoothstep(0.0, w, abs(r - vAge * 0.55)));   // (smoothstep à bornes inversées : indéfini en GLSL)
+          float a = ring * pow(1.0 - vAge, 1.4) * 0.48 * (1.0 - step(1.0, r));
           float fog = 1.0 - exp(-fogDensity * fogDensity * vFog * vFog); a *= 1.0 - fog;
           if (a < 0.004) discard;
           gl_FragColor = vec4(uCol, a);
@@ -147,7 +147,7 @@
         for (let i = 0; i < N; i++) {
           if (t - A[i * 4 + 2] < life) continue;
           const a = Math.random() * 6.28, d = Math.sqrt(Math.random()) * R;
-          A[i * 4] = cx + Math.cos(a) * d; A[i * 4 + 1] = cz + Math.sin(a) * d; A[i * 4 + 2] = t + Math.random() * life * 0.5; A[i * 4 + 3] = 0.16 + Math.random() * 0.16; ch = true;
+          A[i * 4] = cx + Math.cos(a) * d; A[i * 4 + 1] = cz + Math.sin(a) * d; A[i * 4 + 2] = t + Math.random() * life * 0.5; A[i * 4 + 3] = 0.3 + Math.random() * 0.3; ch = true;
         }
         if (ch) geo.attributes.iR.needsUpdate = true;
       },
@@ -244,7 +244,7 @@
       const flash = (s, col) => add.add({ p: P.clone().addScaledVector(n, 0.02), life: 0.03, size: s, rot: Math.random() * 6.28, frame: 1, col, a0: 1, delay });   // (bref et petit : de jour, une boule lumineuse qui reste au pied d'un mur se lit comme un objet)
       const sparks = (N, sp, life, col) => { for (let k = 0; k < N; k++) add.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.3, 1) * sp).add(V(rnd(-1, 1), rnd(-0.2, 1), rnd(-1, 1)).multiplyScalar(sp * 0.55)), life: rnd(life * 0.4, life), size: 0.01, stretch: 0.02, frame: 3, col, grav: 9.8, delay, floor: 0.01 }); };
       const chips = (N, col, sp, a0) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.4, 1) * sp).add(V(rnd(-1, 1), rnd(0.2, 1.2), rnd(-1, 1)).multiplyScalar(sp * 0.45)), life: rnd(0.35, 0.8), size: rnd(0.01, 0.024), frame: 12, col, a0: a0 || 1, grav: 9.8, delay, floor: 0.01, rot: Math.random() * 6, spin: rnd(-14, 14) }); };
-      const jet = (N, col, a0, sp) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.03), v: n.clone().multiplyScalar(rnd(0.6, 1) * sp).add(V(rnd(-1, 1), rnd(-0.2, 1), rnd(-1, 1)).multiplyScalar(sp * 0.2)), life: rnd(0.4, 0.7), size: rnd(0.04, 0.06), grow: 5, stretch: 0.05, frame: 4 + Math.floor(Math.random() * 4), col, a0, drag: 7, delay, fadePow: 1.3, rot: Math.random() * 6 }); };
+      const jet = (N, col, a0, sp) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.03), v: n.clone().multiplyScalar(rnd(0.6, 1) * sp).add(V(rnd(-1, 1), rnd(-0.2, 1), rnd(-1, 1)).multiplyScalar(sp * 0.2)), life: rnd(0.45, 0.8), size: rnd(0.06, 0.09), grow: 5, stretch: 0.06, frame: 4 + Math.floor(Math.random() * 4), col, a0, drag: 7, delay, fadePow: 1.3, rot: Math.random() * 6 }); };
       const puff = (N, col, a0, sz, life, sp) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.05), v: n.clone().multiplyScalar(rnd(0.3, 1) * sp).add(V(rnd(-0.3, 0.3), rnd(0, 0.35), rnd(-0.3, 0.3))), life: rnd(life * 0.6, life), size: rnd(sz * 0.7, sz), grow: rnd(3, 5), frame: 4 + Math.floor(Math.random() * 4), col, a0, drag: 3, delay, fadeIn: 0.03, fadePow: 1.5, rot: Math.random() * 6, spin: rnd(-0.6, 0.6) }); };
       let hole = up ? rnd(0.07, 0.11) : rnd(0.06, 0.09);
       if (matter === 'impact_metal') {
@@ -262,8 +262,8 @@
         const dusty = matter === 'impact_sol', wood = matter === 'impact_bois';
         const c = wood ? [0.45, 0.33, 0.2] : dusty ? [0.48, 0.44, 0.38] : [0.6, 0.58, 0.54];
         if (!dusty) flash(0.045, [2.4, 1.9, 1.3]);
-        jet(3, c, dusty ? 0.6 : 0.55, dusty ? 4.5 : 5);
-        puff(3, c, dusty ? 0.5 : 0.45, dusty ? 0.14 : 0.12, dusty ? 1.6 : 1.9, dusty ? 0.7 : 1);
+        jet(3, c, dusty ? 0.7 : 0.65, dusty ? 4.5 : 5);
+        puff(3, c, dusty ? 0.6 : 0.55, dusty ? 0.17 : 0.15, dusty ? 1.8 : 2.1, dusty ? 0.7 : 1);
         chips(dusty ? 6 : 7, wood ? [0.4, 0.3, 0.18] : dusty ? [0.16, 0.15, 0.14] : [0.36, 0.35, 0.33], 3);
         if (!dusty && !wood && Math.random() < 0.35) sparks(2, 4, 0.18, [8, 5, 2]);
       }
@@ -320,6 +320,7 @@
       for (const L of lights) { if (L.fresh) { L.fresh = false; L.until = now + L.dur; continue; } if (now >= L.until) { L.l.intensity = 0; continue; } const k = (L.until - now) / L.dur; L.l.intensity = L.i0 * k * (0.7 + Math.random() * 0.3); }
     };
     // pluie : ronds au sol et impacts au sol en gerbes d'eau
+    E.ripples = ripples;
     E.setRain = function (on) { ripples.mesh.visible = !!on; E.wet = !!on; };
     E.clear = function () { add.parts.length = 0; alpha.parts.length = 0; casings.list.length = 0; debris.list.length = 0; holes.clear(); blood.clear(); scorch.clear(); for (const L of lights) L.l.intensity = 0; add.update(0); alpha.update(0); casings.update(0); debris.update(0); };
     return E;

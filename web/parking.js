@@ -572,18 +572,37 @@
   }
   // muret : béton clair, chanfreins
   function lowWall(o) { const K = M3(); const m = new T.Mesh(new T.BoxGeometry(o.w, o.h, o.d), K.betonClair); const g = new T.Group(); g.add(m); const cap = new T.Mesh(new T.BoxGeometry(o.w + 0.08, 0.08, o.d + 0.08), K.betonClair); cap.position.y = o.h / 2 - 0.04; g.add(cap); return g; }
+  // touffe de feuillage : sphère bosselée (lobes + petit relief, fonction de la position : pas de couture), normales lisses,
+  // couleur par sommet (dessous et creux plus sombres, feuilles plus ou moins claires) ; 4 variantes partagées
+  const BUSH = [];
+  function bushGeo(i, lo) {
+    i = (i % 4) + (lo ? 4 : 0); if (BUSH[i]) return BUSH[i];   // lo : couvre-sol, petit et nombreux (≈ 100 triangles)
+    const Rb = rng(71 + i * 13), g = lo ? new T.SphereGeometry(1, 10, 7) : new T.SphereGeometry(1, 16, 11), pa = g.attributes.position, v = new T.Vector3(), n = new T.Vector3();
+    const lobes = Array.from({ length: 7 }, () => [new T.Vector3(Rb() - 0.5, Rb() * 0.8 - 0.2, Rb() - 0.5).normalize(), 0.12 + Rb() * 0.16]);
+    const col = new Float32Array(pa.count * 3), h = (x, y, z) => { const t = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return t - Math.floor(t); };
+    for (let k = 0; k < pa.count; k++) {
+      n.fromBufferAttribute(pa, k).normalize(); let r = 0.82;
+      for (const [d, a] of lobes) r += a * Math.pow(Math.max(0, n.dot(d)), 2.5);
+      r += 0.05 * Math.sin(n.x * 11 + n.y * 7) * Math.sin(n.z * 13 - n.y * 5) + (h(+n.x.toFixed(3), +n.y.toFixed(3), +n.z.toFixed(3)) - 0.5) * 0.07;   // feuilles
+      v.copy(n).multiplyScalar(r); if (v.y < -0.35) v.y = -0.35 - (v.y + 0.35) * 0.3;   // posée sur la terre
+      pa.setXYZ(k, v.x, v.y, v.z);
+      const ao = 0.45 + 0.55 * Math.min(1, Math.max(0, (n.y + 0.55) / 1.2)), j = 0.82 + 0.3 * h(+n.z.toFixed(3), +n.x.toFixed(3), 3.1);
+      col[k * 3] = ao * j * (0.95 + 0.1 * h(n.y, 1.7, n.x)); col[k * 3 + 1] = ao * j; col[k * 3 + 2] = ao * j * 0.92;
+    }
+    g.setAttribute('color', new T.BufferAttribute(col, 3)); g.computeVertexNormals(); return (BUSH[i] = g);
+  }
   // bac à fleurs : jardinière en béton, terre, petites plantes
   function planter(o) {
     const K = M3(), g = new T.Group();
     const outer = new T.Mesh(new T.BoxGeometry(o.w, o.h, o.d), K.betonClair); g.add(outer);
     const soil = new T.Mesh(new T.BoxGeometry(o.w - 0.2, 0.05, o.d - 0.2), mat('terre', () => new T.MeshStandardMaterial({ color: 0x3a2c20, roughness: 1 }))); soil.position.y = o.h / 2 - 0.08; g.add(soil);
     // couvre-sol : touffes basses et irrégulières (deux verts, un peu de paille), pas de « boules »
-    const leaf = mat('buis', () => new T.MeshStandardMaterial({ color: 0x41592c, roughness: 0.9 })), leaf2 = mat('buis2', () => new T.MeshStandardMaterial({ color: 0x5b6b33, roughness: 0.95 })), paille = mat('paille', () => new T.MeshStandardMaterial({ color: 0x8a7a4a, roughness: 1 }));
+    const leaf = mat('buisV', () => new T.MeshStandardMaterial({ color: 0x41592c, roughness: 0.9, vertexColors: true })), leaf2 = mat('buis2V', () => new T.MeshStandardMaterial({ color: 0x5b6b33, roughness: 0.95, vertexColors: true })), paille = mat('pailleV', () => new T.MeshStandardMaterial({ color: 0x8a7a4a, roughness: 1, vertexColors: true }));
     const R = rng(Math.floor(o.x * 13 + o.z * 7)), n = Math.round((o.w * o.d) * 5);
-    for (let k = 0; k < n; k++) { const r = 0.07 + R() * 0.11, b = new T.Mesh(new T.IcosahedronGeometry(r, 0), R() < 0.15 ? paille : R() < 0.5 ? leaf2 : leaf); b.position.set((R() - 0.5) * (o.w - 0.3), o.h / 2 - 0.03 + r * 0.3, (R() - 0.5) * (o.d - 0.3)); b.scale.set(1 + R() * 0.6, 0.35 + R() * 0.35, 1 + R() * 0.6); b.rotation.y = R() * 6; b.castShadow = true; g.add(b); }
+    for (let k = 0; k < n; k++) { const r = 0.07 + R() * 0.11, b = new T.Mesh(bushGeo(k, true), R() < 0.15 ? paille : R() < 0.5 ? leaf2 : leaf); b.scale.setScalar(r); b.position.set((R() - 0.5) * (o.w - 0.3), o.h / 2 - 0.03 + r * 0.3, (R() - 0.5) * (o.d - 0.3)); b.scale.set(r * (1 + R() * 0.6), r * (0.35 + R() * 0.35), r * (1 + R() * 0.6)); b.rotation.y = R() * 6; b.castShadow = true; g.add(b); }
     // du volume : arbustes bas (boules irrégulières de 30 à 55 cm) et touffes de graminées (lames fines)
     const nb = Math.max(2, Math.round(o.w * o.d * 1.2));
-    for (let k = 0; k < nb; k++) { const r = 0.16 + R() * 0.12, b = new T.Mesh(new T.IcosahedronGeometry(r, 1), R() < 0.5 ? leaf : leaf2); const px = (R() - 0.5) * (o.w - 0.5), pz = (R() - 0.5) * (o.d - 0.5); if (Math.hypot(px, pz) < 0.35) continue; b.position.set(px, o.h / 2 + r * 0.7, pz); b.scale.set(1 + R() * 0.4, 0.9 + R() * 0.6, 1 + R() * 0.4); b.rotation.set(R(), R() * 6, R()); b.castShadow = true; g.add(b); }
+    for (let k = 0; k < nb; k++) { const r = 0.16 + R() * 0.12, b = new T.Mesh(bushGeo(k + 2), R() < 0.5 ? leaf : leaf2); const px = (R() - 0.5) * (o.w - 0.5), pz = (R() - 0.5) * (o.d - 0.5); if (Math.hypot(px, pz) < 0.35) continue; b.position.set(px, o.h / 2 + r * 0.55, pz); b.scale.set(r * (1 + R() * 0.4), r * (0.9 + R() * 0.6), r * (1 + R() * 0.4)); b.rotation.set((R() - 0.5) * 0.3, R() * 6, (R() - 0.5) * 0.3); b.castShadow = true; g.add(b); }
     const lame = mat('graminee', () => new T.MeshStandardMaterial({ color: 0x7d8a45, roughness: 0.9, side: T.DoubleSide }));
     for (let k = 0; k < nb; k++) { const t = new T.Group(), px = (R() - 0.5) * (o.w - 0.4), pz = (R() - 0.5) * (o.d - 0.4); if (Math.hypot(px, pz) < 0.35) continue;
       for (let j = 0; j < 7; j++) { const h = 0.3 + R() * 0.3, bl = new T.Mesh(new T.PlaneGeometry(0.035, h), lame); bl.position.y = h / 2; bl.rotation.set((R() - 0.5) * 0.7, R() * 3, (R() - 0.5) * 0.7); t.add(bl); }

@@ -94,8 +94,9 @@
   function draw(t) {
     const w = canvas.clientWidth, h = canvas.clientHeight; if (w && h && (canvas.width !== w || canvas.height !== h)) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
     // l'escouade à droite de l'écran (le titre occupe la gauche) ; la caméra glisse lentement de part et d'autre
-    const a = Math.sin(t * 0.12) * 0.3, wide = camera.aspect < 1.5 ? 1.15 : 1;
-    camera.position.set(0.6 + Math.sin(a) * 2.4, 1.45 + Math.sin(t * 0.2) * 0.08, (7.4 + Math.cos(a) * 1.0) * wide); camera.lookAt(0.9, 1.0, -0.2);
+    // écran plus étroit que 16:9 (4:3, 16:10) : recul et visée décalée pour garder les cinq soldats entiers dans l'image
+    const nar = Math.max(0, 16 / 9 - camera.aspect), a = Math.sin(t * 0.12) * 0.3, wide = 1 + nar * 0.75, dx = nar * 1.1;
+    camera.position.set(0.6 + dx + Math.sin(a) * 2.4, 1.45 + Math.sin(t * 0.2) * 0.08, (7.4 + Math.cos(a) * 1.0) * wide); camera.lookAt(0.9 + dx, 1.0, -0.2);
     const dp = dustGeo.attributes.position.array; for (let i = 0; i < dp.length; i += 3) { dp[i] += 0.002; dp[i + 1] += Math.sin(t + i) * 0.0008; if (dp[i] > 9) dp[i] = -5; } dustGeo.attributes.position.needsUpdate = true;
     renderer.render(scene, camera);
   }
