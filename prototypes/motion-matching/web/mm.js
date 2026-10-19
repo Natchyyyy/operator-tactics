@@ -2,6 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
+  const VERSION = 13;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);
@@ -604,7 +605,9 @@
   function boucleAuto() {
     requestAnimationFrame(boucleAuto);
     const now = performance.now(); reste += Math.min(0.1, (now - dernierT) / 1000); dernierT = now;
-    let n = 0; while (reste >= PAS && n < 6) { boucle(PAS); reste -= PAS; n++; }
+    let n = 0; while (reste >= PAS && n < 4) { boucle(PAS); reste -= PAS; n++; }
+    // la machine n'arrive pas à suivre (rendu logiciel, onglet ralenti) : on abandonne le retard au lieu de l'accumuler
+    if (reste > 2 * PAS) reste = 2 * PAS;
     if (n === 0) rendre();
   }
 
@@ -660,7 +663,7 @@
   let dernierT = performance.now(), tempsPas = 0;
   function rendre() { if (!window.SANS_RENDU) renderer.render(scene, camera); }
   function boucle(dt) {
-    horloge += dt; const now = MANUEL ? horloge * 1000 : performance.now();
+    horloge += dt; const now = horloge * 1000;
     const t0 = performance.now();
     for (const A of agents) A.pas(dt, now);
     tempsPas = tempsPas * 0.95 + (performance.now() - t0) * 0.05;
@@ -679,7 +682,7 @@
     const f = A.frame, s = Base.meta.sequences[Base.seq[f]];
     const vit = Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]);
     const rec = A.glisse.recentCm(), moy = A.glisse.moyenneCm();
-    HUD.etat.innerHTML = `<b>${s.nom.replace('.bvh', '')}</b> image ${f - s.debut}/${s.fin - s.debut}<br>vitesse animation <b>${vit.toFixed(2)} m/s</b> · cible ${A.vGoal.length().toFixed(2)} m/s<br>sauts : ${(A.sautsFen.length / 2).toFixed(1)}/s (total ${A.sauts}) · ${agents.length} soldat${agents.length > 1 ? 's' : ''} · simulation ${tempsPas.toFixed(2)} ms/pas<br>mode : ${Ctl.chemin ? 'chemin' : 'clavier'}${Ctl.visee ? ' · <span class=on>arme</span>' : ''}${Ctl.verrouRegard ? ' · <span class=on>regard verrouillé</span>' : ''}${Ctl.accroupi ? ' · <span class=on>accroupi</span>' : ''}`;
+    HUD.etat.innerHTML = `<span style="float:right;color:#7f8794">v${VERSION}</span><b>${s.nom.replace('.bvh', '')}</b> image ${f - s.debut}/${s.fin - s.debut}<br>vitesse animation <b>${vit.toFixed(2)} m/s</b> · cible ${A.vGoal.length().toFixed(2)} m/s<br>sauts : ${(A.sautsFen.length / 2).toFixed(1)}/s (total ${A.sauts}) · ${agents.length} soldat${agents.length > 1 ? 's' : ''} · simulation ${tempsPas.toFixed(2)} ms/pas<br>mode : ${Ctl.chemin ? 'chemin' : 'clavier'}${Ctl.visee ? ' · <span class=on>arme</span>' : ''}${Ctl.verrouRegard ? ' · <span class=on>regard verrouillé</span>' : ''}${Ctl.accroupi ? ' · <span class=on>accroupi</span>' : ''}`;
     const pct = Math.min(100, rec / 30 * 100); HUD.jauge.style.width = pct + '%'; HUD.jauge.style.background = rec < 5 ? '#5ad17a' : rec < 15 ? '#ffb347' : '#ff6b6b';
     HUD.jaugeTxt.textContent = `glissement des pieds : ${rec.toFixed(1)} cm/s (2 s) · ${moy.toFixed(1)} cm/s depuis le début · instantané ${((A.inst || 0) * 100).toFixed(0)} cm/s`;
     window.__MM = { frame: f, glisseMoy: moy, glisseRecent: rec, sauts: A.sauts, soldat: S, Ctl, Base, facteurRacine: A.facteurRacine, agents, tempsPas };   // pour les outils de mesure
