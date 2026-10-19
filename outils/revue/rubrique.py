@@ -26,6 +26,7 @@ ETIQ = {
     'sprint': {'course', 'sprint', 'garde_basse', 'avant'},
     'jog_vise_diagG': {'course', 'vise', 'diag'},
     'jog_vise_decale': {'course', 'vise', 'avant'},
+    'course_vise': {'course', 'vise', 'avant'},
     'jog_vise_lateralD': {'course', 'vise', 'lateral'},
     'jog_vise_recul': {'course', 'vise', 'recul'},
     'jog_bas_rapide': {'course', 'garde_basse', 'avant'},

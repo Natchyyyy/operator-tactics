@@ -63,7 +63,7 @@
         { id: 'quai-est', nom: 'Jardinière du quai (est)', x: 42.1, z: 34.7, r: 2.5, menace: Math.PI, voie: 1 },
       ],
       // marquage au sol (rendu seulement) : rangées doubles [x0, z0, places], places le long des murs [x, z, places, pas en x, pas en z]
-      marquage: { rangees: [[13, 17, 6], [49, 17, 6]], murs: [[7.6, 41, 7, 2.5, 0], [0, 10.8, 2, 0, 2.5], [0, 29.5, 4, 0, 2.5], [67, 10.8, 2, 0, 2.5], [67, 29.5, 2, 0, 2.5]] },
+      marquage: { rangees: [[13, 17, 6], [49, 17, 6]], murs: [[7.6, 41, 7, 2.5, 0], [0, 10.8, 2, 0, 2.5], [0, 30.1, 4, 0, 2.5], [67, 10.8, 2, 0, 2.5], [67, 30.1, 2, 0, 2.5]] },   // (places des murs ouest et est au sud : alignées sur la voiture et le fourgon garés)
       // Un vrai parking de centre-ville, à l'arrière des boutiques de la Grand-Rue, vu du ciel : au nord la ruelle de service
       // (arrière des immeubles en briques, portes de service, entrées arrière des boutiques en face des deux passages du
       // grillage, bennes, fourgons de livraison) ; au sud la rue, derrière un muret à grille, avec l'unique entrée-sortie des
@@ -115,7 +115,7 @@
           box(71.3, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
           // ---- SUD : places le long du mur de la rue, kiosque à pizzas et consigne à colis (de part et d'autre), quai de la
           // navette (abri et jardinières sur l'îlot, bus le long), fourgons de livraison, point de tri
-          cap(box(8.6, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1), cap(box(16.1, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),
+          cap(box(7.9, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1), cap(box(15.4, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),   // centrées dans leurs places (lignes tous les 2,5 m depuis x 7,6)
           cap(box(18.0, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1), cap(box(20.5, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
           cap(box(23.0, 41.4, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
           box(21.2, 33.8, 2.4, 2.4, 3.0, 'wall', 'kiosque'), box(48.4, 33.8, 1.2, 3.0, 2.1, 'wall', 'consigne colis'),

@@ -576,9 +576,16 @@
       const kn = new T.Mesh(new T.SphereGeometry(0.045, 8, 6), sacM); kn.scale.y = 0.8; kn.position.y = 0.3; kn.rotation.z = (R() - 0.5) * 0.8; kn.castShadow = true; q.add(kn);
       for (const s of [-1, 1]) { const e = new T.Mesh(new T.ConeGeometry(0.03, 0.11, 5), sacM); e.position.set(s * 0.05, 0.34, 0); e.rotation.z = -s * 1.1; q.add(e); }
     };
-    for (const o of map.obstacles) if ((o.name || '').startsWith('benne') && o.z < 11) for (let i = 0; i < 3; i++) { const x = o.x + o.w + 0.35 + R() * 0.5, z = o.z + 0.3 + i * 0.4; if (free(x, z, 0.3)) bag(x, z); }
-    for (let i = 0; i < 7; i++) { const x = 2 + R() * 68, z = 0.35 + R() * 0.4; if (!free(x, z, 0.4)) continue; const c = new T.Mesh(new T.BoxGeometry(0.5 + R() * 0.3, 0.02, 0.4 + R() * 0.3), k.carton); c.position.set(x, 0.012, z + 0.3); c.rotation.y = R() * 3; c.receiveShadow = true; group.add(c); }
-    for (let i = 0; i < 4; i++) { const x = 3 + R() * 66, z = 0.3; if (!free(x, z, 0.35)) continue; const c = new T.Mesh(new T.BoxGeometry(0.45, 0.4, 0.35), k.carton); c.position.set(x, 0.2, z + 0.2); c.rotation.y = (R() - 0.5) * 0.5; c.castShadow = c.receiveShadow = true; group.add(c); }
+    // rien au pied d'une porte, d'une entrée de boutique ou d'un rideau de quai (x des façades de backs())
+    const seuils = [[3.0, 0.8], [17.6, 0.8], [20.4, 0.8], [41.6, 0.8], [57.6, 0.8], [65.2, 0.8], [25.75, 1.6], [48.0, 1.6], [11.6, 1.8], [70.0, 1.9]];
+    const devant = (x, z) => z < 3 && seuils.some(([sx, r]) => Math.abs(x - sx) < r);
+    for (const o of map.obstacles) if ((o.name || '').startsWith('benne') && o.z < 11) for (let i = 0; i < 3; i++) {
+      let x = o.x + o.w + 0.35 + R() * 0.5, z = o.z + 0.3 + i * 0.4;
+      if (devant(x, z)) { x = o.x + 0.45 + i * 0.55; z = o.z + o.d + 0.32; }   // la porte est à côté de la benne : sacs devant la benne
+      if (free(x, z, 0.3)) bag(x, z);
+    }
+    for (let i = 0; i < 7; i++) { const x = 2 + R() * 68, z = 0.35 + R() * 0.4; if (!free(x, z, 0.4) || devant(x, z)) continue; const c = new T.Mesh(new T.BoxGeometry(0.5 + R() * 0.3, 0.02, 0.4 + R() * 0.3), k.carton); c.position.set(x, 0.012, z + 0.3); c.rotation.y = R() * 3; c.receiveShadow = true; group.add(c); }
+    for (let i = 0; i < 4; i++) { const x = 3 + R() * 66, z = 0.3; if (!free(x, z, 0.35) || devant(x, z)) continue; const c = new T.Mesh(new T.BoxGeometry(0.45, 0.4, 0.35), k.carton); c.position.set(x, 0.2, z + 0.2); c.rotation.y = (R() - 0.5) * 0.5; c.castShadow = c.receiveShadow = true; group.add(c); }
   }
   // nuit : vitrines, enseignes, fenêtres éclairées lisibles mais sous le seuil du halo ; seules les ampoules des lampes brillent
   function setConditions(id) { const n = id === 'nuit'; for (const m of LAMPES) m.emissiveIntensity = n ? (m.userData.nuit ? m.userData.nuit * 0.55 : 2.5) : (m.userData.jour || 0); for (const l of NUITS) l.visible = n; }

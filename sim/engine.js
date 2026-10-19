@@ -81,7 +81,7 @@
     if (this.stance === 'crouch') v *= 0.55;
     // sprint : assaut sur un adversaire, repli ; course vers un couvert sous la menace (vu, pris pour cible, touché, à
     // découvert sous les yeux d'une position ennemie connue — voir act()) : on ne marche pas jusqu'à l'abri sous le feu
-    if (this.state === 'closing' || this.state === 'retreat' || this.dash) v *= 1.2;
+    if (this.state === 'closing' || this.state === 'retreat' || this.state === 'rush' || this.dash) v *= 1.2;   // rush : ordre de déplacement « agressif »
     else if (this.state === 'bounding' || this.state === 'advancing') { if (Object.keys(this.knowledge).length) v *= 0.8; } // pas tactique au contact
     const hard = has(this, 'hardened') ? 0.5 : 1;                                                    // Endurci : pénalités de blessure réduites de moitié
     if (this.status === 'wounded') v *= 1 - 0.2 * hard; else if (this.status === 'critical') v *= 1 - 0.5 * hard;
@@ -286,18 +286,19 @@
   // Commande du joueur : appliquée et enregistrée (pas, type, équipe, paramètre) pour pouvoir revoir la bataille.
   Battle.prototype.command = function (type, team, arg) {
     if (this.replayQueue) return { ok: false, reason: 'bataille revue : commandes désactivées' };
-    const r = type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : type === 'tenir' ? this.holdKeyPosition(team, arg && arg.pos, arg && arg.units) : { ok: false };
+    const r = type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : type === 'tenir' ? this.holdKeyPosition(team, arg && arg.pos, arg && arg.units) : type === 'aller' ? this.moveOrder(team, arg) : { ok: false };
     if (r && r.ok) this.inputs.push({ tick: this.tick, type, team, arg });
     return r;
   };
   Battle.prototype.step = function () {
     if (this.over) return;
     if (this.replayQueue) while (this.replayQueue.length && this.replayQueue[0].tick === this.tick) {   // revoir : mêmes commandes au même pas
-      const c = this.replayQueue.shift(); if (c.type === 'tactic') this.useTactic(c.team, c.arg); else if (c.type === 'order') this.setOrder(c.team, c.arg); else if (c.type === 'rotate') this.rotate(c.team, c.arg); else if (c.type === 'tenir') this.holdKeyPosition(c.team, c.arg && c.arg.pos, c.arg && c.arg.units); this.inputs.push(c);
+      const c = this.replayQueue.shift(); if (c.type === 'tactic') this.useTactic(c.team, c.arg); else if (c.type === 'order') this.setOrder(c.team, c.arg); else if (c.type === 'rotate') this.rotate(c.team, c.arg); else if (c.type === 'tenir') this.holdKeyPosition(c.team, c.arg && c.arg.pos, c.arg && c.arg.units); else if (c.type === 'aller') this.moveOrder(c.team, c.arg); this.inputs.push(c);
     }
     this.t = Math.round((this.t + DT) * 1000) / 1000; this.tick++;
     this.updateTactics();
     this.updateTiroir();
+    this.updateMoveGroups();   // ordres de déplacement « méthodiques » : bonds par groupe
     for (const u of this.units) if (u.alive) this.perceive(u);
     if (Math.abs((this.t % COMMS_EVERY)) < DT / 2 || (this.t % COMMS_EVERY) > COMMS_EVERY - DT / 2) this.comms();
     // ordre de traitement mélangé à chaque pas : aucune équipe n'a l'avantage d'agir toujours la première
@@ -787,7 +788,7 @@
     }
     // le premier point du chemin est souvent le centre de la case où l'on se trouve déjà, parfois DERRIÈRE soi :
     // on le saute (sinon un demi-pas en arrière, puis demi-tour — le corps « tournait sur lui-même » à chaque nouveau chemin)
-    let i0 = 0; while (i0 < path.length - 1 && (Math.hypot(path[i0].x - u.x, path[i0].z - u.z) < 0.9
+    let i0 = 0; while (i0 < path.length - 1 && ((Math.hypot(path[i0].x - u.x, path[i0].z - u.z) < 0.9 && this.map.walkableSegment(u.x, u.z, path[i0 + 1].x, path[i0 + 1].z))   // (point suivant joignable en ligne droite : sinon, plaqué contre un obstacle, on restait bloqué dessus)
       || ((path[i0].x - u.x) * (path[i0 + 1].x - path[i0].x) + (path[i0].z - u.z) * (path[i0 + 1].z - path[i0].z) < 0 && this.map.walkableSegment(u.x, u.z, path[i0 + 1].x, path[i0 + 1].z)))) i0++;
     // un bond (quelques mètres vers le couvert suivant) qui ferait le tour d'une rangée de voitures ou d'un mur (jusqu'à
     // 20 m dans l'autre sens, dos à l'ennemi) : refusé, l'appelant se rabat sur autre chose (couvrir, s'approcher)
@@ -913,7 +914,7 @@
         const a = (p.menace === null || p.menace === undefined ? 0 : p.menace) + Math.PI / 2, off = 2.5 * Math.ceil(k / 2) * (k % 2 ? 1 : -1);
         const f = this.map.nearestFree(p.x + Math.cos(a) * off, p.z + Math.sin(a) * off); if (f) { const c = this.map.centerOf(f.c, f.r); x = c.x; z = c.z; }
       }
-      u.keyOrder = { id: p.id, nom: p.nom || p.id, x, z, r: p.r || 2.5, menace: p.menace, held: false };
+      u.keyOrder = { id: p.id, nom: p.nom || p.id, x, z, r: p.r || 2.5, menace: p.menace, held: false }; u.moveOrder = null;
       if (u.goalKind !== 'revive') this.stop(u); u.commitUntil = 0;
     });
     if (p) this.logEvent('order', `${team.name} : ${units.map(u => u.callsign).join(', ')} ${units.length > 1 ? 'vont tenir' : 'va tenir'} la position clé « ${p.nom || p.id} ».`, { team: teamIndex, keyPos: p.id });
@@ -935,6 +936,158 @@
     const cover = this.coverAt(u.x, u.z, th.x, th.z, true);
     if (threats.length) { u.state = 'engage'; u.stance = ((u.reloading > 0 || this.t < (u.burstPauseUntil || 0)) && cover) ? 'crouch' : 'stand'; return; }
     u.state = 'holdkey'; u.stance = cover ? 'crouch' : 'stand';
+  };
+  // ---- Ordre de déplacement du joueur (clic droit sur le sol) ----------------------------------------------------------
+  // battle.command('aller', équipe, { x, z, units: [ids] | null (tous), mode: 'methodique' | 'agressif', arrivee: 'tenir' }) :
+  // les opérateurs désignés rejoignent le point à leur façon, puis font l'« arrivée ». Enregistré et rejoué à l'identique.
+  //  - méthodique (doctrine française : bonds avec appui mutuel) : le groupe désigné est partagé en deux moitiés ; l'une bondit
+  //    de couvert en couvert (≤ 9 m, pause à chaque couvert), l'autre couvre, arrêtée, chacun son secteur (face à la menace —
+  //    ou au sens de la marche —, puis ±35°, le dernier vers l'arrière) ; on inverse quand ceux qui bondissent sont arrivés.
+  //  - agressif : droit au point au pas de course, en tirant sur ce qu'on voit (précision habituelle en marchant) ; sous le
+  //    feu, une courte halte (~1 s) derrière un couvert proche qui ne fait pas reculer, au plus une toutes les 6 s.
+  //  - arrivée « tenir » : un vrai couvert tout proche (≤ 4 m) face à la menace (ou au sens de la marche), et on y reste :
+  //    c'est le poste de l'ordre « tenir » (followKeyOrder). Sans ordre, rien ne change.
+  // Un ordre au plus toutes les 3 s par opérateur (garde-fou contre la micro-gestion).
+  const MOVE_MODES = { methodique: 'méthodique', agressif: 'agressif' }, ARRIVALS = { tenir: 'tenir la position' };
+  const ORDER_COOLDOWN = 3, BOUND_MAX = 9, BOUND_BARE = 7, SECTORS = [0, 0.61, -0.61];   // secteurs : ±35°
+  // point du sol cliqué → point marchable (dans le terrain, hors obstacle : case libre la plus proche)
+  Battle.prototype.orderPoint = function (x, z) {
+    const m = this.map; if (!isFinite(x) || !isFinite(z)) return null;
+    x = clamp(x, 1, m.width - 1); z = clamp(z, 1, m.depth - 1);
+    if (!m.inBounds(x, z) || m.insideObstacle(x, z)) { const f = m.nearestFree(x, z); if (!f) return null; const c = m.centerOf(f.c, f.r); x = c.x; z = c.z; }
+    return { x, z };
+  };
+  Battle.prototype.moveOrder = function (teamIndex, arg) {
+    const team = this.teams[teamIndex]; if (!team || this.over) return { ok: false, reason: 'bataille terminée' };
+    arg = arg || {};
+    const mode = MOVE_MODES[arg.mode] ? arg.mode : null, arrivee = arg.arrivee === undefined ? 'tenir' : arg.arrivee;
+    if (!mode || !ARRIVALS[arrivee]) return { ok: false, reason: 'ordre inconnu' };
+    const p = this.orderPoint(+arg.x, +arg.z); if (!p) return { ok: false, reason: 'point hors du terrain' };
+    const ids = Array.isArray(arg.units) && arg.units.length ? arg.units : null;
+    const units = team.units.filter(u => u.alive && (!ids || ids.includes(u.id) || ids.includes(u.def.id)));
+    if (!units.length) return { ok: false, reason: 'aucun opérateur' };
+    const wait = Math.max(...units.map(u => (u.orderAt === undefined ? -99 : u.orderAt) + ORDER_COOLDOWN - this.t));
+    if (wait > 1e-6) return { ok: false, reason: `un ordre toutes les ${ORDER_COOLDOWN} s (encore ${Math.ceil(wait)} s)` };
+    if (!this.map.findPath(units[0].x, units[0].z, p.x, p.z)) return { ok: false, reason: 'point inaccessible' };
+    const cx = units.reduce((s, u) => s + u.x, 0) / units.length, cz = units.reduce((s, u) => s + u.z, 0) / units.length;
+    let dir = Math.atan2(p.z - cz, p.x - cx);
+    if (Math.hypot(p.x - cx, p.z - cz) < 2) { const e = this.map.spawns[1 - teamIndex]; dir = Math.atan2(e.z - p.z, e.x - p.x); }
+    // places : le premier sur le point, les suivants de part et d'autre, en travers de la marche (tous les 2,5 m), jamais
+    // l'un sur l'autre ni de l'autre côté d'un mur
+    const spots = [], a = dir + Math.PI / 2;
+    units.forEach((u, k) => {
+      let s = null;
+      for (let j = k; j < k + 10 && !s; j++) {
+        const off = j === 0 ? 0 : 2.5 * Math.ceil(j / 2) * (j % 2 ? 1 : -1), q = this.orderPoint(p.x + Math.cos(a) * off, p.z + Math.sin(a) * off);
+        if (q && !spots.some(o => Math.hypot(o.x - q.x, o.z - q.z) < 1.5) && this.map.walkableSegment(p.x, p.z, q.x, q.z)) s = q;
+      }
+      spots.push(s || p);
+    });
+    const id = this.orderSeq = (this.orderSeq || 0) + 1;
+    team.moveGroups = (team.moveGroups || []).filter(g => this.groupActive(g));
+    team.moveGroups.push({ id, mode, members: units.map(u => u.id), bound: { group: 0, since: this.t, n: 0 } });
+    units.forEach((u, k) => {
+      u.keyOrder = null; u.orderAt = this.t; u.reviving = null;
+      u.moveOrder = { id, mode, arrivee, x: spots[k].x, z: spots[k].z, px: p.x, pz: p.z, dir, half: k % 2, goalN: -1, doneN: -1 };
+      this.stop(u); u.commitUntil = 0; u.pauseUntil = 0;
+    });
+    this.logEvent('moveorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — déplacement ${MOVE_MODES[mode]}, puis ${ARRIVALS[arrivee]}.`, { team: teamIndex, unit: units[0].id, ordre: id, mode });
+    return { ok: true, id, x: p.x, z: p.z };
+  };
+  Battle.prototype.groupActive = function (g) { return g.members.some(id => { const u = this.unitById(id); return u && u.alive && u.moveOrder && u.moveOrder.id === g.id; }); };
+  const boundingNow = (u, b) => u.moveOrder.half === b.group && u.moveOrder.doneN !== b.n;
+  // bonds alternés de chaque groupe « méthodique » (même règle que le Tiroir, mais pour les seuls opérateurs de l'ordre)
+  Battle.prototype.updateMoveGroups = function () {
+    for (const team of this.teams) {
+      if (!team.moveGroups || !team.moveGroups.length) continue;
+      team.moveGroups = team.moveGroups.filter(g => this.groupActive(g));
+      for (const g of team.moveGroups) {
+        if (g.mode !== 'methodique') continue;
+        const act = g.members.map(id => this.unitById(id)).filter(u => u && u.alive && u.moveOrder && u.moveOrder.id === g.id);
+        const b = g.bound, movers = act.filter(u => u.moveOrder.half === b.group), others = act.filter(u => u.moveOrder.half !== b.group);
+        const el = this.t - b.since;
+        const done = !movers.length || (el > 2.5 && movers.every(u => u.moveOrder.doneN === b.n || BUSY[u.state])) || el > 12;
+        if (!done) continue;
+        b.since = this.t; b.n++;
+        if (!others.length) continue;                       // une seule moitié encore en route : elle enchaîne les bonds
+        b.group = 1 - b.group;
+        this.logEvent('bond', `${team.name} — ${others.map(u => u.callsign).join(', ')} : « Je bouge ! »${movers.length ? ` ${movers.map(u => u.callsign).join(', ')} : « Couvert ! »` : ''}`, { team: team.index, unit: others[0].id, couvre: movers.length ? movers[0].id : null, silent: true });
+      }
+    }
+  };
+  Battle.prototype.followMoveOrder = function (u, threats, beingShot) {
+    const o = u.moveOrder, dNow = Math.hypot(o.x - u.x, o.z - u.z);
+    // arrivé (ou sa place est prise par un équipier debout dessus : on s'arrête à côté)
+    if (dNow < 0.8 || (dNow < 1.6 && !u.goal && this.teams[u.team].units.some(a => a !== u && a.alive && Math.hypot(a.x - o.x, a.z - o.z) < 0.9))) { this.arriveOrder(u); this.followKeyOrder(u, threats); return; }
+    const th = threats.length ? (beingShot && u.lastShotBy && u.lastShotBy.alive ? u.lastShotBy : (u.target && u.target.alive ? u.target : threats[0])) : this.mainThreat(u);
+    const tp = th || { x: o.x + Math.cos(o.dir) * 25, z: o.z + Math.sin(o.dir) * 25 };   // sans menace : dans le sens de la marche
+    if (o.mode === 'agressif') this.orderRush(u, o, tp, threats, beingShot, dNow);
+    else this.orderBound(u, o, tp, threats, dNow);
+  };
+  Battle.prototype.orderRush = function (u, o, tp, threats, beingShot, dNow) {
+    const face = () => { if (!u.target || !u.target.alive) u.facing = Math.atan2(tp.z - u.z, tp.x - u.x); };
+    if (o.halting) {                                                     // en route vers l'abri de la halte
+      if (u.goal && u.goalKind === 'cover' && this.t - o.halting < 3) return;
+      o.halting = 0; o.haltUntil = this.t + 1.1;
+    }
+    if (this.t < (o.haltUntil || 0)) { this.stop(u); u.state = threats.length ? 'engage' : 'pause'; u.stance = (u.reloading > 0 && this.coverAt(u.x, u.z, tp.x, tp.z, false)) ? 'crouch' : 'stand'; face(); return; }
+    if (beingShot && this.t - (o.lastHalt || -99) > 6 && !this.coverAt(u.x, u.z, tp.x, tp.z, true)) {
+      const cp = this.findCover(u, tp, 5, { towards: o });
+      if (cp && Math.hypot(cp.x - o.x, cp.z - o.z) < dNow + 1 && this.setGoal(u, cp.x, cp.z, 'cover')) {
+        o.halting = this.t; o.lastHalt = this.t; u.state = 'tocover'; u.stance = 'stand';
+        this.logEvent('couvre', `${u.callsign} : « Couvert ! »`, { unit: u.id, team: u.team, silent: true }); return;
+      }
+    }
+    if (this.setGoal(u, o.x, o.z, 'order')) { u.state = 'rush'; u.stance = 'stand'; return; }
+    this.arriveOrder(u); this.followKeyOrder(u, threats);                // plus de chemin : on tient où l'on est
+  };
+  Battle.prototype.orderBound = function (u, o, tp, threats, dNow) {
+    const g = (this.teams[u.team].moveGroups || []).find(x => x.id === o.id), b = g ? g.bound : { group: o.half, n: 0 };
+    if (u.goal && (u.goalKind === 'bound' || u.goalKind === 'cover')) return;      // bond (ou mise à couvert) en cours : on le termine
+    if (o.goalN === b.n) o.doneN = b.n;                                              // bond terminé
+    const cover = this.coverAt(u.x, u.z, tp.x, tp.z, true);
+    const pinned = u.suppression > 0.8 - u.def.composure / 400 + (has(u, 'steady') ? 0.15 : 0) + (this.nearLeader(u) ? 0.1 : 0);
+    if (pinned && cover) { this.stop(u); u.state = 'pinned'; u.stance = 'crouch'; return; }
+    if (!boundingNow(u, b) || this.t < u.pauseUntil) {
+      // en appui : arrêté ; une cible en vue → on tire (d'un vrai couvert proche si l'on est à découvert) ; sinon son secteur
+      this.stop(u);
+      if (threats.length) {
+        if (!cover) { const cp = this.findCover(u, tp, 5, { requireShoot: true, towards: o }); if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.6 && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; } }
+        u.state = 'engage'; u.stance = ((u.reloading > 0 || this.t < (u.burstPauseUntil || 0)) && cover) ? 'crouch' : 'stand'; return;
+      }
+      const cov = g ? g.members.map(id => this.unitById(id)).filter(a => a && a.alive && a.moveOrder && a.moveOrder.id === g.id && !boundingNow(a, b)) : [u];
+      const r = Math.max(0, cov.indexOf(u)), base = Math.atan2(tp.z - u.z, tp.x - u.x);
+      u.facing = cov.length >= 3 && r === cov.length - 1 ? base + Math.PI : base + SECTORS[r % 3];   // serre-file : l'arrière
+      u.state = boundingNow(u, b) ? 'pause' : 'overwatch'; u.stance = this.waitStance(u, tp); return;
+    }
+    // à son tour de bondir : jusqu'au point s'il est proche, sinon au couvert suivant (≤ 9 m), sinon 7 m le long du chemin
+    let gx = o.x, gz = o.z;
+    if (dNow > BOUND_MAX + 1) {
+      const path = this.map.findPath(u.x, u.z, o.x, o.z);
+      if (!path) { this.arriveOrder(u); this.followKeyOrder(u, threats); return; }
+      let px = u.x, pz = u.z, left = BOUND_BARE;
+      for (const q of path) { const d = Math.hypot(q.x - px, q.z - pz); if (d >= left) { px += (q.x - px) / d * left; pz += (q.z - pz) / d * left; left = 0; break; } left -= d; px = q.x; pz = q.z; }
+      const cp = this.findCover(u, tp, BOUND_MAX, { towards: { x: px, z: pz } });
+      if (cp && Math.hypot(cp.x - o.x, cp.z - o.z) < dNow - 2.5) { gx = cp.x; gz = cp.z; } else { gx = px; gz = pz; }
+    }
+    if (this.setGoal(u, gx, gz, 'bound')) { o.goalN = b.n; u.boundGoalN = undefined; u.state = 'bounding'; u.stance = 'stand'; return; }
+    o.doneN = b.n; this.stop(u); u.state = 'overwatch';
+  };
+  // arrivée « tenir » : poste sur un vrai couvert tout proche face à la menace (ou au sens de la marche) → ordre de poste
+  Battle.prototype.arriveOrder = function (u) {
+    const o = u.moveOrder; u.moveOrder = null;
+    const th = this.mainThreat(u), face = th ? Math.atan2(th.z - u.z, th.x - u.x) : o.dir;
+    const tp = { x: u.x + Math.cos(face) * 20, z: u.z + Math.sin(face) * 20 };
+    let post = { x: u.x, z: u.z };
+    if (!this.coverAt(u.x, u.z, tp.x, tp.z, true)) { const cp = this.findCover(u, tp, 4, {}); if (cp) post = { x: cp.x, z: cp.z }; }
+    u.keyOrder = { id: 'ordre' + o.id, nom: 'point ordonné', x: post.x, z: post.z, r: 2.5, menace: face, held: true, ordre: o.id };
+    this.stop(u); u.commitUntil = 0;
+    this.logEvent('enplace', `${u.callsign} : « En place. »`, { unit: u.id, team: u.team, ordre: o.id, silent: true });
+    const team = this.teams[u.team], g = (team.moveGroups || []).find(x => x.id === o.id);
+    if (g && !this.groupActive(g)) {
+      const here = g.members.map(id => this.unitById(id)).filter(a => a && a.alive && a.keyOrder && a.keyOrder.ordre === o.id).map(a => a.callsign);
+      this.logEvent('enplace', `${team.name} : ${here.join(', ')} ${here.length > 1 ? 'sont en place et tiennent' : 'est en place et tient'} la position.`, { team: u.team, ordre: o.id });
+    }
   };
   Battle.prototype.decide = function (u) {
     if (!u.alive) return;
@@ -986,7 +1139,7 @@
       if (threats.length || beingShot) { u.reviving = null; u.state = 'idle'; }
       else { const a = this.unitById(u.reviving.id); if (a) a.rescue = { by: u, t: this.t }; return; }
     }
-    if (!threats.length && !beingShot && u.suppression < 0.4 && !u.throwing && u.state !== 'noammo' && !u.keyOrder) {   // en poste sur ordre : il y reste
+    if (!threats.length && !beingShot && u.suppression < 0.4 && !u.throwing && u.state !== 'noammo' && !u.keyOrder && !u.moveOrder) {   // en poste (ou en route) sur ordre : il obéit
       const a = this.downedToRevive(u);
       if (a) {
         a.rescue = { by: u, t: this.t };
@@ -1012,6 +1165,7 @@
     if (this.tryGrenade(u)) return;
     // ordre « tenir la position clé » : passe avant tout le reste (l'IA fait ce qu'on lui dit)
     if (u.keyOrder) { this.followKeyOrder(u, threats); return; }
+    if (u.moveOrder) { this.followMoveOrder(u, threats, beingShot); return; }   // ordre de déplacement du joueur (clic droit)
     // engagement sur un déplacement en cours : on continue (en tirant si possible) sauf si on vient d'être touché, ou si
     // ce déplacement mène droit sur un ennemi en vue (une marche d'approche ne se poursuit pas jusqu'à lui rentrer dedans)
     // Sous le feu (des balles claquent autour de soi depuis le départ), une marche d'approche ou un bond encore long
@@ -1317,9 +1471,10 @@
     // déplacement
     const wasMoving = u.moving;
     u.moving = false;
-    u.dash = !!(u.path && u.goal && DASH[u.goalKind] && this.underThreat(u));   // course vers un couvert sous la menace : au sprint
+    // course vers un couvert sous la menace : au sprint (une course retournée va jusqu'au bout, même si la menace s'efface)
+    u.dash = !!(u.path && u.goal && DASH[u.goalKind] && (u.dashTurned || this.underThreat(u)));
     if (u.path && u.goal) this.move(u);
-    if (!u.moving) { u.dashTurned = false; u.dash = false; }
+    if (!u.moving) { u.dashTurned = false; u.walkTurned = false; u.dash = false; }
     if (u.moving) u.stillSince = undefined; else if (wasMoving || u.stillSince === undefined) u.stillSince = this.t;
     // accroupi à l'arrêt = « à couvert » : seulement derrière un vrai obstacle face à la menace principale (elle a pu bouger,
     // le décor a pu sauter, on a pu se décaler). Sinon on se relève (et la prochaine décision cherche un vrai couvert).
@@ -1384,13 +1539,16 @@
     let look = u.target && u.target.alive ? Math.atan2(u.target.z - u.z, u.target.x - u.x) : aim;
     // course vers l'abri sous la menace (u.dash) : menace de côté ou derrière et plus de 3 m à faire → on se retourne et on
     // court droit vers l'abri (jusqu'à l'arrivée) ; plus près, on reste face à elle (pas chassé, marche arrière)
+    // Hors menace, l'arme pointée vers une position connue (sans cible) : au-delà de 60° de la marche on n'avance plus qu'en
+    // pas chassé ou à reculons (1,4 à 1,8 m/s) — seulement pour les 3 derniers mètres ; plus loin, on marche face à sa route.
+    const far = () => { let rem = d; for (let i = u.pathIdx + 1; i < u.path.length && rem <= DASH_BACK; i++) rem += Math.hypot(u.path[i].x - u.path[i - 1].x, u.path[i].z - u.path[i - 1].z); return rem > DASH_BACK; };
     let turned = false;
-    if (u.dash && look !== null && d > 0.05 && angDiff(look, mv) > DASH_TURN) {
-      if (u.dashTurned) turned = true;
-      else { let rem = d; for (let i = u.pathIdx + 1; i < u.path.length && rem <= DASH_BACK; i++) rem += Math.hypot(u.path[i].x - u.path[i - 1].x, u.path[i].z - u.path[i - 1].z); turned = rem > DASH_BACK; }
-    }
+    if (u.dash && look !== null && d > 0.05 && angDiff(look, mv) > DASH_TURN) turned = u.dashTurned || far();
     u.dashTurned = turned;
     if (turned) { look = null; aim = null; }
+    const walkTurned = !turned && !u.target && aim !== null && angDiff(aim, mv) > Math.PI / 3 && (u.walkTurned || far());
+    u.walkTurned = walkTurned;
+    if (walkTurned) { look = null; aim = null; }
     const stepLen = (look === null || d <= 0.05 ? u.speed() : this.gaitSpeed(u.speed(), angDiff(look, mv))) * DT;
     let nx, nz;
     if (d <= stepLen) { nx = wp.x; nz = wp.z; }
@@ -1470,7 +1628,7 @@
   Battle.prototype.updateTiroir = function () {
     for (const team of this.teams) {
       if (!this.hasTactic(team, 'tiroir') || team.order === 'hold') continue;
-      const b = team.bound, alive = team.units.filter(a => a.alive && a.boundGroup >= 0);
+      const b = team.bound, alive = team.units.filter(a => a.alive && a.boundGroup >= 0 && !a.moveOrder);   // en route sur ordre : bonds de son propre groupe
       const movers = alive.filter(a => a.boundGroup === b.group), others = alive.filter(a => a.boundGroup !== b.group);
       const el = this.t - b.since;
       const done = !movers.length || (el > 2.5 && movers.every(a => a.boundDone === b.n || BUSY[a.state])) || el > 10;

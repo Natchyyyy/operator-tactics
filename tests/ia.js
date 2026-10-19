@@ -215,4 +215,40 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   const n = mkK(4); n.run();
   check('position clé : sans ordre, aucun opérateur n\'en reçoit (l\'IA ne les dispute pas d\'elle-même)', n.units.every(u => !u.keyOrder) && !n.log.some(l => l.kind === 'keypos'));
 }
+{
+  // ---- Ordre de déplacement du joueur (clic droit) : command('aller', 0, { x, z, units, mode, arrivee }) ----
+  const mkA = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams: [{ name: 'Alpha', order: 'assault', operators: GIGN, tactics: ['tiroir'] }, { name: 'Bravo', order: 'hold', operators: KARST, tactics: ['tiroir'] }] }, o || {}));
+  const P = { x: 35, z: 23 };
+  const run = (mode, seed) => {
+    const b = mkA(seed); while (b.t < 1) b.step();
+    const r = b.command('aller', 0, { x: P.x, z: P.z, units: null, mode, arrivee: 'tenir' });
+    const spam = b.command('aller', 0, { x: P.x, z: P.z + 5, units: null, mode, arrivee: 'tenir' });
+    let all = null, mixed = 0, samples = 0, overwatch = 0, spread = 0, held = true;
+    while (b.t < 75 && !b.over) {
+      b.step();
+      const ord = b.teams[0].units.filter(u => u.alive && u.moveOrder);
+      if (ord.length >= 2) { samples++; const m = ord.filter(u => u.moving).length; if (m > 0 && m < ord.length) mixed++; }
+      const ow = ord.filter(u => u.state === 'overwatch' && !u.target); overwatch += ow.length;
+      for (let i = 0; i < ow.length; i++) for (let j = i + 1; j < ow.length; j++) { let d = Math.abs(ow[i].facing - ow[j].facing) % (2 * Math.PI); if (d > Math.PI) d = 2 * Math.PI - d; if (d > 0.45) { spread++; } }
+      if (all === null && !ord.length) all = b.t;
+      if (all !== null && b.t > all + 1) for (const u of b.teams[0].units) if (u.alive && (!u.keyOrder || Math.hypot(u.x - u.keyOrder.x, u.z - u.keyOrder.z) > 3)) held = false;
+      if (all !== null && b.t > all + 12) break;
+    }
+    return { b, r, spam, all, mixed: samples ? mixed / samples : 0, overwatch, spread, held };
+  };
+  const M = run('methodique', 4), A = run('agressif', 4);
+  check('ordre de déplacement : accepté, journalisé, enregistré dans les commandes ; un 2e ordre dans les 3 s refusé', M.r.ok && A.r.ok && !M.spam.ok && /toutes les 3 s/.test(M.spam.reason) && M.b.inputs.filter(c => c.type === 'aller').length === 1 && M.b.log.some(l => l.kind === 'moveorder' && /déplacement méthodique, puis tenir la position/.test(l.text)), { r: M.r, spam: M.spam });
+  check('ordre de déplacement : refusé pour un mode inconnu ; un point dans un obstacle est ramené sur le sol libre', !mkA(2).command('aller', 0, { x: 30, z: 20, mode: 'vol' }).ok && (() => { const b = mkA(2), o = b.map.obstacles.find(q => q.w > 2 && q.d > 2), r = b.command('aller', 0, { x: o.x + o.w / 2, z: o.z + o.d / 2, mode: 'agressif' }); return r.ok && !b.map.insideObstacle(r.x, r.z); })());
+  check('méthodique : bonds avec appui — une partie du groupe bouge pendant que l\'autre couvre (> 60 % du trajet), en surveillance', M.mixed > 0.6 && M.overwatch > 100, { mixed: M.mixed, overwatch: M.overwatch });
+  check('méthodique : les guetteurs se partagent les secteurs (regards écartés de plus de 25°)', M.spread > 50, { spread: M.spread });
+  check('agressif : tout le groupe arrive nettement plus vite qu\'en méthodique', A.all !== null && M.all !== null && A.all < M.all * 0.7, { agressif: A.all, methodique: M.all });
+  check('arrivée « tenir » : arrivés, ils restent à leur poste (≤ 3 m) et le disent (« En place. »)', M.held && A.held && A.b.log.some(l => l.kind === 'enplace' && /En place/.test(l.text)) && A.b.log.some(l => l.kind === 'enplace' && /tiennent la position/.test(l.text)), { m: M.held, a: A.held });
+  // sous-groupe : seuls les opérateurs désignés obéissent ; rejouable à l'identique
+  const s1 = mkA(9); while (s1.t < 2) s1.step();
+  const rs = s1.command('aller', 0, { x: 30, z: 12, units: ['0:op_lynx', '0:op_granit'], mode: 'methodique', arrivee: 'tenir' });
+  let others = 0; for (let i = 0; i < 20; i++) { s1.step(); others += s1.teams[0].units.filter(u => u.moveOrder && !['0:op_lynx', '0:op_granit'].includes(u.id)).length; }
+  while (s1.t < 30) s1.step(); s1.command('aller', 0, { x: 40, z: 30, units: null, mode: 'agressif' }); s1.run();
+  const s2 = mkA(9, { replayInputs: s1.inputs }); s2.run();
+  check('ordre de déplacement : seuls les opérateurs désignés le reçoivent ; la bataille revue est identique', rs.ok && others === 0 && s1.inputs.filter(c => c.type === 'aller').length === 2 && JSON.stringify(s1.result.teams) === JSON.stringify(s2.result.teams) && s1.result.duration === s2.result.duration, { others });
+}
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

@@ -7,7 +7,7 @@
   const MANUAL = params.get('manual') === '1';
   if (MANUAL) document.documentElement.classList.add('manual');   // captures reproductibles : pas de transitions CSS (aucune image n'est dessinée entre deux étapes)
 
-  const STATE_FR = { throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié', shaken: 'Ébranlé' };
+  const STATE_FR = { rush: 'Fonce (ordre)', tokey: 'Rejoint son poste', holdkey: 'Tient la position', throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié', shaken: 'Ébranlé' };
   const STATUS_FR = { ok: 'Indemne', wounded: 'Blessé', critical: 'Grave', down: 'Neutralisé' };
   const TEAM = [
     { name: 'Alpha', color: 0x4f9cf0, css: '#4f9cf0', uniform: 0x3a4a3c, vest: 0x2b352d },
@@ -671,6 +671,8 @@
     canvas.addEventListener('pointermove', (e) => {
       if (!drag) return;
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+      drag.m = (drag.m || 0) + Math.abs(dx) + Math.abs(dy);
+      if (drag.b === 2 && drag.m < 5) return;   // clic droit sans glisser (< 5 px) : ordre de déplacement, pas de caméra
       if (cam.mode !== 'free') { if (Math.abs(dx) + Math.abs(dy) > 3) { setCamMode('free'); cam.yaw = Math.atan2(camera.position.z - cam.target.z, camera.position.x - cam.target.x); cam.pitch = Math.max(0.15, Math.min(1.5, Math.atan2(camera.position.y, Math.hypot(camera.position.x - cam.target.x, camera.position.z - cam.target.z)))); cam.dist = camera.position.distanceTo(cam.target); } return; }
       if (drag.b === 2 || drag.shift) {
         cam.follow = null;
@@ -680,7 +682,7 @@
       } else { cam.yaw += dx * 0.005; cam.pitch = Math.max(0.15, Math.min(1.5, cam.pitch + dy * 0.005)); }
       if (MANUAL) render();
     });
-    canvas.addEventListener('pointerup', () => { drag = null; });
+    canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; if (d && d.b === 2 && (d.m || 0) < 5 && e.button === 2) openOrderMenu(e.clientX, e.clientY); });
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (cam.mode !== 'free') return; cam.dist = Math.max(8, Math.min(140, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); if (MANUAL) render(); }, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   })();
@@ -1910,7 +1912,9 @@
           <div class="sup"><i></i></div><div class="mag"><i></i></div>
         </div>`).join('');
       $('#pips' + ti).innerHTML = team.units.map(u => `<i data-id="${u.id}"></i>`).join('');
-      if (ti === 0) el.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => { cam.follow = cam.follow === c.dataset.id ? null : c.dataset.id; cam.mode = 'follow'; setCamMode('follow'); el.querySelectorAll('.card').forEach(k => k.classList.toggle('follow', k.dataset.id === cam.follow)); }));
+      // clic : choisir qui reçoit les ordres (Maj+clic : plusieurs) ; double-clic : suivre ce soldat à la caméra
+      if (ti === 0) el.querySelectorAll('.card').forEach(c => c.addEventListener('dblclick', () => { ordSelUndoDbl(); cam.follow = cam.follow === c.dataset.id ? null : c.dataset.id; cam.mode = 'follow'; setCamMode('follow'); el.querySelectorAll('.card').forEach(k => k.classList.toggle('follow', k.dataset.id === cam.follow)); }));
+      if (ti === 0) ordRosterHooks(el);
     });
     buildTacticCards();
   }
@@ -1992,6 +1996,128 @@
       });
     });
   }
+  // ---- Ordres de déplacement (clic droit sur le sol) ------------------------------------------------------------------
+  // Clic droit sans glisser (< 5 px) sur le sol → petit menu carré au curseur : « Déplacement » (comment y aller) et
+  // « Arrivée » (que faire là-bas). Les derniers choix sont présélectionnés. Qui reçoit l'ordre : l'escouade entière (« Tous »)
+  // ou les cartes choisies en bas (clic ; Maj+clic pour plusieurs). L'ordre passe par battle.command('aller', …) : rejoué
+  // à l'identique en revue. Pour ajouter un choix plus tard : une ligne dans ORD_OPTS (et son comportement dans engine.js).
+  const ORD_SVG = {
+    methodique: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 22l5-5 5 5M5 15l5-5 5 5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/><path d="M17 17l5-5 5 5M17 10l5-5 5 5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="27" r="2.2" fill="currentColor" opacity=".55"/><circle cx="22" cy="21" r="2.2" fill="currentColor"/></svg>',
+    agressif: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 8l8 8-8 8M15 8l8 8-8 8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 9v14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
+    tenir: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4l10 4v7c0 6.5-4.3 11-10 13-5.7-2-10-6.5-10-13V8z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M11 16l4 4 6-7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  };
+  const ORD_OPTS = {
+    mode: { titre: 'Déplacement', choix: [
+      { v: 'methodique', nom: 'Méthodique', aide: 'Bonds, appui mutuel', desc: 'Doctrine française : une moitié bondit de couvert en couvert pendant que l’autre couvre, chacun son secteur ; pauses à chaque couvert.' },
+      { v: 'agressif', nom: 'Agressif', aide: 'Vite, tire en avançant', desc: 'Droit au point au pas de course, en tirant sur ce qu’on voit ; courte halte à couvert seulement sous le feu.' }] },
+    arrivee: { titre: 'Arrivée', choix: [
+      { v: 'tenir', nom: 'Tenir la position', aide: 'À couvert, face à la menace', desc: 'Sur place : un couvert tout proche, face à la menace (ou dans le sens de la marche), et on y reste.' }] },
+  };
+  const ordLast = { mode: 'methodique', arrivee: 'tenir' };
+  try { const s = JSON.parse(localStorage.getItem('ot-ordre') || 'null'); if (s) for (const k in ordLast) if (s[k] && ORD_OPTS[k].choix.some(c => c.v === s[k])) ordLast[k] = s[k]; } catch (e) { /* stockage indisponible */ }
+  let ordSel = null, ordSelHist = [], ordMenu = null;   // ordSel : null = Tous, sinon Set d'identifiants d'opérateurs
+  function ordUnits() { return ordSel ? battle.teams[0].units.filter(u => ordSel.has(u.id)) : battle.teams[0].units; }
+  function ordWho() { const us = ordUnits().filter(u => u.alive); return ordSel ? us.map(u => u.callsign).join(', ') || 'personne' : `Tous (${us.length})`; }
+  function ordShowSel() {
+    document.querySelectorAll('#roster0 .card').forEach(c => c.classList.toggle('osel', !!ordSel && ordSel.has(c.dataset.id)));
+    const all = $('#roster0 .oall'); if (all) all.classList.toggle('on', !ordSel);
+    if (ordMenu) ordMenu.el.querySelector('.omwho').textContent = ordWho();
+  }
+  function ordSetSel(s) { ordSelHist.push({ t: performance.now(), s: ordSel ? new Set(ordSel) : null }); if (ordSelHist.length > 4) ordSelHist.shift(); ordSel = s && s.size ? s : null; ordShowSel(); }
+  function ordSelUndoDbl() { const h = ordSelHist.length >= 2 ? ordSelHist[ordSelHist.length - 2] : null; if (h && performance.now() - h.t < 700) { ordSel = h.s; ordShowSel(); } }   // un double-clic (suivre) ne change pas la sélection
+  function ordRosterHooks(el) {
+    if (ordRosterHooks.battle !== battle) { ordRosterHooks.battle = battle; ordSel = null; ordSelHist = []; }   // nouvelle bataille : « Tous »
+    el.insertAdjacentHTML('afterbegin', '<button class="oall on" title="Les ordres de déplacement (clic droit sur le sol) vont à toute l’escouade. Clic sur une carte : un seul opérateur ; Maj+clic : plusieurs.">Tous</button>');
+    el.querySelector('.oall').addEventListener('click', () => ordSetSel(null));
+    el.querySelectorAll('.card').forEach(c => c.addEventListener('click', (e) => {
+      const id = c.dataset.id, u = unitById[id]; if (!u || !u.alive) return;
+      if (e.shiftKey) { const s = ordSel ? new Set(ordSel) : new Set(); if (s.has(id)) s.delete(id); else s.add(id); ordSetSel(s); }
+      else ordSetSel(ordSel && ordSel.size === 1 && ordSel.has(id) ? null : new Set([id]));
+    }));
+    ordShowSel();
+  }
+  // point du sol sous le curseur (plan y = 0), ramené sur un point marchable par le moteur
+  const ordRay = new THREE.Raycaster(), ordPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  function ordGround(cx, cy) {
+    const r = canvas.getBoundingClientRect(); if (!r.width || !r.height) return null;
+    ordRay.setFromCamera(new THREE.Vector2((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
+    const p = new THREE.Vector3(); if (!ordRay.ray.intersectPlane(ordPlane, p)) return null;
+    if (p.x < -4 || p.z < -4 || p.x > battle.map.width + 4 || p.z > battle.map.depth + 4) return null;   // ciel, horizon : pas d'ordre
+    // clic sur une voiture, un mur… : le point est pris au pied de l'obstacle, du côté de la caméra (pas derrière lui)
+    let best = ordRay.ray.origin.distanceTo(p); const h = new THREE.Vector3(), bx = new THREE.Box3();
+    for (const o of battle.map.obstacles) { bx.min.set(o.x, 0, o.z); bx.max.set(o.x + o.w, o.h, o.z + o.d); if (ordRay.ray.intersectBox(bx, h) && ordRay.ray.origin.distanceTo(h) < best) { best = ordRay.ray.origin.distanceTo(h); p.copy(h); } }
+    const d = ordRay.ray.direction, L = Math.hypot(d.x, d.z) || 1;
+    for (let k = 0; k < 40 && battle.map.insideObstacle(p.x, p.z); k++) { p.x -= d.x / L * 0.25; p.z -= d.z / L * 0.25; }
+    return battle.orderPoint(p.x, p.z);
+  }
+  function openOrderMenu(cx, cy) {
+    closeOrderMenu();
+    if (!battle || battle.over || reviewing || briefing || $('#app').classList.contains('hidden') || !$('#result').classList.contains('hidden')) return;
+    const p = ordGround(cx, cy); if (!p) { flashBattle('Ordre : cliquez sur le sol du terrain.'); return; }
+    const pick = Object.assign({}, ordLast);
+    const el = document.createElement('div'); el.className = 'ordmenu';
+    el.innerHTML = `<div class="omhead"><b>Ordre</b><span class="omwho"></span></div>` + Object.entries(ORD_OPTS).map(([cat, o]) =>
+      `<div class="omsec">${o.titre}</div><div class="omrow">${o.choix.map(c => `<button class="omopt" data-cat="${cat}" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v] || ''}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>`).join('')
+      + `<button class="omgo">Confirmer</button><div class="omhint">Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
+    const main = $('main'), mr = main.getBoundingClientRect(); main.appendChild(el);
+    const W = el.offsetWidth, H = el.offsetHeight;
+    el.style.left = Math.round(Math.max(8, Math.min(mr.width - W - 8, cx - mr.left + 14))) + 'px';
+    el.style.top = Math.round(Math.max(8, Math.min(mr.height - H - 8, cy - mr.top - H / 2))) + 'px';
+    const show = () => el.querySelectorAll('.omopt').forEach(b => b.classList.toggle('on', pick[b.dataset.cat] === b.dataset.v));
+    el.querySelectorAll('.omopt').forEach(b => b.addEventListener('click', () => { const was = pick[b.dataset.cat] === b.dataset.v; pick[b.dataset.cat] = b.dataset.v; show(); if (was) ordConfirm(); }));
+    el.querySelector('.omgo').addEventListener('click', () => ordConfirm());
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+    ordMenu = { el, p, pick }; show(); ordShowSel(); ordMarkGhost(p);
+    if (MANUAL) render();
+  }
+  function closeOrderMenu() { if (!ordMenu) return; ordMenu.el.remove(); ordMenu = null; ordMarkGhost(null); }
+  function ordConfirm() {
+    if (!ordMenu) return; const { p, pick } = ordMenu;
+    const ids = ordSel ? [...ordSel].filter(id => unitById[id] && unitById[id].alive) : null, who = ordWho();
+    if (ids && !ids.length) { closeOrderMenu(); flashBattle('Ordre refusé : aucun opérateur choisi n’est en état.'); return; }
+    const r = battle.command('aller', 0, { x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids, mode: pick.mode, arrivee: pick.arrivee });
+    closeOrderMenu();
+    if (!r.ok) { flashBattle(`Ordre refusé : ${r.reason}.`); return; }
+    Object.assign(ordLast, pick); try { localStorage.setItem('ot-ordre', JSON.stringify(ordLast)); } catch (e) { /* stockage indisponible */ }
+    const nm = (cat) => ORD_OPTS[cat].choix.find(c => c.v === pick[cat]).nom.toLowerCase();
+    flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}, puis ${nm('arrivee')}.`); pumpLog(); if (MANUAL) render();
+  }
+  window.addEventListener('keydown', (e) => { if (ordMenu && e.code === 'Escape') { e.preventDefault(); closeOrderMenu(); } }, true);
+  document.addEventListener('pointerdown', (e) => { if (ordMenu && !ordMenu.el.contains(e.target)) closeOrderMenu(); }, true);
+  // marqueurs au sol : un par ordre en cours (icône du mode), retiré quand tout le groupe est arrivé ; fantôme pendant le menu
+  const ordMarks = new THREE.Group(); scene.add(ordMarks); const ordTex = {};
+  function ordTexture(kind) {
+    if (ordTex[kind]) return ordTex[kind];
+    const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d');
+    g.strokeStyle = '#4aa3ff'; g.lineWidth = 14; g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 12, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = 'rgba(10,20,34,.55)'; g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 19, 0, Math.PI * 2); g.fill();
+    if (kind !== 'ghost') {
+      const img = new Image(); img.onload = () => { g.drawImage(img, S * 0.22, S * 0.22, S * 0.56, S * 0.56); t.needsUpdate = true; if (MANUAL) render(); };
+      img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(ORD_SVG[kind].replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" ').replace(/currentColor/g, '#ffffff'));
+    }
+    const t = new THREE.CanvasTexture(c); if ('colorSpace' in t) t.colorSpace = THREE.SRGBColorSpace; return (ordTex[kind] = t);
+  }
+  // anneau au sol (même hologramme que les zones de départ) + icône du mode qui flotte au-dessus (visible derrière les voitures)
+  function ordMarkMesh(kind) {
+    const g = new THREE.Group(), ring = groundHolo(0.9, { color: 0x4aa3ff, alpha: kind === 'ghost' ? 0.55 : 0.95, fill: 0.5 }); ring.position.y = 0.03; g.add(ring);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: ordTexture(kind), transparent: true, depthTest: false, depthWrite: false, fog: false, toneMapped: false, opacity: kind === 'ghost' ? 0.7 : 1 }));
+    sp.scale.setScalar(kind === 'ghost' ? 0.7 : 1.1); sp.position.y = kind === 'ghost' ? 0.9 : 2.3; sp.renderOrder = 6; g.add(sp); g.userData.sp = sp;
+    return g;
+  }
+  function ordFree(g) { ordMarks.remove(g); g.traverse(o => { if (o.isMesh || o.isSprite) { if (o.geometry && o.isMesh) o.geometry.dispose(); o.material.dispose(); } }); }
+  let ordGhost = null, ordBattle = null; const ordShown = {};
+  function ordMarkGhost(p) { if (ordGhost) { ordFree(ordGhost); ordGhost = null; } if (p) { ordGhost = ordMarkMesh('ghost'); ordGhost.position.set(p.x, 0, p.z); ordMarks.add(ordGhost); } }
+  function updateOrderMarks() {
+    if (ordBattle !== battle) { ordBattle = battle; for (const k in ordShown) { ordFree(ordShown[k]); delete ordShown[k]; } closeOrderMenu(); }
+    const live = {};
+    for (const u of battle.teams[0].units) if (u.alive && u.moveOrder) live[u.moveOrder.id] = u.moveOrder;
+    for (const k in ordShown) if (!live[k]) { ordFree(ordShown[k]); delete ordShown[k]; }
+    const bob = MANUAL ? 0 : 0.12 * Math.sin(performance.now() / 300);
+    for (const k in live) {
+      if (!ordShown[k]) { const m = ordMarkMesh(live[k].mode); m.position.set(live[k].px, 0, live[k].pz); ordMarks.add(m); ordShown[k] = m; }
+      ordShown[k].userData.sp.position.y = 2.3 + bob;
+    }
+  }
   let bflashTimer = null;
   function flashBattle(msg) { let el = $('#bflash'); if (!el) { el = document.createElement('div'); el.id = 'bflash'; el.style.cssText = 'position:absolute;left:50%;top:14px;transform:translateX(-50%);background:rgba(15,20,26,.9);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:12px;z-index:6;pointer-events:none'; $('main').appendChild(el); } el.textContent = msg; el.style.display = 'block'; clearTimeout(bflashTimer); bflashTimer = setTimeout(() => { el.style.display = 'none'; }, 2200); }
   // ---- Répliques radio (bulles au-dessus des soldats), tirées des événements réels de la simulation ----
@@ -2000,6 +2126,7 @@
     grenade: ['Grenade !'], throw: ['Grenade, à couvert !', 'Je lance !'], flank: ['Je contourne !', 'Je le prends par le flanc !'],
     noammo: ['Plus de munitions !'], revive_start: ['Je m\u2019occupe de lui !', 'J\u2019arrive, tiens bon !'], revive: ['Debout, on y retourne !', 'Je te tiens !'],
     flash: ['Je ne vois plus rien !', 'Aveuglé !'], shaken: ['Repli !', 'Je décroche !', 'Ça chauffe trop !'], suppress: ['Feu de suppression !', 'Je les cloue !'], down: ['Homme à terre !', 'On a un blessé !', 'Il est touché !'],
+    bouge: ['Je bouge !'], couvert: ['Couvert !'], enplace: ['En place.'],   // ordres de déplacement (clic droit)
   };
   function bark(u, kind) {
     const m = u && meshes[u.id]; if (!m || !u.alive || ended || (m.barkUntil && simTime < m.barkUntil - 1.2)) return;
@@ -2041,6 +2168,9 @@
     else if (e.kind === 'grenade' && u) bark(u, /lance une/.test(e.text) ? 'throw' : 'grenade');
     else if (e.kind === 'flank' || e.kind === 'noammo' || e.kind === 'revive_start' || e.kind === 'revive' || e.kind === 'flash' || e.kind === 'shaken') bark(u, e.kind);
     else if (e.kind === 'suppress' && Math.random() < 0.5) bark(u, 'suppress');
+    else if (e.kind === 'moveorder' || e.kind === 'bond') { bark(u, 'bouge'); if (e.couvre) bark(unitById[e.couvre], 'couvert'); }
+    else if (e.kind === 'couvre') bark(u, 'couvert');
+    else if (e.kind === 'enplace' && u) bark(u, 'enplace');
     else if (e.kind === 'down' && e.enemy && unitById[e.enemy]) {   // le coéquipier debout le plus proche du blessé
       const d = unitById[e.enemy]; let best = null, bd = 25; for (const a of battle.units) { if (!a.alive || a.team !== d.team) continue; const k = Math.hypot(a.x - d.x, a.z - d.z); if (k < bd) { bd = k; best = a; } }
       bark(best, 'down');
@@ -2227,7 +2357,7 @@
   }
   // secousse de caméra (explosions) : décalage aléatoire qui s'amortit
   function applyShake() { if (!cam.shake || cam.shake < 0.01) return; const k = cam.shake * 0.25; camera.position.x += (Math.random() - 0.5) * k; camera.position.y += (Math.random() - 0.5) * k; camera.position.z += (Math.random() - 0.5) * k; cam.shake *= 0.86; }
-  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); updateSteam(MANUAL ? 0.2 : frameDt + 0.003); if (battle.zone) updateZone(); updateHolos(); if (OT.Parking) OT.Parking.tick(performance.now() / 1000); if (RENDU) RENDU.render(); else renderer.render(scene, camera); updateLabels(); updateRosters(); }
+  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); updateSteam(MANUAL ? 0.2 : frameDt + 0.003); if (battle.zone) updateZone(); updateHolos(); updateOrderMarks(); if (OT.Parking) OT.Parking.tick(performance.now() / 1000); if (RENDU) RENDU.render(); else renderer.render(scene, camera); updateLabels(); updateRosters(); }
 
   // musique dynamique : plus présente quand les échanges de tirs s'intensifient, en retrait pendant la progression
   let lastMusicAdj = 0, musicLevel = 0.7;

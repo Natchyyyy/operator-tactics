@@ -180,10 +180,11 @@
     p.fillStyle = white;
     const arrow = (x, z, dir) => { p.save(); p.translate(M(x), M(z)); p.rotate(dir); p.beginPath(); p.moveTo(M(-1.6), M(-0.18)); p.lineTo(M(0.4), M(-0.18)); p.lineTo(M(0.4), M(-0.55)); p.lineTo(M(1.6), 0); p.lineTo(M(0.4), M(0.55)); p.lineTo(M(0.4), M(0.18)); p.lineTo(M(-1.6), M(0.18)); p.closePath(); p.fill(); p.restore(); };
     const N_ = -Math.PI / 2, S_ = Math.PI / 2, E_ = 0, O_ = Math.PI;
-    for (const [x, z, d] of [[10, 33, N_], [10, 18, N_], [18, 13.2, E_], [26.6, 19, S_], [26.6, 30, S_], [45.6, 31, N_], [45.6, 19.5, N_], [54, 13.4, E_], [65.2, 19, S_], [65.2, 33.5, S_], [57, 37.6, O_], [16, 37.6, E_]]) arrow(x, z, d);
+    // (aucune flèche sous un îlot ni dans la partie fermée pour travaux : la boucle sud-est est coupée par le chantier)
+    void O_; for (const [x, z, d] of [[10, 32, N_], [10, 18, N_], [18, 13.2, E_], [26.6, 19, S_], [26.6, 30, S_], [45.6, 31, N_], [45.6, 19.5, N_], [54, 13.4, E_], [65.2, 19, S_], [65.2, 32.4, S_], [13.8, 38.6, E_]]) arrow(x, z, d);
     // entrée et sortie : lignes d'arrêt, inscriptions, flèches
     const gate = OB.find(o => o.name === 'mur portail sud');
-    if (gate) { const gx = gate.x, gw = gate.w; p.fillStyle = white; p.fillRect(M(gx + 0.1), M(44.2), M(gw / 2 - 0.6), M(0.3)); text(gx + gw * 0.78, 42.0, 'ENTRÉE', 0, 0.7); text(gx + gw * 0.25, 37.6, 'SORTIE', 0, 0.7); arrow(gx + gw * 0.78, 44.6, N_); arrow(gx + gw * 0.25, 36.0, S_);   // on roule à droite : entrée à l'est, sortie à l'ouest
+    if (gate) { const gx = gate.x, gw = gate.w; p.fillStyle = white; p.fillRect(M(gx + 0.1), M(44.2), M(gw / 2 - 0.6), M(0.3)); text(gx + gw * 0.78, 41.4, 'ENTRÉE', 0, 0.7); text(gx + gw * 0.25, 37.6, 'SORTIE', 0, 0.7); arrow(gx + gw * 0.78, 44.6, N_); arrow(gx + gw * 0.25, 36.0, S_);   // on roule à droite : entrée à l'est, sortie à l'ouest
       p.strokeStyle = yellow; p.lineWidth = M(0.12); line(gx + gw / 2, 39.5, gx + gw / 2, 46); }
     // quai de la navette : zigzags jaunes, inscription BUS, îlot de l'abri ; passage piéton vers le quai
     const bus = OB.find(o => o.name === 'bus');
@@ -199,10 +200,12 @@
       p.fillStyle = 'rgba(70,74,78,0.55)'; p.fillRect(M(x0), M(z0), M(x1 - x0), M(z1 - z0));
       text(x0 + 2.2, z0 + 1.2, '1', 0, 1.4, yellow); text(x1 - 2.2, z1 - 1.2, '2', Math.PI, 1.4, yellow);
       text(x1 - 2.2, z0 - 4.2, 'LAVAGE', -Math.PI / 2, 0.8, yellow); }
-    for (const a of OB.filter(o => o.name === 'aspirateur')) { const c = OB.filter(o => /^voiture/.test(o.name) && Math.abs(o.x + o.w / 2 - a.x) < 4 && Math.abs(o.z - a.z) < 3)[0]; if (c) { p.strokeStyle = yellow; p.lineWidth = M(0.12); p.strokeRect(M(c.x - 0.3), M(c.z - 0.35), M(c.w + 0.6), M(c.d + 0.7)); } }
+    // (les deux places de part et d'autre de chaque aspirateur)
+    for (const a of OB.filter(o => o.name === 'aspirateur')) for (const c of OB.filter(o => /^voiture/.test(o.name) && Math.abs(o.x + o.w / 2 - a.x) < 4 && Math.abs(o.z + o.d / 2 - a.z - a.d / 2) < 4)) { p.strokeStyle = yellow; p.lineWidth = M(0.12); p.strokeRect(M(c.x - 0.3), M(c.z - 0.35), M(c.w + 0.6), M(c.d + 0.7)); }
     // chantier : enrobé raboté (plus sombre, rainuré), marquages de chantier à la bombe orange
     const clo = OB.filter(o => /^clôture de chantier/.test(o.name || ''));
     if (clo.length) { const cx0 = Math.min(...clo.map(o => o.x)) + 0.3, cz0 = Math.min(...OB.filter(o => o.name === 'barrière').map(o => o.z + o.d)) || 35;
+      p.clearRect(M(cx0), M(cz0), M(W - cx0), M(D - cz0));   // enrobé raboté : l'ancienne peinture est partie avec
       p.fillStyle = 'rgba(28,28,30,0.55)'; p.fillRect(M(cx0), M(cz0), M(W - cx0), M(D - cz0)); p.strokeStyle = 'rgba(60,60,62,0.5)'; p.lineWidth = M(0.04); for (let x = cx0; x < W; x += 0.12) line(x, cz0, x, D);
       p.strokeStyle = 'rgba(240,110,30,0.9)'; p.lineWidth = M(0.08); line(cx0 + 1, cz0 + 1.2, W - 1, cz0 + 1.2); line(cx0 + 2, D - 1.5, cx0 + 9, D - 1.5); for (const [x, z] of [[cx0 + 6, cz0 + 4], [cx0 + 13, cz0 + 7]]) { line(x - 0.4, z - 0.4, x + 0.4, z + 0.4); line(x - 0.4, z + 0.4, x + 0.4, z - 0.4); } }
     // usure de la peinture : on gomme selon un bruit fractal à deux échelles
@@ -693,7 +696,10 @@
     const pud = puddles(map, maps, U); if (pud) group.add(pud);
     // butées de parking dans les places (visuelles : 11 cm de haut, sous l'avant des voitures garées en marche avant)
     const MK = (map.def && map.def.marquage) || { rangees: [], murs: [] };
-    const stop = (x, z, ry) => { const b = stopBlock(); b.position.set(x, 0.055, z); b.rotation.y = ry; b.receiveShadow = b.castShadow = true; group.add(b); };
+    const stop = (x, z, ry) => {   // pas de butée à travers un objet posé en tête de place (borne de recharge…) ; sous un véhicule, oui
+      const hx = ry ? 0.09 : 0.7, hz = ry ? 0.7 : 0.09;
+      if (OB.some(o => !/^(voiture|fourgon|bus)/.test(o.name || '') && x + hx > o.x && x - hx < o.x + o.w && z + hz > o.z && z - hz < o.z + o.d)) return;
+      const b = stopBlock(); b.position.set(x, 0.055, z); b.rotation.y = ry; b.receiveShadow = b.castShadow = true; group.add(b); };
     for (const [x0, z0, n] of MK.rangees) for (let k = 0; k < n; k++) { const z = z0 + 2.5 * k + 1.25; stop(x0 + 4.2, z, Math.PI / 2); stop(x0 + 5.8, z, Math.PI / 2); }
     for (const [x, z, n, dx, dz] of MK.murs) for (let k = 0; k < n; k++) { if (dx) stop(x + dx * (k + 0.5), z > D / 2 ? z + 4.3 : z + 0.7, 0); else stop(x < W / 2 ? x + 0.7 : x + 4.3, z + dz * (k + 0.5), Math.PI / 2); }
     // trottoirs et rues à l'ouest, au sud et à l'est (au nord : les immeubles de la ruelle) : trottoir (4 m), rue (10 m),
@@ -861,17 +867,18 @@
     const meter = () => { const g = new T.Group(); const b = new T.Mesh(new T.BoxGeometry(0.42, 1.45, 0.3), mat('horodateur', () => new T.MeshStandardMaterial({ color: 0x2e5b8c, roughness: 0.4, metalness: 0.5 }))); b.position.y = 0.725; g.add(b);
       const sc = new T.Mesh(new T.PlaneGeometry(0.26, 0.16), mat('ecranHoro', () => new T.MeshStandardMaterial({ color: 0x10181c, emissive: 0x2a6a5a, emissiveIntensity: 0.6, roughness: 0.2 }))); sc.position.set(0, 1.12, 0.151); g.add(sc); const roof = new T.Mesh(new T.BoxGeometry(0.5, 0.06, 0.38), steel); roof.position.y = 1.48; g.add(roof); g.traverse(o => { if (o.isMesh) o.castShadow = true; }); return g; };
     for (let x = 3; x < W; x += 14) { if (Math.abs(x + 8 - 47.5) < 5) continue; const b2 = bin(); b2.position.set(x + 8, 0.14, D + 3.4); b2.rotation.y = Math.PI; group.add(b2); }
-    for (const [x, z, r] of [[W * 0.3, D + 3.6, Math.PI], [-3.6, D * 0.5, Math.PI / 2], [W + 3.6, D * 0.3, -Math.PI / 2]]) { const m = meter(); m.position.set(x, 0.14, z); m.rotation.y = r; group.add(m); }
+    for (const [x, z, r] of [[W * 0.3 - 1.4, D + 3.6, Math.PI], [-3.6, D * 0.5 + 3, Math.PI / 2], [W + 3.6, D * 0.3, -Math.PI / 2]]) { const m = meter();   /* (à l'écart des lampadaires et des panneaux) */ m.position.set(x, 0.14, z); m.rotation.y = r; group.add(m); }
     // panneaux : P (parking), limitation 10, sortie
     const poleM = mat('poteauPanneau', () => new T.MeshStandardMaterial({ color: 0x9aa0a6, roughness: 0.35, metalness: 0.8 }));
     const sign = (kind, x, z, rot, round) => { const g = new T.Group(); const p = new T.Mesh(new T.CylinderGeometry(0.035, 0.035, 2.6, 10), poleM); p.position.y = 1.3; g.add(p);
       const face = new T.Mesh(round ? new T.CircleGeometry(0.32, 32) : new T.PlaneGeometry(0.6, 0.6), new T.MeshStandardMaterial({ map: signTexP(kind), roughness: 0.35, metalness: 0.1 })); face.position.set(0, 2.35, 0.045); g.add(face);
       const back = new T.Mesh(round ? new T.CircleGeometry(0.32, 32) : new T.PlaneGeometry(0.6, 0.6), poleM); back.position.set(0, 2.35, 0.04); back.rotation.y = Math.PI; g.add(back);
       g.position.set(x, 0.14, z); g.rotation.y = rot; g.traverse(o => { if (o.isMesh) o.castShadow = true; }); group.add(g); };
-    sign('P', -3.4, D + 3.4, Math.PI * 0.75, false); sign('10', W + 3.4, D * 0.5 - 6, -Math.PI / 2, true); sign('S', W + 3.4, D * 0.5 + 6, -Math.PI / 2, false); sign('P', W + 3.4, D + 3.4, -Math.PI * 0.75, false); sign('10', -3.4, D * 0.5, Math.PI / 2, true);
+    // (face vers la rue, pas vers le mur aveugle du parking)
+    sign('P', -3.4, D + 3.4, -Math.PI * 0.25, false); sign('10', W + 3.4, D * 0.5 - 6, Math.PI / 2, true); sign('S', W + 3.4, D * 0.5 + 6, Math.PI / 2, false); sign('P', W + 3.4, D + 3.4, Math.PI * 0.25, false); sign('10', -3.4, D * 0.5, -Math.PI / 2, true);
     // caméras de surveillance au sommet de mâts, tournées vers le parking
     const camM = mat('cameraVS', () => new T.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.4, metalness: 0.3 }));
-    for (const [x, z] of [[0.6, 0.6], [W - 0.6, 0.6], [-2.2, D + 2.2], [W + 2.2, D + 2.2]]) {
+    for (const [x, z] of [[0.22, 0.22], [W - 0.6, 0.6], [-2.2, D + 2.2], [W + 2.2, D + 2.2]]) {   // (nord-ouest : dans l'angle, à côté de la benne et pas à travers)
       const g = new T.Group(); const p = new T.Mesh(new T.CylinderGeometry(0.06, 0.08, 4.2, 10), poleM); p.position.y = 2.1; g.add(p);
       const body = new T.Mesh(new T.BoxGeometry(0.16, 0.14, 0.38), camM); body.position.set(0, 4.15, 0.2); body.rotation.x = 0.35; g.add(body);
       const lens = new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.02, 14), mat('objectif', () => new T.MeshStandardMaterial({ color: 0x080a0c, roughness: 0.05, metalness: 0.9 }))); lens.rotation.x = Math.PI / 2 + 0.35; lens.position.set(0, 4.08, 0.4); g.add(lens);
@@ -1099,7 +1106,13 @@
   function caisseAuto(o) {
     const K = M3(), g = new T.Group(), H = o.h, w = o.w, d = o.d, bleuP = std('bleuParking', 0x1f5fbf, 0.45, 0.25);
     bx(g, w, H - 0.3, d, std('bardageBlanc', 0xeceeed, 0.5, 0.15), 0, -0.15, 0);
-    bx(g, w + 1.2, 0.18, d + 1.2, bleuP, 0, H / 2 - 0.09, 0); bx(g, w + 1.22, 0.05, d + 1.22, K.metalSombre, 0, H / 2 - 0.2, 0);
+    // auvent : toit en bac acier gris (nervures, groupe de ventilation), bandeau bleu en rive qui dépasse du toit, larmier sombre
+    const RW = w + 1.2, RD = d + 1.2;
+    bx(g, RW - 0.08, 0.12, RD - 0.08, std('toitLavage', 0x8f979c, 0.6, 0.4), 0, H / 2 - 0.12, 0);
+    for (let x = -RW / 2 + 0.3; x < RW / 2 - 0.2; x += 0.35) bx(g, 0.04, 0.04, RD - 0.16, std('jointToit', 0x6e7579, 0.5, 0.6), x, H / 2 - 0.04, 0);
+    for (const s of [-1, 1]) { bx(g, RW, 0.24, 0.05, bleuP, 0, H / 2 - 0.12, s * (RD / 2 - 0.025)); bx(g, 0.05, 0.24, RD - 0.1, bleuP, s * (RW / 2 - 0.025), H / 2 - 0.12, 0); }
+    bx(g, 0.6, 0.32, 0.45, std('clim', 0xc9cbc8, 0.5, 0.4), RW / 2 - 0.7, H / 2 + 0.1, -RD / 2 + 0.6);
+    bx(g, RW + 0.02, 0.05, RD + 0.02, K.metalSombre, 0, H / 2 - 0.265, 0);
     for (const s of [-1, 1]) {
       const t = new T.Group(); bx(t, 0.1, 1.5, 0.75, std('inox', 0xb8bcc0, 0.25, 0.9), 0, 0, 0);
       bx(t, 0.02, 0.28, 0.4, std('ecranMonnayeur', 0x0b1418, 0.2, 0, { emissive: 0x2d8a6a, emissiveIntensity: 0.7 }), 0.06, 0.35, 0);
@@ -1235,13 +1248,14 @@
     }
     const dist = new T.Group(); bx(dist, 0.5, 1.4, 0.45, std('distributeur', est ? 0x2e5b8c : 0xd0d3d5, 0.4, 0.5), 0, 0.7, 0);   // distributeur de tickets bx(dist, 0.02, 0.22, 0.3, std('ecranMonnayeur', 0x0b1418, 0.2, 0, { emissive: 0x2d8a6a, emissiveIntensity: 0.7 }), -s * 0.26, 1.05, 0); bx(dist, 0.62, 0.06, 0.55, K.metalSombre, 0, 1.43, 0);
     dist.position.set(s * (mixte ? 1.0 : 1.6), y0 + 0.12, mixte ? -0.5 : 0); g.add(dist);
-    // portique de limitation de hauteur (2,10 m) au-dessus de l'ouverture
+    // portique de limitation de hauteur (3,10 m : la navette de 3 m et les fourgons garés dans le parking passent dessous)
+    // au-dessus de l'ouverture ; le panneau est posé sur la poutre, côté rue
     const pm = std('portique', 0x2b2e31, 0.5, 0.6);
     for (const z of [-L / 2 - 0.1, L / 2 + 0.1]) bx(g, 0.18, 3.6, 0.18, pm, -s * 0.3, y0 + 1.8, z);
     bx(g, 0.2, 0.25, L + 0.4, pm, -s * 0.3, y0 + 3.5, 0);
-    const bar = new T.Mesh(new T.BoxGeometry(0.12, 0.2, L - 0.2), rayure); bar.position.set(-s * 0.3, y0 + 2.2, 0); g.add(bar);
-    for (const z of [-L / 3, L / 3]) bx(g, 0.02, 1.2, 0.02, K.metalSombre, -s * 0.3, y0 + 2.9, z);
-    panneau(g, 3.2, 0.5, (q, w, h) => { q.fillStyle = '#1f5fbf'; q.fillRect(0, 0, w, h); txt(q, mixte ? 'P  ENTRÉE · SORTIE' : est ? 'SORTIE' : 'P  ENTRÉE', w * 0.38, h / 2 + 6, 'bold 180px Arial', '#fff'); q.fillStyle = '#fff'; q.beginPath(); q.arc(w * 0.84, h / 2, h * 0.4, 0, 7); q.fill(); txt(q, '2,10 m', w * 0.84, h / 2 + 4, 'bold 66px Arial', '#c62828'); }, -s * 0.18, y0 + 3.1, 0, -Math.PI / 2, true);
+    const bar = new T.Mesh(new T.BoxGeometry(0.12, 0.2, L - 0.2), rayure); bar.position.set(-s * 0.3, y0 + 3.2, 0); g.add(bar);
+    for (const z of [-L / 3, L / 3]) bx(g, 0.02, 0.12, 0.02, K.metalSombre, -s * 0.3, y0 + 3.33, z);
+    panneau(g, 3.2, 0.5, (q, w, h) => { q.fillStyle = '#1f5fbf'; q.fillRect(0, 0, w, h); txt(q, mixte ? 'P  ENTRÉE · SORTIE' : est ? 'SORTIE' : 'P  ENTRÉE', w * 0.38, h / 2 + 6, 'bold 180px Arial', '#fff'); q.fillStyle = '#fff'; q.beginPath(); q.arc(w * 0.84, h / 2, h * 0.4, 0, 7); q.fill(); txt(q, '3,10 m', w * 0.84, h / 2 + 4, 'bold 66px Arial', '#c62828'); }, -s * 0.42, y0 + 3.6, 0, -Math.PI / 2, true);
     return g;
   }
   // muret de la rue : béton bas, couvertine, grille d'acier ; une haie basse côté trottoir
