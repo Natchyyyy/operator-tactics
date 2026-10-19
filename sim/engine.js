@@ -2218,8 +2218,8 @@
     const alive = this.teams.map(t => t.units.filter(u => u.alive).length);
     let winner = null, reason = null;
     if (alive[0] === 0 && alive[1] === 0) { winner = -1; reason = 'Les deux équipes sont hors de combat.'; }
-    else if (alive[0] === 0) { winner = 1; reason = `${this.teams[0].name} est entièrement neutralisée.`; }
-    else if (alive[1] === 0) { winner = 0; reason = `${this.teams[1].name} est entièrement neutralisée.`; }
+    else if (alive[0] === 0) { winner = 1; reason = `L’équipe ${this.teams[0].name} est entièrement neutralisée.`; }
+    else if (alive[1] === 0) { winner = 0; reason = `L’équipe ${this.teams[1].name} est entièrement neutralisée.`; }
     else if (this.zone && this.teams.some(t => t.capture >= 100)) {
       winner = this.teams[0].capture >= 100 ? 0 : 1; reason = `${this.teams[winner].name} a sécurisé la zone (100 %).`;
     }

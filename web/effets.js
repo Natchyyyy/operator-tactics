@@ -216,7 +216,7 @@
       // (langue étirée le long du canon, visible de profil), trois pétales du cache-flamme en étoile (visibles de face)
       const k = rnd(0.75, 1.25), hot = [5.2, 3.3, 1.35], o = p.clone().addScaledVector(d, 0.02);
       add.add({ p: o.clone(), life: 0.04, size: rnd(0.07, 0.1) * k, rot: Math.random() * 6.28, frame: 1, col: [4, 2.9, 1.5], a0: 1 });
-      const L = rnd(0.2, 0.34) * k;
+      const L = rnd(0.16, 0.28) * k;
       add.add({ p: o.clone().addScaledVector(d, L * 0.5), axis: d.clone().multiplyScalar(L), life: 0.04, size: 0.2 * k, frame: 15, col: hot, a0: 1 });
       const [bu, bw] = basis(d), a0 = Math.random() * 6.28;
       for (let i = 0; i < 3; i++) {

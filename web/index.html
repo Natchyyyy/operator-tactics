@@ -1448,6 +1448,13 @@
   /* bataille — fil des neutralisations : toujours à gauche de la colonne des tactiques adverses (largeur bornée), jamais dessus */
   #app.hud3 .tactics.right { max-width: 108px; } #app.hud3 .tactics.right .tcard { width: 104px; max-width: 104px; box-sizing: border-box; overflow: hidden; }
   #app.hud3 #killfeed { right: 136px; max-width: 520px; }
+  /* récompenses : l'animation d'entrée (« forwards ») figeait opacité et échelle, si bien que les panneaux « reculés » ou « partis »
+     restaient visibles au centre, superposés au panneau courant ; l'entrée passe désormais par les classes d'état (transitions) */
+  #rewards .rwp { animation: none; opacity: 1; transform: none; }
+  /* bataille — barre du score : noms d'équipe longs en entier (« GROUPE KARST », « LOUP SOLITAIRE ») */
+  #app.hud3 .topbar { width: 1100px !important; } #app.hud3 .tbname { letter-spacing: .1em; }
+  /* bataille — pendant le briefing, le HUD du bas s'efface (il transparaissait sous la carte de mission) */
+  #app.hud3:has(#briefing:not(.hidden)) .bottombar, #app.hud3:has(#briefing:not(.hidden)) .tactics, #app.hud3:has(#briefing:not(.hidden)) #ticker { opacity: 0; pointer-events: none; transition: opacity .3s; }
   /* guide : hauteur stable d'une page à l'autre (la fenêtre ne saute plus), bouton « Précédent » */
   #guide .gslide.on { min-height: 200px; } #guide .btns { display: flex; gap: 8px; }
   /* retour d'appui et focus clavier : boutons de la bataille et des fenêtres (réglages, aide, guide) */
