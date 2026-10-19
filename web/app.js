@@ -1611,7 +1611,7 @@
     if (battle) { meteoSound(); Son.boucle('musique_bataille', { voie: 'musique', vol: 0.7 * musicVol, fondu: 1.5 }); }
   }
   window.OT_MUSIC = { set(v) { musicVol = v; SETTINGS.music = v; try { localStorage.setItem('ot-music', String(v)); localStorage.setItem('ot-settings', JSON.stringify(SETTINGS)); } catch (e) { /* rien */ } if (window.Son) Son.volumeBoucle('musique', (battle && !$('#app').classList.contains('hidden') ? 0.7 : 0.8) * v); }, get: () => musicVol };
-  function setMuted(m) { muted = m; try { localStorage.setItem('ot-mute', m ? '1' : '0'); } catch (e) { /* rien */ } $('#mute').textContent = m ? '🔇' : '🔊'; $('#mute').classList.toggle('on', !m); ambience(!m && !$('#app').classList.contains('hidden')); }
+  function setMuted(m) { muted = m; try { localStorage.setItem('ot-mute', m ? '1' : '0'); } catch (e) { /* rien */ } if (OT.Ico) $('#mute').innerHTML = OT.Ico(m ? 'sonoff' : 'son'); else $('#mute').textContent = m ? '🔇' : '🔊'; $('#mute').title = m ? 'Son coupé (cliquer pour l\'activer)' : 'Son activé (cliquer pour le couper)'; $('#mute').classList.toggle('muted', m); ambience(!m && !$('#app').classList.contains('hidden')); }
   $('#mute').addEventListener('click', () => setMuted(!muted));
   window.OT_MUTE = { get: () => muted, set: (m) => setMuted(!!m) };
   document.addEventListener('click', (e) => { if (e.target.closest('button') && !e.target.closest('#mute')) play('clic', null, { vol: 0.8, varie: 0.05 }); }, true);
@@ -2223,7 +2223,7 @@
     const r = battle.result;
     const title = r.winner === -1 ? 'Égalité' : (r.winner === 0 ? 'Vous avez gagné' : 'Vous avez perdu');
     $('#resTitle').textContent = title; $('#resTitle').className = r.winner === -1 ? '' : 'team' + r.winner;
-    r.teams.forEach((t, ti) => { $('#resName' + ti).textContent = t.name; $('#resPct' + ti).textContent = t.hpPct + '%'; $('#resPct' + ti).title = 'Vie restante de l\u2019équipe'; const g = insigniaGlyph(battle.teams[ti]); $('#resIns' + ti).innerHTML = OT.Embleme ? OT.Embleme.svg(g, ti ? '#a01a10' : '#c0281c') : g; $('#resRate' + ti).textContent = Math.round(t.units.reduce((s, u) => s + OT.Game.defRating(battle.units.find(x => x.id === u.id).def), 0) / Math.max(1, t.units.length)); });
+    r.teams.forEach((t, ti) => { $('#resName' + ti).textContent = t.name; $('#resPct' + ti).textContent = t.hpPct + '%'; $('#resPct' + ti).title = 'Vie restante de l\u2019équipe'; const g = insigniaGlyph(battle.teams[ti]); $('#resIns' + ti).innerHTML = OT.Embleme ? OT.Embleme.svg(g, ti ? '#a01a10' : '#f2f7ff') : g; $('#resRate' + ti).textContent = Math.round(t.units.reduce((s, u) => s + OT.Game.defRating(battle.units.find(x => x.id === u.id).def), 0) / Math.max(1, t.units.length)); });
     const row = (label, v0, v1) => `<span class="l">${v0}</span><span class="m">${label}</span><span class="r">${v1}</span>`;
     let html = '';
     if (battle.zone) html += row('Zone capturée', r.teams[0].capture + ' %', r.teams[1].capture + ' %');
@@ -2355,7 +2355,7 @@
   $('#toggleHelp').addEventListener('click', () => $('#help').classList.toggle('hidden'));
   $('#moreBtn').addEventListener('click', (e) => { e.stopPropagation(); $('#app .controls').classList.toggle('open'); });
   document.addEventListener('pointerdown', (e) => { const c = $('#app .controls'); if (c && c.classList.contains('open') && !c.contains(e.target)) c.classList.remove('open'); });
-  $('#toggleJournal').addEventListener('click', () => { $('#journalWrap').classList.toggle('hidden'); $('#journal').scrollTop = $('#journal').scrollHeight; });
+  $('#toggleJournal').addEventListener('click', () => { $('#app .controls').classList.remove('open'); $('#journalWrap').classList.toggle('hidden'); $('#journal').scrollTop = $('#journal').scrollHeight; });
   $('#closeJournal').addEventListener('click', () => $('#journalWrap').classList.add('hidden'));
   document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => { setCamMode(b.dataset.cam); if (b.dataset.cam !== 'follow') cam.follow = null; }));
   // raccourcis clavier en bataille (positions physiques des touches : valables en AZERTY comme en QWERTY)

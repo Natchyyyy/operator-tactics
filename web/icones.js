@@ -41,6 +41,8 @@
     chart: '<rect x="10" y="56" width="16" height="34"/><rect x="34" y="36" width="16" height="54"/><rect x="58" y="46" width="16" height="44"/><rect x="82" y="16" width="12" height="74"/>',
     contract: '<rect x="16" y="6" width="68" height="88" rx="5"/><path d="M28 26 H72 M28 40 H72 M28 54 H60" stroke="#000" stroke-opacity=".45" stroke-width="6"/><path d="M52 66 L60 78 L78 58" fill="none" stroke="#000" stroke-opacity=".55" stroke-width="8"/>',
     paint: '<path d="M60 6 L94 40 L50 84 L16 50 Z" /><path d="M16 56 C6 66 6 80 12 88 C20 94 34 94 44 84 Z" fill-opacity=".7"/>',
+    son: '<path d="M10 36 H30 L56 14 V86 L30 64 H10 Z"/><path d="M66 34 C74 42 74 58 66 66 M76 24 C90 38 90 62 76 76" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>',
+    sonoff: '<path d="M10 36 H30 L56 14 V86 L30 64 H10 Z"/><path d="M68 38 L92 62 M92 38 L68 62" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>',
     sat: '<path d="M38 8 L62 32 L52 42 L28 18 Z M58 48 L82 72 L92 62 L68 38 Z"/><rect x="38" y="34" width="22" height="22" transform="rotate(45 49 45)"/><path d="M20 70 C24 80 30 86 40 88 M14 76 C18 88 26 94 38 96" fill="none" stroke="currentColor" stroke-width="5"/>',
   };
   root.Ico = (name, cls) => P[name] ? `<svg class="ico ${cls || ''}" viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">${P[name]}</svg>` : '';

@@ -1405,6 +1405,42 @@
   @keyframes tickin { from { opacity: 0; transform: translateX(-8px); } }
   #app.hud3 #ticker div:nth-last-child(n+4) { opacity: .45; } #app.hud3 #ticker div:nth-last-child(3) { opacity: .65; }
   #app.hud3 #vignette { background: radial-gradient(ellipse at 50% 50%, transparent 60%, rgba(0,0,0,.32) 100%); }
+  /* ===== passe qualité de l'interface (lisibilité, débordements, bandes d'écran large) ===== */
+  /* scènes 1920×1080 (QG, VS, récompenses, résultat) : le fond couvre toute la fenêtre, plus de bandes vides ni de HUD visible autour */
+  #hq::before, .overlay.rawov::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: #000 var(--fondv, var(--fond)) center / 100% 100% no-repeat; }
+  #hq, .overlay.rawov, #rewards.rawov, #result.rawov { background: transparent !important; }
+  #hq header.rawbar::before { content: ''; position: absolute; top: 0; bottom: -1px; left: -100vw; right: -100vw; z-index: -1; pointer-events: none; background: inherit; border-bottom: inherit; }
+  /* barres de défilement sombres et fines partout (au lieu des barres claires du navigateur) */
+  * { scrollbar-width: thin; scrollbar-color: rgba(200,220,210,.28) transparent; }
+  /* QG — Cartes : colonne de gauche plus large (armurerie lisible), prix sur une ligne, tactiques moins tassées */
+  #hq [data-panel="cartes"] .hqgrid.two { grid-template-columns: 540px 1fr; }
+  #hq .pack2 button { white-space: nowrap; font-size: 16px; padding-left: 6px; padding-right: 6px; }
+  #hq .tgrid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  /* QG — Ligue : les deux équipes alignées en haut, noms plus lisibles, bouton dans le style des autres */
+  #hq .lgnext { align-items: start; } #hq .lgvs { align-self: center; } #hq .lgside b { font-size: 22px; }
+  #hq #lgPlay { text-transform: uppercase; letter-spacing: .1em; font-size: 18px; padding: 10px; }
+  /* réglages : état du son sur une ligne */
+  .setrow:has(#setSoundState) { grid-template-columns: 190px auto 1fr; } #setSoundState { text-align: right; color: var(--muted); font-size: 12px; }
+  /* bataille — journal : sous la barre de commandes et au-dessus des cartes du bas (ne recouvre plus rien) */
+  #app.hud3 #journalWrap { top: calc(140px * var(--zui, 1)); bottom: calc(96px * var(--zui, 1)); right: 14px; width: min(420px, 40vw); background: rgba(10,14,19,.9); border-color: rgba(255,255,255,.12); border-radius: 12px; backdrop-filter: blur(10px); }
+  #app.hud3 .jhead { font-family: var(--hud, var(--ui)); font-weight: 700; color: #dfe8ef; padding: 8px 10px 8px 14px; }
+  #app.hud3 #journal { font-family: var(--ui); font-size: 12.5px; line-height: 1.45; color: #d6dee6; }
+  #app.hud3 #closeJournal { width: 26px; height: 26px; padding: 0; font-size: 16px; line-height: 1; border-radius: 7px; }
+  /* bataille — fil d'événements en bas à gauche : lisible sur sol clair comme de nuit */
+  #app.hud3 #ticker { font-size: 12px; padding: 6px 12px 6px 10px; border-radius: 8px; background: linear-gradient(90deg, rgba(6,9,12,.62), rgba(6,9,12,.35) 70%, rgba(6,9,12,0)); text-shadow: 0 1px 2px #000, 0 0 6px rgba(0,0,0,.8); }
+  #app.hud3 #ticker:empty { display: none; }
+  #app.hud3 #ticker, #app.hud3 #killfeed { zoom: max(var(--zui, 1), .78); }   /* petits écrans : texte jamais réduit sous ~9 px */
+  #app.hud3 #ticker div { color: rgba(240,245,250,.92); } #app.hud3 #ticker .t { color: rgba(220,230,240,.6); }
+  /* bataille — cartes adverses : noms entiers (plus de « MOLOS… ») */
+  #app.hud3 .roster.team1 .card { width: 128px; } #app.hud3 .roster.team1 .card .cs { letter-spacing: .05em; text-overflow: clip; }
+  /* bataille — bouton son : icône vectorielle, rouge discret quand coupé */
+  #app.hud3 #mute .ico { width: 15px; height: 15px; display: block; } #app.hud3 #mute.muted { color: #ff8a7a; background: rgba(255,90,72,.14); }
+  /* résultat : médaille d'Alpha aux couleurs de l'équipe (bleue), raison de fin lisible sur le faisceau lumineux */
+  #result .resband .rb0 .re { background: radial-gradient(circle at 40% 35%, #4aa3ff, #1a56b0); border-color: #0a1a30; }
+  #resReason { font-size: 17px; color: #e3efe8; }
+  #resReason:not(:empty) { left: 50%; width: max-content; max-width: 880px; box-sizing: border-box; transform: translateX(-50%); padding: 6px 16px; border-radius: 8px; background: rgba(4,8,6,.72); border: 1px solid rgba(255,255,255,.08); }
+  /* bataille — options « ⋯ » : nom de carte complet */
+  #app.hud3 .morepanel { width: 420px; }
 </style>
 </head>
 <body>
@@ -1590,10 +1626,10 @@
     <div class="morepanel">
       <div class="group"><label>Alpha</label><select id="order0" title="Ordre d'Alpha — modifiable pendant la bataille"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
       <div class="group"><label>Bravo</label><select id="order1"><option value="assault">Assaut</option><option value="hold">Tenir</option><option value="careful">Prudent</option></select></div>
-      <div class="group"><label>Carte</label><select id="mapSel"><option value="parking">Parking du centre commercial</option></select><select id="condSel" title="Heure et météo : vue, ouïe et précision changent réellement"><option value="jour">Jour</option><option value="nuit">Nuit</option><option value="brouillard">Brouillard</option><option value="pluie">Pluie</option></select></div>
+      <div class="group"><label>Carte</label><select id="mapSel"><option value="parking">Parking de la Grand-Rue</option></select><select id="condSel" title="Heure et météo : vue, ouïe et précision changent réellement"><option value="jour">Jour</option><option value="nuit">Nuit</option><option value="brouillard">Brouillard</option><option value="pluie">Pluie</option></select></div>
       <div class="group"><label>Graine</label><input id="seed" placeholder="aléatoire"></div>
       <div class="group"><button id="newBattle">Nouvelle</button><button id="replay" title="Rejouer la même graine">Rejouer</button></div>
-      <div class="group"><button id="toggleJournal">Journal</button><button id="openSettings" class="gear" title="Réglages">⚙</button><button id="toggleHelp" title="Aide">?</button></div>
+      <div class="group"><button id="toggleJournal">Journal</button><button id="openSettings" class="gear" title="Réglages">Réglages</button><button id="toggleHelp" title="Aide (touches, caméra, ordres)">Aide</button></div>
       <span id="missionLabel" class="muted" hidden></span>
     </div>
   </div>

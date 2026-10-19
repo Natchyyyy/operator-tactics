@@ -81,7 +81,7 @@
     if (this.stance === 'crouch') v *= 0.55;
     // sprint : assaut sur un adversaire, repli ; course vers un couvert sous la menace (vu, pris pour cible, touché, à
     // découvert sous les yeux d'une position ennemie connue — voir act()) : on ne marche pas jusqu'à l'abri sous le feu
-    if (this.state === 'closing' || this.state === 'retreat' || this.state === 'rush' || this.dash) v *= 1.2;   // rush : ordre de déplacement « agressif »
+    if (this.state === 'closing' || this.state === 'retreat' || this.state === 'rush' || this.state === 'evade' || this.dash) v *= 1.2;   // (evade : loin d'une grenade)   // rush : ordre de déplacement « agressif »
     else if (this.state === 'bounding' || this.state === 'advancing') { if (Object.keys(this.knowledge).length) v *= 0.8; } // pas tactique au contact
     const hard = has(this, 'hardened') ? 0.5 : 1;                                                    // Endurci : pénalités de blessure réduites de moitié
     if (this.status === 'wounded') v *= 1 - 0.2 * hard; else if (this.status === 'critical') v *= 1 - 0.5 * hard;
@@ -375,6 +375,14 @@
       const d = Math.hypot(c.x - ev.x, c.z - ev.z) - Math.abs(a) * 0.5;
       if (d > bd) { bd = d; best = c; }
     }
+    // un abri tout proche (≤ 3,5 m) qui coupe la ligne grenade → poitrine protège mieux qu'une course à découvert
+    let shelter = null, sd = 3.5;
+    for (const c0 of this.map.coverPoints) {
+      if (Math.abs(c0.x - u.x) > 4 || Math.abs(c0.z - u.z) > 4) continue;
+      const h = this.hug(c0), d = Math.hypot(h.hx - u.x, h.hz - u.z);
+      if (d < sd && !this.map.hasLOS(ev.x, 0.4, ev.z, h.hx, CHEST.stand, h.hz) && this.map.walkableSegment(u.x, u.z, h.hx, h.hz)) { sd = d; shelter = { x: h.hx, z: h.hz }; }
+    }
+    if (shelter) best = shelter;
     if (best && this.setGoal(u, best.x, best.z, 'close')) { u.state = 'evade'; u.stance = 'stand'; u.commitUntil = ev.until; u.commitAt = this.t; }
   };
   Battle.prototype.updateGrenades = function () {
@@ -1440,7 +1448,9 @@
       // ~8 m pour se mettre à l'abri) ; trop près et rien autour : décrocher vers un couvert plus en arrière
       if (!cover) {
         const minR = Math.max(u.weapon.minRange, Math.min(MIN_CLOSE, d - 2));
-        const cp = this.findCover(u, threat, 9, { minRange: minR, requireShoot: true, preferDist: stand }) || this.findCover(u, threat, 9, { minRange: minR, preferDist: stand });
+        // sous le feu : d'abord un couvert tout proche (≤ 4 m) d'où l'on tire — chaque mètre à découvert se paie ; courir 8 m
+        // vers un « meilleur » couvert était la première cause de mort en mouvement
+        const cp = (beingShot && this.findCover(u, threat, 4, { minRange: minR, requireShoot: true, preferDist: stand })) || this.findCover(u, threat, 9, { minRange: minR, requireShoot: true, preferDist: stand }) || this.findCover(u, threat, 9, { minRange: minR, preferDist: stand });
         if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; }
         if (d < MIN_CLOSE && order !== 'hold') {
           const cp2 = this.findCover(u, threat, 16, { minRange: MIN_CLOSE, towards: home });
@@ -1720,6 +1730,7 @@
     const mv = Math.atan2(wp.z - u.z, wp.x - u.x); let aim = null;
     if (!u.target && d > 0.05) { let best = 99; for (const { k } of this.knownEnemies(u)) { if (this.t - k.t > 5) continue; const dd = Math.hypot(k.x - u.x, k.z - u.z); const a = Math.atan2(k.z - u.z, k.x - u.x); if (dd < best && angDiff(a, mv) < 1.9) { best = dd; aim = a; } } }
     let look = u.target && u.target.alive ? Math.atan2(u.target.z - u.z, u.target.x - u.x) : aim;
+    if (u.state === 'evade') { look = null; aim = null; }   // une grenade : on court, on ne recule pas en visant
     // course vers l'abri sous la menace (u.dash) : menace de côté ou derrière et plus de 3 m à faire → on se retourne et on
     // court droit vers l'abri (jusqu'à l'arrivée) ; plus près, on reste face à elle (pas chassé, marche arrière)
     // Hors menace, l'arme pointée vers une position connue (sans cible) : au-delà de 60° de la marche on n'avance plus qu'en
