@@ -61,7 +61,7 @@
     // le soldat le plus « engagé » : vient de tirer ou d'être pris pour cible ; priorité à l'équipe du joueur
     let best = null, bs = -Infinity;
     for (const u of battle.units) {
-      if (!u.alive) continue;
+      if (!u.alive || !fogShown(u)) continue;   // (jamais un ennemi que l'escouade ne voit pas)
       let sc = (u.team === 0 ? 2 : 0) + (battle.t - u.lastShotAt < 3 ? 6 : 0) + (battle.t - u.lastShotByAt < 3 ? 5 : 0) + (u.target ? 3 : 0) + (u.moving ? 1 : 0) + (u.id === cam.autoFollow ? 2.5 : 0);
       if (sc > bs) { bs = sc; best = u; }
     }
@@ -87,7 +87,10 @@
     if (cam.mode !== 'director' || kind === 'revive') return;
     DIRECTOR.pending = { kind, x, z, at: simTime };
   }
-  function engagedUnits(win) { win = win || 2.5; return battle.units.filter(u => u.alive && (battle.t - u.lastShotAt < win || battle.t - u.lastShotByAt < win)); }
+  function engagedUnits(win) { win = win || 2.5; return battle.units.filter(u => u.alive && fogShown(u) && (battle.t - u.lastShotAt < win || battle.t - u.lastShotByAt < win)); }
+  // Ennemis non repérés : le réalisateur ne les filme jamais (ni sujet, ni cible, ni centre d'un plan large) ; un plan dont le
+  // sujet sort de la vue de l'escouade n'a plus de cadrage (frameShot → null) et le réalisateur coupe.
+  const shownUnits = () => battle.units.filter(u => u.alive && fogShown(u));
   const MOVE_STATES = { crossing: 2, tocover: 2, bounding: 1.5, advancing: 1, closing: 1.5, tozone: 1.5, torevive: 2.5, fallback: 1.5, retreat: 1.5, reposition: 1, evade: 2.5 };
   function recentlyShown(id, kind) {   // pénalité de répétition : même soldat ou même type de plan dans les 25 dernières secondes
     let p = 0;
@@ -101,8 +104,8 @@
     if (!D.hist.length) add(100, { kind: 'establish', dur: 5.5 });   // ouverture : plan d'ensemble
     let action = 0;
     for (const u of battle.units) {
-      if (!u.alive) continue;
-      const tg = u.target && u.target.alive ? u.target : null, firing = t - u.lastShotAt < 1.6, underFire = t - u.lastShotByAt < 1.6, own = u.team === 0 ? 1 : 0;
+      if (!u.alive || !fogShown(u)) continue;
+      const tg = u.target && u.target.alive && fogShown(u.target) ? u.target : null, firing = t - u.lastShotAt < 1.6, underFire = t - u.lastShotByAt < 1.6, own = u.team === 0 ? 1 : 0;
       if (u.state === 'throw') { add(9 + own, { kind: 'shoulder', id: u.id, tid: tg && tg.id, dur: 4 }); action++; continue; }
       if (tg && firing && u.visible && u.visible.has(tg.id)) {
         const d = Math.hypot(tg.x - u.x, tg.z - u.z), hurt = tg.status === 'critical' ? 2 : tg.status === 'wounded' ? 1 : 0; action++;
@@ -315,14 +318,14 @@
   const subjIds = (s) => s ? [s.id, s.tid, s.kid, s.vid] : [];
   function dynBad(p, s) {
     const ids = subjIds(s);
-    for (const u of battle.units) { const m = meshes[u.id]; if (!m || ids.includes(u.id)) continue; const P = m.group.position; if (p.y < 2.3 && Math.hypot(P.x - p.x, P.z - p.z) < 0.95) return 4; }
+    for (const u of battle.units) { const m = meshes[u.id]; if (!m || !m.group.visible || ids.includes(u.id)) continue; const P = m.group.position; if (p.y < 2.3 && Math.hypot(P.x - p.x, P.z - p.z) < 0.95) return 4; }
     for (const k of DIRECTOR.smokes) if (simTime < k.until && p.y < 4.5 && Math.hypot(k.x - p.x, k.z - p.z) < k.r + 1.2) return 5;
     return 0;
   }
   function unitScreens(p, e, s) {   // un autre soldat coupe le regard dans les 5 premiers mètres
     const ids = subjIds(s), dx = e.x - p.x, dz = e.z - p.z, L2 = dx * dx + dz * dz || 1;
     for (const u of battle.units) {
-      const m = meshes[u.id]; if (!m || ids.includes(u.id)) continue; const P = m.group.position;
+      const m = meshes[u.id]; if (!m || !m.group.visible || ids.includes(u.id)) continue; const P = m.group.position;
       const t = Math.max(0, Math.min(1, ((P.x - p.x) * dx + (P.z - p.z) * dz) / L2)); if (t * Math.sqrt(L2) > 5 || t > 0.9) continue;
       const y = p.y + (e.y - p.y) * t; if (y > (u.alive ? 1.85 : 0.5)) continue;
       if (Math.hypot(p.x + dx * t - P.x, p.z + dz * t - P.z) < 0.38) return true;
@@ -345,9 +348,10 @@
     const D = DIRECTOR, age = D.clock - s.t0, side = s.side || 1, tanH = Math.tan(THREE.MathUtils.degToRad(21)) * (camera.aspect || 16 / 9);
     if (s.kind === 'shoulder' || (s.kind === 'killcam' && s.view === 'killer')) {
       const kc = s.kind === 'killcam', id = kc ? s.kid : s.id, m = meshes[id], u = unitById[id];
-      if (!m || !u || (!u.alive && !kc)) return null;
+      if (!m || !u || (!u.alive && !kc) || !fogShown(u)) return null;
       let tg = unitById[kc ? s.vid : s.tid];
-      if (!kc && (!tg || !tg.alive) && !(tg && s.lock > D.clock)) { tg = u.target && u.target.alive ? u.target : null; s.tid = tg ? tg.id : null; }   // (s.lock : on reste sur la victime qui tombe)
+      if (tg && !fogShown(tg)) { if (kc) return null; tg = null; }
+      if (!kc && (!tg || !tg.alive) && !(tg && s.lock > D.clock)) { tg = u.target && u.target.alive && fogShown(u.target) ? u.target : null; s.tid = tg ? tg.id : null; }   // (s.lock : on reste sur la victime qui tombe)
       const P = m.group.position, T = tg && meshes[tg.id] ? meshes[tg.id].group.position : null;
       let f = T ? new THREE.Vector2(T.x - P.x, T.z - P.z) : fwdOf(id); if (f.lengthSq() < 0.01) f = fwdOf(id); f.normalize();
       const d = smoothDir(s, 'dir', f.x, f.y, 2.2, dt), fx = d.x, fz = d.y, rx = -fz * side, rz = fx * side;
@@ -360,7 +364,7 @@
       return { pos, look, pts: T ? [V3(T.x, kc ? 0.9 : tgt.y + 0.25, T.z)] : [], soft: !kc && tg && u.visible && u.visible.has(tg.id), fov, st: kc ? 0.3 : 0.4, lst: 0.25, pivot: V3(P.x + rx * 0.3, 1.6, P.z + rz * 0.3) };
     }
     if (s.kind === 'duel') {
-      const A = unitById[s.id], B = unitById[s.tid]; if (!A || !B || !A.alive || (!B.alive && !(s.lock > D.clock)) || !meshes[s.id] || !meshes[s.tid]) return null;
+      const A = unitById[s.id], B = unitById[s.tid]; if (!A || !B || !A.alive || (!B.alive && !(s.lock > D.clock)) || !meshes[s.id] || !meshes[s.tid] || !fogShown(A) || !fogShown(B)) return null;
       const PA = meshes[s.id].group.position, PB = meshes[s.tid].group.position, L = Math.max(1, Math.hypot(PB.x - PA.x, PB.z - PA.z));
       const ux = (PB.x - PA.x) / L, uz = (PB.z - PA.z) / L, a = smoothDir(s, 'dir', -uz * side, ux * side, 1.2, dt), d = Math.max(4.5, L * 0.5 / (tanH * 0.62));
       if (d > 26) return null;
@@ -370,10 +374,10 @@
       return { pos, look, pts: [eyeOf(s.id), eyeOf(s.tid)], fov: 42, st: 0.6, lst: 0.45, pivot: V3((PA.x + PB.x) / 2, 1.5, (PA.z + PB.z) / 2) };
     }
     if (s.kind === 'dolly') {   // de profil, à ~3,8 m, caméra basse ; le soldat sur le tiers arrière, de l'espace devant lui
-      const m = meshes[s.id], u = unitById[s.id]; if (!m || !u || !u.alive) return null;
+      const m = meshes[s.id], u = unitById[s.id]; if (!m || !u || !u.alive || !fogShown(u)) return null;
       const P = m.group.position, sp = Math.hypot(m.anim.vx || 0, m.anim.vz || 0);
       // espace devant le regard : vers sa cible s'il en a une (il peut reculer en tirant), sinon dans le sens de la marche
-      const tg = u.target && u.target.alive && meshes[u.target.id] ? meshes[u.target.id].group.position : null, tl = tg ? Math.hypot(tg.x - P.x, tg.z - P.z) : 0;
+      const tg = u.target && u.target.alive && fogShown(u.target) && meshes[u.target.id] ? meshes[u.target.id].group.position : null, tl = tg ? Math.hypot(tg.x - P.x, tg.z - P.z) : 0;
       const f0 = tl > 0.5 ? new THREE.Vector2((tg.x - P.x) / tl, (tg.z - P.z) / tl) : sp > 0.2 ? new THREE.Vector2(m.anim.vx / sp, m.anim.vz / sp) : new THREE.Vector2(Math.cos(u.facing), Math.sin(u.facing));
       // demi-tour du soldat : la caméra reste de son côté (côté et sens inversés ensemble) au lieu de tourner autour de lui ou
       // de le traverser ; elle panote vers le nouvel espace devant lui
@@ -385,8 +389,8 @@
       return { pos, look, pts: [eyeOf(s.id)], fov: 46, st: 0.35, lst: 0.3, pivot: V3(P.x, 1.2, P.z) };
     }
     if (s.kind === 'overview' || s.kind === 'establish') {
-      let list = s.kind === 'overview' && !s.squad ? engagedUnits(4) : battle.units.filter(u => u.alive && (!s.squad || u.team === 0));
-      if (list.length < 2) list = battle.units.filter(u => u.alive); if (!list.length) return null;
+      let list = s.kind === 'overview' && !s.squad ? engagedUnits(4) : shownUnits().filter(u => !s.squad || u.team === 0);
+      if (list.length < 2) list = shownUnits(); if (!list.length) return null;
       const pts = list.map(u => V3(u.x, 0, u.z)); if (!pts.length) return null;   // positions de la simulation : avant « Lancer », les soldats 3D ne sont pas encore placés (sinon plan collé dans un coin de la carte)
       const c = centroid(pts); let r = 0; for (const p of pts) r = Math.max(r, Math.hypot(p.x - c.x, p.z - c.z));
       const sp = battle.map.spawns, ax0 = sp[1].x - sp[0].x, az0 = sp[1].z - sp[0].z, aL = Math.hypot(ax0, az0) || 1, ax = ax0 / aL, az = az0 / aL;   // axe du front (de nous vers eux)
@@ -401,12 +405,12 @@
     }
     if (s.kind === 'capture') {
       const Z = battle.zone; if (!Z) return null;
-      const who = battle.units.filter(u => u.alive && u.state === 'capture' && meshes[u.id]).map(u => eyeOf(u.id));
+      const who = shownUnits().filter(u => u.state === 'capture' && meshes[u.id]).map(u => eyeOf(u.id));
       const a = (s.yaw || 0) + age * 0.04 * side, d = (Z.r || 4) + 7;
       return { pos: V3(Z.x + Math.cos(a) * d, s.h || 3.4, Z.z + Math.sin(a) * d), look: V3(Z.x, 0.6, Z.z), pts: who.slice(0, 3), fov: 48, st: 0.8, lst: 0.6, pivot: V3(Z.x, 1.5, Z.z) };
     }
     if (s.kind === 'killcam') {   // plan serré sur la victime, qui se resserre pendant la chute
-      const m = meshes[s.vid]; if (!m) return null; const P = bodyPos(m), a = s.yaw || 0, d = (s.dd || 4.4) - Math.min(1.1, age * 0.35);   // (le corps réel : le pantin physique peut glisser loin de la position de la simulation)
+      const m = meshes[s.vid]; if (!m || !fogShown(unitById[s.vid])) return null; const P = bodyPos(m), a = s.yaw || 0, d = (s.dd || 4.4) - Math.min(1.1, age * 0.35);   // (le corps réel : le pantin physique peut glisser loin de la position de la simulation)
       return { pos: V3(P.x + Math.cos(a) * d, 1.6 - Math.min(0.45, age * 0.15), P.z + Math.sin(a) * d), look: V3(P.x, 0.55, P.z), pts: [V3(P.x, Math.max(0.35, Math.min(0.9, P.y)), P.z)], fov: 40 - Math.min(6, age * 2), st: 0.3, lst: 0.2, pivot: V3(P.x, 1.2, P.z) };
     }
     if (s.kind === 'blast') {
@@ -466,8 +470,8 @@
   function eventShot(ev) {
     if (ev.kind === 'down') {
       let v = null, bd = 0.6; for (const u of battle.units) { const d = Math.hypot(u.x - ev.x, u.z - ev.z); if (d < bd) { bd = d; v = u; } }
-      if (!v || !meshes[v.id]) return null;
-      const k = v.lastShotBy && battle.t - v.lastShotByAt < 2 && meshes[v.lastShotBy.id] ? v.lastShotBy : null, opts = [];
+      if (!v || !meshes[v.id] || !fogShown(v)) return null;
+      const k = v.lastShotBy && battle.t - v.lastShotByAt < 2 && meshes[v.lastShotBy.id] && fogShown(v.lastShotBy) ? v.lastShotBy : null, opts = [];
       if (k && Math.hypot(k.x - v.x, k.z - v.z) < 32) for (const side of [1, -1]) opts.push({ kind: 'killcam', view: 'killer', kid: k.id, vid: v.id, id: v.id, side, dur: 3.2 });
       const a0 = k ? Math.atan2(k.z - v.z, k.x - v.x) : Math.random() * 6.28;
       for (let i = 0; i < 6; i++) opts.push({ kind: 'killcam', view: 'victim', vid: v.id, id: v.id, side: 1, yaw: a0 + [0, 0.6, -0.6, 1.2, -1.2, Math.PI][i], dur: 3 });
@@ -642,7 +646,7 @@
     if (cam.mode === 'director') { directorCamera(); return; }
     if (cam.mode === 'follow') {
       let id = cam.follow;
-      if (!id || !unitById[id] || !unitById[id].alive) { if (!cam.autoFollow || simTime > cam.autoUntil || !unitById[cam.autoFollow] || !unitById[cam.autoFollow].alive) { cam.autoFollow = pickAutoFollow(); cam.autoUntil = simTime + 6; } id = cam.autoFollow; }
+      if (!id || !unitById[id] || !unitById[id].alive || !fogShown(unitById[id])) { if (!cam.autoFollow || simTime > cam.autoUntil || !unitById[cam.autoFollow] || !unitById[cam.autoFollow].alive || !fogShown(unitById[cam.autoFollow])) { cam.autoFollow = pickAutoFollow(); cam.autoUntil = simTime + 6; } id = cam.autoFollow; }
       const m = id && meshes[id], u = id && unitById[id];
       if (m && u) {
         const yaw = m.group.rotation.y; // orientation du soldat (rotation.y = -facing + π/2)
@@ -1194,7 +1198,7 @@
     }
     m.anim.fallClip = best.clip; m.anim.fallYaw = best.yaw;
   }
-  function clearOperators() { for (const id in meshes) { scene.remove(meshes[id].group); meshes[id].label.remove(); delete meshes[id]; } }
+  function clearOperators() { for (const id in meshes) { const m = meshes[id]; scene.remove(m.group); m.label.remove(); if (m._fog) for (const f of m._fog) for (const c of [].concat(f.clone)) if (c && c.userData.base !== undefined) c.dispose(); delete meshes[id]; } }
 
   // Pose d'un opérateur selon son état (appelée à chaque image) — toutes les valeurs sont lissées.
   const lerp = (a, b, k) => a + (b - a) * k;
@@ -1418,13 +1422,18 @@
     return f.length === 4 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(f[1], 0, f[2]);
   }
   const BULLET = 140;   // vitesse apparente des traçantes (m/s)
-  function addShot(ev, team) {
+  function addShot(ev, team, cache) {   // cache : tireur non repéré (ni éclair, ni traçante, ni douille ; l'impact reste)
     const from = new THREE.Vector3(ev.from.x, ev.from.y, ev.from.z), to = new THREE.Vector3(ev.to.x, ev.to.y, ev.to.z);
     const m = meshes[ev.shooter], sh = unitById[ev.shooter];
     if (m) { m.anim.recoil = 1; const mz = m.weapon.localToWorld(m.weapon.muzzle.clone()); from.copy(mz); }
     const dir = to.clone().sub(from), len = dir.length(); dir.normalize();
     const delay = len / BULLET;
     if (ev.hit && OT.Ragdoll && meshes[ev.target]) OT.Ragdoll.impact(meshes[ev.target], dir, delay);   // balle mortelle → ragdoll
+    if (cache) {
+      if (EFX && !ev.hit) { const n = surfaceNormal(to); EFX.impact(to, n, to.y < 0.15 ? 'impact_sol' : impactSound(to), delay); }
+      else if (EFX && ev.hit && fogShown(unitById[ev.target])) EFX.bloodHit(to, dir, delay);
+      return;
+    }
     if (EFX) {
       EFX.muzzle(from, dir, !!(sh && sh.weapon.silenced));
       EFX.tracer(from, to, BULLET, team);
@@ -1434,7 +1443,7 @@
         const q = w.getWorldQuaternion(new THREE.Quaternion()), right = new THREE.Vector3(-1, 0, 0).applyQuaternion(q), up = new THREE.Vector3(0, 1, 0).applyQuaternion(q), fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
         EFX.casing(port, right, up, fwd);
       }
-      if (ev.hit) { const tm = meshes[ev.target]; if (tm) { tm.anim.flinch = 1; tm.anim.hitDir = { x: dir.x, z: dir.z }; } EFX.bloodHit(to, dir, delay); }
+      if (ev.hit) { const tm = meshes[ev.target]; if (tm) { tm.anim.flinch = 1; tm.anim.hitDir = { x: dir.x, z: dir.z }; } if (fogShown(unitById[ev.target])) EFX.bloodHit(to, dir, delay); }
       else { const n = surfaceNormal(to); EFX.impact(to, n, to.y < 0.15 ? 'impact_sol' : impactSound(to), delay); }
       return;
     }
@@ -1463,9 +1472,9 @@
   let fxLast = 0;
   // grenade : petit objet sombre en cloche jusqu'au point de chute, puis posée au sol jusqu'à l'explosion
   const grenadeGeo = new THREE.SphereGeometry(0.07, 8, 6), grenadeMat = new THREE.MeshStandardMaterial({ color: 0x2c3326, roughness: .7, metalness: .3 });
-  function addGrenade(ev) {
+  function addGrenade(ev, cache) {   // cache : lanceur non repéré → la grenade n'apparaît qu'en fin de course (on ne voit pas d'où elle part)
     const g = new THREE.Mesh(grenadeGeo, ev.kind === 'flash' ? new THREE.MeshStandardMaterial({ color: 0x5b6067, roughness: .5, metalness: .5 }) : grenadeMat);
-    scene.add(g); fx.push({ obj: g, kind: 'grenade', start: simTime, flight: ev.flight, from: ev.from, to: ev.to, until: ev.explodeAt, bounced: false });
+    scene.add(g); fx.push({ obj: g, kind: 'grenade', start: simTime, flight: ev.flight, from: ev.from, to: ev.to, until: ev.explodeAt, bounced: false, cache });
   }
   function addBlast(ev) {
     if (ev.kind === 'flash' && EFX) {
@@ -1531,6 +1540,7 @@
       else if (f.kind === 'drone') { const a = simTime * 1.4; f.obj.position.set(f.cx + Math.cos(a) * 6, 9 + Math.sin(a * 2) * 0.4, f.cz + Math.sin(a) * 6); f.obj.rotation.y = a; }
       else if (f.kind === 'grenade') {
         const k = Math.min(1, (simTime - f.start) / f.flight);
+        if (f.cache) f.obj.visible = k > 0.6 || !fogOn();
         if (k < 1) { f.obj.position.set(f.from.x + (f.to.x - f.from.x) * k, f.from.y + (f.to.y - f.from.y) * k + Math.sin(Math.PI * k) * (1.2 + f.flight * 1.5), f.from.z + (f.to.z - f.from.z) * k); f.obj.rotation.x += dt * 12; }
         else { f.obj.position.set(f.to.x, 0.07, f.to.z); if (!f.bounced) { f.bounced = true; play('grenade_rebond', { x: f.to.x, y: 0.2, z: f.to.z }, { vol: 1 }); } }
       }
@@ -1547,7 +1557,7 @@
   // ---------------------------------------------------------------------------------------------
   let muted = false; try { muted = localStorage.getItem('ot-mute') === '1'; } catch (e) { /* stockage indisponible */ }
   // ---- Réglages (volume général, musique, vitesse et caméra par défaut, qualité, ombres) : gardés dans ce navigateur ----
-  const SETTINGS = Object.assign({ vol: 0.9, music: 1, speed: 1, cam: 'director', quality: 'haute', shadows: true, voice: true }, (() => { try { return JSON.parse(localStorage.getItem('ot-settings') || '{}'); } catch (e) { return {}; } })());
+  const SETTINGS = Object.assign({ vol: 0.9, music: 1, speed: 1, cam: 'director', quality: 'haute', shadows: true, voice: true, fog: true }, (() => { try { return JSON.parse(localStorage.getItem('ot-settings') || '{}'); } catch (e) { return {}; } })());
   try { const m = localStorage.getItem('ot-music'); if (m !== null && localStorage.getItem('ot-settings') === null) SETTINGS.music = parseFloat(m) || 0; } catch (e) { /* rien */ }
   function applyQuality() {
     const dpr = window.devicePixelRatio || 1;
@@ -1598,11 +1608,11 @@
   }
   // Coup de feu : vrai enregistrement du 5,56 choisi selon la distance d'écoute (près / mi-distance / loin), silencieux à
   // part ; étuis qui tintent près de la caméra ; claquement ou sifflement quand la balle passe tout près de la caméra.
-  function shotSound(sh, ev) {
+  function shotSound(sh, ev, cache) {   // (tireur non repéré : le coup de feu s'entend toujours, mais pas les douilles)
     const f = ev.from, sp = spatial(f.x, f.y || 1.4, f.z), v = ev.suppressive ? 0.85 : 1;
     if (sh.weapon.silenced) play('tir_silencieux', f, { vol: v, espace: true });
     else play('tir_556_' + (sp.d < 28 ? 'proche' : sp.d < 70 ? 'moyen' : 'loin'), f, { vol: v * 1.3, espace: true, varie: 0.03 });
-    if (sp.d < 16 && Math.random() < 0.3) pendingSounds.push({ at: simTime + 0.45 + Math.random() * 0.4, name: 'douilles', pos: { x: f.x, y: 0.1, z: f.z }, vol: 0.9 });
+    if (sp.d < 16 && !cache && Math.random() < 0.3) pendingSounds.push({ at: simTime + 0.45 + Math.random() * 0.4, name: 'douilles', pos: { x: f.x, y: 0.1, z: f.z }, vol: 0.9 });
     const c = camera.position, t = ev.to, dx = t.x - f.x, dy = (t.y || 1) - (f.y || 1.4), dz = t.z - f.z, L2 = dx * dx + dy * dy + dz * dz || 1;
     const k = ((c.x - f.x) * dx + (c.y - (f.y || 1.4)) * dy + (c.z - f.z) * dz) / L2;
     if (k > 0.05 && k < 0.98) { const m = Math.hypot(f.x + dx * k - c.x, (f.y || 1.4) + dy * k - c.y, f.z + dz * k - c.z);
@@ -1748,6 +1758,7 @@
     $('#app').classList.toggle('capture', !!battle.zone);
     hideBanner();
     for (const u of battle.units) { makeOperator(u); unitById[u.id] = u; }
+    fogReset(); fogUpdate();   // au départ, l'escouade ne voit personne
     if (RENDU) RENDU.applyEnv();
     $('#journal').innerHTML = ''; $('#ticker').innerHTML = ''; $('#killfeed').innerHTML = '';
     $('#result').classList.add('hidden');
@@ -1796,29 +1807,33 @@
     for (const u of battle.units) { const m = meshes[u.id]; m.prev = m.cur; }
     battle.step(); simTime = battle.t;
     for (const u of battle.units) { meshes[u.id].cur = { x: u.x, z: u.z, facing: u.facing }; }
+    fogUpdate();
     for (const ev of battle.drainEvents()) {
       if (ev.type === 'shot') {
-        addShot(ev, unitById[ev.shooter].team);
-        shotSound(unitById[ev.shooter], ev);
+        const sh = unitById[ev.shooter], cache = !fogShotShown(ev, sh);   // tireur non repéré, balle loin de l'escouade : on l'entend seulement
+        addShot(ev, sh.team, cache);
+        shotSound(sh, ev, cache);
         const d = Math.hypot(ev.to.x - ev.from.x, ev.to.z - ev.from.z);
         const imp = ev.hit ? 'impact_corps' : impactSound(ev.to);
         pendingSounds.push({ at: simTime + d / 110, name: imp, pos: ev.to, vol: ev.hit ? 1 : imp === 'impact_sol' ? 0.6 : 0.9 });
         if (!ev.hit && (imp === 'impact_beton' || imp === 'impact_metal') && Math.random() < 0.12) pendingSounds.push({ at: simTime + d / 110 + 0.01, name: 'ricochet', pos: ev.to, vol: 0.8 });
       }
-      if (ev.type === 'shot' && ev.hit && Math.random() < 0.25) { const t = unitById[ev.target]; if (t) addBlood(t.x, t.z, 0.22); }
-      if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); const u = unitById[ev.unit]; if (u) directorEvent('revive', u.x, u.z); }
+      if (ev.type === 'shot' && ev.hit && Math.random() < 0.25) { const t = unitById[ev.target]; if (t && fogShown(t)) addBlood(t.x, t.z, 0.22); }
+      if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); delete FOG.deadSeen[ev.unit]; const u = unitById[ev.unit]; if (u) directorEvent('revive', u.x, u.z); }
       if (ev.type === 'down') {
         // mort en ragdoll (ragdoll.js) : la flaque de sang apparaît sous le bassin quand le corps s'est posé
-        const u = unitById[ev.unit], m = meshes[ev.unit], rag = !!(u && m && m.isSkinned && OT.Ragdoll && OT.Ragdoll.mort(u, m, battle, (x, z) => addBlood(x, z, 0.6)));
-        if (u) { if (!rag) addBlood(u.x, u.z, 0.6); pendingSounds.push({ at: simTime + 0.5, name: 'chute', pos: { x: u.x, y: 0.3, z: u.z }, vol: 1 }); }
+        // (ennemi non repéré à cet instant : la chute est simulée mais ni montrée, ni entendue, ni filmée ; seul le fil des neutralisations l'annonce)
+        const u = unitById[ev.unit], m = meshes[ev.unit]; fogDown(u); const vu = fogShown(u);
+        const rag = !!(u && m && m.isSkinned && OT.Ragdoll && OT.Ragdoll.mort(u, m, battle, (x, z) => { if (fogShown(u)) addBlood(x, z, 0.6); }));
+        if (u && vu) { if (!rag) addBlood(u.x, u.z, 0.6); pendingSounds.push({ at: simTime + 0.5, name: 'chute', pos: { x: u.x, y: 0.3, z: u.z }, vol: 1 }); }
         if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; if (m.isSkinned && !rag) chooseFall(u, m); }
-        if (u) directorEvent('down', u.x, u.z); }
+        if (u && vu) directorEvent('down', u.x, u.z); }
       if (ev.type === 'smoke') addSmoke(ev);
       if (ev.type === 'shell') { addShell(ev); addScorch(ev.x, ev.z, 1.8); play('explosion_lourde', { x: ev.x, y: 1, z: ev.z }, { vol: 1.1, espace: true }); cam.shake = Math.max(cam.shake || 0, 0.35); }
       if (ev.type === 'heal') addHeal(ev);
-      if (ev.type === 'reco') addReco(ev);
+      if (ev.type === 'reco' && !(ev.team === 1 && fogOn())) addReco(ev);   // (le drone adverse tourne au-dessus de son équipe : il la trahirait)
       if (ev.type === 'barrage_called') addBarrageMarker(ev);
-      if (ev.type === 'grenade_throw') addGrenade(ev);
+      if (ev.type === 'grenade_throw') { const th = battle.units.find(u => u.alive && Math.abs(u.x - ev.from.x) < 0.05 && Math.abs(u.z - ev.from.z) < 0.05); addGrenade(ev, !!th && !fogShown(th)); }
       if (ev.type === 'strike_called') addStrikeMarker(ev);
       if (ev.type === 'destroyed') destroyDecor(ev);
       if (ev.type === 'strike') { addStrike(ev); for (let k = -ev.half; k <= ev.half; k += 3) addScorch(ev.cx + ev.dx * k + (Math.random() - 0.5) * 1.5, ev.cz + ev.dz * k + (Math.random() - 0.5) * 1.5, 0.9); }
@@ -1831,7 +1846,7 @@
     if (speed <= 2) for (const u of battle.units) {
       if (!u.alive || !u.moving) continue;
       const m = meshes[u.id]; const ph = Math.floor(m.anim.phase / Math.PI);
-      if (m.lastStepPhase !== undefined && ph !== m.lastStepPhase) {
+      if (m.lastStepPhase !== undefined && ph !== m.lastStepPhase && fogShown(u)) {   // pas d'un ennemi non repéré : muets
         const v = Math.hypot(m.anim.vx || 0, m.anim.vz || 0);
         play(condNow === 'pluie' ? 'pas_mouille' : 'pas', { x: u.x, y: 0.2, z: u.z }, { vol: 0.9, varie: 0.06 });
         if (v > 2.2 && Math.random() < 0.3) play('equipement', { x: u.x, y: 1, z: u.z }, { vol: 0.8, varie: 0.05 });
@@ -1843,6 +1858,83 @@
     if (battle.over && !ended) { hideBriefing(false); ended = true; paused = true; updatePlayButton(); if (instantResult || MANUAL) showResult(); else showBanner(showResult); play(battle.result.winner === 0 ? 'victoire' : 'defaite', null, { vol: 1, varie: 0 }); }
   }
   const pendingSounds = [];
+
+  // ---- Ennemis non repérés : un soldat de Bravo n'est affiché que tant qu'au moins un opérateur d'Alpha vivant le voit ----
+  // (ensembles « visible » de la simulation, mis à jour à chaque pas ; ni la mémoire radio ni la dernière position connue).
+  // Perdu de vue : il s'efface en 0,3 s et laisse un repère discret (anneau rouge pâle et « ? ») qui s'éteint en 5 s.
+  // Réglage « Ennemis visibles seulement s'ils sont repérés » (activé par défaut ; désactivé en mode manuel — outils de
+  // capture — sauf ?fog=1 ; ?fog=0 le coupe partout). La fin de bataille révèle tout.
+  const FOG = { spotted: new Set(), seenT: {}, deadSeen: {}, hp: {}, ghosts: {}, rt: 0 }, FOG_PARAM = params.get('fog'), GHOST_LIFE = 5;
+  function fogOn() { return !!battle && !battle.over && (FOG_PARAM !== null ? FOG_PARAM === '1' : !MANUAL && SETTINGS.fog !== false); }
+  function fogShown(u) { if (!u || u.team !== 1 || !fogOn()) return true; return u.alive ? FOG.spotted.has(u.id) : !!FOG.deadSeen[u.id]; }
+  function fogUpdate() {   // après chaque pas de simulation : qui l'escouade voit-elle en ce moment ?
+    const prev = FOG.spotted, now = new Set(), on = fogOn();
+    for (const a of battle.teams[0].units) if (a.alive && a.visible) for (const id of a.visible) now.add(id);
+    for (const e of battle.teams[1].units) {
+      if (!e.alive) { now.delete(e.id); continue; }
+      if (now.has(e.id)) { FOG.seenT[e.id] = battle.t; FOG.hp[e.id] = e.hp; }
+      else if (on && prev.has(e.id)) fogGhost(e);
+    }
+    FOG.spotted = now;
+  }
+  function fogDown(u) { if (u && u.team === 1) FOG.deadSeen[u.id] = battle.t - (FOG.seenT[u.id] === undefined ? -99 : FOG.seenT[u.id]) < 0.6; }   // tombé sous les yeux de l'escouade ?
+  function fogReset() { for (const id in FOG.ghosts) { const g = FOG.ghosts[id]; scene.remove(g); g.userData.ring.geometry.dispose(); g.userData.ring.material.dispose(); g.userData.sp.material.dispose(); } FOG.ghosts = {}; FOG.spotted = new Set(); FOG.seenT = {}; FOG.deadSeen = {}; FOG.hp = {}; }
+  let ghostTex = null;
+  function fogGhost(e) {   // dernière position connue : anneau au sol et petit « ? », très pâles
+    let g = FOG.ghosts[e.id];
+    if (!g) {
+      if (!ghostTex) { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); x.font = 'bold 50px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.lineWidth = 6; x.strokeStyle = 'rgba(20,6,6,0.7)'; x.strokeText('?', 32, 35); x.fillStyle = '#fff'; x.fillText('?', 32, 35); ghostTex = new THREE.CanvasTexture(c); ghostTex.colorSpace = THREE.SRGBColorSpace; }
+      g = new THREE.Group();
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.44, 32), new THREE.MeshBasicMaterial({ color: 0xe85a4f, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
+      ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: ghostTex, color: 0xff7a6a, transparent: true, opacity: 0, depthWrite: false }));
+      sp.scale.set(0.45, 0.45, 1); sp.position.y = 1.3;
+      g.add(ring, sp); g.userData = { ring, sp, t0: 0 }; scene.add(g); FOG.ghosts[e.id] = g;
+    }
+    g.position.set(e.x, 0, e.z); g.userData.t0 = simTime; g.visible = true;
+  }
+  function fogGhostsTick() {
+    for (const id in FOG.ghosts) {
+      const g = FOG.ghosts[id]; if (!g.visible) continue;
+      const age = simTime - g.userData.t0;
+      if (age > GHOST_LIFE || age < 0 || !fogOn() || FOG.spotted.has(id)) { g.visible = false; continue; }
+      const k = Math.min(1, age / 0.3) * Math.pow(1 - age / GHOST_LIFE, 1.5);   // apparaît pendant que le soldat s'efface, puis s'éteint
+      g.userData.ring.material.opacity = 0.5 * k; g.userData.sp.material.opacity = 0.65 * k; g.userData.ring.scale.setScalar(1 + age * 0.1);
+    }
+  }
+  // fondu : matériaux propres à ce soldat (transparents), créés une fois et utilisés seulement pendant le fondu
+  function fogMats(m) {
+    if (m._fog) return m._fog; const list = [];
+    const one = (mat) => { if (!mat || mat.transparent) return mat; const c = mat.clone(); c.transparent = true; c.onBeforeCompile = mat.onBeforeCompile; c.customProgramCacheKey = mat.customProgramCacheKey; c.userData.base = mat.opacity; return c; };
+    m.group.traverse(o => { if (!o.material || o === m.ring || o.isSprite) return; const orig = o.material, clone = Array.isArray(orig) ? orig.map(one) : one(orig); if (clone !== orig) list.push({ o, orig, clone }); });
+    return (m._fog = list);
+  }
+  function fogApply(m, a) {
+    m.group.visible = a > 0.002; m.ring.visible = a >= 1;
+    if (a >= 1 || a <= 0.002) { if (m._fogOn) { for (const f of m._fog) if (f.o.material === f.clone) f.o.material = f.orig; m._fogOn = false; } return; }
+    for (const f of fogMats(m)) {
+      if (f.o.material === f.orig) f.o.material = f.clone;
+      for (const c of Array.isArray(f.clone) ? f.clone : [f.clone]) if (c && c.userData.base !== undefined) c.opacity = c.userData.base * a;
+    }
+    m._fogOn = true;
+  }
+  function fogFrame() {   // à chaque image : fondus (0,3 s pour disparaître, 0,15 s pour apparaître ; instantané en mode manuel)
+    const now = performance.now(), rdt = MANUAL ? 1 : Math.min(0.1, Math.max(0, (now - (FOG.rt || now)) / 1000)); FOG.rt = now;
+    for (const u of battle.units) {
+      const m = meshes[u.id]; if (!m) continue;
+      const want = fogShown(u) ? 1 : 0; if (m.fogA === undefined) m.fogA = want;
+      if (m.fogA !== want) m.fogA = want > m.fogA ? Math.min(1, m.fogA + rdt / 0.15) : Math.max(0, m.fogA - rdt / 0.3);
+      if (m.fogA !== m._fogLast || m.fogA < 1) { fogApply(m, m.fogA); m._fogLast = m.fogA; }
+    }
+    fogGhostsTick();
+  }
+  // un tir d'un ennemi non repéré : éclair et traçante seulement s'il passe près d'un opérateur d'Alpha (on se fait tirer dessus)
+  function fogShotShown(ev, sh) {
+    if (fogShown(sh)) return true;
+    const t = unitById[ev.target]; if (t && t.team === 0) return true;
+    for (const a of battle.teams[0].units) if (a.alive && Math.hypot(a.x - ev.to.x, a.z - ev.to.z) < 5) return true;
+    return false;
+  }
 
   function syncMeshes(alpha) {
     if (OT.Ragdoll) OT.Ragdoll.etape(frameDt, battle);   // physique des morts (une fois par image)
@@ -1885,6 +1977,7 @@
       animateOperator(u, m, frameDt);
       if (SPIN.on) spinWatch(u, m);
     }
+    fogFrame();
   }
   // Détecteur de « tours sur soi-même » : à chaque image, orientation dans le monde du bassin et du torse (os) de chaque
   // soldat ; si l'un d'eux cumule plus de 200° de rotation en moins d'une seconde, on garde l'historique de la seconde
@@ -1910,9 +2003,10 @@
       const p = new THREE.Vector3(m.group.position.x, u.alive ? (u.stance === 'crouch' ? 1.5 : 2.05) : 0.6, m.group.position.z).project(camera);
       // plan rapproché du réalisateur : l'étiquette du soldat cadré flotterait loin au-dessus de sa tête ; on la cache
       const proche = cam.mode === 'director' && camera.position.distanceTo(m.group.position) < 6.5;
-      const visible = !proche && p.z < 1 && p.x > -1.1 && p.x < 1.1 && p.y > -1.1 && p.y < 1.1;
+      const visible = !proche && m.fogA !== 0 && m.group.visible && p.z < 1 && p.x > -1.1 && p.x < 1.1 && p.y > -1.1 && p.y < 1.1;   // (ennemi non repéré : ni nom, ni barre de vie)
       m.label.style.display = visible ? 'block' : 'none';
       if (!visible) continue;
+      { const op = m.fogA === undefined || m.fogA >= 1 ? '' : m.fogA.toFixed(2); if (m.label.style.opacity !== op) m.label.style.opacity = op; }
       m.lx = (p.x + 1) / 2 * w; m.ly = (1 - p.y) / 2 * h; m.lz = p.z; placed.push(m);
       if (m.barkUntil && simTime > m.barkUntil) { m.barkUntil = 0; const b = m.label.querySelector('.bark'); if (b) b.classList.remove('on'); }
       const bar = m.label.querySelector('.lbar i'); bar.style.width = (100 * u.hp / u.maxHp).toFixed(0) + '%';
@@ -1958,6 +2052,19 @@
     for (const u of battle.units) {
       const c = document.querySelector(`.card[data-id="${u.id}"]`); if (!c) continue;
       c.classList.toggle('dead', !u.alive);
+      const hid = u.team === 1 && u.alive && !fogShown(u); c.classList.toggle('unseen', hid);
+      if (hid) {   // ennemi non repéré : ni état, ni munitions, ni voie ; la vie est la dernière connue (sinon « ? »)
+        const lh = FOG.hp[u.id], w = (lh === undefined ? 100 : 100 * lh / u.maxHp).toFixed(0) + '%', hi = c.querySelector('.hp i');
+        if (hi.style.width !== w) { hi.style.width = w; const gb = c.querySelector('.hp b'); if (gb) gb.style.width = w; }
+        c.classList.remove('low', 'reload');
+        { const mg = c.querySelector('.mag i'); if (mg) mg.style.width = '0%'; }
+        c.querySelector('.sup i').style.width = '0%';
+        const st = c.querySelector('.st'); if (st.textContent !== 'Non repéré') st.textContent = 'Non repéré';
+        c.querySelector('.ammo').innerHTML = '';
+        c.querySelector('.status').textContent = lh === undefined ? '? PV' : `${Math.round(lh)} PV ?`;
+        { const ln = c.querySelector('.lane'); if (ln && ln.dataset.k !== '') { ln.dataset.k = ''; ln.className = 'lane'; ln.textContent = ''; ln.title = ''; } }
+        continue;
+      }
       const hpw = (100 * u.hp / u.maxHp).toFixed(0) + '%', hi = c.querySelector('.hp i');
       if (hi.style.width !== hpw) { if (parseFloat(hpw) < parseFloat(hi.style.width || '100')) { c.classList.remove('hit'); void c.offsetWidth; c.classList.add('hit'); } hi.style.width = hpw; const gb = c.querySelector('.hp b'); if (gb) gb.style.width = hpw; }
       c.classList.toggle('low', u.alive && u.hp / u.maxHp < 0.35);
@@ -1973,7 +2080,7 @@
     }
     $('#clock').textContent = fmtT(battle.t);
     battle.teams.forEach((team, ti) => {
-      const hp = team.units.reduce((s, u) => s + (u.alive ? u.hp : 0), 0), max = team.units.reduce((s, u) => s + u.maxHp, 0);
+      const hp = team.units.reduce((s, u) => s + (!u.alive ? 0 : fogShown(u) ? u.hp : FOG.hp[u.id] !== undefined ? FOG.hp[u.id] : u.maxHp), 0), max = team.units.reduce((s, u) => s + u.maxHp, 0);   // (ennemis non repérés : dernière vie connue)
       const pct = Math.round(100 * hp / max);
       $('#tbar' + ti).style.width = pct + '%';
       if (battle.zone) { const c = Math.floor(team.capture); $('#cbar' + ti).style.width = c + '%'; $('#tpct' + ti).textContent = c + '%'; $('#tpct' + ti).title = `Zone capturée à ${c} % — vie ${pct} %`; }
@@ -2228,10 +2335,18 @@
       bark(best, 'down');
     }
   }
+  // journal, bulles et sons d'un ennemi non repéré (il recharge, il repère, il contourne…) : rien ne s'affiche. Les
+  // neutralisations restent (fil des neutralisations), comme les tirs qui touchent un opérateur d'Alpha.
+  function fogLogHidden(e) {
+    if (!fogOn() || e.kind === 'down') return false;
+    const a = e.unit && unitById[e.unit]; if (!a || a.team !== 1 || fogShown(a)) return false;
+    const v = e.enemy && unitById[e.enemy]; return !(e.kind === 'hit' && v && v.team === 0);
+  }
   function pumpLog() {
     const j = $('#journal'), tk = $('#ticker');
     while (logIndex < battle.log.length) {
       const e = battle.log[logIndex++];
+      if (fogLogHidden(e)) continue;
       barkFor(e);
       if (e.kind === 'reload' && e.unit && unitById[e.unit]) { const u = unitById[e.unit]; play('recharge', { x: u.x, y: 1, z: u.z }, { vol: 0.9 }); }
       if (e.kind === 'spot' && !contactPlayed) { contactPlayed = true; play('contact', null, { vol: 1, varie: 0 }); }
@@ -2468,6 +2583,8 @@
     useTactic: (id) => battle.command('tactic', 0, id),
     review: () => { review(); return battle.replayQueue.length; },
     meshes: () => meshes, scene: () => scene,
+    // ennemis non repérés : ce que voit l'escouade (simulation) et ce qui est dessiné (modèles, étiquettes, repères « ? »)
+    fog: () => { const E = battle.teams[1].units, vis = (u) => !!(meshes[u.id] && meshes[u.id].group.visible); return { on: fogOn(), spotted: [...FOG.spotted], alive: E.filter(u => u.alive).map(u => u.id), drawn: E.filter(u => u.alive && vis(u)).map(u => u.id), fading: E.filter(u => meshes[u.id] && meshes[u.id].fogA > 0 && meshes[u.id].fogA < 1).map(u => u.id), labels: E.filter(u => u.alive && meshes[u.id] && meshes[u.id].label.style.display !== 'none').map(u => u.id), deadDrawn: E.filter(u => !u.alive && vis(u)).map(u => u.id), deadSeen: Object.assign({}, FOG.deadSeen), ghosts: Object.keys(FOG.ghosts).filter(id => FOG.ghosts[id].visible) }; },
     efx: () => EFX, rendu: () => RENDU,
     look: (x, z, yaw, pitch, dist, y) => { setCamMode('free'); cam.follow = null; cam.init = false; cam.target.set(x, y === undefined ? 0.9 : y, z); cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; for (let i = 0; i < 30; i++) applyCamera(); render(); return 0; },
     spinWatch: (on) => { SPIN.on = on !== false; SPIN.events = []; SPIN.hist = {}; }, spins: () => SPIN.events,

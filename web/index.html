@@ -1350,6 +1350,9 @@
   #app.hud3 .roster.team1 .card .cs { font-size: 13px; letter-spacing: .08em; } #app.hud3 .roster.team1 .card .ammo, #app.hud3 .roster.team1 .card .cbot, #app.hud3 .roster.team1 .card .mag, #app.hud3 .roster.team1 .card .sup { display: none; }
   #app.hud3 .roster.team1 .card .hp { height: 3px; } #app.hud3 .roster.team1 .card .hp i { background: linear-gradient(90deg, #e2452f, #ff7a5e); }
   #app.hud3 .roster.team1 .card.hit { animation: none; }
+  /* ennemi non repéré par l'escouade : carte en retrait, vie (dernière connue) pâle, petit « ? » après le nom */
+  #app .roster.team1 .card.unseen { opacity: .6; } #app .roster.team1 .card.unseen .hp i { opacity: .4; }
+  #app .roster.team1 .card.unseen .cs::after { content: ' ?'; color: #ff9a8a; font-weight: 700; }
   /* tactiques : capacités à droite (touches A Z E), celles de l'adversaire à gauche, plus discrètes */
   #app.hud3 .tactics { top: auto; bottom: 96px; gap: 8px; flex-direction: row; } #app.hud3 .tactics.left { right: 14px; left: auto; } #app.hud3 .tactics.right { left: auto; right: 14px; bottom: auto; top: 140px; flex-direction: column; opacity: .8; }
   #app.hud3 .tcard { width: 118px; padding: 8px 8px 10px; border-radius: 12px; background: linear-gradient(180deg, var(--glass2), var(--glass)); border: 1px solid var(--edge); box-shadow: 0 10px 26px rgba(0,0,0,.35); backdrop-filter: blur(10px); }
@@ -1776,6 +1779,7 @@
   <div class="setrow"><span>Qualité d'affichage</span><div class="seg" id="setQuality"><button data-v="haute">Haute</button><button data-v="moyenne">Moyenne</button><button data-v="basse">Basse</button></div><span></span></div>
   <div class="setrow" style="display:none"><span>Voix radio (synthèse vocale)</span><div class="seg" id="setVoice"><button data-v="1">Oui</button><button data-v="0">Non</button></div><span></span></div>
   <div class="setrow"><span>Ombres</span><div class="seg" id="setShadows"><button data-v="1">Oui</button><button data-v="0">Non</button></div><span></span></div>
+  <div class="setrow"><span>Ennemis visibles seulement s'ils sont repérés</span><div class="seg" id="setFog" title="Oui : un ennemi n'apparaît que tant qu'un de vos opérateurs le voit. Non : tout est visible (spectateur)."><button data-v="1">Oui</button><button data-v="0">Non</button></div><span></span></div>
   <div class="setrow save"><span>Sauvegarde de la carrière</span><div class="seg"><button id="setExport" title="Télécharge un fichier .json avec toute la carrière">Exporter</button><button id="setImport" title="Recharge une carrière depuis un fichier .json exporté">Importer</button><input type="file" id="setFile" accept=".json,application/json" hidden></div></div>
   <div id="setMsg"></div>
   <p id="setCredits" style="margin:10px 0 0;font-size:11px;line-height:1.45;color:var(--muted)">Crédits des sons : Free Firearm Sound Library (CC0), Kenney (CC0), CDDA-Soundpacks / Freesound — bmlake (CC BY 3.0), Halleck (CC BY), FST180081 (CC BY 4.0), duckduckpony (CC BY), sergeeo (CC BY 3.0) ; autres sons CC0 ou fabriqués pour le jeu. Liste complète dans sons/CREDITS.md.</p>
@@ -1791,7 +1795,7 @@
     $('#setMusic').value = Math.round(g.music * 100); $('#setMusicV').textContent = Math.round(g.music * 100) + ' %';
     const seg = (id, v) => $(id).querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(v)));
     seg('#setSound', window.OT_MUTE && window.OT_MUTE.get() ? 0 : 1); soundState();
-    seg('#setSpeed', g.speed); seg('#setCam', g.cam); seg('#setQuality', g.quality); seg('#setShadows', g.shadows ? 1 : 0); seg('#setVoice', g.voice ? 1 : 0);
+    seg('#setSpeed', g.speed); seg('#setCam', g.cam); seg('#setQuality', g.quality); seg('#setShadows', g.shadows ? 1 : 0); seg('#setVoice', g.voice ? 1 : 0); seg('#setFog', g.fog === false ? 0 : 1);
   }
   // état du lecteur de sons, lisible par le joueur (diagnostic : contexte bloqué par le navigateur, sons non décodés…)
   function soundState() {
@@ -1814,6 +1818,7 @@
   $('#setQuality').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('quality', v); sync(); } });
   $('#setShadows').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('shadows', v === '1'); sync(); } });
   $('#setVoice').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('voice', v === '1'); sync(); } });
+  $('#setFog').addEventListener('click', (e) => { const v = e.target.dataset.v; if (v) { S().set('fog', v === '1'); sync(); } });
   // export : dans une page publiée sur claude.ai, la capacité « downloads » (le visiteur confirme) ; ailleurs, un lien de téléchargement
   let dl = null; if (window.claude && window.claude.use) window.claude.use('downloads').then(d => { dl = d; }).catch(() => {});
   $('#setExport').addEventListener('click', () => {

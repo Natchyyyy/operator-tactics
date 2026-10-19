@@ -1729,10 +1729,11 @@
           if (cp2 && this.setGoal(u, cp2.x, cp2.z, 'cover')) { u.state = 'fallback'; u.stance = 'stand'; return; }
         }
       }
-      // sinon : tenir la position et tirer. Debout pour tirer par-dessus le couvert ; accroupi si on recharge à couvert.
+      // sinon : tenir la position et tirer. Debout pour tirer par-dessus le couvert ; accroupi derrière lui pour recharger et
+      // entre deux rafales (on se relève pour la suivante : comme aux ordres Tenir et de déplacement)
       this.stop(u);
       u.state = 'engage';
-      u.stance = (u.reloading > 0 && cover) ? 'crouch' : 'stand';
+      u.stance = ((u.reloading > 0 || this.t < (u.burstPauseUntil || 0)) && cover) ? 'crouch' : 'stand';
       return;
     }
 
@@ -2367,14 +2368,15 @@
     if (e.moving) p *= has(u, 'opportunity') ? 0.9 : 0.8;                             // Tir d'opportunité
     if (e.stance === 'crouch') p *= 0.85;
     if (this.isBraced(e)) p *= 0.9;           // un défenseur installé expose moins de silhouette
-    if (w.rpm > 100) p *= 1 - (has(u, 'gunner') ? 0.03 : 0.06) * (u.att.compensateur ? 0.6 : 1) * Math.min(u.burst, 5);   // Tir soutenu, compensateur
-    // à bout portant on ne rate (presque) plus : sous 10 m, la chance remonte fortement vers 95 % (×0,85 de l'écart à 1 m,
-    // ×0,59 à 3 m, ×0,35 à 5 m, rien à 10 m et au-delà). La portée lointaine reste incertaine.
-    const close = clamp(1 - d / 10, 0, 1);
+    if (w.rpm > 100) p *= 1 - (has(u, 'gunner') ? 0.018 : 0.035) * (u.att.compensateur ? 0.6 : 1) * Math.min(u.burst, 5);   // coups ajustés : le recul retombe entre deux balles   // Tir soutenu, compensateur
+    // à courte portée on ne rate (presque) plus : sous 15 m, la chance remonte fortement vers 95 % (×0,81 de l'écart à 2 m,
+    // ×0,54 à 5 m, ×0,19 à 10 m, rien à 15 m et au-delà). La portée lointaine reste incertaine.
+    const close = clamp(1 - d / 15, 0, 1);
     if (close > 0) p += (0.95 - p) * Math.pow(close, 1.5);
     if (this.t < u.blindUntil) p *= 0.25;                                             // aveuglé
     const cv = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
-    if (cv) p *= cv.level === 'partial' ? 0.55 : 0.3; // couvert partiel (Retranchement : ×0,5)
+    // derrière un couvert, seuls la tête et les épaules dépassent quand il se lève pour tirer : cible bien plus petite
+    if (cv) p *= cv.level === 'partial' ? 0.38 : 0.15;
     return { p: clamp(p, 0.03, 0.95), cover: cv };
   };
   Battle.prototype.fireAt = function (u, e) {
@@ -2448,9 +2450,11 @@
     let fall = r <= 0.3 ? 1 : (r <= 1 ? 1 - (r - 0.3) / 0.7 * (1 - w.falloff) : Math.max(0.3 * w.falloff, w.falloff - (r - 1) * 0.7 * w.falloff));
     const roll = this.rng.next();
     let loc, mult, prot;
-    const headP = 0.08;
+    // derrière un couvert bas (jambes cachées), les balles qui portent trouvent la tête, le haut du torse ou les bras
+    const low = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
+    const headP = low ? 0.14 : 0.08, torsoP = low ? 0.70 : 0.60;
     if (roll < headP) { loc = 'tête'; mult = 2.2; prot = e.armor.head; }
-    else if (roll < 0.60) { loc = 'torse'; mult = 1.0; prot = e.armor.torso; }
+    else if (roll < torsoP) { loc = 'torse'; mult = 1.0; prot = e.armor.torso; }
     else { loc = 'membre'; mult = 0.55; prot = 0; }
     let dmg = w.damage * fall * mult * (1 - prot) * this.rng.range(0.85, 1.15);
     if (has(u, 'breach') && d < 10 && (w.cls === 'brèche' || w.cls === 'pm')) dmg *= 1.15;   // Enfonceur
