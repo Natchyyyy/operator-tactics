@@ -25,7 +25,7 @@ Attribution à mettre dans les crédits du jeu :
 ## Fabriquer et lancer
 ```
 # données : BVH 100STYLE (Neutral_*, Crouched_*) dans donnees/100style/ + donnees/Geno_bind.bvh (dépôt orangeduck/100style-retarget)
-python3 outils/preparer.py donnees/100style/Neutral_*.bvh donnees/100style/Crouched_*.bvh --sortie web/base --bind donnees/Geno_bind.bvh
+python3 outils/preparer.py donnees/100style/Neutral_*.bvh donnees/100style/Swat_*.bvh donnees/100style/Rushed_*.bvh donnees/100style/Crouched_*.bvh --sortie web/base --parties 3 --bind donnees/Geno_bind.bvh
 cp ../../web/three.min.js ../../web/gltf.js web/ && cp ../../web/hd/gign_hd.glb web/      # copies, non versionnées
 python3 ../../outils/serveur.py ../.. 8765   →  http://127.0.0.1:8765/prototypes/motion-matching/web/
 ```

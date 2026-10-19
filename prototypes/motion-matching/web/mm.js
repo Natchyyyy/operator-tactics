@@ -2,7 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
-  const VERSION = 29;
+  const VERSION = 30;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);
@@ -95,6 +95,8 @@
     }
     return [best, bc];
   }
+  // segment a→b (plan XZ) coupe-t-il la boîte [x0,x1]×[z0,z1] ?
+  function segCoupeBoite(a, b, x0, x1, z0, z1) { let t0 = 0, t1 = 1; const dx = b.x - a.x, dz = b.z - a.z; for (const [p0, d, lo, hi] of [[a.x, dx, x0, x1], [a.z, dz, z0, z1]]) { if (Math.abs(d) < 1e-9) { if (p0 < lo || p0 > hi) return false; continue; } let ta = (lo - p0) / d, tb = (hi - p0) / d; if (ta > tb) [ta, tb] = [tb, ta]; t0 = Math.max(t0, ta); t1 = Math.min(t1, tb); if (t0 > t1) return false; } return true; }
   function cout(i, req) { const { nF, fn } = Base; let c = 0; const o = i * nF; for (let k = 0; k < nF; k++) { const d = fn[o + k] - req[k]; c += d * d; } return c; }
 
   // IK deux os : tourne H (racine) et K (milieu) pour amener A (extrémité) sur cibleA ; garde l'orientation mondiale de A.
@@ -418,6 +420,12 @@
     // verrouillage des pieds : quand la base dit « orteil en appui », on garde l'orteil là où il s'est posé (IK deux os).
     // Seulement à l'horizontale (la hauteur reste celle de l'animation), avec un écart qui s'installe et s'efface
     // en douceur, et qui faiblit si la jambe ne peut pas atteindre la cible : pas de pied qui remonte ni de rebond.
+    // accroupi profond : le buste se penche en avant (épaules au-dessus des genoux) — Spine, dans le monde
+    pencher(ang) {
+      if (Math.abs(ang) < 1e-4) return; const o = this.os[Base.meta.os.indexOf('Spine')]; if (!o) return;
+      const droite = V3(-1, 0, 0).applyQuaternion(this.worldQ[0]); const qr = Q().setFromAxisAngle(droite, -ang);
+      const wq = o.getWorldQuaternion(Q()); o.quaternion.copy(o.parent.getWorldQuaternion(Q()).invert().multiply(qr).multiply(wq)); o.updateMatrixWorld(true); this.group.updateMatrixWorld(true);
+    }
     verrouPieds(contacts, dt) {
       for (let k = 0; k < 2; k++) {
         const [H, K, A, T] = this.jambes[k]; const vr = this.verrous[k]; if (!H || !K || !A || !T) continue;
@@ -436,10 +444,12 @@
           const x = [vr.delta.x, 0, vr.delta.z], v = [vr.deltaV.x, 0, vr.deltaV.z];
           decroit(x, v, 0.08, dt); vr.delta.set(x[0], 0, x[2]); vr.deltaV.set(v[0], 0, v[2]);
         }
-        if (vr.delta.lengthSq() < 1e-8) continue;
-        // genou vers l'avant du personnage ; la cible est ramenée à portée par ikDeuxOs (jambe jamais tendue de force)
+        const desc = (this.profondeur || 0) * PARAMS.accroupi.descente;        // accroupi profond : les hanches sont descendues, les pieds restent au sol
+        if (vr.delta.lengthSq() < 1e-8 && desc < 1e-4) continue;
+        // genou vers l'avant du personnage (et un peu vers l'extérieur en squat) ; la cible est ramenée à portée par ikDeuxOs
         const pA = A.getWorldPosition(V3());
-        ikDeuxOs(H, K, A, pA.clone().add(vr.delta), V3(0, 0, 1).applyQuaternion(this.worldQ[0]));
+        const pole = V3(0, 0, 1).applyQuaternion(this.worldQ[0]).addScaledVector(V3(1, 0, 0).applyQuaternion(this.worldQ[0]), (k ? -0.4 : 0.4) * (this.profondeur || 0)).normalize();
+        ikDeuxOs(H, K, A, pA.clone().add(vr.delta).add(V3(0, desc, 0)), pole);
       }
     }
     // pose cible (yaw retiré) de l'image i, mélangée avec l'image i+1 par t ∈ [0,1[ : retourne quats mondiaux + hauteur
@@ -476,7 +486,8 @@
         o.quaternion.copy(parentQ).invert().multiply(w);
       }
       // position des hanches
-      const h = (poseY[0] + this.offY[0]) * this.echelle + this.solY;
+      const desc = (this.profondeur || 0) * PARAMS.accroupi.descente;
+      const h = (poseY[0] + this.offY[0]) * this.echelle + this.solY - desc;
       const monde = this.tmpV.set(this.pos.x, h, this.pos.z);
       this.hips.parent.updateWorldMatrix(true, false);
       this.hips.position.copy(this.hips.parent.worldToLocal(monde));
@@ -499,7 +510,12 @@
     },
     vitesseCible() {
       if (this.chemin && this.chemin.length) {
-        const c = this.chemin[this.cheminIdx % this.chemin.length], d = c.clone().sub(this.pos); d.y = 0;
+        const dernier = this.cheminFin && this.cheminIdx >= this.chemin.length - 1;
+        const c = this.chemin[dernier ? this.chemin.length - 1 : this.cheminIdx % this.chemin.length], d = c.clone().sub(this.pos); d.y = 0;
+        if (dernier) {   // dernier point d'un chemin à arrivée précise (couvert) : freinage proportionnel, arrivé à 8 cm
+          if (d.length() < 0.08) { this.arriver(); return V3(); }
+          return d.normalize().multiplyScalar(Math.min(this.vitesses.marche, Math.max(0.25, d.length() / 0.35)));
+        }
         if (d.length() < 0.35) { this.cheminIdx++; return this.vitesseCible(); }
         const v = this.touches['ShiftLeft'] || this.touches['ShiftRight'] ? this.vitesses.course : this.vitesses.marche;
         return d.normalize().multiplyScalar(v);
@@ -519,10 +535,33 @@
       let e = Math.atan2(vGoal.x, vGoal.z) - this.camYaw; e = Math.abs(Math.atan2(Math.sin(e), Math.cos(e)));
       this.modeV = e <= (this.modeV === 'recul' ? 1.66 : 1.83) ? 'avant' : 'recul'; return this.modeV;
     },
+    // Couvert (règle du jeu, sim/engine.js coverAt / computeCoverPoints) : point à `recul` m du bord du bloc, du côté opposé à
+    // la menace ; on y va par le chemin le plus court qui contourne le bloc, on s'y arrête précisément, on s'accroupit face
+    // à la menace (arme en garde basse ; clic droit pour épauler).
+    couvrir(bloc, menace) {
+      const cx = bloc.x + bloc.w / 2, cz = bloc.z + bloc.d / 2, m = V3(menace.x - cx, 0, menace.z - cz).normalize();
+      const cotes = [[V3(1, 0, 0), V3(bloc.x + bloc.w, 0, cz)], [V3(-1, 0, 0), V3(bloc.x, 0, cz)], [V3(0, 0, 1), V3(cx, 0, bloc.z + bloc.d)], [V3(0, 0, -1), V3(cx, 0, bloc.z)]];
+      // candidat caché = le segment menace → point traverse le bloc (poitrine accroupie sous le haut du bloc) ; parmi les
+      // cachés, le plus proche du soldat ; sinon le côté le plus à l'opposé de la menace (règle du jeu : coverAt)
+      const pM = V3(menace.x, 0, menace.z), cache = (p) => segCoupeBoite(pM, p, bloc.x, bloc.x + bloc.w, bloc.z, bloc.z + bloc.d);
+      const cands = cotes.map(([n, e]) => ({ p: e.clone().addScaledVector(n, PARAMS.couvert.recul), sc: n.dot(m) }));
+      const caches = cands.filter(c => cache(c.p)).sort((a, b) => this.pos.distanceTo(a.p) - this.pos.distanceTo(b.p));
+      const best = (caches.length ? caches[0] : cands.sort((a, b) => a.sc - b.sc)[0]).p;
+      // contournement : si le segment direct coupe le bloc (gonflé du rayon du soldat), on passe par le coin le plus proche
+      const r = PARAMS.couvert.rayon, gx0 = bloc.x - r, gx1 = bloc.x + bloc.w + r, gz0 = bloc.z - r, gz1 = bloc.z + bloc.d + r;
+      const coupe = (a, b) => segCoupeBoite(a, b, gx0, gx1, gz0, gz1); const _ancien = (a, b) => { let t0 = 0, t1 = 1; const dx = b.x - a.x, dz = b.z - a.z; for (const [p0, d, lo, hi] of [[a.x, dx, gx0, gx1], [a.z, dz, gz0, gz1]]) { if (Math.abs(d) < 1e-9) { if (p0 < lo || p0 > hi) return false; continue; } let ta = (lo - p0) / d, tb = (hi - p0) / d; if (ta > tb) [ta, tb] = [tb, ta]; t0 = Math.max(t0, ta); t1 = Math.min(t1, tb); if (t0 > t1) return false; } return true; };
+      const chemin = []; const coins = [V3(gx0 - 0.1, 0, gz0 - 0.1), V3(gx1 + 0.1, 0, gz0 - 0.1), V3(gx0 - 0.1, 0, gz1 + 0.1), V3(gx1 + 0.1, 0, gz1 + 0.1)];
+      if (coupe(this.pos, best)) { const ok = coins.filter(c => !coupe(this.pos, c) && !coupe(c, best)).sort((a, b) => this.pos.distanceTo(a) + a.distanceTo(best) - this.pos.distanceTo(b) - b.distanceTo(best)); if (ok.length) chemin.push(ok[0]); else { const c2 = coins.filter(c => !coupe(this.pos, c)).sort((a, b) => this.pos.distanceTo(a) - this.pos.distanceTo(b))[0]; if (c2) { chemin.push(c2); const c3 = coins.filter(c => !coupe(c2, c) && !coupe(c, best)).sort((a, b) => c2.distanceTo(a) + a.distanceTo(best) - c2.distanceTo(b) - b.distanceTo(best))[0]; if (c3) chemin.push(c3); } } }
+      chemin.push(best);
+      this.chemin = chemin; this.cheminIdx = 0; this.cheminFin = true; this.couvert = null; this.enRoute = { point: best, yawMenace: Math.atan2(menace.x - best.x, menace.z - best.z) }; this.verrouCible = null;
+      return chemin;
+    },
+    arriver() { if (!this.enRoute) return; this.couvert = this.enRoute; this.enRoute = null; this.chemin = null; this.cheminFin = false; this.accroupi = true; this.verrouCible = this.couvert.yawMenace; },
     yawCible(vGoal) {
       // il regarde là où il va ; bouton droit de la souris maintenu : regard verrouillé sur la direction de la caméra
       // (marche tactique vers la touche, buste vers la cible ; recul si la cible est derrière) — la caméra seule ne fait jamais tourner le soldat
       if (this.verrouRegard && !(this.chemin && this.chemin.length)) { const m = this.modeVisee(vGoal); if (m !== 'avant') return this.camYaw; }
+      if (this.verrouCible != null && vGoal.lengthSq() < 1e-4) return this.verrouCible;   // à couvert : face à la menace
       if (vGoal.lengthSq() < 1e-4) return this.yaw;
       return Math.atan2(vGoal.x, vGoal.z);
     },
@@ -540,6 +579,7 @@
       return [P, D];
     },
     pas(dt) {
+      if (this.direction() && (this.couvert || this.enRoute)) { this.couvert = null; this.enRoute = null; this.chemin = null; this.cheminFin = false; this.verrouCible = null; }   // une touche de déplacement quitte le couvert
       const vGoal = this.vitesseCible(), yGoal = this.yawCible(vGoal);
       [this.pos, this.vel, this.acc] = ressortVitesse(this.pos, this.vel, this.acc, vGoal, this.hVitesse(vGoal), dt);
       [this.yaw, this.yawV] = ressortAngle(this.yaw, this.yawV, yGoal, this.hYaw, dt);
@@ -574,7 +614,9 @@
   let renderer, scene, camera, cam = { dist: 4.2, pitch: 0.42 }, horloge = 0;
   let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  // bloc de couverture (m) : hauteur poitrine debout, au-dessus de la tête accroupi — comme les couverts bas du jeu
+  const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { accroupi: { descente: 0.30, descenteMarche: 0.12, penche: 0.35, tau: 0.3 }, couvert: { recul: 0.55, rayon: 0.4 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -605,7 +647,7 @@
       const S = this.soldat, Ctl = this.ctl;
       const [vGoal, yGoal] = Ctl.pas(dt);
       // recherche toutes les 0,1 s, ou tout de suite si on change de style
-      const styleVoulu = Ctl.visee ? 2 : Ctl.accroupi ? 1 : 0;      // 2 = Swat (arme), 1 = accroupi (pas de données pour l'instant), 0 = neutre
+      const styleVoulu = Ctl.accroupi ? 1 : Ctl.visee ? 2 : 0;      // 1 = accroupi (Crouched), 2 = Swat (arme), 0 = neutre
       this.derniereRecherche += dt;
       // recherche immédiate dès que l'intention change (touche pressée / relâchée, direction) : réactivité au clavier
       const intention = vGoal.x.toFixed(1) + ',' + vGoal.z.toFixed(1) + ',' + (Ctl.verrouRegard ? 1 : 0);
@@ -635,7 +677,7 @@
         const sansMarge = veutPartir || veutArreter || ecartVit > 0.6;                     // (ou grand changement de vitesse)
         const seuil = sansMarge ? cc : auRepos ? cc * 0.6 - PARAMS.margeSaut : cc * PARAMS.margeRel - PARAMS.margeSaut;   // au repos : très peu de sauts (pas de tressautement)
         if (best >= 0 && bc < seuil && Math.abs(best - f) > 2 && (horloge - this.dernierSaut >= (auRepos ? 1.0 : sansMarge ? 0.1 : PARAMS.minSaut) || styleVoulu !== this.styleCourant || finClip || (changement && horloge - this.dernierSaut >= 0.08))) {
-          this.dernierSaut = horloge; S.hLife = PARAMS.hLife;
+          this.dernierSaut = horloge; S.hLife = styleVoulu !== this.styleCourant ? 0.3 : PARAMS.hLife;   // changement de style (debout ↔ accroupi) : fondu plus long
           // transition : écart entre la pose courante (telle qu'affichée) et la nouvelle
           for (let k = 0; k < Base.J; k++) this.ancQ[k].copy(this.poseQ[k]); this.ancY[0] = this.poseY[0];
           this.frame = best; this.frameT = 0; S.poseDe(this.frame, 0, this.poseQ, this.poseY);
@@ -686,6 +728,13 @@
         vl.applyAxisAngle(UP, Math.max(-lim, Math.min(lim, e)));
       }
       S.pos.addScaledVector(vl, dt * this.facteurRacine);
+      // bloc : on ne le traverse pas (le soldat est un cercle de PARAMS.couvert.rayon)
+      if (BLOC) { const r = PARAMS.couvert.rayon, nx = Math.max(BLOC.x, Math.min(BLOC.x + BLOC.w, S.pos.x)), nz = Math.max(BLOC.z, Math.min(BLOC.z + BLOC.d, S.pos.z)); const dx = S.pos.x - nx, dz = S.pos.z - nz, dd = Math.hypot(dx, dz); if (dd < r) { if (dd < 1e-6) S.pos.x = nx - r; else { S.pos.x = nx + dx / dd * r; S.pos.z = nz + dz / dd * r; } } }
+      // à couvert : recalage final sur le point (≤ 10 cm, pendant la descente)
+      if (Ctl.couvert && vGoal.lengthSq() < 0.01) { const d = Ctl.couvert.point.clone().sub(S.pos); d.y = 0; if (d.length() > 0.005) S.pos.addScaledVector(d, 1 - Math.exp(-dt / 0.3)); }
+      // accroupi profond (couvert) : à l'arrêt on descend de `descente`, en marche les clips Crouched + un peu ; lissé
+      const profVoulue = Ctl.accroupi ? (vGoal.lengthSq() < 0.01 ? 1 : PARAMS.accroupi.descenteMarche / PARAMS.accroupi.descente) : 0;
+      S.profondeur = (S.profondeur || 0) + (profVoulue - (S.profondeur || 0)) * (1 - Math.exp(-dt / PARAMS.accroupi.tau));
       Ctl.pos.copy(S.pos); Ctl.yaw = S.yaw;
       S.appliquer(this.poseQ, this.poseY, dt);
       // appui = la base dit « en appui » ET l'orteil affiché est bas (juste après un saut de séquence, la pose affichée est
@@ -693,6 +742,7 @@
       const cf = Base.contact[this.frame];
       const contacts = S.orteils.map((o, k) => !!(cf & (k ? 1 : 2)) && o.getWorldPosition(V3()).y < seuilOrteil);
       S.reposTotal = vGoalNul && this.facteurRacine < 0.05; S.pivot = pivote && Math.abs(errCapR) > 0.15;
+      S.pencher((S.profondeur || 0) * PARAMS.accroupi.penche);
       if (PARAMS.verrou) S.verrouPieds(contacts, dt);
       // tir (clic gauche maintenu en visée) : cadence soutenue du fusil d'assaut du jeu (110 coups/min), recul 1 → 0 en 0,1 s
       this.recul = Math.max(0, (this.recul || 0) - dt * 10); this.tirAcc = Math.max(0, (this.tirAcc || 0) - dt);
@@ -729,6 +779,8 @@
     sun.shadow.camera.left = sun.shadow.camera.bottom = -16; sun.shadow.camera.right = sun.shadow.camera.top = 16; scene.add(sun);
     const sol = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x3c4149, roughness: 0.95 })); sol.rotation.x = -Math.PI / 2; sol.receiveShadow = true; scene.add(sol);
     const grille = new THREE.GridHelper(60, 60, 0x5a6270, 0x2c3139); grille.position.y = 0.002; scene.add(grille);
+    const bloc = new THREE.Mesh(new THREE.BoxGeometry(BLOC.w, BLOC.h, BLOC.d), new THREE.MeshStandardMaterial({ color: 0x6b6256, roughness: 0.9 })); bloc.position.set(BLOC.x + BLOC.w / 2, BLOC.h / 2, BLOC.z + BLOC.d / 2); bloc.castShadow = bloc.receiveShadow = true; scene.add(bloc);
+    for (const [nx, nz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const m = new THREE.Mesh(new THREE.CircleGeometry(0.12, 16), new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.35 })); m.rotation.x = -Math.PI / 2; m.position.set(BLOC.x + BLOC.w / 2 + nx * (BLOC.w / 2 + PARAMS.couvert.recul), 0.004, BLOC.z + BLOC.d / 2 + nz * (BLOC.d / 2 + PARAMS.couvert.recul)); scene.add(m); }
     HUD.etat = document.getElementById('etat'); HUD.jauge = document.getElementById('jauge'); HUD.jaugeTxt = document.getElementById('jaugeTxt'); HUD.msg = document.getElementById('msg');
     HUD.msg.textContent = 'Chargement de la base (17 Mo)…';
     await chargerBase();
@@ -750,7 +802,7 @@
       mesures() { const A = agents[0], f = A.frame; return { frame: f, seq: Base.meta.sequences[Base.seq[f]].nom, glisseMoy: A.glisse.moyenneCm(), glisseRecent: A.glisse.recentCm(), sauts: A.sauts, pos: A.soldat.pos.toArray(), yaw: A.soldat.yaw, simPos: A.ctl.pos.toArray(), vitAnim: Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]), tirs: A.tirs || 0, recul: A.recul || 0 }; },
       os(n) { const o = agents[0].soldat.os[Base.meta.os.indexOf(n)]; return o ? o.getWorldPosition(V3()).toArray() : null; },
       camera(yaw, pitch, dist, cibleY) { agents[0].ctl.camYaw = yaw; cam.pitch = pitch; cam.dist = dist; cam.cibleY = cibleY; cam.cible = null; },
-      escouade: ajouterEscouade, agents,
+      escouade: ajouterEscouade, agents, couvrir: (menace) => { const c = agents[0].ctl; const ch = c.couvrir(BLOC, menace || { x: camera.position.x, z: camera.position.z }); return ch.map(p => p.toArray()); },
       diag(i) { const A = agents[i]; const c = A.ctl; const vg = c.vitesseCible(), yg = c.yawCible(vg); const req = A.requete(vg, yg); const f = A.frame; const vit = Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]); const auRepos = vg.lengthSq() < 0.01 && vit < 0.35 && c.vel.lengthSq() < 0.04; const [best, bc] = chercher(req, c.visee ? 2 : 0, auRepos); return { frame: f, auRepos, best, bc, cc: cout(f, req), seqBest: Base.meta.sequences[Base.seq[best]].nom, req: Array.from(req).map(x => +x.toFixed(2)), fnCour: Array.from(Base.fn.slice(f * Base.nF, (f + 1) * Base.nF)).map(x => +x.toFixed(2)), fnBest: Array.from(Base.fn.slice(best * Base.nF, (best + 1) * Base.nF)).map(x => +x.toFixed(2)) }; }
     };
     window.PRET = true;
@@ -787,7 +839,7 @@
 
   function evenements() {
     const Ctl = () => agents[0].ctl;
-    addEventListener('keydown', e => { const c = Ctl(); c.touches[e.code] = true; if (e.code === 'KeyV') { c.visee = !c.visee; } if (e.code === 'KeyC') { c.accroupi = !c.accroupi; } if (e.code === 'KeyP') basculerChemin(); if (e.code === 'KeyR') reinit(); if (e.code === 'KeyE') ajouterEscouade(); if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
+    addEventListener('keydown', e => { const c = Ctl(); c.touches[e.code] = true; if (e.code === 'KeyV') { c.visee = !c.visee; } if (e.code === 'KeyC') { c.accroupi = !c.accroupi; if (!c.accroupi) { c.couvert = null; c.verrouCible = null; } } if (e.code === 'KeyB') seCouvrir(); if (e.code === 'KeyP') basculerChemin(); if (e.code === 'KeyR') reinit(); if (e.code === 'KeyE') ajouterEscouade(); if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
     addEventListener('keyup', e => { Ctl().touches[e.code] = false; });
     addEventListener('blur', () => { Ctl().touches = {}; Ctl().verrouRegard = false; Ctl().tir = false; });
     let drag = null;
@@ -800,6 +852,7 @@
     document.getElementById('btnChemin').onclick = basculerChemin; document.getElementById('btnReinit').onclick = reinit;
     document.getElementById('btnVisee').onclick = () => { Ctl().visee = !Ctl().visee; }; document.getElementById('btnAccroupi').onclick = () => { Ctl().accroupi = !Ctl().accroupi; };
     document.getElementById('btnDemo').onclick = cheminDemo;
+    const ba = document.getElementById('btnAccroupi'); if (ba) ba.hidden = false; const bc = document.getElementById('btnCouvert'); if (bc) bc.onclick = seCouvrir;
     const be = document.getElementById('btnEscouade'); if (be) be.onclick = ajouterEscouade;
   }
   function ajouterPoint(e) {
@@ -807,6 +860,8 @@
     const p = V3(); if (!r.ray.intersectPlane(new THREE.Plane(UP, 0), p)) return; agents[0].ctl.chemin.push(p); dessinerChemin();
   }
   function basculerChemin() { const c = agents[0].ctl; if (c.chemin) { c.chemin = null; } else { c.chemin = []; c.cheminIdx = 0; } dessinerChemin(); }
+  // « va te couvrir » : la menace, pour les tests, est la caméra
+  function seCouvrir() { const c = agents[0].ctl; c.couvrir(BLOC, { x: camera.position.x, z: camera.position.z }); dessinerChemin(); }
   function cheminDemo() { const c = agents[0].ctl; c.chemin = [V3(4, 0, 0), V3(4, 0, 4), V3(-3, 0, 5), V3(-4, 0, -2), V3(1, 0, -4)]; c.cheminIdx = 0; dessinerChemin(); }
   function dessinerChemin() {
     for (const t of traits) scene.remove(t); traits.length = 0;
