@@ -97,7 +97,7 @@
   // creux de l'épaule de la garde basse (m, par rapport à l'articulation de l'épaule : vers le centre, l'avant, le bas)
   const POCHE = { dedans: 0.06, avant: 0.05, bas: 0.05 };
   // poche de rechargement (m, par rapport à Spine2 : devant, dessous, vers la droite) : poignée du fusil pendant le rechargement
-  const RECH = { avant: 0.3, bas: 0.12, lat: 0.04, pAvant: 0.17, pBas: 0.3, pLat: 0.06 }; S.RECH = RECH;   // (p… : porte-chargeur du gilet, main gauche)
+  const RECH = { avant: 0.3, bas: 0.12, lat: 0.04, lacet: 0.26, pique: 0.35, roulis: 0.45, pAvant: 0.17, pBas: 0.3, pLat: 0.06 }; S.RECH = RECH;   // (p… : porte-chargeur du gilet, main gauche)
   S.OEIL = OEIL; S.GARDE = GARDE;
   const AVANCE_APPUI = 0;   // visée : main d'appui avancée sur le garde-main (m) ; 0 : les bras du modèle sont déjà tendus (plus loin, le fusil recule vers l'œil)
   S.CREUX = CREUX;
@@ -1737,14 +1737,14 @@
         const B = this.bones, rh = B.rh; group.updateMatrixWorld(true);
         const gq = group.getWorldQuaternion(new THREE.Quaternion()), sc = group.getWorldScale(V()).x, up = new THREE.Vector3(0, 1, 0);
         const fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
-        const d = fw.clone().multiplyScalar(Math.cos(0.26)).addScaledVector(lat, Math.sin(0.26)); d.multiplyScalar(Math.cos(-0.35)).addScaledVector(up, Math.sin(-0.35)).normalize();
+        const d = fw.clone().multiplyScalar(Math.cos(RECH.lacet)).addScaledVector(lat, Math.sin(RECH.lacet)); d.multiplyScalar(Math.cos(-RECH.pique)).addScaledVector(up, Math.sin(-RECH.pique)).normalize();
         const u = up.clone().addScaledVector(d, -up.dot(d)).normalize(), qW = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(u, d), u, d));
-        qW.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -0.45));
+        qW.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -RECH.roulis));
         const T = WP(B.spine).addScaledVector(fw, RECH.avant * sc).addScaledVector(up, -RECH.bas * sc).addScaledVector(lat, -RECH.lat * sc);
         const posW = T.clone().sub((weapon.gripPt || V()).clone().multiplyScalar(sc).applyQuaternion(qW));
         const Hd = new THREE.Matrix4().compose(posW, qW, new THREE.Vector3(sc, sc, sc)).multiply(new THREE.Matrix4().copy(L).invert());
         const hp = V(), hq = new THREE.Quaternion(); Hd.decompose(hp, hq, V());
-        if (M.prise && !S.sansPrise) { this.poserBras('R', B.ra, B.rf, rh, hp, hq, w, M.prise.R, w > 0.01 ? 0.79 + (1 - w) * 2.4 : 0); return; }   // (coude choisi pour un poignet peu cassé)
+        if (M.prise && !S.sansPrise) { this.poserBras('R', B.ra, B.rf, rh, hp, hq, w, M.prise.R, w); return; }   // (coude choisi pour un poignet peu cassé)
         const h0 = WP(rh), tq = WQ(rh).slerp(hq, w);
         ik(B.ra, B.rf, rh, h0.clone().lerp(hp, w).sub(h0));
         rh.quaternion.copy(WQ(rh.parent).invert().multiply(tq)); rh.updateMatrixWorld(true);
@@ -1796,15 +1796,15 @@
           if (this.qMainG && this.t - this.tMainG < 0.2) { const ang = this.qMainG.angleTo(qV), lim = 0.3; if (ang > lim) qV.copy(this.qMainG.clone().slerp(qV, lim / ang)); }
           this.qMainG = qV.clone(); this.tMainG = this.t;
           // (main libre entre la prise du début et celle de la fin : poignet plié à 45° au plus)
-          const libre = Math.min(wL, 1 - fin); this.poserBras('L', B.la, B.lf, B.lh, cib, qV, 1, Dl, libre > 0.01 ? 0.79 + (1 - libre) * 2.4 : 0); }
+          const libre = Math.min(Math.min(1, wL * 3), 1 - fin); this.poserBras('L', B.la, B.lf, B.lh, cib, qV, 1, Dl, libre); }
         else ik(B.la, B.lf, B.lh, T.sub(palm).multiplyScalar(w));
       },
       // Bras h (épaule arm → coude fore → poignet hand) : poignet amené en tp (monde) et main orientée en tq, poids k. Le coude est
       // choisi sur le cercle de ses positions possibles : avant-bras aligné sur la main (poignet peu cassé), proche de la pose de
       // l'animation, assez bas (garde basse plus bas qu'en visée), jamais rentré dans le buste ; la moitié de la torsion de la main
       // autour de l'avant-bras est portée par l'avant-bras. D : prise de cette main (doigt du milieu, pour l'axe de la main).
-      // limP (rad, facultatif) : main libre (rechargement) — si le poignet plie au-delà, la main est tournée vers l'axe de l'avant-bras
-      // pour l'excédent (la main tient un chargeur ou porte le fusil : son orientation exacte compte moins qu'un poignet cassé)
+      // limP (0..1, facultatif) : main libre (rechargement) — si le poignet plie au-delà de 45°, la main est tournée vers l'axe de
+      // l'avant-bras de cette part de l'excédent (la main tient un chargeur ou porte le fusil : son orientation exacte compte moins qu'un poignet cassé)
       poserBras(h, arm, fore, hand, tp, tq, k, D, limP) {
         this.osDoigts = this.osDoigts || {};
         mod(arm); mod(fore); mod(hand);
@@ -1838,7 +1838,7 @@
           if (pv !== null) { while (th - pv > Math.PI) th -= 2 * Math.PI; while (th - pv < -Math.PI) th += 2 * Math.PI; } tv[h] = { th, t: this.t };
           const half = new THREE.Quaternion().setFromAxisAngle(ax, 0.5 * k * th); fore.quaternion.copy(WQ(fore.parent).invert().multiply(half).multiply(WQ(fore))); fore.updateMatrixWorld(true); }
         if (limP) { const fa = T.clone().sub(WP(fore)).normalize(), ha = this.osDoigts[D.ordre[2]].position.clone().normalize().applyQuaternion(qH), ang = Math.acos(Math.max(-1, Math.min(1, fa.dot(ha))));
-          if (ang > limP) qH.premultiply(new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(ha, fa), (ang - limP) / ang)); }
+          if (ang > 0.79) qH.premultiply(new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(ha, fa), Math.min(1, limP) * (ang - 0.79) / ang)); }
         hand.quaternion.copy(WQ(hand.parent).invert().multiply(qH)); hand.updateMatrixWorld(true);
       },
       // Prise (voir calculerPrise) : mains amenées à leur place sur le fusil (IK des bras, orientation imposée) si « mains »,
