@@ -58,7 +58,8 @@
   const RUN_BAKE = root.RUN_BAKE_TEST ?? true;   // course pleine (Pas_Run) refaite par foulee (voir directions)
   const PIVOT_PLANTE = root.PIVOT_PLANTE_TEST ?? true;
   const REPAS_DERIVE = root.REPAS_DERIVE_TEST ?? true;
-  const ORDRE_TOUR = root.ORDRE_TOUR_TEST ?? true;   // au quart de tour, le pied du côté du tour part le premier   // nouveaux pas si le bassin a tourné au-dessus des pieds cloués (voir poserPieds)
+  const ORDRE_TOUR = root.ORDRE_TOUR_TEST ?? true;
+  const JAMBES_FILTRE = root.JAMBES_FILTRE_TEST ?? 12;   // filtre (1/s) de la cible de torsion des jambes à l'arrêt ; 0 : aucun   // au quart de tour, le pied du côté du tour part le premier   // nouveaux pas si le bassin a tourné au-dessus des pieds cloués (voir poserPieds)
   // (essai, désactivé : bassin plus vif pendant les pas de pose ; mesuré : pied / bassin −2°, à-coup du bassin ×1,7)
   const JAMBES_POSE = root.JAMBES_POSE_TEST ? Object.assign({ vj: 6, st: 0.13 }, root.JAMBES_POSE_TEST) : null;   // torsion des jambes pendant les pas de pose (rad/s, s)
   const PIV_P = Object.assign({ lim: 0.7, w: 8, hanche: 0.9 }, root.PIV_P_TEST || {});   // (écart toléré, rad ; vitesse de pivot max, rad/s ; hanche : écart au-delà duquel le pied tourne autour du bassin, rad)   // pied en attente qui pivote sur la plante au quart de tour (voir poserPieds)   // marche qui reprend la couche de jambes du rechargement (voir marche)   // replacement des pieds permis pendant les pas d'arrêt (voir repas)   // pas de pose visant la place finale du pied (voir poserPieds)
@@ -1505,7 +1506,11 @@
         // de yawM, le dos fait le reste, calculé sur l'orientation ACTUELLE du corps pour que le fusil reste sur la cible
         // pendant que le corps pivote) ; pondérée par marcheK (entrée / sortie en fondu, comme les animations)
         this.dosComp = (this.marcheK || 0) > 0 ? this.marcheK * ((this.dosM || 0) + (enMarche ? body.rotation.y : 0)) : 0;
-        let dj = this.jambesCible - this.jambes; while (dj > Math.PI) dj -= 2 * Math.PI; while (dj < -Math.PI) dj += 2 * Math.PI;
+        // (cible filtrée à l'arrêt — ~0,08 s — avant le ressort : un replacement des pieds fait sauter la cible de ~1 rad d'un coup,
+        // à-coup du bassin de 4 200 °/s² au pivot)
+        let jc = this.jambesCible;
+        if (JAMBES_FILTRE && !enMarche && dt > 0) { let d0 = jc - (this.jambesCF ?? jc); while (d0 > Math.PI) d0 -= 2 * Math.PI; while (d0 < -Math.PI) d0 += 2 * Math.PI; this.jambesCF = (this.jambesCF ?? jc) + d0 * Math.min(1, dt * JAMBES_FILTRE); jc = this.jambesCF; } else this.jambesCF = jc;
+        let dj = jc - this.jambes; while (dj > Math.PI) dj -= 2 * Math.PI; while (dj < -Math.PI) dj += 2 * Math.PI;
         // (sortie de marche directionnelle : la torsion du bassin se défait au rythme du fondu des jambes, pas d'un coup)
         const kj = !enMarche && (this.marcheK || 0) > 0 ? dt * 6 : dt * 14;
         // (pas de pose en cours — arrêt, pivot — : priorité sur la sortie de marche ; JAMBES_POSE : bassin plus vif pendant les pas,
@@ -1827,7 +1832,7 @@
         const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022).addScaledVector(fw, -0.05 * Math.max(0, this.reposK - gb) + LOWR.hf * gb); h1.y -= 0.008 * Math.abs(s);   // (bassin un peu en arrière : poids sur l'avant des pieds ; garde basse : voir LOWR)
         hipsB.position.add(hipsB.parent.worldToLocal(h1).sub(hipsB.parent.worldToLocal(h0.clone()))); hipsB.updateMatrixWorld(true);
         const roule = (b, a) => { b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
-        roule(hipsB, -s * 0.035); if (spine1) { mod(spine1); roule(spine1, s * 0.03); }
+        roule(hipsB, -s * 0.035); { const sp = spine3[0] || spine1; if (sp) { mod(sp); roule(sp, s * 0.03); } }   // (sur Spine : le gilet n'est pondéré que sur cet os)
         // garde basse « prêt à tirer, arme basse » (voir LOWR) : pieds décalés — pied fort (droit) en arrière —, bassin de trois quarts
         // (épaules et arme suivent), genoux souples, poids légèrement vers l'avant
         if (gbP > 0.01) for (let i = 0; i < 2; i++) avant[i].add(this.gbOff(i, fw, gbP));
