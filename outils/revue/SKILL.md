@@ -117,6 +117,8 @@ Si une machine avec une vraie carte graphique fait tourner le banc (ici : le PC 
 - **Vérifier le signe et l'amplitude de chaque angle** avant de s'en servir : faire tourner l'os sur le banc de ±20°, ±40° autour d'un axe du MONDE et lire la mesure (elle doit rendre l'angle imposé, avec le bon signe). La « flexion plantaire » était mesurée à l'envers pendant plusieurs revues.
 - **Mesurer la peau, calibrer dans la pose de liaison** : bout des doigts = sommets du gant (l'os « …4 » est 1-3 cm dedans) ; axe du pied = ACP de la bande basse de la semelle (pas talon → pointe) ; avant-pied = vers le sommet le plus en avant de la botte (l'os `Toe_End` de gign pointe sur le côté).
 - **Transitions** : en jeu, exclure les 0,4 premières secondes d'un segment des critères de posture (la tête précède le fusil d'environ 0,3 s, c'est naturel) ; les à-coups jugent la transition.
+- **En jeu, classer comme l'animation** : une catégorie « en visée » doit correspondre à ce que le jeu JOUE (fusil épaulé ou garde basse), pas à l'intention de l'IA ; sinon on juge une garde basse comme une visée. Toujours confirmer un défaut vu en jeu par un suivi image par image (`--suivre`).
+- **Banc ≠ jeu, encore** : le banc impose la vitesse (u._v = v) ; en jeu la phase peut suivre une autre vitesse. Une cadence normale au banc et 1,5× en jeu = la phase n'est pas pilotée par le déplacement réel.
 - **Quand un animateur conteste** : regarder le maillage soi-même (`--marques`, vue rapprochée), et corriger la mesure si elle a tort. Deux contestations sur quatre étaient justes.
 
 ## Adapter à Unreal Engine 5

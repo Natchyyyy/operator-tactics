@@ -156,7 +156,7 @@ crit(id='penche_avant', partie='haut', lib='Buste penché vers l\'avant (°, bas
      val=lambda r: st(r, 'penche', 'moy'), ok=None, mineur=None, cle=('penche', 'moy'),
      bornes=lambda e: (((8, 22), (4, 27)) if ('lateral' in e or 'recul' in e) else ((15, 25), (10, 30))) if 'course' in e
                       else (((5, 18), (2, 23)) if ('lateral' in e or 'recul' in e) else ((12, 20), (8, 24))) if ('vise' in e and 'marche' in e)
-                      else ((5, 15), (2, 19)) if 'vise' in e else ((0, 16), (-4, 24)),   # (vraie vidéo : visée arrêt 5-15°, marche visée 12-20°, course 15-25° ; pas chassé / recul : pas de référence vidéo, bande élargie)
+                      else ((5, 20), (2, 24)) if ('vise' in e and 'transition' in e) else ((5, 15), (2, 19)) if 'vise' in e else ((0, 16), (-4, 24)),   # (départ / arrêt visé : arrêt + marche visée mélangés → union des bandes)   # (vraie vidéo : visée arrêt 5-15°, marche visée 12-20°, course 15-25° ; pas chassé / recul : pas de référence vidéo, bande élargie)
      pourquoi='Tireur : haut du corps penché vers l\'avant (« nez au-dessus des orteils »), jamais en arrière ; plus penché en marchant en visant et en courant ; en patrouille, buste presque droit.', src='FM 3-06.11 §3-23b ("upper body is leaned slightly forward") ; vraie vidéo (captures/reference_video/) : visée 5-15°, marche visée 12-20°, course 15-25°', vues=['profil'])
 crit(id='roulis_buste', partie='haut', lib='Inclinaison latérale du buste (°, max absolu)', quand=lambda e: 'recharge' not in e and 'virage' not in e,
      val=lambda r: (lambda a, b: None if a is None else max(abs(a), abs(b)))(st(r, 'roulis', 'min'), st(r, 'roulis', 'max')), ok=(0, 9), mineur=(0, 16), cle=('roulis', 'max'),

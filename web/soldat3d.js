@@ -60,6 +60,9 @@
   const PIVOT_PLANTE = root.PIVOT_PLANTE_TEST ?? true;
   const REPAS_DERIVE = root.REPAS_DERIVE_TEST ?? true;
   const ORDRE_TOUR = root.ORDRE_TOUR_TEST ?? true;
+  // (tw : écart max — rad — où l'on tourne d'abord le bassin ; k : part de la torsion permise ; mesuré, 1,66 m/s visée 20-30° à
+  // gauche : 210-215 → 171-187 pas/min, torsion 48-57°)
+  const TORS_PART = root.TORS_PART_TEST === false ? null : Object.assign({ tw: 1.0, k: 0.9 }, root.TORS_PART_TEST || {});   // marche visée de biais : bassin tourné jusqu'à la torsion permise, puis mélange (voir marche)
   // filtre (1/s) de la cible de torsion des jambes à l'arrêt ; 0 : aucun (essai à 12 : à-coup du bassin au pivot 4 200 → 2 600,
   // mais glissement par appui 7 → 8 cm : les pieds relâchés suivent un bassin en retard ; écarté)
   const JAMBES_FILTRE = root.JAMBES_FILTRE_TEST ?? 0;   // au quart de tour, le pied du côté du tour part le premier   // nouveaux pas si le bassin a tourné au-dessus des pieds cloués (voir poserPieds)
@@ -1251,7 +1254,8 @@
     return new THREE.Quaternion().slerp(qs, s).multiply(new THREE.Quaternion().setFromAxisAngle(a0, th * s)).multiply(qA); };
   // place de la main d'appui tournée de a (rad) autour de la verticale de l'arme, centre au milieu de la paume (voir mainChargeur)
   S.INCL_G = 0.7; S.INCL_EXP = 1; S.PUITS_V = 0.04; S.DEPART_Q = 0.22; S.PUITS_PROF = 0.08; S.PUITS_ENF = 0.6; S.PUITS_HAUT = 0.04; S.COUDE_DEV_R = 0.05;
-  S.LISSE_VISE = 1; S.TORSION_MAX = 0.95;   // part du lissage de position du fusil retirée en visée (épaulé : crosse à l'épaule, joue sur la crosse ; le fusil suit le buste)
+  S.LISSE_VISE = 1; S.TORSION_MAX = 0.95;
+  S.PENCHE_LAT = 0.06; S.EP_W = 11;   // visée en pas chassé / en recul : penche du buste réduite d'autant (rad ; ~18,5° → ~15,5°)   // part du lissage de position du fusil retirée en visée (épaulé : crosse à l'épaule, joue sur la crosse ; le fusil suit le buste)
   const hrelIncl = (D, a) => { if (Math.abs(a) < 1e-4) return D.Hrel; const c = D.paumeLoc;
     return new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeRotationY(a)).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(D.Hrel); };
   // suivi de o[k] vers tgt (dt > 0) : ressort amorti critique (w) avec anticipation de la vitesse de la cible (bornée à vmax : un
@@ -1378,7 +1382,7 @@
         // (a0 lissé sur ~0,2 s comme le fondu des hauts du corps : passer de la visée à la garde basse, ou de la marche à la
         // course, ne fait plus sauter la torsion du dos)
         const a0c = (M.aimYaw && M.aimYaw[haut.replace(/_Haut$/, '')]) || 0;
-        this.a0s = !this.blendW || this.a0s === undefined ? a0c : this.a0s + (a0c - this.a0s) * Math.min(1, dt * 12);
+        if (!this.blendW || this.a0s === undefined) { this.a0s = a0c; lisse2(this, 'a0s', a0c, a0c, 16, 0); } else this.a0s = S.A0_PREMIER ? this.a0s + (a0c - this.a0s) * Math.min(1, dt * 12) : lisse2(this, 'a0s', this.a0s, a0c, 16, dt);   // (cible filtrée + ressort : le 1er ordre faisait tourner le dos de 40 % de l'écart dès la 1re image — Spine2 35 000 °/s² en passant à la course épaulée)
         const a0 = this.a0s, B = -a0 * (1 - DOS_VISEE);
         let e = ecart - B; while (e > Math.PI) e -= 2 * Math.PI; while (e < -Math.PI) e += 2 * Math.PI;
         const wrap = (x) => { while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
@@ -1397,12 +1401,17 @@
           // (patrouille, mix : le corps suit déjà le déplacement ; le petit écart des virages est pris par le bassin, jamais par un
           // pas chassé « au pistolet » mélangé à la petite course)
           this.jogTw = (avant === 'Pas_Avant_Course' || avant === 'Pas_Glisse' || !!mix) && Math.abs(e) <= Math.abs(tc) && Math.abs(twA) <= 1.35 && torsA < (vis ? (this.jogTw ? 0.85 : 0.78) : (this.jogTw ? 1.0 : 0.9));
+          if (root.Soldat3D && root.Soldat3D.dbgTw) this.dbgTw = { e: +e.toFixed(2), tc: +tc.toFixed(2), ta: +ta.toFixed(2), twA: +twA.toFixed(2), torsA: +torsA.toFixed(2), jogTw: this.jogTw };
           if (this.jogTw) { cible[avant] = 1; tau = twA; this.selArr = null; }
           else if (Math.abs(e) <= Math.abs(tc)) {
             // secteur avant : mélange marche avant / pas chassé, poids tels que la somme des foulées (vecteurs) pointe vers e
             // (ces deux démarches se mélangent bien une fois calées en phase, voir M.decal)
-            const wa = Math.abs(Math.sin(tc - e)) / foul(avant), wc = Math.abs(Math.sin(e - ta)) / foul(cote), s = wa + wc || 1;
-            cible[avant] = wa / s; cible[cote] = wc / s; this.selArr = null;
+            // (TORS_PART : d'abord tourner le bassin AUTANT que la torsion le permet, puis mélanger pour le reste seulement ; avant,
+            // 20° de trop à gauche passaient d'un coup à 58 % de pas chassé : cadence 152 → 210 pas/min, pieds de travers, vu en jeu)
+            let tp = 0;
+            if (TORS_PART && (avant === 'Pas_Avant_Course' || avant === 'Pas_Glisse' || !!mix) && Math.abs(twA) <= (TORS_PART.tw ?? 1.0)) { const lim = (vis ? 0.78 : 0.9) * (TORS_PART.k ?? 0.9); for (let k = 20; k > 0; k--) { const x = twA * k / 20; if (tors(x, avant) < lim) { tp = x; break; } } }
+            const e2 = e - tp, wa = Math.abs(Math.sin(tc - e2)) / foul(avant), wc = Math.abs(Math.sin(e2 - ta)) / foul(cote), s = wa + wc || 1;
+            cible[avant] = wa / s; cible[cote] = wc / s; this.selArr = null; tau = tp;
           } else {
             // secteur arrière : pas chassé et marche arrière se mélangent mal (pas qui s'annulent) ; on joue l'un OU l'autre,
             // bassin tourné (tau) vers la direction exacte, en gardant celui qui tord le moins le dos (avec hystérésis ;
@@ -1466,6 +1475,7 @@
         // (marche glissée jouée vite — petite course en visant — : base resserrée, pieds sous les hanches comme en course)
         { const x = avant === 'Pas_Glisse' ? Math.max(0, Math.min(1, (v - GLISSE_SERRE.v0) / (GLISSE_SERRE.v1 - GLISSE_SERRE.v0))) : 0; this.serreK = (this.serreK || 0) + (x * x * (3 - 2 * x) - (this.serreK || 0)) * Math.min(1, dt * 3); }
         this.dosM = psi + a0; this.yawM = B; this.blendFrame = frameK; this.coteK = tot > 0 ? ((bw[PG] || 0) + (bw[PD] || 0)) / tot : 0; this.arrK = tot > 0 ? (bw[PR] || 0) / tot : 0;
+        this.jointK = tot > 0 ? ((bw.Pas_Joint_D || 0) + (bw.Pas_Joint_G || 0)) / tot : 0;   // (pas joints : part latérale aussi, pour la penche du buste)
         // (haut du corps calé sur la phase de SES jambes d'origine : celles du clip dont il est tiré, sinon la marche avant)
         const hb = haut.replace(/_Haut$/, ''), ph0 = M.phase0[hb] !== undefined ? M.phase0[hb] : (M.phase0[avant] || 0);
         this.play(haut, { time: ((this.ph + ph0) % 1), fade: 0.25 });
@@ -1504,7 +1514,7 @@
           if (w > 0) { group.updateMatrixWorld(true); const hy = WP(hipsB).y;
             for (const [up, lo, ft] of pieds) if (ft) { const e = WP(ft).y - hy; if (e > 0) ik(up, lo, ft, new THREE.Vector3(0, -0.3 * w * e, 0)); } }
         }
-        [this.epK, this.epV] = ressort(this.epK || 0, this.epV || 0, EPAULE[this.clip] ? 1 : 0, 11, dt);   // (ressort : pas d'à-coup au début des fondus)
+        this.epK = S.EP_RESSORT ? (([this.epK, this.epV] = ressort(this.epK || 0, this.epV || 0, EPAULE[this.clip] ? 1 : 0, 11, dt)), this.epK) : Math.max(0, Math.min(1, lisse2(this, 'ep', this.epK || 0, EPAULE[this.clip] ? 1 : 0, S.EP_W, dt)));   // (cible filtrée puis ressort : l'accélération part de 0 — le ressort seul démarrait à w² : fusil 6 700 °/s² à la 1re image en quittant la visée)
         // (lent : les corrections diffèrent d'une pose à l'autre ; cible filtrée puis ressort amorti critique : la vitesse du corps
         // ne saute pas quand la cible change d'un coup — avant, approche exponentielle : 160 °/s dès la 1re image en sortie de
         // rechargement)
@@ -1775,7 +1785,7 @@
         // orientation gardée) ; elle fait pencher tout le buste d'un coup, sans voûter le dos
         // (visée : « nez au-dessus des orteils » ; course en garde basse : buste nettement penché, comme un coureur)
         // (à genou, Accroupi_* : l'animation a le buste 35° EN ARRIÈRE ; plafond de correction plus haut, cible ~12°)
-        const genou = /^Accroupi/.test(this.clip), cible = this.clip === 'Rifle_Aim_Turn_Right' ? S.PENCHE_ARRET : COURSE_BAS[this.clip] ? 0.42 : genou ? PENCHE : (this.epK || 0) > 0.5 ? PENCHE + 0.12 : PENCHE, plafond = genou ? 0.95 : 0.6;
+        const genou = /^Accroupi/.test(this.clip), cible = this.clip === 'Rifle_Aim_Turn_Right' ? S.PENCHE_ARRET : COURSE_BAS[this.clip] ? 0.42 : genou ? PENCHE : (this.epK || 0) > 0.5 ? PENCHE + 0.12 - (S.PENCHE_LAT || 0) * (this.blendFrame >= frameK - 1 ? Math.min(1, (this.coteK || 0) + (this.arrK || 0) + (this.jointK || 0)) : 0) : PENCHE, plafond = genou ? 0.95 : 0.6;
         // (toutes les corrections sont calculées entières puis appliquées au prorata de k : réponse LINÉAIRE en k — avant, les
         // itérations à gain 1,5·k et les plafonds saturaient dès k ≈ 0,3 : le buste basculait d'un coup au début des fondus)
         if (pieds[0][2] && pieds[1][2]) { const v0 = WP(cou0).sub(WP(hipsB)), hg = k * Math.max(0, Math.min(0.12, (cible - Math.atan2(v0.dot(fw), Math.max(0.05, v0.y))) * 0.5));
