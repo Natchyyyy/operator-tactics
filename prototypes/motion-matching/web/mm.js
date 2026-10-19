@@ -2,7 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
-  const VERSION = 13;
+  const VERSION = 15;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);
@@ -93,11 +93,14 @@
     const HK = pK.clone().sub(pH), HA = pA.clone().sub(pH), KA = pA.clone().sub(pK);
     // axe de flexion : plan actuel si net, sinon par rapport au pôle
     let axe = HK.clone().cross(HA);
-    if (axe.lengthSq() < 1e-4 * a * a * Math.max(1e-6, HA.lengthSq())) axe = dirC.clone().cross(pole || V3(0, 0, 1));
-    if (axe.lengthSq() < 1e-8) axe = dirC.clone().cross(V3(0, 1, 0)); if (axe.lengthSq() < 1e-8) axe = V3(1, 0, 0);
-    axe.addScaledVector(dirC, -axe.dot(dirC)); if (axe.lengthSq() < 1e-8) axe = dirC.clone().cross(V3(0, 1, 0)); axe.normalize();   // perpendiculaire à la nouvelle direction : le triangle se ferme exactement
-    // garder le coude du même côté que le pôle s'il est donné (évite le coude à l'envers)
-    if (pole) { const cote = dirC.clone().cross(pole).normalize(); if (axe.dot(cote) < 0) axe.negate(); }
+    // Convention : HK = rot(dirC, −a1) autour de l'axe, donc l'axe vaut (côté de flexion) × dirC. Si le plan naturel est
+    // plat (membre tendu) ou si l'articulation serait du mauvais côté du pôle (coude vers le haut, genou en arrière),
+    // on prend le côté du pôle.
+    const cote = pole ? pole.clone().addScaledVector(dirC, -pole.dot(dirC)) : null;
+    if (axe.lengthSq() < 1e-4 * a * a * Math.max(1e-6, HA.lengthSq())) axe = (cote && cote.lengthSq() > 1e-6 ? cote.clone() : V3(0, 0, 1)).cross(dirC);
+    if (axe.lengthSq() < 1e-8) axe = V3(0, 1, 0).cross(dirC); if (axe.lengthSq() < 1e-8) axe = V3(1, 0, 0);
+    axe.addScaledVector(dirC, -axe.dot(dirC)); if (axe.lengthSq() < 1e-8) axe = V3(0, 1, 0).cross(dirC); axe.normalize();   // perpendiculaire à la nouvelle direction : le triangle se ferme exactement
+    if (cote && cote.lengthSq() > 1e-6) { const axePole = cote.clone().cross(dirC).normalize(); if (axe.dot(axePole) < 0) axe.copy(axePole); }
     const a1 = Math.acos(Math.max(-1, Math.min(1, (a * a + c * c - b * b) / (2 * a * c))));
     const dirHK2 = dirC.clone().applyAxisAngle(axe, -a1);                       // HK = rot(HA, −angle) dans la convention axe = HK×HA
     const pK2 = pH.clone().addScaledVector(dirHK2, a);
@@ -257,7 +260,7 @@
       // deux ports : low ready (défaut) et épaulé en visée (regard verrouillé) ; fondu entre les deux
       this.poidsVisee = Math.max(0, Math.min(1, (this.poidsVisee ?? 0) + ((this.viseeEpaulee ? 1 : -1) * dt / 0.3)));
       const pv = this.poidsVisee, L = PARAMS.fusil, E = PARAMS.epaule;
-      const P = { avant: L.avant + (E.avant - L.avant) * pv, droite: L.droite + (E.droite - L.droite) * pv, haut: L.haut + (E.haut - L.haut) * pv, tangage: L.tangage + (E.tangage - L.tangage) * pv, cant: L.cant + (E.cant - L.cant) * pv, buste: L.buste, lissage: L.lissage, appuiZ: L.appuiZ, torsion: L.torsion };
+      const P = { vrille: L.vrille, avant: L.avant + (E.avant - L.avant) * pv, droite: L.droite + (E.droite - L.droite) * pv, haut: L.haut + (E.haut - L.haut) * pv, tangage: L.tangage + (E.tangage - L.tangage) * pv, cant: L.cant + (E.cant - L.cant) * pv, buste: L.buste, lissage: L.lissage, appuiZ: L.appuiZ, torsion: L.torsion };
       // Low ready comme un vrai tireur : la CROSSE reste dans le creux de l'épaule droite, le canon pivote vers le bas.
       // Direction : le regard du soldat (ses hanches), un peu mélangé au buste pour vivre avec la marche ; léger cant vers
       // l'intérieur (le fusil barre la poitrine).
@@ -268,8 +271,16 @@
       const dir = avant.clone().lerp(avantBuste, P.buste).normalize();
       const droite = dir.clone().cross(V3(0, 1, 0)).normalize();
       const yaw = Math.atan2(dir.x, dir.z) + P.cant;
+      // (direction de l'arme déjà fixée) Position « bladée » : le tronc vrille vers la droite (épaule gauche en avant) comme un tireur, ce qui rapproche la
+      // main d'appui du garde-main. Répartie sur Spine / Spine1 / Spine2, proportionnelle au poids de la prise.
+      if (P.vrille) {
+        const ang = P.vrille * pa / 3, qv = Q().setFromAxisAngle(V3(0, 1, 0), -ang);
+        for (const n of ['Spine', 'Spine1', 'Spine2']) { const o = this.os[Base.meta.os.indexOf(n)]; if (!o) continue; const wq = o.getWorldQuaternion(Q()); o.quaternion.copy(o.parent.getWorldQuaternion(Q()).invert().multiply(qv).multiply(wq)); o.updateMatrixWorld(true); }
+        this.group.updateMatrixWorld(true);
+      }
       const q = Q().setFromAxisAngle(V3(0, 1, 0), yaw).multiply(Q().setFromAxisAngle(V3(1, 0, 0), -P.tangage));
-      const creux = ep.clone().addScaledVector(dir, P.avant).addScaledVector(droite, P.droite).add(V3(0, P.haut, 0));
+      const ep2 = this.mains.D[0].getWorldPosition(V3());
+      const creux = ep2.clone().addScaledVector(dir, P.avant).addScaledVector(droite, P.droite).add(V3(0, P.haut, 0));
       if (!this.fusilPos) { this.fusilPos = creux.clone(); this.fusilQ = q.clone(); }
       const k = 1 - Math.exp(-dt / P.lissage); this.fusilPos.lerp(creux, k); this.fusilQ.slerp(q, k);
       w.quaternion.copy(this.fusilQ); w.position.copy(this.fusilPos).sub(w.buttPt.clone().applyQuaternion(this.fusilQ));
@@ -463,7 +474,7 @@
   let renderer, scene, camera, cam = { dist: 4.2, pitch: 0.42 }, horloge = 0;
   let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { avant: 0.06, droite: -0.08, haut: -0.03, tangage: -0.5, cant: 0.3, buste: 0.3, lissage: 0.06, appuiZ: 0.03, torsion: 0.6 }, epaule: { avant: 0.05, droite: -0.07, haut: 0.07, tangage: -0.02, cant: 0.12 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { avant: 0.06, droite: -0.08, haut: -0.03, tangage: -0.5, cant: 0.15, buste: 0.3, lissage: 0.06, appuiZ: 0.1, torsion: 0.6, vrille: 0.3 }, epaule: { avant: 0.05, droite: -0.07, haut: 0.07, tangage: -0.02, cant: 0.12 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
