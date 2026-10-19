@@ -686,7 +686,7 @@
   // Liseré de lune sur les soldats (la nuit seulement) : un léger reflet froid sur les bords de la silhouette (Fresnel), qui
   // détache un uniforme sombre d'une carrosserie ou d'un mur sombres sans éclairer la scène. Ajouté aux matériaux des
   // soldats (en plus de leur teinte d'uniforme) ; intensité commune, 0 le jour.
-  const RIM = { k: { value: 0 }, c: { value: new THREE.Color(0.55, 0.68, 1.0) }, nuit: 0.07 };
+  const RIM = { k: { value: 0 }, f: { value: 0 }, c: { value: new THREE.Color(0.55, 0.68, 1.0) }, nuit: 0.07, fond: 0 };
   function rimPatch(root) {
     root.traverse(o => {
       if (!o.isMesh || !o.material) return;
@@ -695,9 +695,9 @@
         const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey;
         m.onBeforeCompile = function (sh, r) {
           if (prev) prev.call(this, sh, r);
-          sh.uniforms.uRimK = RIM.k; sh.uniforms.uRimC = RIM.c;
-          sh.fragmentShader = 'uniform float uRimK; uniform vec3 uRimC;\n' + sh.fragmentShader.replace('#include <opaque_fragment>',
-            'outgoingLight += uRimC * uRimK * pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 2.2);\n#include <opaque_fragment>');
+          sh.uniforms.uRimK = RIM.k; sh.uniforms.uRimF = RIM.f; sh.uniforms.uRimC = RIM.c;
+          sh.fragmentShader = 'uniform float uRimK, uRimF; uniform vec3 uRimC;\n' + sh.fragmentShader.replace('#include <opaque_fragment>',
+            'outgoingLight += uRimC * (uRimK * pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 2.2) + uRimF * diffuseColor.rgb);\n#include <opaque_fragment>');   // (uRimF : plancher de lumière froide, relatif à la teinte de l\'uniforme)
         };
         m.customProgramCacheKey = function () { return (prevKey ? prevKey.call(this) : '') + '|rim'; };
         m.needsUpdate = true;
@@ -770,7 +770,7 @@
     }
     $('#app').dataset.cond = id || 'jour';
     if (OT.Parking && battle && battle.map.id === 'parking') { OT.Parking.setConditions(id || 'jour', scene); buildLamps(false); } else buildLamps(id === 'nuit' || id === 'brouillard');
-    RIM.k.value = id === 'nuit' ? RIM.nuit : 0;   // liseré de lune des soldats
+    RIM.k.value = id === 'nuit' ? RIM.nuit : 0; RIM.f.value = id === 'nuit' ? RIM.fond : 0;   // liseré de lune des soldats
     buildSteam();
     meteoSound();   // couche sonore de la météo (pluie, vent, nuit, oiseaux)
   }
@@ -1190,7 +1190,9 @@
       jambes = a.piedsYaw - m.yaw; while (jambes > Math.PI) jambes -= 2 * Math.PI; while (jambes < -Math.PI) jambes += 2 * Math.PI;
       // (au-delà de ~40° de torsion, ou après 1,2 s, les pieds se replacent par deux petits pas, comme un vrai pivot : avant,
       // la torsion allait jusqu'à 110° puis les pieds tournaient d'un coup en glissant au sol)
-      if (Math.abs(jambes) > 0.7 || (a.stopT > 1.2 && Math.abs(jambes) > 0.25) || crouch) { a.piedsYaw = m.yaw; jambes = 0; if (!crouch && m.repas) m.repas(); }
+      // (le replacement ne repart que si les pas précédents sont finis — repas() renvoie false sinon — : la torsion des jambes est
+      // gardée en attendant, pieds plantés ; avant, elle était remise à 0 et les pieds tournaient avec le corps en glissant)
+      if (Math.abs(jambes) > 0.7 || (a.stopT > 1.2 && Math.abs(jambes) > 0.25) || crouch) { if (crouch || !m.repas || m.repas() !== false) { a.piedsYaw = m.yaw; jambes = 0; } }
     }
     // marche (pas la course, pas accroupi) : jambes directionnelles (soldat3d.marche) quand le modèle a les pas chassés
     // marche OU course (petites foulées) directionnelles jusqu'à 3,2 m/s ; au-delà (sprint) l'ancienne méthode. Marche ou

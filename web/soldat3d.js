@@ -452,7 +452,7 @@
       mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true); }
     // (vitesse d'appui : recul moyen du pied le plus bas par rapport au bassin, sur 2 images, foulée réduite comprise)
     const zr = (n, j) => ech[(n + N) % N][1][j].z - ech[(n + N) % N][0].z;
-    let vSt = 0, nSt = 0; for (let n = 0; n < N; n++) { const A = ech[n][1], j = A[0].y < A[1].y ? 0 : 1; vSt -= s * (zr(n + 1, j) - zr(n - 1, j)); nSt++; } vSt = Math.max(1e-4, vSt / nSt);
+    let vSt = 0, nSt = 0; for (let n = 0; n < N; n++) { const A = ech[n][1], j = A[0].y < A[1].y ? 0 : 1; vSt -= s * (zr(n + 1, j) - zr(n - 1, j)); nSt++; } const sgV = vSt < 0 ? -1 : 1; vSt = Math.max(1e-4, Math.abs(vSt / nSt));   // (sgV < 0 : cycle qui recule)
     // P.ancre : appuis tenus fixes dans le monde (voir ancrer) ; vitesse d'appui = celle du pied qui recule le plus (en z)
     let AN = null, vA = vSt;
     if (P.ancre) { const tg = ech.map(([H, A]) => A.map((a, j) => cib(H, a, j).sub(H))), rel = (n, j) => tg[(n + N) % N][j];
@@ -471,7 +471,7 @@
         // (poids : cheville levée, OU pied qui bouge dans le monde — vitesse par rapport au bassin + vitesse d'appui — : un pied qui
         // avance encore ne touche pas le sol ; sinon, en fin d'oscillation, le talon arrivait en rasant le sol à 1-3 cm pendant
         // 0,1 s à la vitesse du corps : patinage)
-        const vz = AN ? AN[(i + 1) % N][j].z - AN[(i - 1 + N) % N][j].z + vA : s * (zr(i + 1, j) - zr(i - 1, j)) + vSt;
+        const vz = AN ? AN[(i + 1) % N][j].z - AN[(i - 1 + N) % N][j].z + vA : sgV * s * (zr(i + 1, j) - zr(i - 1, j)) + vSt;   // (vitesse dans le monde, comptée dans le sens du déplacement)
         const w = Math.max(sm(((a.y - gy) / kk - V.h0) / (V.h1 - V.h0)), sm((vz - 0.3 * (AN ? vA : vSt)) / (0.5 * (AN ? vA : vSt)))); wSw[j] = w; if (w <= 0) return;
         const th = V.tb + (V.tf - V.tb) * sm(((out[j].z - H0.z) / kk - V.zb) / (V.zf - V.zb));
         Aq[j] = Aq[j].clone().slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), th).multiply(RV[j].q), w);
@@ -679,7 +679,10 @@
     // recul en visant (la simulation l'autorise jusqu'à 1,8 m/s) : la marche arrière de la bibliothèque a une foulée de ~0,8 m,
     // il fallait la jouer 2 fois trop vite (257 pas/min). Foulée allongée (× RECUL) : ~170 pas/min à 1,7 m/s, bassin un peu
     // plus bas (jambes plus écartées d'avant en arrière)
-    if (M.clips.Pas_Arriere) { const r = foulee(M, M.clips.Pas_Arriere, 'Pas_Arriere', RECUL, 1.5, 0.6, 1, OUV_PIED); if (r) M.clips.Pas_Arriere = r; }
+    // (talon 26 → 10 cm, rebond 5,2 → 2,1 cm, genou à la pose 56-73° → 34-43° : levée non amplifiée — hs 1 et non 1,5 —,
+    // plafonnée, pied en l'air dessiné, bassin remonté de 4 cm)
+    { const RA = Object.assign({ hs: 1, kp: 1, P: { cap: 0.07, bas: -0.04, bob: 0.4, vol: { h0: 0.02, h1: 0.05, tb: 0.3, tf: -0.1, zb: -0.25, zf: 0.2, clr: 0.03 } } }, root.RECUL_TEST || {});
+      if (M.clips.Pas_Arriere) { const r = foulee(M, M.clips.Pas_Arriere, 'Pas_Arriere', RECUL, RA.hs, 0.6, RA.kp, OUV_PIED, RA.P); if (r) M.clips.Pas_Arriere = r; } }
     M.clips.Pas_Avant_Aim = legs(M.clips.Walk_Fight_Forward, 'Pas_Avant_Aim');
     M.clips.Pas_Avant_Low = legs(M.clips.Walking || M.clips.Walk_Fight_Forward, 'Pas_Avant_Low');
     // course (petites foulées, ~1,5 à 3 m/s) : mêmes pas chassés / marche arrière, mais la marche avant est la course de
@@ -1363,8 +1366,8 @@
         // (lent : les corrections diffèrent d'une pose à l'autre ; cible filtrée puis ressort amorti critique : la vitesse du corps
         // ne saute pas quand la cible change d'un coup — avant, approche exponentielle : 160 °/s dès la 1re image en sortie de
         // rechargement)
-        if (!keepYaw) { const tgt = enMarche ? this.yawM : (M.yawFix[this.clip] || 0); if (dt > 0) body.rotation.y = lisse2(this, 'yaw', body.rotation.y, tgt, enMarche ? 10 : 6, dt); }
-        else this.yawC = undefined;
+        if (!keepYaw) { const tgt = enMarche ? this.yawM : (M.yawFix[this.clip] || 0); if (dt > 0) body.rotation.y = lisse2(this, 'corpsYaw', body.rotation.y, tgt, enMarche ? 10 : 6, dt); }   // (clé « corpsYaw » : « yaw » donnait this.yawV, déjà la vitesse de lacet du GROUPE écrite par app.js : le corps partait à +36° pendant un pivot)
+        else this.corpsYawC = undefined;
         // torsion du dos en marche directionnelle : bassin des pas chassés / arrière (psi) + visée (le corps n'est tourné que
         // de yawM, le dos fait le reste, calculé sur l'orientation ACTUELLE du corps pour que le fusil reste sur la cible
         // pendant que le corps pivote) ; pondérée par marcheK (entrée / sortie en fondu, comme les animations)
@@ -1408,8 +1411,9 @@
       // pivot sur place (app.js) : les pieds, cloués pendant que le torse tourne, se replacent face au torse par deux petits pas
       // (même mécanique que l'arrêt : pieds partant de leur position affichée, voir poserPieds)
       repas() {
-        if (!pieds[0][2] || !pieds[1][2] || (this.pose0 && this.pose0.t < 0.5)) return;
+        if (!pieds[0][2] || !pieds[1][2] || (this.pose0 && this.pose0.t < 0.38)) return false;   // (pas précédents pas finis)
         this.pose0 = { t: 0, lock: pieds.map(l => new THREE.Vector3().setFromMatrixPosition(l[2].matrixWorld)), lockQ: pieds.map(l => { const q = new THREE.Quaternion(); l[2].matrixWorld.decompose(V(), q, V()); return q; }) };
+        return true;
       },
       // Pose des pieds à l'arrêt : au lieu de glisser en 0,3 s vers la pose d'arrêt (fondu), chaque pied reste cloué au sol
       // là où il était puis fait un petit pas (léger lever) jusqu'à sa place : d'abord celui qui était levé, puis l'autre.
@@ -1476,7 +1480,7 @@
         group.updateMatrixWorld(true); const gy = group.getWorldPosition(V()).y, Lk = this.lock;
         pieds.forEach(([up, lo, ft], i) => {
           const d = D[i], S = semW(i), h = (S.min !== undefined ? S.min : Math.min(S.talon.y, S.plante.y, S.bout.y)) - gy, p = S.plante;
-          const v = d.p ? Math.hypot(p.x - d.p.x, p.z - d.p.z) / dt : 0, lw = Lk && Lk[i] ? Lk[i].w || 0 : 0;
+          const v = d.p ? Math.hypot(p.x - d.p.x, p.z - d.p.z) / dt : 0, lw = Lk && Lk[i] && Lk[i].piv ? Lk[i].w || 0 : 0;   // (verrou qui lâche — plus de pivot — : le pied rattrape l'animation EN L'AIR, petit pas vif, pas en glissant)
           const x = Math.max(0, Math.min(1, (v - DECOLLE.v0) / (DECOLLE.v1 - DECOLLE.v0))), c = actif && v < 8 ? DECOLLE.h * x * x * (3 - 2 * x) * Math.max(0, 1 - 2 * lw) : 0;
           // (levée voulue ressort amorti critique, ~0,06 s : pas d'à-coup du genou)
           // (pas exact « SmoothDamp » : stable quel que soit dt — un ressort explicite divergeait à 30 images/s)
@@ -1634,6 +1638,10 @@
         // (poids lissé à part : en entrée / sortie de rechargement la tête passe du regard de l'animation — vers le chargeur — au
         // regard droit devant, ~75° : avant, d'un coup à l'entrée et en 0,3 s à la sortie, à-coup de 11 000 °/s²)
         const kA = dt > 0 && this.kH !== undefined ? Math.max(0, Math.min(1, lisse2(this, 'kH', this.kH, kT, 7, dt))) : kT; this.kH = kA;
+        // garde basse : le buste accompagne les coups d'œil (« tourelle » : tête, buste et canon ensemble, voir poseArme) ; ~35 %
+        // du lacet de la tête porté par le dos (avant, le canon restait figé ~25° à gauche pendant que la tête balayait ±37° :
+        // jusqu'à 50° entre la tête et le canon)
+        { const kg = (this.gbK || 0) * (1 - (this.epK || 0)) * kA; if (actif && kg > 0.01 && Math.abs(this.teteA) > 0.003 && spine3.length) { body.updateMatrixWorld(true); for (const sb of spine3) { mod(sb); twist(sb, 0.35 * this.teteA * kg / spine3.length); } } }
         if (kA > 0.01) {
           // En visée, les animations collent la joue sur la crosse (tête roulée vers la droite et penchée sur le fusil) ; notre
           // fusil est plus bas : tête et cou ramenés vers leur pose droite (celle de la garde basse), puis la face tournée vers
@@ -1829,7 +1837,8 @@
         const pA = E0.addScaledVector(d, PB.clone().sub(E0).dot(d));
         if (ea > 0.999) return { q: qA, p: pA };
         // garde basse
-        const pq = GARDE.pique, dg = fwd.clone().multiplyScalar(Math.cos(pq) * Math.cos(GARDE.dedans)).addScaledVector(lat, Math.cos(pq) * Math.sin(GARDE.dedans)).addScaledVector(up, -Math.sin(pq));
+        // (le canon suit ~70 % du lacet de la tête : « muzzle follows eyes », FM 3-06.11 §3-15a)
+        const pq = GARDE.pique, az = GARDE.dedans + 0.7 * (this.teteA || 0) * (this.kH === undefined ? 1 : this.kH), dg = fwd.clone().multiplyScalar(Math.cos(pq) * Math.cos(az)).addScaledVector(lat, Math.cos(pq) * Math.sin(az)).addScaledVector(up, -Math.sin(pq));
         const poche = sR.clone().addScaledVector(sL.clone().sub(sR).setY(0).normalize(), POCHE.dedans).addScaledVector(new THREE.Vector3().crossVectors(sL.clone().sub(sR).setY(0).normalize(), up), POCHE.avant).addScaledVector(up, -POCHE.bas);
         const qL = repere(dg), pL = poche.clone().addScaledVector(up, -GARDE.bas).addScaledVector(fwd, GARDE.avant).sub(butt.clone().applyQuaternion(qL));
         return { q: qL.slerp(qA, ea), p: pL.lerp(pA, ea) };

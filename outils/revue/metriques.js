@@ -164,14 +164,19 @@
     const A = R.arme; if (!A) return null;
     const p = f.weapon.worldToLocal(pW.clone()), C = A.C, r = Math.ceil((rmax || 0.06) / C);
     const cx = Math.floor(p.x / C), cy = Math.floor(p.y / C), cz = Math.floor(p.z / C), vus = new Set(), q = V();
-    let best = Infinity, bq = null, bt = null;
+    let best = Infinity, bq = null, bt = null; const cand = [];
     for (let x = cx - r; x <= cx + r; x++) for (let y = cy - r; y <= cy + r; y++) for (let z = cz - r; z <= cz + r; z++) {
       const L = A.grille.get(A.cle(x, y, z)); if (!L) continue;
-      for (const i of L) { if (vus.has(i)) continue; vus.add(i); const t = A.tris[i]; ptTri(p, t[0], t[1], t[2], q); const d = q.distanceToSquared(p); if (d < best) { best = d; bq = q.clone(); bt = t; } }
+      for (const i of L) { if (vus.has(i)) continue; vus.add(i); const t = A.tris[i]; ptTri(p, t[0], t[1], t[2], q); const d = q.distanceToSquared(p); cand.push([d, t, q.clone()]); if (d < best) { best = d; bq = q.clone(); bt = t; } }
     }
     if (!bq) return { d: rmax || 0.06, loin: true };
-    const nrm = bt[1].clone().sub(bt[0]).cross(bt[2].clone().sub(bt[0])).normalize(), s = p.clone().sub(bq).dot(nrm) < 0 ? -1 : 1;
-    return { d: Math.sqrt(best) * s, piece: bt[3], pLoc: p, qLoc: bq };
+    // signe : « dedans » seulement si TOUS les triangles à moins de 0,7 mm de la meilleure distance le disent. (Sur une arête de
+    // pièce mince — plaque du pontet, dents du rail — deux triangles de normales opposées sont à égalité ; le bruit d'une image à
+    // l'autre choisissait l'un ou l'autre et le signe basculait à distance égale : faux « doigt dans l'arme » de -1,8 / -2,3 cm,
+    // signalé à juste titre par anim-haut le 19/10.)
+    const lim = Math.sqrt(best) + 0.0007; let dedans = true;
+    for (const [d, t, qq] of cand) { if (Math.sqrt(d) > lim) continue; const n = t[1].clone().sub(t[0]).cross(t[2].clone().sub(t[0])); if (n.lengthSq() < 1e-14) continue; if (p.clone().sub(qq).dot(n.normalize()) >= 0) { dedans = false; break; } }
+    return { d: Math.sqrt(best) * (dedans ? -1 : 1), piece: bt[3], pLoc: p, qLoc: bq };
   }
 
   // ---------------------------------------------------------------------------------------------------------------
