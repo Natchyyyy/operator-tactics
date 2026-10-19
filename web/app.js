@@ -1216,10 +1216,12 @@
     // course : choisie d'après la vitesse NOMINALE du soldat (u.speed()), pas la vitesse mesurée : le premier pas de
     // simulation d'un départ est partiel (vitesse basse) et faisait jouer 0,1 s de marche avant la course
     // patrouille (pas d'ennemi connu, garde basse) : marche → petite course → course mélangées selon la vitesse lissée, à toutes
-    // les vitesses ; en visant, jusqu'à 3,2 m/s (au-delà l'ancienne course épaulée)
+    // les vitesses ; en visant aussi, à toutes les vitesses quand le modèle a la course refaite (Pas_Run) : au-delà de 3,2 m/s,
+    // l'ancienne course épaulée « Run_and_Shoot », bornée à 2,2 × sa vitesse propre (3,7 m/s), patinait de 3 m/s au sprint
+    // vers un couvert sous le feu, genoux à 50-68° à la pose
     const patrouille = u.alive && !(aiming || u.preaim) && !!m.clips.Pas_Trot && !!m.clips.Walk_Low_Haut;
     a.vLis = v > 0.15 ? (a.vLis > 0.15 ? a.vLis + (v - a.vLis) * Math.min(1, dt * 4) : v) : 0;
-    const dirMarche = u.alive && m.marche && m.clips.Pas_Gauche && !crouch && u.moving && v > 0.15 && (v <= 3.2 || patrouille) && !(u.reloading > 0) && !u.throwing && !battle.over;
+    const dirMarche = u.alive && m.marche && m.clips.Pas_Gauche && !crouch && u.moving && v > 0.15 && (v <= 3.2 || patrouille || (OT.SPRINT_VISE_TEST !== false && !!m.clips.Pas_Run && !!m.clips.Pas_Glisse)) && !(u.reloading > 0) && !u.throwing && !battle.over;
     // (la simulation plafonne la vitesse de côté / en reculant : si la vitesse réelle reste sous 1,45 m/s plus de 0,25 s alors
     // que la nominale est au-dessus, c'est ce plafond, pas un démarrage : on marche)
     a.lentT = u.moving && v > 0.15 && v <= 1.45 ? (a.lentT || 0) + dt : 0;
@@ -1822,7 +1824,9 @@
       // vitesse lissée sur ~0,3 s (direction des jambes, et direction du corps quand on marche sans cible : les petits
       // zigzags du chemin ne font plus pivoter le soldat dans tous les sens) ; un saut > 4 m/s est un replacement, ignoré
       const an = m.anim, vdx = (m.cur.x - m.prev.x) / DT, vdz = (m.cur.z - m.prev.z) / DT, vinst = Math.hypot(vdx, vdz);
-      const kv = vinst > 4 ? 0 : Math.min(1, frameDt * 9); an.vx = (an.vx || 0) + (vdx - (an.vx || 0)) * kv; an.vz = (an.vz || 0) + (vdz - (an.vz || 0)) * kv;
+      // (seuil 7 m/s et non 4 : le sprint vers un couvert va à 4-5 m/s — vu en jeu — ; au-dessus de 4, la direction des jambes
+      // restait figée, pieds de travers de 16° en course épaulée, glissant de côté à 1,3 m/s)
+      const kv = vinst > (OT.SAUT_V_TEST || 7) ? 0 : Math.min(1, frameDt * 9); an.vx = (an.vx || 0) + (vdx - (an.vx || 0)) * kv; an.vz = (an.vz || 0) + (vdz - (an.vz || 0)) * kv;
       // orientation voulue : celle de la simulation, interpolée entre ses pas comme la position (elle change par paliers de
       // ~11° toutes les 0,1 s), avec sa vitesse de rotation ; sans cible en marchant : la direction du déplacement
       const fp = m.prev.facing !== undefined ? m.prev.facing : m.cur.facing; let dfa = m.cur.facing - fp; while (dfa > Math.PI) dfa -= 2 * Math.PI; while (dfa < -Math.PI) dfa += 2 * Math.PI;
@@ -1985,7 +1989,7 @@
         }
         const id = c.dataset.tactic, t = DATA.TACTICS[id], st = team.tactics[id];
         if (!t.active) {   // Tiroir : quelle moitié avance en ce moment (bond n°)
-          if (id === 'tiroir' && team.bound) { const mv = team.units.filter(u => u.alive && u.boundGroup === team.bound.group).map(u => u.callsign); c.querySelector('.tuse').textContent = team.order === 'hold' ? 'en attente (Tenir)' : mv.length ? `bond ${team.bound.n + 1} : ${mv.join(', ')}` : 'passive'; }
+          if (id === 'tiroir' && team.bound) { const mv = team.units.filter(u => u.alive && !u.moveOrder && u.boundGroup === team.bound.group).map(u => u.callsign); c.querySelector('.tuse').textContent = team.order === 'hold' ? 'en attente (Tenir)' : mv.length ? `bond ${team.bound.n + 1} : ${mv.join(', ')}` : 'passive'; }
           else c.querySelector('.tuse').textContent = 'passive';
           return;
         }
@@ -2044,10 +2048,13 @@
     const p = new THREE.Vector3(); if (!ordRay.ray.intersectPlane(ordPlane, p)) return null;
     if (p.x < -4 || p.z < -4 || p.x > battle.map.width + 4 || p.z > battle.map.depth + 4) return null;   // ciel, horizon : pas d'ordre
     // clic sur une voiture, un mur… : le point est pris au pied de l'obstacle, du côté de la caméra (pas derrière lui)
-    let best = ordRay.ray.origin.distanceTo(p); const h = new THREE.Vector3(), bx = new THREE.Box3();
-    for (const o of battle.map.obstacles) { bx.min.set(o.x, 0, o.z); bx.max.set(o.x + o.w, o.h, o.z + o.d); if (ordRay.ray.intersectBox(bx, h) && ordRay.ray.origin.distanceTo(h) < best) { best = ordRay.ray.origin.distanceTo(h); p.copy(h); } }
-    const d = ordRay.ray.direction, L = Math.hypot(d.x, d.z) || 1;
-    for (let k = 0; k < 40 && battle.map.insideObstacle(p.x, p.z); k++) { p.x -= d.x / L * 0.25; p.z -= d.z / L * 0.25; }
+    // (seulement les obstacles larges : un tronc d'arbre ou un poteau ne capte pas le clic)
+    let best = ordRay.ray.origin.distanceTo(p), hit = null; const h = new THREE.Vector3(), bx = new THREE.Box3();
+    for (const o of battle.map.obstacles) { if (Math.min(o.w, o.d) < 0.8) continue; bx.min.set(o.x, 0, o.z); bx.max.set(o.x + o.w, o.h, o.z + o.d); if (ordRay.ray.intersectBox(bx, h) && ordRay.ray.origin.distanceTo(h) < best) { best = ordRay.ray.origin.distanceTo(h); p.copy(h); hit = o; } }
+    if (hit) {   // on recule vers la caméra jusqu'au bord de CET obstacle (pas à travers toute une rangée de voitures)
+      const d = ordRay.ray.direction, L = Math.hypot(d.x, d.z) || 1, M = 0.45, inHit = () => p.x > hit.x - M && p.x < hit.x + hit.w + M && p.z > hit.z - M && p.z < hit.z + hit.d + M;
+      for (let k = 0; k < 40 && inHit(); k++) { p.x -= d.x / L * 0.25; p.z -= d.z / L * 0.25; }
+    }
     return battle.orderPoint(p.x, p.z);
   }
   function openOrderMenu(cx, cy) {
@@ -2101,7 +2108,7 @@
   function ordMarkMesh(kind) {
     const g = new THREE.Group(), ring = groundHolo(0.9, { color: 0x4aa3ff, alpha: kind === 'ghost' ? 0.55 : 0.95, fill: 0.5 }); ring.position.y = 0.03; g.add(ring);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: ordTexture(kind), transparent: true, depthTest: false, depthWrite: false, fog: false, toneMapped: false, opacity: kind === 'ghost' ? 0.7 : 1 }));
-    sp.scale.setScalar(kind === 'ghost' ? 0.7 : 1.1); sp.position.y = kind === 'ghost' ? 0.9 : 2.3; sp.renderOrder = 6; g.add(sp); g.userData.sp = sp;
+    sp.scale.setScalar(kind === 'ghost' ? 0.9 : 1.3); sp.position.y = kind === 'ghost' ? 1.1 : 3.8; sp.renderOrder = 6; g.add(sp); g.userData.sp = sp;
     return g;
   }
   function ordFree(g) { ordMarks.remove(g); g.traverse(o => { if (o.isMesh || o.isSprite) { if (o.geometry && o.isMesh) o.geometry.dispose(); o.material.dispose(); } }); }
@@ -2115,7 +2122,7 @@
     const bob = MANUAL ? 0 : 0.12 * Math.sin(performance.now() / 300);
     for (const k in live) {
       if (!ordShown[k]) { const m = ordMarkMesh(live[k].mode); m.position.set(live[k].px, 0, live[k].pz); ordMarks.add(m); ordShown[k] = m; }
-      ordShown[k].userData.sp.position.y = 2.3 + bob;
+      ordShown[k].userData.sp.position.y = 3.8 + bob;
     }
   }
   let bflashTimer = null;

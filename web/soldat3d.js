@@ -1267,7 +1267,7 @@
   // épaulé, « nez au-dessus des orteils » : cou moins redressé (tête en avant et un peu plus bas, joue sur la crosse), épaule
   // d'appui en protraction (PROTRACTION_G), main d'appui plus loin (AVANCE_APPUI) ; JOUE_M : inclinaison de la tête vers la crosse
   // (rad ; 0,17 par défaut — « soldat » a l'œil plus au centre du buste)
-  S.COU_AVANT = 0.55; S.JOUE_M = { soldat: 0.24 };
+  S.COU_AVANT = 1.0; S.JOUE_M = { soldat: 0.24 };   // (COU_AVANT 1 : le cou suit la penche du buste sans être redressé — course épaulée : crosse 10-11 → 6-7 cm)
   const hrelIncl = (D, a) => { if (Math.abs(a) < 1e-4) return D.Hrel; const c = D.paumeLoc;
     return new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeRotationY(a)).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(D.Hrel); };
   // suivi de o[k] vers tgt (dt > 0) : ressort amorti critique (w) avec anticipation de la vitesse de la cible (bornée à vmax : un

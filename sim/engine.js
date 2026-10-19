@@ -1543,7 +1543,9 @@
     // pas chassé ou à reculons (1,4 à 1,8 m/s) — seulement pour les 3 derniers mètres ; plus loin, on marche face à sa route.
     const far = () => { let rem = d; for (let i = u.pathIdx + 1; i < u.path.length && rem <= DASH_BACK; i++) rem += Math.hypot(u.path[i].x - u.path[i - 1].x, u.path[i].z - u.path[i - 1].z); return rem > DASH_BACK; };
     let turned = false;
-    if (u.dash && look !== null && d > 0.05 && angDiff(look, mv) > DASH_TURN) turned = u.dashTurned || far();
+    // (un ennemi en vue à moins de ~8 m : on ne lui tourne pas le dos, on recule ou on se décale en le tenant en joue)
+    const foeClose = () => { for (const e of this.enemiesOf(u)) if (e.alive && u.visible.has(e.id) && dist2(u, e) < MIN_CLOSE) return true; return false; };
+    if (u.dash && look !== null && d > 0.05 && angDiff(look, mv) > DASH_TURN) turned = (u.dashTurned || far()) && !foeClose();
     u.dashTurned = turned;
     if (turned) { look = null; aim = null; }
     const walkTurned = !turned && !u.target && aim !== null && angDiff(aim, mv) > Math.PI / 3 && (u.walkTurned || far());
@@ -1633,6 +1635,7 @@
     for (const team of this.teams) {
       if (!this.hasTactic(team, 'tiroir') || team.order === 'hold') continue;
       const b = team.bound, alive = team.units.filter(a => a.alive && a.boundGroup >= 0 && !a.moveOrder);   // en route sur ordre : bonds de son propre groupe
+      if (!alive.length) continue;                       // tous en route sur ordre : le Tiroir de l'escouade attend
       const movers = alive.filter(a => a.boundGroup === b.group), others = alive.filter(a => a.boundGroup !== b.group);
       const el = this.t - b.since;
       const done = !movers.length || (el > 2.5 && movers.every(a => a.boundDone === b.n || BUSY[a.state])) || el > 10;
