@@ -61,7 +61,7 @@
   const ORDRE_TOUR = root.ORDRE_TOUR_TEST ?? true;   // au quart de tour, le pied du côté du tour part le premier   // nouveaux pas si le bassin a tourné au-dessus des pieds cloués (voir poserPieds)
   // (essai, désactivé : bassin plus vif pendant les pas de pose ; mesuré : pied / bassin −2°, à-coup du bassin ×1,7)
   const JAMBES_POSE = root.JAMBES_POSE_TEST ? Object.assign({ vj: 6, st: 0.13 }, root.JAMBES_POSE_TEST) : null;   // torsion des jambes pendant les pas de pose (rad/s, s)
-  const PIV_P = Object.assign({ lim: 0.7, w: 6 }, root.PIV_P_TEST || {});   // (écart toléré, rad ; vitesse de pivot max, rad/s)   // pied en attente qui pivote sur la plante au quart de tour (voir poserPieds)   // marche qui reprend la couche de jambes du rechargement (voir marche)   // replacement des pieds permis pendant les pas d'arrêt (voir repas)   // pas de pose visant la place finale du pied (voir poserPieds)
+  const PIV_P = Object.assign({ lim: 0.7, w: 8, hanche: 0.9 }, root.PIV_P_TEST || {});   // (écart toléré, rad ; vitesse de pivot max, rad/s ; hanche : écart au-delà duquel le pied tourne autour du bassin, rad)   // pied en attente qui pivote sur la plante au quart de tour (voir poserPieds)   // marche qui reprend la couche de jambes du rechargement (voir marche)   // replacement des pieds permis pendant les pas d'arrêt (voir repas)   // pas de pose visant la place finale du pied (voir poserPieds)
   // garde basse (« low ready ») : av / ar = pied gauche avancé / pied droit reculé (m), hf = bassin vers l'avant (m), hy = bassin
   // (m), bl = bassin de trois quarts (°, hanche gauche en avant)
   // (mesuré, deux modèles : bassin et épaules à 21°, chevilles à 37 cm de large, pied droit 17 cm derrière et ouvert de 30-40°,
@@ -93,6 +93,8 @@
   const TROT = { cap: 0.13, s: 0.47, hs: 0.6, rise: 0.5, dos: 0.45, kp: 0.55, foulee: { vol: { h0: 0.05, h1: 0.09, tb: 0.4, tf: -0.15, zb: -0.3, zf: 0.25, clr: 0.03 } } };   // kp : part gardée de la cambrure du pied
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
   const PENCHE = 0.21;
+  S.VIS_W = 12; S.VIS_A = 35;   // suivi de la direction de visée (poseArme) : pulsation (rad/s), accélération max (rad/s²)
+  S.PENCHE_ARRET = 0.26;   // visée à l'arrêt : cible de la penche (rad, repère de penche() ; 0,44 quand la penche était répartie sur trois os)
   S.PENCHE_EP = 0.5;   // direction de la penche (0,3 → 0,5 : roulis du buste 6-8° → 4-6°) : part de la normale des épaules (le reste : axe de visée)
   // visée : angle (rad) entre la ligne des épaules et la face (0 = carré, ~1,3 = de profil comme les visées Mixamo), voir penche()
   const BIAIS = 0.5;
@@ -1597,7 +1599,10 @@
             if (dA.lengthSq() > 1e-6 && dB.lengthSq() > 1e-6) { const a = Math.atan2(dA.x * dB.z - dA.z * dB.x, dA.x * dB.x + dA.z * dB.z), lim = PIV_P.lim;
               if (Math.abs(a) > lim) { const r = Math.max(-PIV_P.w * dt, Math.min(PIV_P.w * dt, -(a - Math.sign(a) * lim))), qY = new THREE.Quaternion().setFromAxisAngle(UP, r), ball = P.lock[i].clone().add(vL.clone().applyQuaternion(P.lockQ[i]));
                 // (signe : atan2(dA×dB) mesure l'angle de dA vers dB autour de −Y ; la rotation autour de +Y est donc −a)
-                P.lock[i] = P.lock[i].clone().sub(ball).applyQuaternion(qY).add(ball); P.lockQ[i] = qY.clone().multiply(P.lockQ[i]); } } }
+                // (au-delà de PIV_P.hanche — quart de tour rapide — : le pied tourne autour du BASSIN, glissé sur la plante, au lieu de
+                // rester sur place pendant que le corps tourne au-dessus : sinon le pied droit passait à gauche du bassin, tibias croisés)
+                const ctr = PIV_P.hanche && Math.abs(a) > PIV_P.hanche ? hP.clone().setY(P.lock[i].y) : ball;
+                P.lock[i] = P.lock[i].clone().sub(ctr).applyQuaternion(qY).add(ctr); P.lockQ[i] = qY.clone().multiply(P.lockQ[i]); } } }
           // (pied reposé : cloué là où il s'est posé jusqu'à la fin de la pose — relâché en douceur de 0,50 à 0,62 s — ; avant, il
           // suivait aussitôt les jambes, dont la torsion rattrape le pivot avec ~0,2 s de retard : au pivot sur place, chaque pied
           // glissait de 3-5 cm à 0,15-0,3 m/s après chaque petit pas)
@@ -1654,7 +1659,7 @@
             // pose d'arrêt et ses retouches — avance du pied de la garde basse — ne le font pas sauter ni glisser)
             const dep = !L.piv && L.w <= 0 && (this.marcheK || 0) < 0.15 && this.vu && VERROU.dep !== false && Math.hypot(this.vu[i][K[piv]].x - P.x, this.vu[i][K[piv]].z - P.z) < 0.2;
             if (dep) { L.anc = this.vu[i][K[piv]].clone(); L.piv = piv; L.w = 1; }
-            else if (L.piv !== piv) { L.anc = (VERROU.cont !== false && L.pr && L.w > 0 ? L.pr[K[piv]] : P).clone(); if (L.off && L.w > 0) L.anc.addScaledVector(L.off, L.w * L.w * (3 - 2 * L.w)); L.piv = piv; }
+            else if (L.piv !== piv) { L.anc = (VERROU.cont !== false && L.pr && L.w > 0 ? L.pr[K[piv]] : P).clone(); if (L.off && L.w > 0) L.anc.addScaledVector(L.off, L.w * L.w * (3 - 2 * L.w)); else if (VERROU.prise0 !== false && !L.piv && !(L.w > 0)) L.w = 1; L.piv = piv; }   // (prise neuve : l'ancre est la position actuelle, décalage nul — pas d'à-coup — : cloué tout de suite au lieu de glisser 0,09 s à la pose du pied)
             // (et posé AU sol : le point d'appui de la semelle à hauteur 0 ; les cycles flottent ou s'enfoncent de 1 à 4 cm)
             const dy = Math.max(-0.04, Math.min(0.05, -(piv === 'A' ? hT : piv === 'B' ? hB : hP)));
             const d = new THREE.Vector3(L.anc.x - P.x, dy, L.anc.z - P.z);
@@ -1744,7 +1749,7 @@
         // orientation gardée) ; elle fait pencher tout le buste d'un coup, sans voûter le dos
         // (visée : « nez au-dessus des orteils » ; course en garde basse : buste nettement penché, comme un coureur)
         // (à genou, Accroupi_* : l'animation a le buste 35° EN ARRIÈRE ; plafond de correction plus haut, cible ~12°)
-        const genou = /^Accroupi/.test(this.clip), cible = this.clip === 'Rifle_Aim_Turn_Right' ? 0.44 : COURSE_BAS[this.clip] ? 0.42 : genou ? PENCHE : (this.epK || 0) > 0.5 ? PENCHE + 0.12 : PENCHE, plafond = genou ? 0.95 : 0.6;
+        const genou = /^Accroupi/.test(this.clip), cible = this.clip === 'Rifle_Aim_Turn_Right' ? S.PENCHE_ARRET : COURSE_BAS[this.clip] ? 0.42 : genou ? PENCHE : (this.epK || 0) > 0.5 ? PENCHE + 0.12 : PENCHE, plafond = genou ? 0.95 : 0.6;
         // (toutes les corrections sont calculées entières puis appliquées au prorata de k : réponse LINÉAIRE en k — avant, les
         // itérations à gain 1,5·k et les plafonds saturaient dès k ≈ 0,3 : le buste basculait d'un coup au début des fondus)
         if (pieds[0][2] && pieds[1][2]) { const v0 = WP(cou0).sub(WP(hipsB)), hg = k * Math.max(0, Math.min(0.12, (cible - Math.atan2(v0.dot(fw), Math.max(0.05, v0.y))) * 0.5));
@@ -1867,6 +1872,9 @@
           // fusil est plus bas : tête et cou ramenés vers leur pose droite (celle de la garde basse), puis la face tournée vers
           // la direction de visée (+ coup d'œil / cible), un peu vers le bas : 40 % par le cou, le reste par la tête.
           mod(cou); mod(H); cou.quaternion.slerp(neutre[0], 0.75 * kA); H.quaternion.slerp(neutre[1], 0.75 * kA); cou.updateMatrixWorld(true);
+          // (raccord avec la branche sans pose de tête — coup d'œil en simple torsion — au prorata de 1 − kA : avant, passer le seuil
+          // kA = 0,01 supprimait d'un coup cette torsion, à-coup de 4 500 °/s² en sortie de rechargement)
+          if (kA < 0.999 && Math.abs(this.teteA) > 0.003) { twist(cou, this.teteA * 0.4 * (1 - kA)); twist(H, this.teteA * 0.6 * (1 - kA)); }
           const fq = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())), y = Math.atan2(fq.x, fq.z) + this.teteA, p = -0.08 - 0.1 * (this.gbK || 0) * (1 - (this.epK || 0));   // (garde basse : regard un peu plus bas)
           // marche : la tête suit un peu chaque pas (±1° de tangage au rythme des pas, ±0,8° de roulis au rythme du cycle)
           const acl = actions[this.clip], pas = this.blendW && this.blendFrame === frameK - 1 ? (this.ph || 0) : acl && M.loco && M.loco[this.clip] && acl.timeScale > 0 ? acl.time / acl.getClip().duration : null, bob = pas === null ? 0 : 0.018 * Math.sin(4 * Math.PI * pas), roul = pas === null ? 0 : 0.014 * Math.sin(2 * Math.PI * pas);
@@ -1985,7 +1993,7 @@
         if (prev === null) for (let x = -2.4; x <= 2.4; x += 0.2) { const cx = cout(x); if (cx < cb) { cb = cx; ph = x; } }
         for (const st of [0.08, 0.03, 0.01]) for (const sg of [-1, 1]) { let n = 0; while (n++ < 40 && cout(ph + sg * st) < cb) { ph += sg * st; cb = cout(ph); } }
         if (prev !== null) { let gp = ph, gc = cb; for (let x = -2.4; x <= 2.4; x += 0.4) { const cx = cout(x); if (cx < gc) { gc = cx; gp = x; } } if (gc < cb - 0.25) ph = gp; }   // (bien meilleur ailleurs : on y va, à vitesse limitée)
-        if (prev !== null) { const lim = Math.max(0.03, (RECHARGE[this.clip] ? 8 : 4) * (this.t - sw[h].t)); ph = prev + Math.max(-lim, Math.min(lim, ph - prev)); }   // (≤ 4 rad/s ; 8 en rechargement : poignet moins cassé à la reprise du garde-main)
+        if (prev !== null) { const lim = Math.max(0.03, (RECHARGE[this.clip] || (this.priseK !== undefined && this.priseK < 0.97) ? 8 : 4) * (this.t - sw[h].t)); ph = prev + Math.max(-lim, Math.min(lim, ph - prev)); }   // (≤ 4 rad/s ; 8 en rechargement : poignet moins cassé à la reprise du garde-main)
         sw[h] = { ph, t: this.t };
         const E1 = coude(ph * k);
         turn(arm, E0.clone().sub(S0), E1.clone().sub(S0)); const E2 = WP(fore); turn(fore, WP(hand).sub(E2), T.clone().sub(E2));
@@ -2066,7 +2074,7 @@
           if (dtA < 0 || dtA > 0.25 || this.visY === undefined) { this.visY = yw; this.visP = pw; this.visYV = 0; this.visPV = 0; this.visYR = yw; this.visPR = pw; }
           else if (dtA > 0) { while (yw - this.visY > Math.PI) yw -= 2 * Math.PI; while (yw - this.visY < -Math.PI) yw += 2 * Math.PI;
             while (this.visYR - yw > Math.PI) this.visYR -= 2 * Math.PI; while (this.visYR - yw < -Math.PI) this.visYR += 2 * Math.PI;
-            const h = Math.min(0.1, dtA); suivi(this, 'visY', yw, h, 12, 4, 35); suivi(this, 'visP', pw, h, 12, 3, 35);
+            const h = Math.min(0.1, dtA); suivi(this, 'visY', yw, h, S.VIS_W, 4, S.VIS_A); suivi(this, 'visP', pw, h, S.VIS_W, 3, S.VIS_A);
             // (la tête : même suivi, plus vif — elle devance le fusil d'environ 0,1 s sur un changement de cible)
             if (this.tetY === undefined) { this.tetY = this.visY; this.tetP = this.visP; }
             while (this.tetY - this.visY > Math.PI) this.tetY -= 2 * Math.PI; while (this.tetY - this.visY < -Math.PI) this.tetY += 2 * Math.PI;

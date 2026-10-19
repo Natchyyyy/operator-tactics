@@ -114,7 +114,7 @@ crit(id='largeur_pas', partie='bas', lib='Largeur de pas (m, entre chevilles à 
 crit(id='longueur_pas', partie='bas', lib='Longueur de pas / longueur humaine attendue à cette vitesse (rapport)', quand=lambda e: 'marche' in e and 'avant' in e and 'recharge' not in e,
      val=_ratio_pas, ok=(0.8, 1.2), mineur=(0.62, 1.38), cle=(),
      pourquoi='À vitesse donnée, l\'humain choisit sa longueur de pas (rapport longueur/cadence ≈ 0,0065 m/(pas/min)) : 1,35 m/s ≈ 0,72 m et 113 pas/min. Trop longs = enjambées molles « au ralenti » ; trop courts = trottinement.', src='Sekiya & Nagasaki 1998 (walk ratio) ; Wikipedia Preferred walking speed (1,4 m/s)', vues=['profil', 'piedsProfil'])
-crit(id='cadence_course', partie='bas', lib='Cadence en course (pas/min)', quand=lambda e: 'course' in e,
+crit(id='cadence_course', partie='bas', lib='Cadence en course (pas/min)', quand=lambda e: 'course' in e and 'lateral' not in e,   # (pas chassé : le pied qui se rapproche rase le sol < 5 cm, les poses ne sont pas détectées → cadence divisée par 2 ; signalé par anim-bas)
      val=lambda r: r['bilan'].get('cadence'), ok=(140, 190), mineur=(125, 205), cle=(),
      pourquoi='Course légère 2,5-3,5 m/s : 150-180 pas/min.', src='Biomécanique de la course (cadence usuelle 160-180)', vues=['profil'])
 crit(id='genou_attaque', partie='bas', lib='Flexion du genou à la pose du pied (°)', quand=lambda e: ('marche' in e or 'course' in e) and 'accroupi' not in e,
