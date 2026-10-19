@@ -1605,6 +1605,12 @@
         else { if (!C.p && C.tenu) prendre(); if (C.p) { C.w -= dt / 0.15; if (C.w <= 0) { C.p = C.q = null; C.w = 0; } } }
         // (téléporté, réapparition : on lâche)
         if (C.p && Math.max(WP(pieds[0][2]).distanceTo(C.p[0]), WP(pieds[1][2]).distanceTo(C.p[1])) > 0.25) { C.p = C.q = null; C.w = 0; }
+        if (root.Soldat3D && root.Soldat3D.dbgClou) C.dbg = C.p ? [0, 1].map(i => { const a = WP(pieds[i][2]); return [C.p[i].x - a.x, C.p[i].y - a.y, C.p[i].z - a.z]; }) : null;
+        // (corps immobile : le pied cloué rejoint lentement — ≤ 1,5 cm/s — la place que lui donne la posture qui finit de
+        // s'installer après les pas (garde, genoux) ; sinon, posé 1-2 cm à côté, genoux à 30° au lieu de 27°. Rien pendant un pivot.)
+        if (C.p && C.w >= 1 && repos && dt > 0) { const rot = Math.abs(this.yawV || 0) + Math.abs(this.jambesV || 0), kL = Math.max(0, 1 - rot / 0.3);
+          if (kL > 0) pieds.forEach(([, , ft], i) => { const d = WP(ft).sub(C.p[i]), n = d.length(), st = Math.min(n * Math.min(1, 1.5 * dt), 0.015 * dt) * kL;
+            if (n > 1e-5) C.p[i].addScaledVector(d, st / n); C.q[i].slerp(WQ(ft), Math.min(1, 1.5 * dt) * kL); }); }
         if (C.p && C.w > 0) { const k = C.w * C.w * (3 - 2 * C.w);
           pieds.forEach(([up, lo, ft], i) => { const d = C.p[i].clone().sub(WP(ft)).multiplyScalar(k), qC = WQ(ft); if (d.lengthSq() > 1e-8) ikJambe(up, lo, ft, d, orteils[i]);
             mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(qC.slerp(C.q[i], k))); ft.updateMatrixWorld(true); }); }
