@@ -52,6 +52,7 @@
   const REECRIT = root.REECRIT_TEST ?? true;   // mixer : réécrire chaque os animé à chaque image (voir update)
   const GB_PAS = root.GB_PAS_TEST ?? true;
   const PIN_POSE = root.PIN_POSE_TEST ?? true;
+  const DORSI_MAX = (root.DORSI_MAX_TEST ?? 36) * Math.PI / 180;   // butée de flexion dorsale d'un pied en l'air (voir cheville)
   const APPUI_POSE = root.APPUI_POSE_TEST ?? true;   // pied reposé cloué jusqu'à la fin de la pose (voir poserPieds)   // pied avancé de la garde basse porté par le pas de pose (voir appui)
   const VERROU = Object.assign({ prise: 0.09, lache: 0.16 }, root.VERROU_TEST || {});
   // pied qui bouge = pied levé (voir decolle()) : hauteur de semelle visée (m), vitesses (m/s) de début / pleine levée, temps (s)
@@ -1219,7 +1220,7 @@
     if (pv !== null) { while (th - pv > Math.PI) th -= 2 * Math.PI; while (th - pv < -Math.PI) th += 2 * Math.PI; } m[cle] = { th, t: o.t };
     return new THREE.Quaternion().slerp(qs, s).multiply(new THREE.Quaternion().setFromAxisAngle(a0, th * s)).multiply(qA); };
   // place de la main d'appui tournée de a (rad) autour de la verticale de l'arme, centre au milieu de la paume (voir mainChargeur)
-  S.INCL_G = 0.7;
+  S.INCL_G = 0.7; S.INCL_EXP = 1; S.PUITS_V = 0.04;
   const hrelIncl = (D, a) => { if (Math.abs(a) < 1e-4) return D.Hrel; const c = D.paumeLoc;
     return new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeRotationY(a)).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(D.Hrel); };
   const ressort = (x, v, c, w, dt) => { if (!(dt > 0)) return [c, 0]; const a = w * w * (c - x) - 2 * w * v; v += a * dt; x += v * dt; if (x < 0) { x = 0; v = 0; } else if (x > 1) { x = 1; v = 0; } return [x, v]; };
@@ -1504,6 +1505,7 @@
         if (this.pose0) this.poserPieds(dt, repos);
         this.appui(dt, repos && (!this.pose0 || APPUI_POSE));   // (APPUI_POSE : la posture d'arrêt — genoux, largeur — tient pendant les petits pas du pivot au lieu de s'effacer)
         this.decolle(dt, !keepYaw && !S.sansDecolle);
+        if (!keepYaw) this.cheville();
         if (!keepYaw && !S.sansSol) this.sol();
         this.vu = pieds[0][2] && M.semelle ? [semW(0), semW(1)] : null;   // (semelles affichées, pour le verrou au départ)
         this.tete(dt, keepYaw ? null : repos || enMarche || !!EPAULE[this.clip] || !!BAS[this.clip]);
@@ -1617,6 +1619,20 @@
           if (d.y > 0.001) { ikJambe(up, lo, ft, new THREE.Vector3(0, d.y, 0), orteils[i]); }
           const S2 = d.y > 0.001 ? semW(i) : S; d.p = S2.plante.clone();
         });
+      },
+      // Butée de cheville en l'air : un pied levé (semelle à plus de 1,5-4 cm du sol) dont la pointe remonte vers le tibia de
+      // plus de DORSI_MAX (flexion dorsale, par rapport à la pose de liaison) est rabattu jusqu'à la butée. Mesuré : pas
+      // chassé gign, pied en l'air à 42-46° (amplitude réelle 20-40°). Au sol, la flexion du genou en charge est laissée.
+      cheville() {
+        if (!DORSI_MAX || !skinned || !pieds[0][2] || !orteils[0] || !orteils[1]) return;
+        if (M.cheville0 === undefined) { const sk = skinned.skeleton, bp = (b) => { const k = sk.bones.indexOf(b); return k < 0 ? null : new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().copy(sk.boneInverses[k]).invert()); };
+          M.cheville0 = pieds.map(([up, lo, ft], i) => { const L = bp(lo), F = bp(ft), T = bp(orteils[i]); return L && F && T ? F.clone().sub(L).angleTo(T.clone().sub(F)) : null; }); }
+        group.updateMatrixWorld(true); const gy = group.getWorldPosition(V()).y;
+        pieds.forEach(([up, lo, ft], i) => { const c0 = M.cheville0[i]; if (c0 === null) return;
+          const S = semW(i), h = (S.min !== undefined ? S.min : Math.min(S.talon.y, S.plante.y, S.bout.y)) - gy, x = Math.max(0, Math.min(1, (h - 0.015) / 0.025)), w = x * x * (3 - 2 * x); if (w <= 0) return;
+          const shin = WP(ft).sub(WP(lo)), a1 = WP(orteils[i]).sub(WP(ft)), ex = shin.angleTo(a1) - c0 - DORSI_MAX; if (ex <= 0) return;
+          const ax = new THREE.Vector3().crossVectors(a1, shin); if (ax.lengthSq() < 1e-10) return; ax.normalize();
+          mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(new THREE.Quaternion().setFromAxisAngle(ax, ex * w)).multiply(WQ(ft))); ft.updateMatrixWorld(true); });
       },
       // Sol : aucun point de semelle sous le sol (debout, accroupi, en marche) : le pied est remonté par l'IK de la jambe.
       // Les deux pieds dans le sol : c'est tout le corps qui est trop bas → le bassin remonte d'autant (genoux inchangés, au lieu
@@ -1848,7 +1864,7 @@
           // au puits : la main peut tourner autour de l'axe du chargeur ; on la tourne pour qu'elle prolonge le bras (poignet droit)
           { const A = mid.position.clone().normalize().applyQuaternion(tq), F = cible.clone().sub(WP(B.la)).normalize(), a1 = A.addScaledVector(down, -A.dot(down)), f1 = F.addScaledVector(down, -F.dot(down));
             if (a1.lengthSq() > 1e-4 && f1.lengthSq() > 1e-4) { a1.normalize(); f1.normalize(); let ang = Math.max(-1.2, Math.min(1.2, Math.atan2(new THREE.Vector3().crossVectors(a1, f1).dot(down), a1.dot(f1))));
-              const pr = this.angPuits !== undefined && this.t - this.tPuits < 0.2 ? this.angPuits : ang; ang = pr + Math.max(-0.04, Math.min(0.04, ang - pr)); this.angPuits = ang; this.tPuits = this.t;
+              const pr = this.angPuits !== undefined && this.t - this.tPuits < 0.2 ? this.angPuits : ang; ang = pr + Math.max(-S.PUITS_V, Math.min(S.PUITS_V, ang - pr)); this.angPuits = ang; this.tPuits = this.t;
               tq.premultiply(new THREE.Quaternion().setFromAxisAngle(down, ang * ins)); } }
           // (orientation visée limitée à ~3° par image : pas de retournement de la main si les repères basculent)
           // chemin de la rotation : bascule de l'axe de la main (qs) + rotation autour de cet axe (pro-/supination, angle th suivi
@@ -1919,7 +1935,7 @@
         // fusil hors d'atteinte d'une main (bras tendu à plus de 97 %) : il est rapproché de cette épaule d'autant
         // place de la main h (monde) ; garde basse : main d'appui un peu plus en arrière sur le garde-main
         if (this.inclG && (this.priseK || 0) > 0.995 && !this.armeDroite) this.inclG = 0;   // (main d'appui : rotation de fin de rechargement, effacée avec la reprise)
-        const cibleM = (h, p, q) => { new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, h === 'L' && this.inclG ? hrelIncl(P.L, S.INCL_G * (1 - (this.priseK || 0))) : P[h].Hrel).decompose(p, q, V());
+        const cibleM = (h, p, q) => { new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, h === 'L' && this.inclG ? hrelIncl(P.L, S.INCL_G * Math.pow(1 - (this.priseK || 0), S.INCL_EXP)) : P[h].Hrel).decompose(p, q, V());
           // (visée : main d'appui loin devant sur le garde-main, bras presque tendu ; garde basse : un peu en arrière)
           if (h === 'L') { const gl = (this.epK || 0) * AVANCE_APPUI - GARDE.recul * (this.gbK || 0) * (1 - (this.epK || 0)); if (Math.abs(gl) > 1e-4) p.add(V().setFromMatrixColumn(weapon.matrixWorld, 2).normalize().multiplyScalar(gl)); } return p; };
         this.rapproche = 0; if (mains && !seule && B.ra && B.la) for (let it = 0; it < 3; it++) {

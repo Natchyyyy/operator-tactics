@@ -62,8 +62,8 @@ window.ECH = { bandeN: 10, bande: null, img: 0, cat: {}, seg: {}, fin: [], pires
         (E.bandeN > 0 && k.c === 'jog_bas_avant' && E.img - s2.i0 > 30 && (!E.bande || E.bande.u === u.id) && (!E.bande || E.bande.imgs.length < E.bandeN) && (!E.bande || E.img - E.bande.der >= 2))) {
         if (!E.bande) E.bande = { u: u.id, cs: u.callsign, imgs: [], der: 0 };
         E.bande.der = E.img; const g = m.group.position, yaw = Math.atan2(Math.sin(m.yaw), -Math.cos(m.yaw));
-        E.actif = false; E.dessin = true; const rendre = E.isoler(u); try { API.look(g.x, g.z, yaw, 0.12, E.suivre ? 2.8 : 2.6, E.suivre ? 0.85 : 0.75); E.bande.imgs.push([E.img, cv().toDataURL('image/jpeg', 0.85), +mm.genouSensG.toFixed(0), +mm.genouSensD.toFixed(0)]);
-          if (E.suivre) { API.look(g.x, g.z, Math.PI / 2 - m.yaw, 0.12, 2.8, 0.85); E.bande.imgs.push([E.img + 0.5, cv().toDataURL('image/jpeg', 0.85), +mm.genouSensG.toFixed(0), +mm.genouSensD.toFixed(0)]); } } finally { E.actif = true; E.dessin = false; rendre(); }
+        E.actif = false; E.dessin = true; const rendre = E.isoler(u); try { API.look(g.x, g.z, yaw, 0.12, E.suivre ? 2.0 : 2.6, E.suivre ? 0.8 : 0.75); E.bande.imgs.push([E.img, cv().toDataURL('image/jpeg', 0.85), +mm.genouSensG.toFixed(0), +mm.genouSensD.toFixed(0)]);
+          if (E.suivre) { API.look(g.x, g.z, Math.PI / 2 - m.yaw, 0.12, 2.0, 0.8); E.bande.imgs.push([E.img + 0.5, cv().toDataURL('image/jpeg', 0.85), +mm.genouSensG.toFixed(0), +mm.genouSensD.toFixed(0)]); } } finally { E.actif = true; E.dessin = false; rendre(); }
       }
       // alarmes instantanées (seuils « majeur » de la rubrique) : gros plan rendu TOUT DE SUITE (pas de 2e passe)
       if (E.alarmes.length < E.maxAlarmes) for (const [id, t] of E.TESTS) { let x; try { x = t(mm, k); } catch (e) { x = null; } if (x === null || x === false || x === undefined) continue;
@@ -202,7 +202,7 @@ async def main(a):
         L += ['', f"## Bande de profil ({bande['cs']}) : `{os.path.relpath(fb, RACINE)}`", '']
     def ecrire():
         open(os.path.join(out, 'jeu.md'), 'w').write('\n'.join(L))
-        json.dump({'series': [{'cs': g['cs'], 'c': g['c'], 'modele': g['modele'], 'img': [i['t'] for i in g['images']], **{k: [i.get(k) for i in g['images']] for k in ('genouSensG', 'genouSensD', 'genouG', 'genouD', 'solMinG', 'solMinD', 'v', 'clip', 'erreurVisee', 'canonVsDep', 'poignetD', 'poignetG', 'teteVsCanon', 'teteAz', 'canonAz', 'bassinAz', 'teteTangage', 'canonTangage')}} for g in seg], 'categories': cat, 'alarmes': alarmes, 'verdicts': [{k: v[k] for k in v if k not in ('quand',)} for v in verd]}, open(os.path.join(out, 'jeu.json'), 'w'), default=str)
+        json.dump({'series': [{'cs': g['cs'], 'c': g['c'], 'modele': g['modele'], 'img': [i['t'] for i in g['images']], **{k: [i.get(k) for i in g['images']] for k in ('genouSensG', 'genouSensD', 'genouG', 'genouD', 'solMinG', 'solMinD', 'v', 'clip', 'erreurVisee', 'canonVsDep', 'poignetD', 'poignetG', 'teteVsCanon', 'teteAz', 'canonAz', 'bassinAz', 'teteTangage', 'canonTangage', 'torsion', 'piedAzG', 'piedAzD', 'epaulesAz', 'plantaireG', 'plantaireD', 'orteilDevG', 'orteilDevD', 'botteG', 'botteD')}} for g in seg], 'categories': cat, 'alarmes': alarmes, 'verdicts': [{k: v[k] for k in v if k not in ('quand',)} for v in verd]}, open(os.path.join(out, 'jeu.json'), 'w'), default=str)
     ecrire(); print(os.path.join(out, 'jeu.md'), flush=True)
     # preuves : 2e passe déterministe (même graine), on s'arrête à l'image du pire cas et on rend un gros plan
     choix = []
