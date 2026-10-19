@@ -1878,17 +1878,23 @@
     FOG.spotted = now;
   }
   function fogDown(u) { if (u && u.team === 1) FOG.deadSeen[u.id] = battle.t - (FOG.seenT[u.id] === undefined ? -99 : FOG.seenT[u.id]) < 0.6; }   // tombé sous les yeux de l'escouade ?
-  function fogReset() { for (const id in FOG.ghosts) { const g = FOG.ghosts[id]; scene.remove(g); g.userData.ring.geometry.dispose(); g.userData.ring.material.dispose(); g.userData.sp.material.dispose(); } FOG.ghosts = {}; FOG.spotted = new Set(); FOG.seenT = {}; FOG.deadSeen = {}; FOG.hp = {}; }
+  function fogReset() { for (const id in FOG.ghosts) { const g = FOG.ghosts[id]; scene.remove(g); g.userData.ring.geometry.dispose(); g.userData.ring.material.dispose(); g.userData.sp.geometry.dispose(); g.userData.sp.material.dispose(); } FOG.ghosts = {}; FOG.spotted = new Set(); FOG.seenT = {}; FOG.deadSeen = {}; FOG.hp = {}; }
   let ghostTex = null;
   function fogGhost(e) {   // dernière position connue : anneau au sol et petit « ? », très pâles
     let g = FOG.ghosts[e.id];
     if (!g) {
-      if (!ghostTex) { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); x.font = 'bold 50px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.lineWidth = 6; x.strokeStyle = 'rgba(20,6,6,0.7)'; x.strokeText('?', 32, 35); x.fillStyle = '#fff'; x.fillText('?', 32, 35); ghostTex = new THREE.CanvasTexture(c); ghostTex.colorSpace = THREE.SRGBColorSpace; }
+      if (!ghostTex) {   // « ? » rose pâle sur un halo rouge diffus
+        const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
+        const gr = x.createRadialGradient(64, 64, 4, 64, 64, 62); gr.addColorStop(0, 'rgba(232,70,56,0.55)'); gr.addColorStop(0.55, 'rgba(232,70,56,0.22)'); gr.addColorStop(1, 'rgba(232,70,56,0)'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128);
+        x.font = 'bold 84px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#ffd2ca'; x.fillText('?', 64, 70);
+        ghostTex = new THREE.CanvasTexture(c); ghostTex.colorSpace = THREE.SRGBColorSpace;
+      }
       g = new THREE.Group();
-      const ring = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.44, 32), new THREE.MeshBasicMaterial({ color: 0xe85a4f, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 40), new THREE.MeshBasicMaterial({ color: 0xff5a48, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
       ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04;
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: ghostTex, color: 0xff7a6a, transparent: true, opacity: 0, depthWrite: false }));
-      sp.scale.set(0.45, 0.45, 1); sp.position.y = 1.3;
+      // (un point plutôt qu'un Sprite : la passe d'occlusion ambiante HBAO masque les points, alors qu'elle dessinait le Sprite
+      // non orienté — une fine lame noire verticale en travers du « ? »)
+      const sp = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([0, 1.2, 0], 3)), new THREE.PointsMaterial({ map: ghostTex, size: 1.4, sizeAttenuation: true, transparent: true, opacity: 0, depthWrite: false }));
       g.add(ring, sp); g.userData = { ring, sp, t0: 0 }; scene.add(g); FOG.ghosts[e.id] = g;
     }
     g.position.set(e.x, 0, e.z); g.userData.t0 = simTime; g.visible = true;
@@ -1899,7 +1905,7 @@
       const age = simTime - g.userData.t0;
       if (age > GHOST_LIFE || age < 0 || !fogOn() || FOG.spotted.has(id)) { g.visible = false; continue; }
       const k = Math.min(1, age / 0.3) * Math.pow(1 - age / GHOST_LIFE, 1.5);   // apparaît pendant que le soldat s'efface, puis s'éteint
-      g.userData.ring.material.opacity = 0.5 * k; g.userData.sp.material.opacity = 0.65 * k; g.userData.ring.scale.setScalar(1 + age * 0.1);
+      g.userData.ring.material.opacity = 0.7 * k; g.userData.sp.material.opacity = 0.85 * k; g.userData.ring.scale.setScalar(1 + age * 0.08);
     }
   }
   // fondu : matériaux propres à ce soldat (transparents), créés une fois et utilisés seulement pendant le fondu

@@ -14,7 +14,7 @@
   // kit       : nombre de chargeurs emportés (en plus de celui dans l'arme)
   const WEAPONS = {
     // une seule arme pour l'instant (on retravaille le contenu un élément après l'autre) : le fusil d'assaut 5,56
-    carbine:  { id: 'carbine',  name: 'Fusil d\'assaut 5,56', cls: 'fusil',    accuracy: 0.60, damage: 46, range: 45, minRange: 0,  rpm: 110, mag: 30,  reload: 2.6, aim: 0.55, falloff: 0.8,  suppress: 0.14, kit: 6 },
+    carbine:  { id: 'carbine',  name: 'Fusil d\'assaut 5,56', cls: 'fusil',    accuracy: 0.60, damage: 42, range: 45, minRange: 0,  rpm: 110, mag: 30,  reload: 2.6, aim: 0.55, falloff: 0.8,  suppress: 0.14, kit: 6 },
   };
   // ---- ACCESSOIRES D'ARME : un par emplacement (optique, bouche, poignée, chargeur), achetés une fois, montés sur un opérateur.
   // Effets réels dans engine.js (recherche « accessoire ») ; not : classes d'arme qui ne l'acceptent pas.
@@ -100,6 +100,8 @@
   const GRENADES = {
     frag:  { id: 'frag',  name: 'grenade', damage: 110, radius: 6, fuse: 1.3, suppress: 0.7 },
     flash: { id: 'flash', name: 'grenade incapacitante', radius: 7, fuse: 0.35, blind: 3.5, suppress: 0.5 },
+    // smoke : nuage qui bloque la vue (repérage et tir visé) pendant duration secondes ; un par opérateur, pour couvrir l'évacuation d'un blessé
+    smoke: { id: 'smoke', name: 'grenade fumigène', radius: 4.5, fuse: 0.8, duration: 14, suppress: 0 },
   };
 
   // ---- SYNERGIES D'ESCOUADE (chaîne de rôles, comme dans le jeu d'origine) ---------------

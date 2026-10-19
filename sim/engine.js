@@ -49,6 +49,7 @@
     this.reloading = 0;           // temps de rechargement restant (s)
     this.grenades = Object.assign({}, this.role.grenades || {});   // dotation par rôle
     if (has(this, 'grenadier')) this.grenades.frag = (this.grenades.frag || 0) + 1;   // Grenadier : une frag de plus
+    this.grenades.smoke = 1;   // un fumigène chacun : il sert à couvrir l'évacuation d'un blessé (voir tryDrag)
     this.throwing = null; this.lastGrenadeAt = -99; this.blindUntil = -99; this.evade = null;
     this.aimTimer = 0; this.fireAcc = 0; this.burst = 0;
     this.target = null; this.lastShotAt = -99; this.lastShotBy = null; this.lastShotByAt = -99; this.lastHitAt = -99;
@@ -81,7 +82,8 @@
     if (this.stance === 'crouch') v *= 0.55;
     // sprint : assaut sur un adversaire, repli ; course vers un couvert sous la menace (vu, pris pour cible, touché, à
     // découvert sous les yeux d'une position ennemie connue — voir act()) : on ne marche pas jusqu'à l'abri sous le feu
-    if (this.state === 'closing' || this.state === 'retreat' || this.state === 'rush' || this.state === 'crossing' || this.state === 'evade' || this.dash) v *= 1.2;   // (evade : loin d'une grenade)   // rush : ordre de déplacement « agressif »
+    if (this.state === 'dragging') v *= DRAG.speed;   // évacuation : il tire un blessé à reculons
+    else if (this.state === 'closing' || this.state === 'retreat' || this.state === 'rush' || this.state === 'crossing' || this.state === 'evade' || this.state === 'todrag' || this.dash) v *= 1.2;   // (evade : loin d'une grenade)   // rush : ordre de déplacement « agressif »
     else if (this.state === 'bounding' || this.state === 'advancing') { if (Object.keys(this.knowledge).length) v *= 0.8; } // pas tactique au contact
     const hard = has(this, 'hardened') ? 0.5 : 1;                                                    // Endurci : pénalités de blessure réduites de moitié
     if (this.status === 'wounded') v *= 1 - 0.2 * hard; else if (this.status === 'critical') v *= 1 - 0.5 * hard;
@@ -286,14 +288,14 @@
   // Commande du joueur : appliquée et enregistrée (pas, type, équipe, paramètre) pour pouvoir revoir la bataille.
   Battle.prototype.command = function (type, team, arg) {
     if (this.replayQueue) return { ok: false, reason: 'bataille revue : commandes désactivées' };
-    const r = type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : type === 'tenir' ? this.holdKeyPosition(team, arg && arg.pos, arg && arg.units) : type === 'aller' ? this.moveOrder(team, arg) : { ok: false };
+    const r = type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : type === 'tenir' ? this.holdKeyPosition(team, arg && arg.pos, arg && arg.units) : type === 'aller' ? this.moveOrder(team, arg) : type === 'orienter' ? this.orientOrder(team, arg) : type === 'feu' ? this.releaseFire(team, arg) : { ok: false };
     if (r && r.ok) this.inputs.push({ tick: this.tick, type, team, arg });
     return r;
   };
   Battle.prototype.step = function () {
     if (this.over) return;
     if (this.replayQueue) while (this.replayQueue.length && this.replayQueue[0].tick === this.tick) {   // revoir : mêmes commandes au même pas
-      const c = this.replayQueue.shift(); if (c.type === 'tactic') this.useTactic(c.team, c.arg); else if (c.type === 'order') this.setOrder(c.team, c.arg); else if (c.type === 'rotate') this.rotate(c.team, c.arg); else if (c.type === 'tenir') this.holdKeyPosition(c.team, c.arg && c.arg.pos, c.arg && c.arg.units); else if (c.type === 'aller') this.moveOrder(c.team, c.arg); this.inputs.push(c);
+      const c = this.replayQueue.shift(); if (c.type === 'tactic') this.useTactic(c.team, c.arg); else if (c.type === 'order') this.setOrder(c.team, c.arg); else if (c.type === 'rotate') this.rotate(c.team, c.arg); else if (c.type === 'tenir') this.holdKeyPosition(c.team, c.arg && c.arg.pos, c.arg && c.arg.units); else if (c.type === 'aller') this.moveOrder(c.team, c.arg); else if (c.type === 'orienter') this.orientOrder(c.team, c.arg); else if (c.type === 'feu') this.releaseFire(c.team, c.arg); this.inputs.push(c);
     }
     this.t = Math.round((this.t + DT) * 1000) / 1000; this.tick++;
     this.updateTactics();
@@ -307,7 +309,7 @@
     for (const u of order) {
       if (!u.alive) continue;
       const phase = (this.t + u.decideOffset) % DECIDE_EVERY;
-      if (phase < DT - 1e-6) this.decide(u);
+      if (phase < DT - 1e-6) { this.decide(u); this.contactWatch(u); }
       this.act(u);
     }
     this.updateGrenades();
@@ -360,7 +362,8 @@
     this.grenadesInFlight = this.grenadesInFlight || [];
     const g = { kind: th.kind, team: u.team, thrower: u, from: { x: u.x, z: u.z }, x, z, landAt: this.t + flight, explodeAt: this.t + flight + G.fuse, landed: false };
     this.grenadesInFlight.push(g);
-    this.logEvent('grenade', `${u.callsign} lance une ${G.name} vers ${th.target}.`, { unit: u.id, team: u.team });
+    if (th.kind === 'smoke') this.logEvent('smoke', `${u.callsign} : « Fumigène ! »`, { unit: u.id, team: u.team });
+    else this.logEvent('grenade', `${u.callsign} lance une ${G.name} vers ${th.target}.`, { unit: u.id, team: u.team });
     this.emit({ type: 'grenade_throw', kind: th.kind, from: { x: u.x, y: 1.7, z: u.z }, to: { x, y: 0.1, z }, flight, explodeAt: g.explodeAt });
   };
   Battle.prototype.startEvade = function (u) {
@@ -404,6 +407,14 @@
       if (this.t < g.explodeAt) continue;
       L.splice(i, 1);
       const G = GRENADES[g.kind];
+      if (g.kind === 'smoke') {   // nuage : bloque la vue (map.dynamic, comme tout obstacle pour les rayons), pas la marche ni les balles perdues
+        const R = G.radius * 0.89;   // carré de même surface que le disque affiché
+        const cloud = { x: g.x - R, z: g.z - R, w: 2 * R, d: 2 * R, h: 3, kind: 'smoke', name: 'fumée', until: this.t + G.duration, team: g.team };
+        this.map.dynamic.push(cloud);
+        this.emit({ type: 'smoke', x: g.x, z: g.z, r: G.radius, until: cloud.until, team: g.team });
+        for (const u of this.units) if (u.alive) for (const e of this.enemiesOf(u)) if (u.visible.has(e.id) && !this.canSee(u, e)) u.visible.delete(e.id);
+        continue;
+      }
       this.emit({ type: 'grenade_blast', kind: g.kind, x: g.x, z: g.z });
       if (g.kind === 'frag') this.blastDecor(g.x, g.z, 1.6, 0.7);   // une grenade peut faire voler une caisse en éclats
       let hits = 0;
@@ -553,6 +564,7 @@
             const last = team.lastSeen[e.id];
             if (!u.visible.has(e.id) && (last === undefined || this.t - last > 20)) {
               this.logEvent('spot', `${u.callsign} repère ${e.callsign} à ${d.toFixed(0)} m${last === undefined ? ' — contact !' : ''}.`, { unit: u.id, enemy: e.id, team: u.team });
+              team.contactCall = { x: e.x, z: e.z, t: this.t, by: u.id };   // « Contact ! » : l'escouade tourne le regard vers lui (contactWatch)
             }
             team.lastSeen[e.id] = this.t;
           }
@@ -1151,7 +1163,10 @@
   //  - arrivée « tenir » : un vrai couvert tout proche (≤ 4 m) face à la menace (ou au sens de la marche), et on y reste :
   //    c'est le poste de l'ordre « tenir » (followKeyOrder). Sans ordre, rien ne change.
   // Un ordre au plus toutes les 3 s par opérateur (garde-fou contre la micro-gestion).
-  const MOVE_MODES = { methodique: 'méthodique', agressif: 'agressif', franchir: 'en franchissement' }, ARRIVALS = { tenir: 'tenir la position', manoeuvre: 'reprendre la manœuvre', encercler: 'encercler' };
+  // feu (arg.feu, absent = « à volonté ») : 'retenu' (embuscade : on ne tire pas tant qu'on n'est pas vu, pris à partie ou
+  // que le joueur ne dit « Feu ! ») ; 'appui' (sur place, tir de suppression sur la zone menacée — voir appuiZone)
+  const FIRE_MODES = { volonte: 'feu à volonté', retenu: 'feu retenu', appui: 'en appui' };
+  const MOVE_MODES = { methodique: 'méthodique', agressif: 'agressif', franchir: 'en franchissement', decrocher: 'en décrochage' }, ARRIVALS = { tenir: 'tenir la position', manoeuvre: 'reprendre la manœuvre', encercler: 'encercler' };
   const ORDER_COOLDOWN = 3, ORDER_GAP = 4, BOUND_MAX = 9, BOUND_BARE = 7, SECTORS = [0, 0.61, -0.61];   // secteurs : ±35°
   // point du sol cliqué → point marchable (dans le terrain, hors obstacle : case libre la plus proche)
   Battle.prototype.orderPoint = function (x, z) {
@@ -1164,7 +1179,8 @@
     const team = this.teams[teamIndex]; if (!team || this.over) return { ok: false, reason: 'bataille terminée' };
     arg = arg || {};
     const mode = MOVE_MODES[arg.mode] ? arg.mode : null, arrivee = arg.arrivee === undefined ? 'tenir' : arg.arrivee;
-    if (!mode || !ARRIVALS[arrivee]) return { ok: false, reason: 'ordre inconnu' };
+    const feu = arg.feu === undefined || arg.feu === null ? 'volonte' : arg.feu;
+    if (!mode || !ARRIVALS[arrivee] || !FIRE_MODES[feu]) return { ok: false, reason: 'ordre inconnu' };
     const p = this.orderPoint(+arg.x, +arg.z); if (!p) return { ok: false, reason: 'point hors du terrain' };
     const ids = Array.isArray(arg.units) && arg.units.length ? arg.units : null;
     const units = team.units.filter(u => u.alive && (!ids || ids.includes(u.id) || ids.includes(u.def.id)));
@@ -1201,9 +1217,11 @@
     // arrivée « tenir » : sûreté tous azimuts — un secteur par opérateur (holdSectors) ; les places restent en ligne, en
     // travers de la marche (une couronne mettait des opérateurs derrière leurs équipiers : ils ne pouvaient plus tirer
     // vers l'avant, et la position tenait mal face à un assaut) : les ailes prennent les flancs, un autre l'arrière
-    const face = this.holdFace(team, p, dir);
+    // (décrocher : on recule, le danger est derrière la marche)
+    const face = this.holdFace(team, p, mode === 'decrocher' ? dir + Math.PI : dir);
     // arrivée « encercler » : deux sous-groupes, de deux côtés du point (à moins de trois : « tenir »)
-    let arr = arrivee;
+    // (en appui, on s'installe : « reprendre la manœuvre » devient « tenir »)
+    let arr = feu === 'appui' && arrivee === 'manoeuvre' ? 'tenir' : arrivee;
     if (arr === 'encercler') { const enc = units.length >= 3 ? this.encircleSpots(team, units, p, dir) : null; if (enc) enc.forEach((q, k) => { spots[k] = q; }); else arr = 'tenir'; }
     if (arr === 'tenir') {
       const sect = this.holdSectors(p.x, p.z, face, units.length);
@@ -1220,14 +1238,182 @@
       Object.assign(g, { cross: this.findCrossings(team, u0.x, u0.z, p.x, p.z), ci: 0, phase: 'move', stage: {}, far: {}, runners: [], crossed: [], queue: [] });
     }
     team.moveGroups.push(g);
+    // réglage de feu de l'ordre (pour tout le groupe, jusqu'au prochain ordre de chacun)
+    team.ordInfo = team.ordInfo || {};
+    team.ordInfo[id] = { feu, px: p.x, pz: p.z, dir, arr, released: feu !== 'retenu', orient: null, zone: null, appuiSaid: false };
     units.forEach((u, k) => {
       u.keyOrder = null; u.orderAt = this.t; u.reviving = null;
       u.moveOrder = { id, mode, arrivee: arr, x: spots[k].x, z: spots[k].z, px: p.x, pz: p.z, dir, half: k % 2, goalN: -1, doneN: -1, departAt: mode === 'agressif' ? this.t + rank.indexOf(k) * 0.8 : 0, sect: spots[k].sect, face };
       if (spots[k].hid !== undefined) Object.assign(u.moveOrder, { hid: spots[k].hid + '#' + id, px: spots[k].cx, pz: spots[k].cz, face: spots[k].face, enc: { x: p.x, z: p.z } });
       this.stop(u); u.commitUntil = 0; u.pauseUntil = 0;
     });
-    this.logEvent('moveorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — déplacement ${MOVE_MODES[mode]}, puis ${ARRIVALS[arrivee]}${arr !== arrivee ? ` (à ${units.length}, ${ARRIVALS[arr]})` : ''}.`, { team: teamIndex, unit: units[0].id, ordre: id, mode });
+    this.logEvent('moveorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — déplacement ${MOVE_MODES[mode]}, puis ${ARRIVALS[arrivee]}${arr !== arrivee ? (feu === 'appui' ? ` (en appui : ${ARRIVALS[arr]})` : ` (à ${units.length}, ${ARRIVALS[arr]})`) : ''}${feu !== 'volonte' ? `, ${FIRE_MODES[feu]}` : ''}.`, { team: teamIndex, unit: units[0].id, ordre: id, mode, feu });
     return { ok: true, id, x: p.x, z: p.z };
+  };
+  // ---- Feu et orientation des ordres du clic droit (vague 1 : strategies_gign.md F1, F2, A4) ---------------------------
+  // l'ordre en cours d'un opérateur (en route, ou à son poste) : { id, inf } (inf = team.ordInfo[id]), sinon null
+  Battle.prototype.orderOf = function (u) {
+    const id = u.moveOrder ? u.moveOrder.id : u.keyOrder && u.keyOrder.grp !== undefined ? u.keyOrder.grp : null;
+    const oi = this.teams[u.team].ordInfo, inf = id !== null && oi ? oi[id] : null;
+    return inf ? { id, inf } : null;
+  };
+  Battle.prototype.orderMembers = function (team, id) {
+    return team.units.filter(a => a.alive && ((a.moveOrder && a.moveOrder.id === id) || (!a.moveOrder && a.keyOrder && a.keyOrder.grp === id)));
+  };
+  // « Feu retenu » (embuscade, la règle de l'ordre d'équipe « Tenir » branchée sur le clic droit) : personne du groupe ne
+  // tire (ni ne lance de grenade) tant qu'aucun d'eux n'est vu par un ennemi, pris pour cible ou touché, qu'aucun ennemi
+  // n'est arrivé à moins de HOLD_CLOSE m d'un équipier qui le voit, et que le joueur n'a pas dit « Feu ! » (command('feu')).
+  // Le premier déclenchement libère tout le groupe à la fois.
+  const HOLD_CLOSE = 12;
+  Battle.prototype.fireHeld = function (u) {
+    const o = this.orderOf(u); if (!o || o.inf.feu !== 'retenu' || o.inf.released) return false;
+    const team = this.teams[u.team];
+    for (const a of this.orderMembers(team, o.id)) {
+      if (this.t - a.lastShotByAt < 1.5 || this.t - a.lastHitAt < 1.5) { this.openFire(team, o, a, 'pris à partie'); return false; }
+      for (const e of this.enemiesOf(a)) {
+        if (!e.alive) continue;
+        if (e.visible.has(a.id)) { this.openFire(team, o, a, 'repérés'); return false; }
+        if (a.visible.has(e.id) && dist2(a, e) < HOLD_CLOSE) { this.openFire(team, o, a, 'ennemi tout près'); return false; }
+      }
+    }
+    return true;
+  };
+  Battle.prototype.openFire = function (team, o, who, why) {
+    o.inf.released = true; o.inf.releasedAt = this.t;
+    const ms = this.orderMembers(team, o.id);
+    this.logEvent('feu', `${team.name} : ${ms.map(a => a.callsign).join(', ')} — ${why === 'ordre' ? 'ordre d’ouvrir le feu' : why} : « Feu ! »`, { team: team.index, unit: who.id, ordre: o.id, why });
+  };
+  // battle.command('feu', équipe, { units: [ids] | null }) : le joueur lève le feu retenu des opérateurs désignés
+  Battle.prototype.releaseFire = function (teamIndex, arg) {
+    const team = this.teams[teamIndex]; if (!team || this.over) return { ok: false, reason: 'bataille terminée' };
+    const ids = arg && Array.isArray(arg.units) && arg.units.length ? arg.units : null; let n = 0;
+    for (const u of team.units) {
+      if (!u.alive || (ids && !ids.includes(u.id) && !ids.includes(u.def.id))) continue;
+      const o = this.orderOf(u); if (o && o.inf.feu === 'retenu' && !o.inf.released) { this.openFire(team, o, u, 'ordre'); n++; }
+    }
+    return n ? { ok: true } : { ok: false, reason: 'personne n’a le feu retenu' };
+  };
+  // A4 — battle.command('orienter', équipe, { ordre: id, x, z }) : juste après l'ordre, le joueur montre d'où vient le danger
+  // (un point du sol). Tenir : les secteurs partent de cette direction ; Encercler : les deux sous-groupes se placent du côté
+  // opposé (le danger est devant eux, au-delà du point) ; Appui : la zone arrosée est ce point.
+  Battle.prototype.orientOrder = function (teamIndex, arg) {
+    const team = this.teams[teamIndex]; if (!team || this.over || !arg) return { ok: false, reason: 'bataille terminée' };
+    const id = arg.ordre, inf = team.ordInfo && team.ordInfo[id]; if (!inf) return { ok: false, reason: 'ordre inconnu' };
+    const ms = this.orderMembers(team, id); if (!ms.length) return { ok: false, reason: 'ordre terminé' };
+    const q = this.orderPoint(+arg.x, +arg.z); if (!q) return { ok: false, reason: 'point hors du terrain' };
+    if (Math.hypot(q.x - inf.px, q.z - inf.pz) < 2) return { ok: false, reason: 'trop près du point' };
+    const face = Math.atan2(q.z - inf.pz, q.x - inf.px), P = { x: inf.px, z: inf.pz };
+    inf.orient = { x: q.x, z: q.z, face }; inf.zone = null;
+    if (inf.arr === 'encercler' && ms.length >= 3 && ms.every(a => a.moveOrder)) {
+      const enc = this.encircleSpots(team, ms, P, face);
+      if (enc) ms.forEach((u, k) => { const s = enc[k]; Object.assign(u.moveOrder, { x: s.x, z: s.z, sect: s.sect, hid: s.hid + '#' + id, px: s.cx, pz: s.cz, face: s.face, enc: { x: P.x, z: P.z } }); if (u.goalKind !== 'bound' && u.goalKind !== 'cover') this.stop(u); });
+    } else if (inf.arr === 'tenir') {
+      const sect = this.holdSectors(P.x, P.z, face, ms.length);
+      const at = ms.map(a => a.moveOrder ? { x: a.moveOrder.x, z: a.moveOrder.z } : { x: a.keyOrder.hx !== undefined ? a.keyOrder.hx : a.keyOrder.x, z: a.keyOrder.hz !== undefined ? a.keyOrder.hz : a.keyOrder.z });
+      const perm = bestAssign(at.map(q2 => { const c = Math.hypot(q2.x - P.x, q2.z - P.z) < 1; return sect.map(sa => c ? angDiff(face, sa) * 0.5 : angDiff(Math.atan2(q2.z - P.z, q2.x - P.x), sa)); }));
+      ms.forEach((a, k) => { const s = perm[k] >= 0 ? sect[perm[k]] : face; if (a.moveOrder) { a.moveOrder.sect = s; a.moveOrder.face = face; } else { a.keyOrder.sect = s; a.keyOrder.face0 = face; a.keyOrder.menace = face; } });
+      if (team.holdPlans) delete team.holdPlans[id];
+    }
+    const card = ['l’est', 'le sud-est', 'le sud', 'le sud-ouest', 'l’ouest', 'le nord-ouest', 'le nord', 'le nord-est'][((Math.round(face / (Math.PI / 4)) % 8) + 8) % 8];
+    this.logEvent('orienter', `${team.name} : ${ms.map(a => a.callsign).join(', ')} — danger attendu vers ${card}.`, { team: teamIndex, unit: ms[0].id, ordre: id, face });
+    return { ok: true, face };
+  };
+  // F2 — « Appui » : une fois en place, le groupe arrose la zone menacée (APPUI_R m autour du point d'orientation s'il a été
+  // donné, sinon autour de la menace connue la plus proche du point de l'ordre, ≤ 45 m) : tir de suppression (canSuppress /
+  // suppressAt, ouverts à tout opérateur sous cet ordre) sur les ennemis connus (vus ou entendus il y a < 8 s) dans la zone (ou dans sa direction),
+  // même à couvert. Munitions bridées : cadence de rafales courtes, et l'on cesse sous 40 % de sa dotation.
+  const APPUI_R = 6, APPUI_MEM = 8, APPUI_AMMO = 0.4;
+  Battle.prototype.appuiZone = function (team, inf) {
+    if (inf.zone && inf.zone.t === this.t) return inf.zone;
+    let c = inf.orient;
+    if (!c) {
+      let best = null, bd = 45;
+      for (const u of team.units) if (u.alive) for (const id in u.knowledge) { const k = u.knowledge[id], e = this.unitById(id); if (!e || !e.alive || this.t - k.t > APPUI_MEM) continue; const d = Math.hypot(k.x - inf.px, k.z - inf.pz); if (d < bd) { bd = d; best = k; } }
+      c = best;
+    }
+    // zone montrée par le joueur : d'autant plus large qu'elle est loin (8 à 14 m) ; sinon APPUI_R autour de la menace
+    const r = inf.orient ? clamp(Math.hypot(c.x - inf.px, c.z - inf.pz) * 0.4, 8, 14) : APPUI_R;
+    inf.zone = c ? { x: c.x, z: c.z, r, t: this.t } : { x: null, z: null, r, t: this.t };
+    return inf.zone;
+  };
+  Battle.prototype.appuiFire = function (u, o, threats) {
+    if (!u.keyOrder || threats.length) return;                                          // en route, ou une cible en vue : feu normal
+    if (u.totalAmmo() <= u.weapon.mag * (u.weapon.kit + 1) * APPUI_AMMO || u.reloading > 0) return;
+    const team = this.teams[u.team], z = this.appuiZone(team, o.inf); if (z.x === null) return;
+    let best = null, bd = Infinity;
+    for (const e of this.enemiesOf(u)) {
+      const k = u.knowledge[e.id]; if (!e.alive || !k || this.t - k.t > APPUI_MEM) continue;
+      // dans la zone, ou (zone montrée par le joueur) dans sa direction : à ± 25° d'elle vue d'ici, à portée
+      let dz = Math.hypot(k.x - z.x, k.z - z.z);
+      if (dz > z.r) {
+        if (!o.inf.orient || Math.hypot(k.x - u.x, k.z - u.z) > u.weapon.range || angDiff(Math.atan2(k.z - u.z, k.x - u.x), Math.atan2(z.z - u.z, z.x - u.x)) > 0.45) continue;
+        dz += 20;                                                                        // la zone elle-même d'abord
+      }
+      if (dz < bd) { bd = dz; best = e; }
+    }
+    if (!best) return;
+    u.appuiAt = this.t;
+    if (u.target !== best) this.aimAt(u, best);
+    u.targetLostAt = this.t;   // on arrose une position qu'on ne voit pas : la cible n'est pas « perdue » (sinon visée reprise sans fin)
+    if (!this.canSuppress(u, best)) {
+      u.appuiAt = -99;
+      // pas de vue sur la zone d'ici (un mur, une voiture haute) : un couvert voisin d'où l'on voit, dans la position (≤ 6 m
+      // de soi, ≤ HOLD_ZONE du point), au plus un déplacement toutes les 4 s ; il devient sa place
+      const ko = u.keyOrder, k = u.knowledge[best.id];
+      if (ko.cx !== undefined && this.t - (ko.movedAt || -99) > HOLD_MOVE_GAP && !this.map.hasLOS(u.x, EYE.stand, u.z, k.x, CHEST.stand, k.z)) {
+        const cp = this.holdSpot(u, ko, k);
+        if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.8 && this.setGoal(u, cp.x, cp.z, 'cover')) { ko.x = ko.hx = cp.x; ko.z = ko.hz = cp.z; ko.movedAt = this.t; u.state = 'tokey'; u.stance = 'stand'; }
+        else ko.movedAt = this.t;
+      }
+      return;
+    }
+    const k = u.knowledge[best.id]; u.facing = Math.atan2(k.z - u.z, k.x - u.x); u.state = 'appui'; u.stance = 'stand';
+    if (!o.inf.appuiSaid) { o.inf.appuiSaid = true; this.logEvent('enappui', `${u.callsign} : « En appui ! » — tir de suppression sur la zone.`, { unit: u.id, team: u.team, ordre: o.id }); }
+  };
+  // après la décision d'un opérateur sous ordre du clic droit : feu retenu (il garde sa cible en joue sans tirer, baissé
+  // derrière son couvert), appui (suppression de la zone)
+  Battle.prototype.afterOrder = function (u, threats) {
+    if (!u.alive) return;
+    const o = this.orderOf(u); if (!o) return;
+    if (u.holdFire) {
+      if (u.state === 'engage') { const th = u.target && u.target.alive ? u.target : threats[0]; u.state = 'wait'; u.stance = th && this.coverAt(u.x, u.z, th.x, th.z, false) ? 'crouch' : u.stance; }
+      return;
+    }
+    if (o.inf.feu === 'appui') this.appuiFire(u, o, threats);
+  };
+  // D4 — « Décrocher » : le squelette des bonds méthodiques, réglé pour partir vite : la moitié qui reste tire (pas de pause
+  // d'observation), celle qui bouge court (sprint, sans tirer) jusqu'au couvert suivant vers le point (en arrière), et
+  // l'on inverse dès qu'elle y est. Arrivée par défaut : tenir, face au danger (derrière la marche).
+  Battle.prototype.orderFallback = function (u, o, tp, threats, dNow) {
+    const g = (this.teams[u.team].moveGroups || []).find(x => x.id === o.id), b = g ? g.bound : { group: o.half, n: 0 };
+    if (u.goal && (u.goalKind === 'bound' || u.goalKind === 'cover')) { if (boundingNow(u, b) && u.goalKind === 'bound') { u.target = null; u.state = 'retreat'; } return; }
+    u.pauseUntil = 0;
+    this.orderBound(u, o, tp, threats, dNow);
+    if (u.state === 'bounding') { u.state = 'retreat'; u.target = null; }
+  };
+  // R1 — « Contact ! » : quand un équipier annonce un nouveau contact, ceux qui guettent sans cible (en couverture, en pause,
+  // en attente, en ratissage) tournent le regard vers lui pendant CONTACT_LOOK s — sauf le serre-file qui garde l'arrière
+  // et les postes « tenir » (qui ont déjà leurs secteurs, recalculés au contact).
+  const CONTACT_LOOK = 3, LOOK_STATES = { overwatch: 1, pause: 1, hold: 1, idle: 1, wait: 1, search: 1 };
+  Battle.prototype.contactWatch = function (u) {
+    const c = this.teams[u.team].contactCall;
+    if (!c || this.t - c.t > CONTACT_LOOK || c.by === u.id || u.moving || (u.target && u.target.alive) || !LOOK_STATES[u.state] || this.t - (u.rearWatch || -99) < 0.5) return;
+    if (Math.hypot(c.x - u.x, c.z - u.z) > 80) return;
+    u.facing = Math.atan2(c.z - u.z, c.x - u.x);
+  };
+  // R3 — relève dans les bonds : quand des équipiers tombent, les deux moitiés sont rééquilibrées (écart d'au plus un) ;
+  // celui qui change de moitié le dit (« Je prends sa place ! »). get / set : lecture et écriture de sa moitié.
+  Battle.prototype.rebalanceHalves = function (team, us, get, set) {
+    if (us.length < 2) return;
+    const h = [us.filter(a => get(a) === 0), us.filter(a => get(a) === 1)];
+    if (Math.abs(h[0].length - h[1].length) < 2) return;
+    const big = h[0].length > h[1].length ? 0 : 1, small = h[1 - big];
+    // celui de la grande moitié le plus proche de la petite (sinon le dernier de la liste)
+    const ref = small.length ? { x: small.reduce((s, a) => s + a.x, 0) / small.length, z: small.reduce((s, a) => s + a.z, 0) / small.length } : null;
+    const mv = ref ? h[big].slice().sort((p, q) => Math.hypot(p.x - ref.x, p.z - ref.z) - Math.hypot(q.x - ref.x, q.z - ref.z) || (p.id < q.id ? -1 : 1))[0] : h[big][h[big].length - 1];
+    set(mv, 1 - big);
+    this.logEvent('releve', `${mv.callsign} : « Je prends sa place ! »`, { unit: mv.id, team: team.index, silent: true });
+    this.rebalanceHalves(team, us, get, set);
   };
   // ---- Encercler (arrivée) : « localiser et circonscrire » ----------------------------------------------------------------
   // Le groupe se partage en deux sous-groupes qui prennent position de deux côtés du point (à ~8–14 m, à ~80–125° l'un de
@@ -1416,17 +1602,18 @@
       if (!team.moveGroups || !team.moveGroups.length) continue;
       team.moveGroups = team.moveGroups.filter(g => this.groupActive(g));
       for (const g of team.moveGroups) {
-        if (g.mode !== 'methodique' && g.mode !== 'franchir') continue;
+        if (g.mode !== 'methodique' && g.mode !== 'franchir' && g.mode !== 'decrocher') continue;
         const act = g.members.map(id => this.unitById(id)).filter(u => u && u.alive && u.moveOrder && u.moveOrder.id === g.id);
+        if (act.length < g.members.length) this.rebalanceHalves(team, act, u => u.moveOrder.half, (u, h) => { u.moveOrder.half = h; });   // un équipier tombé : moitiés refaites
         if (g.mode === 'franchir') { this.updateCrossing(team, g, act); if (g.phase === 'cross') continue; }   // pas de bonds pendant un passage
         const b = g.bound, movers = act.filter(u => u.moveOrder.half === b.group), others = act.filter(u => u.moveOrder.half !== b.group);
-        const el = this.t - b.since;
-        const done = !movers.length || (el > 2.5 && movers.every(u => u.moveOrder.doneN === b.n || BUSY[u.state])) || el > 12;
+        const el = this.t - b.since, fast = g.mode === 'decrocher';   // décrocher : on inverse dès que les coureurs sont à couvert
+        const done = !movers.length || (el > (fast ? 1 : 2.5) && movers.every(u => u.moveOrder.doneN === b.n || BUSY[u.state])) || el > (fast ? 8 : 12);
         if (!done) continue;
         b.since = this.t; b.n++;
         if (!others.length) continue;                       // une seule moitié encore en route : elle enchaîne les bonds
         b.group = 1 - b.group;
-        this.logEvent('bond', `${team.name} — ${others.map(u => u.callsign).join(', ')} : « Je bouge ! »${movers.length ? ` ${movers.map(u => u.callsign).join(', ')} : « Couvert ! »` : ''}`, { team: team.index, unit: others[0].id, couvre: movers.length ? movers[0].id : null, silent: true });
+        this.logEvent('bond', `${team.name} — ${others.map(u => u.callsign).join(', ')} : « Je bouge ! »${movers.length ? ` ${movers.map(u => u.callsign).join(', ')} : « Couvert ! »` : ''}`, { team: team.index, unit: others[0].id, couvre: movers.length ? movers[0].id : null, silent: true, mode: g.mode });
       }
     }
   };
@@ -1438,6 +1625,7 @@
     const tp = th || { x: o.x + Math.cos(o.dir) * 25, z: o.z + Math.sin(o.dir) * 25 };   // sans menace : dans le sens de la marche
     if (o.mode === 'agressif') this.orderRush(u, o, tp, threats, beingShot, dNow);
     else if (o.mode === 'franchir') this.followCross(u, o, tp, threats, dNow);
+    else if (o.mode === 'decrocher') this.orderFallback(u, o, th || { x: u.x - Math.cos(o.dir) * 25, z: u.z - Math.sin(o.dir) * 25 }, threats, dNow);   // sans menace connue : derrière la marche
     else this.orderBound(u, o, tp, threats, dNow);
   };
   Battle.prototype.orderRush = function (u, o, tp, threats, beingShot, dNow) {
@@ -1478,6 +1666,7 @@
       const cov = g ? g.members.map(id => this.unitById(id)).filter(a => a && a.alive && a.moveOrder && a.moveOrder.id === g.id && !boundingNow(a, b)) : [u];
       const r = Math.max(0, cov.indexOf(u)), base = Math.atan2(tp.z - u.z, tp.x - u.x);
       u.facing = cov.length >= 3 && r === cov.length - 1 ? base + Math.PI : base + SECTORS[r % 3];   // serre-file : l'arrière
+      if (cov.length >= 3 && r === cov.length - 1) u.rearWatch = this.t;                              // (il ne se retourne pas sur un « Contact ! »)
       u.state = boundingNow(u, b) ? 'pause' : 'overwatch'; u.stance = this.waitStance(u, tp); return;
     }
     // à son tour de bondir : jusqu'au point s'il est proche, sinon au couvert suivant (≤ 9 m), sinon 7 m le long du chemin
@@ -1563,6 +1752,7 @@
     const threats = this.visibleEnemies(u);
     const home = this.teams[u.team].spawn, objective = this.map.spawns[1 - u.team];
     const beingShot = this.t - u.lastShotByAt < 1.5;
+    u.holdFire = this.fireHeld(u);   // ordre du clic droit en « feu retenu » : ni tir ni grenade (voir act)
 
     // 0) munitions
     if (u.ammo === 0 && u.reloading <= 0) {
@@ -1602,6 +1792,9 @@
       if (threats.length || beingShot) { u.reviving = null; u.state = 'idle'; }
       else { const a = this.unitById(u.reviving.id); if (a) a.rescue = { by: u, t: this.t }; return; }
     }
+    // évacuation d'un blessé à découvert : en cours, ou à décider (le plus proche des équipiers disponibles)
+    if (u.drag) { if (this.continueDrag(u, threats)) return; }
+    else if (this.tryDrag(u, threats)) return;
     if (!threats.length && !beingShot && u.suppression < 0.4 && !u.throwing && u.state !== 'noammo' && !u.keyOrder && !u.moveOrder) {   // en poste (ou en route) sur ordre : il obéit
       const a = this.downedToRevive(u);
       if (a) {
@@ -1625,10 +1818,10 @@
     }
     // grenade : en train de lancer, ou d'esquiver une grenade adverse → rien d'autre
     if (u.throwing || (u.evade && this.t < u.evade.until)) return;
-    if (this.tryGrenade(u)) return;
+    if (!u.holdFire && this.tryGrenade(u)) return;
     // ordre « tenir la position clé » : passe avant tout le reste (l'IA fait ce qu'on lui dit)
-    if (u.keyOrder) { this.followKeyOrder(u, threats); return; }
-    if (u.moveOrder) { this.followMoveOrder(u, threats, beingShot); return; }   // ordre de déplacement du joueur (clic droit)
+    if (u.keyOrder) { this.followKeyOrder(u, threats); this.afterOrder(u, threats); return; }
+    if (u.moveOrder) { this.followMoveOrder(u, threats, beingShot); this.afterOrder(u, threats); return; }   // ordre de déplacement du joueur (clic droit)
     // engagement sur un déplacement en cours : on continue (en tirant si possible) sauf si on vient d'être touché, ou si
     // ce déplacement mène droit sur un ennemi en vue (une marche d'approche ne se poursuit pas jusqu'à lui rentrer dedans)
     // Sous le feu (des balles claquent autour de soi depuis le départ), une marche d'approche ou un bond encore long
@@ -1940,6 +2133,7 @@
     // course vers un couvert sous la menace : au sprint (une course retournée va jusqu'au bout, même si la menace s'efface)
     u.dash = !!(u.path && u.goal && DASH[u.goalKind] && (u.dashTurned || this.underThreat(u)));
     if (u.path && u.goal) this.move(u);
+    if (u.drag && u.drag.phase !== 'go') this.towBody(u);   // évacuation : le blessé suit, au sol
     if (!u.moving) { u.dashTurned = false; u.walkTurned = false; u.dash = false; }
     if (u.moving) u.stillSince = undefined; else if (wasMoving || u.stillSince === undefined) u.stillSince = this.t;
     // accroupi à l'arrêt = « à couvert » : seulement derrière un vrai obstacle face à la menace principale (elle a pu bouger,
@@ -1954,8 +2148,8 @@
     // tir
     if (u.throwing) { u.fireAcc = 0; return; }   // on ne tire pas en lançant
     if (u.dashTurned) u.fireAcc = Math.min(u.fireAcc, 1);   // on ne tire pas dans son dos en courant vers l'abri
-    else if (u.target && u.target.alive && u.visible.has(u.target.id) && u.state !== 'pinned' && u.state !== 'noammo' && u.state !== 'wait') this.fireAt(u, u.target);
-    else if (u.target && u.target.alive && u.state !== 'pinned' && u.state !== 'noammo' && this.canSuppress(u, u.target)) this.suppressAt(u, u.target);
+    else if (u.target && u.target.alive && u.visible.has(u.target.id) && u.state !== 'pinned' && u.state !== 'noammo' && u.state !== 'wait' && !u.holdFire) this.fireAt(u, u.target);
+    else if (u.target && u.target.alive && u.state !== 'pinned' && u.state !== 'noammo' && !u.holdFire && this.canSuppress(u, u.target)) this.suppressAt(u, u.target);
     else { u.fireAcc = Math.min(u.fireAcc, 1); if (u.target && !u.target.alive) u.target = null; }
   };
 
@@ -1992,7 +2186,7 @@
       const nw = u.path[u.pathIdx + 1];
       if (d < 0.5 && (u.x - wp.x) * (nw.x - wp.x) + (u.z - wp.z) * (nw.z - wp.z) > 0 && this.map.walkableSegment(u.x, u.z, nw.x, nw.z)) { u.pathIdx++; return this.move(u); }
       for (const a of this.units) {
-        if (a === u || (a.alive && a.team !== u.team) || Math.hypot(a.x - wp.x, a.z - wp.z) > (a.alive ? 0.6 : 0.45)) continue;
+        if (a === u || (a.alive && a.team !== u.team) || a.dragBy === u || Math.hypot(a.x - wp.x, a.z - wp.z) > (a.alive ? 0.6 : 0.45)) continue;
         if (this.map.walkableSegment(u.x, u.z, nw.x, nw.z)) { u.pathIdx++; return this.move(u); }
         // un corps sur le point de passage, et pas de ligne droite vers le suivant : le point est déplacé à côté du corps
         // (sinon la poussée qui contourne le corps et le chemin qui y ramène se contraient : allers-retours sur place)
@@ -2011,6 +2205,8 @@
     if (!u.target && d > 0.05) { let best = 99; for (const { k } of this.knownEnemies(u)) { if (this.t - k.t > 5) continue; const dd = Math.hypot(k.x - u.x, k.z - u.z); const a = Math.atan2(k.z - u.z, k.x - u.x); if (dd < best && angDiff(a, mv) < 1.9) { best = dd; aim = a; } } }
     let look = u.target && u.target.alive ? Math.atan2(u.target.z - u.z, u.target.x - u.x) : aim;
     if (u.state === 'evade') { look = null; aim = null; }   // une grenade : on court, on ne recule pas en visant
+    const dragging = u.goalKind === 'drag' && !!u.drag;   // évacuation : allure fixe (DRAG.speed), regard sur le blessé
+    if (dragging) { look = null; aim = null; }
     // course vers l'abri sous la menace (u.dash) : menace de côté ou derrière et plus de 3 m à faire → on se retourne et on
     // court droit vers l'abri (jusqu'à l'arrivée) ; plus près, on reste face à elle (pas chassé, marche arrière)
     // Hors menace, l'arme pointée vers une position connue (sans cible) : au-delà de 60° de la marche on n'avance plus qu'en
@@ -2065,7 +2261,7 @@
     const mx = d > 1e-6 ? (wp.x - u.x) / d : 0, mz = d > 1e-6 ? (wp.z - u.z) / d : 0, bx = nx, bz = nz;
     // les corps (tous camps, point de chute ; rayon 0,8 m) se contournent de la même façon (on relève un blessé à côté de lui)
     for (const a of this.units) {
-      if (a === u || (a.alive && a.team !== u.team)) continue;
+      if (a === u || (a.alive && a.team !== u.team) || a.dragBy === u) continue;
       const R = a.alive ? 1.1 : 0.8, dd = Math.hypot(a.x - nx, a.z - nz);
       if (dd < R && dd > 1e-6) {
         let qx = (nx - a.x) / dd, qz = (nz - a.z) / dd;
@@ -2085,6 +2281,7 @@
     u.stats.distance += Math.hypot(nx - u.x, nz - u.z);
     // regard : vers le point de passage visé (pas vers le petit pas de côté de la séparation entre alliés)
     if ((!u.target || turned) && d > 0.05) { u.facing = aim === null ? mv : aim; u.preaim = aim !== null; }
+    if (dragging) { const a = this.unitById(u.drag.id); if (a) u.facing = Math.atan2(a.z - u.z, a.x - u.x); u.preaim = false; }   // face au blessé : il recule
     if (Math.hypot(nx - u.x, nz - u.z) > 0.05) { u.mvDir = Math.atan2(nz - u.z, nx - u.x); u.mvAt = this.t; }
     u.x = nx; u.z = nz; u.moving = true;
     if (d <= stepLen) { u.pathIdx++; if (u.pathIdx >= u.path.length) { this.arrive(u); return; } }
@@ -2121,7 +2318,10 @@
   Battle.prototype.updateTiroir = function () {
     for (const team of this.teams) {
       if (!this.hasTactic(team, 'tiroir') || team.order === 'hold') continue;
-      const b = team.bound, alive = team.units.filter(a => a.alive && a.boundGroup >= 0 && !a.moveOrder);   // en route sur ordre : bonds de son propre groupe
+      // un équipier tombé (ou relevé) : les deux moitiés sont rééquilibrées (R3) — plus de moitié vide qui bondit sans appui
+      const all = team.units.filter(a => a.alive && a.boundGroup >= 0);
+      if (team.tiroirN !== all.length) { if (team.tiroirN !== undefined) this.rebalanceHalves(team, all, a => a.boundGroup, (a, h) => { a.boundGroup = h; a.boundDone = undefined; }); team.tiroirN = all.length; }
+      const b = team.bound, alive = all.filter(a => !a.moveOrder);   // en route sur ordre : bonds de son propre groupe
       if (!alive.length) continue;                       // tous en route sur ordre : le Tiroir de l'escouade attend
       const movers = alive.filter(a => a.boundGroup === b.group), others = alive.filter(a => a.boundGroup !== b.group);
       const el = this.t - b.since;
@@ -2249,9 +2449,156 @@
     for (const a of this.teams[u.team].units) {
       if (a.alive || a === u || !(a.bleedUntil > this.t + 3)) continue;
       if (a.rescue && a.rescue.by !== u && a.rescue.by.alive && this.t - a.rescue.t < 1) continue;   // un autre y va déjà
+      if (this.draggedBy(a) && this.draggedBy(a) !== u) continue;                                        // un autre l'évacue
       const d = dist2(u, a); if (d < bd) { bd = d; best = a; }
     }
     return best;
+  };
+  // ---- Évacuation du blessé ----------------------------------------------------------------------------------------
+  // Un équipier à terre (saignement : il peut être relevé) à découvert, vu de l'ennemi : le plus proche des équipiers
+  // disponibles (pas en plein duel, pas garde de l'arrière, pas en route sur ordre) va le chercher, le tire à reculons
+  // jusqu'au couvert le plus proche (≤ 8 m, en ligne droite), à 60 % de son allure, sans tirer, puis le relève là (relève
+  // habituelle). Un ennemi tout près : on se bat d'abord. Trop longtemps à découvert sous les yeux de l'ennemi : seulement
+  // avec un fumigène, lancé entre le trajet et la menace (un par opérateur).
+  const DRAG = { reach: 12, cover: 8, speed: 0.6, close: 7, drop: 5, maxOpen: 4, rope: 1.0, settle: 1.5, minLeft: 8 };
+  Battle.prototype.draggedBy = function (a) { const b = a.dragBy; return b && b.alive && b.drag && b.drag.id === a.id ? b : null; };
+  Battle.prototype.canDrag = function (u) {
+    if (!u.alive || u.status === 'critical' || u.drag || u.reviving || u.throwing || u.moveOrder || u.state === 'noammo' || this.t < (u.shakenUntil || 0)) return false;
+    if (u.target && u.target.alive && u.visible.has(u.target.id) && this.t - u.lastShotAt < 1.5) return false;   // en plein duel
+    const hr = this.teams[u.team].holdRear;
+    if (u.keyOrder && hr) for (const k in hr) if (hr[k] && hr[k].id === u.id && !hr[k].released) return false;  // garde de l'arrière
+    return true;
+  };
+  // positions ennemies (vues, ou connues depuis moins de 6 s) d'où l'on voit le blessé à hauteur d'un sauveteur accroupi
+  Battle.prototype.dragThreats = function (u, a) {
+    const out = [];
+    for (const e of this.enemiesOf(u)) {
+      if (!e.alive) continue;
+      const seen = u.visible.has(e.id), k = seen ? e : u.knowledge[e.id];
+      if (!k || (!seen && this.t - k.t > 6)) continue;
+      if (this.map.hasLOS(k.x, EYE.stand, k.z, a.x, 0.9, a.z)) out.push({ x: k.x, z: k.z, fresh: seen || this.t - k.t < 3 });
+    }
+    return out;
+  };
+  // le couvert le plus proche du blessé (≤ 8 m, joignable en ligne droite) où un sauveteur accroupi est caché de toutes ces menaces
+  Battle.prototype.dragCover = function (u, a, ths) {
+    let best = null, bs = Infinity;
+    for (const c0 of this.map.coverPoints) {
+      if (Math.abs(c0.x - a.x) > DRAG.cover + 1 || Math.abs(c0.z - a.z) > DRAG.cover + 1) continue;
+      const h = this.hug(c0), cx = h.hx, cz = h.hz, d = Math.hypot(cx - a.x, cz - a.z);
+      if (d > DRAG.cover || d < 1) continue;
+      const s = d + Math.hypot(cx - u.x, cz - u.z) * 0.3; if (s >= bs) continue;
+      if (u.keyOrder && u.keyOrder.cx !== undefined && Math.hypot(cx - u.keyOrder.cx, cz - u.keyOrder.cz) > HOLD_ZONE + 1.5) continue;
+      if (this.alliesOf(u).some(o => o !== u && o.alive && Math.hypot(o.x - cx, o.z - cz) < 1.2)) continue;
+      if (ths.some(t => this.map.hasLOS(t.x, EYE.stand, t.z, cx, 0.9, cz))) continue;
+      if (!this.map.walkableSegment(a.x, a.z, cx, cz)) continue;
+      bs = s; best = { x: cx, z: cz };
+    }
+    return best;
+  };
+  Battle.prototype.tryDrag = function (u, threats) {
+    let pick = null;
+    for (const a of this.teams[u.team].units) {
+      if (a.alive || a === u || !(a.bleedUntil > this.t + DRAG.minLeft) || this.draggedBy(a)) continue;
+      const d = dist2(u, a); if (d > DRAG.reach) continue;
+      if (!pick || d < pick.d) pick = { a, d };
+    }
+    if (!pick || !this.canDrag(u)) return false;
+    const a = pick.a;
+    if (a.rescue && a.rescue.by !== u && a.rescue.by.alive && this.t - a.rescue.t < 1) return false;   // un autre y va déjà
+    if (u.keyOrder && u.keyOrder.cx !== undefined && Math.hypot(a.x - u.keyOrder.cx, a.z - u.keyOrder.cz) > HOLD_ZONE + 1.5) return false;
+    // le plus proche des équipiers disponibles (à égalité, le premier de l'escouade) : jamais deux
+    for (const o of this.teams[u.team].units) { if (o === u || !this.canDrag(o)) continue; const d = dist2(o, a); if (d < pick.d - 1e-6 || (Math.abs(d - pick.d) < 1e-6 && o.idx < u.idx)) return false; }
+    for (const e of threats) if (dist2(e, u) < DRAG.close || dist2(e, a) < DRAG.close) return false;   // ennemi tout près : on se bat
+    const ths = this.dragThreats(u, a); if (!ths.length) return false;   // à l'abri des vues : la relève habituelle suffit
+    const c = this.dragCover(u, a, ths); if (!c) return false;
+    // temps à découvert (aller au blessé au pas de course, puis le tirer) ; sous les yeux de l'ennemi, au-delà de 4 s : fumigène
+    const v = u.speed(), tOpen = Math.max(0, pick.d - 1) / (v * 1.2) + Math.hypot(c.x - a.x, c.z - a.z) / (v * DRAG.speed);
+    const fresh = ths.filter(t => t.fresh);
+    let smoke = null;
+    if (fresh.length && (u.grenades.smoke || 0) > 0) {
+      let T = fresh[0], td = Infinity; for (const t of fresh) { const dd = Math.hypot(t.x - a.x, t.z - a.z); if (dd < td) { td = dd; T = t; } }
+      const mx = (a.x + c.x) / 2, mz = (a.z + c.z) / 2, L = Math.hypot(T.x - mx, T.z - mz) || 1, k = Math.min(GRENADES.smoke.radius, L * 0.4);
+      const sx = mx + (T.x - mx) / L * k, sz = mz + (T.z - mz) / L * k, sd = Math.hypot(sx - u.x, sz - u.z);
+      if (sd <= 24 && this.map.hasLOS(u.x, 2.3, u.z, sx, 1.4, sz)) smoke = { x: sx, z: sz, d: sd };
+    }
+    if (fresh.length && tOpen > DRAG.maxOpen && !smoke) return false;
+    u.drag = { id: a.id, c, phase: 'go', t0: this.t, ths: ths.map(t => ({ x: t.x, z: t.z })) };
+    a.dragBy = u; a.rescue = { by: u, t: this.t }; u.target = null; u.reviving = null;
+    u.stats.drags = (u.stats.drags || 0) + 1;
+    this.logEvent('drag', `${u.callsign} : « Je le tire à couvert ! »`, { unit: u.id, team: u.team });
+    if (smoke) {
+      this.stop(u); u.state = 'throw'; u.stance = 'stand'; u.facing = Math.atan2(smoke.z - u.z, smoke.x - u.x);
+      u.throwing = { at: this.t + 0.5 + (1 - u.def.reflexes / 100) * 0.3, x: smoke.x, z: smoke.z, d: smoke.d, kind: 'smoke', target: 'la menace' };
+      return true;
+    }
+    return this.continueDrag(u, threats);
+  };
+  Battle.prototype.continueDrag = function (u, threats) {
+    const g = u.drag, a = this.unitById(g.id);
+    const drop = (why) => {
+      if (a && a.dragBy === u) a.dragBy = null;
+      u.drag = null; if (u.goalKind === 'drag' || u.goalKind === 'revive') this.stop(u); u.state = 'idle';
+      if (why && a) this.logEvent('drag_stop', `${u.callsign} lâche ${a.callsign} (${why}).`, { unit: u.id, team: u.team, silent: true });
+      return false;
+    };
+    if (!a || a.alive) return drop();
+    if (!(a.bleedUntil > this.t)) return drop('trop tard');
+    if (u.status === 'critical') return drop('blessé');
+    for (const e of threats) if (dist2(e, u) < DRAG.drop) return drop('ennemi au contact');
+    if (u.throwing) return true;
+    u.target = null; u.stance = 'stand';
+    if (g.phase === 'go') {
+      const d = dist2(u, a);
+      if (d > 1.2) {
+        // on se place du côté du couvert (on le tirera droit vers lui)
+        const L = Math.hypot(g.c.x - a.x, g.c.z - a.z) || 1, gx = a.x + (g.c.x - a.x) / L * 0.9, gz = a.z + (g.c.z - a.z) / L * 0.9;
+        const ok = this.map.inBounds(gx, gz) && !this.map.insideObstacle(gx, gz);
+        if (this.setGoal(u, ok ? gx : a.x, ok ? gz : a.z, 'revive')) { u.state = 'todrag'; return true; }
+        return drop('pas de passage');
+      }
+      if (this.t < a.downAt + 3) { this.stop(u); u.state = 'todrag'; return true; }   // le corps finit de tomber
+      g.phase = 'pull'; g.pullAt = this.t;
+    }
+    if (g.phase === 'pull') {
+      if (Math.hypot(g.c.x - u.x, g.c.z - u.z) > 0.6 && this.t - g.pullAt < 20) {
+        if (!(u.goal && u.goalKind === 'drag') && !this.setGoal(u, g.c.x, g.c.z, 'drag')) return drop('pas de passage');
+        u.state = 'dragging'; return true;
+      }
+      this.stop(u); g.phase = 'settle'; g.spot = this.dragSettle(u, a, g);
+    }
+    // à couvert : le corps est posé à l'abri, à côté de soi, puis on le relève (relève habituelle)
+    this.stop(u); u.state = 'dragging'; u.stance = 'crouch';
+    if (!g.spot || Math.hypot(g.spot.x - a.x, g.spot.z - a.z) < 0.03) {
+      a.dragBy = null; u.drag = null; a.rescue = { by: u, t: this.t };
+      u.state = 'reviving'; u.reviving = { id: a.id, until: this.t + (has(u, 'medic') ? 2 : 4) };
+      this.logEvent('revive_start', `${u.callsign} a mis ${a.callsign} à l'abri et le relève.`, { unit: u.id, team: u.team });
+    }
+    return true;
+  };
+  // où poser le blessé, arrivé au couvert : à ~1 m de soi, caché (au sol) des menaces connues, au plus près de là où il est
+  Battle.prototype.dragSettle = function (u, a, g) {
+    const ths = g.ths.slice(); for (const e of this.enemiesOf(u)) if (e.alive && u.visible.has(e.id)) ths.push({ x: e.x, z: e.z });
+    const hidden = (x, z) => !ths.some(t => this.map.hasLOS(t.x, EYE.stand, t.z, x, 0.5, z));
+    if (hidden(a.x, a.z) && dist2(u, a) <= 1.4) return null;
+    let best = null, bd = Infinity;
+    for (let i = 0; i < 12; i++) {
+      const ang = i * Math.PI / 6, x = u.x + Math.cos(ang) * DRAG.rope, z = u.z + Math.sin(ang) * DRAG.rope;
+      if (!this.map.inBounds(x, z) || this.map.insideObstacle(x, z) || !hidden(x, z)) continue;
+      const d = Math.hypot(x - a.x, z - a.z); if (d < bd && d < 2.2) { bd = d; best = { x, z }; }
+    }
+    return best;
+  };
+  // le corps suit le tireur (corde de 1 m), puis glisse jusqu'à sa place à l'abri ; jamais dans un obstacle
+  Battle.prototype.towBody = function (u) {
+    const g = u.drag, a = this.unitById(g.id); if (!a || a.alive) return;
+    let tx, tz, step;
+    if (g.phase === 'settle') { if (!g.spot) return; tx = g.spot.x; tz = g.spot.z; step = DRAG.settle * DT; }
+    else { const d = dist2(u, a); if (d <= DRAG.rope) return; tx = u.x + (a.x - u.x) / d * DRAG.rope; tz = u.z + (a.z - u.z) / d * DRAG.rope; step = 9; }
+    const dx = tx - a.x, dz = tz - a.z, L = Math.hypot(dx, dz); if (L < 1e-4) return;
+    const k = Math.min(1, step / L), nx = a.x + dx * k, nz = a.z + dz * k;
+    if (this.map.inBounds(nx, nz) && !this.map.insideObstacle(nx, nz)) { a.x = nx; a.z = nz; }
+    else if (g.phase === 'settle') g.spot = null;
   };
   Battle.prototype.updateRevives = function () {
     // un blessé à terre ne bouge plus : c'est aux alliés de venir le relever
@@ -2290,21 +2637,28 @@
   // ---- Tir de suppression (appui) : arroser un couvert bas derrière lequel un ennemi vient de se cacher ------------
   // Conditions : rôle appui, position vue il y a moins de 2 s, l'ennemi est bien là (± 1 m), et le rayon vers sa poitrine
   // n'est bloqué que par un couvert bas (les balles claquent dans le couvert : pas de dégâts, mais suppression).
+  // Sous l'ordre « Appui » du clic droit (u.appuiAt, posé par appuiFire), tout opérateur peut le faire : position connue
+  // depuis moins de 8 s, ennemi à ± 4 m d'elle (positions entendues : imprécises).
   Battle.prototype.canSuppress = function (u, e) {
-    if (u.role.id !== 'support' || u.reloading > 0 || u.ammo < 20) return false;
-    const k = u.knowledge[e.id]; if (!k || this.t - k.t > 2 || Math.hypot(k.x - e.x, k.z - e.z) > 1.2) return false;
+    const appui = this.t - (u.appuiAt === undefined ? -99 : u.appuiAt) < 0.35;
+    if ((u.role.id !== 'support' && !appui) || u.reloading > 0 || u.ammo < (appui ? 4 : 20)) return false;
+    const k = u.knowledge[e.id]; if (!k || this.t - k.t > (appui ? APPUI_MEM : 2) || Math.hypot(k.x - e.x, k.z - e.z) > (appui ? 4 : 1.2)) return false;
     const d = dist2(u, e); if (d > u.weapon.range * 1.1 || d < 6) return false;
     if (this.allyInLine(u, e)) return false;
+    // en appui : les balles atteignent les abords de son abri (vue sur un point 3 m devant lui, à 1 m du sol) — elles claquent
+    // dans son abri (voiture, fourgon, muret) ou autour de lui
+    // (on se relève pour tirer : vue prise debout)
+    if (appui) { const q = 3 / (d || 1); if (this.map.hasLOS(u.x, EYE.stand, u.z, e.x + (u.x - e.x) * q, 1.0, e.z + (u.z - e.z) * q)) return true; }
     const blk = this.map.blocker(u.x, u.eyeY(), u.z, e.x, e.chestY(), e.z);
     return !!blk && blk.kind === 'cover' && this.map.hasLOS(u.x, u.eyeY(), u.z, e.x, 1.6, e.z);
   };
   Battle.prototype.suppressAt = function (u, e) {
     if (u.aimTimer > 0) { u.aimTimer -= DT; return; }
-    u.fireAcc += DT * u.weapon.rpm / 60 * 0.6; // rafales courtes
+    u.fireAcc += DT * u.weapon.rpm / 60 * (u.role.id === 'support' ? 0.6 : 1); // rafales courtes (fusil d'assaut en appui : sa cadence de coups ajustés, ~1,8 coup/s)
     while (u.fireAcc >= 1 && u.ammo > 0) {
       u.fireAcc -= 1; u.ammo--; u.stats.shots++; u.stats.suppressShots = (u.stats.suppressShots || 0) + 1; u.lastShotAt = this.t; this.lastShotTime = this.t;
       e.lastShotBy = u; e.lastShotByAt = this.t;
-      e.suppression = clamp(e.suppression + u.weapon.suppress * 0.8, 0, 1);
+      e.suppression = clamp(e.suppression + u.weapon.suppress * (u.role.id === 'support' ? 0.8 : 1.1), 0, 1);   // (fusil en appui : moins de coups, chacun bien placé)
       const to = { x: e.x + this.rng.gauss() * 0.6, y: 0.9 + this.rng.gauss() * 0.3, z: e.z + this.rng.gauss() * 0.6 };
       this.emit({ type: 'shot', shooter: u.id, target: e.id, from: { x: u.x, y: u.eyeY() - 0.15, z: u.z }, to, hit: false, suppressive: true });
     }

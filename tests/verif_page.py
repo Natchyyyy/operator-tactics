@@ -193,6 +193,15 @@ async def main():
         # de bout en bout : une bataille jouée par le jeu fait entendre des coups de feu (lecteur → play() → Son.jouer)
         tirs = await pg.evaluate("() => { const n = () => Object.entries(Son.etat().joues).filter(([k]) => /^tir/.test(k)).reduce((a, [, v]) => a + v, 0); const n0 = n(); window.OT_MUTE && window.OT_MUTE.set(false); API.start({ mapId: 'parking', seed: 3 }); for (let i = 0; i < 120 && n() === n0; i++) API.stepRaw(10); return [n() - n0, Son.etat().contexte]; }")
         check("en bataille, les coups de feu sont réellement joués", tirs[0] > 0 and tirs[1] == "running", tirs)
+        # ennemis non repérés (réglage par défaut) : pendant la bataille, les soldats de Bravo dessinés sont exactement ceux
+        # qu'un opérateur d'Alpha voit (à un fondu de 0,3 s près) ; ni étiquette ni carte détaillée pour les autres ; tout est révélé à la fin
+        fog = await pg.evaluate("""() => { API.pause(true); API.start({ mapId: 'parking', seed: 3 }); let bad = [], hid = 0, seen = 0, cards = true;
+          for (let i = 0; i < 24 && !API.battle().over; i++) { API.stepRaw(10); API.render(); const f = API.fog(), s = new Set(f.spotted), d = new Set(f.drawn), fa = new Set(f.fading);
+            if (!f.on || f.alive.some(id => !fa.has(id) && s.has(id) !== d.has(id)) || f.labels.some(id => !s.has(id) && !fa.has(id))) bad.push([+API.battle().t.toFixed(1), f.spotted, f.drawn, f.fading, f.labels]);
+            for (const id of f.alive) if (!s.has(id) && !document.querySelector(`.card[data-id="${id}"]`).classList.contains('unseen')) cards = false;
+            hid += f.alive.length - f.spotted.length; seen += f.spotted.length; }
+          API.runToEnd(); const g = API.fog(); return [bad.slice(0, 3), hid, seen, cards, !g.on && g.drawn.length === g.alive.length]; }""")
+        check("ennemis non repérés : seuls ceux que l'escouade voit sont dessinés (étiquettes, cartes « ? ») ; la fin révèle tout", not fog[0] and fog[1] > 0 and fog[2] > 0 and fog[3] and fog[4], fog)
         try: await pg.wait_for_function("() => Son.etat().pack !== 'chargement'", timeout=30000)
         except Exception: pass
         pk = await pg.evaluate("() => [Son.etat().pack, Son.a('pluie'), Son.a('oiseaux')]")
