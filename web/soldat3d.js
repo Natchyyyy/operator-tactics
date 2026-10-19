@@ -77,6 +77,7 @@
   const LOWR = Object.assign({ av: 0.05, ar: 0.12, hf: 0.04, hy: 0.005, bl: 22 }, root.LOWR_TEST || {});
   const DORSI_MAX = (root.DORSI_MAX_TEST ?? 36) * Math.PI / 180;
   const PLANT_MAX = (root.PLANT_MAX_TEST ?? 28) * Math.PI / 180;   // butée de flexion plantaire d'un pied en l'air (voir cheville)   // butée de flexion dorsale d'un pied en l'air (voir cheville)
+  const CLOU = root.CLOU_TEST ?? true;   // pieds cloués à l'arrêt entre deux pas de replacement (voir clouer)
   const APPUI_POSE = root.APPUI_POSE_TEST ?? true;   // pied reposé cloué jusqu'à la fin de la pose (voir poserPieds)   // pied avancé de la garde basse porté par le pas de pose (voir appui)
   const VERROU = Object.assign({ prise: 0.09, lache: 0.16 }, root.VERROU_TEST || {});
   // pied qui bouge = pied levé (voir decolle()) : hauteur de semelle visée (m), vitesses (m/s) de début / pleine levée, temps (s)
@@ -1568,7 +1569,9 @@
         // (cible filtrée + ressort : la penche du buste et la tête, proportionnelles à gbK, démarrent sans à-coup — sortie de
         // rechargement : le ressort seul donnait 10 000 °/s² au buste à la 1re image)
         this.gbK = Math.max(0, Math.min(1, lisse2(this, 'gb', this.gbK || 0, this.clip === 'Garde_Basse' || this.clip === 'Walk_Low_Haut' || this.clip === 'Run_Low_Haut' || this.clip === 'Trot_Low_Haut' || BAS[this.clip] ? 1 : 0, 10, dt)));
-        if (Math.max(this.epK || 0, this.gbK) > 0.01 && !keepYaw) this.penche(Math.max(this.epK || 0, this.gbK));
+        // (poids = ep + gb borné à 1, et non max(ep, gb) : en passant de la garde basse à la visée le max a un coin là où les deux
+        // courbes se croisent (~0,5) — la correction de penche repartait en sens inverse en une image, à-coup de 5 000-6 000 °/s²)
+        { const kP = Math.min(1, (this.epK || 0) + (this.gbK || 0)); if (kP > 0.01 && !keepYaw) this.penche(kP); }
         if (enMarche && (this.marcheK || 0) > 0.05) this.ecarte(this.marcheK, this.coteK || 0, this.arrK || 0);
         else if (this.verrouPieds && !keepYaw) this.ecarte(1, 0, 0);   // (marche accroupie, course épaulée : chevilles jamais croisées)
         this.verrou(dt, !keepYaw && (enMarche || !!this.verrouPieds) && !S.sansVerrou);
@@ -1579,12 +1582,34 @@
           this.gbPiedK = gbT && (this.pose0 || !this.clipVu) ? 1 : gbT ? Math.max(this.gbPiedK || 0, this.reposK || 0) : 0; }   // (sortie : au départ, le verrou reprend les pieds là où ils étaient affichés — voir verrou — ; vers la visée, le pas de pose part de la position affichée)
         if (this.pose0) this.poserPieds(dt, repos);
         this.appui(dt, repos && (!this.pose0 || APPUI_POSE));   // (APPUI_POSE : la posture d'arrêt — genoux, largeur — tient pendant les petits pas du pivot au lieu de s'effacer)
+        this.clouer(dt, repos, enMarche || !!keepYaw);
         this.decolle(dt, !keepYaw && !S.sansDecolle);
         if (!keepYaw) this.cheville();
         if (!keepYaw && !S.sansSol) this.sol();
         this.vu = pieds[0][2] && M.semelle ? [semW(0), semW(1)] : null;   // (semelles affichées, pour le verrou au départ)
         this.tete(dt, keepYaw ? null : repos || enMarche || !!EPAULE[this.clip] || !!BAS[this.clip]);
         this.clipVu = this.clip;
+      },
+      // Pieds cloués à l'arrêt, entre deux séries de pas de replacement : au pivot sur place, la torsion des jambes suit le corps
+      // avec un ressort (~0,1 s de retard) et le corps se recale vers sa visée ; les pieds, qui suivaient la pose du mixer,
+      // tournaient avec le bassin : talon glissé de 5-7 cm avant le premier pas (pivot en visant, mesuré). Chaque pied est
+      // tenu là où il était affiché (fin des pas de pose comprise) ; relâché d'un coup au départ (le verrou de marche le reprend
+      // là où il est affiché), en 0,15 s sinon (rechargement, accroupi).
+      clouer(dt, repos, libre) {
+        const C = this.clou || (this.clou = { w: 0, p: null, q: null });
+        if (!CLOU || !pieds[0][2] || !pieds[1][2]) return;
+        group.updateMatrixWorld(true);
+        const vu = this.clouVu, prendre = () => { if (!vu) return; C.p = vu.p.map(v => v.clone()); C.q = vu.q.map(q => q.clone()); C.w = 1; };
+        if (libre || this.pose0) { C.p = C.q = null; C.w = 0; }   // (pas de pose en cours : ce sont eux qui tiennent les pieds)
+        else if (repos) { if (!C.p) prendre(); C.w = 1; }
+        else { if (!C.p && C.tenu) prendre(); if (C.p) { C.w -= dt / 0.15; if (C.w <= 0) { C.p = C.q = null; C.w = 0; } } }
+        // (téléporté, réapparition : on lâche)
+        if (C.p && Math.max(WP(pieds[0][2]).distanceTo(C.p[0]), WP(pieds[1][2]).distanceTo(C.p[1])) > 0.25) { C.p = C.q = null; C.w = 0; }
+        if (C.p && C.w > 0) { const k = C.w * C.w * (3 - 2 * C.w);
+          pieds.forEach(([up, lo, ft], i) => { const d = C.p[i].clone().sub(WP(ft)).multiplyScalar(k), qC = WQ(ft); if (d.lengthSq() > 1e-8) ikJambe(up, lo, ft, d, orteils[i]);
+            mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(qC.slerp(C.q[i], k))); ft.updateMatrixWorld(true); }); }
+        C.tenu = !!C.p || !!(this.pose0 && repos && !libre);
+        this.clouVu = { p: pieds.map(l => WP(l[2])), q: pieds.map(l => WQ(l[2])) };
       },
       // pivot sur place (app.js) : les pieds, cloués pendant que le torse tourne, se replacent face au torse par deux petits pas
       // (même mécanique que l'arrêt : pieds partant de leur position affichée, voir poserPieds)
@@ -1642,7 +1667,7 @@
           // suivait aussitôt les jambes, dont la torsion rattrape le pivot avec ~0,2 s de retard : au pivot sur place, chaque pied
           // glissait de 3-5 cm à 0,15-0,3 m/s après chaque petit pas)
           if (s >= 1) { const ft = pieds[i][2]; if (!PIN_POSE) return; P.fin = P.fin || []; if (!P.fin[i]) P.fin[i] = [tgt[i].clone(), qTgt[i].clone()];
-            const z = Math.max(0, Math.min(1, (P.t - 0.5) / 0.12)), wp = 1 - z * z * (3 - 2 * z); if (wp <= 0) return;
+            const z = CLOU ? 0 : Math.max(0, Math.min(1, (P.t - 0.5) / 0.12)), wp = 1 - z * z * (3 - 2 * z); if (wp <= 0) return;
             const d = P.fin[i][0].clone().sub(cur[i]).multiplyScalar(wp), qC = WQ(ft); if (d.lengthSq() > 1e-8) ikJambe(pieds[i][0], pieds[i][1], ft, d, orteils[i]);
             mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(qC.slerp(P.fin[i][1], wp))); ft.updateMatrixWorld(true); return; }
           const L = av ? P.lock[i].clone().sub(av[i]) : P.lock[i], C = tgt[i], dl = Math.hypot(C.x - L.x, C.z - L.z), h = Math.min(0.11, Math.max(0.45 * dl, Math.min(0.04, 3 * dl)));   // (un vrai pas : pied levé de 4 à 11 cm, pas traîné ; un pas de 1-9 cm se lève quand même de 3-4 cm)
@@ -1911,7 +1936,7 @@
           }
         }
         this.teteA = dt > 0 ? lisse2(this, 'teteA', this.teteA || 0, want, 7, dt) : (this.teteA || 0);   // (vitesse de la tête continue : coups d'œil et cibles nouvelles sans à-coup)
-        const H = this.bones.head, kT = actif && neutre ? Math.max(this.epK || 0, this.gbK || 0) : 0;   // (visée ; garde basse : le dos penché ne doit pas baisser la tête)
+        const H = this.bones.head, kT = actif && neutre ? Math.min(1, (this.epK || 0) + (this.gbK || 0)) : 0;   // (visée ; garde basse : le dos penché ne doit pas baisser la tête)
         // (poids lissé à part : en entrée / sortie de rechargement la tête passe du regard de l'animation — vers le chargeur — au
         // regard droit devant, ~75° : avant, d'un coup à l'entrée et en 0,3 s à la sortie, à-coup de 11 000 °/s²)
         const kA = dt > 0 && this.kH !== undefined ? Math.max(0, Math.min(1, lisse2(this, 'kH', this.kH, kT, 7, dt))) : kT; this.kH = kA;
@@ -2248,7 +2273,7 @@
         // de l'animation (chaque main fait la moitié du chemin jusqu'à sa place, au lieu de tout pour la gauche)
         if (two && M.prise && M.prise.R.paumeLoc && !S.sansPrise) pos = pR.clone().add(pL).multiplyScalar(0.5).sub(M.prise.R.paumeLoc.clone().add(M.prise.L.paumeLoc).multiplyScalar(0.5).applyQuaternion(weapon.quaternion));
         // placement du fusil construit (voir poseArme) : visée et garde basse ; ses poids sont ceux des poses épaulées / basses
-        const procW = twoHands && mode === 'deux' && pL && M.prise && weapon.isMeshy && weapon.buttPt && B.ra && B.la && B.head && !S.sansProc ? Math.max(this.epK || 0, this.gbK || 0) : 0;
+        const procW = twoHands && mode === 'deux' && pL && M.prise && weapon.isMeshy && weapon.buttPt && B.ra && B.la && B.head && !S.sansProc ? Math.min(1, (this.epK || 0) + (this.gbK || 0)) : 0;
         const tient = two || procW > 0.5 || !!this.armeDroite;
         // crosse dans le creux de l'épaule (voir EPAULE) : on glisse le fusil, puis les bras suivent
         const k = two && weapon.buttPt && B.ra && B.la ? (this.epK || 0) * (1 - procW) : 0;
