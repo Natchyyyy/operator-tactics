@@ -35,6 +35,10 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
 - Retargeting Geno → Mixamo par écart à la pose de liaison (lue dans le skin du GLB), avec alignement des directions d'os.
 - Motion matching : fiche 27 nombres (pieds, vitesses, trajectoire future 0,33/0,67/1 s), recherche brute 45 000 images,
   inertialisation des transitions, racine portée par l'animation + rattrapage limité vers la simulation.
-- Verrouillage des pieds (IK deux os) piloté par les contacts de la base : glissement 20 → 9 cm/s en marche
-  (plancher de la mesure sur les données brutes : 6 cm/s).
+- Verrouillage des pieds (IK deux os) piloté par les contacts de la base, horizontal seulement, écart plafonné à 5 cm,
+  engagé seulement si l'orteil affiché est bas. Le « rattrapage » du personnage vers la simulation est à 0 : à 0,15 il
+  créait un glissement constant de ~20 cm/s (et le verrou, en luttant, faisait remonter le pied puis rebondir).
+  Glissement mesuré en marche (vitesse de l'orteil pendant les appuis de la base) : 11 cm/s ; données brutes seules : 6.
+- Mesures de référence (`API.mesures()`, traces TRACE) : sans verrou ni saut, orteil ≤ 17 cm de haut, |vy| ≤ 1 m/s ;
+  tout réglage qui dépasse nettement ces valeurs crée des pieds qui « remontent » ou rebondissent.
 - Manques : course rapide (100STYLE plafonne vers 1,5 m/s, salle de 4,5 m), accroupi très léger, pas de fusil.

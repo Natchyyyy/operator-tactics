@@ -53,9 +53,12 @@
       for (let k = 0; k < nF; k++, o += 4) fiche[i * nF + k] = dv.getFloat32(o, true);
     }
     // fiches normalisées et pondérées
-    const POIDS = new Float32Array(nF); for (let k = 0; k < nF; k++) POIDS[k] = k < 6 ? 0.75 : k < 15 ? 1.0 : k < 21 ? 1.0 : 1.5;
-    const fn = new Float32Array(N * nF);
-    for (let i = 0; i < N; i++) for (let k = 0; k < nF; k++) fn[i * nF + k] = (fiche[i * nF + k] - meta.moyenne[k]) / meta.ecartType[k] * POIDS[k];
+    const POIDS = new Float32Array(nF); const fn = new Float32Array(N * nF);
+    Base.ponderer = (p) => {       // p = { pieds, vPieds, vHanches, traj, dir }
+      for (let k = 0; k < nF; k++) POIDS[k] = k < 6 ? p.pieds : k < 12 ? p.vPieds : k < 15 ? p.vHanches : k < 21 ? p.traj : p.dir;
+      for (let i = 0; i < N; i++) for (let k = 0; k < nF; k++) fn[i * nF + k] = (fiche[i * nF + k] - meta.moyenne[k]) / meta.ecartType[k] * POIDS[k];
+    };
+    Base.ponderer(PARAMS.poids);
     // séquence et style de chaque image, et « image utilisable » (pas trop près de la fin : la trajectoire future doit exister)
     const seq = new Int16Array(N), style = new Uint8Array(N), ok = new Uint8Array(N);
     meta.sequences.forEach((s, si) => { for (let i = s.debut; i < s.fin; i++) { seq[i] = si; style[i] = s.style; ok[i] = i < s.fin - 35 ? 1 : 0; } });
@@ -128,22 +131,36 @@
       this.jambes = [['LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase'], ['RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase']].map(l => l.map(b));
       this.verrous = [{ actif: false, poids: 0, cible: V3() }, { actif: false, poids: 0, cible: V3() }];
     }
-    // verrouillage des pieds : quand la base dit « orteil en appui », on garde l'orteil là où il s'est posé (IK deux os)
+    // verrouillage des pieds : quand la base dit « orteil en appui », on garde l'orteil là où il s'est posé (IK deux os).
+    // Seulement à l'horizontale (la hauteur reste celle de l'animation), avec un écart qui s'installe et s'efface
+    // en douceur, et qui faiblit si la jambe ne peut pas atteindre la cible : pas de pied qui remonte ni de rebond.
     verrouPieds(contacts, dt) {
       for (let k = 0; k < 2; k++) {
         const [H, K, A, T] = this.jambes[k]; const vr = this.verrous[k]; if (!H || !K || !A || !T) continue;
+        if (!vr.delta) { vr.delta = V3(); vr.deltaV = V3(); }
         const pT = T.getWorldPosition(V3());
         if (contacts[k] && !vr.actif) { vr.actif = true; vr.cible.copy(pT); }
         if (!contacts[k]) vr.actif = false;
-        vr.poids += (vr.actif ? 1 : -1) * dt / (vr.actif ? 0.08 : 0.15); vr.poids = Math.max(0, Math.min(1, vr.poids));
-        if (vr.poids <= 0) continue;
-        // si l'ancre s'éloigne trop (grand saut), on la laisse suivre
-        const ecart = vr.cible.clone().sub(pT); if (ecart.length() > 0.25) vr.cible.copy(pT).addScaledVector(ecart.normalize(), 0.25);
-        const vise = pT.clone().lerp(vr.cible, vr.poids);
+        if (vr.actif) {
+          const voulu = vr.cible.clone().sub(pT); voulu.y = 0;
+          const cap = PARAMS.verrouMax;                                            // au-delà, le pied « dérape » plutôt que d'être traîné
+          if (voulu.length() > cap) { vr.cible.sub(voulu.clone().setLength(voulu.length() - cap)); voulu.setLength(cap); }
+          // l'écart rejoint la valeur voulue avec une demi-vie courte (pas de saut à la pose du pied)
+          const x = [vr.delta.x - voulu.x, 0, vr.delta.z - voulu.z], v = [vr.deltaV.x, 0, vr.deltaV.z];
+          decroit(x, v, 0.04, dt); vr.delta.set(voulu.x + x[0], 0, voulu.z + x[2]); vr.deltaV.set(v[0], 0, v[2]);
+        } else {
+          const x = [vr.delta.x, 0, vr.delta.z], v = [vr.deltaV.x, 0, vr.deltaV.z];
+          decroit(x, v, 0.08, dt); vr.delta.set(x[0], 0, x[2]); vr.deltaV.set(v[0], 0, v[2]);
+        }
+        if (vr.delta.lengthSq() < 1e-8) continue;
         const pH = H.getWorldPosition(V3()), pK = K.getWorldPosition(V3()), pA = A.getWorldPosition(V3());
-        const cibleA = pA.clone().add(vise.clone().sub(pT));
+        const a = pK.distanceTo(pH), b = pA.distanceTo(pK);
+        let cibleA = pA.clone().add(vr.delta);
+        // si la cible dépasse la longueur de la jambe, on n'applique qu'une partie de l'écart (jambe jamais tendue de force)
+        const maxC = (a + b) * 0.985, dist = cibleA.distanceTo(pH);
+        if (dist > maxC) { let lo = 0, hi = 1; for (let it = 0; it < 12; it++) { const m = (lo + hi) / 2; if (pA.clone().addScaledVector(vr.delta, m).distanceTo(pH) > maxC) hi = m; else lo = m; } cibleA = pA.clone().addScaledVector(vr.delta, lo); }
+        const c = Math.max(0.01, cibleA.distanceTo(pH));
         const qPied = A.getWorldQuaternion(Q());                              // on garde l'orientation du pied
-        const a = pK.distanceTo(pH), b = pA.distanceTo(pK), c = Math.max(0.01, Math.min(a + b - 0.005, cibleA.distanceTo(pH)));
         const ang = (u, v) => Math.acos(Math.max(-1, Math.min(1, u.dot(v) / (u.length() * v.length()))));
         const HK = pK.clone().sub(pH), HA = pA.clone().sub(pH), KH = pH.clone().sub(pK), KA = pA.clone().sub(pK);
         let axe = HK.clone().cross(HA); if (axe.lengthSq() < 1e-8) axe = V3(1, 0, 0).applyQuaternion(H.getWorldQuaternion(Q())); axe.normalize();
@@ -151,7 +168,6 @@
         const b0 = ang(KH, KA), b1 = Math.acos(Math.max(-1, Math.min(1, (a * a + b * b - c * c) / (2 * a * b))));
         const rH = Q().setFromAxisAngle(axe, a1 - a0), rK = Q().setFromAxisAngle(axe, b1 - b0);
         const wH = rH.clone().multiply(H.getWorldQuaternion(Q())), wK = rK.clone().multiply(rH).multiply(K.getWorldQuaternion(Q()));
-        // orienter la chaîne vers la cible
         const pA2 = pH.clone().add(HK.clone().applyQuaternion(rH)).add(KA.clone().applyQuaternion(rH).applyQuaternion(rK));
         const rot = Q().setFromUnitVectors(pA2.clone().sub(pH).normalize(), cibleA.clone().sub(pH).normalize());
         wH.premultiply(rot); wK.premultiply(rot);
@@ -254,18 +270,16 @@
   // -------------------------------------------------------------------------------------------- mesure du glissement
   class Glissement {
     constructor() { this.prec = [null, null]; this.enContact = [false, false]; this.cumul = 0; this.tContact = 0; this.fen = []; this.empreintes = []; this.instant = [0, 0]; }
-    mesurer(orteils, dt, seuilY) {
+    // glissement = vitesse horizontale de l'orteil pendant que la BASE dit « en appui » (même définition que sur les
+    // données brutes, donc comparable : données seules ≈ 1,5 cm/s à l'arrêt, 6 en marche, 9 en course)
+    mesurer(orteils, dt, contacts) {
       let inst = 0;
       orteils.forEach((o, k) => {
         const p = o.getWorldPosition(V3());
-        const bas = p.y < seuilY;
-        if (bas && this.prec[k]) {
+        if (contacts[k] && this.prec[k]) {
           const d = p.clone().sub(this.prec[k]); d.y = 0; const v = d.length() / dt;
-          const lent = v < 0.6;                                   // orteil bas ET lent = appui
-          if (lent) {
-            if (!this.enContact[k]) this.empreintes.push({ p: p.clone(), k, t: performance.now() });
-            this.enContact[k] = true; this.cumul += d.length(); this.tContact += dt; this.instant[k] = v; inst = Math.max(inst, v);
-          } else { this.enContact[k] = false; this.instant[k] = 0; }
+          if (!this.enContact[k]) this.empreintes.push({ p: p.clone(), k, t: performance.now() });
+          this.enContact[k] = true; this.cumul += d.length(); this.tContact += dt; this.instant[k] = v; inst = Math.max(inst, v);
         } else { this.enContact[k] = false; this.instant[k] = 0; }
         this.prec[k] = p;
       });
@@ -281,7 +295,7 @@
   let dernierSaut = -1, frame = 0, frameT = 0, poseQ, poseY = [0], ancQ, ancY = [0], derniereRecherche = 0, sauts = 0, sautsFen = [], styleCourant = 0;
   const glisse = new Glissement(); let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0.4, margeSaut: 0.0, minSaut: 0.1, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8 };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.0, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.05, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   async function init() {
     renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
@@ -301,7 +315,7 @@
     gltf.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
     soldat = new Soldat(gltf); scene.add(soldat.group);
     // hauteur de repos des orteils du modèle (pose de liaison) → seuil d'appui
-    const yT = Math.min(...soldat.orteils.map(o => o.getWorldPosition(V3()).y)); seuilOrteil = yT + 0.07;
+    const yT = Math.min(...soldat.orteils.map(o => o.getWorldPosition(V3()).y)); seuilOrteil = yT + 0.05;
     poseQ = Base.meta.os.map(() => Q()); ancQ = Base.meta.os.map(() => Q());
     frame = Base.meta.sequences.find(s => /Neutral_ID/.test(s.nom)).debut + 10;
     soldat.poseDe(frame, 0, poseQ, poseY);
@@ -312,7 +326,7 @@
     window.API = {
       step(n = 1, dt = 1 / 30) { for (let k = 0; k < n; k++) boucle(dt); return frame; },
       touches(o) { Ctl.touches = Object.assign({}, o || {}); }, set(o) { Object.assign(Ctl, o); },
-      razGlisse() { glisse.cumul = 0; glisse.tContact = 0; sauts = 0; }, mesures() { return { frame, seq: Base.meta.sequences[Base.seq[frame]].nom, glisseMoy: glisse.moyenneCm(), glisseRecent: glisse.recentCm(), sauts, pos: soldat.pos.toArray(), yaw: soldat.yaw, simPos: Ctl.pos.toArray(), vitAnim: Math.hypot(Base.v[frame * 3], Base.v[frame * 3 + 2]) }; },
+      poids(p) { Object.assign(PARAMS.poids, p); Base.ponderer(PARAMS.poids); }, razGlisse() { glisse.cumul = 0; glisse.tContact = 0; sauts = 0; }, mesures() { return { frame, seq: Base.meta.sequences[Base.seq[frame]].nom, glisseMoy: glisse.moyenneCm(), glisseRecent: glisse.recentCm(), sauts, pos: soldat.pos.toArray(), yaw: soldat.yaw, simPos: Ctl.pos.toArray(), vitAnim: Math.hypot(Base.v[frame * 3], Base.v[frame * 3 + 2]) }; },
       os(n) { const o = soldat.os[Base.meta.os.indexOf(n)]; return o ? o.getWorldPosition(V3()).toArray() : null; },
       camera(yaw, pitch, dist, cibleY) { Ctl.camYaw = yaw; cam.pitch = pitch; cam.dist = dist; cam.cibleY = cibleY; }
     };
@@ -406,10 +420,14 @@
       let dy2 = Ctl.yaw - soldat.yaw; while (dy2 > Math.PI) dy2 -= 2 * Math.PI; while (dy2 < -Math.PI) dy2 += 2 * Math.PI; if (Math.abs(dy2) > 0.6) Ctl.yaw = soldat.yaw + Math.sign(dy2) * 0.6;
     }
     soldat.appliquer(poseQ, poseY, dt);
-    if (PARAMS.verrou) { const cf = Base.contact[frame]; soldat.verrouPieds([!!(cf & 2), !!(cf & 1)], dt); }
+    // appui = la base dit « en appui » ET l'orteil affiché est bas (juste après un saut de séquence, la pose affichée est
+    // encore un mélange : un pied en l'air ne doit ni être verrouillé ni compter comme glissement)
+    const cf = Base.contact[frame];
+    const contacts = soldat.orteils.map((o, k) => !!(cf & (k ? 1 : 2)) && o.getWorldPosition(V3()).y < seuilOrteil);
+    if (PARAMS.verrou) soldat.verrouPieds(contacts, dt);
     // glissement
-    const inst = glisse.mesurer(soldat.orteils, dt, seuilOrteil);
-    if (window.TRACE) { const g = soldat.orteils[0].getWorldPosition(V3()), d = soldat.orteils[1].getWorldPosition(V3()); window.TRACE.push([+horloge.toFixed(3), ...g.toArray().map(x => +x.toFixed(4)), ...d.toArray().map(x => +x.toFixed(4)), Base.contact[frame], +soldat.verrous[0].poids.toFixed(2), +soldat.verrous[1].poids.toFixed(2), frame, seuilOrteil]); }
+    const inst = glisse.mesurer(soldat.orteils, dt, contacts);
+    if (window.TRACE) { const g = soldat.orteils[0].getWorldPosition(V3()), d = soldat.orteils[1].getWorldPosition(V3()); window.TRACE.push([+horloge.toFixed(3), ...g.toArray().map(x => +x.toFixed(4)), ...d.toArray().map(x => +x.toFixed(4)), Base.contact[frame], +(soldat.verrous[0].delta ? soldat.verrous[0].delta.length() : 0).toFixed(3), +(soldat.verrous[1].delta ? soldat.verrous[1].delta.length() : 0).toFixed(3), frame, seuilOrteil]); }
     while (glisse.empreintes.length) { const e = glisse.empreintes.shift(); const m = new THREE.Mesh(new THREE.CircleGeometry(0.06, 16), new THREE.MeshBasicMaterial({ color: e.k ? 0x4fc3f7 : 0xff7b7b, transparent: true, opacity: 0.8 })); m.rotation.x = -Math.PI / 2; m.position.copy(e.p).setY(0.004); scene.add(m); empreintesMesh.push(m); if (empreintesMesh.length > 60) scene.remove(empreintesMesh.shift()); }
     // caméra orbitale
     const cible = soldat.pos.clone().setY(cam.cibleY ?? 1.0);
