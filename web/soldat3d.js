@@ -771,7 +771,7 @@
     if (M.clips.Running) { const t = foulee(M, M.clips.Running, 'Pas_Trot', TR.s, TR.hs, TR.rise, undefined, OUV_PIED, Object.assign({ cap: TR.cap }, TR.foulee || {})); if (t) { M.clips.Pas_Trot = t; M.trotErr = t.userData.err; } M.clips.Pas_Run = legs(M.clips.Running, 'Pas_Run');
       // (la course pleine refaite comme la petite course — foulée entière, talon et pied en l'air dessinés — : brute, son talon
       // montait à 33-50 cm, visible dès qu'elle se mélange à la petite course)
-      if (RUN_BAKE) { const RB = Object.assign({ s: 1.1, hs: TR.hs }, RUN_BAKE === true ? {} : RUN_BAKE), r = foulee(M, M.clips.Running, 'Pas_Run', RB.s, RB.hs, TR.rise, undefined, OUV_PIED, Object.assign({ cap: TR.cap }, TR.foulee || {}, RB.P || {})); if (r) M.clips.Pas_Run = r; } }
+      if (RUN_BAKE) { const RB = Object.assign({ s: 1.1, hs: TR.hs, P: { pmax: 0.35 } }, RUN_BAKE === true ? {} : RUN_BAKE), r = foulee(M, M.clips.Running, 'Pas_Run', RB.s, RB.hs, TR.rise, undefined, OUV_PIED, Object.assign({ cap: TR.cap }, TR.foulee || {}, RB.P || {})); if (r) M.clips.Pas_Run = r; } }
     // marche en visant (« Pas_Glisse ») : la marche naturelle, bassin abaissé de GLISSE m (genoux fléchis, pieds aux mêmes
     // places) : la marche « glissée » d'un tireur qui progresse arme épaulée (talon-pointe, buste stable), au lieu du pas
     // d'affût très lent de Walk_Fight_Forward ou de la course accroupie de Run_and_Shoot
@@ -1238,7 +1238,7 @@
     if (pv !== null) { while (th - pv > Math.PI) th -= 2 * Math.PI; while (th - pv < -Math.PI) th += 2 * Math.PI; } m[cle] = { th, t: o.t };
     return new THREE.Quaternion().slerp(qs, s).multiply(new THREE.Quaternion().setFromAxisAngle(a0, th * s)).multiply(qA); };
   // place de la main d'appui tournée de a (rad) autour de la verticale de l'arme, centre au milieu de la paume (voir mainChargeur)
-  S.INCL_G = 0.7; S.INCL_EXP = 1; S.PUITS_V = 0.04;
+  S.INCL_G = 0.7; S.INCL_EXP = 1; S.PUITS_V = 0.04; S.DEPART_Q = 0.22;
   const hrelIncl = (D, a) => { if (Math.abs(a) < 1e-4) return D.Hrel; const c = D.paumeLoc;
     return new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeRotationY(a)).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(D.Hrel); };
   // suivi de o[k] vers tgt (dt > 0) : ressort amorti critique (w) avec anticipation de la vitesse de la cible (bornée à vmax : un
@@ -1939,7 +1939,8 @@
           let cib = cible; if (fin > 0) { cib = cible.clone().lerp(sp2, fin); qV.slerp(sq2, fin); }
           // début : la main part de SA PLACE sous le garde-main (et non de la pose de l'animation mêlée à la prise qui s'efface)
           // vers le porte-chargeur, en ~0,7 s (smootherstep : accélération nulle au départ ; avant, 0,3 s et 17 000 °/s²)
-          const xL = Math.max(0, Math.min(1, p / 0.28)), wL = xL * xL * xL * (xL * (xL * 6 - 15) + 10); if (wL < 1) { cib = sp.clone().lerp(cib, wL); qV.copy(chemin(this, 'depart', sq, qV, wL, axM)); }
+          const xL = Math.max(0, Math.min(1, p / 0.28)), wL = xL * xL * xL * (xL * (xL * 6 - 15) + 10); const xQ = Math.max(0, Math.min(1, p / S.DEPART_Q)), wQ = xQ * xQ * xQ * (xQ * (xQ * 6 - 15) + 10);   // (la main se retourne vers le porte-chargeur un peu avant d'y arriver)
+          if (wL < 1) { cib = sp.clone().lerp(cib, wL); qV.copy(chemin(this, 'depart', sq, qV, wQ, axM)); }
           if (this.qMainG && this.t - this.tMainG < 0.2) { const ang = this.qMainG.angleTo(qV), lim = 0.35; if (ang > lim) qV.copy(this.qMainG.clone().slerp(qV, lim / ang)); }
           this.qMainG = qV.clone(); this.tMainG = this.t;
           this.poserBras('L', B.la, B.lf, B.lh, cib, qV, 1, Dl); }
@@ -1970,7 +1971,7 @@
         if (prev === null) for (let x = -2.4; x <= 2.4; x += 0.2) { const cx = cout(x); if (cx < cb) { cb = cx; ph = x; } }
         for (const st of [0.08, 0.03, 0.01]) for (const sg of [-1, 1]) { let n = 0; while (n++ < 40 && cout(ph + sg * st) < cb) { ph += sg * st; cb = cout(ph); } }
         if (prev !== null) { let gp = ph, gc = cb; for (let x = -2.4; x <= 2.4; x += 0.4) { const cx = cout(x); if (cx < gc) { gc = cx; gp = x; } } if (gc < cb - 0.25) ph = gp; }   // (bien meilleur ailleurs : on y va, à vitesse limitée)
-        if (prev !== null) { const lim = Math.max(0.03, (S.COUDE_V || 4) * (this.t - sw[h].t)); ph = prev + Math.max(-lim, Math.min(lim, ph - prev)); }   // (≤ 4 rad/s)
+        if (prev !== null) { const lim = Math.max(0.03, (RECHARGE[this.clip] ? 8 : 4) * (this.t - sw[h].t)); ph = prev + Math.max(-lim, Math.min(lim, ph - prev)); }   // (≤ 4 rad/s ; 8 en rechargement : poignet moins cassé à la reprise du garde-main)
         sw[h] = { ph, t: this.t };
         const E1 = coude(ph * k);
         turn(arm, E0.clone().sub(S0), E1.clone().sub(S0)); const E2 = WP(fore); turn(fore, WP(hand).sub(E2), T.clone().sub(E2));
