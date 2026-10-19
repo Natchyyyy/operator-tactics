@@ -6729,23 +6729,89 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // dos : part du mouvement de la colonne de la course ajoutée à la garde basse (Trot_Low)
   // marche en visant : bassin abaissé (m) par rapport à la marche naturelle
   const GLISSE = 0.03;
+  // marche en visant (Pas_Glisse) : foulée × s, cheville levée au plus ~cap (m), demi-écart des chevilles larg (m), bassin
+  // abaissé de bas (m), part gardée du rebond du bassin ; vol : pied en l'air dessiné (voir foulee() : talon ≤ 11 cm au lieu
+  // de 25, pointe ≤ 17° vers le bas, semelle à 2,5 cm du sol au moins) ; bas 0,02 (et non 0,06) : genou ~25° à la pose (44°)
+  // marche glissée jouée vite (1,25 → 1,75 m/s) : chaque cheville rapprochée de d (m) du milieu (base 36 → ~22 cm, comme en course)
+  const GLISSE_SERRE = { v0: 1.25, v1: 1.75, d: 0.07 };
+  // (larg 0,19 : base vue de face 36 cm, vidéo 28-38 ; genouOut 0,2 rad : genoux un peu vers l'extérieur, au-dessus des pieds —
+  // de face les genouillères se frôlaient au passage de la jambe)
+  const GLISSE_P = { s: 0.85, cap: 0.07, larg: 0.19, genouOut: 0.2, bas: 0.02, bob: 0.35, vol: { h0: 0.01, h1: 0.04, tb: 0.3, tf: -0.12, zb: -0.25, zf: 0.2, clr: 0.025 } };
   // visée debout : flexion des genoux visée (rad)
   const GENOUX_VISEE = 0.38;
   // écart moyen des chevilles en marche (m)
   const ECART_PAS = 0.21;
+  // pas chassé joint lent (voir pasJoint) : cadence (pas/s), m par cycle, base (m), part du cycle en l'air par pas, levée (m),
+  // bassin abaissé (m), rebond (m), pointes ouvertes [gauche, droite] (rad), pied gauche en avant / droit en arrière (m) ;
+  // v0 → v1 (m/s) : passage au pas chassé hanches tournées
+  const PAS = { actif: true, cad: 2.5, D: 0.5, base: 0.26, vol: 0.36, lev: 0.05, bas: 0.04, bob: 0.01, lacet: [0.1, 0.1], decal: 0.05, v0: 0.7, v1: 0.8 };
+  // pas chassé refait (voir pasChasse) : bassin ramené vers la cible (rad), lacet max des pieds (rad), garde au sol des pieds
+  // qui bougent (m), part gardée du rebond du bassin, bassin remonté (m)
+  // (ancre : appuis tenus fixes, voir ancrer() ; libre : sans la borne de cheville par rapport au tibia — le tibia penché de côté
+  // faisait rouler la botte sur sa tranche et la remettait dans le sens du pas, -56°)
+  const CHASSE = { actif: true, bassin: 0.2, lacet: 0.6, clr: 0.04, bob: 0.4, haut: 0, libre: true, ancre: true };
+  // verrou des pieds : durées de prise et de lâcher (s)
+  const REECRIT = root.REECRIT_TEST ?? true;   // mixer : réécrire chaque os animé à chaque image (voir update)
+  const GB_PAS = root.GB_PAS_TEST ?? true;
+  const PIN_POSE = root.PIN_POSE_TEST ?? true;
+  const POSE_ANTICIPE = root.POSE_ANTICIPE_TEST ?? true;
+  const REPAS_ARRET = root.REPAS_ARRET_TEST ?? true;
+  const REPRISE = root.REPRISE_TEST ?? true;
+  const RUN_BAKE = root.RUN_BAKE_TEST ?? true;
+  const COURSE_BAKE = root.COURSE_BAKE_TEST ?? true;   // course épaulée (Pas_Avant_Course) refaite par foulee   // course pleine (Pas_Run) refaite par foulee (voir directions)
+  const PIVOT_PLANTE = root.PIVOT_PLANTE_TEST ?? true;
+  const REPAS_DERIVE = root.REPAS_DERIVE_TEST ?? true;
+  const ORDRE_TOUR = root.ORDRE_TOUR_TEST ?? true;
+  // (tw : écart max — rad — où l'on tourne d'abord le bassin ; k : part de la torsion permise ; mesuré, 1,66 m/s visée 20-30° à
+  // gauche : 210-215 → 171-187 pas/min, torsion 48-57°)
+  const CAD_MAX = root.CAD_MAX_TEST ?? 210;   // cadence plafonnée des mélanges riches en pas chassé (pas/min ; 0 : aucune) — voir marche ; mesuré : diagonale visée 2 m/s 260 → 210 ; à 190-200, patinage du pied droit 0,12-0,14 m/s
+  const TORS_PART = root.TORS_PART_TEST === false ? null : Object.assign({ tw: 1.0, k: 0.9 }, root.TORS_PART_TEST || {});   // marche visée de biais : bassin tourné jusqu'à la torsion permise, puis mélange (voir marche)
+  // filtre (1/s) de la cible de torsion des jambes à l'arrêt ; 0 : aucun (essai à 12 : à-coup du bassin au pivot 4 200 → 2 600,
+  // mais glissement par appui 7 → 8 cm : les pieds relâchés suivent un bassin en retard ; écarté)
+  const JAMBES_FILTRE = root.JAMBES_FILTRE_TEST ?? 0;   // au quart de tour, le pied du côté du tour part le premier   // nouveaux pas si le bassin a tourné au-dessus des pieds cloués (voir poserPieds)
+  // (essai, désactivé : bassin plus vif pendant les pas de pose ; mesuré : pied / bassin −2°, à-coup du bassin ×1,7)
+  const JAMBES_POSE = root.JAMBES_POSE_TEST ? Object.assign({ vj: 6, st: 0.13 }, root.JAMBES_POSE_TEST) : null;   // torsion des jambes pendant les pas de pose (rad/s, s)
+  const PIV_P = Object.assign({ lim: 0.7, w: 8, hanche: 1.0 }, root.PIV_P_TEST || {});   // (écart toléré, rad ; vitesse de pivot max, rad/s ; hanche : écart au-delà duquel le pied tourne autour du bassin, rad)   // pied en attente qui pivote sur la plante au quart de tour (voir poserPieds)   // marche qui reprend la couche de jambes du rechargement (voir marche)   // replacement des pieds permis pendant les pas d'arrêt (voir repas)   // pas de pose visant la place finale du pied (voir poserPieds)
+  // garde basse (« low ready ») : av / ar = pied gauche avancé / pied droit reculé (m), hf = bassin vers l'avant (m), hy = bassin
+  // (m), bl = bassin de trois quarts (°, hanche gauche en avant)
+  // (mesuré, deux modèles : bassin et épaules à 21°, chevilles à 37 cm de large, pied droit 17 cm derrière et ouvert de 30-40°,
+  // genoux à 13°, bassin 9-10 cm devant le milieu des chevilles — sur le milieu des pieds)
+  const LOWR = Object.assign({ av: 0.05, ar: 0.12, hf: 0.04, hy: 0.005, bl: 22 }, root.LOWR_TEST || {});
+  const DORSI_MAX = (root.DORSI_MAX_TEST ?? 36) * Math.PI / 180;
+  const PLANT_MAX = (root.PLANT_MAX_TEST ?? 28) * Math.PI / 180;   // butée de flexion plantaire d'un pied en l'air (voir cheville)   // butée de flexion dorsale d'un pied en l'air (voir cheville)
+  const APPUI_POSE = root.APPUI_POSE_TEST ?? true;   // pied reposé cloué jusqu'à la fin de la pose (voir poserPieds)   // pied avancé de la garde basse porté par le pas de pose (voir appui)
+  const VERROU = Object.assign({ prise: 0.09, lache: 0.16 }, root.VERROU_TEST || {});
+  // pied qui bouge = pied levé (voir decolle()) : hauteur de semelle visée (m), vitesses (m/s) de début / pleine levée, temps (s)
+  // (réponse 0,025 s et non 0,06 : au premier image d'un lâcher de verrou, ou à l'approche de la pose en petite course de côté,
+  // le pied partait / arrivait à 3-5 m/s encore au ras du sol — patinage 0,37-0,42 → 0,09-0,10 en course latérale)
+  const DECOLLE = Object.assign({ h: 0.035, h2: 0.045, v0: 0.4, v1: 1.2, t: 0.025 }, root.DECOLLE_TEST || {});
+  // marche de patrouille (Pas_Avant_Low) refaite par foulee() — null : l'ancienne (marche de la bibliothèque resserrée)
+  // (talon 30-32 → 17-19 cm, vidéo / réglement ≤ 25 ; rebond 6,7 → 5 cm ; base 20 cm comme l'ancienne marche resserrée)
+  const PATROUILLE = { cap: 0.12, larg: 0.105, bob: 0.75, vol: { h0: 0.02, h1: 0.05, tb: 0.35, tf: -0.12, zb: -0.25, zf: 0.2, clr: 0.03 } };
   // recul : foulée de la marche arrière allongée (rapport)
   const RECUL = 1.45;
   // ouverture des pieds en marche / course (rad, pointe vers l'extérieur ; réel : 5 à 10°)
   const OUV_PIED = 0.12;
-  // plan du genou (IK des jambes) : écart max à l'avant anatomique vers l'extérieur / l'intérieur (rad)
-  const GENOU_OUT = 1.0, GENOU_IN = 0.45;
+  // pied en l'air : écart max de la cheville à sa pose de repos (rad) ; pli max des orteils au déroulé (rad)
+  const CHEVILLE_MAX = 0.5, ORTEIL_MAX = 0.6;
+  // plan du genou (IK des jambes) : écart max à l'avant anatomique vers l'extérieur / l'intérieur (rad) ; vers l'intérieur 0,15
+  // (et non 0,45) : genoux en X de 15 à 28° mesurés en appui (valgus) dans la marche visée, la course et les pas chassés → ≤ 11°
+  const GENOU_OUT = 1.0, GENOU_IN = root.GENOU_IN_TEST !== undefined ? root.GENOU_IN_TEST : 0.15;
   // à genou : hauteur du genou arrière posé (os, m), de sa cheville (pointe du pied au sol), cheville du pied avant à plat
   const GENOU = { genou: 0.075, cheville: 0.13, chevilleAv: 0.15, baisse: 0.035 };   // baisse : bassin abaissé (m) pour que le genou arrière touche le sol
-  const TROT = { s: 0.38, hs: 0.5, rise: 0.5, dos: 0.45, kp: 0.55 };   // kp : part gardée de la cambrure du pied
+  // (cap 0,13 et pied en l'air dessiné — vol, voir foulee() — : talon 33 → 21-23 cm, vidéo réelle ≤ 25 ; foulée 0,47 et non 0,38 :
+  // cadence 173-200 pas/min à 2,1-2,4 m/s au lieu de 180-204, foulée un peu plus longue comme un vrai petit trot)
+  const TROT = { cap: 0.13, s: 0.47, hs: 0.6, rise: 0.5, dos: 0.45, kp: 0.55, foulee: { vol: { h0: 0.05, h1: 0.09, tb: 0.4, tf: -0.15, zb: -0.3, zf: 0.25, clr: 0.03 } } };   // kp : part gardée de la cambrure du pied
   // posture de tir : poitrine (Spine2) à PENCHE m en avant du bas du dos (Spine), dans la direction de visée
   const PENCHE = 0.21;
+  S.VIS_W = 14; S.VIS_A = 45;   // suivi de la direction de visée (poseArme) : pulsation (rad/s), accélération max (rad/s²)
+  S.PENCHE_ARRET = 0.26;   // visée à l'arrêt : cible de la penche (rad, repère de penche() ; 0,44 quand la penche était répartie sur trois os)
+  S.PENCHE_EP = 0.5;   // direction de la penche (0,3 → 0,5 : roulis du buste 6-8° → 4-6°) : part de la normale des épaules (le reste : axe de visée)
   // visée : angle (rad) entre la ligne des épaules et la face (0 = carré, ~1,3 = de profil comme les visées Mixamo), voir penche()
-  const BIAIS = 0.5;   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
+  const BIAIS = 0.5;
+  // (par modèle : épaules du « soldat » plus larges — un peu plus de face, la crosse vient dans le creux de l'épaule : 6,9 → 5,8 cm)
+  S.BIAIS_M = { soldat: 0.4 };
+  const COURSE_BAS = { Trot_Low_Haut: 1, Run_Low_Haut: 1, Run_Low: 1 };   // (rad : inclinaison bassin → cou vers l'avant, dans le plan du corps)
   // visée à l'arrêt : rotation du bassin et des jambes vers la cible (rad), voir update()
   const CARRE = 0.61;
   // tangage voulu du canon dans les poses épaulées (rad ; légèrement vers le bas : la cible est à hauteur de poitrine)
@@ -6770,10 +6836,15 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // (repère de l'arme : centre de la fenêtre du viseur point rouge) ; garde basse construite (rad : canon vers le bas, vers la
   // gauche ; m : crosse sous / devant le creux de l'épaule)
   const VISEE_HAUT = 1.3;   // hauteur visée sur la cible (m au-dessus de ses pieds : poitrine d'un homme debout)
-  const OEIL = { haut: 0.095, avant: 0.085, cote: 0.032 }, VISEE_OPTIQUE = [0, 0.145, -0.03], GARDE = { pique: 0.7, dedans: 0.42, bas: 0.0, avant: 0, recul: 0.045 };
+  const OEIL = { haut: 0.095, avant: 0.085, cote: 0.032 }, VISEE_OPTIQUE = [0, 0.145, -0.03], GARDE = { pique: 0.7, dedans: 0.42, bas: 0.0, avant: 0, recul: 0 };
   // creux de l'épaule de la garde basse (m, par rapport à l'articulation de l'épaule : vers le centre, l'avant, le bas)
   const POCHE = { dedans: 0.06, avant: 0.05, bas: 0.05 };
+  // poche de rechargement (m, par rapport à Spine2 : devant, dessous, vers la droite) : poignée du fusil pendant le rechargement
+  const RECH = { avant: 0.3, bas: 0.12, lat: 0.04, lacet: 0.26, pique: 0.35, roulis: 0.45, pAvant: 0.17, pBas: 0.3, pLat: 0.06 }; S.RECH = RECH;   // (p… : porte-chargeur du gilet, main gauche)
   S.OEIL = OEIL; S.GARDE = GARDE;
+  // (PORTEE_G : bras d'appui tendu jusqu'à cette part de sa longueur avant que le fusil ne soit rapproché — 0,97 bloquait le coude
+  // à 152° ; PROTRACTION_G : l'épaule d'appui avance vers le garde-main de cette distance, m)
+  const AVANCE_APPUI = 0.06; S.AVANCE_APPUI = AVANCE_APPUI; S.PORTEE_G = 0.995; S.PROTRACTION_G = 0.03;   // visée : main d'appui avancée sur le garde-main (m) ; 0 : les bras du modèle sont déjà tendus (plus loin, le fusil recule vers l'œil)
   S.CREUX = CREUX;
   function b64ToBuf(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
   // Repère de paume : un point fixe dans chaque main, à la base des doigts (les doigts eux-mêmes sont posés par calculerPrise).
@@ -6999,6 +7070,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // devenait l'arrière et le genou de la jambe arrière pliait à l'envers (patte d'oiseau). Si le genou est presque tendu, son
   // plan est celui de l'avant du bassin ; s'il plie nettement vers l'arrière, il est retourné dans son plan ; s'il pointe sur
   // le côté (ni avant ni arrière), on le laisse.
+  let biaisGenou = 0;
   function planGenou(p, dir, lat, mini, cote) {
     // avant anatomique du genou dans le plan ⟂ à l'axe : f = dir × lat (jambe verticale : l'avant du bassin ; cuisse levée
     // à l'horizontale : le haut) ; g = côté gauche. Le genou est gardé dans le demi-espace avant : au plus GENOU_OUT vers
@@ -7007,7 +7079,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const f = new THREE.Vector3().crossVectors(dir, lat); if (f.lengthSq() < 1e-10) return p.lengthSq() > 1e-10 ? p.normalize() : p.set(0, 0, 1);
     f.normalize(); const g = new THREE.Vector3().crossVectors(f, dir).normalize(), pl = p.length();
     if (pl < mini) p.addScaledVector(f, mini - pl);
-    let th = Math.atan2(p.dot(g), p.dot(f)) * cote; th = Math.max(-GENOU_IN, Math.min(GENOU_OUT, th)) * cote;
+    // (limite douce : au-delà de 60 % de la borne, l'angle s'en approche sans l'atteindre — pas de cassure de vitesse du genou)
+    const doux = (x, lim) => { const a = 0.6 * lim; return x <= a ? x : a + (lim - a) * Math.tanh((x - a) / (lim - a)); };
+    let th = Math.atan2(p.dot(g), p.dot(f)) * cote + biaisGenou; th = (th >= 0 ? doux(th, GENOU_OUT) : -doux(-th, GENOU_IN)) * cote;   // (biaisGenou : genoux tournés un peu vers l'extérieur, cuisson de la marche visée)
     return p.copy(f).multiplyScalar(Math.cos(th)).addScaledVector(g, Math.sin(th));
   }
   // IK des jambes cuite dans un clip (30 clés/s) : pour chaque image, cible(i, H, A, Aq) donne la position monde voulue de
@@ -7015,7 +7089,19 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // modèle). Genou dans son plan, pied gardant son orientation monde. Renvoie le nouveau clip (jambes seules) et l'erreur max.
   // ouv (rad, facultatif) : orientation des pieds (axe talon → plante du maillage) ramenée à ouv vers l'extérieur du sens de la
   // marche (+Z du modèle) : les cycles posaient le pied pointe en dedans de 15 à 33° (mesuré, « pieds de pigeon »)
-  function jambesIK(M, src, nom, cible, dyH, libre, ouv) {   // libre : pas de règle sur le plan du genou (à genou)
+  // Pose de repos des pieds (garde basse) : rotations locales cheville (par rapport au tibia) et orteils (par rapport au pied),
+  // hauteur des os des orteils au sol ; référence des contraintes de cheville / d'orteils de jambesIK
+  function reposPieds(M) {
+    if (M._rp) return M._rp;
+    const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n), gb = M.clips.Garde_Basse; if (!gb) return null;
+    const mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true);
+    const F = ['LeftFoot', 'RightFoot'].map(b), T = ['LeftToeBase', 'RightToeBase'].map(b), E = ['LeftToe_End', 'RightToe_End'].map(b);
+    M._rp = { pied: F.map(o => o.quaternion.clone()), orteil: T.map(o => o.quaternion.clone()), tR: Math.min(...T.map(o => o.getWorldPosition(new THREE.Vector3()).y)), bout: !!(E[0] && E[1]) };
+    // (bout et talon de la semelle au repos : le bout de la botte reste au sol au déroulé, voir jambesIK)
+    if (M.semelle) { M._rp.pointeR = [0, 1].map(j => M.semelle[j].bout.clone().applyMatrix4(T[j].matrixWorld).y); M._rp.talonR = [0, 1].map(j => M.semelle[j].talon.clone().applyMatrix4(F[j].matrixWorld).y); }
+    mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true); return M._rp;
+  }
+  function jambesIK(M, src, nom, cible, dyH, libre, ouv, lacetH) {   // libre : pas de règle sur le plan du genou (à genou) ; lacetH(i) : bassin tourné (rad, verticale)
     const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
     const hips = b('Hips'), L = [['LeftUpLeg', 'LeftLeg', 'LeftFoot'], ['RightUpLeg', 'RightLeg', 'RightFoot']].map(l => l.map(b)), toes = [b('LeftToeBase'), b('RightToeBase')];
     if (!hips || L.some(l => l.some(x => !x)) || !toes[0] || !toes[1]) return null;
@@ -7023,9 +7109,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const clip = new THREE.AnimationClip(nom, src.duration, src.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone()));
     const mixer = new THREE.AnimationMixer(sc), act = mixer.clipAction(clip); act.play();
     const N = Math.max(4, Math.round(clip.duration * 30)), dur = clip.duration;
-    const tous = [hips].concat(L[0], L[1]), sauve = tous.map(o => [o.quaternion.clone(), o.position.clone()]);
+    const tous = [hips].concat(L[0], L[1], toes), sauve = tous.map(o => [o.quaternion.clone(), o.position.clone()]);
+    const RP = reposPieds(M), bouts = [b('LeftToe_End'), b('RightToe_End')], kR = RAW_H / HEIGHT, UP = new THREE.Vector3(0, 1, 0);
     const turn = (bone, from, to) => { const dq = new THREE.Quaternion().setFromUnitVectors(from.normalize(), to.normalize()); bone.quaternion.copy(WQ(bone.parent).invert().multiply(dq.multiply(WQ(bone)))); bone.updateMatrixWorld(true); };
-    const times = [], hp = [], qs = L.map(l => l.map(() => [])); let err = 0;
+    const times = [], hp = [], hq = [], qs = L.map(l => l.map(() => [])), qt = [[], []]; let err = 0;
     for (let i = 0; i <= N; i++) {
       tous.forEach((o, j) => { o.quaternion.copy(sauve[j][0]); o.position.copy(sauve[j][1]); });
       mixer.setTime(i < N ? i / N * dur : 0); sc.updateMatrixWorld(true);
@@ -7033,6 +7120,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const H = W(hips), A = L.map(l => W(l[2])), Aq = L.map(l => WQ(l[2])), T = cible(i % N, H, A, Aq), dy = dyH ? dyH(i % N) : 0;
       if (ouv !== undefined && M.semelle) Aq.forEach((q, j) => { const ax = M.semelle[j].axe.clone().applyQuaternion(q); if (Math.hypot(ax.x, ax.z) < 1e-5) return; const yw = Math.atan2(ax.x, ax.z), d = (j ? -ouv : ouv) - yw; Aq[j] = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), d).multiply(q); });
       if (dy) { const p0 = hips.parent.worldToLocal(H.clone()), p1 = hips.parent.worldToLocal(H.clone().add(new THREE.Vector3(0, dy, 0))); hips.position.add(p1.sub(p0)); hips.updateMatrixWorld(true); }
+      { const ly = lacetH ? lacetH(i % N) : 0; if (ly) { const qp = WQ(hips.parent); hips.quaternion.premultiply(qp.clone().invert().multiply(new THREE.Quaternion().setFromAxisAngle(UP, ly)).multiply(qp)); hips.updateMatrixWorld(true); } }
       L.forEach(([up, lo, ft], j) => {
         const Tj = T[j], S0 = W(up), E0 = W(lo), a = S0.distanceTo(E0), bb = E0.distanceTo(W(ft));
         // (genou jamais tendu à fond — flexion ≥ ~9° — et toujours plié vers l'avant, du côté des orteils : les cycles de la
@@ -7045,13 +7133,33 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         turn(up, E0.clone().sub(S0), E1.sub(S0)); const E2 = W(lo); turn(lo, W(ft).sub(E2), Tj.clone().sub(E2));
         ft.quaternion.copy(WQ(ft.parent).invert().multiply(Aq[j])); ft.updateMatrixWorld(true);
         err = Math.max(err, W(ft).distanceTo(Tj));
+        if (RP) {
+          // cheville : pied en l'air jamais « cassé » (pointe à la verticale, pied replié) : au plus CHEVILLE_MAX de sa pose de
+          // repos par rapport au tibia, la limite se relâchant en douceur quand le pied approche du sol (il doit s'y poser)
+          const hT = W(toes[j]).y - RP.tR, wA = Math.max(0, Math.min(1, (hT - 0.02 * kR) / (0.06 * kR))), lim = CHEVILLE_MAX + (1 - wA * wA * (3 - 2 * wA)) * Math.PI;
+          if (!libre) { const d = RP.pied[j].clone().invert().multiply(ft.quaternion), ang = 2 * Math.acos(Math.min(1, Math.abs(d.w))); if (ang > lim) { ft.quaternion.copy(RP.pied[j].clone().slerp(ft.quaternion, lim / ang)); ft.updateMatrixWorld(true); } }
+          // orteils : une botte est rigide. Pose de repos (droits) ; ils ne plient qu'au déroulé (talon levé, pointe au sol) :
+          // assez pour que le bout reste au sol, ORTEIL_MAX au plus. (L'animation les relevait pied à plat : « bottes de lutin »)
+          const to = toes[j]; to.quaternion.copy(RP.orteil[j]); to.updateMatrixWorld(true);
+          // (bout de la botte = point de semelle mesuré sur le maillage (semelle()) : sur « gign » l'os Toe_End est à côté de ToeBase,
+          // pas devant ; pli juste suffisant pour que ce bout ne passe pas sous le sol, seulement talon levé — déroulé)
+          if (RP.pointeR && M.semelle) { const jt = W(to), tip = M.semelle[j].bout.clone().applyMatrix4(to.matrixWorld), v = tip.clone().sub(jt), len = v.length(), h = Math.hypot(v.x, v.z);
+            const lev = (M.semelle[j].talon.clone().applyMatrix4(ft.matrixWorld).y - tip.y) - (RP.talonR[j] - RP.pointeR[j]), wl = Math.max(0, Math.min(1, (lev - 0.005 * kR) / (0.015 * kR)));
+            if (tip.y < RP.pointeR[j] && h > 1e-5 && len > 1e-5 && wl > 0) { const th = Math.min(libre ? 1.05 : ORTEIL_MAX, Math.max(0, Math.atan2(-v.y, h) - Math.asin(Math.max(-1, Math.min(1, (jt.y - RP.pointeR[j]) / len))))) * wl, ax = new THREE.Vector3().crossVectors(v, UP).normalize();
+              to.quaternion.copy(WQ(to.parent).invert().multiply(new THREE.Quaternion().setFromAxisAngle(ax, th)).multiply(WQ(to))); to.updateMatrixWorld(true); } }
+          else if (RP.bout && bouts[j]) { const v = W(bouts[j]).sub(W(to)), hb = W(to).y - RP.tR, h = Math.hypot(v.x, v.z);
+            if (v.y < 0 && h > 1e-5 && hb < 0.05 * kR) { const th = Math.min(libre ? 1.05 : ORTEIL_MAX, Math.atan2(-v.y, h)) * Math.max(0, Math.min(1, 1 - hb / (0.05 * kR))), ax = new THREE.Vector3().crossVectors(v, UP).normalize();
+              to.quaternion.copy(WQ(to.parent).invert().multiply(new THREE.Quaternion().setFromAxisAngle(ax, th)).multiply(WQ(to))); to.updateMatrixWorld(true); } }
+        }
       });
-      times.push(i / N * dur); hp.push(...hips.position.toArray()); L.forEach((l, j) => l.forEach((o, k) => qs[j][k].push(...o.quaternion.toArray())));
+      times.push(i / N * dur); hp.push(...hips.position.toArray()); hq.push(...hips.quaternion.toArray()); L.forEach((l, j) => l.forEach((o, k) => qs[j][k].push(...o.quaternion.toArray()))); toes.forEach((o, j) => qt[j].push(...o.quaternion.toArray()));
     }
     tous.forEach((o, j) => { o.quaternion.copy(sauve[j][0]); o.position.copy(sauve[j][1]); });
     mixer.stopAllAction(); mixer.uncacheRoot(sc); sc.updateMatrixWorld(true);
     const nm = (o) => THREE.PropertyBinding.sanitizeNodeName(o.name), neuves = [new THREE.VectorKeyframeTrack(nm(hips) + '.position', times, hp)];
     L.forEach((l, j) => l.forEach((o, k) => neuves.push(new THREE.QuaternionKeyframeTrack(nm(o) + '.quaternion', times, qs[j][k]))));
+    if (RP) toes.forEach((o, j) => neuves.push(new THREE.QuaternionKeyframeTrack(nm(o) + '.quaternion', times, qt[j])));
+    if (lacetH) neuves.push(new THREE.QuaternionKeyframeTrack(nm(hips) + '.quaternion', times, hq));   // (bassin tourné : sa rotation fait partie du cycle)
     const noms = new Set(neuves.map(t => t.name));
     clip.tracks = clip.tracks.filter(t => !noms.has(t.name)).concat(neuves); clip.resetDuration(); clip.duration = dur;
     clip.userData = { err: err * HEIGHT / RAW_H }; return clip;
@@ -7061,15 +7169,25 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // position moyenne), pieds levés moins haut (× hs) et bassin un peu remonté (jambes moins écartées → moins fléchies).
   // Même cadence que la course : vitesse naturelle ≈ s × 4,6 m/s. Droit, souple, pieds dans l'axe : un trot de patrouille,
   // pas la course accroupie « au fusil » (Run_and_Shoot) qui faisait un petit trottinement de crabe sans ennemi en vue.
-  function foulee(M, src, nom, s, hs, rise, kp0, ouv) {
+  // P (facultatif) : cap (m : hauteur des chevilles au-dessus de leur plus bas plafonnée en douceur — pied d'appel bas),
+  // larg (m : demi-écart moyen visé des chevilles), bas (m : bassin abaissé, genoux fléchis), bob (part gardée du rebond
+  // vertical du bassin)
+  function foulee(M, src, nom, s, hs, rise, kp0, ouv, P) {
+    P = P || {};
     const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n), hips = b('Hips'), F = [b('LeftFoot'), b('RightFoot')];
     if (!src || !hips || !F[0] || !F[1]) return null;
     const mixer = new THREE.AnimationMixer(sc); mixer.clipAction(src).play();
     const N = Math.max(4, Math.round(src.duration * 30)), W = (o) => o.getWorldPosition(new THREE.Vector3());
-    let gy = 1e9, mz = 0; const ech = [];
-    for (let i = 0; i < N; i++) { mixer.setTime(i / N * src.duration); sc.updateMatrixWorld(true); const H = W(hips), A = F.map(W); ech.push([H, A]); A.forEach(a => { gy = Math.min(gy, a.y); mz += (a.z - H.z) / (2 * N); }); }
+    let gy = 1e9, mz = 0, hy = 0; const ech = [], mx = [0, 0];
+    for (let i = 0; i < N; i++) { mixer.setTime(i / N * src.duration); sc.updateMatrixWorld(true); const H = W(hips), A = F.map(W); ech.push([H, A]); hy += H.y / N; A.forEach((a, j) => { gy = Math.min(gy, a.y); mz += (a.z - H.z) / (2 * N); mx[j] += (a.x - H.x) / N; }); }
     mixer.stopAllAction(); mixer.uncacheRoot(sc); sc.updateMatrixWorld(true);
-    const cib = (H, a) => new THREE.Vector3(a.x, gy + (a.y - gy) * hs, H.z + mz + s * (a.z - H.z - mz));
+    const kk = RAW_H / HEIGHT, capK = P.cap ? P.cap * kk : 0;
+    // (P.arr, P.zArr : pied « glissé » — tant que la cheville est derrière le bassin (zArr[0] → zArr[1], m), elle ne monte que
+    // de la part arr du plafond : à la poussée le pied quitte le sol en rasant au lieu de rester sur la pointe pendant que la
+    // jambe arrière se lève, tibia couché à ~70° et talon à 25 cm ; il ne monte qu'en passant sous le bassin)
+    const cib = (H, a, j) => { const hh = (a.y - gy) * hs, x = P.larg && j !== undefined ? a.x - mx[j] + Math.sign(mx[j]) * P.larg * kk : a.x, z = mz + s * (a.z - H.z - mz);
+      let cj = capK; if (capK && P.arr !== undefined) { const Z = P.zArr || [-0.28, -0.02], u = Math.max(0, Math.min(1, (z / kk - Z[0]) / (Z[1] - Z[0]))); cj = capK * (P.arr + (1 - P.arr) * u * u * (3 - 2 * u)); }
+      return new THREE.Vector3(x, gy + (cj ? cj * Math.tanh(hh / cj) : hh), H.z + z); };
     // montée du bassin : longueur bassin → cheville d'appui conservée en moyenne (part « rise »)
     let mont = 0; for (const [H, A] of ech) { const j = A[0].y < A[1].y ? 0 : 1, d0 = H.distanceTo(A[j]), h0 = Math.hypot(A[j].x - H.x, A[j].z - H.z), t = cib(H, A[j]), h1 = Math.hypot(t.x - H.x, t.z - H.z); mont += (Math.sqrt(Math.max(0, d0 * d0 - h1 * h1)) - Math.sqrt(Math.max(0, d0 * d0 - h0 * h0))) / N; }
     const dy = mont * rise;
@@ -7078,14 +7196,51 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const toes = [b('LeftToeBase'), b('RightToeBase')], gb = M.clips.Garde_Basse; let p0 = 0.6, tR = null;
     if (gb && toes[0]) { const mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true); const f = W(toes[0]).sub(W(F[0])); p0 = Math.atan2(-f.y, Math.hypot(f.x, f.z)); tR = Math.min(W(toes[0]).y, W(toes[1]).y); mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true); }
     const kp = kp0 !== undefined ? kp0 : TROT.kp, up = new THREE.Vector3(0, 1, 0), k = RAW_H / HEIGHT;
-    return jambesIK(M, src, nom, (i, H, A, Aq) => {
-      const H0 = H.clone(), out = A.map(a => cib(H0, a)), fr = [null, null];
-      if (toes[0] && toes[1]) A.forEach((a, j) => { const f = W(toes[j]).sub(a), h = Math.hypot(f.x, f.z), len = f.length(); if (h < 1e-4) return; const p = Math.atan2(-f.y, h), np = kp < 1 ? p0 + (p - p0) * kp : p;
-        const fh = new THREE.Vector3(f.x / h, 0, f.z / h), f1 = fh.clone().multiplyScalar(Math.cos(np)).addScaledVector(up, -Math.sin(np)); Aq[j] = new THREE.Quaternion().setFromUnitVectors(f.clone().normalize(), f1).multiply(Aq[j]); fr[j] = f1.multiplyScalar(len); });
+    // P.vol (pied en l'air « dessiné », marche glissée) : en oscillation, l'orientation du pied n'est plus celle de l'animation
+    // (pointe à la verticale à la poussée, talon à 25 cm) mais la pose de repos inclinée de th : pointe un peu basse quand la
+    // cheville est derrière le bassin (tb), légèrement relevée avant la pose du talon (tf) ; mélangée selon la hauteur de la
+    // cheville (h0 → h1, m), avec une garde au sol minimale de la semelle (clr, m) : le pied ne racle pas, ne pointe pas.
+    let RV = null;
+    if (P.vol && gb && M.semelle && toes[0] && toes[1]) { const mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true);
+      RV = [0, 1].map(j => { const ft = F[j], to = toes[j], S = M.semelle[j], A0 = W(ft), q = ft.getWorldQuaternion(new THREE.Quaternion()), qi = q.clone().invert();
+        const pw = [S.talon.clone().applyMatrix4(ft.matrixWorld), S.bout.clone().applyMatrix4(to.matrixWorld), S.plante.clone().applyMatrix4(to.matrixWorld)].concat((S.pts || []).map(o => o.p.clone().applyMatrix4(o.o ? to.matrixWorld : ft.matrixWorld)));
+        return { q, sol: Math.min(...pw.map(p => p.y)), pts: pw.map(p => p.sub(A0).applyQuaternion(qi)), tv: W(to).sub(A0).applyQuaternion(qi) }; });
+      mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true); }
+    // (vitesse d'appui : recul moyen du pied le plus bas par rapport au bassin, sur 2 images, foulée réduite comprise)
+    const zr = (n, j) => ech[(n + N) % N][1][j].z - ech[(n + N) % N][0].z;
+    let vSt = 0, nSt = 0; for (let n = 0; n < N; n++) { const A = ech[n][1], j = A[0].y < A[1].y ? 0 : 1; vSt -= s * (zr(n + 1, j) - zr(n - 1, j)); nSt++; } const sgV = vSt < 0 ? -1 : 1; vSt = Math.max(1e-4, Math.abs(vSt / nSt));   // (sgV < 0 : cycle qui recule)
+    // P.ancre : appuis tenus fixes dans le monde (voir ancrer) ; vitesse d'appui = celle du pied qui recule le plus (en z)
+    let AN = null, vA = vSt;
+    if (P.ancre) { const tg = ech.map(([H, A]) => A.map((a, j) => cib(H, a, j).sub(H))), rel = (n, j) => tg[(n + N) % N][j];
+      // (vitesse d'appui : pied qui recule le plus ET posé — en course, pendant la phase de vol aucun pied n'est en appui)
+      let nv = 0; vA = 0; for (let n = 0; n < N; n++) { const d = [0, 1].map(j => rel(n + 1, j).z - rel(n - 1, j).z), j = d[0] < d[1] ? 0 : 1; if (ech[n][1][j].y < gy + 0.025 * kk) { vA -= d[j]; nv++; } } vA = Math.max(1e-4, nv ? vA / nv : vSt);
+      AN = ancrer(rel, N, new THREE.Vector3(0, 0, vA / 2), (n, j) => Math.abs(rel(n + 1, j).z - rel(n - 1, j).z + vA) < 0.6 * vA); }
+    const clipF = jambesIK(M, src, nom, (i, H, A, Aq) => {
+      const H0 = H.clone(), out = A.map((a, j) => cib(H0, a, j)), fr = [null, null];
+      if (AN) out.forEach((o, j) => { o.x = H0.x + AN[i][j].x; o.z = H0.z + AN[i][j].z; });
+      // (tangage mesuré par rapport à l'avant du modèle (+Z) : pied « au-delà de la verticale », pointe en bas ET en arrière à la
+      // poussée — 110° et plus dans la marche — l'ancien atan2(−y, horizontale) le voyait à 70° et ne le corrigeait pas)
+      if (toes[0] && toes[1]) A.forEach((a, j) => { const f = W(toes[j]).sub(a), h = Math.hypot(f.x, f.z), len = f.length(); if (h < 1e-4) return; const sg = f.z < 0 && P.vol ? -1 : 1, p =Math.atan2(-f.y, h * sg), np = Math.min(kp < 1 ? p0 + (p - p0) * kp : p, P.pmax !== undefined ? p0 + P.pmax : 9);   // (pmax : pointe jamais plus basse que pmax rad sous la pose à plat)
+        const fh = new THREE.Vector3(sg * f.x / h, 0, sg * f.z / h), f1 = fh.clone().multiplyScalar(Math.cos(np)).addScaledVector(up, -Math.sin(np)); Aq[j] = new THREE.Quaternion().setFromUnitVectors(f.clone().normalize(), f1).multiply(Aq[j]); fr[j] = f1.multiplyScalar(len); });
+      const wSw = [0, 0];
+      if (RV) A.forEach((a, j) => { const V = P.vol, sm = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+        // (poids : cheville levée, OU pied qui bouge dans le monde — vitesse par rapport au bassin + vitesse d'appui — : un pied qui
+        // avance encore ne touche pas le sol ; sinon, en fin d'oscillation, le talon arrivait en rasant le sol à 1-3 cm pendant
+        // 0,1 s à la vitesse du corps : patinage)
+        const vz = AN ? AN[(i + 1) % N][j].z - AN[(i - 1 + N) % N][j].z + vA : sgV * s * (zr(i + 1, j) - zr(i - 1, j)) + vSt;   // (vitesse dans le monde, comptée dans le sens du déplacement)
+        const w = Math.max(sm(((a.y - gy) / kk - V.h0) / (V.h1 - V.h0)), sm((vz - 0.3 * (AN ? vA : vSt)) / (0.5 * (AN ? vA : vSt)))); wSw[j] = w; if (w <= 0) return;
+        const th = V.tb + (V.tf - V.tb) * sm(((out[j].z - H0.z) / kk - V.zb) / (V.zf - V.zb));
+        Aq[j] = Aq[j].clone().slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), th).multiply(RV[j].q), w);
+        let mn = 1e9; for (const p of RV[j].pts) mn = Math.min(mn, p.clone().applyQuaternion(Aq[j]).y); mn += out[j].y;
+        const need = RV[j].sol + V.clr * kk * w - mn; if (need > 0) out[j].y += need;
+        fr[j] = RV[j].tv.clone().applyQuaternion(Aq[j]); });
       // pied d'appui (le plus bas, près du sol) : sa plante posée au sol (hauteur de repos des orteils) une fois le pied redressé
       if (tR !== null && fr[0] && fr[1]) { const j = out[0].y + fr[0].y < out[1].y + fr[1].y ? 0 : 1, ty = out[j].y + fr[j].y, w = Math.max(0, Math.min(1, 1 - (ty - tR) / (0.08 * k)));
-        if (w > 0) out[j].y += (tR - ty) * w; }
-      return out; }, () => dy, false, ouv);
+        if (w > 0) out[j].y += (tR - ty) * w * (1 - wSw[j]); }   // (sauf un pied en oscillation : il retombait d'une image à l'autre)
+      return out; }, (i) => dy - (P.bas || 0) * kk + (P.bob !== undefined ? (P.bob - 1) * (ech[i][0].y - hy) : 0), false, ouv);
+    // (appuis ancrés : la vitesse naturelle du cycle est exactement celle de l'appui ancré)
+    if (clipF && AN) clipF.userData = Object.assign(clipF.userData || {}, { vitCuite: vA / (2 * src.duration / N) * HEIGHT / RAW_H, dirCuite: 0 });
+    return clipF;
   }
   // Pieds au sol : la plupart des cycles de la bibliothèque « flottent » (la pointe la plus basse du cycle 1 à 6 cm au-dessus
   // du sol, mesuré). On descend (ou remonte) le bassin de tout le clip pour que la pointe la plus basse soit à sa hauteur de
@@ -7101,6 +7256,109 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const tr = clip.tracks.find(t => /Hips\.position$/.test(t.name)); if (!tr) return 0;
     const i0 = clip.tracks.indexOf(tr), nt = tr.clone(), v = nt.values; for (let i = 0; i < v.length; i += 3) { v[i] += d.x; v[i + 1] += d.y; v[i + 2] += d.z; }
     clip.tracks[i0] = nt; return dy * HEIGHT / RAW_H;
+  }
+  // Pas chassé (« Walk_Left_with_Gun », marche « au pistolet » de la bibliothèque, qui va en fait vers la DROITE) refait pour un
+  // tireur qui se déplace latéralement en visant (mesuré sur le cycle d'origine : pieds qui ne décollent jamais — 1 à 2 cm, ils
+  // glissent sur le sol : patinage 0,6 à 1,7 m/s —, semelle droite 3,7 cm DANS le sol, pied d'attaque tourné de 96° dans le
+  // sens du pas, bassin tourné de 45° vers le déplacement, rebond du bassin 6,6 cm). Cuit sur le cycle :
+  //  - bassin ramené de P.bassin (rad) vers la cible (les pieds restent où ils sont : IK) ; rebond gardé à la part P.bob ;
+  //  - pieds : lacet borné à ±P.lacet (rad) de l'avant (pointes vers la menace, ouvertes) ;
+  //  - semelle AU sol en appui (ni dedans ni au-dessus), et à P.clr (m) au moins dès que le pied bouge dans le monde (vitesse
+  //    par rapport au bassin + vitesse d'appui > 30 % de celle-ci) : un pied qui se déplace ne frotte pas le sol.
+  // Appuis ancrés dans un cycle cuit : le jeu déplace le soldat à vitesse constante, alors que dans les captures le pied d'appui
+  // recule par rapport au bassin à une vitesse qui varie (et différente d'un pied à l'autre) : chaque appui glissait de
+  // quelques cm. Ici chaque pied d'appui est tenu FIXE dans le monde (bassin à vitesse constante vF, par image), au point
+  // moyen de son appui ; l'écart est rattrapé en douceur pendant l'oscillation suivante. rel(i, j) : cheville par rapport au
+  // bassin (x, z) ; appui(i, j) : pied posé. Renvoie C[i][j] (Vector3, x et z corrigés).
+  function ancrer(rel, N, vF, appui) {
+    const C = []; for (let i = 0; i < N; i++) C.push([rel(i, 0).clone(), rel(i, 1).clone()]);
+    const sm = (x) => x * x * (3 - 2 * x);
+    for (let j = 0; j < 2; j++) {
+      const s = []; for (let i = 0; i < N; i++) s.push(!!appui(i, j));
+      if (s.every(x => x) || !s.some(x => x)) continue;
+      // (trous de 3 images au plus dans un appui comblés : après la pose, le pied des captures ralentit, glisse, ralentit — un
+      // appui coupé en deux avait deux ancres et le pied glissait de l'une à l'autre au sol)
+      for (let i = 0; i < N; i++) if (!s[i] && s[(i - 1 + N) % N]) { let g = 0; while (g < 4 && !s[(i + g) % N]) g++; if (g <= 3) for (let k = 0; k < g; k++) s[(i + k) % N] = true; }
+      if (s.every(x => x)) continue;
+      let a0 = 0; while (!(s[a0] && !s[(a0 - 1 + N) % N])) a0++;   // début d'un appui
+      const Pw = (k) => rel(k % N, j).clone().addScaledVector(vF, k), corr = new Array(N * 2 + 2);
+      const runs = []; for (let k = a0; k < a0 + N; ) { if (s[k % N]) { let e = k; while (e + 1 < a0 + N && s[(e + 1) % N]) e++; runs.push([k, e]); k = e + 1; } else k++; }
+      for (const [a, e] of runs) { const anc = Pw(Math.round((a + e) / 2)); for (let k = a; k <= e; k++) corr[k] = anc.clone().sub(Pw(k)); }
+      runs.push([runs[0][0] + N, runs[0][1] + N]); { const [a, e] = runs[0]; const anc = Pw(Math.round((a + e) / 2) + N); corr[a + N] = anc.clone().sub(Pw(a + N)); }
+      for (let r = 0; r < runs.length - 1; r++) { const e = runs[r][1], a = runs[r + 1][0]; for (let k = e + 1; k < a; k++) corr[k] = corr[e].clone().lerp(corr[a], sm((k - e) / (a - e))); }
+      for (let k = a0; k < a0 + N; k++) { const c = corr[k]; if (c) C[k % N][j].add(c.setY(0)); }
+    }
+    return C;
+  }
+  function pasChasse(M, src, P) {
+    const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n), hips = b('Hips'), F = [b('LeftFoot'), b('RightFoot')], T = [b('LeftToeBase'), b('RightToeBase')], gb = M.clips.Garde_Basse;
+    if (!src || !hips || !F[0] || !F[1] || !T[0] || !T[1] || !gb || !M.semelle) return null;
+    const W = (o) => o.getWorldPosition(new THREE.Vector3()), kk = RAW_H / HEIGHT, N = Math.max(4, Math.round(src.duration * 30)), sm = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+    // pose de repos : semelle de chaque pied dans le repère (orientation) du pied, hauteur du sol
+    let mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true);
+    const RV = [0, 1].map(j => { const ft = F[j], to = T[j], S = M.semelle[j], A0 = W(ft), qi = ft.getWorldQuaternion(new THREE.Quaternion()).invert();
+      const pw = [S.talon.clone().applyMatrix4(ft.matrixWorld), S.bout.clone().applyMatrix4(to.matrixWorld), S.plante.clone().applyMatrix4(to.matrixWorld)].concat((S.pts || []).map(o => o.p.clone().applyMatrix4(o.o ? to.matrixWorld : ft.matrixWorld)));
+      return { sol: Math.min(...pw.map(p => p.y)), pts: pw.map(p => p.sub(A0).applyQuaternion(qi)) }; });
+    mx.stopAllAction(); mx.uncacheRoot(sc);
+    // cycle d'origine : bassin, chevilles
+    mx = new THREE.AnimationMixer(sc); mx.clipAction(src).play(); const ech = []; let hy = 0;
+    for (let i = 0; i < N; i++) { mx.setTime(i / N * src.duration); sc.updateMatrixWorld(true); const H = W(hips); ech.push([H, F.map(W)]); hy += H.y / N; }
+    mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true);
+    const rel = (n, j) => { const e = ech[(n + N) % N]; return new THREE.Vector3(e[1][j].x - e[0].x, 0, e[1][j].z - e[0].z); };
+    // (vitesse d'appui : celle du pied le plus LENT par rapport au bassin à chaque image — le pied d'appui recule à la vitesse du
+    // corps, celui qui se déplace va 2 à 3 fois plus vite ; « le plus bas » ne marche pas ici, une semelle reste enfoncée)
+    // (puis, la direction du déplacement connue, le pied qui recule le plus vite le long de celle-ci : en fin d'oscillation, le pied
+    // levé est un instant plus lent que celui d'appui)
+    const vSt = new THREE.Vector3(); for (let n = 0; n < N; n++) { const v = [0, 1].map(j => rel(n + 1, j).sub(rel(n - 1, j))); vSt.sub(v[0].length() < v[1].length() ? v[0] : v[1]); }
+    { const d0 = vSt.clone().normalize(); vSt.set(0, 0, 0); for (let n = 0; n < N; n++) { const v = [0, 1].map(j => rel(n + 1, j).sub(rel(n - 1, j))); vSt.sub(v[0].dot(d0) < v[1].dot(d0) ? v[0] : v[1]); } } vSt.divideScalar(N);
+    const vS = Math.max(1e-4, vSt.length()), UP = new THREE.Vector3(0, 1, 0);
+    const vM0 = (i, j) => rel(i + 1, j).sub(rel(i - 1, j)).add(vSt).length();
+    const AN = P.ancre ? ancrer(rel, N, vSt.clone().multiplyScalar(0.5), (i, j) => vM0(i, j) < 0.6 * vS) : null;
+    // (vitesse dans le monde APRÈS ancrage : un appui ancré est immobile, la garde au sol ne s'applique qu'au pied qui bouge)
+    if (root.DBG_CHASSE) M._dbgChasse = { N, vSt: vSt.clone(), vS, src: [0, 1].map(j => Array.from({ length: N }, (_, i) => rel(i, j))), AN, flags: [0, 1].map(j => Array.from({ length: N }, (_, i) => vM0(i, j) < 0.6 * vS)) };
+    const vMonde = AN ? (i, j) => AN[(i + 1) % N][j].clone().sub(AN[(i - 1 + N) % N][j]).add(vSt).setY(0).length() : vM0;
+    const c = jambesIK(M, src, src.name, (i, H, A, Aq) => {
+      const out = A.map(a => a.clone());
+      if (AN) out.forEach((o, j) => { o.x = ech[i][0].x + AN[i][j].x; o.z = ech[i][0].z + AN[i][j].z; });
+      A.forEach((a, j) => {
+        // lacet du pied borné (repère du modèle : +Z = vers la cible)
+        if (P.lacet !== undefined) { const ax = M.semelle[j].axe.clone().applyQuaternion(Aq[j]); if (Math.hypot(ax.x, ax.z) > 1e-5) { const yw = Math.atan2(ax.x, ax.z), d = Math.max(-P.lacet, Math.min(P.lacet, yw)) - yw; if (Math.abs(d) > 1e-4) Aq[j] = new THREE.Quaternion().setFromAxisAngle(UP, d).multiply(Aq[j]); } }
+        // garde au sol : au sol en appui, P.clr dès que le pied bouge dans le monde
+        const w = sm((vMonde(i, j) - 0.3 * vS) / (0.5 * vS));
+        let m = 1e9; for (const p of RV[j].pts) m = Math.min(m, p.clone().applyQuaternion(Aq[j]).y); m += out[j].y;
+        out[j].y += RV[j].sol + P.clr * kk * w - m;
+      });
+      return out; }, (i) => (P.bob - 1) * (ech[i][0].y - hy) + (P.haut || 0) * kk, !!P.libre, undefined, P.bassin ? () => P.bassin : null);
+    // vitesse et direction du déplacement (m/s jeu, rad : 0 = devant, > 0 = vers la gauche) : celles de l'appui
+    if (c && !P.sansVit) c.userData = Object.assign(c.userData || {}, { vitCuite: vS / (2 * src.duration / N) * HEIGHT / RAW_H, dirCuite: Math.atan2(vSt.x, vSt.z) });
+    return c;
+  }
+  // Pas chassé « joint » (lent) : cycle généré, aucune capture ne l'a. Le pied du côté où l'on va s'écarte (vol de PAS.vol du
+  // cycle), puis l'autre le rejoint jusqu'à la base PAS.base (m, chevilles) : jamais croisés, jamais à moins de PAS.base ; pieds
+  // immobiles au sol en appui (aucun glissement par construction), levés de PAS.lev (m) en l'air, orientation fixe (pointes
+  // vers la menace, ouvertes) ; bassin face à la cible, abaissé de PAS.bas (genoux fléchis, base athlétique), petit rebond.
+  // Cadence naturelle PAS.cad pas/s pour PAS.D m par cycle (deux pas). Va vers la DROITE du soldat (−X), comme « Pas_Gauche ».
+  function pasJoint(M, P, sens) {   // sens : −1 vers la droite (−X), +1 vers la gauche
+    const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n), hips = b('Hips'), F = [b('LeftFoot'), b('RightFoot')], gb = M.clips.Garde_Basse;
+    if (!gb || !hips || !F[0] || !F[1]) return null;
+    const kk = RAW_H / HEIGHT, T = 2 / P.cad, W = (o) => o.getWorldPosition(new THREE.Vector3());
+    const src = new THREE.AnimationClip('Pas_Joint', T, gb.tracks.filter(t => JAMBES.test(t.name)).map(t => { const n = t.getValueSize(), v0 = Array.from(t.values.slice(0, n)); return new t.constructor(t.name, [0, T], v0.concat(v0)); }));
+    const mx = new THREE.AnimationMixer(sc); mx.clipAction(src).play(); mx.setTime(0); sc.updateMatrixWorld(true);
+    const H0 = W(hips), A0 = F.map(W), Q0 = F.map(f => f.getWorldQuaternion(new THREE.Quaternion())); mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true);
+    const sm = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }, D = P.D * kk, Wb = P.base * kk;
+    // position (monde, x) de chaque pied le long du cycle ; corps à vitesse constante −D/cycle ; pied droit (j = 1) en premier
+    const vol = (u, a) => { const x = (u - a) / P.vol; return x <= 0 ? [0, 0] : x >= 1 ? [1, 0] : [sm(x), Math.sin(Math.PI * x)]; };
+    const mene = sens < 0 ? 1 : 0;   // pied du côté où l'on va : il part le premier
+    const pied = (u, j) => { const [s, h] = vol(u, j === mene ? 0 : 0.5); return [sens * D * s, h]; };   // déplacement depuis la pose de début de cycle
+    // milieu des pieds sur le cycle (pour centrer le bassin) : droit en −D·s, gauche idem un demi-cycle plus tard
+    let mo = 0; const NN = 60; for (let i = 0; i < NN; i++) { const u = i / NN; mo += ((pied(u, 0)[0] + pied(u, 1)[0]) / 2 - sens * D * u) / NN; }
+    const N = Math.max(4, Math.round(T * 30)), q = [0, 1].map(j => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (j ? -1 : 1) * P.lacet[j === mene ? 1 : 0]).multiply(Q0[j]));
+    const c = jambesIK(M, src, 'Pas_Joint', (i, H, A, Aq) => { const u = i / N;
+      return [0, 1].map(j => { const [dx, h] = pied(u, j), x = H.x - mo + dx - sens * D * u + (j ? -Wb / 2 : Wb / 2), z = H.z + (j ? -P.decal : P.decal) * kk;
+        Aq[j] = q[j].clone(); return new THREE.Vector3(x, A0[j].y + h * P.lev * kk, z); }); },
+      (i) => { const u = i / N; return -P.bas * kk - P.bob * kk * (0.5 - 0.5 * Math.cos(4 * Math.PI * u)); }, false, undefined);
+    if (c) c.userData = Object.assign(c.userData || {}, { vitCuite: P.D / T, dirCuite: sens * Math.PI / 2 });
+    return c;
   }
   // À genou (Kneeling_Reload, dont la pose de couverture accroupie est tirée) : dans l'animation le genou arrière reste à
   // ~18 cm du sol, sur la pointe d'un pied qui flotte (3 à 7 cm), l'autre pied flotte aussi : un accroupi instable. Cuit sur
@@ -7155,7 +7413,12 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // le pied bascule (attaque du talon, déroulé sur la pointe)
       const z0 = Math.min(...pied.map(p => p.z)), z1 = Math.max(...pied.map(p => p.z)), prof = [];
       for (let z = z0; z < z1; z += 0.02) { let m = null; for (const p of pied) if (p.z >= z && p.z < z + 0.02 && p.y < A.y - 0.04 && (!m || p.y < m.y)) m = p; if (m) prof.push(m.z < T.z - 0.01 ? { o: 0, p: loc(ft, m) } : { o: 1, p: loc(toe, m) }); }
-      out[j] = { axe: loc(ft, new THREE.Vector3(T.x, ym, T.z)).sub(loc(ft, talon)), talon: loc(ft, talon), plante: loc(toe, new THREE.Vector3(T.x, ym, T.z)), bout: loc(toe, bout), pts: prof, sol0: ym * HEIGHT / RAW_H };
+      // axe du pied : direction principale (ACP dans le plan du sol) des sommets de la semelle, orientée vers l'avant
+      const sem = pied.filter(p => p.y < ym + 0.05); let mx = 0, mz = 0; sem.forEach(p => { mx += p.x; mz += p.z; }); mx /= sem.length; mz /= sem.length;
+      let cxx = 0, cxz = 0, czz = 0; sem.forEach(p => { const dx = p.x - mx, dz = p.z - mz; cxx += dx * dx; cxz += dx * dz; czz += dz * dz; });
+      const th = 0.5 * Math.atan2(2 * cxz, cxx - czz); let ax = Math.cos(th), az = Math.sin(th); if (az < 0) { ax = -ax; az = -az; }
+      const axW = new THREE.Vector3(ax, 0, az), c0 = new THREE.Vector3(mx, ym, mz);
+      out[j] = { axe: loc(ft, c0.clone().add(axW)).sub(loc(ft, c0)), axeRepos: Math.atan2(ax, az), talon: loc(ft, talon), plante: loc(toe, new THREE.Vector3(T.x, ym, T.z)), bout: loc(toe, bout), pts: prof, sol0: ym * HEIGHT / RAW_H };
     });
     mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true);
     if (out[0] && out[1]) M.semelle = out;
@@ -7169,6 +7432,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const sep = m[0] - m[1], k = RAW_H / HEIGHT, red = Math.max(0, sep - cible * k) / 2; if (red < 0.005) return null;
     const c = jambesIK(M, src, src.name, (i, H, A) => A.map((a, j) => a.clone().setX(a.x - Math.sign(m[j]) * red)), null, false, OUV_PIED);
     return c;
+  }
+  // miroir gauche ↔ droite d'un clip de jambes (repères gauche / droite du squelette Mixamo symétriques : q → (x, −y, −z, w))
+  function miroir(c, nom) {
+    const out = new THREE.AnimationClip(nom, c.duration, c.tracks.filter(t => JAMBES.test(t.name)).map(t => t.clone()));
+    for (const t of out.tracks) { t.name = t.name.replace(/Left|Right/g, (w) => (w === 'Left' ? 'Right' : 'Left')); const v = t.values;
+      if (/quaternion$/.test(t.name)) for (let i = 0; i < v.length; i += 4) { v[i + 1] = -v[i + 1]; v[i + 2] = -v[i + 2]; }
+      else if (/position$/.test(t.name)) for (let i = 0; i < v.length; i += 3) v[i] = -v[i]; }
+    return out;
   }
   function directions(M) {
     const G = M.clips.Walk_Left_with_Gun, B = M.clips.Walk_Backward_with_Gun; if (!G || !B) return;
@@ -7187,6 +7458,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         for (const [n, part0] of [['Pas_Gauche', RELEVE.cote], ['Pas_Arriere', RELEVE.arriere]]) { const src = M.clips[n];
           for (const part of [part0, 0.7, 0.55, 0.4]) { const c = src.clone(); c.name = n; const err = releve(M, c, s / 20, part); M.clips[n] = c; M.releveErr[n] = [+err.toFixed(3), part]; if (err <= 0.025) break; } } } }
     // miroir gauche → droite (les repères des os gauche/droite du squelette Mixamo sont symétriques : q → (x, −y, −z, w))
+    { const PC = Object.assign({}, CHASSE, root.CHASSE_TEST || {}); if (PC.actif) { const c = pasChasse(M, M.clips.Pas_Gauche, PC); if (c) { c.name = 'Pas_Gauche'; M.clips.Pas_Gauche = c; M.chasseErr = c.userData.err; } } }
     const D = legs(M.clips.Pas_Gauche, 'Pas_Droite');   // (celui dont le bassin a été remonté)
     for (const t of D.tracks) {
       t.name = t.name.replace(/Left|Right/g, (w) => (w === 'Left' ? 'Right' : 'Left'));
@@ -7194,11 +7466,16 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (/quaternion$/.test(t.name)) for (let i = 0; i < v.length; i += 4) { v[i + 1] = -v[i + 1]; v[i + 2] = -v[i + 2]; }
       else if (/position$/.test(t.name)) for (let i = 0; i < v.length; i += 3) v[i] = -v[i];
     }
-    M.clips.Pas_Droite = D;
+    M.clips.Pas_Droite = D; if (M.clips.Pas_Gauche.userData && M.clips.Pas_Gauche.userData.vitCuite) D.userData = { vitCuite: M.clips.Pas_Gauche.userData.vitCuite, dirCuite: -M.clips.Pas_Gauche.userData.dirCuite };
+    // pas chassé joint (lent, voir pasJoint) : vers la droite, et son miroir vers la gauche
+    { const PJ = Object.assign({}, PAS, root.PAS_TEST || {}); if (PJ.actif) { for (const [n, sens] of [['Pas_Joint_D', -1], ['Pas_Joint_G', 1]]) { const c = pasJoint(M, PJ, sens); if (c) { c.name = n; M.clips[n] = c; } } } }   // (généré dans chaque sens : le miroir déformait la botte droite de « gign », squelette pas tout à fait symétrique)
     // recul en visant (la simulation l'autorise jusqu'à 1,8 m/s) : la marche arrière de la bibliothèque a une foulée de ~0,8 m,
     // il fallait la jouer 2 fois trop vite (257 pas/min). Foulée allongée (× RECUL) : ~170 pas/min à 1,7 m/s, bassin un peu
     // plus bas (jambes plus écartées d'avant en arrière)
-    if (M.clips.Pas_Arriere) { const r = foulee(M, M.clips.Pas_Arriere, 'Pas_Arriere', RECUL, 1.5, 0.6, 1, OUV_PIED); if (r) M.clips.Pas_Arriere = r; }
+    // (talon 26 → 10 cm, rebond 5,2 → 2,1 cm, genou à la pose 56-73° → 34-43° : levée non amplifiée — hs 1 et non 1,5 —,
+    // plafonnée, pied en l'air dessiné, bassin remonté de 4 cm ; puis 6 cm : recul rapide, genou à la pose 51 → 44° / 44 → 37°)
+    { const RA = Object.assign({ hs: 1, kp: 1, P: { cap: 0.07, bas: -0.06, bob: 0.4, vol: { h0: 0.02, h1: 0.05, tb: 0.3, tf: -0.1, zb: -0.25, zf: 0.2, clr: 0.03 } } }, root.RECUL_TEST || {});
+      if (M.clips.Pas_Arriere) { const r = foulee(M, M.clips.Pas_Arriere, 'Pas_Arriere', RECUL, RA.hs, 0.6, RA.kp, OUV_PIED, RA.P); if (r) M.clips.Pas_Arriere = r; } }
     M.clips.Pas_Avant_Aim = legs(M.clips.Walk_Fight_Forward, 'Pas_Avant_Aim');
     M.clips.Pas_Avant_Low = legs(M.clips.Walking || M.clips.Walk_Fight_Forward, 'Pas_Avant_Low');
     // course (petites foulées, ~1,5 à 3 m/s) : mêmes pas chassés / marche arrière, mais la marche avant est la course de
@@ -7206,29 +7483,58 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     M.clips.Pas_Avant_Course = legs(M.clips.Run_and_Shoot, 'Pas_Avant_Course');
     // patrouille (pas d'ennemi connu) : marche → petite course → course, mélangées selon la vitesse (voir marche())
     const TR = Object.assign({}, TROT, root.TROT_TEST || {});
-    if (M.clips.Running) { const t = foulee(M, M.clips.Running, 'Pas_Trot', TR.s, TR.hs, TR.rise, undefined, OUV_PIED); if (t) { M.clips.Pas_Trot = t; M.trotErr = t.userData.err; } M.clips.Pas_Run = legs(M.clips.Running, 'Pas_Run'); }
+    if (M.clips.Running) { const t = foulee(M, M.clips.Running, 'Pas_Trot', TR.s, TR.hs, TR.rise, undefined, OUV_PIED, Object.assign({ cap: TR.cap }, TR.foulee || {})); if (t) { M.clips.Pas_Trot = t; M.trotErr = t.userData.err; } M.clips.Pas_Run = legs(M.clips.Running, 'Pas_Run');
+      // (la course pleine refaite comme la petite course — foulée entière, talon et pied en l'air dessinés — : brute, son talon
+      // montait à 33-50 cm, visible dès qu'elle se mélange à la petite course)
+      if (RUN_BAKE) { const RB = Object.assign({ s: 1.1, hs: TR.hs, P: { pmax: 0.35 } }, RUN_BAKE === true ? {} : RUN_BAKE), r = foulee(M, M.clips.Running, 'Pas_Run', RB.s, RB.hs, TR.rise, undefined, OUV_PIED, Object.assign({ cap: TR.cap }, TR.foulee || {}, RB.P || {})); if (r) M.clips.Pas_Run = r; } }
+    // course épaulée (Run_and_Shoot, > 2,2-2,45 m/s en visant) refaite de même : brute, pied d'appui glissant de 0,22 m/s,
+    // patinage 0,23-0,52, talon 26 cm, genou à 65° à la pose
+    if (COURSE_BAKE && M.clips.Run_and_Shoot) { const CB = Object.assign({ s: 1, hs: TR.hs, P: { pmax: 0.35 } }, COURSE_BAKE === true ? {} : COURSE_BAKE), r = foulee(M, M.clips.Run_and_Shoot, 'Pas_Avant_Course', CB.s, CB.hs, TR.rise, undefined, OUV_PIED, Object.assign({ cap: TR.cap }, TR.foulee || {}, CB.P || {})); if (r) M.clips.Pas_Avant_Course = r; }
     // marche en visant (« Pas_Glisse ») : la marche naturelle, bassin abaissé de GLISSE m (genoux fléchis, pieds aux mêmes
     // places) : la marche « glissée » d'un tireur qui progresse arme épaulée (talon-pointe, buste stable), au lieu du pas
     // d'affût très lent de Walk_Fight_Forward ou de la course accroupie de Run_and_Shoot
-    if (M.clips.Walking) { const g = jambesIK(M, M.clips.Walking, 'Pas_Glisse', (i, H, A) => A.map(a => a.clone()), () => -GLISSE * RAW_H / HEIGHT); if (g) M.clips.Pas_Glisse = g; }
+    // (référence vidéo réelle : base large ~32 cm entre chevilles, pied d'appel bas ~10-12 cm, genoux fléchis tout le pas,
+    // bassin plat — rebond ≤ 3 cm ; pas un peu plus courts et plus vifs que la marche normale)
+    const GP = Object.assign({}, GLISSE_P, root.GLISSE_TEST || {});   // (GLISSE_TEST : réglage depuis les pages d'outils)
+    if (M.clips.Walking) { biaisGenou = GP.genouOut || 0; try { const g = foulee(M, M.clips.Walking, 'Pas_Glisse', GP.s, 1, 0, GP.kp !== undefined ? GP.kp : 1, OUV_PIED, GP); if (g) M.clips.Pas_Glisse = g; } finally { biaisGenou = 0; } }
     // pas moins écartés (les marches de la bibliothèque posent les chevilles à ~27 cm l'une de l'autre, une démarche en
     // « cow-boy » ; marche humaine : 8 à 17 cm, base tactique un peu plus large) : écart moyen ramené à ECART_PAS
-    for (const n of ['Pas_Avant_Low', 'Pas_Glisse']) if (M.clips[n]) { const c = resserre(M, M.clips[n], ECART_PAS); if (c) M.clips[n] = c; }
+    { const PP = root.PATROUILLE_TEST || PATROUILLE; let fait = false;
+      if (PP && M.clips.Walking) { const c = foulee(M, M.clips.Walking, 'Pas_Avant_Low', PP.s || 1, 1, 0, 1, OUV_PIED, PP); if (c) { M.clips.Pas_Avant_Low = c; fait = true; } }
+      if (!fait) for (const n of ['Pas_Avant_Low']) if (M.clips[n]) { const c = resserre(M, M.clips[n], ECART_PAS); if (c) M.clips[n] = c; } }
     // genoux jamais « en arrière » (voir jambesIK) dans les cycles qui ne sont pas déjà passés par l'IK
-    for (const n of ['Pas_Avant_Low', 'Pas_Run', 'Pas_Gauche', 'Pas_Droite', 'Pas_Avant_Aim', 'Pas_Avant_Course']) if (M.clips[n]) { const c = jambesIK(M, M.clips[n], n, (i, H, A) => A.map(a => a.clone()), null, false, /^Pas_(Gauche|Droite)$/.test(n) ? undefined : OUV_PIED); if (c) M.clips[n] = c; }
+    const chasseCuit = !!Object.assign({}, CHASSE, root.CHASSE_TEST || {}).actif;   // (pas chassés déjà cuits par pasChasse)
+    for (const n of ['Pas_Avant_Low', 'Pas_Run', 'Pas_Gauche', 'Pas_Droite', 'Pas_Avant_Aim', 'Pas_Avant_Course']) if (M.clips[n] && !(chasseCuit && /^Pas_(Gauche|Droite)$/.test(n))) { const c = jambesIK(M, M.clips[n], n, (i, H, A) => A.map(a => a.clone()), null, false, /^Pas_(Gauche|Droite)$/.test(n) ? undefined : OUV_PIED); if (c) M.clips[n] = c; }
     // pieds au sol (pointe la plus basse du cycle à sa hauteur de repos)
     { const sc = M.gltf.scene, gb = M.clips.Garde_Basse, T = ['LeftToeBase', 'RightToeBase'].map(n => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n));
       if (gb && T[0] && T[1]) { const mx = new THREE.AnimationMixer(sc); mx.clipAction(gb).play(); mx.setTime(0); sc.updateMatrixWorld(true); const repos = Math.min(...T.map(t => t.getWorldPosition(new THREE.Vector3()).y)); M.toeR = repos * HEIGHT / RAW_H; { const fa = ['LeftFoot', 'RightFoot'].map(n => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n)); if (fa[0] && fa[1]) M.ankR = Math.min(...fa.map(t => t.getWorldPosition(new THREE.Vector3()).y)) * HEIGHT / RAW_H; } mx.stopAllAction(); mx.uncacheRoot(sc); sc.updateMatrixWorld(true);
-        M.solDy = {}; for (const n of ['Pas_Avant_Low', 'Pas_Avant_Aim', 'Pas_Avant_Course', 'Pas_Trot', 'Pas_Run', 'Pas_Glisse', 'Pas_Gauche', 'Pas_Droite', 'Pas_Arriere']) if (M.clips[n]) M.solDy[n] = +aterrir(M, M.clips[n], repos).toFixed(3); } }
+        M.solDy = {}; for (const n of ['Pas_Avant_Low', 'Pas_Avant_Aim', 'Pas_Avant_Course', 'Pas_Trot', 'Pas_Run', 'Pas_Glisse', 'Pas_Gauche', 'Pas_Droite', 'Pas_Arriere']) if (M.clips[n] && !(chasseCuit && /^Pas_(Gauche|Droite)$/.test(n))) M.solDy[n] = +aterrir(M, M.clips[n], repos).toFixed(3); } }
     for (const n of ['Walk_Aim', 'Walk_Low', 'Run_and_Shoot', 'Run_Low', 'Trot_Low']) { const c = M.clips[n]; if (c) { M.clips[n + '_Haut'] = new THREE.AnimationClip(n + '_Haut', c.duration, c.tracks.filter(t => !JAMBES.test(t.name)).map(t => t.clone())); } }
     if (M.yawFix.Walk_Aim !== undefined) M.yawFix.Walk_Aim_Haut = M.yawFix.Walk_Aim;
     try { genou(M); } catch (e) { console.warn('soldat 3D (genou) :', e); }
+    // marche accroupie : mêmes contraintes de pied (botte rigide, cheville jamais cassée, pieds ouverts) cuites dans le cycle
+    { const cw = M.clips.Cautious_Crouch_Walk_Forward; if (cw) { const c = jambesIK(M, cw, cw.name, (i, H, A) => A.map(a => a.clone()), null, false, OUV_PIED);
+      if (c) { const noms = new Set(c.tracks.map(t => t.name)); M.clips.Cautious_Crouch_Walk_Forward = new THREE.AnimationClip(cw.name, cw.duration, cw.tracks.filter(t => !noms.has(t.name)).concat(c.tracks)); } } }
+    // Bottes rigides PARTOUT (signalé par la revue : « bottes banane ») : dans toutes les animations de la bibliothèque, l'os des
+    // orteils est tourné de 80 à 100° par rapport à la pose de repos (mesuré, même dans la visée à l'arrêt et le rechargement) :
+    // avant de la botte plié, tordu, botte raccourcie de 10 à 29 %. Les marches encore jouées telles quelles (rechargement en
+    // marchant, course épaulée rapide) passent par l'IK cuite (orteils qui ne plient qu'au déroulé, cheville bornée, genou dans
+    // son plan) ; dans toutes les autres, les orteils sont figés à la pose de repos.
+    for (const n of ['Walk_Jambes', 'Run_Jambes', 'Walk_Aim', 'Walk_Low', 'Run_Low', 'Run_and_Shoot']) { const c0 = M.clips[n]; if (!c0) continue;
+      const c = jambesIK(M, c0, n, (i, H, A) => A.map(a => a.clone()), null, false, OUV_PIED);
+      if (c) { const noms = new Set(c.tracks.map(t => t.name)); M.clips[n] = new THREE.AnimationClip(n, c0.duration, c0.tracks.filter(t => !noms.has(t.name)).concat(c.tracks)); } }
+    { const RP = reposPieds(M), noms = ['Left', 'Right'].map(c => { const o = M.gltf.scene.getObjectByName('mixamorig' + c + 'ToeBase') || M.gltf.scene.getObjectByName('mixamorig:' + c + 'ToeBase'); return o && THREE.PropertyBinding.sanitizeNodeName(o.name) + '.quaternion'; });
+      if (RP) for (const n in M.clips) { const c = M.clips[n];
+        c.tracks = c.tracks.map(t => { const j = noms.indexOf(t.name); if (j < 0) return t; const q0 = RP.orteil[j], q = new THREE.Quaternion(); let mx = 0;
+          for (let i = 0; i < t.values.length; i += 4) { q.fromArray(t.values, i); mx = Math.max(mx, 1 - Math.abs(q.dot(q0))); }
+          if (mx < 0.035) return t;   // (cycles cuits : orteils déjà au repos, pliés au déroulé seulement — moins de ~30°)
+          const v = q0.toArray(); return new THREE.QuaternionKeyframeTrack(t.name, [0, c.duration], v.concat(v)); }); } }
     M.dirs = true;
   }
   // Vitesse « naturelle » de chaque cycle de locomotion (m/s, pour un soldat de 1,80 m) : pendant l'appui, le pied recule
   // par rapport au bassin à la vitesse du sol. Le jeu lit l'animation à (vitesse réelle / vitesse naturelle) : plus de pieds
   // qui glissent. Mesurée sur les pieds, car les animations Meshy n'ont pas de déplacement de racine fiable.
-  const LOCOS = ['Walk_Fight_Forward', 'Walk_Aim', 'Walk_Low', 'Run_and_Shoot', 'Run_Low', 'Cautious_Crouch_Walk_Forward', 'Walking', 'Running', 'Pas_Avant_Aim', 'Pas_Avant_Low', 'Pas_Avant_Course', 'Pas_Gauche', 'Pas_Droite', 'Pas_Arriere', 'Pas_Trot', 'Pas_Run', 'Trot_Low', 'Pas_Glisse'];
+  const LOCOS = ['Walk_Fight_Forward', 'Walk_Aim', 'Walk_Low', 'Run_and_Shoot', 'Run_Low', 'Cautious_Crouch_Walk_Forward', 'Walking', 'Running', 'Pas_Avant_Aim', 'Pas_Avant_Low', 'Pas_Avant_Course', 'Pas_Gauche', 'Pas_Droite', 'Pas_Arriere', 'Pas_Trot', 'Pas_Run', 'Trot_Low', 'Pas_Glisse', 'Pas_Joint_D', 'Pas_Joint_G'];
   function mesureLoco(M) {
     const sc = M.gltf.scene, b = (n) => sc.getObjectByName('mixamorig' + n) || sc.getObjectByName('mixamorig:' + n);
     const hips = b('Hips'), feet = [b('LeftToeBase'), b('RightToeBase')]; if (!hips || !feet[0] || !feet[1]) return;
@@ -7245,6 +7551,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // direction RÉELLE du déplacement (rad, repère du modèle : 0 = devant, > 0 = vers sa gauche, +X). « Walk_Left_with_Gun »
       // va en fait vers la DROITE du soldat : la marche directionnelle se fie à cette mesure, pas au nom des animations.
       (M.dirPas || (M.dirPas = {}))[clip] = Math.atan2(dx, dz);
+      // (cycle cuit qui connaît sa vitesse de déplacement — pas chassé refait, pieds levés : la détection d'appui par la hauteur
+      // des orteils s'y trompait, jusqu'à inverser la direction mesurée)
+      if (c.userData && c.userData.vitCuite) { M.loco[clip] = c.userData.vitCuite; M.dirPas[clip] = c.userData.dirCuite; }
       // phase du pied gauche au sol (moyenne circulaire des instants d'appui) et orientation moyenne du bassin
       { const ymin = Math.min(...P[0].map(p => p.y)); let cx = 0, cy = 0; for (let i = 0; i < N; i++) if (P[0][i].y < ymin + 0.025) { cx += Math.cos(i / N * 2 * Math.PI); cy += Math.sin(i / N * 2 * Math.PI); }
         M.phase0[clip] = ((Math.atan2(cy, cx) / (2 * Math.PI)) + 1) % 1; }
@@ -7255,7 +7564,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // suffit pas (dans un pas chassé, le pied gauche est tantôt celui qui mène, tantôt celui qui suit). On essaie 20
     // décalages et on garde celui où le mélange 50/50 avance le plus franchement (pas qui s'annulent = démarche incohérente).
     M.decal = {};
-    for (const av of ['Pas_Avant_Aim', 'Pas_Avant_Low', 'Pas_Avant_Course', 'Pas_Trot', 'Pas_Glisse']) for (const cote of ['Pas_Gauche', 'Pas_Droite']) {
+    for (const av of ['Pas_Avant_Aim', 'Pas_Avant_Low', 'Pas_Avant_Course', 'Pas_Trot', 'Pas_Glisse']) for (const cote of ['Pas_Gauche', 'Pas_Droite', 'Pas_Joint_D', 'Pas_Joint_G']) {
       const A = M.clips[av], C = M.clips[cote]; if (!A || !C) continue;
       const mx = new THREE.AnimationMixer(sc), a = mx.clipAction(A), c = mx.clipAction(C); a.play(); c.play(); a.setEffectiveWeight(0.5); c.setEffectiveWeight(0.5); a.timeScale = 0; c.timeScale = 0;
       const K = 20, NS = 24, mag = [], h = new THREE.Vector3(), p = new THREE.Vector3();
@@ -7390,6 +7699,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     { n: 'pontetAv', c: [-0.002, -0.016, -0.062], h: [0.006, 0.016, 0.004], r: 0.003 },
     { n: 'detente', c: [-0.002, -0.012, -0.098], h: [0.003, 0.009, 0.003], r: 0.002 },
     { n: 'chargeur', c: [-0.002, -0.06, 0.0025], h: [0.015, 0.06, 0.043], r: 0.008 },
+    { n: 'puits', c: [-0.002, -0.025, -0.012], h: [0.027, 0.026, 0.062], r: 0.008 },
     { n: 'gardeMain', c: [-0.0025, 0.0675, 0.1825], h: [0.0285, 0.0365, 0.1125], r: 0.012 },
     { n: 'crosse', c: [-0.002, 0.02, -0.33], h: [0.022, 0.05, 0.1], r: 0.01 },
   ];
@@ -7414,13 +7724,16 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   const PRISE = {
     R: { A: [0.303, 0.024, 0.953], N: [0.87, 0.401, -0.287], mcp: [-0.044, -0.049, -0.127],
       // cibles du bout des doigts (index : tendu le long de la carcasse, au-dessus du pontet ; pouce : flanc gauche, sous la carcasse)
-      cibles: { 0: { ferme: [0.6, 1, 0.8], max: [1.2, 1.3, 1.2] }, 1: { p: [-0.036, 0.004, 0], auto: true, f1: [-0.45, 0.8], f2: 0.3, reg: 0.03, ecart: 0.5 } },
+      cibles: { 0: { ferme: [0.6, 1, 0.8], max: [1.2, 1.3, 1.2] }, 1: { p: [-0.043, 0.008, 0], auto: true, f1: [-0.45, 0.8], f2: 0.3, reg: 0.03, ecart: 0.5 } },
       detente: { p: [-0.004, -0.014, -0.088], f1: [-0.15, 1.4], f2: 1.6 } },
     L: { A: [-0.816, 0.149, 0.559], N: [0.106, 0.988, -0.109], mcp: [-0.036, 0.002, 0.174],
       cibles: { 0: { p: [0.04, 0.07, 0.2], f1: [-0.15, 1.2], f2: 1.0 } } },
     // places propres à un modèle (mêmes champs, remplacent ceux du dessus) : les mains n'ont pas la même forme
-    soldat: { L: { A: [-0.885, 0.06, 0.462], N: [0.225, 0.923, 0.311], mcp: [-0.042, 0.048, 0.154] } },
-    gign: { R: { A: [0.008, 0.261, 0.965], N: [1, 0.027, -0.015], mcp: [-0.04, -0.039, -0.131] }, L: { A: [-0.88, 0.12, 0.459], N: [0.274, 0.918, 0.286], mcp: [-0.048, 0.057, 0.14] } },
+    // (soldat, main d'appui : refermés jusqu'au contact, l'index et l'annulaire s'arrêtaient tôt, bout ~2 cm AU-DESSUS du
+    // garde-main ; ils sont posés sur son flanc droit, ~2,5 cm sous le dessus, au contact)
+    soldat: { L: { A: [-0.885, 0.06, 0.462], N: [0.225, 0.923, 0.311], mcp: [-0.042, 0.04, 0.154],
+      cibles: { 0: { p: [0.04, 0.07, 0.2], f1: [-0.15, 1.2], f2: 1.0 }, 1: { f1: [-0.15, 1.5], f2: 1.7, reg: 0.01, ecart: 0.2, flanc: [-0.039, 0.08], contact: 1 }, 3: { f1: [-0.15, 1.5], f2: 1.7, reg: 0.01, ecart: 0.2, flanc: [-0.039, 0.08], contact: 1 } } } },
+    gign: { R: { A: [0.008, 0.261, 0.965], N: [1, 0.027, -0.015], mcp: [-0.04, -0.039, -0.131] }, L: { A: [-0.88, 0.12, 0.459], N: [0.274, 0.918, 0.286], mcp: [-0.048, 0.044, 0.14] } },
   };
   S.PRISE = PRISE;
   function calculerPrise(f, W) {
@@ -7501,12 +7814,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // 2b. bout du doigt (articulation du bout) amené au point « cible » sans entrer dans l'arme : recherche en grille puis
       // descente par coordonnées sur [flexion 1, 2, 3, écartement]
       const cibler = (k, cible, o) => {
-        const C = new THREE.Vector3().fromArray(cible);
+        const C = cible ? new THREE.Vector3().fromArray(cible) : new THREE.Vector3();
         if (o.auto) {   // index tendu : bout droit devant sa base, le long du flanc de la carcasse, au-dessus du pontet
           const m0 = fk(k, [0, 0, 0, 0]), base = V().setFromMatrixPosition(m0[0]), Lf = V().setFromMatrixPosition(m0[1]).distanceTo(base) + V().setFromMatrixPosition(m0[2]).distanceTo(V().setFromMatrixPosition(m0[1])) + p.copy(bout[k]).applyMatrix4(m0[2]).distanceTo(V().setFromMatrixPosition(m0[2]));
           C.set(cible[0], Math.max(cible[1], base.y + 0.004), base.z + Math.sqrt(Math.max(0, Lf * Lf * 0.94 - (cible[0] - base.x) ** 2))); o.pAuto = C.toArray(); }
-        const cout = (th) => { const ms = fk(k, th), d = Math.min(...dSeg(k, th, ms));
-          return p.copy(bout[k]).applyMatrix4(ms[2]).distanceTo(C) + 6 * Math.max(0, -d - 0.002) + (o.reg || 0.004) * (Math.abs(th[1]) + Math.abs(th[2])) + 0.004 * Math.abs(th[3]); };
+        else if (o.flanc) {   // doigt d'appui : bout posé sur le flanc droit du garde-main (x, y), à la hauteur (z) de sa base
+          const base = V().setFromMatrixPosition(fk(k, [0, 0, 0, 0])[0]); C.set(o.flanc[0], o.flanc[1], base.z + (o.flanc[2] || 0)); o.pAuto = C.toArray(); }
+        const cout = (th) => { const ms = fk(k, th), ds = dSeg(k, th, ms), d = Math.min(...ds);
+          return p.copy(bout[k]).applyMatrix4(ms[2]).distanceTo(C) + 6 * Math.max(0, -d - 0.002) + (o.contact || 0) * Math.max(0, Math.min(ds[1], ds[2]) - 0.003) + (o.reg || 0.004) * (Math.abs(th[1]) + Math.abs(th[2])) + 0.004 * Math.abs(th[3]); };
         let best = null;
         for (let a = o.f1[0]; a <= o.f1[1]; a += 0.1) for (let e = -(o.ecart || 0.35); e <= (o.ecart || 0.35); e += 0.07) for (let c = 0; c <= o.f2; c += 0.12) { const th = [a, c, c * 0.8, e], v = cout(th); if (!best || v < best[0]) best = [v, th]; }
         let th = best[1], v = best[0];
@@ -7625,6 +7940,32 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }
   const V = () => new THREE.Vector3();
   // ressort amorti critique (pulsation w, rad/s) de x vers c : [x, vitesse] ; dt = 0 : saut direct
+  // x vers c sans à-coup : cible filtrée (1er ordre, o[k + 'C']) suivie par un ressort amorti critique (vitesse o[k + 'V']) :
+  // vitesse ET accélération continues quand c saute ; dt = 0 : saut direct
+  const lisse2 = (o, k, x, c, w, dt) => { if (!(dt > 0)) { o[k + 'C'] = c; o[k + 'V'] = 0; return c; }
+    let c1 = o[k + 'C']; if (c1 === undefined) c1 = x; c1 += (c - c1) * Math.min(1, dt * w); o[k + 'C'] = c1;
+    const v = (o[k + 'V'] || 0) + (w * w * (c1 - x) - 2 * w * (o[k + 'V'] || 0)) * dt; o[k + 'V'] = v; return x + v * dt; };
+  // chemin d'une orientation de main qA → qB (s : 0..1) : bascule minimale de l'axe de la main axL (repère local) + rotation autour
+  // de cet axe (pro-/supination), angle suivi d'une image à l'autre dans o[cle] : la slerp directe entre deux orientations à
+  // ~170° passe par des poignets cassés et peut changer de sens en route
+  const chemin = (o, cle, qA, qB, s, axL) => {
+    const a0 = axL.clone().applyQuaternion(qA), a1 = axL.clone().applyQuaternion(qB), qs = new THREE.Quaternion().setFromUnitVectors(a0, a1);
+    const qr = qs.clone().invert().multiply(qB).multiply(qA.clone().invert());
+    let th = 2 * Math.atan2(new THREE.Vector3(qr.x, qr.y, qr.z).dot(a0), qr.w); while (th > Math.PI) th -= 2 * Math.PI; while (th < -Math.PI) th += 2 * Math.PI;
+    const m = o.chemins || (o.chemins = {}), pv = m[cle] && o.t - m[cle].t < 0.2 ? m[cle].th : null;
+    if (pv !== null) { while (th - pv > Math.PI) th -= 2 * Math.PI; while (th - pv < -Math.PI) th += 2 * Math.PI; } m[cle] = { th, t: o.t };
+    return new THREE.Quaternion().slerp(qs, s).multiply(new THREE.Quaternion().setFromAxisAngle(a0, th * s)).multiply(qA); };
+  // place de la main d'appui tournée de a (rad) autour de la verticale de l'arme, centre au milieu de la paume (voir mainChargeur)
+  S.INCL_G = 0.7; S.INCL_EXP = 1; S.PUITS_V = 0.04; S.DEPART_Q = 0.22; S.PUITS_PROF = 0.08; S.PUITS_ENF = 0.6; S.PUITS_HAUT = 0.04; S.COUDE_DEV_R = 0.05;
+  S.LISSE_VISE = 1; S.TORSION_MAX = 0.95;
+  S.PENCHE_LAT = 0.06; S.EP_W = 11; S.DOS_W = 14; S.A0_W = 16; S.PENCHE_W = 6;   // (lissages : torsion du dos en marche, part de visée du clip haut, cible de penche)   // visée en pas chassé / en recul : penche du buste réduite d'autant (rad ; ~18,5° → ~15,5°)   // part du lissage de position du fusil retirée en visée (épaulé : crosse à l'épaule, joue sur la crosse ; le fusil suit le buste)
+  const hrelIncl = (D, a) => { if (Math.abs(a) < 1e-4) return D.Hrel; const c = D.paumeLoc;
+    return new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeRotationY(a)).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)).multiply(D.Hrel); };
+  // suivi de o[k] vers tgt (dt > 0) : ressort amorti critique (w) avec anticipation de la vitesse de la cible (bornée à vmax : un
+  // saut de cible n'est pas pris pour une vitesse), accélération bornée à amax (rad/s²) ; aucun retard sur une cible qui tourne
+  // régulièrement, un saut devient un mouvement lisse
+  const suivi = (o, k, tgt, dt, w, vmax, amax) => { const rp = o[k + 'R']; const vT = rp === undefined ? 0 : Math.max(-vmax, Math.min(vmax, (tgt - rp) / dt)); o[k + 'R'] = tgt;
+    const x = o[k], v = o[k + 'V'] || 0, a = Math.max(-amax, Math.min(amax, w * w * (tgt - x) + 2 * w * (vT - v))); o[k + 'V'] = v + a * dt; o[k] = x + o[k + 'V'] * dt; return o[k]; };
   const ressort = (x, v, c, w, dt) => { if (!(dt > 0)) return [c, 0]; const a = w * w * (c - x) - 2 * w * v; v += a * dt; x += v * dt; if (x < 0) { x = 0; v = 0; } else if (x > 1) { x = 1; v = 0; } return [x, v]; };
   // un soldat : group (posé par le jeu), pose (chute), weapon (avec .muzzle), anim
   // o.modele : 'gign' (équipe du joueur) ou 'soldat' (adversaire) ; par défaut le premier modèle chargé
@@ -7700,22 +8041,32 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const f = { group, pose, weapon, body, skinned, mixer, clip: null, frozen: false, isSkinned: true, modele: M.nom, mod, clips: M.clips, yawFix: M.yawFix, loco: M.loco || {}, chuteY: M.chuteY || {}, legClip: null,
       jambes: 0, jambesCible: 0, mode: 'deux', handLocal: { droite: null, gauche: null }, t: 0,
       bones: { rh: bone('RightHand'), lh: bone('LeftHand'), rm: body.getObjectByName('PalmeD'), lm: body.getObjectByName('PalmeG'),
-        ra: bone('RightArm'), rf: bone('RightForeArm'), la: bone('LeftArm'), lf: bone('LeftForeArm'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips') },
+        ra: bone('RightArm'), rf: bone('RightForeArm'), la: bone('LeftArm'), lf: bone('LeftForeArm'), spine: bone('Spine2'), head: bone('Head'), hips: bone('Hips'), dos: bone('Spine') },   // (dos : l'os qui porte la peau du buste)
       // joue (en fondu) l'animation demandée ; time : figer à un instant (pose fixe) ; speed : vitesse du cycle
       play(name, opts = {}) {
         const a = act(name); if (!a) return;
         if (this.clip !== name) {
-          const prev = this.clip && actions[this.clip];
+          const prev = this.clip && actions[this.clip], F0 = this.fondu;
+          // fondu « adouci » (smootherstep, mené par update()) au lieu du fondu linéaire de three.js : le linéaire fait sauter la
+          // vitesse des os au début et à la fin du fondu (à-coup de 10 000 °/s² du buste en sortie de rechargement)
+          const wa0 = F0 && F0.de === a ? a.getEffectiveWeight() : 0;   // (retour vers l'animation qu'on quittait : on repart de son poids)
+          if (F0) { const dd = F0.de; if (dd !== a) { const w = dd.getEffectiveWeight(), r = Math.max(0.05, F0.d - F0.t); if (w > 0.002) { dd.setEffectiveWeight(w); dd.fadeOut(r); } else dd.stop(); } this.fondu = null; }
+          if (prev && prev !== a) prev.stopFading();
+          const w0 = prev && prev !== a ? prev.getEffectiveWeight() : 0;
           a.reset(); a.enabled = true; a.setEffectiveWeight(1); a.play();
           if (opts.start) a.time = opts.start * a.getClip().duration;   // commencer plus loin dans l'animation
-          if (prev) a.crossFadeFrom(prev, opts.fade !== undefined ? opts.fade : 0.22, false);
+          const d = Math.max(opts.fade !== undefined ? opts.fade : 0.22, this.fadeMin || 0);   // (fadeMin : fondu minimal imposé par le jeu, ex. sortie de rechargement)
+          if (prev && prev !== a) { if (d > 0.001 && w0 > 0.002) { a.setEffectiveWeight(wa0); this.fondu = { de: prev, a, w0, wa0, t: 0, d }; } else prev.stop(); }
           this.clip = name;
         }
         if (opts.time !== undefined) { a.time = opts.time * a.getClip().duration; a.timeScale = 0; } else a.timeScale = opts.speed || 1;
       },
       // couche « jambes » jouée en plus de l'animation principale (qui ne doit alors pas animer les jambes) ; null : l'enlever
       playLegs(name, opts = {}) {
-        if (!name) { if (this.legClip) { actions[this.legClip].fadeOut(0.2); this.legClip = null; } return; }
+        // (0,35 s, la durée d'entrée de la marche — marcheK — : les deux couches se croisent à poids total 1 ; avec 0,2 s, le total
+        // tombait à 0,57 et le mixer complétait avec la pose d'origine : à-coup du bassin de 2 800 °/s² à la reprise de la marche
+        // après un rechargement)
+        if (!name) { if (this.legClip) { actions[this.legClip].fadeOut(0.35); this.legClip = null; } return; }
         const a = act(name); if (!a) return;
         if (this.legClip !== name) { const prev = this.legClip && actions[this.legClip]; a.reset(); a.setEffectiveWeight(1); a.fadeIn(0.15); a.play(); if (prev) prev.fadeOut(0.15); this.legClip = name; }
         a.timeScale = opts.speed || 1;
@@ -7734,7 +8085,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         // (a0 lissé sur ~0,2 s comme le fondu des hauts du corps : passer de la visée à la garde basse, ou de la marche à la
         // course, ne fait plus sauter la torsion du dos)
         const a0c = (M.aimYaw && M.aimYaw[haut.replace(/_Haut$/, '')]) || 0;
-        this.a0s = !this.blendW || this.a0s === undefined ? a0c : this.a0s + (a0c - this.a0s) * Math.min(1, dt * 12);
+        if (!this.blendW || this.a0s === undefined) { this.a0s = a0c; lisse2(this, 'a0s', a0c, a0c, 16, 0); } else this.a0s = S.A0_PREMIER ? this.a0s + (a0c - this.a0s) * Math.min(1, dt * 12) : lisse2(this, 'a0s', this.a0s, a0c, S.A0_W, dt);   // (cible filtrée + ressort : le 1er ordre faisait tourner le dos de 40 % de l'écart dès la 1re image — Spine2 35 000 °/s² en passant à la course épaulée)
         const a0 = this.a0s, B = -a0 * (1 - DOS_VISEE);
         let e = ecart - B; while (e > Math.PI) e -= 2 * Math.PI; while (e < -Math.PI) e += 2 * Math.PI;
         const wrap = (x) => { while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
@@ -7753,12 +8104,17 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           // (patrouille, mix : le corps suit déjà le déplacement ; le petit écart des virages est pris par le bassin, jamais par un
           // pas chassé « au pistolet » mélangé à la petite course)
           this.jogTw = (avant === 'Pas_Avant_Course' || avant === 'Pas_Glisse' || !!mix) && Math.abs(e) <= Math.abs(tc) && Math.abs(twA) <= 1.35 && torsA < (vis ? (this.jogTw ? 0.85 : 0.78) : (this.jogTw ? 1.0 : 0.9));
+          if (root.Soldat3D && root.Soldat3D.dbgTw) this.dbgTw = { e: +e.toFixed(2), tc: +tc.toFixed(2), ta: +ta.toFixed(2), twA: +twA.toFixed(2), torsA: +torsA.toFixed(2), jogTw: this.jogTw };
           if (this.jogTw) { cible[avant] = 1; tau = twA; this.selArr = null; }
           else if (Math.abs(e) <= Math.abs(tc)) {
             // secteur avant : mélange marche avant / pas chassé, poids tels que la somme des foulées (vecteurs) pointe vers e
             // (ces deux démarches se mélangent bien une fois calées en phase, voir M.decal)
-            const wa = Math.abs(Math.sin(tc - e)) / foul(avant), wc = Math.abs(Math.sin(e - ta)) / foul(cote), s = wa + wc || 1;
-            cible[avant] = wa / s; cible[cote] = wc / s; this.selArr = null;
+            // (TORS_PART : d'abord tourner le bassin AUTANT que la torsion le permet, puis mélanger pour le reste seulement ; avant,
+            // 20° de trop à gauche passaient d'un coup à 58 % de pas chassé : cadence 152 → 210 pas/min, pieds de travers, vu en jeu)
+            let tp = 0;
+            if (TORS_PART && (avant === 'Pas_Avant_Course' || avant === 'Pas_Glisse' || !!mix) && Math.abs(twA) <= (TORS_PART.tw ?? 1.0)) { const lim = (vis ? 0.78 : 0.9) * (TORS_PART.k ?? 0.9); for (let k = 20; k > 0; k--) { const x = twA * k / 20; if (tors(x, avant) < lim) { tp = x; break; } } }
+            const e2 = e - tp, wa = Math.abs(Math.sin(tc - e2)) / foul(avant), wc = Math.abs(Math.sin(e2 - ta)) / foul(cote), s = wa + wc || 1;
+            cible[avant] = wa / s; cible[cote] = wc / s; this.selArr = null; tau = tp;
           } else {
             // secteur arrière : pas chassé et marche arrière se mélangent mal (pas qui s'annulent) ; on joue l'un OU l'autre,
             // bassin tourné (tau) vers la direction exacte, en gardant celui qui tord le moins le dos (avec hystérésis ;
@@ -7772,6 +8128,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
             const n = this.selArr ? PR : cote; cible[n] = 1; tau = Math.max(-1.5, Math.min(1.5, tw(n)));
           }
         } else cible[avant] = 1;
+        // pas de côté LENT : pas chassé joint (pieds jamais rapprochés à moins de la base, jamais croisés) ; au-dessus de PAS.v1,
+        // la marche hanches tournées vers le déplacement (le buste garde l'arme sur la cible) ; mélange entre les deux
+        // (un pas joint et une marche ne se mélangent pas — pieds qui se percutent à 50/50, mesuré — : on passe de l'un à l'autre
+        // avec hystérésis, fondu des poids ~0,3 s ; pieds d'appui cloués par le verrou, pied qui bouge levé par decolle())
+        { const j0 = this.jointOn; this.jointOn = j0 === undefined || !this.blendW ? v < (PAS.v0 + PAS.v1) / 2 : j0 ? v < PAS.v1 : v < PAS.v0; if (j0 !== undefined && j0 !== this.jointOn && (cible[PG] > 0 || cible[PD] > 0)) this.basculeT = 0.35; }
+        { const kJ = this.jointOn ? 1 : 0;
+          for (const [sc, jn] of [[PG, 'Pas_Joint_D'], [PD, 'Pas_Joint_G']]) if (M.clips[jn] && M.loco[jn] && cible[sc] > 0) { cible[jn] = cible[sc] * kJ; cible[sc] *= 1 - kJ; } }
         if (mix) { const wa = cible[avant] || 0; cible[avant] = 0; for (const n in mix) if (M.clips[n] && M.loco[n]) cible[n] = (cible[n] || 0) + wa * mix[n]; }
         // (torsion du bassin au prorata de la couche des jambes : à l'entrée en marche elle monte avec elle)
         this.jambesCible = tau * Math.min(1, (this.marcheK || 0) + dt / 0.35);
@@ -7779,14 +8142,29 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const bw = this.blendW;
         for (const n in bw) if (!(n in cible)) cible[n] = 0;
         this.basculeT = Math.max(0, (this.basculeT || 0) - dt);
-        let tot = 0; for (const n in cible) { bw[n] = (bw[n] || 0) + (cible[n] - (bw[n] || 0)) * Math.min(1, dt * (this.basculeT > 0 ? 3.5 : 8)); if (bw[n] < 0.004 && cible[n] === 0) bw[n] = 0; tot += bw[n]; }
+        // (poids lissés au 2e ordre — amorti critique, « SmoothDamp » — : vitesse des poids continue, plus d'à-coup du bassin au début
+        // d'un fondu, ex. passage pas chassé joint ↔ marche hanches tournées ; constantes de temps proches de l'ancien 1er ordre)
+        const bv = this.blendV || (this.blendV = {}), om = 2 / (this.basculeT > 0 ? 0.42 : 0.17);
+        let tot = 0; for (const n in cible) { const x0 = bw[n] || 0, ch = x0 - cible[n], x2 = om * dt, ex = 1 / (1 + x2 + 0.48 * x2 * x2 + 0.235 * x2 * x2 * x2), tmp = ((bv[n] || 0) + om * ch) * dt;
+          bv[n] = ((bv[n] || 0) - om * tmp) * ex; bw[n] = Math.max(0, Math.min(1, cible[n] + (ch + tmp) * ex)); if (bw[n] < 0.004 && cible[n] === 0) { bw[n] = 0; bv[n] = 0; } tot += bw[n]; }
         // foulée du mélange : somme VECTORIELLE (en diagonale, avant + côté avancent moins que la somme des longueurs) ;
         // c'est elle qui cale la cadence sur la vitesse réelle (pas de pieds qui glissent)
         // (mesuré : la vraie foulée d'un mélange est entre la somme vectorielle et la somme des longueurs ; on prend la moyenne)
         let fx = 0, fz = 0, fl = 0; for (const n in bw) if (bw[n] > 0) { const L = bw[n] / tot * foul(n), t = D[n] || 0; fx += L * Math.sin(t); fz += L * Math.cos(t); fl += L; }
-        this.ph = ((this.ph || 0) + dt * v / Math.max(0.25, (Math.hypot(fx, fz) + fl) / 2)) % 1;
+        // (CAD_MAX : cadence plafonnée — en pas/min — quand le mélange contient beaucoup de pas chassé (foulée courte) : en
+        // diagonale visée à 2 m/s, le mélange marche glissée / pas chassé tournait à 260-270 pas/min ; au-delà, la foulée s'allonge,
+        // les pieds d'appui restent cloués par le verrou et le pied en l'air rattrape)
+        { let dph = dt * v / Math.max(0.25, (Math.hypot(fx, fz) + fl) / 2); const kC = CAD_MAX && tot > 0 ? Math.min(1, (((bw.Pas_Gauche || 0) + (bw.Pas_Droite || 0)) / tot) / 0.25) : 0;
+          if (kC > 0 && dt > 0) { const cap = CAD_MAX / 120 * dt; if (dph > cap) dph = dph + (cap - dph) * kC; }
+          this.ph = ((this.ph || 0) + dph) % 1; }
         // entrée en marche : la couche des jambes monte en ~0,2 s (l'animation précédente s'efface pendant ce temps)
         this.marcheK = Math.min(1, (this.marcheK || 0) + dt / 0.35);
+        // (reprise après une couche de jambes — rechargement en marchant — qui jouait le MÊME cycle : même action three.js ; on
+        // reprend sa phase et son poids au lieu de la remettre à 0,1 et à la phase de la marche : saut du bassin de 2 800 °/s²)
+        { const n = this.legClip;   // (le jeu appelle marche() AVANT playLegs(null) : la couche est encore là)
+          if (n && REPRISE && tot > 0 && bw[n] / tot > 0.5) { const a = act(n); if (a) {
+            this.ph = ((((a.time + dt * a.getEffectiveTimeScale()) / a.getClip().duration) - (M.phase0[n] || 0) - ((M.decal && M.decal[avant] && M.decal[avant][n]) || 0)) % 1 + 1) % 1;
+            this.marcheK = Math.max(this.marcheK, a.getEffectiveWeight()); this.legClip = null; } } }
         let psi = 0;
         for (const n in bw) {
           const a = act(n); if (!a) continue;
@@ -7802,7 +8180,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         while (psi > Math.PI) psi -= 2 * Math.PI; while (psi < -Math.PI) psi += 2 * Math.PI;
         // (orientation du bassin par rapport au groupe — la visée — pour borner la torsion épaules / bassin dans penche())
         this.bassinM = B + this.jambesCible + psi;
+        // (marche glissée jouée vite — petite course en visant — : base resserrée, pieds sous les hanches comme en course)
+        { const x = avant === 'Pas_Glisse' ? Math.max(0, Math.min(1, (v - GLISSE_SERRE.v0) / (GLISSE_SERRE.v1 - GLISSE_SERRE.v0))) : 0; this.serreK = (this.serreK || 0) + (x * x * (3 - 2 * x) - (this.serreK || 0)) * Math.min(1, dt * 3); }
         this.dosM = psi + a0; this.yawM = B; this.blendFrame = frameK; this.coteK = tot > 0 ? ((bw[PG] || 0) + (bw[PD] || 0)) / tot : 0; this.arrK = tot > 0 ? (bw[PR] || 0) / tot : 0;
+        this.jointK = tot > 0 ? ((bw.Pas_Joint_D || 0) + (bw.Pas_Joint_G || 0)) / tot : 0;   // (pas joints : part latérale aussi, pour la penche du buste)
         // (haut du corps calé sur la phase de SES jambes d'origine : celles du clip dont il est tiré, sinon la marche avant)
         const hb = haut.replace(/_Haut$/, ''), ph0 = M.phase0[hb] !== undefined ? M.phase0[hb] : (M.phase0[avant] || 0);
         this.play(haut, { time: ((this.ph + ph0) % 1), fade: 0.25 });
@@ -7817,7 +8198,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         // arrêt après une marche / course : les pieds sont « cloués » là où ils étaient affichés (positions monde de l'image
         // précédente, lues AVANT d'effacer les retouches), puis posé() les amène un par un à la pose d'arrêt
         const changeRepos = this.clipVu && this.clipVu !== this.clip && REPOS[this.clipVu] && REPOS[this.clip];   // garde basse <-> visée à l'arrêt
-        if ((this.blendW && !enMarche || changeRepos) && !keepYaw && pieds[0][2] && pieds[1][2]) this.pose0 = { t: 0, lock: pieds.map(l => new THREE.Vector3().setFromMatrixPosition(l[2].matrixWorld)), lockQ: pieds.map(l => { const q = new THREE.Quaternion(); l[2].matrixWorld.decompose(V(), q, V()); return q; }) };
+        if ((this.blendW && !enMarche || changeRepos) && !keepYaw && pieds[0][2] && pieds[1][2]) this.pose0 = { t: 0, arret: true, lock: pieds.map(l => new THREE.Vector3().setFromMatrixPosition(l[2].matrixWorld)), lockQ: pieds.map(l => { const q = new THREE.Quaternion(); l[2].matrixWorld.decompose(V(), q, V()); return q; }) };
         for (const [b, q, p] of mods) { b.quaternion.copy(q); b.position.copy(p); } mods.length = 0;
         if (this.blendW && !enMarche) {   // plus en marche directionnelle : les jambes mélangées s'effacent
           for (const n in this.blendW) { const a = actions[n]; if (a && a.isScheduled() && this.blendW[n] > 0) a.fadeOut(0.3); }
@@ -7825,6 +8206,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         }
         if (!enMarche) this.marcheK = Math.max(0, (this.marcheK || 0) - dt / 0.3);
         frameK++;
+        // fondu adouci en cours (voir play()) : poids en smootherstep, vitesse des os continue au début et à la fin
+        { const F = this.fondu; if (F && dt > 0) { F.t += dt; const x = Math.min(1, F.t / F.d), s = x * x * x * (x * (x * 6 - 15) + 10);
+            F.a.setEffectiveWeight(F.wa0 + (1 - F.wa0) * s); F.de.setEffectiveWeight(F.w0 * (1 - s)); if (x >= 1) { F.de.stop(); this.fondu = null; } } }
+        // (le mixer de three.js n'écrit un os que si sa valeur mélangée a changé depuis l'image précédente : un os resté à une
+        // valeur périmée — retouche restaurée sur une valeur déjà retouchée — n'était plus jamais corrigé tant que la pose
+        // d'arrêt ne bougeait pas. Mesuré : bassin à −40° de lacet et 8 cm trop bas pendant toute la garde basse, puis saut de
+        // 40° / 8 cm et pied gauche de 30 cm en UNE image au premier pas. On force la réécriture de chaque os animé.)
+        if (REECRIT && mixer._bindings) for (const pm of mixer._bindings) { const b = pm.buffer, n = pm.valueSize; if (b && n) { b[n] = NaN; b[2 * n] = NaN; } }
         mixer.update(dt); this.t += dt;
         // chute dans le dos : vers 55-75 % de l'animation le bassin roule et une jambe part en l'air (botte vers le ciel) : un pied
         // plus haut que le bassin est redescendu de 30 % de cet écart (IK de la jambe) autour de ce moment
@@ -7833,46 +8222,80 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           if (w > 0) { group.updateMatrixWorld(true); const hy = WP(hipsB).y;
             for (const [up, lo, ft] of pieds) if (ft) { const e = WP(ft).y - hy; if (e > 0) ik(up, lo, ft, new THREE.Vector3(0, -0.3 * w * e, 0)); } }
         }
-        [this.epK, this.epV] = ressort(this.epK || 0, this.epV || 0, EPAULE[this.clip] ? 1 : 0, 11, dt);   // (ressort : pas d'à-coup au début des fondus)
-        if (!keepYaw) { const tgt = enMarche ? this.yawM : (M.yawFix[this.clip] || 0); let d = tgt - body.rotation.y; body.rotation.y += d * Math.min(1, dt * 5); }   // (lent : les corrections diffèrent d'une pose à l'autre)
+        this.epK = S.EP_RESSORT ? (([this.epK, this.epV] = ressort(this.epK || 0, this.epV || 0, EPAULE[this.clip] ? 1 : 0, 11, dt)), this.epK) : Math.max(0, Math.min(1, lisse2(this, 'ep', this.epK || 0, EPAULE[this.clip] ? 1 : 0, S.EP_W, dt)));   // (cible filtrée puis ressort : l'accélération part de 0 — le ressort seul démarrait à w² : fusil 6 700 °/s² à la 1re image en quittant la visée)
+        // (lent : les corrections diffèrent d'une pose à l'autre ; cible filtrée puis ressort amorti critique : la vitesse du corps
+        // ne saute pas quand la cible change d'un coup — avant, approche exponentielle : 160 °/s dès la 1re image en sortie de
+        // rechargement)
+        if (!keepYaw) { const tgt = enMarche ? this.yawM : (M.yawFix[this.clip] || 0); if (dt > 0) body.rotation.y = lisse2(this, 'corpsYaw', body.rotation.y, tgt, enMarche ? 10 : 6, dt); }   // (clé « corpsYaw » : « yaw » donnait this.yawV, déjà la vitesse de lacet du GROUPE écrite par app.js : le corps partait à +36° pendant un pivot)
+        else this.corpsYawC = undefined;
         // torsion du dos en marche directionnelle : bassin des pas chassés / arrière (psi) + visée (le corps n'est tourné que
         // de yawM, le dos fait le reste, calculé sur l'orientation ACTUELLE du corps pour que le fusil reste sur la cible
         // pendant que le corps pivote) ; pondérée par marcheK (entrée / sortie en fondu, comme les animations)
         this.dosComp = (this.marcheK || 0) > 0 ? this.marcheK * ((this.dosM || 0) + (enMarche ? body.rotation.y : 0)) : 0;
-        let dj = this.jambesCible - this.jambes; while (dj > Math.PI) dj -= 2 * Math.PI; while (dj < -Math.PI) dj += 2 * Math.PI;
+        // (filtrée — cible filtrée + ressort : le bassin estimé des cycles (psi) saute quand la marche avant change de clip,
+        // glissée → course, alors que les jambes, elles, passent en fondu ; le dos tournait de 25° en une image, 19 000 °/s²)
+        if (S.DOS_W > 0) { if (dt > 0 && this.dosCompF !== undefined) this.dosComp = lisse2(this, 'dosCF', this.dosCompF, this.dosComp, S.DOS_W, dt); else lisse2(this, 'dosCF', this.dosComp, this.dosComp, S.DOS_W, 0); this.dosCompF = this.dosComp; }
+        // (cible filtrée à l'arrêt — ~0,08 s — avant le ressort : un replacement des pieds fait sauter la cible de ~1 rad d'un coup,
+        // à-coup du bassin de 4 200 °/s² au pivot)
+        let jc = this.jambesCible;
+        if (JAMBES_FILTRE && !enMarche && dt > 0) { let d0 = jc - (this.jambesCF ?? jc); while (d0 > Math.PI) d0 -= 2 * Math.PI; while (d0 < -Math.PI) d0 += 2 * Math.PI; this.jambesCF = (this.jambesCF ?? jc) + d0 * Math.min(1, dt * JAMBES_FILTRE); jc = this.jambesCF; } else this.jambesCF = jc;
+        let dj = jc - this.jambes; while (dj > Math.PI) dj -= 2 * Math.PI; while (dj < -Math.PI) dj += 2 * Math.PI;
         // (sortie de marche directionnelle : la torsion du bassin se défait au rythme du fondu des jambes, pas d'un coup)
         const kj = !enMarche && (this.marcheK || 0) > 0 ? dt * 6 : dt * 14;
-        const vj = enMarche ? 5 : (this.marcheK || 0) > 0 ? 3.5 : this.pose0 ? 4 : 9;   // (pas de replacement en cours : le bassin tourne avec les pas)   // (rad/s ; en marche directionnelle et en sortie de marche, le bassin tourne posément)
-        this.jambes += Math.max(-vj * dt, Math.min(vj * dt, dj * Math.min(1, kj)));
+        // (pas de pose en cours — arrêt, pivot — : priorité sur la sortie de marche ; JAMBES_POSE : bassin plus vif pendant les pas,
+        // pour ne pas laisser les pieds déjà tournés vers leur place finale à 90° du bassin après un arrêt + quart de tour)
+        const vj = enMarche ? 5 : this.pose0 && JAMBES_POSE ? JAMBES_POSE.vj : (this.marcheK || 0) > 0 ? 3.5 : this.pose0 ? 4 : 9;   // (pas de replacement en cours : le bassin tourne avec les pas)   // (rad/s ; en marche directionnelle et en sortie de marche, le bassin tourne posément)
+        // (ressort amorti critique, vitesse continue : plus d'à-coup du bassin quand la cible change d'un coup — pivot sur place,
+        // entrée / sortie de marche)
+        if (dt > 0) { const ST = enMarche ? 0.12 : this.pose0 && JAMBES_POSE ? JAMBES_POSE.st : (this.marcheK || 0) > 0 ? 0.25 : this.pose0 ? 0.18 : 0.1, om = 2 / ST, x = om * dt, ex = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+          const v0 = this.jambesV || 0, tmp = (v0 - om * dj) * dt; let v1 = (v0 - om * tmp) * ex, nj = this.jambes + dj + (-dj + tmp) * ex;
+          let pas = nj - this.jambes; pas = Math.max(-vj * dt, Math.min(vj * dt, pas)); this.jambes += pas; this.jambesV = Math.max(-vj, Math.min(vj, v1)); }
         // visée à l'arrêt : l'animation est de profil « sur un fil » (pieds l'un derrière l'autre sur l'axe de tir, jambes qui se
         // confondent vues de face) ; le bassin et les jambes sont tournés de CARRE vers la cible, le dos rattrape (fusil immobile)
-        this.carreK = (this.carreK || 0) + (((this.clip === 'Rifle_Aim_Turn_Right' || this.clip === 'Standing_Reload') && !keepYaw ? 1 : 0) - (this.carreK || 0)) * (dt > 0 ? Math.min(1, dt * 6) : 1);
+        this.carreK = lisse2(this, 'carre', this.carreK || 0, (this.clip === 'Rifle_Aim_Turn_Right' || this.clip === 'Standing_Reload') && !keepYaw ? 1 : 0, 8, dt);   // (sans à-coup du bassin)
         const tj = this.jambes + CARRE * this.carreK;
         if (Math.abs(tj) > 0.01 && hipsB && spine3.length) {
           body.updateMatrixWorld(true); mod(hipsB); twist(hipsB, tj);
-          for (const sb of spine3) { mod(sb); twist(sb, -tj / spine3.length); }
+          // (contre-torsion entière sur Spine : sur les modèles Meshy TOUTE la peau du buste est liée à Spine — Spine1 et Spine2 ne
+          // déforment que bras, cou et tête ; réparti sur les trois os, le gilet restait tourné avec le bassin, épaules déboîtées)
+          mod(spine3[0]); twist(spine3[0], -tj);
         }
         // le bassin des pas chassés / de la marche arrière n'est pas orienté comme celui de la marche avant : le dos rattrape
-        if (this.dosComp && Math.abs(this.dosComp) > 0.01 && spine3.length) { body.updateMatrixWorld(true); for (const sb of spine3) { mod(sb); twist(sb, -this.dosComp / spine3.length); } }
+        if (this.dosComp && Math.abs(this.dosComp) > 0.01 && spine3.length) { body.updateMatrixWorld(true); mod(spine3[0]); twist(spine3[0], -this.dosComp); }   // (sur Spine : voir plus haut)
         // respiration (poses fixes : garde basse, visée) : légère flexion du dos
-        if (spine1 && (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right')) { mod(spine1); spine1.rotation.x += Math.sin(this.t * 1.9) * 0.012; spine1.rotation.z += Math.sin(this.t * 0.7) * 0.006; }
-        [this.gbK, this.gbV] = ressort(this.gbK || 0, this.gbV || 0, this.clip === 'Garde_Basse' || this.clip === 'Walk_Low_Haut' || this.clip === 'Run_Low_Haut' || this.clip === 'Trot_Low_Haut' || BAS[this.clip] ? 1 : 0, 9, dt);
+        // (sur Spine, qui porte la peau du buste — sur Spine1, seuls bras et tête « respiraient » ; poids lissé : plus de saut au
+        // changement de pose)
+        { const rk = this.respK = dt > 0 ? Math.max(0, Math.min(1, lisse2(this, 'respK', this.respK || 0, (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right') && !keepYaw ? 1 : 0, 4, dt))) : (this.respK || 0);
+          if (spine3[0] && rk > 0.01) { mod(spine3[0]); spine3[0].rotation.x += Math.sin(this.t * 1.9) * 0.012 * rk; spine3[0].rotation.z += Math.sin(this.t * 0.7) * 0.006 * rk; } }
+        // (cible filtrée + ressort : la penche du buste et la tête, proportionnelles à gbK, démarrent sans à-coup — sortie de
+        // rechargement : le ressort seul donnait 10 000 °/s² au buste à la 1re image)
+        this.gbK = Math.max(0, Math.min(1, lisse2(this, 'gb', this.gbK || 0, this.clip === 'Garde_Basse' || this.clip === 'Walk_Low_Haut' || this.clip === 'Run_Low_Haut' || this.clip === 'Trot_Low_Haut' || BAS[this.clip] ? 1 : 0, 10, dt)));
         if (Math.max(this.epK || 0, this.gbK) > 0.01 && !keepYaw) this.penche(Math.max(this.epK || 0, this.gbK));
         if (enMarche && (this.marcheK || 0) > 0.05) this.ecarte(this.marcheK, this.coteK || 0, this.arrK || 0);
         else if (this.verrouPieds && !keepYaw) this.ecarte(1, 0, 0);   // (marche accroupie, course épaulée : chevilles jamais croisées)
         this.verrou(dt, !keepYaw && (enMarche || !!this.verrouPieds) && !S.sansVerrou);
         const repos = (this.clip === 'Garde_Basse' || this.clip === 'Rifle_Aim_Turn_Right') && !enMarche && !keepYaw;
+        // pied gauche avancé de la garde basse (appui) : porté par le petit pas de pose (poserPieds) et appliqué d'un coup, au
+        // lieu de suivre reposK (~2 s) : le pied glissait de 17 cm au sol à l'arrêt (0,1-0,25 m/s)
+        { const gbT = repos && this.clip === 'Garde_Basse' && GB_PAS;
+          this.gbPiedK = gbT && (this.pose0 || !this.clipVu) ? 1 : gbT ? Math.max(this.gbPiedK || 0, this.reposK || 0) : 0; }   // (sortie : au départ, le verrou reprend les pieds là où ils étaient affichés — voir verrou — ; vers la visée, le pas de pose part de la position affichée)
         if (this.pose0) this.poserPieds(dt, repos);
-        this.appui(dt, repos && !this.pose0);
+        this.appui(dt, repos && (!this.pose0 || APPUI_POSE));   // (APPUI_POSE : la posture d'arrêt — genoux, largeur — tient pendant les petits pas du pivot au lieu de s'effacer)
+        this.decolle(dt, !keepYaw && !S.sansDecolle);
+        if (!keepYaw) this.cheville();
         if (!keepYaw && !S.sansSol) this.sol();
+        this.vu = pieds[0][2] && M.semelle ? [semW(0), semW(1)] : null;   // (semelles affichées, pour le verrou au départ)
         this.tete(dt, keepYaw ? null : repos || enMarche || !!EPAULE[this.clip] || !!BAS[this.clip]);
         this.clipVu = this.clip;
       },
       // pivot sur place (app.js) : les pieds, cloués pendant que le torse tourne, se replacent face au torse par deux petits pas
       // (même mécanique que l'arrêt : pieds partant de leur position affichée, voir poserPieds)
       repas() {
-        if (!pieds[0][2] || !pieds[1][2] || (this.pose0 && this.pose0.t < 0.5)) return;
+        // (pas précédents pas finis : refusé ; SAUF les pas d'arrêt — l'arrêt suivi d'un quart de tour vers la cible : attendre
+        // 0,38 s laissait les jambes vrillées vers l'ancienne direction ; les pas repartent de la position affichée)
+        if (!pieds[0][2] || !pieds[1][2] || (this.pose0 && this.pose0.t < 0.38 && !(this.pose0.arret && REPAS_ARRET) && !(REPAS_ARRET && this.pose0.t > 0.2 && Math.abs(this.jambesCible || 0) > 1.2))) return false;   // (torsion de plus de 70° — quart de tour rapide — : on n'attend pas la fin des pas)
         this.pose0 = { t: 0, lock: pieds.map(l => new THREE.Vector3().setFromMatrixPosition(l[2].matrixWorld)), lockQ: pieds.map(l => { const q = new THREE.Quaternion(); l[2].matrixWorld.decompose(V(), q, V()); return q; }) };
+        return true;
       },
       // Pose des pieds à l'arrêt : au lieu de glisser en 0,3 s vers la pose d'arrêt (fondu), chaque pied reste cloué au sol
       // là où il était puis fait un petit pas (léger lever) jusqu'à sa place : d'abord celui qui était levé, puis l'autre.
@@ -7882,13 +8305,51 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         if (!repos || P.t > 0.62) { this.pose0 = null; return; }
         group.updateMatrixWorld(true);
         const cur = pieds.map(l => WP(l[2]));
+        // (pied gauche avancé de la garde basse : ajouté APRÈS, par appui() ; le pas part donc de la position clouée moins cette avance)
+        const fwG = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())), av = GB_PAS ? [0, 1].map(i => this.gbOff(i, fwG, this.gbPiedK || 0)) : null;
         if (!P.ordre) { if (Math.max(cur[0].distanceTo(P.lock[0]), cur[1].distanceTo(P.lock[1])) > 0.8) { this.pose0 = null; return; }   // (téléporté)
           P.ordre = P.lock[0].y >= P.lock[1].y ? [0, 1] : [1, 0]; }
+        // (cible ANTICIPÉE : là où le pied sera une fois la torsion des jambes rattrapée — le bassin tourne encore de « rem » autour
+        // de la hanche, jambesCible et carré visés — ; avant, le pied visait sa place du moment, en retard de 0,2-0,6 s sur un arrêt
+        // suivi d'un quart de tour : jambes vrillées, genou de côté, pieds croisés pendant 0,4-0,8 s (vu en jeu))
+        const carreT = this.clip === 'Rifle_Aim_Turn_Right' || this.clip === 'Standing_Reload' ? 1 : 0;
+        const rem = POSE_ANTICIPE ? Math.max(-1.6, Math.min(1.6, (this.jambesCible || 0) - (this.jambes || 0) + (root.ANTICIPE_CARRE_TEST ?? 0) * CARRE * (carreT - (this.carreK || 0)))) : 0;   // (le « carré » de la visée, rapide — ~0,3 s —, n'est pas anticipé : pieds tournés avant le bassin, pied / bassin 73°)
+        const qR = new THREE.Quaternion().setFromAxisAngle(UP, rem), hP = WP(hipsB);
+        const tgt = cur.map(c => c.clone().sub(hP).applyQuaternion(qR).add(hP).setY(c.y)), qTgt = pieds.map(l => qR.clone().multiply(WQ(l[2])));
+        // (quart de tour : le pied du côté où l'on tourne part le premier — sinon l'autre passe devant lui, jambes croisées, tibias
+        // l'un dans l'autre — ; sauf pied déjà levé à l'arrêt, qui se pose d'abord)
+        if (!P.ordreT) { P.ordreT = true; if (ORDRE_TOUR && Math.abs(rem) > 0.35 && Math.abs(P.lock[0].y - P.lock[1].y) < 0.03) P.ordre = rem > 0 ? [0, 1] : [1, 0]; }
+        // (pieds reposés et cloués, mais le bassin a encore tourné — cible changée en visée — : s'ils sont à plus de 30° ou 12 cm
+        // de leur place, nouveaux petits pas depuis là où ils sont, au lieu de laisser le bassin tourner au-dessus de pieds cloués :
+        // jambes croisées, tibias l'un dans l'autre, vu en jeu)
+        if (REPAS_DERIVE && P.fin && P.fin[0] && P.fin[1] && P.t > 0.42) {
+          const yawOf = (q) => { const v = new THREE.Vector3(0, 0, 1).applyQuaternion(q); return Math.atan2(v.x, v.z); };
+          const der = [0, 1].some(i => { let a = yawOf(P.fin[i][1]) - yawOf(qTgt[i]); while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return Math.abs(a) > 0.52 || Math.hypot(P.fin[i][0].x - tgt[i].x, P.fin[i][0].z - tgt[i].z) > 0.12; });
+          if (der) { this.pose0 = { t: 0, lock: [0, 1].map(i => P.fin[i][0].clone().add(av ? av[i] : V())), lockQ: [0, 1].map(i => P.fin[i][1].clone()) }; return this.poserPieds(0, repos); } }
         P.ordre.forEach((i, rang) => {
-          const x = Math.max(0, Math.min(1, (P.t - rang * 0.16) / 0.24)), s = x * x * (3 - 2 * x); if (s >= 1) return;
-          const L = P.lock[i], C = cur[i], h = Math.min(0.11, 0.45 * Math.hypot(C.x - L.x, C.z - L.z));   // (un vrai pas : pied levé de 4 à 11 cm, pas traîné)
+          const x = Math.max(0, Math.min(1, (P.t - rang * 0.16) / 0.24)), s = x * x * (3 - 2 * x);
+          // (pied qui attend son tour, encore au sol, pendant un quart de tour rapide : il PIVOTE sur la plante pour rester à 40° au
+          // plus de sa direction finale, au lieu de rester cloué : pied / bassin jusqu'à 135° — jambe vrillée — quand le corps tourne
+          // de 135° en 0,3 s)
+          if (s <= 0 && PIVOT_PLANTE) { const ft = pieds[i][2], vL = WP(orteils[i]).sub(WP(ft)).applyQuaternion(WQ(ft).invert());
+            const dA = vL.clone().applyQuaternion(P.lockQ[i]), dB = vL.clone().applyQuaternion(qTgt[i]); dA.y = 0; dB.y = 0;
+            if (dA.lengthSq() > 1e-6 && dB.lengthSq() > 1e-6) { const a = Math.atan2(dA.x * dB.z - dA.z * dB.x, dA.x * dB.x + dA.z * dB.z), lim = PIV_P.lim;
+              if (Math.abs(a) > lim) { const r = Math.max(-PIV_P.w * dt, Math.min(PIV_P.w * dt, -(a - Math.sign(a) * lim))), qY = new THREE.Quaternion().setFromAxisAngle(UP, r), ball = P.lock[i].clone().add(vL.clone().applyQuaternion(P.lockQ[i]));
+                // (signe : atan2(dA×dB) mesure l'angle de dA vers dB autour de −Y ; la rotation autour de +Y est donc −a)
+                // (au-delà de PIV_P.hanche — quart de tour rapide — : le pied tourne autour du BASSIN, glissé sur la plante, au lieu de
+                // rester sur place pendant que le corps tourne au-dessus : sinon le pied droit passait à gauche du bassin, tibias croisés)
+                const ctr = PIV_P.hanche && Math.abs(a) > PIV_P.hanche ? hP.clone().setY(P.lock[i].y) : ball;
+                P.lock[i] = P.lock[i].clone().sub(ctr).applyQuaternion(qY).add(ctr); P.lockQ[i] = qY.clone().multiply(P.lockQ[i]); } } }
+          // (pied reposé : cloué là où il s'est posé jusqu'à la fin de la pose — relâché en douceur de 0,50 à 0,62 s — ; avant, il
+          // suivait aussitôt les jambes, dont la torsion rattrape le pivot avec ~0,2 s de retard : au pivot sur place, chaque pied
+          // glissait de 3-5 cm à 0,15-0,3 m/s après chaque petit pas)
+          if (s >= 1) { const ft = pieds[i][2]; if (!PIN_POSE) return; P.fin = P.fin || []; if (!P.fin[i]) P.fin[i] = [tgt[i].clone(), qTgt[i].clone()];
+            const z = Math.max(0, Math.min(1, (P.t - 0.5) / 0.12)), wp = 1 - z * z * (3 - 2 * z); if (wp <= 0) return;
+            const d = P.fin[i][0].clone().sub(cur[i]).multiplyScalar(wp), qC = WQ(ft); if (d.lengthSq() > 1e-8) ikJambe(pieds[i][0], pieds[i][1], ft, d, orteils[i]);
+            mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(qC.slerp(P.fin[i][1], wp))); ft.updateMatrixWorld(true); return; }
+          const L = av ? P.lock[i].clone().sub(av[i]) : P.lock[i], C = tgt[i], dl = Math.hypot(C.x - L.x, C.z - L.z), h = Math.min(0.11, Math.max(0.45 * dl, Math.min(0.04, 3 * dl)));   // (un vrai pas : pied levé de 4 à 11 cm, pas traîné ; un pas de 1-9 cm se lève quand même de 3-4 cm)
           const T = L.clone().lerp(C, s); T.y += h * Math.sin(Math.PI * s);
-          const ft = pieds[i][2], qC = WQ(ft), d = T.sub(C); if (d.lengthSq() > 1e-8) ikJambe(pieds[i][0], pieds[i][1], ft, d, orteils[i]);
+          const ft = pieds[i][2], qC = qTgt[i], d = T.sub(cur[i]); if (d.lengthSq() > 1e-8) ikJambe(pieds[i][0], pieds[i][1], ft, d, orteils[i]);
           // orientation du pied aussi (sinon la pointe pivote autour de la cheville cloué et glisse)
           mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(P.lockQ[i].clone().slerp(qC, s))); ft.updateMatrixWorld(true);
         });
@@ -7902,27 +8363,96 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const Lk = this.lock || (this.lock = [{ w: 0 }, { w: 0 }]); if (!pieds[0][2] || !orteils[0] || !orteils[1]) return;
         if (!actif && Lk[0].w <= 0 && Lk[1].w <= 0) { Lk[0].piv = Lk[1].piv = null; return; }
         group.updateMatrixWorld(true);
-        const gy = group.getWorldPosition(V()).y, so = [semW(0), semW(1)], bas = (s) => (s.min !== undefined ? s.min : Math.min(s.talon.y, s.plante.y, s.bout.y)) - gy;
+        const gp = group.getWorldPosition(V()), vC = Lk.gp && dt > 0 ? Math.hypot(gp.x - Lk.gp.x, gp.z - Lk.gp.z) / dt : 0; Lk.gp = gp.clone();   // (vitesse du corps)
+        const gy = gp.y, so = [semW(0), semW(1)], bas = (s) => (s.min !== undefined ? s.min : Math.min(s.talon.y, s.plante.y, s.bout.y)) - gy;
         pieds.forEach(([up, lo, ft], i) => {
           const L = Lk[i], S = so[i], h = bas(S), hT = S.talon.y - gy, hP = Math.min(S.plante.y, S.bout.y) - gy;
           // vitesse (monde) du pied tel que l'animation le place : un pied d'appui est presque immobile au sol, un pied en l'air
           // qui passe près du sol avance à 2-3 fois la vitesse du corps (il ne doit pas être cloué en plein pas)
-          const vA = L.pA && dt > 0 ? Math.hypot(S.plante.x - L.pA.x, S.plante.z - L.pA.z) / dt : 0; L.pA = S.plante.clone();
+          let vA = L.pA && dt > 0 ? Math.hypot(S.plante.x - L.pA.x, S.plante.z - L.pA.z) / dt : 0; L.pA = S.plante.clone();
+          // (saut de l'animation — passage marche ↔ petite course, changement de cycle — : un pied d'appui immobile qui « bondit » de
+          // 20 cm en une image n'est pas un pied qui part ; on garde le verrou cette image-là au lieu de lâcher puis reprendre 7 cm plus loin)
+          // (essai désactivé — VERROU.saut — : les pas chassés / diagonales en ont souffert, pieds croisés ; le vrai cas — pied qui
+          // retombe sur le talon au passage marche ↔ course — est traité plus bas : pas de lâcher sur un passage au talon chargé)
+          { const vP = L.vAp ?? 0; L.vAp = vA; if (VERROU.saut === true && L.piv && vP < 0.8 && vA > 2.2 && Math.min(S.talon.y, S.plante.y, S.bout.y) - gy < 0.03) vA = vP; }
           // appui : semelle à moins de 3 cm du sol, plus basse que l'autre, et pied (presque) immobile ; pivot : talon posé →
           // talon, sinon la plante
-          const appui = h < 0.03 && h <= bas(so[1 - i]) + 0.02 && (L.piv || vA < 1.1);
-          const piv = !actif ? null : appui && hT < 0.02 ? 'A' : appui ? 'T' : (L.piv && h < 0.05 ? L.piv : null);
+          // (S.verrouLeve, essai désactivé : relâcher dès que l'animation lève le pied — semelle remontée de 1,2 cm au-dessus de son
+          // plus bas depuis la prise — et qu'il avance. Mesuré : en appui la semelle animée bouge déjà de plus de 1,2 cm (déroulé,
+          // cycles qui flottent) et le pied lâchait en plein appui : glissement × 2 à 3)
+          L.hMin = L.piv ? Math.min(L.hMin === undefined ? h : L.hMin, h) : h;
+          const leve = S.verrouLeve === true && L.piv && h - L.hMin > 0.012 && vA > 0.5;
+          const appui = !leve && h < 0.03 && h <= bas(so[1 - i]) + 0.02 && vA < (L.piv ? 2.2 : 1.1);
+          // (fin du déroulé : quand le bout de la semelle passe nettement sous la plante, pivot sur le bout — 'B' — : le pied qui
+          // tourne en lacet au décollement pivotait autour de la plante et son bout, seul au sol, balayait 3-4 cm)
+          const hB = S.bout.y - gy, bout = VERROU.B !== false && hT > 0.04 && hB < S.plante.y - gy - (L.piv === 'B' ? 0 : VERROU.Bd ?? 0.01);
+          let piv = !actif ? null : appui && hT < 0.02 ? 'A' : appui ? (bout ? 'B' : 'T') : (!leve && L.piv && h < (S.verrouH || 0.05) && vA < (L.piv === 'B' ? Math.max(VERROU.vB ?? 2.2, (VERROU.kB ?? 1) * vC) : L.piv === 'T' && VERROU.kT !== false ? Math.max(2.2, (VERROU.kB ?? 1) * vC) : 2.2) ? (L.piv === 'T' && bout && VERROU.TB !== false ? 'B' : L.piv) : null);   // (pied qui repart en rasant le sol — pas chassé — : relâché)
+          // (changement de pivot sur un pied que l'animation emporte déjà — plus vite que 1,4 m/s ou 0,8 × le corps — : c'est le
+          // décollement ; on lâche en douceur au lieu de ré-ancrer — retenir le pied le jette dans l'autre en pas chassé, le
+          // ré-ancrer sur sa position animée le fait sauter de 5 cm)
+          if (piv && L.piv && piv !== L.piv && !(L.piv === 'T' && piv === 'B') && !(piv === 'A' && h < (VERROU.hA ?? 0.006)) && L.w > 0 && VERROU.cont !== false && vA >= Math.max(VERROU.contV || 1.4, 0.8 * vC)) piv = null;
+          const K = { A: 'talon', T: 'plante', B: 'bout' };
+          if (root.Soldat3D && root.Soldat3D.dbgVerrou) L.dbg = { h: +h.toFixed(3), hT: +hT.toFixed(3), vA: +vA.toFixed(2), vC: +vC.toFixed(2), appui, piv0: L.piv, piv, autre: +bas(so[1 - i]).toFixed(3) };
           if (piv) {
-            const P = piv === 'A' ? S.talon : S.plante;
-            if (L.piv !== piv) { L.anc = P.clone(); if (L.off && L.w > 0) L.anc.addScaledVector(L.off, L.w * L.w * (3 - 2 * L.w)); L.piv = piv; }
+            const P = S[K[piv]];
+            // (changement de pivot : la nouvelle ancre est là où ce point ÉTAIT AFFICHÉ à l'image précédente — position animée
+            // précédente + décalage — et non sa position animée courante + décalage : sinon le pied saute de ce que l'animation
+            // a dérivé pendant l'image, 3 cm en petite course au passage talon → plante)
+            // (départ — couche de marche qui entre — : le pied est pris là où il était AFFICHÉ à l'image précédente, d'un coup ; la
+            // pose d'arrêt et ses retouches — avance du pied de la garde basse — ne le font pas sauter ni glisser)
+            const dep = !L.piv && L.w <= 0 && (this.marcheK || 0) < 0.15 && this.vu && VERROU.dep !== false && Math.hypot(this.vu[i][K[piv]].x - P.x, this.vu[i][K[piv]].z - P.z) < 0.2;
+            if (dep) { L.anc = this.vu[i][K[piv]].clone(); L.piv = piv; L.w = 1; }
+            else if (L.piv !== piv) { L.anc = (VERROU.cont !== false && L.pr && L.w > 0 ? L.pr[K[piv]] : P).clone(); if (L.off && L.w > 0) L.anc.addScaledVector(L.off, L.w * L.w * (3 - 2 * L.w)); else if (VERROU.prise0 !== false && !L.piv && !(L.w > 0)) L.w = 1; L.piv = piv; }   // (prise neuve : l'ancre est la position actuelle, décalage nul — pas d'à-coup — : cloué tout de suite au lieu de glisser 0,09 s à la pose du pied)
             // (et posé AU sol : le point d'appui de la semelle à hauteur 0 ; les cycles flottent ou s'enfoncent de 1 à 4 cm)
-            const dy = Math.max(-0.04, Math.min(0.05, -(piv === 'A' ? hT : hP)));
+            const dy = Math.max(-0.04, Math.min(0.05, -(piv === 'A' ? hT : piv === 'B' ? hB : hP)));
             const d = new THREE.Vector3(L.anc.x - P.x, dy, L.anc.z - P.z);
-            if (Math.hypot(d.x, d.z) > 0.22) { L.piv = null; L.w = Math.max(0, L.w - dt / 0.12); }   // (trop loin : pivot sur place, saut)
-            else { L.off = d; L.w = Math.min(1, L.w + dt / 0.05); }
-          } else { L.piv = null; L.w = Math.max(0, L.w - dt / 0.12); }
+            // (essai écarté : lâcher quand la jambe est tendue — cible hors de portée — ; mesuré : glissements × 2 à 6, la jambe
+            // d'appui est souvent presque tendue)
+            if (Math.hypot(d.x, d.z) > 0.22) { L.piv = null; L.w = Math.max(0, L.w - dt / 0.16); }   // (trop loin : pivot sur place, saut)
+            else { L.off = d; L.w = Math.min(1, L.w + dt / VERROU.prise); }   // (prise en ~0,09 s, relâche en ~0,16 s : sans à-coup du genou)
+          } else { L.piv = null; L.w = Math.max(0, L.w - dt / VERROU.lache); }
+          L.pr = { talon: S.talon.clone(), plante: S.plante.clone(), bout: S.bout.clone() };
           if (L.w > 0 && L.off && L.off.lengthSq() > 1e-8) ikJambe(up, lo, ft, L.off.clone().multiplyScalar(L.w * L.w * (3 - 2 * L.w)), orteils[i]);
         });
+      },
+      // Pied qui bouge = pied levé (« anti-patinage ») : un pied NON cloué qui se déplace dans le monde à plus de ~0,4 m/s alors
+      // que sa semelle est à moins de DECOLLE.h du sol est remonté (IK de la jambe, orientation gardée) jusqu'à cette hauteur,
+      // en douceur. Cas mesurés : départ (la marche entre en fondu sur la pose d'arrêt : le pied qui part ne se lève qu'au
+      // prorata du fondu et glisse 0,25 s à 2-3 m/s), lâcher du verrou au ras du sol, pose du pied en petite course qui arrive
+      // à 3-5 m/s à 1-2 cm du sol, mélanges marche / pas chassé. Un pied qui ralentit se repose.
+      decolle(dt, actif) {
+        const D = this.decol || (this.decol = [{ y: 0, v: 0 }, { y: 0, v: 0 }]); if (!pieds[0][2] || !M.semelle || !(dt > 0)) return;
+        group.updateMatrixWorld(true); const gp = group.getWorldPosition(V()), gy = gp.y, Lk = this.lock, vCd = this.decolGp ? Math.hypot(gp.x - this.decolGp.x, gp.z - this.decolGp.z) / dt : 0; this.decolGp = gp.clone();
+        // (course — corps à plus de ~2 m/s — et marche en rechargeant : levée DECOLLE.h2, un peu plus haute ; la marche visée garde DECOLLE.h, talon ≤ 12 cm)
+        const kC = this.verrouPieds && vCd > 0.5 ? 1 : Math.max(0, Math.min(1, (vCd - 1.8) / 0.5)), hD = DECOLLE.h + ((DECOLLE.h2 ?? DECOLLE.h) - DECOLLE.h) * kC * kC * (3 - 2 * kC);
+        pieds.forEach(([up, lo, ft], i) => {
+          const d = D[i], S = semW(i), h = (S.min !== undefined ? S.min : Math.min(S.talon.y, S.plante.y, S.bout.y)) - gy, p = S.plante;
+          const v = d.p ? Math.hypot(p.x - d.p.x, p.z - d.p.z) / dt : 0, lw = Lk && Lk[i] && Lk[i].piv ? Lk[i].w || 0 : 0;   // (verrou qui lâche — plus de pivot — : le pied rattrape l'animation EN L'AIR, petit pas vif, pas en glissant)
+          const x = Math.max(0, Math.min(1, (v - DECOLLE.v0) / (DECOLLE.v1 - DECOLLE.v0))), c = actif && v < 8 ? hD * x * x * (3 - 2 * x) * Math.max(0, 1 - 2 * lw) : 0;
+          // (levée voulue ressort amorti critique, ~0,06 s : pas d'à-coup du genou)
+          // (pas exact « SmoothDamp » : stable quel que soit dt — un ressort explicite divergeait à 30 images/s)
+          // (un pied enfoncé est l'affaire de sol() : la levée se compte depuis le sol)
+          const want = c > 0 ? Math.max(0, Math.min(0.08, c - Math.max(0, h))) : 0, om = 2 / DECOLLE.t, x2 = om * dt, ex = 1 / (1 + x2 + 0.48 * x2 * x2 + 0.235 * x2 * x2 * x2), ch = d.y - want, tmp = (d.v + om * ch) * dt;
+          d.v = (d.v - om * tmp) * ex; d.y = Math.max(0, Math.min(0.08, want + (ch + tmp) * ex)); if (root.Soldat3D && root.Soldat3D.dbgDecolle) d.dbg = [v, h, c, want];
+          if (d.y > 0.001) { ikJambe(up, lo, ft, new THREE.Vector3(0, d.y, 0), orteils[i]); }
+          const S2 = d.y > 0.001 ? semW(i) : S; d.p = S2.plante.clone();
+        });
+      },
+      // Butée de cheville en l'air : un pied levé (semelle à plus de 1,5-4 cm du sol) dont la pointe remonte vers le tibia de
+      // plus de DORSI_MAX (flexion dorsale, par rapport à la pose de liaison) est rabattu jusqu'à la butée. Mesuré : pas
+      // chassé gign, pied en l'air à 42-46° (amplitude réelle 20-40°). Au sol, la flexion du genou en charge est laissée.
+      cheville() {
+        if (!DORSI_MAX || !skinned || !pieds[0][2] || !orteils[0] || !orteils[1]) return;
+        if (M.cheville0 === undefined) { const sk = skinned.skeleton, bp = (b) => { const k = sk.bones.indexOf(b); return k < 0 ? null : new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().copy(sk.boneInverses[k]).invert()); };
+          M.cheville0 = pieds.map(([up, lo, ft], i) => { const L = bp(lo), F = bp(ft), T = bp(orteils[i]); return L && F && T ? F.clone().sub(L).angleTo(T.clone().sub(F)) : null; }); }
+        group.updateMatrixWorld(true); const gy = group.getWorldPosition(V()).y;
+        pieds.forEach(([up, lo, ft], i) => { const c0 = M.cheville0[i]; if (c0 === null) return;
+          const S = semW(i), h = (S.min !== undefined ? S.min : Math.min(S.talon.y, S.plante.y, S.bout.y)) - gy, x = Math.max(0, Math.min(1, (h - 0.015) / 0.025)), w = x * x * (3 - 2 * x); if (w <= 0) return;
+          // (ex > 0 : pointe trop relevée, tournée vers le tibia ; < 0 : trop tendue — flexion plantaire au-delà de PLANT_MAX —, tournée
+          // dans l'autre sens ; mesuré : recul rapide, pied en l'air à 30,0-30,3°)
+          const shin = WP(ft).sub(WP(lo)), a1 = WP(orteils[i]).sub(WP(ft)), ang = shin.angleTo(a1), ex = ang - c0 - DORSI_MAX > 0 ? ang - c0 - DORSI_MAX : PLANT_MAX && c0 - ang > PLANT_MAX ? -(c0 - ang - PLANT_MAX) : 0; if (!ex) return;
+          const ax = new THREE.Vector3().crossVectors(a1, shin); if (ax.lengthSq() < 1e-10) return; ax.normalize();
+          mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(new THREE.Quaternion().setFromAxisAngle(ax, ex * w)).multiply(WQ(ft))); ft.updateMatrixWorld(true); });
       },
       // Sol : aucun point de semelle sous le sol (debout, accroupi, en marche) : le pied est remonté par l'IK de la jambe.
       // Les deux pieds dans le sol : c'est tout le corps qui est trop bas → le bassin remonte d'autant (genoux inchangés, au lieu
@@ -7948,15 +8478,15 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         // épaules presque carrées) — le dos tourne pour amener la ligne des épaules à BIAIS (rad) de la face ; le fusil est
         // placé ensuite (poseArme), les bras suivent
         { const ek = this.epK || 0; if (ek > 0.01 && !S.sansCarre) { const e = WP(B.la).sub(WP(B.ra)).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()).invert());
-          // en marche : épaules à 0,75 rad au plus du bassin (bassinM, donné par marche()) — un tireur droitier qui se déplace vers
+          // en marche : épaules à 0,95 rad au plus du bassin (bassinM, donné par marche()) — un tireur droitier qui se déplace vers
           // sa gauche se met de face au lieu de se tordre
-          let Sv = -BIAIS; if (this.bassinM !== undefined && this.blendW && this.blendFrame === frameK - 1) Sv = Math.max(this.bassinM - 0.75, Math.min(this.bassinM + 0.75, Sv));
+          let Sv = -((S.BIAIS_M && S.BIAIS_M[M.nom]) || BIAIS); if (this.bassinM !== undefined && this.blendW && this.blendFrame === frameK - 1) Sv = Math.max(this.bassinM - S.TORSION_MAX, Math.min(this.bassinM + S.TORSION_MAX, Sv));
           this.epS = this.epS === undefined ? Sv : this.epS + (Sv - this.epS) * 0.15;
-          const d = Math.max(-1, Math.min(1, Math.PI / 2 + this.epS - Math.atan2(e.x, e.z))) * ek; if (Math.abs(d) > 0.01) for (const sb of spine3) { mod(sb); twist(sb, d / spine3.length); } } }
+          const d = Math.max(-1, Math.min(1, Math.PI / 2 + this.epS - Math.atan2(e.x, e.z))) * ek; if (Math.abs(d) > 0.01) { mod(spine3[0]); twist(spine3[0], d); } } }   // (sur Spine, qui porte la peau du buste)
         const lat = WP(B.la).sub(WP(B.ra)); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();
         // direction : 30 % normale des épaules, 70 % axe de visée (le tireur étant de profil, sinon il penche vers sa droite)
         const fwG = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())); fwG.y = 0; fwG.normalize();
-        const fw = new THREE.Vector3().crossVectors(lat, new THREE.Vector3(0, 1, 0)).normalize().multiplyScalar(0.3).addScaledVector(fwG, 0.7).normalize();
+        const fw = new THREE.Vector3().crossVectors(lat, new THREE.Vector3(0, 1, 0)).normalize().multiplyScalar(S.PENCHE_EP).addScaledVector(fwG, 1 - S.PENCHE_EP).normalize();
         lat.crossVectors(new THREE.Vector3(0, 1, 0), fw).normalize();
         const axe = (b, ang) => { mod(b); b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(lat, ang); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
         // trois passes : (1) le haut du dos n'est jamais voûté au-delà de ~17° (Spine2 → cou ; certaines animations le sont déjà :
@@ -7964,20 +8494,36 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         // (les pivots du dos sont au-dessus du bassin : l'angle bougeant moins que la rotation, on itère)
         // (0) charnière de hanche : le bassin bascule vers l'avant (jusqu'à ~7°), les pieds restent en place (IK des jambes,
         // orientation gardée) ; elle fait pencher tout le buste d'un coup, sans voûter le dos
-        const cible = this.clip === 'Rifle_Aim_Turn_Right' ? 0.3 : PENCHE;
-        if (pieds[0][2] && pieds[1][2]) { const v0 = WP(cou0).sub(WP(hipsB)), hg = Math.max(0, Math.min(0.12, (cible - Math.atan2(v0.dot(fw), Math.max(0.05, v0.y))) * 0.5 * k));
+        // (visée : « nez au-dessus des orteils » ; course en garde basse : buste nettement penché, comme un coureur)
+        // (à genou, Accroupi_* : l'animation a le buste 35° EN ARRIÈRE ; plafond de correction plus haut, cible ~12°)
+        const genou = /^Accroupi/.test(this.clip), cibleB = this.clip === 'Rifle_Aim_Turn_Right' ? S.PENCHE_ARRET : COURSE_BAS[this.clip] ? 0.42 : genou ? PENCHE : (this.epK || 0) > 0.5 ? PENCHE + 0.12 - (S.PENCHE_LAT || 0) * (this.blendFrame >= frameK - 1 ? Math.min(1, (this.coteK || 0) + (this.arrK || 0) + (this.jointK || 0)) : 0) : PENCHE, plafond = genou ? 0.95 : 0.6;
+        // (cible lissée — cible filtrée + ressort, ~0,4 s : elle change d'un coup avec le clip du haut du corps — course en garde basse
+        // 0,42 → visée — ou au passage d'epK par 0,5 ; le bas du dos tournait de ~10° en une image, 15 000 °/s²)
+        let cible; { const dP = this.tPen === undefined ? -1 : this.t - this.tPen; this.tPen = this.t;
+          if (!(S.PENCHE_W > 0)) cible = cibleB;
+          else if (this.penC === undefined || dP < 0 || dP > 0.25) { cible = cibleB; lisse2(this, 'penF', cibleB, cibleB, S.PENCHE_W, 0); }
+          else cible = dP === 0 ? this.penC : lisse2(this, 'penF', this.penC, cibleB, S.PENCHE_W, dP);
+          this.penC = cible; }
+        // (toutes les corrections sont calculées entières puis appliquées au prorata de k : réponse LINÉAIRE en k — avant, les
+        // itérations à gain 1,5·k et les plafonds saturaient dès k ≈ 0,3 : le buste basculait d'un coup au début des fondus)
+        if (pieds[0][2] && pieds[1][2]) { const v0 = WP(cou0).sub(WP(hipsB)), hg = k * Math.max(0, Math.min(0.12, (cible - Math.atan2(v0.dot(fw), Math.max(0.05, v0.y))) * 0.5));
           if (hg > 0.004) { const pf = pieds.map(l => [WP(l[2]), WQ(l[2])]); axe(hipsB, hg);
             pieds.forEach(([up, lo, ft], i) => { const d = pf[i][0].clone().sub(WP(ft)); if (d.lengthSq() > 1e-10) ikJambe(up, lo, ft, d, orteils[i]); mod(ft); ft.quaternion.copy(WQ(ft.parent).invert().multiply(pf[i][1])); ft.updateMatrixWorld(true); }); } }
+        const acc = [0, 0, 0];
         for (let it = 0, tot = 0; it < 3; it++) {
-          const w2 = WP(cou0).sub(WP(spine3[2])), h2 = Math.atan2(w2.dot(fw), Math.max(0.05, w2.y)); if (h2 > 0.3) axe(spine3[2], -(h2 - 0.3) * k);
-          const v = WP(cou0).sub(WP(hipsB)), a = Math.min(0.6 - tot, (cible - Math.atan2(v.dot(fw), Math.max(0.05, v.y))) * k * 1.5);   // (visée à l'arrêt : l'animation a le poids sur l'arrière, on penche plus)
+          const w2 = WP(cou0).sub(WP(spine3[2])), h2 = Math.atan2(w2.dot(fw), Math.max(0.05, w2.y)); if (h2 > 0.3) { axe(spine3[2], -(h2 - 0.3)); acc[2] -= h2 - 0.3; }
+          const v = WP(cou0).sub(WP(hipsB)), a = Math.min(plafond - tot,(cible - Math.atan2(v.dot(fw), Math.max(0.05, v.y))) * 1.5);   // (visée à l'arrêt : l'animation a le poids sur l'arrière, on penche plus)
           if (a < 0.005) continue;   // (seulement vers l'avant : une course déjà penchée n'est pas redressée)
-          axe(spine3[0], a * 0.55); axe(spine3[1], a * 0.45); tot += a;
+          axe(spine3[0], a); acc[0] += a; tot += a;   // (tout sur Spine : la peau du buste y est liée, la penche se voit en entier)
         }
+        if (k < 0.999) for (let j = 0; j < 3; j++) if (acc[j]) axe(spine3[j], (k - 1) * acc[j]);   // (même axe : les angles s'additionnent)
         // roulis : les visées de la bibliothèque penchent le buste sur le côté (10 à 18°) ; ramené à 4° au plus (bas du dos)
+        const rou = (b, a) => { mod(b); b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
+        let accR = 0;
         for (let it = 0; it < 2; it++) { const v = WP(cou0).sub(WP(hipsB)), r = Math.atan2(v.dot(lat), Math.max(0.05, v.y)), ex = r - Math.max(-0.07, Math.min(0.07, r));
           if (Math.abs(ex) < 0.004) break;
-          for (const [b, part] of [[spine3[0], 0.5], [spine3[1], 0.5]]) { mod(b); b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, ex * part * k); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); } }
+          rou(spine3[0], ex); accR += ex; }
+        if (k < 0.999 && accR) rou(spine3[0], (k - 1) * accR);
       },
       // Pieds jamais croisés (pas chassés et marche arrière « au pistolet » de la bibliothèque : pas très serrés, bottes l'une sur
       // l'autre, genoux qui se touchent) : écart minimal des chevilles le long de la ligne du bassin (les deux pieds poussés
@@ -7987,7 +8533,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         if (!pieds[0][2] || !pieds[1][2]) return;
         group.updateMatrixWorld(true);
         const lat = WP(pieds[0][0]).sub(WP(pieds[1][0])); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();   // vers la gauche du bassin
-        const MIN = (0.1 + 0.1 * k + 0.06 * kr) * K, sep = WP(pieds[0][2]).sub(WP(pieds[1][2])).dot(lat);
+        { const sk = (this.serreK || 0) * K * (1 - Math.min(1, k + kr)) * GLISSE_SERRE.d; if (sk > 0.002) { ikJambe(pieds[0][0], pieds[0][1], pieds[0][2], lat.clone().multiplyScalar(-sk), orteils[0]); ikJambe(pieds[1][0], pieds[1][1], pieds[1][2], lat.clone().multiplyScalar(sk), orteils[1]); } }
+        const MIN = (0.15 + 0.05 * k + 0.06 * kr) * K,   // (chevilles à 15 cm au moins : les bottes ne se touchent jamais)
+         sep = WP(pieds[0][2]).sub(WP(pieds[1][2])).dot(lat);
         if (sep < MIN) {   // (surtout le pied levé : celui au sol glisserait)
           const d = Math.min(0.3, MIN - sep), yL = WP(pieds[0][2]).y, yR = WP(pieds[1][2]).y, pl = Math.max(0.1, Math.min(0.9, 0.5 + (yL - yR) * 10));
           ikJambe(pieds[0][0], pieds[0][1], pieds[0][2], lat.clone().multiplyScalar(d * pl), orteils[0]); ikJambe(pieds[1][0], pieds[1][1], pieds[1][2], lat.clone().multiplyScalar(-d * (1 - pl)), orteils[1]); }
@@ -8014,21 +8562,28 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       },
       // Report du poids au repos : le bassin glisse lentement (~5,5 s) d'une jambe sur l'autre, s'abaisse un peu et s'incline
       // vers la jambe libre ; les pieds restent au sol (IK), les épaules restent à peu près droites.
+      gbOff(i, fw, k) { return fw.clone().multiplyScalar((i === 0 ? LOWR.av : -LOWR.ar) * k); },   // décalage avant / arrière des pieds en garde basse
       appui(dt, actif) {
         this.reposK = (this.reposK || 0) + ((actif ? 1 : 0) - (this.reposK || 0)) * Math.min(1, dt * 1.5);
-        if (this.reposK < 0.01 || !hipsB || !pieds[0][2] || !pieds[1][2]) return;
+        // (posture de garde basse : poids propre, lissé — ressort amorti critique — ; elle se défait en ~0,4 s au départ au lieu de
+        // tomber d'un coup quand l'animation du haut quitte Garde_Basse : bassin de trois quarts et avancé)
+        this.lowK = lisse2(this, 'lowK', this.lowK || 0, this.clip === 'Garde_Basse' && actif ? 1 : 0, 5, dt);
+        if (Math.max(this.reposK, this.lowK, GB_PAS ? this.gbPiedK || 0 : 0) < 0.01 || !hipsB || !pieds[0][2] || !pieds[1][2]) return;
         group.updateMatrixWorld(true);
         const s0 = Math.sin(this.t * 1.14 + graine), s = Math.sign(s0) * Math.pow(Math.abs(s0), 0.6) * this.reposK;   // (s'attarde sur chaque jambe)
         const avant = pieds.map(l => WP(l[2])), gq = group.getWorldQuaternion(new THREE.Quaternion());
         const lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq);
         mod(hipsB);
-        const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022).addScaledVector(fw, -0.05 * this.reposK); h1.y -= 0.008 * Math.abs(s);   // (bassin un peu en arrière : poids sur l'avant des pieds)
+        const gb = Math.max(0, Math.min(1, this.lowK)), gbP = GB_PAS ? this.gbPiedK || 0 : gb;
+        const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022).addScaledVector(fw, -0.05 * Math.max(0, this.reposK - gb) + LOWR.hf * gb); h1.y -= 0.008 * Math.abs(s);   // (bassin un peu en arrière : poids sur l'avant des pieds ; garde basse : voir LOWR)
         hipsB.position.add(hipsB.parent.worldToLocal(h1).sub(hipsB.parent.worldToLocal(h0.clone()))); hipsB.updateMatrixWorld(true);
         const roule = (b, a) => { b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
-        roule(hipsB, -s * 0.035); if (spine1) { mod(spine1); roule(spine1, s * 0.03); }
-        // garde basse : pied gauche ~17 cm en avant (appui décalé) et bassin 3 cm plus bas (genoux fléchis ~15-20°)
-        const gb = this.clip === 'Garde_Basse' ? this.reposK : 0;
-        if (gb > 0.01) { avant[0].addScaledVector(fw, 0.17 * gb); hipsB.position.add(hipsB.parent.worldToLocal(WP(hipsB).add(new THREE.Vector3(0, -0.03 * gb, 0))).sub(hipsB.parent.worldToLocal(WP(hipsB)))); hipsB.updateMatrixWorld(true); }
+        roule(hipsB, -s * 0.035); { const sp = spine3[0] || spine1; if (sp) { mod(sp); roule(sp, s * 0.03); } }   // (sur Spine : le gilet n'est pondéré que sur cet os)
+        // garde basse « prêt à tirer, arme basse » (voir LOWR) : pieds décalés — pied fort (droit) en arrière —, bassin de trois quarts
+        // (épaules et arme suivent), genoux souples, poids légèrement vers l'avant
+        if (gbP > 0.01) for (let i = 0; i < 2; i++) avant[i].add(this.gbOff(i, fw, gbP));
+        if (gb > 0.01) { hipsB.position.add(hipsB.parent.worldToLocal(WP(hipsB).add(new THREE.Vector3(0, LOWR.hy * gb, 0))).sub(hipsB.parent.worldToLocal(WP(hipsB)))); hipsB.updateMatrixWorld(true);
+          if (LOWR.bl) twist(hipsB, -LOWR.bl * Math.PI / 180 * gb); }
         // visée debout : genoux « légèrement fléchis » (~22°, réglement : 10 à 25°) et non accroupis (l'animation et la charnière
         // de hanche les amenaient à 44-47°) : le bassin remonte de ce qu'il faut, les pieds restent en place
         if (this.clip === 'Rifle_Aim_Turn_Right') {
@@ -8057,19 +8612,29 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
             want = Math.max(-0.65 * vise, Math.min(0.65 * vise, this.coup || 0));   // (coup d'œil tiré en garde basse, puis visée)
           }
         }
-        this.teteA = (this.teteA || 0) + (want - (this.teteA || 0)) * Math.min(1, dt * 3.5);
-        const H = this.bones.head, kA = actif && neutre ? Math.max(this.epK || 0, this.gbK || 0) : 0;   // (visée ; garde basse : le dos penché ne doit pas baisser la tête)
+        this.teteA = dt > 0 ? lisse2(this, 'teteA', this.teteA || 0, want, 7, dt) : (this.teteA || 0);   // (vitesse de la tête continue : coups d'œil et cibles nouvelles sans à-coup)
+        const H = this.bones.head, kT = actif && neutre ? Math.max(this.epK || 0, this.gbK || 0) : 0;   // (visée ; garde basse : le dos penché ne doit pas baisser la tête)
+        // (poids lissé à part : en entrée / sortie de rechargement la tête passe du regard de l'animation — vers le chargeur — au
+        // regard droit devant, ~75° : avant, d'un coup à l'entrée et en 0,3 s à la sortie, à-coup de 11 000 °/s²)
+        const kA = dt > 0 && this.kH !== undefined ? Math.max(0, Math.min(1, lisse2(this, 'kH', this.kH, kT, 7, dt))) : kT; this.kH = kA;
+        // garde basse : le buste accompagne les coups d'œil (« tourelle » : tête, buste et canon ensemble, voir poseArme) ; ~35 %
+        // du lacet de la tête porté par le dos (avant, le canon restait figé ~25° à gauche pendant que la tête balayait ±37° :
+        // jusqu'à 50° entre la tête et le canon)
+        { const kg = (this.gbK || 0) * (1 - (this.epK || 0)) * kA; if (actif && kg > 0.01 && Math.abs(this.teteA) > 0.003 && spine3.length) { body.updateMatrixWorld(true); mod(spine3[0]); twist(spine3[0], 0.35 * this.teteA * kg); } }
         if (kA > 0.01) {
           // En visée, les animations collent la joue sur la crosse (tête roulée vers la droite et penchée sur le fusil) ; notre
           // fusil est plus bas : tête et cou ramenés vers leur pose droite (celle de la garde basse), puis la face tournée vers
           // la direction de visée (+ coup d'œil / cible), un peu vers le bas : 40 % par le cou, le reste par la tête.
           mod(cou); mod(H); cou.quaternion.slerp(neutre[0], 0.75 * kA); H.quaternion.slerp(neutre[1], 0.75 * kA); cou.updateMatrixWorld(true);
+          // (raccord avec la branche sans pose de tête — coup d'œil en simple torsion — au prorata de 1 − kA : avant, passer le seuil
+          // kA = 0,01 supprimait d'un coup cette torsion, à-coup de 4 500 °/s² en sortie de rechargement)
+          if (kA < 0.999 && Math.abs(this.teteA) > 0.003) { twist(cou, this.teteA * 0.4 * (1 - kA)); twist(H, this.teteA * 0.6 * (1 - kA)); }
           const fq = new THREE.Vector3(0, 0, 1).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion())), y = Math.atan2(fq.x, fq.z) + this.teteA, p = -0.08 - 0.1 * (this.gbK || 0) * (1 - (this.epK || 0));   // (garde basse : regard un peu plus bas)
           // marche : la tête suit un peu chaque pas (±1° de tangage au rythme des pas, ±0,8° de roulis au rythme du cycle)
           const acl = actions[this.clip], pas = this.blendW && this.blendFrame === frameK - 1 ? (this.ph || 0) : acl && M.loco && M.loco[this.clip] && acl.timeScale > 0 ? acl.time / acl.getClip().duration : null, bob = pas === null ? 0 : 0.018 * Math.sin(4 * Math.PI * pas), roul = pas === null ? 0 : 0.014 * Math.sin(2 * Math.PI * pas);
           const cible = new THREE.Vector3(Math.sin(y) * Math.cos(p + bob), Math.sin(p + bob), Math.cos(y) * Math.cos(p + bob));
           // visée : le regard suit le canon (direction donnée par poseArme à l'image précédente)
-          if (this.visee && (this.epK || 0) > 0.01) { cible.lerp(this.visee, this.epK).normalize(); if (bob) cible.y += bob; cible.normalize(); }
+          if (this.visee && (this.epK || 0) > 0.01) { cible.lerp(this.viseeTete || this.visee, this.epK).normalize(); if (bob) cible.y += bob; cible.normalize(); }
           const tourne = (b, part) => { const face = faceL.clone().applyQuaternion(WQ(H)).normalize(), q = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(face, cible), part * kA);
             b.quaternion.copy(WQ(b.parent).invert().multiply(q).multiply(WQ(b))); b.updateMatrixWorld(true); };
           // cou redressé (60 % vers la verticale : le dos penché l'entraîne), puis visage vers la cible, puis roulis : le haut de
@@ -8092,14 +8657,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // vers l'avant-bas (20°) un peu en travers (15° vers la gauche), incliné de 25° ; la main droite y est amenée par IK
       // (orientation comprise : main = arme · prise⁻¹). Entrée / sortie en fondu au début et à la fin du clip (p : 0..1).
       poche(p, L) {
-        const x = Math.max(0, Math.min(1, p / 0.12)), w = x * x * (3 - 2 * x); if (w < 0.01) return;   // (pas de sortie : à la fin du rechargement, la reprise à deux mains part de cette poche, voir placeWeapon)
+        const x = Math.max(0, Math.min(1, p / 0.18)), w = x * x * x * (x * (x * 6 - 15) + 10); if (w < 0.001) return;   // (smootherstep sur ~0,45 s : le fusil part sans à-coup)   // (pas de sortie : à la fin du rechargement, la reprise à deux mains part de cette poche, voir placeWeapon)
         const B = this.bones, rh = B.rh; group.updateMatrixWorld(true);
         const gq = group.getWorldQuaternion(new THREE.Quaternion()), sc = group.getWorldScale(V()).x, up = new THREE.Vector3(0, 1, 0);
         const fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
-        const d = fw.clone().multiplyScalar(Math.cos(0.26)).addScaledVector(lat, Math.sin(0.26)); d.multiplyScalar(Math.cos(-0.35)).addScaledVector(up, Math.sin(-0.35)).normalize();
+        const d = fw.clone().multiplyScalar(Math.cos(RECH.lacet)).addScaledVector(lat, Math.sin(RECH.lacet)); d.multiplyScalar(Math.cos(-RECH.pique)).addScaledVector(up, Math.sin(-RECH.pique)).normalize();
         const u = up.clone().addScaledVector(d, -up.dot(d)).normalize(), qW = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(u, d), u, d));
-        qW.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -0.45));
-        const T = WP(B.spine).addScaledVector(fw, 0.3 * sc).addScaledVector(up, -0.12 * sc).addScaledVector(lat, -0.04 * sc);
+        qW.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -RECH.roulis));
+        const T = WP(B.spine).addScaledVector(fw, RECH.avant * sc).addScaledVector(up, -RECH.bas * sc).addScaledVector(lat, -RECH.lat * sc);
         const posW = T.clone().sub((weapon.gripPt || V()).clone().multiplyScalar(sc).applyQuaternion(qW));
         const Hd = new THREE.Matrix4().compose(posW, qW, new THREE.Vector3(sc, sc, sc)).multiply(new THREE.Matrix4().copy(L).invert());
         const hp = V(), hq = new THREE.Quaternion(); Hd.decompose(hp, hq, V());
@@ -8112,29 +8677,59 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // de chargeur sous le fusil (45-60 %), l'y tient (60-86 %, chargeur() l'enfonce), puis rend la main à l'animation (96 %)
       mainChargeur(p) {
         const sm = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
-        const w = p < 0.86 ? sm(p / 0.12) : 1 - sm((p - 0.86) / 0.1); if (w < 0.01) return;
+        const avecPrise = !!(M.prise && M.prise.L && !S.sansPrise), fin = sm((p - 0.76) / 0.18);   // (fin : la main revient sous le garde-main)
+        const w = p < 0.86 || avecPrise ? sm(p / 0.12) : 1 - sm((p - 0.86) / 0.1); if (w < 0.01 && !avecPrise) return;
         const B = this.bones, sc = group.getWorldScale(V()).x; weapon.updateMatrixWorld(true); group.updateMatrixWorld(true);
         const gq = group.getWorldQuaternion(new THREE.Quaternion()), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq), lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq);
-        const poche = WP(B.spine).addScaledVector(fw, 0.17 * sc).addScaledVector(new THREE.Vector3(0, 1, 0), -0.3 * sc).addScaledVector(lat, 0.06 * sc);
+        const poche = WP(B.spine).addScaledVector(fw, RECH.pAvant * sc).addScaledVector(new THREE.Vector3(0, 1, 0), -RECH.pBas * sc).addScaledVector(lat, RECH.pLat * sc);
         const well = weapon.localToWorld(weapon.magCenter.clone()), down = weapon.localToWorld(new THREE.Vector3(0, -1, 0)).sub(weapon.localToWorld(V())).normalize();
-        const T = poche.lerp(well.addScaledVector(down, 0.07 * sc), sm((p - 0.45) / 0.15)), palm = B.lm ? WP(B.lh).lerp(WP(B.lm), 0.6) : WP(B.lh);
+        const T = poche.clone().lerp(well.addScaledVector(down, 0.07 * sc), sm((p - 0.45) / 0.15)), palm = B.lm ? WP(B.lh).lerp(WP(B.lm), 0.6) : WP(B.lh);
         // orientation de la main : celle de sa prise sous le garde-main (paume vers le haut, comme pour pousser le chargeur), au
         // lieu de celle de l'animation qui tourne brusquement ; coude choisi pour un poignet peu cassé (poserBras)
         if (M.prise && M.prise.L && !S.sansPrise) { const tq = new THREE.Quaternion(); new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, M.prise.L.Hrel).decompose(V(), tq, V());
-          const ins = sm((p - 0.45) / 0.15);   // (au porte-chargeur : orientation de l'animation ; au puits : main sous le fusil)
+          // (au porte-chargeur : orientation de l'animation ; au puits : main sous le fusil) ; la main tourne de ~170° entre les deux
+          // (paume vers le ventre, doigts en bas → paume vers le haut) : pendant le trajet 40-62 % (main au porte-chargeur avant : le
+          // poignet cassait si elle tournait sur place), par pro-/supination surtout (voir chemin)
+          const ins = sm((p - 0.4) / 0.22);
           // au porte-chargeur : main dans le prolongement épaule → poche, paume vers le ventre
-          const Dl = M.prise.L, n = Dl.ordre[2], mid = (this.osDoigts && this.osDoigts[n]) || body.getObjectByName(n), cible = WP(B.lh).add(T.clone().sub(palm));
+          const Dl = M.prise.L, n = Dl.ordre[2], mid = (this.osDoigts && this.osDoigts[n]) || body.getObjectByName(n),
+            // (estimation du poignet avec l'orientation de la main à l'image précédente : sert d'axe épaule → main)
+            qPr = this.qMainG && this.t - this.tMainG < 0.2 ? this.qMainG : null,
+            cible = qPr ? T.clone().sub(palm.clone().sub(WP(B.lh)).applyQuaternion(WQ(B.lh).invert()).applyQuaternion(qPr)) : WP(B.lh).add(T.clone().sub(palm));
           const base = (a, nn) => { const x = a.clone().normalize(), y = nn.clone().addScaledVector(x, -nn.dot(x)).normalize(); return new THREE.Matrix4().makeBasis(x, y, new THREE.Vector3().crossVectors(x, y)); };
+          // (main dans l'axe épaule → poche : poignet droit, 20-45° ; une orientation plus proche de la prise, paume au ventre doigts
+          // vers la droite, cassait le poignet à 160°)
+          const sp = V(), sq = new THREE.Quaternion(); new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, Dl.Hrel).decompose(sp, sq, V());
           const Aw = cible.clone().sub(WP(B.la)).normalize(), qP = new THREE.Quaternion().setFromRotationMatrix(base(Aw, fw.clone().negate().addScaledVector(lat, -1)).multiply(base(mid.position.clone(), Dl.N).transpose()));
           // au puits : la main peut tourner autour de l'axe du chargeur ; on la tourne pour qu'elle prolonge le bras (poignet droit)
           { const A = mid.position.clone().normalize().applyQuaternion(tq), F = cible.clone().sub(WP(B.la)).normalize(), a1 = A.addScaledVector(down, -A.dot(down)), f1 = F.addScaledVector(down, -F.dot(down));
             if (a1.lengthSq() > 1e-4 && f1.lengthSq() > 1e-4) { a1.normalize(); f1.normalize(); let ang = Math.max(-1.2, Math.min(1.2, Math.atan2(new THREE.Vector3().crossVectors(a1, f1).dot(down), a1.dot(f1))));
-              const pr = this.angPuits !== undefined && this.t - this.tPuits < 0.2 ? this.angPuits : ang; ang = pr + Math.max(-0.04, Math.min(0.04, ang - pr)); this.angPuits = ang; this.tPuits = this.t;
+              const pr = this.angPuits !== undefined && this.t - this.tPuits < 0.2 ? this.angPuits : ang; ang = pr + Math.max(-S.PUITS_V, Math.min(S.PUITS_V, ang - pr)); this.angPuits = ang; this.tPuits = this.t;
               tq.premultiply(new THREE.Quaternion().setFromAxisAngle(down, ang * ins)); } }
           // (orientation visée limitée à ~3° par image : pas de retournement de la main si les repères basculent)
-          const qV = qP.slerp(tq, ins); if (this.qMainG && this.t - this.tMainG < 0.2) { const ang = this.qMainG.angleTo(qV); if (ang > 0.05) qV.copy(this.qMainG.clone().slerp(qV, 0.05 / ang)); }
+          // chemin de la rotation : bascule de l'axe de la main (qs) + rotation autour de cet axe (pro-/supination, angle th suivi
+          // d'une image à l'autre) — la slerp directe entre deux orientations à ~170° pouvait changer de sens en route
+          const axM = mid.position.clone().normalize(), qV = chemin(this, 'puits', qP, tq, ins, axM);
+          // fin du rechargement : place et orientation de la prise sous le garde-main (un seul IK : pas deux cibles qui se disputent)
+          // (reprise du garde-main en fin de rechargement : le fusil est dans la poche, contre le buste, l'avant-bras gauche arrive le
+          // long du canon ; la main est tournée de INCL_G autour de la verticale de l'arme, doigts plus vers l'avant — poignet ~45° au
+          // lieu de 80-100° ; la rotation s'efface après la sortie, voir tenir)
+          this.inclG = 1; const sp2 = V(), sq2 = new THREE.Quaternion(); new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, hrelIncl(Dl, S.INCL_G)).decompose(sp2, sq2, V());
+          // (paume en T : son décalage au poignet est pris dans le repère de la main ORIENTÉE (qV), et non de la pose de
+          // l'animation, tournée de ~170° — la main tenait le chargeur ~10 cm devant le puits)
+          let cib = cible; { const qi = WQ(B.lh).invert(), lh0 = WP(B.lh), dec = (pt) => pt.clone().sub(lh0).applyQuaternion(qi).applyQuaternion(qV);
+            // (au puits : chargeur() porte le chargeur 6 cm sous la base des doigts ; la main l'amène sous le puits, PUITS_PROF plus
+            // bas, puis l'enfonce (60-72 %, base des doigts PUITS_HAUT au-dessus du centre du chargeur en place) avant de repartir vers le garde-main — le chargeur ne glisse plus seul hors de la main)
+            const e = sm((p - S.PUITS_ENF) / 0.12), Tw = weapon.localToWorld(weapon.magCenter.clone()).addScaledVector(down, (S.PUITS_PROF * (1 - e) - S.PUITS_HAUT) * sc);
+            cib = poche.clone().sub(dec(palm)).lerp(Tw.sub(dec(B.lm ? WP(B.lm) : palm)), sm((p - 0.45) / 0.15)); }
+          if (fin > 0) { cib = cib.clone().lerp(sp2, fin); qV.slerp(sq2, fin); }
+          // début : la main part de SA PLACE sous le garde-main (et non de la pose de l'animation mêlée à la prise qui s'efface)
+          // vers le porte-chargeur, en ~0,7 s (smootherstep : accélération nulle au départ ; avant, 0,3 s et 17 000 °/s²)
+          const xL = Math.max(0, Math.min(1, p / 0.28)), wL = xL * xL * xL * (xL * (xL * 6 - 15) + 10); const xQ = Math.max(0, Math.min(1, p / S.DEPART_Q)), wQ = xQ * xQ * xQ * (xQ * (xQ * 6 - 15) + 10);   // (la main se retourne vers le porte-chargeur un peu avant d'y arriver)
+          if (wL < 1) { cib = sp.clone().lerp(cib, wL); qV.copy(chemin(this, 'depart', sq, qV, wQ, axM)); }
+          if (this.qMainG && this.t - this.tMainG < 0.2) { const ang = this.qMainG.angleTo(qV), lim = 0.35; if (ang > lim) qV.copy(this.qMainG.clone().slerp(qV, lim / ang)); }
           this.qMainG = qV.clone(); this.tMainG = this.t;
-          this.poserBras('L', B.la, B.lf, B.lh, cible, qV, w, Dl); }
+          this.poserBras('L', B.la, B.lf, B.lh, cib, qV, 1, Dl); }
         else ik(B.la, B.lf, B.lh, T.sub(palm).multiplyScalar(w));
       },
       // Bras h (épaule arm → coude fore → poignet hand) : poignet amené en tp (monde) et main orientée en tq, poids k. Le coude est
@@ -8151,24 +8746,35 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         // trop s'écarter de celle de l'animation, coude plutôt bas (pas « en aile de poulet »)
         const u = E0.clone().sub(S0); u.addScaledVector(dir, -u.dot(dir)); if (u.lengthSq() < 1e-8) u.set(0, -1, 0).addScaledVector(dir, -dir.y); u.normalize();
         const w = new THREE.Vector3().crossVectors(dir, u), Aw = (this.osDoigts[D.ordre[2]] || (this.osDoigts[D.ordre[2]] = body.getObjectByName(D.ordre[2]))).position.clone().normalize().applyQuaternion(qH), up = new THREE.Vector3(0, 1, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()));
-        const seuilC = 0.55 - 0.25 * (this.epK || 0);   // (coude au moins à mi-hauteur du bras sous l'épaule en garde basse, un peu plus haut en visée)
+        const seuilC = RECHARGE[this.clip] && S.SEUIL_REL !== undefined ? S.SEUIL_REL : 0.55 - 0.25 * (this.epK || 0);   // (coude au moins à mi-hauteur du bras sous l'épaule en garde basse, un peu plus haut en visée)
         const coude = (ph) => C.clone().addScaledVector(u, r * Math.cos(ph)).addScaledVector(w, r * Math.sin(ph));
         const dedans = new THREE.Vector3(h === 'R' ? 1 : -1, 0, 0).applyQuaternion(group.getWorldQuaternion(new THREE.Quaternion()));   // vers le centre du corps
-        const cout = (ph) => { const E = coude(ph), f = T.clone().sub(E).normalize(); return Math.acos(Math.max(-1, Math.min(1, f.dot(Aw)))) + 0.25 * Math.abs(ph) + 3 * Math.max(0, E.clone().sub(S0).dot(up) / a + seuilC) + 3 * Math.max(0, E.clone().sub(S0).dot(dedans) / a - 0.05); };   // (coude jamais rentré dans le buste)
+        // (rechargement : écart à l'animation peu pénalisé — sa pose de bras ne correspond plus à la main menée par mainChargeur ;
+        // 0,25 retenait le coude du mauvais côté puis le faisait basculer en route, poignet à 84°)
+        const kDev = RECHARGE[this.clip] ? S.COUDE_DEV_R : 0.25;
+        const cout = (ph) => { const E = coude(ph), f = T.clone().sub(E).normalize(); return Math.acos(Math.max(-1, Math.min(1, f.dot(Aw)))) + kDev * Math.abs(ph) + 3 * Math.max(0, E.clone().sub(S0).dot(up) / a + seuilC) + 3 * Math.max(0, E.clone().sub(S0).dot(dedans) / a - 0.05); };   // (coude jamais rentré dans le buste)
         // (cohérence d'une image à l'autre : recherche locale autour du coude précédent, changement limité ; recherche complète
         // seulement à la première image ou après une pause)
-        const sw = this.coudePh || (this.coudePh = {}), prev = sw[h] && this.t - sw[h].t < 0.2 ? sw[h].ph : null;
+        const sw = this.coudePh || (this.coudePh = {}), gqC = group.getWorldQuaternion(new THREE.Quaternion());
+        let prev = sw[h] && this.t - sw[h].t < 0.2 ? sw[h].ph : null;
+        // (coude précédent repris dans le repère du corps puis projeté sur le cercle actuel : l'angle relatif à l'animation
+        // seul faisait sauter le coude quand l'animation de référence change vite, en fondu entre deux clips)
+        if (prev !== null && sw[h].v) { const v = sw[h].v.clone().applyQuaternion(gqC); v.addScaledVector(dir, -v.dot(dir)); if (v.lengthSq() > 1e-8) prev = Math.atan2(v.dot(w), v.dot(u)); }
         let ph = prev === null ? 0 : prev, cb = cout(ph);
         if (prev === null) for (let x = -2.4; x <= 2.4; x += 0.2) { const cx = cout(x); if (cx < cb) { cb = cx; ph = x; } }
         for (const st of [0.08, 0.03, 0.01]) for (const sg of [-1, 1]) { let n = 0; while (n++ < 40 && cout(ph + sg * st) < cb) { ph += sg * st; cb = cout(ph); } }
-        if (prev !== null) ph = prev + Math.max(-0.08, Math.min(0.08, ph - prev));
-        sw[h] = { ph, t: this.t };
+        if (prev !== null) { let gp = ph, gc = cb; for (let x = -2.4; x <= 2.4; x += 0.4) { const cx = cout(x); if (cx < gc) { gc = cx; gp = x; } } if (gc < cb - 0.25) ph = gp; }   // (bien meilleur ailleurs : on y va, à vitesse limitée)
+        if (prev !== null) { const lim = Math.max(0.03, (RECHARGE[this.clip] || (this.priseK !== undefined && this.priseK < 0.97) ? 8 : 4) * (this.t - sw[h].t)); ph = prev + Math.max(-lim, Math.min(lim, ph - prev)); }   // (≤ 4 rad/s ; 8 en rechargement : poignet moins cassé à la reprise du garde-main)
+        sw[h] = { ph, t: this.t, v: coude(ph).sub(C).applyQuaternion(gqC.clone().invert()) };
         const E1 = coude(ph * k);
         turn(arm, E0.clone().sub(S0), E1.clone().sub(S0)); const E2 = WP(fore); turn(fore, WP(hand).sub(E2), T.clone().sub(E2));
         // torsion : la moitié de la rotation de la main autour de l'avant-bras est portée par l'avant-bras (poignet moins vrillé)
         { const ax = T.clone().sub(E2).normalize(), qrel = WQ(fore).invert().multiply(qH), qw = WQ(fore).multiply(qrel).multiply(WQ(fore).invert());
-          const tw = new THREE.Quaternion(qw.x, qw.y, qw.z, qw.w), pr = ax.x * tw.x + ax.y * tw.y + ax.z * tw.z; tw.set(ax.x * pr, ax.y * pr, ax.z * pr, tw.w).normalize();
-          const half = new THREE.Quaternion().slerp(tw, 0.5 * k); fore.quaternion.copy(WQ(fore.parent).invert().multiply(half).multiply(WQ(fore))); fore.updateMatrixWorld(true); }
+          const pr = ax.x * qw.x + ax.y * qw.y + ax.z * qw.z; let th = 2 * Math.atan2(pr, qw.w); while (th > Math.PI) th -= 2 * Math.PI; while (th < -Math.PI) th += 2 * Math.PI;
+          // (angle suivi d'une image à l'autre : à ±180° de torsion, la moitié sautait de +90° à −90°, avant-bras retourné en une image)
+          const tv = this.twAv || (this.twAv = {}), pv = tv[h] && this.t - tv[h].t < 0.2 ? tv[h].th : null;
+          if (pv !== null) { while (th - pv > Math.PI) th -= 2 * Math.PI; while (th - pv < -Math.PI) th += 2 * Math.PI; } tv[h] = { th, t: this.t };
+          const half = new THREE.Quaternion().setFromAxisAngle(ax, 0.5 * k * th); fore.quaternion.copy(WQ(fore.parent).invert().multiply(half).multiply(WQ(fore))); fore.updateMatrixWorld(true); }
         hand.quaternion.copy(WQ(hand.parent).invert().multiply(qH)); hand.updateMatrixWorld(true);
       },
       // Prise (voir calculerPrise) : mains amenées à leur place sur le fusil (IK des bras, orientation imposée) si « mains »,
@@ -8179,12 +8785,18 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const ob = this.osDoigts || (this.osDoigts = {}), os = (n) => ob[n] || (ob[n] = body.getObjectByName(n));
         // fusil hors d'atteinte d'une main (bras tendu à plus de 97 %) : il est rapproché de cette épaule d'autant
         // place de la main h (monde) ; garde basse : main d'appui un peu plus en arrière sur le garde-main
-        const cibleM = (h, p, q) => { new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, P[h].Hrel).decompose(p, q, V());
-          if (h === 'L' && this.gbK > 0.01) p.add(V().setFromMatrixColumn(weapon.matrixWorld, 2).normalize().multiplyScalar(-GARDE.recul * this.gbK * (1 - (this.epK || 0)))); return p; };
+        if (this.inclG && (this.priseK || 0) > 0.995 && !this.armeDroite) this.inclG = 0;   // (main d'appui : rotation de fin de rechargement, effacée avec la reprise)
+        const cibleM = (h, p, q) => { new THREE.Matrix4().multiplyMatrices(weapon.matrixWorld, h === 'L' && this.inclG ? hrelIncl(P.L, S.INCL_G * Math.pow(1 - (this.priseK || 0), S.INCL_EXP)) : P[h].Hrel).decompose(p, q, V());
+          // (visée : main d'appui loin devant sur le garde-main, bras presque tendu ; garde basse : un peu en arrière)
+          if (h === 'L') { const gl = (this.epK || 0) * S.AVANCE_APPUI - GARDE.recul * (this.gbK || 0) * (1 - (this.epK || 0)); if (Math.abs(gl) > 1e-4) p.add(V().setFromMatrixColumn(weapon.matrixWorld, 2).normalize().multiplyScalar(gl)); } return p; };
+        // épaule d'appui avancée vers le garde-main (protraction de la clavicule) en visée : le bras atteint plus loin sans tirer le
+        // fusil hors du creux de l'épaule
+        if (mains && !seule && B.la && S.PROTRACTION_G > 0 && (this.epK || 0) > 0.01) { const cl = B.la.parent; if (cl && cl.isBone) { const T = cibleM('L', V(), new THREE.Quaternion()), a0 = WP(B.la).sub(WP(cl));
+          mod(cl); turn(cl, a0.clone(), a0.clone().addScaledVector(T.sub(WP(B.la)).normalize(), S.PROTRACTION_G * k * this.epK)); } }
         this.rapproche = 0; if (mains && !seule && B.ra && B.la) for (let it = 0; it < 3; it++) {
           const d = V(); let loin = false;
           for (const [h, arm, fore, hand] of [['R', B.ra, B.rf, B.rh], ['L', B.la, B.lf, B.lh]]) {
-            const Sh = WP(arm), L = Sh.distanceTo(WP(fore)) + WP(fore).distanceTo(WP(hand)), T = cibleM(h, V(), new THREE.Quaternion()), e = Sh.distanceTo(T) - 0.97 * L;
+            const Sh = WP(arm), L = Sh.distanceTo(WP(fore)) + WP(fore).distanceTo(WP(hand)), T = cibleM(h, V(), new THREE.Quaternion()), e = Sh.distanceTo(T) - (h === 'L' ? S.PORTEE_G : 0.97) * L;   // (bras d'appui : presque tendu, voir PORTEE_G)
             if (e > 0.002) { d.addScaledVector(Sh.sub(T).normalize(), e * k); loin = true; } }
           if (!loin) break;
           // visée : le fusil recule le long de son axe seulement (la ligne de visée reste sur l'œil et la cible)
@@ -8224,12 +8836,36 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         else d = fwd.clone().multiplyScalar(Math.cos(VISEE_TANGAGE)).addScaledVector(up, Math.sin(VISEE_TANGAGE));
         { let ay = Math.atan2(d.dot(lat), d.dot(fwd)), ap = Math.asin(Math.max(-1, Math.min(1, d.y))); ay = Math.max(-0.6, Math.min(0.6, ay)); ap = Math.max(-0.5, Math.min(0.4, ap));
           d = fwd.clone().multiplyScalar(Math.cos(ay) * Math.cos(ap)).addScaledVector(lat, Math.sin(ay) * Math.cos(ap)).addScaledVector(up, Math.sin(ap)); }
+        // direction de visée suivie DANS LE MONDE (voir suivi : sans retard sur une cible qui se déplace ou un pivot, mais un saut de
+        // cible devient un mouvement de ~0,2 s) : quand le soldat changeait de cible, le fusil pivotait en UNE image (jusqu'à 27°,
+        // 24 000 °/s² en jeu) ; la tête regarde la cible brute (tete()) et devance donc le fusil. Lissé dans le monde, pas dans le
+        // repère du groupe qui tourne aussi.
+        { const dW = d.clone().transformDirection(group.matrixWorld); let yw = Math.atan2(dW.x, dW.z); const pw = Math.asin(Math.max(-1, Math.min(1, dW.y)));
+          const dtA = this.tVis === undefined ? -1 : this.t - this.tVis;
+          if (dtA < 0 || dtA > 0.25 || this.visY === undefined) { this.visY = yw; this.visP = pw; this.visYV = 0; this.visPV = 0; this.visYR = yw; this.visPR = pw; }
+          else if (dtA > 0) { while (yw - this.visY > Math.PI) yw -= 2 * Math.PI; while (yw - this.visY < -Math.PI) yw += 2 * Math.PI;
+            while (this.visYR - yw > Math.PI) this.visYR -= 2 * Math.PI; while (this.visYR - yw < -Math.PI) this.visYR += 2 * Math.PI;
+            const h = Math.min(0.1, dtA); suivi(this, 'visY', yw, h, S.VIS_W, 4, S.VIS_A); suivi(this, 'visP', pw, h, S.VIS_W, 3, S.VIS_A);
+            // (la tête : même suivi, plus vif — elle devance le fusil d'environ 0,1 s sur un changement de cible)
+            if (this.tetY === undefined) { this.tetY = this.visY; this.tetP = this.visP; }
+            while (this.tetY - this.visY > Math.PI) this.tetY -= 2 * Math.PI; while (this.tetY - this.visY < -Math.PI) this.tetY += 2 * Math.PI;
+            if (this.tetYR !== undefined) { while (this.tetYR - yw > Math.PI) this.tetYR -= 2 * Math.PI; while (this.tetYR - yw < -Math.PI) this.tetYR += 2 * Math.PI; }
+            suivi(this, 'tetY', yw, h, 18, 4, 42); suivi(this, 'tetP', pw, h, 18, 3, 42); }
+          if (dtA < 0 || dtA > 0.25 || this.tetY === undefined) { this.tetY = this.visY; this.tetP = this.visP; this.tetYV = 0; this.tetPV = 0; this.tetYR = this.visY; this.tetPR = this.visP; }
+          this.tVis = this.t;
+          const ds = new THREE.Vector3(Math.sin(this.visY) * Math.cos(this.visP), Math.sin(this.visP), Math.cos(this.visY) * Math.cos(this.visP)).transformDirection(inv);
+          let ay = Math.atan2(ds.dot(lat), ds.dot(fwd)), ap = Math.asin(Math.max(-1, Math.min(1, ds.y))); ay = Math.max(-0.6, Math.min(0.6, ay)); ap = Math.max(-0.5, Math.min(0.4, ap));
+          d = fwd.clone().multiplyScalar(Math.cos(ay) * Math.cos(ap)).addScaledVector(lat, Math.sin(ay) * Math.cos(ap)).addScaledVector(up, Math.sin(ap)); }
         this.visee = d.clone().transformDirection(group.matrixWorld);
+        { const dt2 = new THREE.Vector3(Math.sin(this.tetY) * Math.cos(this.tetP), Math.sin(this.tetP), Math.cos(this.tetY) * Math.cos(this.tetP)); this.viseeTete = dt2; }
         const qA = repere(d), E0 = oeil.clone().sub(new THREE.Vector3().fromArray(VISEE_OPTIQUE).applyQuaternion(qA)), PB = creux.clone().sub(butt.clone().applyQuaternion(qA));
         const pA = E0.addScaledVector(d, PB.clone().sub(E0).dot(d));
         if (ea > 0.999) return { q: qA, p: pA };
         // garde basse
-        const pq = GARDE.pique, dg = fwd.clone().multiplyScalar(Math.cos(pq) * Math.cos(GARDE.dedans)).addScaledVector(lat, Math.cos(pq) * Math.sin(GARDE.dedans)).addScaledVector(up, -Math.sin(pq));
+        // (le canon suit ~70 % du lacet de la tête : « muzzle follows eyes », FM 3-06.11 §3-15a)
+        // (garde basse « athlétique » à l'arrêt, buste de biais ~22° : le fusil croise déjà le corps, le canon revient vers l'axe de la
+        // menace de 0,25 rad × lowK — poignets inchangés, 23-36°)
+        const pq = GARDE.pique, az = GARDE.dedans - 0.25 * Math.max(0, Math.min(1, this.lowK || 0)) + 0.7 * (this.teteA || 0) * (this.kH === undefined ? 1 : this.kH), dg = fwd.clone().multiplyScalar(Math.cos(pq) * Math.cos(az)).addScaledVector(lat, Math.cos(pq) * Math.sin(az)).addScaledVector(up, -Math.sin(pq));
         const poche = sR.clone().addScaledVector(sL.clone().sub(sR).setY(0).normalize(), POCHE.dedans).addScaledVector(new THREE.Vector3().crossVectors(sL.clone().sub(sR).setY(0).normalize(), up), POCHE.avant).addScaledVector(up, -POCHE.bas);
         const qL = repere(dg), pL = poche.clone().addScaledVector(up, -GARDE.bas).addScaledVector(fwd, GARDE.avant).sub(butt.clone().applyQuaternion(qL));
         return { q: qL.slerp(qA, ea), p: pL.lerp(pA, ea) };
@@ -8240,7 +8876,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const kk = dt > 0 ? Math.min(1, dt * 8) : deja && this.t > 0 ? 0 : 1;   // (deux appels dans la même image : un seul pas de lissage)
         // ressort amorti critique (~0,3 s, départ en douceur : pas d'à-coup des mains au début / à la fin d'un rechargement)
         const c = tient ? 1 : 0; if (this.priseK === undefined || (dt === 0 && kk === 1)) { this.priseK = this.priseK === undefined ? 1 : c; this.priseV = 0; }
-        else if (dt > 0) { const w = 14, x = this.priseK, v = this.priseV || 0, a = w * w * (c - x) - 2 * w * v; this.priseV = v + a * dt; this.priseK = Math.max(0, Math.min(1, x + this.priseV * dt)); if (this.priseK === 0 || this.priseK === 1) this.priseV = 0; }
+        else if (dt > 0) { this.priseK = Math.max(0, Math.min(1, lisse2(this, 'prise', this.priseK, c, 10, dt))); if (this.priseK === 0 || this.priseK === 1) this.priseV = 0; }   // (cible filtrée : le fusil et les mains partent sans à-coup)
         return kk;
       },
       // arme : poignée dans la main droite, canon vers la main gauche (sinon dans l'axe de la main droite)
@@ -8273,7 +8909,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
             mw.decompose(weapon.position, weapon.quaternion, V()); weapon.scale.set(1, 1, 1);
             if (p >= 0 && lh && B.la && B.lf && weapon.magCenter) this.mainChargeur(p);
             // fin du rechargement : la main gauche revient à sa place sous le garde-main ; le fusil est mémorisé pour la reprise
-            if (p >= 0 && M.prise && !S.sansPrise) { const xs = Math.max(0, Math.min(1, (p - 0.84) / 0.12)), fin = xs * xs * (3 - 2 * xs); if (fin > 0.01) this.tenir(fin, true, 'L'); }
+            if (p >= 0 && M.prise && !S.sansPrise) { const xs = Math.max(0, Math.min(1, (p - 0.76) / 0.18)), fin = xs * xs * (3 - 2 * xs); if (fin > 0.01) this.tenir(fin, !weapon.magCenter, 'L'); }   // (doigts ; la main elle-même est menée par mainChargeur)
             if (mode === 'droite') this.armeDroite = { q: weapon.quaternion.clone(), p: weapon.position.clone() };
             // la main qui porte le fusil garde ses doigts sur la poignée ; la prise à deux mains se défait (reprise en fondu ensuite)
             if (mode === 'droite') this.tenir(1, false, 'R');
@@ -8356,8 +8992,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           const k2 = two || this.armeDroite ? pk : 0; weapon.quaternion.copy(qS.slerp(weapon.quaternion, k2)); pos.copy(pS.lerp(pos, k2)); }
         if (procW > 0.01) { const Pp = this.poseArme(loc, inv);
           // position lissée (ressort ~0,1 s, repère du groupe) : le fusil n'encaisse pas tout le rebond des pas (les bras l'absorbent)
+          // — en garde basse seulement : épaulé, il bougeait jusqu'à 6 cm par rapport à l'épaule et à l'œil (course visée, LISSE_VISE)
           if (this.tPose !== undefined && this.t > this.tPose && this.pArme && !S.sansLisse) { const dtp = Math.min(0.1, this.t - this.tPose), w0 = 11, e = Pp.p.clone().sub(this.pArme), a = e.multiplyScalar(w0 * w0).addScaledVector(this.vArme, -2 * w0);
-            this.vArme.addScaledVector(a, dtp); this.pArme.addScaledVector(this.vArme, dtp); { const e2 = this.pArme.clone().sub(Pp.p), L2 = e2.length(); if (L2 > 0.03) { this.pArme.copy(Pp.p).addScaledVector(e2, 0.03 / L2); this.vArme.multiplyScalar(0.5); } } Pp.p.copy(this.pArme); }   // (retard limité à 3 cm : transitions rapides sans à-coup)
+            this.vArme.addScaledVector(a, dtp); this.pArme.addScaledVector(this.vArme, dtp); { const e2 = this.pArme.clone().sub(Pp.p), L2 = e2.length(); if (L2 > 0.03) { this.pArme.copy(Pp.p).addScaledVector(e2, 0.03 / L2); this.vArme.multiplyScalar(0.5); } } Pp.p.lerp(this.pArme, 1 - (S.LISSE_VISE || 0) * Math.max(0, Math.min(1, this.epK || 0))); }   // (retard limité à 3 cm : transitions rapides sans à-coup)
           else if (this.tPose !== this.t || !this.pArme) { this.pArme = Pp.p.clone(); this.vArme = V(); }
           this.tPose = this.t;
           const w = procW * (M.prise && !S.sansPrise ? pk : 1); weapon.quaternion.slerp(Pp.q, w); pos.lerp(Pp.p, w); }
@@ -9480,7 +10117,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // préréglages d'ambiance par condition : position du soleil, ciel, exposition, brouillard, intensité de l'environnement
   const AMB = {
     jour:       { elev: 23, azim: 238, turb: 5.5, ray: 1.6, mie: 0.006, g: 0.82, exp: 0.95, sun: [0xffcb94, 6.2], env: 0.7, fog: [0xc8c2b8, 0.0040], clouds: 0.45, cloudTint: 0xffeedd, cloudDark: 0x8d8f9a, bloom: [0.3, 0.55, 0.92], grade: { c: 1.1, s: 1.08, warm: [1.08, 1.0, 0.9], cool: [0.95, 1.0, 1.05], vig: 0.3, grain: 0.014, lift: [0.0015, 0.0016, 0.002] } },   // fin d'après-midi : soleil bas et chaud, longues ombres
-    nuit:       { elev: -12, azim: 215, turb: 2, ray: 0.3, mie: 0.002, g: 0.7, exp: 0.9, sun: [0x7d94d6, 0.55], env: 0.18, fog: [0x070a10, 0.016], clouds: 0.62, cloudTint: 0x2a3348, cloudDark: 0x0c1018, bloom: [0.6, 0.6, 0.55], night: true, grade: { c: 1.04, s: 0.9, warm: [1.08, 0.99, 0.86], cool: [0.88, 0.97, 1.14], vig: 0.4, grain: 0.03, lift: [0.0035, 0.005, 0.009] } },
+    nuit:       { elev: -12, azim: 215, turb: 2, ray: 0.3, mie: 0.002, g: 0.7, exp: 1.1, sun: [0x7d94d6, 0.95], env: 0.22, hemi: 0.28, fog: [0x070a10, 0.016], clouds: 0.62, cloudTint: 0x2a3348, cloudDark: 0x0c1018, bloom: [0.32, 0.45, 0.95], night: true, grade: { c: 1.04, s: 0.9, warm: [1.08, 0.99, 0.86], cool: [0.88, 0.97, 1.14], vig: 0.4, grain: 0.03, lift: [0.0035, 0.005, 0.009] } },
     brouillard: { elev: 18, azim: 215, turb: 12, ray: 2.5, mie: 0.02, g: 0.9, exp: 0.8, sun: [0xe8ecf0, 1.0], env: 0.85, hemi: 0.85, fog: [0x9aa1a8, 0.03], clouds: 0.2, cloudTint: 0xdfe3e6, cloudDark: 0x9aa1a8, bloom: [0.25, 0.6, 0.95], grade: { c: 0.96, s: 0.84, warm: [1.03, 1.0, 0.96], cool: [0.97, 1.0, 1.03], vig: 0.24, grain: 0.02, lift: [0.006, 0.0065, 0.007] } },
     pluie:      { elev: 20, azim: 215, turb: 14, ray: 3, mie: 0.02, g: 0.85, exp: 0.88, sun: [0xc8d0dc, 1.25], env: 0.8, hemi: 0.85, fog: [0x47505a, 0.013], clouds: 0.15, cloudTint: 0x6c7580, cloudDark: 0x2c323a, bloom: [0.35, 0.6, 0.9], grade: { c: 1.08, s: 0.86, warm: [1.0, 1.0, 0.97], cool: [0.93, 0.99, 1.07], vig: 0.34, grain: 0.022, lift: [0.002, 0.0026, 0.0034] } },
   };
@@ -9495,7 +10132,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     let sky = null, clouds = null; const sunDir = new T.Vector3();
     if (X.Sky) { sky = new X.Sky(); sky.scale.setScalar(4000); sky.material.depthWrite = false; sky.frustumCulled = false; scene.add(sky); }
     clouds = cloudDome(new T.Vector3(0, 1, 0)); scene.add(clouds);
-    const MOON = new T.Vector3(-0.35, 0.8, 0.45).normalize(), night = nightDome(MOON); scene.add(night);
+    const MOON = new T.Vector3(-0.42, 0.58, 0.7).normalize(), night = nightDome(MOON); scene.add(night);   // lune assez basse (≈ 39°) : elle éclaire les silhouettes plus que le sol
     if (scene.userData.dome) scene.userData.dome.visible = false;
     const pmrem = new T.PMREMGenerator(renderer); let envRT = null;
     const skyScene = new T.Scene();
@@ -10051,7 +10688,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     add(q, new T.PlaneGeometry(2.9, 0.72), sm, 0, 3.75, 0.145);
     for (const s of [-1, 1]) { add(q, new T.BoxGeometry(0.12, 0.2, 0.12), alu, s * 1.85, 2.6, 0.08); add(q, new T.SphereGeometry(0.07, 10, 8), k.lampe, s * 1.85, 2.48, 0.12); }
     if (!LAMPES.includes(k.lampe)) LAMPES.push(k.lampe);
-    const L = new T.PointLight(0xffc98a, 18, 9, 1.8); L.position.set(0, 2.4, 1.6); L.visible = false; q.add(L); NUITS.push(L);
+    const L = new T.PointLight(0xffc98a, 3, 7, 2); L.position.set(0, 2.4, 1.6); L.visible = false; q.add(L); NUITS.push(L);   // petite flaque chaude devant la porte (1/d² : ≈ 0,5 au sol, pas de mur brûlé)
   }
   // petites plaques : rue (émail bleu, bord vert, lettres blanches) et interdiction de stationner (blanc, bord rouge)
   function plateTex(kind, l1, l2) {
@@ -10413,7 +11050,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (let i = 0; i < 7; i++) { const x = 2 + R() * 68, z = 0.35 + R() * 0.4; if (!free(x, z, 0.4)) continue; const c = new T.Mesh(new T.BoxGeometry(0.5 + R() * 0.3, 0.02, 0.4 + R() * 0.3), k.carton); c.position.set(x, 0.012, z + 0.3); c.rotation.y = R() * 3; c.receiveShadow = true; group.add(c); }
     for (let i = 0; i < 4; i++) { const x = 3 + R() * 66, z = 0.3; if (!free(x, z, 0.35)) continue; const c = new T.Mesh(new T.BoxGeometry(0.45, 0.4, 0.35), k.carton); c.position.set(x, 0.2, z + 0.2); c.rotation.y = (R() - 0.5) * 0.5; c.castShadow = c.receiveShadow = true; group.add(c); }
   }
-  function setConditions(id) { const n = id === 'nuit'; for (const m of LAMPES) m.emissiveIntensity = n ? (m.userData.nuit || 3) : (m.userData.jour || 0); for (const l of NUITS) l.visible = n; }
+  // nuit : vitrines, enseignes, fenêtres éclairées lisibles mais sous le seuil du halo ; seules les ampoules des lampes brillent
+  function setConditions(id) { const n = id === 'nuit'; for (const m of LAMPES) m.emissiveIntensity = n ? (m.userData.nuit ? m.userData.nuit * 0.55 : 2.5) : (m.userData.jour || 0); for (const l of NUITS) l.visible = n; }
   root.Ruelle = { build, mesh, setConditions };
 })(window.OT = window.OT || {});
 
@@ -11772,11 +12410,22 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   let lightGroup = null;
   function setConditions(id, scene) {
     const night = id === 'nuit'; NIGHT.on = night;
-    for (const m of NIGHT.mats) m.emissiveIntensity = night ? (m.userData.nuit !== undefined ? m.userData.nuit : m.map && m.emissiveMap ? 1.6 : 4) : 0;
+    for (const m of NIGHT.mats) m.emissiveIntensity = night ? (m.userData.nuit !== undefined ? m.userData.nuit * 0.7 : m.map && m.emissiveMap ? 1.0 : 3) : 0;   // fenêtres, enseignes : lisibles sans halo ; ampoules : seules vraies sources (halo)
     U.wet.value = id === 'pluie' ? 1 : id === 'brouillard' ? 0.35 : 0;
     if (root.Ruelle && root.Ruelle.setConditions) try { root.Ruelle.setConditions(id); } catch (e) { console.warn('ruelle :', e); }
     if (lightGroup) { scene.remove(lightGroup); lightGroup = null; }
-    if (night) { lightGroup = new T.Group(); for (const p of lights) { const l = new T.PointLight(0xffc98a, p.k || 120, p.k > 150 ? 22 : 28, 1.6); l.position.copy(p); lightGroup.add(l); } scene.add(lightGroup); }
+    // luminaires à défilement (comme les vrais) : spot vers le bas, décroissance physique (1/d²), bord de flaque très adouci.
+    // Éclairement au sol sous la tête ≈ 2 à 2,7 (lune ≈ 0,7) : flaques douces, pas de blanc brûlé ; les murs proches ne sont plus
+    // inondés (la lumière ne part pas à l'horizontale). Auvent de la station de lavage : large, plus faible.
+    if (night) {
+      lightGroup = new T.Group();
+      for (const p of lights) {
+        const canopy = p.k && p.k < 60, I = canopy ? 20 : p.k > 150 ? 160 : 120;
+        const l = new T.SpotLight(0xffc98a, I, canopy ? 12 : 26, canopy ? 1.25 : 1.05, canopy ? 0.9 : 0.8, 2);
+        l.position.copy(p); l.target.position.set(p.x, 0, p.z); lightGroup.add(l, l.target);
+      }
+      scene.add(lightGroup); lightGroup.updateMatrixWorld(true);
+    }
   }
   function tick(t) { U.time.value = t; }
   root.Parking = { build, mesh, setConditions, tick, asphalt, concrete, worldMat, teinter, brickDet };
@@ -13916,6 +14565,24 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const wp = u.path[u.pathIdx];
     if (!wp) { this.arrive(u); return; }
     const d = Math.hypot(wp.x - u.x, wp.z - u.z);
+    // point de passage occupé (camarade debout dessus ou presque, ou un corps) : la séparation empêche d'y poser le pied, et
+    // l'opérateur tournait autour en changeant de côté à chaque pas (allers-retours à 3-4 m/s, « moonwalk » à l'écran). À moins
+    // de 1,2 m, on le tient pour atteint : point intermédiaire, si le suivant est en ligne directe ; point final (couvert, bond…
+    // déjà tenu par un camarade debout), on s'arrête à côté de lui (sauf pour relever un blessé : il faut le toucher). De même
+    // quand une poussée l'a déjà porté au-delà d'un point intermédiaire (à moins de 0,5 m, du côté du segment suivant) : pas de
+    // demi-tour pour aller le toucher.
+    if (d < 1.2 && d > 0.05 && u.pathIdx + 1 >= u.path.length && u.goalKind !== 'revive') {
+      for (const a of this.units) if (a !== u && a.alive && a.team === u.team && Math.hypot(a.x - wp.x, a.z - wp.z) < 0.6) { this.arrive(u); return; }
+    }
+    if (d < 1.2 && d > 0.05 && u.pathIdx + 1 < u.path.length) {
+      const nw = u.path[u.pathIdx + 1];
+      if (d < 0.5 && (u.x - wp.x) * (nw.x - wp.x) + (u.z - wp.z) * (nw.z - wp.z) > 0 && this.map.walkableSegment(u.x, u.z, nw.x, nw.z)) { u.pathIdx++; return this.move(u); }
+      for (const a of this.units) {
+        if (a === u || (a.alive && a.team !== u.team) || Math.hypot(a.x - wp.x, a.z - wp.z) > (a.alive ? 0.6 : 0.45)) continue;
+        if (this.map.walkableSegment(u.x, u.z, nw.x, nw.z)) { u.pathIdx++; return this.move(u); }
+        break;
+      }
+    }
     // regard pendant la marche : la cible si l'on en a une ; sinon l'arme pointée vers la dernière position connue d'un ennemi
     // (repéré il y a moins de 5 s) si elle n'est pas dans le dos : on progresse en couvrant l'angle dangereux plutôt qu'en
     // regardant ses pieds
@@ -13943,7 +14610,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // séparation douce entre alliés : on se décale pour passer à côté (à ~1 m), sans jamais freiner sa marche — la poussée
     // qui s'opposerait à l'avance est retirée, et un camarade pile sur le chemin est contourné par le côté (sinon les deux
     // restaient collés : poussée et pas s'annulaient)
-    const mx = d > 1e-6 ? (wp.x - u.x) / d : 0, mz = d > 1e-6 ? (wp.z - u.z) / d : 0;
+    const mx = d > 1e-6 ? (wp.x - u.x) / d : 0, mz = d > 1e-6 ? (wp.z - u.z) / d : 0, bx = nx, bz = nz;
     // les corps (tous camps, point de chute ; rayon 0,8 m) se contournent de la même façon (on relève un blessé à côté de lui)
     for (const a of this.units) {
       if (a === u || (a.alive && a.team !== u.team)) continue;
@@ -13959,6 +14626,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         if (!this.map.insideObstacle(px, pz) && this.map.inBounds(px, pz)) { nx = px; nz = pz; }
       }
     }
+    // décalage amorti : au plus la longueur du pas (jusqu'à 0,55 m d'un coup, soit 5 m/s, l'opérateur était projeté de
+    // côté puis renvoyé au pas suivant : allers-retours de deux camarades qui se croisent)
+    { const sx = nx - bx, sz = nz - bz, sl = Math.hypot(sx, sz);
+      if (sl > stepLen && sl > 1e-6) { const cx = bx + sx / sl * stepLen, cz = bz + sz / sl * stepLen; if (!this.map.insideObstacle(cx, cz) && this.map.inBounds(cx, cz)) { nx = cx; nz = cz; } } }
     u.stats.distance += Math.hypot(nx - u.x, nz - u.z);
     // regard : vers le point de passage visé (pas vers le petit pas de côté de la séparation entre alliés)
     if (!u.target && d > 0.05) { u.facing = aim === null ? mv : aim; u.preaim = aim !== null; }
@@ -15881,7 +16552,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // est validée avant la coupe (pas dans un obstacle, sujet visible, objectif non bouché par un mur) puis surveillée
   // (sujet masqué plus d'une seconde → autre plan) ; tout mouvement est amorti par un ressort critique (aucun à-coup),
   // la focale aussi ; la perche (clipBoom) empêche de traverser voitures et murs.
-  const DIRECTOR = { eventShot: null, pending: null, clock: 0, lastT: null, battle: null, t0: 0, lastWide: -99, hist: [], vel: new THREE.Vector3(), lvel: new THREE.Vector3(), fov: 50, fvel: 0, masked: 0, minHold: 3.5 };
+  const DIRECTOR = { smokes: [], eventShot: null, pending: null, clock: 0, lastT: null, battle: null, t0: 0, lastWide: -99, hist: [], vel: new THREE.Vector3(), lvel: new THREE.Vector3(), fov: 50, fvel: 0, masked: 0, minHold: 3.5 };
   function directorEvent(kind, x, z) {   // appelée sur une explosion ou une neutralisation : traitée à l'image suivante
     if (cam.mode !== 'director' || kind === 'revive') return;
     DIRECTOR.pending = { kind, x, z, at: simTime };
@@ -15931,14 +16602,122 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     return tmin;
   }
-  function clipBoom(pivot, want) {
+  // perche : boîtes de la simulation ET décor réellement dessiné (voxels, voir OCC). loose (caméra « Suivre ») : on tolère
+  // d'être sous un auvent ; sinon une position relevée doit aussi être dégagée au-dessus et au-dessous (pas sous un toit).
+  function clipBoom(pivot, want, loose) {
     const L = pivot.distanceTo(want); if (L < 0.01) return want;
+    occEnsure(); let t0 = 1; const U = OCC.use;
     for (const lift of [0, 0.8, 1.8, 3]) {
-      const qy = want.y + lift, t = boomHit(pivot.x, pivot.y, pivot.z, want.x, qy, want.z);
-      if (t >= 1) return new THREE.Vector3(want.x, qy, want.z);
-      if (lift === 3) { const k = Math.max(0.12, t - 0.25 / L); return new THREE.Vector3(pivot.x + (want.x - pivot.x) * k, pivot.y + (want.y - pivot.y) * k, pivot.z + (want.z - pivot.z) * k); }
+      const q = new THREE.Vector3(want.x, want.y + lift, want.z), t = Math.min(boomHit(pivot.x, pivot.y, pivot.z, q.x, q.y, q.z), U ? occRay(pivot, q, 0, 0.55) : 1);
+      if (!lift) t0 = t;
+      if (t >= 1) { const b = U ? occBad(q) : 0; if (!b || (loose && b === 2)) return q; }
     }
-    return want;
+    const k = Math.max(0.12, t0 - 0.5 / L); return new THREE.Vector3(pivot.x + (want.x - pivot.x) * k, pivot.y + (want.y - pivot.y) * k, pivot.z + (want.z - pivot.z) * k);
+  }
+  // ---- Décor réellement dessiné, en voxels de 0,5 m : le réalisateur valide ses plans contre ce qu'on VOIT ----
+  // Les boîtes de la simulation ne couvrent pas tout le décor (arrières d'immeubles de 8 à 13 m, toits, auvents, abribus,
+  // lampadaires, arbres, toit de la station de lavage, escaliers de secours…). Une fois par carte, on échantillonne les
+  // triangles du décor immobile (tous les 0,2 m) dans une grille 3D qui couvre le terrain et ses abords (0,3 à 28 m de haut),
+  // puis on y lance des rayons (DDA 3D). Valeur 1 : opaque ; 2 : élément qui s'efface vu d'en haut (toit de la station de
+  // lavage) — opaque pour placer la caméra, transparent pour un regard plongeant depuis plus haut. Les objets destructibles
+  // restent sur leurs boîtes de simulation (elles disparaissent avec eux).
+  const OCC = { g: null, src: null, cs: 0.5, x0: -4, z0: -4, nx: 0, ny: 56, nz: 0, fadeTop: 0, ms: 0, use: params.get('occ') !== '0' };   // ?occ=0 : ancien réalisateur (boîtes seules), pour comparer
+  function occEnsure() { if (battle && mapGroup && (OCC.src !== mapGroup || OCC.map !== battle.map)) occBuild(); }
+  function occBuild() {
+    const t0 = performance.now(), mp = battle.map, cs = OCC.cs, x0 = OCC.x0, z0 = OCC.z0, nx = Math.ceil((mp.width - 2 * x0) / cs), nz = Math.ceil((mp.depth - 2 * z0) / cs), ny = OCC.ny, Y0 = 0.3;
+    const g = new Uint8Array(nx * ny * nz), X1 = x0 + nx * cs, Z1 = z0 + nz * cs, Ytop = ny * cs;
+    Object.assign(OCC, { g, src: mapGroup, map: mp, nx, nz, fadeTop: 0 });
+    const skip = new Set(obstacleMesh.values());
+    mapGroup.updateMatrixWorld(true);
+    const M = new THREE.Matrix4(), IM = new THREE.Matrix4(), bb = new THREE.Box3(), A = new Float32Array(9);
+    let val = 1, mval = 1;
+    const mark = (x, y, z) => { if (y < Y0 || y >= Ytop) return; const i = Math.floor((x - x0) / cs), k = Math.floor((z - z0) / cs); if (i < 0 || k < 0 || i >= nx || k >= nz) return; const n = (Math.floor(y / cs) * nz + k) * nx + i; if (!g[n] || (g[n] === 3 && val !== 3) || val === 1) g[n] = val; };
+    const addGeo = (geo, m) => {
+      if (!geo.boundingBox) geo.computeBoundingBox(); bb.copy(geo.boundingBox).applyMatrix4(m);
+      if (bb.max.y < Y0 || bb.min.y > Ytop || bb.min.x > X1 || bb.max.x < x0 || bb.min.z > Z1 || bb.max.z < z0) return;
+      const P = geo.attributes.position, idx = geo.index, n = idx ? idx.count : P.count, e = m.elements, step = cs * 0.4;
+      for (let t = 0; t + 2 < n; t += 3) {
+        for (let v = 0; v < 3; v++) {
+          const j = idx ? idx.getX(t + v) : t + v, x = P.getX(j), y = P.getY(j), z = P.getZ(j);
+          A[v * 3] = e[0] * x + e[4] * y + e[8] * z + e[12]; A[v * 3 + 1] = e[1] * x + e[5] * y + e[9] * z + e[13]; A[v * 3 + 2] = e[2] * x + e[6] * y + e[10] * z + e[14];
+        }
+        if (A[1] < Y0 && A[4] < Y0 && A[7] < Y0) continue;   // sol, marquages, trottoirs : ignorés
+        if (Math.max(A[0], A[3], A[6]) < x0 || Math.min(A[0], A[3], A[6]) > X1 || Math.max(A[2], A[5], A[8]) < z0 || Math.min(A[2], A[5], A[8]) > Z1 || Math.min(A[1], A[4], A[7]) > Ytop) continue;
+        const L = Math.max(Math.hypot(A[3] - A[0], A[4] - A[1], A[5] - A[2]), Math.hypot(A[6] - A[0], A[7] - A[1], A[8] - A[2]), Math.hypot(A[6] - A[3], A[7] - A[4], A[8] - A[5]));
+        const N = Math.min(500, Math.max(1, Math.ceil(L / step)));
+        const ux = A[3] - A[0], uy = A[4] - A[1], uz = A[5] - A[2], wx = A[6] - A[0], wy = A[7] - A[1], wz = A[8] - A[2];
+        val = Math.hypot(uy * wz - uz * wy, uz * wx - ux * wz, ux * wy - uy * wx) / L < 0.06 ? 3 : mval;   // facette effilée (câble, poteau, tube, liseré) : mince
+        for (let a = 0; a <= N; a++) for (let b = 0; a + b <= N; b++) { const u = a / N, w = b / N; mark(A[0] + (A[3] - A[0]) * u + (A[6] - A[0]) * w, A[1] + (A[4] - A[1]) * u + (A[7] - A[1]) * w, A[2] + (A[5] - A[2]) * u + (A[8] - A[2]) * w); }
+      }
+    };
+    const visit = (o) => {
+      if (o.visible === false || skip.has(o)) return;
+      if (o.isMesh && o.geometry && o.geometry.attributes.position && !o.isSkinnedMesh) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        const ghost = mats.every(m => !m || m.visible === false || m.blending === THREE.AdditiveBlending);   // hologrammes, halos
+        const thin = mats.every(m => m && (m.alphaTest > 0 || (m.transparent && (m.opacity < 0.5 || m.depthWrite === false))));   // ajouré, translucide (grillage, bâche légère)
+        if (!ghost) {
+          mval = o.userData.keep && o.onBeforeRender.length ? 2 : thin ? 3 : 1;   // 2 : s'efface vu d'en haut (toit de la station de lavage) ; 3 : on voit au travers (compte pour placer la caméra)
+          if (mval === 2) { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); bb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); OCC.fadeTop = Math.max(OCC.fadeTop, bb.max.y); }
+          if (o.isInstancedMesh) for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, IM); addGeo(o.geometry, M.multiplyMatrices(o.matrixWorld, IM)); }
+          else addGeo(o.geometry, o.matrixWorld);
+        }
+      }
+      for (const c of o.children) visit(c);
+    };
+    visit(mapGroup);
+    OCC.ms = Math.round(performance.now() - t0);
+  }
+  function occCell(i, j, k) { return i < 0 || k < 0 || j < 0 || i >= OCC.nx || k >= OCC.nz || j >= OCC.ny ? 0 : OCC.g[(j * OCC.nz + k) * OCC.nx + i]; }
+  // fraction libre du segment a → b dans le décor dessiné (1 : rien ne le coupe) ; padA / padB : bouts non testés (m).
+  // Les éléments minces ou ajourés (valeur 3 : câbles, poteaux, grillages) ne bouchent pas la vue ; ils comptent pour placer la caméra.
+  function occRay(a, b, padB, padA) {
+    if (!OCC.g) return 1;
+    const cs = OCC.cs, p = [a.x, a.y, a.z], d = [b.x - a.x, b.y - a.y, b.z - a.z], L = Math.hypot(d[0], d[1], d[2]); if (L < 1e-3) return 1;
+    const lo = [OCC.x0, 0, OCC.z0], n = [OCC.nx, OCC.ny, OCC.nz], fade = a.y > OCC.fadeTop + 1.6 && d[1] < -0.2 * L;   // regard plongeant au-dessus du toit qui s'efface
+    let t0 = Math.min(1, (padA || 0) / L), t1 = 1 - (padB || 0) / L; if (t1 <= t0) return 1;
+    for (let k = 0; k < 3; k++) {
+      const hi = lo[k] + n[k] * cs;
+      if (Math.abs(d[k]) < 1e-9) { if (p[k] < lo[k] || p[k] >= hi) return 1; continue; }
+      let u = (lo[k] - p[k]) / d[k], v = (hi - p[k]) / d[k]; if (u > v) { const w = u; u = v; v = w; }
+      t0 = Math.max(t0, u); t1 = Math.min(t1, v); if (t0 > t1) return 1;
+    }
+    const c = [0, 0, 0], st = [0, 0, 0], tM = [0, 0, 0], tD = [0, 0, 0];
+    for (let k = 0; k < 3; k++) {
+      c[k] = Math.max(0, Math.min(n[k] - 1, Math.floor((p[k] + d[k] * (t0 + 1e-7) - lo[k]) / cs)));
+      if (d[k] > 0) { st[k] = 1; tM[k] = (lo[k] + (c[k] + 1) * cs - p[k]) / d[k]; tD[k] = cs / d[k]; }
+      else if (d[k] < 0) { st[k] = -1; tM[k] = (lo[k] + c[k] * cs - p[k]) / d[k]; tD[k] = -cs / d[k]; }
+      else { tM[k] = Infinity; tD[k] = Infinity; }
+    }
+    let t = t0;
+    for (let guard = 0; guard < 2000 && t <= t1; guard++) {
+      const v = OCC.g[(c[1] * OCC.nz + c[2]) * OCC.nx + c[0]];
+      if (v === 1 || (v === 2 && !fade)) return Math.max(0, t);
+      const k = tM[0] < tM[1] ? (tM[0] < tM[2] ? 0 : 2) : (tM[1] < tM[2] ? 1 : 2);
+      t = tM[k]; c[k] += st[k]; if (c[k] < 0 || c[k] >= n[k]) return 1; tM[k] += tD[k];
+    }
+    return 1;
+  }
+  // position de caméra dans le décor dessiné : 0 dégagée ; 1 contre ou dans un objet (< 0,4 m) ; 2 sous un toit, un auvent,
+  // un arbre, dans un bâtiment ; 3 posée juste au-dessus d'un toit (moins de 3,5 m : on ne verrait que le toit)
+  function occBad(p) {
+    if (!OCC.g) return 0;
+    const cs = OCC.cs, fx = (p.x - OCC.x0) / cs, fy = p.y / cs, fz = (p.z - OCC.z0) / cs, i = Math.floor(fx), j = Math.floor(fy), k = Math.floor(fz), r = 0.3 / cs;
+    for (let a = Math.floor(fx - r); a <= Math.floor(fx + r); a++) for (let b = Math.floor(fy - r); b <= Math.floor(fy + r); b++) for (let c = Math.floor(fz - r); c <= Math.floor(fz + r); c++) {
+      if (!occCell(a, b, c)) continue;
+      const dx = Math.max(a - fx, 0, fx - a - 1), dy = Math.max(b - fy, 0, fy - b - 1), dz = Math.max(c - fz, 0, fz - c - 1);   // distance à la case (en cases)
+      if (dx * dx + dy * dy + dz * dz < r * r) return 1;
+    }
+    const solid = (a, b, c) => { const v = occCell(a, b, c); return v === 1 || v === 2; };
+    let cover = 0, centre = 0; const up = Math.min(OCC.ny - 1, j + 32);
+    for (let a = -2; a <= 2; a++) for (let c = -2; c <= 2; c++) for (let b = j + 1; b <= up; b++) if (solid(i + a, b, k + c)) { cover++; if (Math.abs(a) <= 1 && Math.abs(c) <= 1) centre++; break; }
+    if (centre >= 5 || cover >= 12) return 2;
+    if (p.y > 2.3) {
+      const lo = Math.max(Math.floor(2.3 / cs), Math.floor((p.y - 3.5) / cs)); let m = 0;
+      for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) for (let b = lo; b < j; b++) if (solid(i + a, b, k + c)) { m++; break; }
+      if (m >= 3) return 3;
+    }
+    return 0;
   }
   // ---- outils du réalisateur : horloge, ressort critique, visibilité, cadrage ----
   function dirTick() {   // horloge des plans : temps réel hors pause (en mode manuel : temps simulé) ; renvoie le pas d'image
@@ -15962,13 +16741,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     return p;
   }
   function inObstacle(p, pad) { for (const o of battle.map.obstacles) if (p.y < o.h + pad && p.x > o.x - pad && p.x < o.x + o.w + pad && p.z > o.z - pad && p.z < o.z + o.d + pad) return true; return false; }
-  function segFree(a, b) {   // fraction libre du segment a → b (1 : aucun obstacle ne le coupe)
+  function segFree(a, b, low) {   // fraction libre du segment a → b (1 : aucun obstacle ne le coupe) ; low : boîtes abaissées d'autant
     let tmin = 1; const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
     for (const o of battle.map.obstacles) {
-      if (Math.min(a.y, b.y) > o.h) continue;
+      const h = o.h - (low || 0); if (Math.min(a.y, b.y) > h) continue;
       let t0 = 0, t1 = 1;
       const slab = (p, d, lo, hi) => { if (Math.abs(d) < 1e-6) return p >= lo && p <= hi; let u = (lo - p) / d, v = (hi - p) / d; if (u > v) { const w = u; u = v; v = w; } t0 = Math.max(t0, u); t1 = Math.min(t1, v); return t0 <= t1; };
-      if (slab(a.x, dx, o.x, o.x + o.w) && slab(a.z, dz, o.z, o.z + o.d) && slab(a.y, dy, -1, o.h) && t0 < tmin) tmin = t0;
+      if (slab(a.x, dx, o.x, o.x + o.w) && slab(a.z, dz, o.z, o.z + o.d) && slab(a.y, dy, -1, h) && t0 < tmin) tmin = t0;
     }
     return tmin;
   }
@@ -15978,13 +16757,58 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function smoothDir(s, key, x, z, rate, dt) { if (!s[key] || !dt) s[key] = new THREE.Vector2(x, z); else s[key].lerp(new THREE.Vector2(x, z), 1 - Math.exp(-rate * dt)).normalize(); return s[key]; }
   function inMap(p, m) { const mp = battle.map; p.x = Math.max(m, Math.min(mp.width - m, p.x)); p.z = Math.max(m, Math.min(mp.depth - m, p.z)); return p; }
   // note d'un cadrage : -1 si la caméra est dans un obstacle, hors du terrain ou face à un mur ; sinon part des sujets visibles
-  function shotQuality(f) {
-    const p = f.pos, mp = battle.map;
-    if (p.y < 0.5 || inObstacle(p, 0.4) || p.x < 0.6 || p.z < 0.6 || p.x > mp.width - 0.6 || p.z > mp.depth - 0.6) return -1;
-    const L = p.distanceTo(f.look); if (segFree(p, f.look) * L < Math.min(3.5, L * 0.5)) return -1;
+  // (boîtes de la simulation ET décor dessiné : dans un mur, sous un toit, juste au-dessus d'un toit → -1 ; soft : le tireur
+  // voit sa cible selon la simulation, on ne teste plus que le décor dessiné ; p : position réelle de la caméra si fournie)
+  // (soft : la boîte d'un obstacle bas compte 0,35 m plus basse — le tireur tire par-dessus — mais une caisse, un local, un fourgon
+  // entre la caméra et la cible la cachent toujours)
+  function subjectSeen(p, e, soft) {
+    for (const y of [e.y, e.y + 0.3]) { const q = V3(e.x, y, e.z); if ((OCC.use ? segFree(p, q, soft ? 0.35 : 0) > 0.995 : soft || segFree(p, q) > 0.995) && (!OCC.use || occRay(p, q, 0.45) >= 1)) return true; }   // tête ou haut du casque
+    return false;
+  }
+  // le sujet est-il dans le cadre (marge de 6 %) pour une caméra en p qui vise look avec cette focale ?
+  function inFrame(p, look, fov, e) {
+    const fw = look.clone().sub(p).normalize(), rt = new THREE.Vector3(-fw.z, 0, fw.x).normalize(), up = new THREE.Vector3().crossVectors(rt, fw), d = V3(e.x, e.y + 0.15, e.z).sub(p);
+    const z = d.dot(fw); if (z < 0.6) return false;
+    const th = Math.tan(THREE.MathUtils.degToRad(fov / 2)) * 0.94, tw = th * (camera.aspect || 16 / 9);
+    return Math.abs(d.dot(rt) / z) < tw && Math.abs(d.dot(up) / z) < th;
+  }
+  function shotQuality(f, at, soft, s) {
+    const p = at || f.pos, mp = battle.map; occEnsure();
+    if (p.y < 0.5 || inObstacle(p, 0.4) || p.x < 0.6 || p.z < 0.6 || p.x > mp.width - 0.6 || p.z > mp.depth - 0.6 || (OCC.use && (occBad(p) || dynBad(p, s)))) return -1;
+    const L = p.distanceTo(f.look); if (Math.min(segFree(p, f.look), OCC.use ? occRay(p, f.look) : 1) * L < Math.min(3.5, L * 0.5)) return -1;
     if (!f.pts.length) return 1;
-    let q = 0; for (const e of f.pts) if (segFree(p, e) > 0.995 || segFree(p, V3(e.x, e.y + 0.3, e.z)) > 0.995) q++;   // tête ou haut du casque
+    let q = 0; for (const e of f.pts) if (e && subjectSeen(p, e, soft) && !(OCC.use && s && unitScreens(p, e, s)) && (!OCC.use || inFrame(p, f.look, f.fov, e))) q++;
     return q / f.pts.length;
+  }
+  // occultants mobiles : un autre soldat collé à l'objectif (son dos remplit l'image) ou entre la caméra et le sujet tout
+  // près d'elle ; caméra dans un nuage de fumigène
+  const subjIds = (s) => s ? [s.id, s.tid, s.kid, s.vid] : [];
+  function dynBad(p, s) {
+    const ids = subjIds(s);
+    for (const u of battle.units) { const m = meshes[u.id]; if (!m || ids.includes(u.id)) continue; const P = m.group.position; if (p.y < 2.3 && Math.hypot(P.x - p.x, P.z - p.z) < 0.95) return 4; }
+    for (const k of DIRECTOR.smokes) if (simTime < k.until && p.y < 4.5 && Math.hypot(k.x - p.x, k.z - p.z) < k.r + 1.2) return 5;
+    return 0;
+  }
+  function unitScreens(p, e, s) {   // un autre soldat coupe le regard dans les 5 premiers mètres
+    const ids = subjIds(s), dx = e.x - p.x, dz = e.z - p.z, L2 = dx * dx + dz * dz || 1;
+    for (const u of battle.units) {
+      const m = meshes[u.id]; if (!m || ids.includes(u.id)) continue; const P = m.group.position;
+      const t = Math.max(0, Math.min(1, ((P.x - p.x) * dx + (P.z - p.z) * dz) / L2)); if (t * Math.sqrt(L2) > 5 || t > 0.9) continue;
+      const y = p.y + (e.y - p.y) * t; if (y > (u.alive ? 1.85 : 0.5)) continue;
+      if (Math.hypot(p.x + dx * t - P.x, p.z + dz * t - P.z) < 0.38) return true;
+    }
+    return false;
+  }
+  // encombrement du premier plan : part du cadre bouchée par du décor à moins de 2,5 m (grille de 4 × 3 rayons)
+  function clutter(p, look, fov) {
+    if (!OCC.g) return 0;
+    const fw = look.clone().sub(p).normalize(), rt = new THREE.Vector3().crossVectors(fw, new THREE.Vector3(0, 1, 0)).normalize(), up = new THREE.Vector3().crossVectors(rt, fw);
+    const th = Math.tan(THREE.MathUtils.degToRad(fov / 2)), tw = th * (camera.aspect || 16 / 9); let n = 0;
+    for (const sx of [-0.75, -0.25, 0.25, 0.75]) for (const sy of [-0.6, 0, 0.6]) {
+      const d = fw.clone().addScaledVector(rt, sx * tw).addScaledVector(up, sy * th).normalize(), q = p.clone().addScaledVector(d, 2.5);
+      if (q.y > 0.35 && occRay(p, q) < 1) n++;
+    }
+    return n / 12;
   }
   // cadrage d'un plan à l'instant présent : position, point visé, sujets à garder visibles, focale, amortissement, pivot de perche
   function frameShot(s, dt) {
@@ -15997,8 +16821,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const P = m.group.position, T = tg && meshes[tg.id] ? meshes[tg.id].group.position : null;
       let f = T ? new THREE.Vector2(T.x - P.x, T.z - P.z) : fwdOf(id); if (f.lengthSq() < 0.01) f = fwdOf(id); f.normalize();
       const d = smoothDir(s, 'dir', f.x, f.y, 2.2, dt), fx = d.x, fz = d.y, rx = -fz * side, rz = fx * side;
-      const dist = T ? Math.hypot(T.x - P.x, T.z - P.z) : 10, back = 2.2 - Math.min(0.5, age * 0.09);   // lent travelling avant
-      const pos = V3(P.x - fx * back + rx * 0.8, Math.max(1.45, (u.eyeY ? u.eyeY() : 1.55) + 0.38), P.z - fz * back + rz * 0.8);   // à hauteur des yeux du tireur (accroupi : plus bas)
+      const dist = T ? Math.hypot(T.x - P.x, T.z - P.z) : 10, back = (s.back || 2.2) - Math.min(0.5, age * 0.09);   // lent travelling avant (variantes : plus court, plus haut)
+      const pos = V3(P.x - fx * back + rx * 0.8, Math.max(1.45, (u.eyeY ? u.eyeY() : 1.55) + 0.38) + (s.lift || 0), P.z - fz * back + rz * 0.8);   // à hauteur des yeux du tireur (accroupi : plus bas)
       const tgt = T ? V3(T.x, kc || !tg.alive ? 0.8 : (tg.eyeY ? tg.eyeY() : 1.5) - 0.3, T.z) : V3(P.x + fx * 10, 1.3, P.z + fz * 10);
       // tireur au premier plan d'un côté, cible sur le tiers opposé : on vise un peu à côté de la cible
       const look = tgt.clone().add(V3(-rx * dist * 0.16, 0, -rz * dist * 0.16));
@@ -16011,7 +16835,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const ux = (PB.x - PA.x) / L, uz = (PB.z - PA.z) / L, a = smoothDir(s, 'dir', -uz * side, ux * side, 1.2, dt), d = Math.max(4.5, L * 0.5 / (tanH * 0.62));
       if (d > 26) return null;
       const mx = (PA.x + PB.x) / 2 - ux * L * 0.18, mz = (PA.z + PB.z) / 2 - uz * L * 0.18;   // de trois-quarts, côté tireur
-      const pos = V3(mx + a.x * d + ux * age * 0.1, 1.55 + d * 0.08, mz + a.y * d + uz * age * 0.1);
+      const pos = V3(mx + a.x * d + ux * age * 0.1, 1.55 + d * 0.08 + (s.lift || 0), mz + a.y * d + uz * age * 0.1);
       const look = V3((PA.x + PB.x) / 2 + ux * L * 0.04, 1.15, (PA.z + PB.z) / 2 + uz * L * 0.04);
       return { pos, look, pts: [eyeOf(s.id), eyeOf(s.tid)], fov: 42, st: 0.6, lst: 0.45, pivot: V3((PA.x + PB.x) / 2, 1.5, (PA.z + PB.z) / 2) };
     }
@@ -16021,8 +16845,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // espace devant le regard : vers sa cible s'il en a une (il peut reculer en tirant), sinon dans le sens de la marche
       const tg = u.target && u.target.alive && meshes[u.target.id] ? meshes[u.target.id].group.position : null, tl = tg ? Math.hypot(tg.x - P.x, tg.z - P.z) : 0;
       const f0 = tl > 0.5 ? new THREE.Vector2((tg.x - P.x) / tl, (tg.z - P.z) / tl) : sp > 0.2 ? new THREE.Vector2(m.anim.vx / sp, m.anim.vz / sp) : new THREE.Vector2(Math.cos(u.facing), Math.sin(u.facing));
-      const dd = smoothDir(s, 'dir', f0.x, f0.y, 1.4, dt), dx = dd.x, dz = dd.y, ca = Math.cos(s.ang || 0), sa = Math.sin(s.ang || 0);
-      const nx = (-dz * ca - dx * sa) * side, nz = (dx * ca - dz * sa) * side, R = s.dd || 3.8;   // côté, angle (trois-quarts arrière / avant), distance
+      // demi-tour du soldat : la caméra reste de son côté (côté et sens inversés ensemble) au lieu de tourner autour de lui ou
+      // de le traverser ; elle panote vers le nouvel espace devant lui
+      if (dt && s.dir && s.dir.x * f0.x + s.dir.y * f0.y < -0.3) { s.side = -(s.side || 1); s.dir.set(f0.x, f0.y); }
+      const sd = s.side || 1, dd = smoothDir(s, 'dir', f0.x, f0.y, 1.4, dt), dx = dd.x, dz = dd.y, ca = Math.cos(s.ang || 0), sa = Math.sin(s.ang || 0);
+      const nx = (-dz * ca - dx * sa) * sd, nz = (dx * ca - dz * sa) * sd, R = s.dd || 3.8;   // côté, angle (trois-quarts arrière / avant), distance
       s.still = u.moving ? 0 : (s.still || 0) + (dt || 0);
       const pos = V3(P.x + nx * R - dx * 0.7, 1.25, P.z + nz * R - dz * 0.7), look = V3(P.x + dx * 2.1, 0.9, P.z + dz * 2.1);   // regard un peu bas : le soldat reste au-dessus des cartes du HUD
       return { pos, look, pts: [eyeOf(s.id)], fov: 46, st: 0.35, lst: 0.3, pivot: V3(P.x, 1.2, P.z) };
@@ -16036,20 +16863,20 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (s.kind === 'establish') {   // grue haute derrière notre camp, qui descend doucement en regardant le terrain
         const a = Math.atan2(-az, -ax) + side * 0.55 + (s.yaw || 0) + age * 0.015 * side, d = 20;
         const pos = inMap(V3(c.x + Math.cos(a) * d, 0, c.z + Math.sin(a) * d), 1.2); pos.y = 19 - Math.min(4, age * 0.6);
-        return { pos, look: V3(c.x + ax * 3, 0, c.z + az * 3), pts: [], fov: 50, st: 1.1, lst: 0.9, pivot: V3(c.x, 1.5, c.z) };
+        return { pos, look: V3(c.x + ax * 3, 0, c.z + az * 3), pts: pts.slice(0, 10).map(p => V3(p.x, 1.3, p.z)), fov: 50, st: 1.1, lst: 0.9, pivot: V3(c.x, 1.5, c.z), noBoom: true };   // (plan en hauteur : validé tel quel contre le décor, pas de perche depuis le centre — il peut tomber sous le toit de la station de lavage)
       }
       const a = Math.atan2(ax, -az) * 1 + (side < 0 ? Math.PI : 0) + (s.yaw || 0) + age * 0.02 * side, d = Math.max(11, Math.min(28, r * 1.1 + 8));
       const pos = inMap(V3(c.x + Math.cos(a) * d, 0, c.z + Math.sin(a) * d), 1); pos.y = 2 + d * 0.5;
-      return { pos, look: V3(c.x, 0.8, c.z), pts: pts.slice(0, 4).map(p => V3(p.x, 1.4, p.z)), fov: 46, st: 0.9, lst: 0.7, pivot: V3(c.x, 1.5, c.z) };
+      return { pos, look: V3(c.x, 0.8, c.z), pts: pts.slice(0, 6).map(p => V3(p.x, 1.4, p.z)), fov: 46, st: 0.9, lst: 0.7, pivot: V3(c.x, 1.5, c.z), noBoom: true };
     }
     if (s.kind === 'capture') {
       const Z = battle.zone; if (!Z) return null;
       const who = battle.units.filter(u => u.alive && u.state === 'capture' && meshes[u.id]).map(u => eyeOf(u.id));
       const a = (s.yaw || 0) + age * 0.04 * side, d = (Z.r || 4) + 7;
-      return { pos: V3(Z.x + Math.cos(a) * d, 3.4, Z.z + Math.sin(a) * d), look: V3(Z.x, 0.6, Z.z), pts: who.slice(0, 3), fov: 48, st: 0.8, lst: 0.6, pivot: V3(Z.x, 1.5, Z.z) };
+      return { pos: V3(Z.x + Math.cos(a) * d, s.h || 3.4, Z.z + Math.sin(a) * d), look: V3(Z.x, 0.6, Z.z), pts: who.slice(0, 3), fov: 48, st: 0.8, lst: 0.6, pivot: V3(Z.x, 1.5, Z.z) };
     }
     if (s.kind === 'killcam') {   // plan serré sur la victime, qui se resserre pendant la chute
-      const m = meshes[s.vid]; if (!m) return null; const P = m.group.position, a = s.yaw || 0, d = 4.4 - Math.min(1.1, age * 0.35);
+      const m = meshes[s.vid]; if (!m) return null; const P = m.group.position, a = s.yaw || 0, d = (s.dd || 4.4) - Math.min(1.1, age * 0.35);
       return { pos: V3(P.x + Math.cos(a) * d, 1.6 - Math.min(0.45, age * 0.15), P.z + Math.sin(a) * d), look: V3(P.x, 0.55, P.z), pts: [V3(P.x, 0.9, P.z)], fov: 40 - Math.min(6, age * 2), st: 0.3, lst: 0.2, pivot: V3(P.x, 1.2, P.z) };
     }
     if (s.kind === 'blast') {
@@ -16058,13 +16885,30 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     return null;
   }
+  // évalue fn avec les soldats 3D avancés de k secondes à leur vitesse actuelle (positions remises aussitôt après)
+  function inFuture(k, fn) {
+    const saved = [];
+    for (const id in meshes) { const m = meshes[id], a = m && m.anim; if (!a || !(a.vx || a.vz)) continue; const P = m.group.position; saved.push([P, P.x, P.z]); P.x += (a.vx || 0) * k; P.z += (a.vz || 0) * k; }
+    try { return fn(); } finally { for (const [P, x, z] of saved) { P.x = x; P.z = z; } }
+  }
   // meilleure variante (côté, angle) d'un plan ; null si aucune n'est assez dégagée
   function bestOf(list, bonus, min) {
     let best = null, bq = min === undefined ? 0.5 : min;
     for (const s of list) {
+      s.t0 = DIRECTOR.clock - 1.6; const f2 = OCC.use ? frameShot(s, 0) : null;   // le même plan 1,6 s plus tard (grue qui descend, travelling, rotation)
       s.t0 = DIRECTOR.clock; const f = frameShot(s, 0); if (!f) continue;
-      let q = shotQuality(f) + (bonus ? bonus(s) : 0);
-      if (q >= 0 && f.pos.y < 9) { const c = clipBoom(f.pivot, f.pos); if (c.y - f.pos.y > 0.4 || c.distanceTo(f.pos) > 0.8) q -= 0.6; }   // la perche devrait se replier ou monter : cadrage dénaturé
+      let q = shotQuality(f, null, false, s) + (bonus ? bonus(s) : 0);
+      if (q >= 0 && f2 && shotQuality(f2, null, false, s) < 0) q -= 0.5;
+      if (q > 0 && OCC.use && !f.noBoom) {   // et dans 1,2 s, les soldats ayant continué leur course : le sujet passe-t-il derrière un fourgon, un abri ?
+        const q3 = inFuture(1.2, () => { const f3 = frameShot(s, 0); return f3 ? shotQuality(f3, null, false, s) : -1; });
+        if (q3 < q - 0.4) q -= 0.4;
+      }
+      if (q > 0 && OCC.use && (s.kind === 'shoulder' || s.kind === 'duel')) {   // la cible qui s'accroupit derrière son couvert reste-t-elle visible ? (préférer ce côté, cette hauteur)
+        const low = f.pts.filter(Boolean).map(e => V3(e.x, Math.min(e.y, 0.85), e.z));
+        if (low.length && low.filter(e => subjectSeen(f.pos, e, false)).length / low.length < 0.5) q -= 0.2;
+      }
+      if (q >= 0 && OCC.use) q -= clutter(f.pos, f.look, f.fov) * 0.9;   // un mur, un bac ou une carrosserie qui remplit le premier plan
+      if (q >= 0 && f.pos.y < 9 && !(f.noBoom && OCC.use)) { const c = clipBoom(f.pivot, f.pos); if (c.y - f.pos.y > 0.4 || c.distanceTo(f.pos) > 0.8) q -= 0.6; }   // la perche devrait se replier ou monter : cadrage dénaturé
       if (q > bq + 1e-6) { bq = q; best = s; }
     }
     return best;
@@ -16075,6 +16919,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (const side of sides) for (const y of yaws) {
       if (s.kind === 'dolly') { for (const [ang, dd] of [[0, 3.8], [0.45, 3.4], [-0.45, 3.4], [0, 2.7]]) out.push(Object.assign({}, s, { side, ang, dd })); continue; }
       out.push(Object.assign({}, s, { side, yaw: (s.yaw || 0) + y }));
+      // repli si le décor dessiné gêne : épaule plus courte ou plus haute, duel et zone vus de plus haut
+      if (s.kind === 'shoulder') { out.push(Object.assign({}, s, { side, back: 1.5 }), Object.assign({}, s, { side, lift: 0.7 }), Object.assign({}, s, { side, lift: 1.4, back: 2.6 })); }   // (plus haut et plus en arrière : vue plongeante par-dessus le couvert de la cible)
+      if (s.kind === 'duel') out.push(Object.assign({}, s, { side, lift: 1.6 }));
+      if (s.kind === 'capture') out.push(Object.assign({}, s, { side, yaw: (s.yaw || 0) + y, h: 5.4 }));
     }
     return out;
   }
@@ -16086,6 +16934,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (k && Math.hypot(k.x - v.x, k.z - v.z) < 32) for (const side of [1, -1]) opts.push({ kind: 'killcam', view: 'killer', kid: k.id, vid: v.id, id: v.id, side, dur: 3.2 });
       const a0 = k ? Math.atan2(k.z - v.z, k.x - v.x) : Math.random() * 6.28;
       for (let i = 0; i < 6; i++) opts.push({ kind: 'killcam', view: 'victim', vid: v.id, id: v.id, side: 1, yaw: a0 + [0, 0.6, -0.6, 1.2, -1.2, Math.PI][i], dur: 3 });
+      for (let i = 0; i < 6; i++) opts.push({ kind: 'killcam', view: 'victim', vid: v.id, id: v.id, side: 1, yaw: a0 + [0, 0.6, -0.6, 1.2, -1.2, Math.PI][i], dd: 3.1, dur: 3 });   // plus près (ruelle, recoins)
       return bestOf(opts, (o) => o.view === 'killer' ? 0.05 : 0);
     }
     if (ev.kind === 'blast') { const opts = []; for (let i = 0; i < 6; i++) opts.push({ kind: 'blast', x: ev.x, z: ev.z, side: 1, yaw: i * Math.PI / 3, dur: 2.8 }); return bestOf(opts); }
@@ -16093,7 +16942,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }
   function directorCamera() {
     const D = DIRECTOR, dt = dirTick();
-    if (D.battle !== battle) { D.battle = battle; D.t0 = D.clock; D.lastWide = -99; D.hist.length = 0; D.pending = null; cam.shot = null; }
+    if (D.battle !== battle) { D.battle = battle; D.smokes = []; D.t0 = D.clock; D.lastWide = -99; D.hist.length = 0; D.pending = null; cam.shot = null; }
     let s = cam.shot && typeof cam.shot === 'object' ? cam.shot : null;
     if (s && s.t0 === undefined) { s.t0 = D.clock; s.forced = true; s.dur = 1e9; s.fresh = true; }   // plan imposé (API.camShot)
     let next = null;
@@ -16103,7 +16952,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const age = s ? D.clock - s.t0 : 99, evShot = s && (s.kind === 'killcam' || s.kind === 'blast');
       // déjà à l'image (dans le cadre, proche, non masqué) : pas de coupe, on prolonge le plan et on reste sur la victime
       const P = V3(ev.x, 1, ev.z); camera.updateMatrixWorld(); const v = P.clone().project(camera);
-      const seenNow = s && s.kind !== 'establish' && v.z < 1 && Math.abs(v.x) < 0.8 && Math.abs(v.y) < 0.8 && camera.position.distanceTo(P) < 26 && segFree(camera.position, P) > 0.99;
+      const seenNow = s && s.kind !== 'establish' && v.z < 1 && Math.abs(v.x) < 0.8 && Math.abs(v.y) < 0.8 && camera.position.distanceTo(P) < 26 && segFree(camera.position, P) > 0.99 && occRay(camera.position, P, 0.45) >= 1;
       if (seenNow) { s.dur = Math.max(s.dur, age + 2.5); s.lock = D.clock + 2.5; }
       else if (!(evShot && age < 2.6) && !(ev.kind === 'blast' && age < 1.5)) { next = eventShot(ev); D.why = ev.kind; }
     }
@@ -16111,8 +16960,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     let f = !next && s ? frameShot(s, dt) : null;
     if (!next && !(s && s.forced)) {
       const age = s ? D.clock - s.t0 : 99;
-      if (f) { let q = shotQuality(f); if (f.soft && q >= 0) q = 1; D.masked = q < 0.5 ? D.masked + dt : 0; }   // (soft : le tireur voit sa cible, le plan reste lisible)
-      const need = !s ? 'debut' : !f ? 'perdu' : age > s.dur ? 'fin' : (D.masked > 1.2 && age > 2.5) ? 'masque' : (s.kind === 'dolly' && s.still > 1.2 && age > D.minHold) ? 'arret' : (s.kind === 'establish' && D.hist.length > 1 && engagedUnits(1).length && age > D.minHold) ? 'action' : '';
+      // jugé depuis la position RÉELLE de la caméra (soft : le tireur voit sa cible selon la simulation ; le décor dessiné compte toujours)
+      if (f) { const q = shotQuality(cam.init ? Object.assign({}, f, { look: cam.look }) : f, cam.init ? cam.pos : null, f.soft, s); D.masked = q < 0.5 ? D.masked + dt : 0; D.gone = q <= 0 && f.pts.length ? (D.gone || 0) + dt : 0; D.bad = q < 0 ? (D.bad || 0) + dt : 0; }
+      // (sujet entièrement caché — la grue n'a pas suffi — : on change de plan dès 0,5 s, passé 2,5 s de plan)
+      const need = !s ? 'debut' : !f ? 'perdu' : age > s.dur ? 'fin' : (D.bad > 0.2 && age > 0.4) ? 'decor' : ((D.masked > 1.2 || D.gone > 0.5) && age > 2.5) ? 'masque' : (s.kind === 'dolly' && s.still > 1.2 && age > D.minHold) ? 'arret' : (s.kind === 'establish' && D.hist.length > 1 && engagedUnits(1).length && age > D.minHold) ? 'action' : '';
       if (need) {
         D.why = need;
         for (const c of pickShot()) { next = bestOf(variants(c)); if (next) break; }
@@ -16120,7 +16971,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       }
     }
     if (next) {   // coupe
-      next.t0 = D.clock; cam.shot = s = next; D.masked = 0;
+      next.t0 = D.clock; cam.shot = s = next; D.masked = 0; D.bad = 0; D.gone = 0;
       D.hist.push({ id: next.id, kind: next.kind, at: D.clock }); if (D.hist.length > 16) D.hist.shift();
       if (D.log) D.log.push([+simTime.toFixed(1), next.kind, D.why]);
       if (next.kind === 'establish' || next.kind === 'overview') D.lastWide = D.clock;
@@ -16128,24 +16979,99 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     if (!f) { if (s && s.forced) { cam.shot = null; } return; }
     // 3) mouvement : coupe franche au changement de plan (sauf si le nouveau cadre est tout proche : on glisse), puis ressort
-    const want = clipBoom(f.pivot, f.pos);
+    const want = dodge(f.noBoom && OCC.use ? f.pos.clone() : clipBoom(f.pivot, f.pos), f, s);
     const jump = !cam.init || (next || s.fresh) && (cam.pos.distanceTo(want) > 4 || cam.look.clone().sub(cam.pos).normalize().dot(f.look.clone().sub(want).normalize()) < 0.87);
     s.fresh = false;
-    if (jump) { cam.pos.copy(want); cam.look.copy(f.look); D.vel.set(0, 0, 0); D.lvel.set(0, 0, 0); D.fov = f.fov; D.fvel = 0; cam.init = true; }
+    const lookW = frameGuard(jump ? want : cam.pos, f);   // le sujet reste dans le cadre, vu de là où est vraiment la caméra
+    if (jump) { cam.pos.copy(want); cam.look.copy(lookW); D.vel.set(0, 0, 0); D.lvel.set(0, 0, 0); D.fov = f.fov; D.fvel = 0; cam.init = true; }
     else {
-      damp3(cam.pos, want, D.vel, f.st, dt); damp3(cam.look, f.look, D.lvel, f.lst, dt);
+      damp3(cam.pos, want, D.vel, f.st, dt); damp3(cam.look, lookW, D.lvel, f.lst, dt);
       const w = 2 / 0.6, x = w * dt, e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x), c = D.fov - f.fov, tmp = (D.fvel + w * c) * dt; D.fvel = (D.fvel - w * tmp) * e; D.fov = f.fov + (c + tmp) * e;
     }
     pushOut(cam.pos, 0.2);   // même pendant le lissage, jamais dans un obstacle : on glisse le long de sa face la plus proche
+    if (OCC.use && !f.noBoom && cam.pos.y < 3) for (const e of f.pts) {   // ni collée au sujet (il marche vers l'objectif) : repoussée à 1,4 m, en continu
+      if (!e) continue; const dx = cam.pos.x - e.x, dz = cam.pos.z - e.z, d = Math.hypot(dx, dz);
+      if (d < 1.4 && d > 1e-3) { const q = V3(e.x + dx / d * 1.4, cam.pos.y, e.z + dz / d * 1.4); if (!inObstacle(q, 0.2) && !occBad(q)) cam.pos.copy(q); }
+    }
     if (cam.pos.y < 9) inMap(cam.pos, 0.4);
     cam.pos.y = Math.max(0.35, cam.pos.y);
     camera.position.copy(cam.pos); camera.lookAt(cam.look); setFov(D.fov);
     cam.target.set(f.pivot.x, 0, f.pivot.z);
+    D.lastF = f; if (D.mon) dirMonitor(D.mon, camera.position, f, s, next ? D.why : null);
+  }
+  // pendant un plan, les sujets bougent : si la place voulue touche le décor dessiné (contre un objet, sous un auvent, regard
+  // bouché), on cherche tout près une place dégagée (un peu plus haut, un peu plus près du sujet) ; le ressort y glisse
+  // Sujet masqué (un fourgon, un local, un arbre passe entre la caméra et lui) : la caméra monte doucement par-dessus, comme une
+  // grue, et ne redescend qu'après 1,5 s de vue dégagée (pas de va-et-vient) ; s.dl : hauteur ajoutée en cours.
+  // Cadre de sécurité : si un sujet sort du cadre (la caméra suit avec retard, le soldat change de direction), le point visé
+  // pivote juste assez (de la caméra) pour le garder à 72 % du bord ; le ressort du regard rend le mouvement doux.
+  function frameGuard(p, f) {
+    const pts = (f.pts || []).filter(Boolean); if (!OCC.use || f.noBoom || !pts.length) return f.look;
+    const look = f.look.clone(), th = Math.tan(THREE.MathUtils.degToRad(f.fov / 2)), tw = th * (camera.aspect || 16 / 9), limH = Math.atan(0.72 * tw), limV = Math.atan(0.7 * th);
+    for (let it = 0; it < 2; it++) for (const e of pts) {
+      const vx = look.x - p.x, vz = look.z - p.z, dist = Math.hypot(vx, vz); if (dist < 0.3) return f.look;
+      const wx = e.x - p.x, wz = e.z - p.z, hd = Math.hypot(wx, wz); if (hd < 0.5) continue;
+      const aL = Math.atan2(vz, vx); let da = Math.atan2(wz, wx) - aL; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+      if (Math.abs(da) > limH) { const a = aL + da - Math.sign(da) * limH; look.x = p.x + Math.cos(a) * dist; look.z = p.z + Math.sin(a) * dist; }
+      const pL = Math.atan2(look.y - p.y, dist), dp = Math.atan2(e.y + 0.1 - p.y, hd) - pL;
+      if (Math.abs(dp) > limV) look.y = p.y + Math.tan(pL + dp - Math.sign(dp) * limV) * dist;
+    }
+    return look;
+  }
+  function dodge(want, f, s) {
+    if (!OCC.use || !OCC.g) return want;
+    const near = (p) => !f.noBoom && (f.pts || []).some(e => e && Math.hypot(e.x - p.x, e.z - p.z) < 1.5);   // jamais collée au sujet
+    const ok = (p) => { if (occBad(p) || dynBad(p, s) || inObstacle(p, 0.3) || near(p)) return false; const L = p.distanceTo(f.look); return occRay(p, f.look) * L >= Math.min(3.5, L * 0.5); };
+    const pts = (f.pts || []).filter(Boolean), need = f.noBoom ? 0.5 : pts.length > 1 ? 0.5 : 1;
+    const vis = (p) => { if (!pts.length) return true; let n = 0; for (const e of pts) if (subjectSeen(p, e, false) && !unitScreens(p, e, s)) n++; return n / pts.length >= need - 1e-6; };
+    const good = (p) => ok(p) && vis(p), up = (h) => V3(want.x, want.y + h, want.z), D = DIRECTOR;
+    if (s) {
+      const dl = s.dl || 0, maxUp = f.noBoom ? 4 : 2.6;
+      if (dl > 0) {   // déjà relevée : on redescend par paliers quand c'est dégagé plus bas depuis 1,5 s
+        const lower = Math.max(0, dl - 0.7);
+        if (good(up(lower))) { if (D.clock - (s.dlT || 0) > 1.5) { s.dl = lower; s.dlT = D.clock; return up(lower); } }
+        else s.dlT = D.clock;
+        if (good(up(dl))) return up(dl);
+      } else if (good(want)) return want;
+      for (const h of [0.7, 1.4, 2.1, 2.6, 3.3, 4]) { if (h <= dl || h > maxUp) continue; if (good(up(h))) { s.dl = h; s.dlT = D.clock; return up(h); } }
+      if (dl > 0 && ok(up(dl))) return up(dl);
+    }
+    if (ok(want)) return want;
+    const P = f.noBoom ? f.look : f.pivot, tries = f.noBoom ? [[1, 1.5], [1, 3], [0.85, 0], [0.85, 2]] : [[1, 0.6], [1, 1.2], [0.8, 0], [0.8, 0.6], [0.62, 0], [0.62, 0.8], [1.3, 0], [1.3, 0.6]];
+    for (const [k, up] of tries) { const q = V3(P.x + (want.x - P.x) * k, want.y + up, P.z + (want.z - P.z) * k); if (ok(q)) return q; }
+    return want;
+  }
+  // relevé plan par plan (mesure) : part des sujets visibles, caméra dans / sous / sur le décor, regard bouché
+  function dirMonitor(R, p, f, s, why) {
+    if (!R.cur || why !== null || R.cur.s !== s) {
+      if (R.cur) dirShotEnd(R);
+      R.cur = { s, kind: s.kind, why: why || '', t: +simTime.toFixed(1), n: 0, vis: 0, bad: 0, blocked: 0, sim: 0 };
+    }
+    const c = R.cur; c.n++;
+    const b = occBad(p) || dynBad(p, s); if (b) { c.bad++; R.badKinds[b] = (R.badKinds[b] || 0) + 1; }
+    if (inObstacle(p, 0)) c.sim++;
+    const pts = (f.pts || []).filter(Boolean); let seen = 0;
+    for (const e of pts) if ((occRay(p, e, 0.45) >= 1 || occRay(p, V3(e.x, e.y + 0.3, e.z), 0.45) >= 1) && !unitScreens(p, e, s)) seen++;
+    c.vis += pts.length ? seen / pts.length : 1; if (pts.length && seen < pts.length) c.blocked++;
+    const L = p.distanceTo(f.look); if (occRay(p, f.look) * L < Math.min(3.5, L * 0.5)) c.wall = (c.wall || 0) + 1;
+  }
+  function dirShotEnd(R) {
+    const c = R.cur; if (!c || !c.n) return; R.cur = null;
+    const e = { t: c.t, kind: c.kind, why: c.why, n: c.n, vis: +(c.vis / c.n).toFixed(2), bad: +(c.bad / c.n).toFixed(2), blocked: +(c.blocked / c.n).toFixed(2), wall: +((c.wall || 0) / c.n).toFixed(2), sim: c.sim };
+    e.ko = e.vis < (c.kind === 'establish' || c.kind === 'overview' ? 0.5 : 0.7) || e.bad > 0.1 || e.wall > 0.1 || c.sim > 0;   // plan large : la moitié des soldats suffit
+    R.shots.push(e);
+  }
+  function dirReport(R) {
+    if (R.cur) dirShotEnd(R);
+    const sh = R.shots, n = sh.length || 1;
+    const fr = (k) => +(sh.reduce((a, e) => a + e[k] * e.n, 0) / Math.max(1, sh.reduce((a, e) => a + e.n, 0))).toFixed(3);
+    return { shots: sh.length, ko: sh.filter(e => e.ko).length, fBad: fr('bad'), fWall: fr('wall'), fBlocked: fr('blocked'), fVis: fr('vis'), meanVis: +(sh.reduce((a, e) => a + e.vis, 0) / n).toFixed(3), badFrames: sh.reduce((a, e) => a + e.bad * e.n, 0) | 0, frames: sh.reduce((a, e) => a + e.n, 0), badKinds: R.badKinds, worst: sh.filter(e => e.ko).slice(0, 12), occMs: OCC.ms };
   }
   // Mesure du réalisateur (sans rendu) : n pas de simulation, 3 images par pas ; nombre de coupes, durée des plans,
   // caméra dans un obstacle, sujet masqué, à-coups (accélération de la caméra hors coupes).
-  function directorTrace(n) {
+  function directorTrace(n, probe) {   // probe(camera, plan, cadrage, simTime) : mesure externe (rayons contre le décor dessiné), après chaque pas
     setCamMode('director'); const R = { cuts: 0, holds: [], kinds: {}, frames: 0, inside: 0, hidden: 0, maxStep: 0, jerk: 0 }; DIRECTOR.log = R.log = [];
+    const keepMon = DIRECTOR.mon; DIRECTOR.mon = keepMon || { shots: [], badKinds: {} };   // relevé plan par plan contre le décor dessiné
     let ref = cam.shot, tCut = simTime, p0 = camera.position.clone(), v0 = new THREE.Vector3(), nf = 0;
     for (let i = 0; i < n && !battle.over; i++) {
       stepSim();
@@ -16158,10 +17084,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const s = cam.shot && typeof cam.shot === 'object' ? cam.shot : null, su = s && s.id && meshes[s.id];
         if (su && segFree(p, V3(su.group.position.x, 1.3, su.group.position.z)) < 0.97) { R.hidden++; (R.hiddenBy = R.hiddenBy || {})[s.kind] = (R.hiddenBy[s.kind] || 0) + 1; }
         p0.copy(p);
+        if (probe && k === 3) probe(camera, s, DIRECTOR.lastF, simTime);
       }
     }
     const h = R.holds.slice(1); R.meanHold = +(h.reduce((a, b) => a + b, 0) / (h.length || 1)).toFixed(2); R.minHold = Math.min(...h); R.short = h.filter(x => x < 3).length;
-    R.jerk = +(R.jerk / Math.max(1, nf)).toFixed(4); R.maxStep = +R.maxStep.toFixed(3); R.t = battle.t; DIRECTOR.log = null; return R;
+    R.jerk = +(R.jerk / Math.max(1, nf)).toFixed(4); R.maxStep = +R.maxStep.toFixed(3); R.t = battle.t; DIRECTOR.log = null;
+    if (!keepMon) { R.decor = dirReport(DIRECTOR.mon); DIRECTOR.mon = null; }
+    return R;
   }
   function applyCamera() {
     if (finale || briefing || cam.mode !== 'director') setFov(50);   // la focale varie seulement avec le réalisateur
@@ -16183,7 +17112,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const fx = Math.cos(-(yaw - Math.PI / 2)), fz = Math.sin(-(yaw - Math.PI / 2));
         const px = m.group.position.x, pz = m.group.position.z;
         const pivot = new THREE.Vector3(px, 1.6, pz);
-        const want = clipBoom(pivot, new THREE.Vector3(px - fx * 4.4 - fz * 0.5, 2.4, pz - fz * 4.4 + fx * 0.5)), look = new THREE.Vector3(px + fx * 7, 1.1, pz + fz * 7);
+        const want = clipBoom(pivot, new THREE.Vector3(px - fx * 4.4 - fz * 0.5, 2.4, pz - fz * 4.4 + fx * 0.5), true), look = new THREE.Vector3(px + fx * 7, 1.1, pz + fz * 7);
         const dt = dirTick();   // ressort critique indépendant de la cadence d'images (plus d'à-coups quand la perche se replie)
         if (!cam.init) { cam.pos.copy(want); cam.look.copy(look); DIRECTOR.vel.set(0, 0, 0); DIRECTOR.lvel.set(0, 0, 0); cam.init = true; }
         damp3(cam.pos, want, DIRECTOR.vel, 0.4, dt); damp3(cam.look, look, DIRECTOR.lvel, 0.28, dt);
@@ -16228,6 +17157,35 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
 
   // lumières
   const hemi = new THREE.HemisphereLight(0xb8c8d8, 0x3a3630, 1.15); scene.add(hemi);
+  // Liseré de lune sur les soldats (la nuit seulement) : un léger reflet froid sur les bords de la silhouette (Fresnel), qui
+  // détache un uniforme sombre d'une carrosserie ou d'un mur sombres sans éclairer la scène. Ajouté aux matériaux des
+  // soldats (en plus de leur teinte d'uniforme) ; intensité commune, 0 le jour.
+  // Liseré calculé sur la normale interpolée des sommets (pas la carte de relief), à pente douce, plus fort du côté de la lune,
+  // éteint sur les arêtes vives (là où la normale tourne d'un pixel à l'autre : bords de poches, sangles → c'étaient les
+  // pointillés), sans aucune modulation par la texture. uRimF : lumière froide enveloppée venant de la lune, lisse.
+  const RIM = { k: { value: 0 }, f: { value: 0 }, c: { value: new THREE.Color(0.55, 0.68, 1.0) }, d: { value: new THREE.Vector3(-0.42, 0.58, 0.7).normalize() }, nuit: 0.13, fond: 0.035 };
+  function rimPatch(root) {
+    root.traverse(o => {
+      if (!o.isMesh || !o.material) return;
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+        if (!m || !m.isMeshStandardMaterial || m.userData.rim) continue; m.userData.rim = true;
+        const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey;
+        m.onBeforeCompile = function (sh, r) {
+          if (prev) prev.call(this, sh, r);
+          sh.uniforms.uRimK = RIM.k; sh.uniforms.uRimF = RIM.f; sh.uniforms.uRimC = RIM.c; sh.uniforms.uRimD = RIM.d;
+          sh.fragmentShader = 'uniform float uRimK, uRimF; uniform vec3 uRimC, uRimD;\n' + sh.fragmentShader.replace('#include <opaque_fragment>', `
+            { vec3 rN = normalize(nonPerturbedNormal), rV = normalize(vViewPosition), rL = normalize((viewMatrix * vec4(uRimD, 0.0)).xyz);
+              float rF = smoothstep(0.3, 0.95, 1.0 - saturate(dot(rN, rV))), rS = 0.3 + 0.7 * saturate(dot(rN, rL) * 0.5 + 0.5);
+              rF *= 1.0 - smoothstep(0.12, 0.45, length(fwidth(rN)));   // arêtes vives (bords de poches, sangles) : pas de pointillés
+              float rW = saturate((dot(rN, rL) + 0.4) / 1.4);   // côté lune, éclairage enveloppé et lisse
+              outgoingLight += uRimC * (uRimK * rF * rF * rS + uRimF * (0.25 + 0.75 * rW * rW)); }
+            #include <opaque_fragment>`);
+        };
+        m.customProgramCacheKey = function () { return (prevKey ? prevKey.call(this) : '') + '|rim'; };
+        m.needsUpdate = true;
+      }
+    });
+  }
   const sun = new THREE.DirectionalLight(0xffe9c4, 2.2);
   sun.position.set(40, 60, 10); sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.left = -45; sun.shadow.camera.right = 45; sun.shadow.camera.top = 35; sun.shadow.camera.bottom = -35; sun.shadow.camera.far = 160; sun.shadow.bias = -0.0008;
@@ -16294,6 +17252,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     $('#app').dataset.cond = id || 'jour';
     if (OT.Parking && battle && battle.map.id === 'parking') { OT.Parking.setConditions(id || 'jour', scene); buildLamps(false); } else buildLamps(id === 'nuit' || id === 'brouillard');
+    RIM.k.value = id === 'nuit' ? RIM.nuit : 0; RIM.f.value = id === 'nuit' ? RIM.fond : 0; if (RENDU) RIM.d.value.copy(RENDU.lightDir);   // liseré de lune des soldats (côté lune)
     buildSteam();
     meteoSound();   // couche sonore de la météo (pluie, vent, nuit, oiseaux)
   }
@@ -16654,6 +17613,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // soldat Meshy (modèle 3D animé) s'il est chargé, sinon personnage dessiné par programme
     const f = (OT.Soldat3D && OT.Soldat3D.ready && !OT.SETTINGS_LOWMODEL && OT.Soldat3D.create({ modele: u.def.faction ? 'soldat' : 'gign', uniform: fac.uniform, weapon: u.weapon.id, attachments: u.att }))
       || Figure.build({ id: u.def.id, weapon: u.weapon.id, uniform: fac.uniform, vest: fac.vest, teamColor: t.color, headgear: u.def.headgear || (u.def.faction ? 'casque_lunettes' : 'casque'), attachments: u.att });
+    rimPatch(f.group);   // liseré de lune (nuit)
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.41, 40), new THREE.MeshBasicMaterial({ color: t.color, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; f.group.add(ring);
     scene.add(f.group);
     const label = document.createElement('div'); label.className = 'label team' + u.team;
@@ -16712,7 +17672,12 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       jambes = a.piedsYaw - m.yaw; while (jambes > Math.PI) jambes -= 2 * Math.PI; while (jambes < -Math.PI) jambes += 2 * Math.PI;
       // (au-delà de ~40° de torsion, ou après 1,2 s, les pieds se replacent par deux petits pas, comme un vrai pivot : avant,
       // la torsion allait jusqu'à 110° puis les pieds tournaient d'un coup en glissant au sol)
-      if (Math.abs(jambes) > 0.7 || (a.stopT > 1.2 && Math.abs(jambes) > 0.25) || crouch) { a.piedsYaw = m.yaw; jambes = 0; if (!crouch && m.repas) m.repas(); }
+      // (le replacement ne repart que si les pas précédents sont finis — repas() renvoie false sinon — : la torsion des jambes est
+      // gardée en attendant, pieds plantés ; avant, elle était remise à 0 et les pieds tournaient avec le corps en glissant)
+      // (pivot continu : les pieds se replacent EN AVANCE sur la rotation — vitesse de lacet × 0,3 s, ≤ 34° — : le bassin passe
+      // d'en avance à en retard entre deux replacements au lieu d'être toujours en retard ; avant, pendant un demi-tour en
+      // visant, les jambes traînaient de 20-25° et les pieds se retrouvaient l'un derrière l'autre vus de face)
+      if (Math.abs(jambes) > 0.7 || (a.stopT > 1.2 && Math.abs(jambes) > 0.25) || crouch) { if (crouch || !m.repas || m.repas() !== false) { const av = crouch ? 0 : Math.max(-0.6, Math.min(0.6, (m.yawV || 0) * (OT.PIVOT_AVANCE_TEST ?? 0.3))); a.piedsYaw = m.yaw + av; jambes = av; } }
     }
     // marche (pas la course, pas accroupi) : jambes directionnelles (soldat3d.marche) quand le modèle a les pas chassés
     // marche OU course (petites foulées) directionnelles jusqu'à 3,2 m/s ; au-delà (sprint) l'ancienne méthode. Marche ou
@@ -16743,6 +17708,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // accroupi ↔ debout : fondu de 0,42 s (et non 0,25) : le buste descend de ~45 cm, c'est une vraie mise à genou
     if (a.crouchVu !== undefined && a.crouchVu !== crouch) a.crT = 0.45; a.crouchVu = crouch; a.crT = Math.max(0, (a.crT || 0) - dt);
     const fCr = (f) => a.crT > 0 ? 0.42 : f;
+    // sortie de rechargement : fondu de 0,45 s vers la pose suivante (le haut du corps revenait en 0,25 s : à-coup du buste)
+    a.relT = u.alive && u.reloading > 0 ? 0.5 : Math.max(0, (a.relT || 0) - dt); m.fadeMin = u.reloading > 0 ? 0 : a.relT > 0 ? 0.45 : a.crT > 0 ? 0.42 : 0;
     let mode = 'deux', legs = false;
     if (!u.alive) {
       mode = (a.deadT = (a.deadT || 0) + dt) > 1.6 ? 'sol' : 'droite';
@@ -16755,8 +17722,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     else if (u.reloading > 0) {
       mode = 'droite'; const rs = Math.min(2.4, clipSpeed('Standing_Reload') / Math.max(1, u.weapon.reload || 2.5));
       if (!crouch && u.moving && v > 0.15 && m.clips.Standing_Reload_Haut) {   // recharge en marchant : haut du corps seul, jambes en couche séparée
-        m.play('Standing_Reload_Haut', { speed: rs }); const lj = v > 1.4 ? 'Run_Jambes' : 'Walk_Jambes', nat = m.loco[v > 1.4 ? 'Run_and_Shoot' : 'Walk_Fight_Forward'] || 1;
-        m.playLegs(lj, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)) }); legs = true;
+        // (jambes : celles de la marche / petite course de patrouille, posées au sol et retouchées — les cycles bruts « au pistolet »
+        // flottaient de 4 à 6 cm en appui chez « soldat » et glissaient à 0,3-0,5 m/s)
+        const lj = v > 1.4 ? (m.clips.Pas_Trot ? 'Pas_Trot' : 'Run_Jambes') : (m.clips.Pas_Avant_Low ? 'Pas_Avant_Low' : 'Walk_Jambes'), nat = m.loco[lj] || m.loco[v > 1.4 ? 'Run_and_Shoot' : 'Walk_Fight_Forward'] || 1;
+        m.play('Standing_Reload_Haut', { speed: rs });
+        m.playLegs(lj, { speed: sens * Math.max(0.4, Math.min(2.2, v / nat)) }); legs = true; m.verrouPieds = true;   // (pieds d'appui cloués aussi en rechargeant en marchant : ils glissaient de 0,3 à 0,5 m/s)
       } else { const n = crouch ? 'Kneeling_Reload' : 'Standing_Reload'; m.play(n, { speed: rs }); }
     }
     else if (dirMarche || grace) {
@@ -16765,8 +17735,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       let haut = course ? (vise ? 'Run_and_Shoot_Haut' : 'Run_Low_Haut') : (vise ? 'Walk_Aim_Haut' : 'Walk_Low_Haut'), avant = course ? 'Pas_Avant_Course' : vise ? 'Pas_Avant_Aim' : 'Pas_Avant_Low', mix = null;
       if (vise && m.clips.Pas_Glisse) {
         // en visant : marche « glissée » (genoux fléchis, talon-pointe) jusqu'à ~2,3 m/s, course épaulée au-delà (hystérésis)
-        if (!grace) a.courseV = a.courseV ? a.vLis > 2.2 : a.vLis > 2.45;
-        if (a.courseV) { avant = 'Pas_Avant_Course'; haut = 'Run_and_Shoot_Haut'; } else { avant = 'Pas_Glisse'; haut = 'Walk_Aim_Haut'; }
+        // (course épaulée : jambes de la petite course / course — Pas_Trot, Pas_Run — et non « Run_and_Shoot » : course accroupie de
+        // 0,63 m par pas, jouée à 2,6 m/s elle faisait 248 pas/min, pieds au ras du sol, genoux à 60-90° ; la marche glissée
+        // passe la main dès ~2,1 m/s : à 2,3 m/s elle faisait 212-221 pas/min)
+        const CV = OT.COURSE_V_TEST || [1.95, 2.15], trotV = !!(m.clips.Pas_Trot && OT.COURSE_TROT_TEST !== false);
+        if (!grace) a.courseV = a.courseV ? a.vLis > (trotV ? CV[0] : 2.2) : a.vLis > (trotV ? CV[1] : 2.45);
+        if (a.courseV) { avant = 'Pas_Avant_Course'; haut = 'Run_and_Shoot_Haut';
+          if (trotV) { const sm = (x, a0, a1) => { const t = Math.max(0, Math.min(1, (x - a0) / (a1 - a0))); return t * t * (3 - 2 * t); }, kR = m.clips.Pas_Run ? sm(a.vLis, 2.2, 3.7) : 0; mix = { Pas_Trot: 1 - kR, Pas_Run: kR }; avant = 'Pas_Glisse'; } }   // (référence « avant » inchangée — Pas_Glisse — : le lacet propre du bassin des clips, psi, ne saute pas au passage marche glissée → course)
+        else { avant = 'Pas_Glisse'; haut = 'Walk_Aim_Haut'; }
       }
       if (patrouille) {
         // marche jusqu'à ~1,9 m/s (marche rapide), puis petite course, qui se mélange à la vraie course de 2,7 à 3,7 m/s (même
@@ -16774,7 +17750,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         // d'appui glissait de 1,2 m/s) : on passe de l'une à l'autre (fondu ~0,15 s), avec hystérésis
         const sm = (x, a0, a1) => { const t = Math.max(0, Math.min(1, (x - a0) / (a1 - a0))); return t * t * (3 - 2 * t); };
         if (!grace) a.trot = a.trot ? a.vLis > 1.8 : a.vLis > 1.95;
-        const kR = m.clips.Pas_Run ? sm(a.vLis, 2.7, 3.7) : 0;
+        // (la course entre dès 2,2 m/s : sa foulée longue allonge un peu le pas ; à 2,6 m/s la cadence passait à 206-216 pas/min)
+        const kR = m.clips.Pas_Run ? sm(a.vLis, ...(OT.RUN_MIX_TEST || [2.2, 3.7])) : 0;
         mix = a.trot ? { Pas_Trot: 1 - kR, Pas_Run: kR } : { Pas_Avant_Low: 1 }; avant = 'Pas_Avant_Low';
         haut = a.trot && m.clips.Trot_Low_Haut ? 'Trot_Low_Haut' : 'Walk_Low_Haut';
       }
@@ -16797,13 +17774,18 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // inclinaison dans les virages en courant (le torse se penche vers l'intérieur de la courbe)
     { const va = Math.atan2(a.vz || 0, a.vx || 0), sp = Math.hypot(a.vx || 0, a.vz || 0); let tr = a.vAng === undefined ? 0 : va - a.vAng; while (tr > Math.PI) tr -= 2 * Math.PI; while (tr < -Math.PI) tr += 2 * Math.PI; a.vAng = va;
       const want = u.alive && sp > 1 && dt > 0 ? Math.max(-0.16, Math.min(0.16, (tr / dt) * sp * 0.025)) : 0; a.bank = lerp(a.bank || 0, want, Math.min(1, dt * 5));
-      if (m.bones.spine && Math.abs(a.bank) > 0.005) { m.mod(m.bones.spine); m.bones.spine.rotation.z += a.bank; } }
+      // (sur l'os du buste qui porte la peau — « dos » = Spine pour les modèles Meshy, voir soldat3d — sinon seuls bras et tête bougeaient)
+      const dos = m.bones.dos || m.bones.spine;
+      if (dos && Math.abs(a.bank) > 0.005) { m.mod(dos); dos.rotation.z += a.bank; } }
     if (m.bones.spine && (a.recoil > 0 || a.flinch > 0)) {
-      m.mod(m.bones.spine); m.bones.spine.rotation.x -= a.recoil * 0.05;
+      const dos = m.bones.dos || m.bones.spine;
+      m.mod(dos); dos.rotation.x -= a.recoil * 0.05;
       if (a.flinch > 0 && u.alive) {   // impact : le torse encaisse dans le sens de la balle (secousse brève), la tête suit
         const hd = a.hitDir || { x: 0, z: 0 }, fw = hd.x * Math.sin(m.yaw) + hd.z * Math.cos(m.yaw), sd = hd.x * Math.cos(m.yaw) - hd.z * Math.sin(m.yaw);
-        const e = Math.sin(Math.min(1, (1 - a.flinch) * 2.2) * Math.PI) * 0.6 + a.flinch * 0.4;
-        m.bones.spine.rotation.x += fw * 0.32 * e; m.bones.spine.rotation.z -= sd * 0.22 * e; m.bones.spine.rotation.y += sd * 0.28 * e;
+        // (enveloppe sin² sur les 0,25 s de la secousse : vitesse nulle au départ et à la fin, pic à 125 ms — avant, pic à 70 ms :
+        // attaque en 2 images, tête à 15 000-18 000 °/s² en jeu ; et encore avant, 40 % de la secousse dès la 1re image)
+        const si = Math.sin(Math.PI * Math.min(1, (1 - a.flinch) / 4 / 0.25)), e = si * si;
+        dos.rotation.x += fw * 0.32 * e; dos.rotation.z -= sd * 0.22 * e; dos.rotation.y += sd * 0.28 * e;
         if (m.bones.head) { m.mod(m.bones.head); m.bones.head.rotation.x += fw * 0.25 * e; m.bones.head.rotation.z -= sd * 0.2 * e; }
       }
     }
@@ -16910,6 +17892,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // effets de tactiques : nappe de fumée, obus, soins, drone
   const smokeMat = new THREE.MeshStandardMaterial({ color: 0xc9c9c4, transparent: true, opacity: 0.55, roughness: 1, depthWrite: false });
   function addSmoke(ev) {
+    DIRECTOR.smokes = DIRECTOR.smokes.filter(k => k.until > simTime); DIRECTOR.smokes.push({ x: ev.x, z: ev.z, r: ev.r || 3, until: ev.until });   // le réalisateur évite de poser la caméra dans la fumée
     if (EFX) { EFX.smoke(ev.x, ev.z, ev.r, Math.max(2, ev.until - simTime)); return; }
     const g = new THREE.Group();
     for (let i = 0; i < 14; i++) { const r = 1.2 + Math.random() * 1.6; const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), smokeMat.clone()); m.position.set(ev.x + (Math.random() - 0.5) * ev.r * 1.6, 0.8 + Math.random() * 1.6, ev.z + (Math.random() - 0.5) * ev.r * 1.6); m.userData.drift = new THREE.Vector3((Math.random() - 0.5) * 0.15, 0.08 + Math.random() * 0.1, (Math.random() - 0.5) * 0.15); g.add(m); }
@@ -17166,7 +18149,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const last = battle.log.slice().reverse().find(e => e.kind === 'down' && e.enemy && unitById[e.enemy]);
     if (!last || MANUAL) return; const v = unitById[last.enemy];
     // angle de vue dégagé : on cherche une direction d'où la caméra (5 à 7 m, 2,5 à 3,4 m de haut) voit le soldat sans mur entre eux
-    const mp = battle.map, ok = (a) => [5, 6, 7].every(d => { const cx = v.x + Math.cos(a) * d, cz = v.z + Math.sin(a) * d; return mp.inBounds(cx, cz) && !mp.insideObstacle(cx, cz) && mp.hasLOS(cx, 2.6, cz, v.x, 0.5, v.z); });
+    occEnsure(); const mp = battle.map, V = V3(v.x, 0.5, v.z);   // (et contre le décor dessiné : ni sous l'auvent de la station de lavage, ni dans un arbre, ni derrière un mur)
+    const ok = (a) => [5, 6, 7].every(d => { const cx = v.x + Math.cos(a) * d, cz = v.z + Math.sin(a) * d; return mp.inBounds(cx, cz) && !mp.insideObstacle(cx, cz) && mp.hasLOS(cx, 2.6, cz, v.x, 0.5, v.z) && (!OCC.use || [2.4, 3.4].every(y => { const p = V3(cx, y, cz); return !occBad(p) && occRay(p, V, 0.45) >= 1; })); });
     const base = Math.atan2(camera.position.z - v.z, camera.position.x - v.x); let a0 = null;
     for (let k = 0; k < 24 && a0 === null; k++) { const a = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * Math.PI / 12; if (ok(a) && ok(a + 0.35) && ok(a - 0.35)) a0 = a; }
     if (a0 === null) for (let k = 0; k < 24 && a0 === null; k++) { const a = base + k * Math.PI / 12; if (ok(a)) a0 = a; }
@@ -17322,7 +18306,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         let ch = m.yaw - want; while (ch > Math.PI) ch -= 2 * Math.PI; while (ch < -Math.PI) ch += 2 * Math.PI;
         const v0 = (m.yawV || 0) - wv, tmp = (v0 + om * ch) * frameDt, v1 = (v0 - om * tmp) * ex;
         let ny = want + (ch + tmp) * ex, dy = ny - y0; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI;
-        const lim = 8 * frameDt; dy = Math.max(-lim, Math.min(lim, dy)); m.yaw = y0 + dy; m.yawV = Math.max(-8, Math.min(8, v1 + wv));
+        const lim = 8 * frameDt; dy = Math.max(-lim, Math.min(lim, dy)); let vN = Math.max(-8, Math.min(8, v1 + wv));
+        // (accélération angulaire plafonnée à 40 rad/s² : un changement de cible — l'orientation simulée saute d'un coup — ne fait
+        // plus pivoter tout le corps en une image ; mesuré en jeu : 13 500 °/s² au buste, 24 000 à la tête)
+        { const vO = m.yawV || 0, da = (OT.YAW_ACC_TEST || 40) * frameDt; if (Math.abs(vN - vO) > da) { vN = vO + Math.sign(vN - vO) * da; dy = Math.max(-lim, Math.min(lim, (vO + vN) * 0.5 * frameDt)); } }
+        m.yaw = y0 + dy; m.yawV = vN;
         if (m.yaw > Math.PI) m.yaw -= 2 * Math.PI; else if (m.yaw < -Math.PI) m.yaw += 2 * Math.PI; }
       else if (m.anim.fallYaw !== undefined && (m.anim.deadT || 0) < 1.4) { let d = m.anim.fallYaw - m.yaw; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; m.yaw += Math.max(-2.5 * frameDt, Math.min(2.5 * frameDt, d)); }
       m.group.rotation.y = m.yaw;
@@ -17753,7 +18741,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     camShot: (kind, id) => { if (kind === 'shoulder' || kind === 'dolly') { setCamMode('director'); cam.shot = { kind, id, side: 1, until: simTime + 999 }; cam.cutAt = simTime; } else { setCamMode('follow'); cam.follow = id; } render(); for (let i = 0; i < 60; i++) applyCamera(); render(); return [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)); },
     stepRaw: (n) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; return battle.t; },   // sans rendu (outils de capture)
     camPos: () => ({ pos: [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)), fov: camera.fov, mode: cam.mode, shot: cam.shot && cam.shot.kind, paused, briefing: !!briefing, finale: !!finale }),   // diagnostic
-    dirTrace: (n) => directorTrace(n || 600),   // mesure du réalisateur (coupes, durée des plans, caméra masquée, à-coups)
+    dirTrace: (n, probe) => directorTrace(n || 600, probe), camera3: () => camera, rim: () => RIM,   // (mesures : projection des soldats à l'écran)
+    dirWatch: (on) => { if (on === false) { const r = DIRECTOR.mon ? dirReport(DIRECTOR.mon) : null; DIRECTOR.mon = null; return r; } DIRECTOR.mon = { shots: [], badKinds: {} }; return true; },   // relevé en temps réel : API.dirWatch() puis API.dirWatch(false)
+    occGrid: () => (occEnsure(), OCC),
+    occ: (x, y, z) => { occEnsure(); const p = V3(x, y, z); return { bad: occBad(p), ms: OCC.ms, n: OCC.g ? OCC.g.reduce((a, v) => a + (v ? 1 : 0), 0) : 0, fadeTop: OCC.fadeTop }; },   // mesure du réalisateur (coupes, durée des plans, caméra masquée, à-coups)
     runToEnd: () => { instantResult = true; while (!battle.over) stepSim(); instantResult = false; acc = DT; render(); return battle.result; },
     start: (opts) => { newBattle(opts); render(); return battle.zone || true; },
     banner: () => { $('#result').classList.add('hidden'); showBanner(() => showResult()); },

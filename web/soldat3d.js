@@ -62,7 +62,7 @@
   const ORDRE_TOUR = root.ORDRE_TOUR_TEST ?? true;
   // (tw : écart max — rad — où l'on tourne d'abord le bassin ; k : part de la torsion permise ; mesuré, 1,66 m/s visée 20-30° à
   // gauche : 210-215 → 171-187 pas/min, torsion 48-57°)
-  const CAD_MAX = root.CAD_MAX_TEST ?? 190;   // cadence plafonnée des mélanges riches en pas chassé (pas/min ; 0 : aucune) — voir marche
+  const CAD_MAX = root.CAD_MAX_TEST ?? 210;   // cadence plafonnée des mélanges riches en pas chassé (pas/min ; 0 : aucune) — voir marche ; mesuré : diagonale visée 2 m/s 260 → 210 ; à 190-200, patinage du pied droit 0,12-0,14 m/s
   const TORS_PART = root.TORS_PART_TEST === false ? null : Object.assign({ tw: 1.0, k: 0.9 }, root.TORS_PART_TEST || {});   // marche visée de biais : bassin tourné jusqu'à la torsion permise, puis mélange (voir marche)
   // filtre (1/s) de la cible de torsion des jambes à l'arrêt ; 0 : aucun (essai à 12 : à-coup du bassin au pivot 4 200 → 2 600,
   // mais glissement par appui 7 → 8 cm : les pieds relâchés suivent un bassin en retard ; écarté)
@@ -1873,7 +1873,7 @@
         const lat = new THREE.Vector3(1, 0, 0).applyQuaternion(gq), fw = new THREE.Vector3(0, 0, 1).applyQuaternion(gq);
         mod(hipsB);
         const gb = Math.max(0, Math.min(1, this.lowK)), gbP = GB_PAS ? this.gbPiedK || 0 : gb;
-        const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022).addScaledVector(fw, -0.05 * Math.max(0, this.reposK - gb) + LOWR.hf * gb); h1.y -= 0.008 * Math.abs(s);   // (bassin un peu en arrière : poids sur l'avant des pieds ; garde basse : voir LOWR)
+        const h0 = WP(hipsB), h1 = h0.clone().addScaledVector(lat, s * 0.022).addScaledVector(fw, -(root.RECUL_BASSIN_TEST ?? 0.05) * Math.max(0, this.reposK - gb) + LOWR.hf * gb); h1.y -= 0.008 * Math.abs(s);   // (bassin un peu en arrière : poids sur l'avant des pieds ; garde basse : voir LOWR)
         hipsB.position.add(hipsB.parent.worldToLocal(h1).sub(hipsB.parent.worldToLocal(h0.clone()))); hipsB.updateMatrixWorld(true);
         const roule = (b, a) => { b.parent.getWorldQuaternion(qP); qT.setFromAxisAngle(fw, a); b.quaternion.premultiply(qP.clone().invert().multiply(qT).multiply(qP)); b.updateMatrixWorld(true); };
         roule(hipsB, -s * 0.035); { const sp = spine3[0] || spine1; if (sp) { mod(sp); roule(sp, s * 0.03); } }   // (sur Spine : le gilet n'est pondéré que sur cet os)

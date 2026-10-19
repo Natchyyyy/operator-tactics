@@ -1271,7 +1271,7 @@
         const CV = OT.COURSE_V_TEST || [1.95, 2.15], trotV = !!(m.clips.Pas_Trot && OT.COURSE_TROT_TEST !== false);
         if (!grace) a.courseV = a.courseV ? a.vLis > (trotV ? CV[0] : 2.2) : a.vLis > (trotV ? CV[1] : 2.45);
         if (a.courseV) { avant = 'Pas_Avant_Course'; haut = 'Run_and_Shoot_Haut';
-          if (trotV) { const sm = (x, a0, a1) => { const t = Math.max(0, Math.min(1, (x - a0) / (a1 - a0))); return t * t * (3 - 2 * t); }, kR = m.clips.Pas_Run ? sm(a.vLis, 2.2, 3.7) : 0; mix = { Pas_Trot: 1 - kR, Pas_Run: kR }; } }
+          if (trotV) { const sm = (x, a0, a1) => { const t = Math.max(0, Math.min(1, (x - a0) / (a1 - a0))); return t * t * (3 - 2 * t); }, kR = m.clips.Pas_Run ? sm(a.vLis, 2.2, 3.7) : 0; mix = { Pas_Trot: 1 - kR, Pas_Run: kR }; avant = 'Pas_Glisse'; } }   // (référence « avant » inchangée — Pas_Glisse — : le lacet propre du bassin des clips, psi, ne saute pas au passage marche glissée → course)
         else { avant = 'Pas_Glisse'; haut = 'Walk_Aim_Haut'; }
       }
       if (patrouille) {
@@ -1312,9 +1312,9 @@
       m.mod(dos); dos.rotation.x -= a.recoil * 0.05;
       if (a.flinch > 0 && u.alive) {   // impact : le torse encaisse dans le sens de la balle (secousse brève), la tête suit
         const hd = a.hitDir || { x: 0, z: 0 }, fw = hd.x * Math.sin(m.yaw) + hd.z * Math.cos(m.yaw), sd = hd.x * Math.cos(m.yaw) - hd.z * Math.sin(m.yaw);
-        // (enveloppe à départ doux, pic à 70 ms puis retour : avant, 40 % de la secousse appliqués dès la 1re image — à-coup de la
-        // tête de 14 000-24 000 °/s² en jeu)
-        const ti = (1 - a.flinch) / 4 / 0.07, e = 0.95 * ti * ti * Math.exp(2 * (1 - ti)) * Math.min(1, a.flinch * 6);
+        // (enveloppe sin² sur les 0,25 s de la secousse : vitesse nulle au départ et à la fin, pic à 125 ms — avant, pic à 70 ms :
+        // attaque en 2 images, tête à 15 000-18 000 °/s² en jeu ; et encore avant, 40 % de la secousse dès la 1re image)
+        const si = Math.sin(Math.PI * Math.min(1, (1 - a.flinch) / 4 / 0.25)), e = si * si;
         dos.rotation.x += fw * 0.32 * e; dos.rotation.z -= sd * 0.22 * e; dos.rotation.y += sd * 0.28 * e;
         if (m.bones.head) { m.mod(m.bones.head); m.bones.head.rotation.x += fw * 0.25 * e; m.bones.head.rotation.z -= sd * 0.2 * e; }
       }

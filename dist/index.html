@@ -1673,7 +1673,7 @@
 // Fichiers requis : en cas d'échec, message clair en français. Fichiers optionnels (sons, moteur physique) : on continue sans.
 // file:// ou injection de script refusée par la page : repli sur des <script src> ordinaires (progression par fichier).
 (function () {
-  const M = {"version":"a9ad8928d8","parties":[{"f":"p/three.min.js","v":"7b1c5d75b2","o":668024},{"f":"p/three-addons.js","v":"a55d0a28b7","o":159571},{"f":"p/cannon-es.js","v":"548025ed5d","o":346660,"opt":1},{"f":"p/modeles-soldat.js","v":"797519c3d4","o":3073712},{"f":"p/modeles-gign.js","v":"c54e0ea433","o":2752068},{"f":"p/modeles-decor.js","v":"e1e96d1508","o":4727266},{"f":"p/sons.js","v":"58dd051c70","o":1552112,"opt":1},{"f":"p/jeu.js","v":"b33b3b2c4c","o":1518869,"decoupe":1}]}, doc = document, t0 = performance.now();
+  const M = {"version":"da7d7814d7","parties":[{"f":"p/three.min.js","v":"7b1c5d75b2","o":668024},{"f":"p/three-addons.js","v":"a55d0a28b7","o":159571},{"f":"p/cannon-es.js","v":"548025ed5d","o":346660,"opt":1},{"f":"p/modeles-soldat.js","v":"797519c3d4","o":3073712},{"f":"p/modeles-gign.js","v":"c54e0ea433","o":2752068},{"f":"p/modeles-decor.js","v":"e1e96d1508","o":4727266},{"f":"p/sons.js","v":"58dd051c70","o":1552112,"opt":1},{"f":"p/jeu.js","v":"74a51afc96","o":1638180,"decoupe":1}]}, doc = document, t0 = performance.now();
   const total = M.parties.reduce((s, p) => s + p.o, 0), recu = M.parties.map(() => 0);
   let execs = 0, fini = false;
   doc.documentElement.classList.add('ot-charge');
