@@ -62,8 +62,20 @@
   function apply() {
     try { if (!url) url = draw(1920, 1080, 11).toDataURL('image/jpeg', 0.88); document.documentElement.style.setProperty('--fond', `url(${url})`); } catch (e) { /* canevas indisponible : fond noir */ }
   }
-  root.Fond = { draw, apply };
-  apply();
+  // fond aux proportions de la fenêtre (--fondv) : posé derrière la scène 1920×1080 des menus, il remplit les bandes
+  // latérales d'un écran ultra-large (ou haut/bas d'un écran 4:3) sans couture ni étirement visible
+  let vKey = '';
+  function applyView() {
+    try {
+      const a = Math.max(1.2, Math.min(3.6, (innerWidth || 1920) / (innerHeight || 1080))), W = Math.round(1080 * a / 16) * 16, key = String(W);
+      if (key === vKey) return; vKey = key;
+      const u = Math.abs(W - 1920) < 40 && url ? url : draw(W, 1080, 11).toDataURL('image/jpeg', 0.85);
+      document.documentElement.style.setProperty('--fondv', `url(${u})`);
+    } catch (e) { /* fond noir */ }
+  }
+  let rT = 0; window.addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(applyView, 250); });
+  root.Fond = { draw, apply, applyView };
+  apply(); applyView();
 })(window.OT = window.OT || {});
 
 ;//@@OT web/emblemes.js@@
@@ -150,6 +162,8 @@
     chart: '<rect x="10" y="56" width="16" height="34"/><rect x="34" y="36" width="16" height="54"/><rect x="58" y="46" width="16" height="44"/><rect x="82" y="16" width="12" height="74"/>',
     contract: '<rect x="16" y="6" width="68" height="88" rx="5"/><path d="M28 26 H72 M28 40 H72 M28 54 H60" stroke="#000" stroke-opacity=".45" stroke-width="6"/><path d="M52 66 L60 78 L78 58" fill="none" stroke="#000" stroke-opacity=".55" stroke-width="8"/>',
     paint: '<path d="M60 6 L94 40 L50 84 L16 50 Z" /><path d="M16 56 C6 66 6 80 12 88 C20 94 34 94 44 84 Z" fill-opacity=".7"/>',
+    son: '<path d="M10 36 H30 L56 14 V86 L30 64 H10 Z"/><path d="M66 34 C74 42 74 58 66 66 M76 24 C90 38 90 62 76 76" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>',
+    sonoff: '<path d="M10 36 H30 L56 14 V86 L30 64 H10 Z"/><path d="M68 38 L92 62 M92 38 L68 62" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>',
     sat: '<path d="M38 8 L62 32 L52 42 L28 18 Z M58 48 L82 72 L92 62 L68 38 Z"/><rect x="38" y="34" width="22" height="22" transform="rotate(45 49 45)"/><path d="M20 70 C24 80 30 86 40 88 M14 76 C18 88 26 94 38 96" fill="none" stroke="currentColor" stroke-width="5"/>',
   };
   root.Ico = (name, cls) => P[name] ? `<svg class="ico ${cls || ''}" viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">${P[name]}</svg>` : '';
@@ -10190,7 +10204,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           vec3 col = mix(vec3(0.028, 0.034, 0.052), vec3(0.004, 0.006, 0.014), pow(up, 0.45));
           col += vec3(0.055, 0.034, 0.018) * exp(-up * 9.0);   // pollution lumineuse de la ville
           vec3 g = d * 240.0, f = fract(g) - 0.5; float sd = h3(floor(g));
-          float star = step(0.986, sd) * smoothstep(0.22, 0.0, length(f)) * smoothstep(0.06, 0.35, up);
+          float star = step(0.986, sd) * (1.0 - smoothstep(0.0, 0.22, length(f))) * smoothstep(0.06, 0.35, up);
           col += vec3(0.75, 0.82, 1.0) * star * (0.4 + 1.6 * fract(sd * 37.0));
           float m = max(dot(d, moonDir), 0.0);
           col += vec3(1.0, 0.97, 0.9) * smoothstep(0.99955, 0.9997, m) * 2.5 + vec3(0.22, 0.27, 0.4) * pow(m, 220.0) * 0.8 + vec3(0.03, 0.04, 0.07) * pow(m, 10.0);
@@ -10338,6 +10352,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     cell(12, (c) => { g.fillStyle = '#fff'; g.beginPath(); g.moveTo(c * 0.3, c * 0.2); g.lineTo(c * 0.8, c * 0.35); g.lineTo(c * 0.65, c * 0.8); g.lineTo(c * 0.2, c * 0.6); g.closePath(); g.fill(); });
     cell(13, (c) => radial(c, [[0, 'rgba(255,255,255,1)'], [0.5, 'rgba(255,255,255,0.9)'], [0.7, 'rgba(255,255,255,0)'], [1, 'rgba(255,255,255,0)']]));
     cell(14, (c) => radial(c, [[0, 'rgba(255,255,255,0)'], [0.72, 'rgba(255,255,255,0)'], [0.86, 'rgba(255,255,255,1)'], [1, 'rgba(255,255,255,0)']]));
+    // 15 : langue de flamme le long de u (base à gauche, pointe à droite), bords irréguliers : éclair de bouche vu de profil
+    cell(15, (c) => { for (let k = 0; k < 40; k++) { const t = k / 39, x = c * (0.07 + 0.86 * t), y = c * (0.5 + (R() - 0.5) * 0.06 * t), r = c * (0.035 + 0.17 * Math.pow(1 - t, 0.8)) * (0.8 + R() * 0.4); const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(255,255,255,${0.32 * Math.pow(1 - t, 1.3) + 0.03})`); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, c, c); } });
   });
   ATLAS.generateMipmaps = true; ATLAS.minFilter = T.LinearMipmapLinearFilter;
   // ---- réserve de particules en billboards instanciés
@@ -10361,13 +10377,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           vec3 wp;
           float L = length(iAxis);
           if (L > 1e-4) {   // étiré le long d'un axe (traçante, étincelle) : largeur perpendiculaire à la vue
-            vec3 ax = iAxis / L, toCam = normalize(cameraPosition - iPos), side = normalize(cross(ax, toCam));
+            vec3 ax = iAxis / L, toCam = normalize(cameraPosition - iPos), side = cross(ax, toCam); float sl = length(side);
+            side = sl > 1e-3 ? side / sl : camR;   // axe pointé vers la caméra : pas de normale nulle (NaN)
             wp = iPos + ax * position.x * L + side * position.y * iSize.x;
           } else {
             float c = cos(iSize.y), s = sin(iSize.y); vec2 q = vec2(c * position.x - s * position.y, s * position.x + c * position.y) * iSize.x;
             wp = iPos + camR * q.x + camU * q.y;
           }
-          float fr = iFrame.x; vUv = (vec2(mod(fr, 4.0), 3.0 - floor(fr / 4.0)) + uv) / 4.0; vCol = iCol; vSoft = (fr >= 4.0 && fr < 12.0) ? wp.y : 99.0;   // fumée : fondu au ras du sol (pas d'arête nette)
+          float fr = iFrame.x; vUv = (vec2(mod(fr, 4.0), 3.0 - floor(fr / 4.0)) + uv) / 4.0; vCol = iCol; vSoft = (fr >= 4.0 && fr < 12.0) ? wp.y / clamp(0.35 * iSize.x, 0.08, 0.5) * 0.5 : 99.0;   // fumée : fondu au ras du sol (pas d'arête nette), sur une hauteur à l'échelle de la bouffée (la poussière basse restait invisible)
           vec4 mv = viewMatrix * vec4(wp, 1.0); gl_Position = projectionMatrix * mv; vFog = -mv.z;
         }`,
       fragmentShader: `
@@ -10378,6 +10395,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           ${lit ? 'vec3 col = vCol.rgb * uLight; col = mix(col, fogColor, fog); gl_FragColor = vec4(col, a);' : 'gl_FragColor = vec4(vCol.rgb * a * (1.0 - fog), a);'}
         }`,
       transparent: true, depthWrite: false, blending, premultipliedAlpha: !lit,
+      side: T.DoubleSide,   // les quads étirés (traçantes, étincelles, flamme) tournaient le dos à la caméra : ils étaient éliminés (invisibles)
     });
     if (!lit) { mat.blending = T.CustomBlending; mat.blendSrc = T.OneFactor; mat.blendDst = T.OneFactor; mat.blendEquation = T.AddEquation; }
     const mesh = new T.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = lit ? 5 : 6;
@@ -10400,16 +10418,63 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           if (q.delay > 0) continue;
           const k = q.age / q.life, fadeIn = q.fadeIn ? Math.min(1, q.age / q.fadeIn) : 1, a = q.a0 * fadeIn * (q.fadePow ? Math.pow(1 - k, q.fadePow) : 1 - k);
           A.p[n * 3] = q.p.x; A.p[n * 3 + 1] = q.p.y; A.p[n * 3 + 2] = q.p.z;
-          A.s[n * 2] = q.size * (1 + q.grow * k); A.s[n * 2 + 1] = q.rot;
+          const cs = q.size * (1 + q.grow * k); A.s[n * 2] = cs; A.s[n * 2 + 1] = q.rot;
           const cc = q.col2 ? [q.col[0] + (q.col2[0] - q.col[0]) * k, q.col[1] + (q.col2[1] - q.col[1]) * k, q.col[2] + (q.col2[2] - q.col[2]) * k] : q.col;
           A.c[n * 4] = cc[0]; A.c[n * 4 + 1] = cc[1]; A.c[n * 4 + 2] = cc[2]; A.c[n * 4 + 3] = Math.max(0, a);
           if (q.axis) { A.ax[n * 3] = q.axis.x; A.ax[n * 3 + 1] = q.axis.y; A.ax[n * 3 + 2] = q.axis.z; }
-          else if (q.stretch) { const sp = q.v.length(); const L = Math.max(q.size, sp * q.stretch); A.ax[n * 3] = q.v.x / (sp || 1) * L; A.ax[n * 3 + 1] = q.v.y / (sp || 1) * L; A.ax[n * 3 + 2] = q.v.z / (sp || 1) * L; }
+          else if (q.stretch) { const sp = q.v.length(); const L = Math.max(cs, sp * q.stretch); /* taille courante : une bouffée qui ralentit s'arrondit au lieu de s'aplatir */ A.ax[n * 3] = q.v.x / (sp || 1) * L; A.ax[n * 3 + 1] = q.v.y / (sp || 1) * L; A.ax[n * 3 + 2] = q.v.z / (sp || 1) * L; }
           else { A.ax[n * 3] = A.ax[n * 3 + 1] = A.ax[n * 3 + 2] = 0; }
           A.f[n * 2] = q.frame; n++;
         }
         geo.instanceCount = n;
         for (const k of ['iPos', 'iSize', 'iCol', 'iAxis', 'iFrame']) geo.attributes[k].needsUpdate = true;
+      },
+    };
+  }
+  // ---- ronds de pluie au sol : anneaux plats qui s'élargissent, réapparus au hasard autour de ce que regarde la caméra
+  // (un seul appel de dessin ; le sol des obstacles les cache naturellement)
+  function Ripples(N) {
+    const base = new T.PlaneGeometry(1, 1); base.rotateX(-Math.PI / 2);
+    const geo = new T.InstancedBufferGeometry(); geo.index = base.index; geo.attributes.position = base.attributes.position;
+    const A = new Float32Array(N * 4); for (let i = 0; i < N; i++) A[i * 4 + 2] = -99;   // x, z, naissance, taille
+    geo.setAttribute('iR', new T.InstancedBufferAttribute(A, 4).setUsage(T.DynamicDrawUsage)); geo.instanceCount = N;
+    const mat = new T.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uLife: { value: 0.6 }, uCol: { value: new T.Color(0.62, 0.68, 0.74) }, fogColor: { value: new T.Color() }, fogDensity: { value: 0 } },
+      vertexShader: `
+        attribute vec4 iR; uniform float uTime, uLife; varying vec2 vQ; varying float vAge, vFog;
+        void main() {
+          vAge = (uTime - iR.z) / uLife; vQ = position.xz * 2.0;
+          vec3 wp = vec3(iR.x + position.x * iR.w, 0.022, iR.y + position.z * iR.w);
+          vec4 mv = viewMatrix * vec4(wp, 1.0); gl_Position = projectionMatrix * mv; vFog = -mv.z;
+          if (vAge < 0.0 || vAge > 1.0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);   // hors de vie : hors écran
+        }`,
+      fragmentShader: `
+        uniform vec3 uCol, fogColor; uniform float fogDensity; varying vec2 vQ; varying float vAge, vFog;
+        void main() {
+          float r = length(vQ), w = 0.1 + 0.08 * vAge;
+          float ring = 1.0 - smoothstep(0.0, w, abs(r - vAge * 0.92)) + 0.45 * (1.0 - smoothstep(0.0, w, abs(r - vAge * 0.55)));   // (smoothstep à bornes inversées : indéfini en GLSL)
+          float a = ring * pow(1.0 - vAge, 1.4) * 0.48 * (1.0 - step(1.0, r));
+          float fog = 1.0 - exp(-fogDensity * fogDensity * vFog * vFog); a *= 1.0 - fog;
+          if (a < 0.004) discard;
+          gl_FragColor = vec4(uCol, a);
+        }`,
+      transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3,
+    });
+    const mesh = new T.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 3; mesh.visible = false;
+    let t = 0; const fw = new T.Vector3();
+    return {
+      mesh, mat,
+      update(dt, cam) {
+        if (!mesh.visible) return; t += dt; mat.uniforms.uTime.value = t;
+        let cx = 0, cz = 0, R = 16;
+        if (cam) { cam.getWorldDirection(fw); const h = Math.max(1, cam.position.y), fl = Math.hypot(fw.x, fw.z) || 1, ahead = Math.min(18, h * 1.6 + 4); cx = cam.position.x + fw.x / fl * ahead; cz = cam.position.z + fw.z / fl * ahead; R = Math.min(26, 8 + h * 0.9); }
+        const life = mat.uniforms.uLife.value; let ch = false;
+        for (let i = 0; i < N; i++) {
+          if (t - A[i * 4 + 2] < life) continue;
+          const a = Math.random() * 6.28, d = Math.sqrt(Math.random()) * R;
+          A[i * 4] = cx + Math.cos(a) * d; A[i * 4 + 1] = cz + Math.sin(a) * d; A[i * 4 + 2] = t + Math.random() * life * 0.5; A[i * 4 + 3] = 0.3 + Math.random() * 0.3; ch = true;
+        }
+        if (ch) geo.attributes.iR.needsUpdate = true;
       },
     };
   }
@@ -10461,46 +10526,81 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const debris = Bodies(300, new T.DodecahedronGeometry(0.04, 0), new T.MeshStandardMaterial({ color: 0x6b6660, roughness: 0.95 })); scene.add(debris.mesh);
     const holes = Decals(500, holeTex, {}), blood = Decals(120, bloodTex, { rough: 0.3 }), scorch = Decals(40, scorchTex, {});
     scene.add(holes.mesh); scene.add(blood.mesh); scene.add(scorch.mesh);
+    const ripples = Ripples(700); scene.add(ripples.mesh);
     // réserve de lumières : toujours dans la scène, éteintes
     const lights = []; for (let i = 0; i < 6; i++) { const l = new T.PointLight(0xffb469, 0, 9, 2); l.position.set(0, -50, 0); scene.add(l); lights.push({ l, until: 0, i0: 0, dur: 0.05 }); }
     let li = 0, now = 0;
     const light = (p, color, inten, dist, dur) => { const L = lights[li]; li = (li + 1) % lights.length; L.l.position.copy(p); L.l.color.setHex(color); L.l.distance = dist; L.i0 = inten; L.l.intensity = inten; L.until = now + dur; L.dur = dur; L.fresh = true; };
     const V = (x, y, z) => new T.Vector3(x, y, z), rnd = (a, b) => a + Math.random() * (b - a);
+    const basis = (d) => { const u = new T.Vector3().crossVectors(d, Math.abs(d.y) < 0.9 ? V(0, 1, 0) : V(1, 0, 0)).normalize(); return [u, new T.Vector3().crossVectors(d, u)]; };
     const E = { casings, holes, blood, scorch, debris, pools: { add, alpha }, sound: null };
     // éclair de bouche : origine p, direction d (unitaire)
     E.muzzle = function (p, d, silenced) {
       if (silenced) { alpha.add({ p: p.clone(), v: d.clone().multiplyScalar(0.6).add(V(0, 0.3, 0)), life: 0.6, size: 0.08, grow: 3, frame: 4 + Math.floor(Math.random() * 4), col: [0.7, 0.7, 0.7], a0: 0.25, drag: 2 }); return; }
-      const hot = [4.6, 3.1, 1.3];
-      add.add({ p: p.clone().addScaledVector(d, 0.05), life: 0.045, size: rnd(0.11, 0.17), rot: Math.random() * 6.28, frame: 1, col: hot, a0: 1 });
-      for (let k = 0; k < 2; k++) add.add({ p: p.clone().addScaledVector(d, 0.12 + k * 0.08), axis: d.clone().multiplyScalar(rnd(0.22, 0.34)), life: 0.04, size: 0.07 - k * 0.02, frame: 2, col: hot, a0: 0.9 });
-      for (let k = 0; k < 3; k++) add.add({ p: p.clone(), v: d.clone().multiplyScalar(rnd(6, 14)).add(V(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1))), life: rnd(0.05, 0.12), size: 0.012, stretch: 0.012, frame: 3, col: [8, 5, 2], a0: 1 });
-      alpha.add({ p: p.clone().addScaledVector(d, 0.1), v: d.clone().multiplyScalar(0.8).add(V(0, 0.35, 0)), life: rnd(0.6, 1.1), size: 0.09, grow: 4, frame: 4 + Math.floor(Math.random() * 4), col: [0.62, 0.6, 0.58], a0: 0.22, drag: 2.5, fadeIn: 0.05, rot: Math.random() * 6, spin: rnd(-1, 1) });
-      light(p.clone().addScaledVector(d, 0.2), 0xffb26b, rnd(7, 11), 7, 0.05);
+      // chaque coup est différent (taille, pétales) ; cœur court et pas trop gros (le halo l'élargit déjà), flamme vers l'avant
+      // (langue étirée le long du canon, visible de profil), trois pétales du cache-flamme en étoile (visibles de face)
+      const k = rnd(0.75, 1.25), hot = [5.2, 3.3, 1.35], o = p.clone().addScaledVector(d, 0.02);
+      add.add({ p: o.clone(), life: 0.04, size: rnd(0.07, 0.1) * k, rot: Math.random() * 6.28, frame: 1, col: [4, 2.9, 1.5], a0: 1 });
+      const L = rnd(0.16, 0.28) * k;
+      add.add({ p: o.clone().addScaledVector(d, L * 0.5), axis: d.clone().multiplyScalar(L), life: 0.04, size: 0.2 * k, frame: 15, col: hot, a0: 1 });
+      const [bu, bw] = basis(d), a0 = Math.random() * 6.28;
+      for (let i = 0; i < 3; i++) {
+        if (Math.random() < 0.2) continue;
+        const a = a0 + i * 2.094 + rnd(-0.3, 0.3), s = d.clone().multiplyScalar(0.6).addScaledVector(bu, Math.cos(a)).addScaledVector(bw, Math.sin(a)).normalize(), l = rnd(0.06, 0.11) * k;
+        add.add({ p: o.clone().addScaledVector(s, l * 0.5), axis: s.multiplyScalar(l), life: 0.035, size: 0.075 * k, frame: 15, col: hot, a0: 0.85 });
+      }
+      for (let i = 0; i < 3; i++) add.add({ p: p.clone(), v: d.clone().multiplyScalar(rnd(6, 14)).add(V(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1))), life: rnd(0.05, 0.12), size: 0.01, stretch: 0.012, frame: 3, col: [8, 5, 2], a0: 1 });
+      // fumée de poudre : une bouffée chassée vers l'avant, une autre qui traîne et monte
+      alpha.add({ p: p.clone().addScaledVector(d, 0.12), v: d.clone().multiplyScalar(rnd(1.6, 2.6)).add(V(0, 0.25, 0)), life: rnd(0.5, 0.8), size: 0.07, grow: 5, frame: 4 + Math.floor(Math.random() * 4), col: [0.62, 0.6, 0.58], a0: 0.2, drag: 4.5, fadeIn: 0.03, fadePow: 1.4, rot: Math.random() * 6, spin: rnd(-1, 1) });
+      alpha.add({ p: p.clone().addScaledVector(d, 0.05), v: d.clone().multiplyScalar(0.3).add(V(rnd(-0.1, 0.1), 0.3, rnd(-0.1, 0.1))), life: rnd(1.0, 1.6), size: 0.06, grow: 6, frame: 4 + Math.floor(Math.random() * 4), col: [0.6, 0.59, 0.57], a0: 0.14, drag: 1.5, fadeIn: 0.08, rot: Math.random() * 6, spin: rnd(-0.6, 0.6) });
+      light(p.clone().addScaledVector(d, 0.2), 0xffb26b, rnd(7, 11) * k, 7, 0.05);
     };
     // traçante : de a à b, vitesse (m/s), part après « delay »
     E.tracer = function (a, b, speed, team) {
-      const d = b.clone().sub(a), L = d.length(); if (L < 0.5) return; const dir = d.multiplyScalar(1 / L), seg = Math.min(L, 3.2);
-      const col = team === 0 ? [7, 5.4, 3.2] : [8, 4.2, 2.2];
-      add.add({ p: a.clone().addScaledVector(dir, seg / 2), v: dir.clone().multiplyScalar(speed), axis: dir.clone().multiplyScalar(seg), life: Math.max(0.03, (L - seg) / speed), size: 0.018, frame: 0, col, a0: 0.95 });
+      // une balle sur quatre est traçante (alternance par équipe, départ au hasard) ; trait court (~1,6 m) dégradé : tête
+      // chaude et claire, queue rouge qui s'éteint (case 3 de l'atlas, étirée), allumé une image après l'éclair et 0,5 m
+      // devant la bouche ; de jour bien plus discret qu'à la nuit
+      const tc = E._tc || (E._tc = [Math.floor(Math.random() * 4), Math.floor(Math.random() * 4)]); if ((tc[team ? 1 : 0]++ % 4) !== 0) return;
+      const d = b.clone().sub(a), L = d.length(); if (L < 2.5) return; const dir = d.multiplyScalar(1 / L), off = 0.5, dl = 0.02, seg = Math.min(L - off - speed * dl, 1.3); if (seg < 0.4) return;
+      const k = E.night ? 1 : 0.45, col = team === 0 ? [4.2 * k, 1.7 * k, 0.5 * k] : [4.6 * k, 1.4 * k, 0.4 * k];   // orangé-rouge (au-delà de 1 : le halo le prend)
+      add.add({ p: a.clone().addScaledVector(dir, off + seg / 2), v: dir.clone().multiplyScalar(speed), axis: dir.clone().multiplyScalar(seg), life: Math.max(0.03, (L - seg - off) / speed), size: 0.12, frame: 3, col, a0: 1, fadePow: 0.3, delay: dl });
     };
     // matière d'un obstacle (nom) → famille d'impact
     E.impact = function (p, n, matter, delay) {
-      delay = delay || 0; const up = n.y > 0.7;
+      delay = delay || 0; const up = n.y > 0.7, P = p.clone();
+      // briques : éclair (petite étoile brève, pas une boule), étincelles, éclats, jet de poussière (rapide, étiré, freiné net)
+      // puis nuage qui s'arrondit et traîne
+      const flash = (s, col) => add.add({ p: P.clone().addScaledVector(n, 0.02), life: 0.03, size: s, rot: Math.random() * 6.28, frame: 1, col, a0: 1, delay });   // (bref et petit : de jour, une boule lumineuse qui reste au pied d'un mur se lit comme un objet)
+      const sparks = (N, sp, life, col) => { for (let k = 0; k < N; k++) add.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.3, 1) * sp).add(V(rnd(-1, 1), rnd(-0.2, 1), rnd(-1, 1)).multiplyScalar(sp * 0.55)), life: rnd(life * 0.4, life), size: 0.01, stretch: 0.02, frame: 3, col, grav: 9.8, delay, floor: 0.01 }); };
+      const chips = (N, col, sp, a0) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.4, 1) * sp).add(V(rnd(-1, 1), rnd(0.2, 1.2), rnd(-1, 1)).multiplyScalar(sp * 0.45)), life: rnd(0.35, 0.8), size: rnd(0.01, 0.024), frame: 12, col, a0: a0 || 1, grav: 9.8, delay, floor: 0.01, rot: Math.random() * 6, spin: rnd(-14, 14) }); };
+      const jet = (N, col, a0, sp) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.03), v: n.clone().multiplyScalar(rnd(0.6, 1) * sp).add(V(rnd(-1, 1), rnd(-0.2, 1), rnd(-1, 1)).multiplyScalar(sp * 0.2)), life: rnd(0.45, 0.8), size: rnd(0.06, 0.09), grow: 5, stretch: 0.06, frame: 4 + Math.floor(Math.random() * 4), col, a0, drag: 7, delay, fadePow: 1.3, rot: Math.random() * 6 }); };
+      const puff = (N, col, a0, sz, life, sp) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.05), v: n.clone().multiplyScalar(rnd(0.3, 1) * sp).add(V(rnd(-0.3, 0.3), rnd(0, 0.35), rnd(-0.3, 0.3))), life: rnd(life * 0.6, life), size: rnd(sz * 0.7, sz), grow: rnd(3, 5), frame: 4 + Math.floor(Math.random() * 4), col, a0, drag: 3, delay, fadeIn: 0.03, fadePow: 1.5, rot: Math.random() * 6, spin: rnd(-0.6, 0.6) }); };
+      let hole = up ? rnd(0.07, 0.11) : rnd(0.06, 0.09);
       if (matter === 'impact_metal') {
-        for (let k = 0; k < 9; k++) add.add({ p: p.clone(), v: n.clone().multiplyScalar(rnd(2, 6)).add(V(rnd(-3, 3), rnd(0, 3), rnd(-3, 3))), life: rnd(0.15, 0.4), size: 0.012, stretch: 0.02, frame: 3, col: [10, 6, 2], grav: 9.8, delay, floor: 0.01 });
-        add.add({ p: p.clone().addScaledVector(n, 0.03), life: 0.06, size: 0.12, frame: 1, col: [6, 4, 2], delay });
+        flash(0.07, [5, 3.4, 1.8]); sparks(10, 6, 0.4, [10, 6, 2]); puff(1, [0.45, 0.44, 0.42], 0.25, 0.07, 0.8, 0.6); hole = rnd(0.04, 0.06);
+      } else if (matter === 'impact_carrosserie') {   // tôle peinte : quelques étincelles, éclats de peinture, peu de poussière
+        flash(0.055, [4, 3, 1.6]); sparks(5, 4.5, 0.28, [9, 5.5, 2]); chips(4, [0.3, 0.3, 0.32], 2.5); puff(2, [0.5, 0.5, 0.5], 0.26, 0.06, 0.9, 0.6); hole = rnd(0.035, 0.05);
+      } else if (matter === 'impact_verre') {   // vitre : pluie d'éclats clairs qui scintillent, pas d'étincelle
+        flash(0.04, [2.4, 2.6, 2.8]); chips(12, [1.15, 1.25, 1.35], 2.4, 0.85);
+        for (let k = 0; k < 6; k++) add.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-1, 1), rnd(0, 1.2), rnd(-1, 1))), life: rnd(0.25, 0.55), size: 0.008, stretch: 0.01, frame: 3, col: [2.2, 2.4, 2.6], grav: 9.8, delay, floor: 0.01 });
+        puff(1, [0.75, 0.78, 0.8], 0.2, 0.06, 0.6, 0.5); hole = 0;
+      } else if (matter === 'impact_sol' && E.wet) {   // sol détrempé : gerbe d'eau, pas de poussière
+        for (let k = 0; k < 10; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.02), v: V(rnd(-0.8, 0.8), rnd(1.5, 3.5), rnd(-0.8, 0.8)), life: rnd(0.3, 0.55), size: rnd(0.012, 0.022), stretch: 0.012, frame: 13, col: [0.72, 0.77, 0.82], a0: 0.8, grav: 9.8, delay, floor: 0.01 });
+        puff(2, [0.68, 0.72, 0.76], 0.22, 0.08, 0.6, 0.6); chips(3, [0.12, 0.12, 0.12], 2.5);
       } else {
         const dusty = matter === 'impact_sol', wood = matter === 'impact_bois';
-        const c = wood ? [0.45, 0.33, 0.2] : dusty ? [0.5, 0.45, 0.38] : [0.58, 0.56, 0.52];
-        for (let k = 0; k < (dusty ? 5 : 4); k++) alpha.add({ p: p.clone().addScaledVector(n, 0.05), v: n.clone().multiplyScalar(rnd(0.6, 1.8)).add(V(rnd(-0.5, 0.5), rnd(0, dusty ? 1.4 : 0.6), rnd(-0.5, 0.5))), life: rnd(0.7, 1.6), size: rnd(0.06, 0.12), grow: rnd(3, 6), frame: 4 + Math.floor(Math.random() * 4), col: c, a0: dusty ? 0.5 : 0.42, drag: 3, delay, rot: Math.random() * 6 });
-        for (let k = 0; k < 6; k++) alpha.add({ p: p.clone(), v: n.clone().multiplyScalar(rnd(1.5, 4)).add(V(rnd(-1.5, 1.5), rnd(0.5, 2.5), rnd(-1.5, 1.5))), life: rnd(0.3, 0.7), size: rnd(0.012, 0.025), frame: 12, col: wood ? [0.4, 0.3, 0.18] : [0.32, 0.31, 0.3], a0: 1, grav: 9.8, delay, floor: 0.01, spin: rnd(-12, 12) });
-        if (!dusty) add.add({ p: p.clone().addScaledVector(n, 0.02), life: 0.05, size: 0.07, frame: 0, col: [4, 3, 2], delay });
+        const c = wood ? [0.45, 0.33, 0.2] : dusty ? [0.48, 0.44, 0.38] : [0.6, 0.58, 0.54];
+        if (!dusty) flash(0.045, [2.4, 1.9, 1.3]);
+        jet(3, c, dusty ? 0.7 : 0.65, dusty ? 4.5 : 5);
+        puff(3, c, dusty ? 0.6 : 0.55, dusty ? 0.17 : 0.15, dusty ? 1.8 : 2.1, dusty ? 0.7 : 1);
+        chips(dusty ? 6 : 7, wood ? [0.4, 0.3, 0.18] : dusty ? [0.16, 0.15, 0.14] : [0.36, 0.35, 0.33], 3);
+        if (!dusty && !wood && Math.random() < 0.35) sparks(2, 4, 0.18, [8, 5, 2]);
       }
-      E.hole(p, n, up ? rnd(0.07, 0.11) : rnd(0.06, 0.09));
+      if (hole) E.hole(p, n, hole);
     };
     E.hole = function (p, n, s) { holes.add(p, n, s); };
     E.bloodHit = function (p, dir, delay) {
-      for (let k = 0; k < 6; k++) alpha.add({ p: p.clone(), v: dir.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-0.6, 0.6), rnd(-0.2, 0.8), rnd(-0.6, 0.6))), life: rnd(0.3, 0.6), size: rnd(0.05, 0.1), grow: 2.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.28, 0.02, 0.02], a0: 0.75, drag: 3, delay });
+      for (let k = 0; k < 4; k++) alpha.add({ p: p.clone(), v: dir.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-0.6, 0.6), rnd(-0.2, 0.8), rnd(-0.6, 0.6))), life: rnd(0.3, 0.6), size: rnd(0.05, 0.1), grow: 2.2, frame: 4 + Math.floor(Math.random() * 4), col: [0.16, 0.02, 0.018], a0: 0.5, drag: 3.5, delay, fadePow: 1.6 });   // brume brève et sombre (pas de « peinture » rose)
       for (let k = 0; k < 8; k++) alpha.add({ p: p.clone(), v: dir.clone().multiplyScalar(rnd(1, 3)).add(V(rnd(-1, 1), rnd(0, 1.5), rnd(-1, 1))), life: rnd(0.3, 0.6), size: rnd(0.012, 0.02), frame: 13, col: [0.25, 0.01, 0.01], a0: 1, grav: 9.8, delay, floor: 0.01 });
     };
     E.bloodPool = function (x, z, s) { blood.add(V(x, 0.003, z), V(0, 1, 0), s); };
@@ -10513,7 +10613,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       add.add({ p: g.clone().add(V(0, 0.5, 0)), life: 0.12, size: 2.6, frame: 1, col: [12, 8, 4], a0: 1 });
       for (let k = 0; k < 26; k++) { const v = V(rnd(-1, 1), rnd(0.2, 1.2), rnd(-1, 1)).normalize().multiplyScalar(rnd(2, 7)); add.add({ p: g.clone(), v, life: rnd(0.4, 0.8), size: rnd(0.7, 1.2), grow: 2.2, frame: 8 + Math.floor(Math.random() * 4), col: [9, 4.2, 1.2], col2: [1.2, 0.3, 0.05], a0: 0.9, drag: 4, rot: Math.random() * 6, spin: rnd(-2, 2), fadePow: 1.5 }); }
       for (let k = 0; k < 28; k++) { const v = V(rnd(-1, 1), rnd(0.3, 1.4), rnd(-1, 1)).normalize().multiplyScalar(rnd(6, 18)); add.add({ p: g.clone(), v, life: rnd(0.3, 0.9), size: 0.02, stretch: 0.03, frame: 3, col: [10, 6, 2.5], grav: 9.8, floor: 0.01 }); }
-      for (let k = 0; k < 40; k++) { const v = V(rnd(-1, 1), rnd(0.1, 1.0), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.8, 3.2)); alpha.add({ p: g.clone().add(V(rnd(-0.4, 0.4), rnd(0, 0.6), rnd(-0.4, 0.4))), v: v.add(V(0, rnd(0.6, 1.6), 0)), life: rnd(4, 8), size: rnd(0.9, 1.5), grow: rnd(2.5, 4.5), frame: 4 + Math.floor(Math.random() * 4), col: [0.12, 0.11, 0.1], col2: [0.4, 0.39, 0.38], a0: 1, fadePow: 0.7, drag: 1.4, fadeIn: 0.15, rot: Math.random() * 6, spin: rnd(-0.4, 0.4), delay: rnd(0, 0.15) }); }
+      for (let k = 0; k < 36; k++) { const v = V(rnd(-1, 1), rnd(0.1, 1.0), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.8, 3.6)), b = rnd(0.65, 1.15); alpha.add({ p: g.clone().add(V(rnd(-0.4, 0.4), rnd(0, 0.6), rnd(-0.4, 0.4))), v: v.add(V(0, rnd(0.6, 1.9), 0)), life: rnd(4, 8), size: rnd(0.6, 1.15), grow: rnd(2.5, 4.5), frame: 4 + Math.floor(Math.random() * 4), col: [0.09 * b, 0.085 * b, 0.08 * b], col2: [0.3 * b, 0.29 * b, 0.28 * b], a0: rnd(0.75, 0.95), fadePow: 0.7, drag: 1.4, fadeIn: 0.15, rot: Math.random() * 6, spin: rnd(-0.4, 0.4), delay: rnd(0, 0.15) }); }
       for (let k = 0; k < 10; k++) alpha.add({ p: g.clone(), v: V(rnd(-1, 1), 0, rnd(-1, 1)).normalize().multiplyScalar(rnd(6, 9)), life: rnd(0.8, 1.4), size: rnd(0.5, 0.8), grow: 3, frame: 4 + Math.floor(Math.random() * 4), col: [0.5, 0.46, 0.4], a0: 0.45, drag: 3.5, rot: Math.random() * 6 });
       alpha.add({ p: V(p.x, 0.05, p.z), life: 0.45, size: 0.6, grow: 14, frame: 14, col: [0.75, 0.72, 0.68], a0: 0.55 });
       for (let k = 0; k < 16; k++) debris.add({ p: g.clone(), v: V(rnd(-1, 1), rnd(0.4, 1.6), rnd(-1, 1)).normalize().multiplyScalar(rnd(4, 11)), r: 0.03, s: rnd(0.6, 1.6), wx: rnd(-20, 20), wy: rnd(-20, 20), wz: rnd(-20, 20), life: 20 });
@@ -10538,15 +10638,20 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         alpha.add({ p: V(x, 0.02, z), life: 0.45, size: 0.12, grow: 2.5, frame: 4, col: [0.7, 0.74, 0.78], a0: 0.18 }); }
       else for (let k = 0; k < 2; k++) alpha.add({ p: V(x + rnd(-0.15, 0.15), 0.05, z + rnd(-0.15, 0.15)), v: V(rnd(-0.3, 0.3), rnd(0.1, 0.3), rnd(-0.3, 0.3)), life: rnd(0.5, 0.9), size: 0.12, grow: 2.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.52, 0.5, 0.46], a0: 0.16 * Math.min(1, v / 3), drag: 2 });
     };
-    E.dustPuff = function (x, z, s) { for (let k = 0; k < 4; k++) alpha.add({ p: V(x + rnd(-0.2, 0.2), 0.05, z + rnd(-0.2, 0.2)), v: V(rnd(-0.4, 0.4), rnd(0.1, 0.4), rnd(-0.4, 0.4)), life: rnd(0.6, 1.2), size: 0.15 * s, grow: 3, frame: 4 + Math.floor(Math.random() * 4), col: [0.5, 0.47, 0.42], a0: 0.35, drag: 2 }); };
+    // corps qui tombe : poussière chassée à ras du sol tout autour, qui s'étale et retombe
+    E.dustPuff = function (x, z, s) { for (let k = 0; k < 9; k++) { const a = Math.random() * 6.28, sp = rnd(0.6, 1.6); alpha.add({ p: V(x + Math.cos(a) * 0.25, 0.06, z + Math.sin(a) * 0.25), v: V(Math.cos(a) * sp, rnd(0.05, 0.35), Math.sin(a) * sp), life: rnd(0.9, 1.6), size: 0.12 * s, grow: 3.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.62, 0.58, 0.52], a0: 0.5, drag: 2.5, fadeIn: 0.05, fadePow: 1.3, rot: Math.random() * 6 }); } };
     E.update = function (dt, cam, sunCol, fog) {
       now += dt;
       add.update(dt); alpha.update(dt);
       if (sunCol) alpha.mat.uniforms.uLight.value.copy(sunCol);
-      if (fog && fog.isFogExp2) { for (const P of [add, alpha]) { P.mat.uniforms.fogColor.value.copy(fog.color); P.mat.uniforms.fogDensity.value = fog.density; } }
+      if (fog && fog.isFogExp2) { for (const P of [add, alpha, ripples]) { P.mat.uniforms.fogColor.value.copy(fog.color); P.mat.uniforms.fogDensity.value = fog.density; } }
+      ripples.update(dt, cam);
       casings.update(dt, (b) => { if (E.sound && Math.random() < 0.35) E.sound(b.p); }); debris.update(dt);
       for (const L of lights) { if (L.fresh) { L.fresh = false; L.until = now + L.dur; continue; } if (now >= L.until) { L.l.intensity = 0; continue; } const k = (L.until - now) / L.dur; L.l.intensity = L.i0 * k * (0.7 + Math.random() * 0.3); }
     };
+    // pluie : ronds au sol et impacts au sol en gerbes d'eau
+    E.ripples = ripples;
+    E.setRain = function (on) { ripples.mesh.visible = !!on; E.wet = !!on; };
     E.clear = function () { add.parts.length = 0; alpha.parts.length = 0; casings.list.length = 0; debris.list.length = 0; holes.clear(); blood.clear(); scorch.clear(); for (const L of lights) L.l.intensity = 0; add.update(0); alpha.update(0); casings.update(0); debris.update(0); };
     return E;
   }
@@ -11745,18 +11850,52 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }
   // muret : béton clair, chanfreins
   function lowWall(o) { const K = M3(); const m = new T.Mesh(new T.BoxGeometry(o.w, o.h, o.d), K.betonClair); const g = new T.Group(); g.add(m); const cap = new T.Mesh(new T.BoxGeometry(o.w + 0.08, 0.08, o.d + 0.08), K.betonClair); cap.position.y = o.h / 2 - 0.04; g.add(cap); return g; }
+  // touffe de feuillage : sphère bosselée (lobes + petit relief, fonction de la position : pas de couture), normales lisses,
+  // couleur par sommet (dessous et creux plus sombres, feuilles plus ou moins claires) ; 4 variantes partagées
+  const BUSH = [];
+  function bushGeo(i, lo) {
+    i = (i % 4) + (lo ? 4 : 0); if (BUSH[i]) return BUSH[i];   // lo : couvre-sol, petit et nombreux (≈ 100 triangles)
+    const Rb = rng(71 + i * 13), g = lo ? new T.SphereGeometry(1, 10, 7) : new T.SphereGeometry(1, 16, 11), pa = g.attributes.position, v = new T.Vector3(), n = new T.Vector3();
+    const lobes = Array.from({ length: 7 }, () => [new T.Vector3(Rb() - 0.5, Rb() * 0.8 - 0.2, Rb() - 0.5).normalize(), 0.12 + Rb() * 0.16]);
+    const col = new Float32Array(pa.count * 3), h = (x, y, z) => { const t = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return t - Math.floor(t); };
+    for (let k = 0; k < pa.count; k++) {
+      n.fromBufferAttribute(pa, k).normalize(); let r = 0.82;
+      for (const [d, a] of lobes) r += a * Math.pow(Math.max(0, n.dot(d)), 2.5);
+      r += 0.05 * Math.sin(n.x * 11 + n.y * 7) * Math.sin(n.z * 13 - n.y * 5) + (h(+n.x.toFixed(3), +n.y.toFixed(3), +n.z.toFixed(3)) - 0.5) * 0.16;   // feuilles : silhouette déchiquetée
+      v.copy(n).multiplyScalar(r); if (v.y < -0.35) v.y = -0.35 - (v.y + 0.35) * 0.3;   // posée sur la terre
+      pa.setXYZ(k, v.x, v.y, v.z);
+      const ao = 0.45 + 0.55 * Math.min(1, Math.max(0, (n.y + 0.55) / 1.2)), j = 0.82 + 0.3 * h(+n.z.toFixed(3), +n.x.toFixed(3), 3.1);
+      col[k * 3] = ao * j * (0.95 + 0.1 * h(n.y, 1.7, n.x)); col[k * 3 + 1] = ao * j; col[k * 3 + 2] = ao * j * 0.92;
+    }
+    g.setAttribute('color', new T.BufferAttribute(col, 3)); g.computeVertexNormals(); return (BUSH[i] = g);
+  }
+  // feuillage : la surface lisse des touffes est cassée en « feuilles » de ~4 cm (normale et teinte tirées au hasard par
+  // cellule de l'espace) ; coût : quelques instructions par pixel, aucune texture
+  function feuillage(m) {
+    m.onBeforeCompile = (sh) => {
+      sh.vertexShader = 'varying vec3 vLeafP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vLeafP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = 'varying vec3 vLeafP;\nvec3 leafH(vec3 q) { return fract(sin(vec3(dot(q, vec3(127.1, 311.7, 74.7)), dot(q, vec3(269.5, 183.3, 246.1)), dot(q, vec3(113.5, 271.9, 124.6)))) * 43758.5453); }\n' + sh.fragmentShader
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          vec3 lp = vLeafP * 30.0, lb = floor(lp - 0.5), lid = lb, lv = vec3(0.0); float ld = 9.0;   // bruit cellulaire : feuilles arrondies
+          for (int i = 0; i < 2; i++) for (int j = 0; j < 2; j++) for (int k = 0; k < 2; k++) { vec3 c = lb + vec3(float(i), float(j), float(k)), f = c + 0.15 + 0.7 * leafH(c), e = lp - f; float dd = dot(e, e); if (dd < ld) { ld = dd; lid = c; lv = e; } }
+          ld = sqrt(ld); vec3 leafR = leafH(lid + 7.0);
+          diffuseColor.rgb *= (0.62 + 0.6 * leafR.x) * (1.0 - 0.4 * smoothstep(0.3, 0.75, ld));`)
+        .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n normal = normalize(normal + normalize(lv + 1e-4) * 0.45 + (leafR - 0.5) * 0.6);');
+    };
+    m.customProgramCacheKey = () => 'feuillage'; return m;
+  }
   // bac à fleurs : jardinière en béton, terre, petites plantes
   function planter(o) {
     const K = M3(), g = new T.Group();
     const outer = new T.Mesh(new T.BoxGeometry(o.w, o.h, o.d), K.betonClair); g.add(outer);
     const soil = new T.Mesh(new T.BoxGeometry(o.w - 0.2, 0.05, o.d - 0.2), mat('terre', () => new T.MeshStandardMaterial({ color: 0x3a2c20, roughness: 1 }))); soil.position.y = o.h / 2 - 0.08; g.add(soil);
     // couvre-sol : touffes basses et irrégulières (deux verts, un peu de paille), pas de « boules »
-    const leaf = mat('buis', () => new T.MeshStandardMaterial({ color: 0x41592c, roughness: 0.9 })), leaf2 = mat('buis2', () => new T.MeshStandardMaterial({ color: 0x5b6b33, roughness: 0.95 })), paille = mat('paille', () => new T.MeshStandardMaterial({ color: 0x8a7a4a, roughness: 1 }));
+    const leaf = mat('buisV', () => feuillage(new T.MeshStandardMaterial({ color: 0x41592c, roughness: 0.9, vertexColors: true }))), leaf2 = mat('buis2V', () => feuillage(new T.MeshStandardMaterial({ color: 0x5b6b33, roughness: 0.95, vertexColors: true }))), paille = mat('pailleV', () => feuillage(new T.MeshStandardMaterial({ color: 0x8a7a4a, roughness: 1, vertexColors: true })));
     const R = rng(Math.floor(o.x * 13 + o.z * 7)), n = Math.round((o.w * o.d) * 5);
-    for (let k = 0; k < n; k++) { const r = 0.07 + R() * 0.11, b = new T.Mesh(new T.IcosahedronGeometry(r, 0), R() < 0.15 ? paille : R() < 0.5 ? leaf2 : leaf); b.position.set((R() - 0.5) * (o.w - 0.3), o.h / 2 - 0.03 + r * 0.3, (R() - 0.5) * (o.d - 0.3)); b.scale.set(1 + R() * 0.6, 0.35 + R() * 0.35, 1 + R() * 0.6); b.rotation.y = R() * 6; b.castShadow = true; g.add(b); }
+    for (let k = 0; k < n; k++) { const r = 0.07 + R() * 0.11, b = new T.Mesh(bushGeo(k, true), R() < 0.15 ? paille : R() < 0.5 ? leaf2 : leaf); b.scale.setScalar(r); b.position.set((R() - 0.5) * (o.w - 0.3), o.h / 2 - 0.03 + r * 0.3, (R() - 0.5) * (o.d - 0.3)); b.scale.set(r * (1 + R() * 0.6), r * (0.35 + R() * 0.35), r * (1 + R() * 0.6)); b.rotation.y = R() * 6; b.castShadow = true; g.add(b); }
     // du volume : arbustes bas (boules irrégulières de 30 à 55 cm) et touffes de graminées (lames fines)
     const nb = Math.max(2, Math.round(o.w * o.d * 1.2));
-    for (let k = 0; k < nb; k++) { const r = 0.16 + R() * 0.12, b = new T.Mesh(new T.IcosahedronGeometry(r, 1), R() < 0.5 ? leaf : leaf2); const px = (R() - 0.5) * (o.w - 0.5), pz = (R() - 0.5) * (o.d - 0.5); if (Math.hypot(px, pz) < 0.35) continue; b.position.set(px, o.h / 2 + r * 0.7, pz); b.scale.set(1 + R() * 0.4, 0.9 + R() * 0.6, 1 + R() * 0.4); b.rotation.set(R(), R() * 6, R()); b.castShadow = true; g.add(b); }
+    for (let k = 0; k < nb; k++) { const r = 0.16 + R() * 0.12, b = new T.Mesh(bushGeo(k + 2), R() < 0.5 ? leaf : leaf2); const px = (R() - 0.5) * (o.w - 0.5), pz = (R() - 0.5) * (o.d - 0.5); if (Math.hypot(px, pz) < 0.35) continue; b.position.set(px, o.h / 2 + r * 0.55, pz); b.scale.set(r * (1 + R() * 0.4), r * (0.9 + R() * 0.6), r * (1 + R() * 0.4)); b.rotation.set((R() - 0.5) * 0.3, R() * 6, (R() - 0.5) * 0.3); b.castShadow = true; g.add(b); }
     const lame = mat('graminee', () => new T.MeshStandardMaterial({ color: 0x7d8a45, roughness: 0.9, side: T.DoubleSide }));
     for (let k = 0; k < nb; k++) { const t = new T.Group(), px = (R() - 0.5) * (o.w - 0.4), pz = (R() - 0.5) * (o.d - 0.4); if (Math.hypot(px, pz) < 0.35) continue;
       for (let j = 0; j < 7; j++) { const h = 0.3 + R() * 0.3, bl = new T.Mesh(new T.PlaneGeometry(0.035, h), lame); bl.position.y = h / 2; bl.rotation.set((R() - 0.5) * 0.7, R() * 3, (R() - 0.5) * 0.7); t.add(bl); }
@@ -12343,11 +12482,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const side = new T.Group();
     for (const s2 of [-1, 1]) panneau(side, L * 0.62, H * 0.32, (q, w, h) => { q.clearRect(0, 0, w, h); q.fillStyle = livree[0]; q.fillRect(0, h * 0.62, w, h * 0.22); txt(q, livree[1], w * 0.5, h * 0.3, 'bold 110px Arial', livree[0]); txt(q, livree[2], w * 0.5, h * 0.73, 'bold 44px Arial', '#ffffff'); }, 0, -H * 0.02, s2 * (th / 2 + 0.03), s2 < 0 ? Math.PI : 0);
     side.traverse(m => { if (m.isMesh) { m.material.transparent = true; m.material.alphaTest = 0.05; } });
-    if (n === 'fourgon (nettoyage)') {   // auvent déroulé du côté ouest, au-dessus de 2,2 m (on passe dessous)
-      const tx = mat('auventNet', () => new T.MeshStandardMaterial({ color: 0x2e8b57, roughness: 0.8, side: T.DoubleSide }));
-      const aw = new T.Mesh(new T.PlaneGeometry(L * 0.7, 1.8), tx); aw.rotation.x = -Math.PI / 2 + 0.12; aw.position.set(0, H / 2 - 0.05, -(th / 2 + 0.9)); side.add(aw);
-      const barre = new T.Mesh(new T.BoxGeometry(L * 0.7, 0.05, 0.05), M3().metal); barre.position.set(0, H / 2 - 0.27, -(th / 2 + 1.78)); side.add(barre);   // store banne sans pieds
-    }
+    // (l'auvent vert déroulé du nettoyeur a été retiré : vu de loin, une plaque verte flottante sans pieds)
     if (n === 'fourgon (chantier)') { const gy = new T.Mesh(new T.CylinderGeometry(0.08, 0.1, 0.14, 12), std('gyrophare', 0xff8a00, 0.3, 0, { emissive: 0xff7a00, emissiveIntensity: 0.6 })); gy.position.set(L * 0.2, H / 2 + 0.07, 0); side.add(gy); }
     if (!along) side.rotation.y = Math.PI / 2; g.add(side);
     return g;
@@ -13134,7 +13269,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           // qu'on sèche au sud, l'îlot du totem des tarifs, de chaque côté deux places d'aspiration
           box(30.2, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'), box(41.4, 17.9, 0.4, 10.2, 3.3, 'wall', 'lavage paroi'),
           box(34.6, 17.9, 2.8, 3.6, 3.3, 'wall', 'lavage local'), box(35.7, 21.5, 0.6, 6.6, 1.1, 'cover', 'lavage muret'),
-          cap(box(34.95, 12.7, 2.1, 5.2, 2.4, 'wall', 'fourgon (lavage)'), 1),     // fourgon du technicien de la station, à la porte du local
+          cap(box(34.95, 12.5, 2.1, 4.8, 2.4, 'wall', 'fourgon (lavage)'), 1),     // fourgon du technicien de la station, à 1,2 m de la porte du local (sinon fourgon + local blanc = un faux camion)
           cap(box(34.95, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon (nettoyage)'), 1),  // nettoyeur à la main (lustrage) sur l'aire de séchage, auvent ouvert
           box(33.3, 11.0, 5.4, 1.6, 1.7, 'wall', 'haie'), box(35.4, 11.5, 1.2, 0.5, 3.6, 'wall', 'totem'),
           cap(box(27.9, 18.6, 1.9, 4.4, 1.4, 'cover', 'voiture'), -1), box(28.5, 23.4, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), cap(box(27.9, 24.6, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
@@ -13483,7 +13618,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (this.stance === 'crouch') v *= 0.55;
     // sprint : assaut sur un adversaire, repli ; course vers un couvert sous la menace (vu, pris pour cible, touché, à
     // découvert sous les yeux d'une position ennemie connue — voir act()) : on ne marche pas jusqu'à l'abri sous le feu
-    if (this.state === 'closing' || this.state === 'retreat' || this.state === 'rush' || this.dash) v *= 1.2;   // rush : ordre de déplacement « agressif »
+    if (this.state === 'closing' || this.state === 'retreat' || this.state === 'rush' || this.state === 'evade' || this.dash) v *= 1.2;   // (evade : loin d'une grenade)   // rush : ordre de déplacement « agressif »
     else if (this.state === 'bounding' || this.state === 'advancing') { if (Object.keys(this.knowledge).length) v *= 0.8; } // pas tactique au contact
     const hard = has(this, 'hardened') ? 0.5 : 1;                                                    // Endurci : pénalités de blessure réduites de moitié
     if (this.status === 'wounded') v *= 1 - 0.2 * hard; else if (this.status === 'critical') v *= 1 - 0.5 * hard;
@@ -13777,6 +13912,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const d = Math.hypot(c.x - ev.x, c.z - ev.z) - Math.abs(a) * 0.5;
       if (d > bd) { bd = d; best = c; }
     }
+    // un abri tout proche (≤ 3,5 m) qui coupe la ligne grenade → poitrine protège mieux qu'une course à découvert
+    let shelter = null, sd = 3.5;
+    for (const c0 of this.map.coverPoints) {
+      if (Math.abs(c0.x - u.x) > 4 || Math.abs(c0.z - u.z) > 4) continue;
+      const h = this.hug(c0), d = Math.hypot(h.hx - u.x, h.hz - u.z);
+      if (d < sd && !this.map.hasLOS(ev.x, 0.4, ev.z, h.hx, CHEST.stand, h.hz) && this.map.walkableSegment(u.x, u.z, h.hx, h.hz)) { sd = d; shelter = { x: h.hx, z: h.hz }; }
+    }
+    if (shelter) best = shelter;
     if (best && this.setGoal(u, best.x, best.z, 'close')) { u.state = 'evade'; u.stance = 'stand'; u.commitUntil = ev.until; u.commitAt = this.t; }
   };
   Battle.prototype.updateGrenades = function () {
@@ -13924,7 +14067,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const range = lit ? baseRange : visRange;
       if (d <= range) {
         const ang = Math.atan2(e.z - u.z, e.x - u.x);
-        const inFov = d < 7 || angDiff(ang, u.facing) < fov / 2 || u.visible.has(e.id);
+        // (pris pour cible par lui : les balles claquent, on tourne la tête vers le tireur — même hors du champ visuel)
+        const inFov = d < 7 || angDiff(ang, u.facing) < fov / 2 || u.visible.has(e.id) || (u.lastShotBy === e && this.t - u.lastShotByAt < 1.5);
         if (inFov && this.canSee(u, e)) {
           let p;
           if (u.visible.has(e.id)) p = 1;                   // on suit une cible déjà repérée
@@ -14324,6 +14468,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (this.setGoal(u, o.x, o.z, 'cover')) { u.state = 'tokey'; u.stance = 'stand'; return; }
     }
     this.stop(u);
+    if (o.ordre !== undefined && o.cx !== undefined) { this.holdPerimeter(u, o, threats); return; }   // « tenir » au clic droit : tous azimuts
     let th = threats.length ? u.target || threats[0] : this.mainThreat(u);
     if (!th && o.menace !== null && o.menace !== undefined) th = { x: o.x + Math.cos(o.menace) * 20, z: o.z + Math.sin(o.menace) * 20 };
     if (!o.held) { o.held = true; this.logEvent('keypos', `${u.callsign} tient la position clé « ${o.nom} ».`, { unit: u.id, team: u.team, keyPos: o.id }); }
@@ -14332,6 +14477,145 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const cover = this.coverAt(u.x, u.z, th.x, th.z, true);
     if (threats.length) { u.state = 'engage'; u.stance = ((u.reloading > 0 || this.t < (u.burstPauseUntil || 0)) && cover) ? 'crouch' : 'stand'; return; }
     u.state = 'holdkey'; u.stance = cover ? 'crouch' : 'stand';
+  };
+  // ---- « Tenir la position » (ordre au clic droit) : sûreté tous azimuts, comme en vrai --------------------------------
+  // Chaque opérateur surveille un secteur autour du point (face à la menace connue d'abord, puis les flancs ouverts, puis
+  // l'arrière), depuis son propre couvert, en balayant son secteur du regard. Un ennemi apparaît : ceux qui le voient
+  // l'engagent ; un équipier dont le secteur est calme se décale (dans la position, ≤ 9,5 m du point) vers un couvert
+  // d'où il appuie le côté menacé, pendant qu'un autre garde l'arrière. Menace partie (≥ 4 s), il reprend sa place.
+  // Personne ne quitte la position pour poursuivre.
+  const HOLD_ZONE = 9.5, HOLD_MOVE_GAP = 4, HOLD_CONTACT = 20;
+  // secteurs de base (radians, par rapport à la menace) selon l'effectif : deux vers la menace à partir de cinq
+  const SECT_BASE = { 1: [0], 2: [0, Math.PI], 3: [0, 2.1, -2.1], 4: [0, Math.PI / 2, -Math.PI / 2, Math.PI], 5: [0.5, -0.5, 1.75, -1.75, Math.PI] };
+  // au contact (menace connue) : tout le monde face à elle, sauf un qui garde l'arrière (à partir de quatre : à deux ou trois,
+  // chaque fusil compte face à l'assaut — mesuré)
+  const SECT_CONTACT = { 1: [0], 2: [0.3, -0.3], 3: [0.45, 0, -0.45], 4: [0.55, 0, -0.55, Math.PI], 5: [0.7, 0.25, -0.25, -0.7, Math.PI] };
+  const SECT_CAND = [0, Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2, 3 * Math.PI / 4, -3 * Math.PI / 4, Math.PI];
+  // à chacun l'élément le moins coûteux (somme minimale ; permutations jusqu'à 6, sinon au plus proche) — cost[i][j]
+  // (moins d'éléments que de demandeurs : -1 pour ceux qui n'en ont pas)
+  const bestAssign = (cost0) => {
+    const n = cost0.length, m0 = n ? cost0[0].length : 0, cost = cost0.map(r => r.concat(new Array(Math.max(0, n - m0)).fill(1e6))), m = Math.max(m0, n);
+    const fix = (a) => a.map(j => (j < m0 ? j : -1));
+    if (n <= 6 && m <= 6) {
+      let best = null, bs = Infinity; const used = new Array(m).fill(false), cur = [];
+      const rec = (i, s) => { if (s >= bs) return; if (i === n) { bs = s; best = cur.slice(); return; } for (let j = 0; j < m; j++) if (!used[j]) { used[j] = true; cur.push(j); rec(i + 1, s + cost[i][j]); cur.pop(); used[j] = false; } };
+      rec(0, 0); if (best) return fix(best);
+    }
+    const used = new Set(); return fix(cost.map(row => { let bj = -1, bv = Infinity; row.forEach((v, j) => { if (!used.has(j) && v < bv) { bv = v; bj = j; } }); used.add(bj); return bj < 0 ? m : bj; }));
+  };
+  // distance dégagée (à hauteur des yeux) depuis un point dans une direction, jusqu'à max
+  Battle.prototype.openDist = function (x, z, a, max) {
+    for (let r = 2; r <= max; r += 2) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (!this.map.inBounds(px, pz) || !this.map.hasLOS(x, EYE.stand, z, px, EYE.stand, pz)) return r - 2; }
+    return max;
+  };
+  // direction de la menace pour une position : l'ennemi connu le plus proche du point (toute l'équipe, ≤ 20 s), sinon dir
+  Battle.prototype.holdFace = function (team, p, dir) {
+    let best = null, bd = 60;
+    for (const u of team.units) if (u.alive) for (const id in u.knowledge) { const k = u.knowledge[id]; if (this.t - k.t > 20) continue; const d = Math.hypot(k.x - p.x, k.z - p.z); if (d < bd && d > 1) { bd = d; best = k; } }
+    return best ? Math.atan2(best.z - p.z, best.x - p.x) : dir;
+  };
+  // n secteurs autour de (x, z) : un secteur fermé par un mur tout proche (< 4 m dégagés) ne se surveille pas ; il est
+  // remplacé par la direction ouverte la plus utile (la menace compte plus que l'arrière)
+  Battle.prototype.holdSectors = function (x, z, face, n, contact) {
+    const base = (contact ? SECT_CONTACT[n] : SECT_BASE[n]) || Array.from({ length: n }, (v, i) => (i - (n - 1) / 2) * 2 * Math.PI / n);
+    const out = base.filter(r => this.openDist(x, z, face + r, 4) >= 4);
+    const w = (r) => 1.5 - 0.6 * Math.abs(r) / Math.PI;
+    while (out.length < base.length) {
+      let bc = null, bs = 0;
+      for (const c of SECT_CAND) { if (out.some(r => angDiff(r, c) < 0.6)) continue; const s = this.openDist(x, z, face + c, 20) * w(c); if (s > bs) { bs = s; bc = c; } }
+      if (bc === null) { out.push(base[out.length]); continue; }
+      out.push(bc);
+    }
+    return out.map(r => face + r);
+  };
+  // membres d'une même position tenue (arrivés, ou encore en route pour elle)
+  Battle.prototype.holdMembers = function (team, ordre) {
+    return team.units.filter(a => a.alive && ((a.keyOrder && a.keyOrder.ordre === ordre) || (a.moveOrder && a.moveOrder.id === ordre && a.moveOrder.sect !== undefined)));
+  };
+  // secteurs du moment : recalculés quand l'effectif change (un équipier tombé, les autres se partagent son secteur) ;
+  // chacun garde le secteur le plus proche de sa place
+  Battle.prototype.holdPlan = function (u, o) {
+    const team = this.teams[u.team], ms = this.holdMembers(team, o.ordre);
+    team.holdPlans = team.holdPlans || {};
+    let pl = team.holdPlans[o.ordre];
+    // au contact (un ennemi vu ou entendu par l'un d'eux il y a moins de 5 s, gardé 8 s) : secteurs resserrés face à lui
+    let th = null, bd = 45;
+    for (const a of ms) for (const e of this.enemiesOf(a)) { const k = a.knowledge[e.id]; if (!e.alive || !k || this.t - k.t > 10) continue; const d = Math.hypot(k.x - o.cx, k.z - o.cz); if (d < bd) { bd = d; th = k; } }
+    if (th) { o.contactFace = Math.atan2(th.z - o.cz, th.x - o.cx); team.holdContact = team.holdContact || {}; team.holdContact[o.ordre] = { until: this.t + HOLD_CONTACT, face: o.contactFace }; }
+    const hc = team.holdContact && team.holdContact[o.ordre], contact = hc && this.t < hc.until, face = contact ? hc.face : o.face0;
+    const key = ms.map(a => a.id).join(',') + (contact ? '|c' + Math.round(face / (Math.PI / 6)) : '|q');
+    if (!pl || pl.key !== key) {
+      const sect = this.holdSectors(o.cx, o.cz, face, ms.length, contact);
+      const home = (a) => { const q = a.keyOrder && a.keyOrder.ordre === o.ordre ? a.keyOrder : a.moveOrder; return { x: q.hx !== undefined ? q.hx : q.x, z: q.hz !== undefined ? q.hz : q.z, s: q.sect }; };
+      // au contact, l'arrière revient de préférence à qui ne voit pas la menace (on y perd le moins de feu)
+      const sees = (a) => contact && th ? this.map.hasLOS(a.x, EYE.stand, a.z, th.x, CHEST.stand, th.z) : false;
+      const perm = bestAssign(ms.map(a => { const h = home(a), b = Math.hypot(h.x - o.cx, h.z - o.cz) < 1 && h.s !== undefined ? h.s : Math.atan2(h.z - o.cz, h.x - o.cx), sv = sees(a); return sect.map(s => angDiff(b, s) + (sv && angDiff(s, face) > 2 ? 2 : 0)); }));
+      pl = team.holdPlans[o.ordre] = { key, ms, sect: {} };
+      ms.forEach((a, i) => { pl.sect[a.id] = sect[perm[i]]; });
+    }
+    return pl;
+  };
+  // un couvert de la position d'où l'on tire sur p (≤ 6 m de soi, ≤ HOLD_ZONE du point)
+  Battle.prototype.holdSpot = function (u, o, p) {
+    const cp = this.findCover(u, p, 6, { requireShoot: true, towards: { x: o.cx, z: o.cz } });
+    return cp && Math.hypot(cp.x - o.cx, cp.z - o.cz) <= HOLD_ZONE ? cp : null;
+  };
+  Battle.prototype.holdPerimeter = function (u, o, threats) {
+    if (!o.held) { o.held = true; }
+    const moveTo = (x, z) => { o.x = x; o.z = z; o.movedAt = this.t; if (this.setGoal(u, x, z, 'cover')) { u.state = 'tokey'; u.stance = 'stand'; return true; } return false; };
+    const canMove = this.t - (o.movedAt || -99) > HOLD_MOVE_GAP;
+    const beingShot = this.t - u.lastShotByAt < 1.5 && u.lastShotBy && u.lastShotBy.alive;
+    // 1) une cible en vue : feu depuis son poste ; s'il ne couvre pas d'elle et qu'on est sous le feu, un couvert voisin de la
+    //    position d'où l'on tire (au plus un déplacement toutes les 4 s ; se déplacer plus tôt, à découvert, coûtait plus cher
+    //    que de tirer d'où l'on est : mesuré)
+    if (threats.length) {
+      const th = u.target && u.target.alive ? u.target : threats[0], cover = this.coverAt(u.x, u.z, th.x, th.z, true);
+      if (!cover && beingShot && canMove) { const cp = this.holdSpot(u, o, th); if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.8 && moveTo(cp.x, cp.z)) return; }
+      u.state = 'engage'; u.stance = ((u.reloading > 0 || this.t < (u.burstPauseUntil || 0)) && cover) ? 'crouch' : 'stand'; return;
+    }
+    const pl = this.holdPlan(u, o), mine = pl.sect[u.id] !== undefined ? pl.sect[u.id] : o.face0;
+    // menaces connues (vues ou entendues par l'équipe il y a moins de 5 s), situées depuis le point
+    const known = [];
+    for (const e of this.enemiesOf(u)) { const k = u.knowledge[e.id]; if (e.alive && k && this.t - k.t < 5) known.push({ e, k, b: Math.atan2(k.z - o.cz, k.x - o.cx), d: Math.hypot(k.x - o.cx, k.z - o.cz) }); }
+    const owner = (b) => { let bo = null, bd = Infinity; for (const a of pl.ms) { const s = pl.sect[a.id]; if (s === undefined) continue; const d = angDiff(b, s); if (d < bd) { bd = d; bo = a; } } return bo; };
+    let watch = null, reinf = null;
+    if (beingShot) watch = u.lastShotBy;                                     // pris pour cible : face au tireur
+    else {
+      const inMine = known.filter(q => owner(q.b) === u).sort((p, q) => p.d - q.d);
+      if (inMine.length) watch = inMine[0].k;                               // une menace dans son secteur : on la tient en joue
+      else if (known.length && pl.ms.length >= 2) {
+        // appui mutuel : la menace la plus proche du point ; son secteur est tenu par « own » ; l'arrière par le plus éloigné
+        const T = known.slice().sort((p, q) => p.d - q.d)[0], own = owner(T.b);
+        const free = pl.ms.filter(a => a !== own && a.keyOrder && a.keyOrder.ordre === o.ordre && !known.some(q => owner(q.b) === a));
+        const rear = pl.ms.length >= 3 ? free.slice().sort((p, q) => angDiff(pl.sect[q.id], T.b) - angDiff(pl.sect[p.id], T.b) || (p.id < q.id ? -1 : 1))[0] : null;
+        const side = known.filter(q => angDiff(q.b, T.b) < 1.05).length;   // ennemis de ce côté : autant d'appuis (à deux, aucun : l'autre garde l'arrière)
+        const need = Math.min(side, Math.max(0, pl.ms.length - 2));
+        const helpers = free.filter(a => a !== rear).sort((p, q) => angDiff(pl.sect[p.id], T.b) - angDiff(pl.sect[q.id], T.b) || (p.id < q.id ? -1 : 1)).slice(0, need);
+        if (helpers.includes(u)) reinf = T;
+      }
+    }
+    // 2) en appui d'un autre secteur : un couvert de la position d'où l'on voit la menace ; sinon on s'y tourne d'où l'on est
+    if (reinf) {
+      if (canMove && o.reinf !== reinf.e.id) {
+        const cp = this.holdSpot(u, o, reinf.k);
+        if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.8) { o.reinf = reinf.e.id; if (moveTo(cp.x, cp.z)) { if (this.t - (o.reinfLog || -99) > 10) { o.reinfLog = this.t; this.logEvent('appui', `${u.callsign} : « Je viens en appui ! »`, { unit: u.id, team: u.team, silent: true }); } return; } }
+        o.reinf = reinf.e.id;
+      }
+      watch = reinf.k;
+    } else if (o.reinf !== undefined || Math.hypot(o.x - o.hx, o.z - o.hz) > 0.6) {
+      // la menace est partie : retour à sa place
+      if (canMove) { o.reinf = undefined; if (Math.hypot(o.hx - u.x, o.hz - u.z) > 0.6 && moveTo(o.hx, o.hz)) return; o.x = o.hx; o.z = o.hz; }
+    }
+    // 3) surveillance : face à la menace tenue, sinon son secteur balayé du regard (±23°, ~9 s)
+    let dir;
+    if (watch) dir = Math.atan2(watch.z - u.z, watch.x - u.x) + 0.12 * Math.sin(this.t * 0.9 + u.idx * 1.9);
+    else dir = mine + 0.4 * Math.sin(this.t * 0.7 + u.idx * 1.9);
+    if (!u.target || !u.target.alive) u.facing = dir;
+    // derrière un couvert : baissé, et l'on se relève régulièrement pour observer par-dessus (~1,2 à 1,6 s toutes les 4 s) ;
+    // si l'on voit déjà par-dessus en restant baissé, on reste baissé. Sans couvert : debout.
+    const sx = u.x + Math.cos(dir) * 12, sz = u.z + Math.sin(dir) * 12;
+    const cov = this.coverAt(u.x, u.z, sx, sz, true), peek = ((this.t * 0.25 + u.idx * 0.37 + u.team * 0.19) % 1) < (watch ? 0.3 : 0.4);
+    u.state = 'holdkey'; u.stance = cov && (!peek || this.map.hasLOS(u.x, EYE.crouch, u.z, sx, CHEST.stand, sz)) ? 'crouch' : 'stand';
   };
   // ---- Ordre de déplacement du joueur (clic droit sur le sol) ----------------------------------------------------------
   // battle.command('aller', équipe, { x, z, units: [ids] | null (tous), mode: 'methodique' | 'agressif', arrivee: 'tenir' }) :
@@ -14389,8 +14673,17 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const q = this.orderPoint(p.x + Math.cos(dir + Math.PI + i * Math.PI / 4) * r, p.z + Math.sin(dir + Math.PI + i * Math.PI / 4) * r);
         if (q && apart(q, ORDER_GAP - 0.5) && near(q)) s = q;
       }
-      spots.push(s || p);
+      spots.push(Object.assign({}, s || p));
     });
+    // arrivée « tenir » : sûreté tous azimuts — un secteur par opérateur (holdSectors) ; les places restent en ligne, en
+    // travers de la marche (une couronne mettait des opérateurs derrière leurs équipiers : ils ne pouvaient plus tirer
+    // vers l'avant, et la position tenait mal face à un assaut) : les ailes prennent les flancs, un autre l'arrière
+    const face = this.holdFace(team, p, dir);
+    if (arrivee === 'tenir') {
+      const sect = this.holdSectors(p.x, p.z, face, units.length);
+      const perm = bestAssign(spots.map(q => { const c = Math.hypot(q.x - p.x, q.z - p.z) < 1; return sect.map(sa => c ? angDiff(face, sa) * 0.5 : angDiff(Math.atan2(q.z - p.z, q.x - p.x), sa)); }));
+      spots.forEach((q, k) => { q.sect = perm[k] >= 0 ? sect[perm[k]] : face; });
+    }
     // agressif : départs échelonnés (le plus proche du point d'abord), pas une meute qui court collée
     const rank = units.map((u, k) => k).sort((i, j) => Math.hypot(units[i].x - p.x, units[i].z - p.z) - Math.hypot(units[j].x - p.x, units[j].z - p.z) || i - j);
     const id = this.orderSeq = (this.orderSeq || 0) + 1;
@@ -14398,7 +14691,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     team.moveGroups.push({ id, mode, members: units.map(u => u.id), bound: { group: 0, since: this.t, n: 0 } });
     units.forEach((u, k) => {
       u.keyOrder = null; u.orderAt = this.t; u.reviving = null;
-      u.moveOrder = { id, mode, arrivee, x: spots[k].x, z: spots[k].z, px: p.x, pz: p.z, dir, half: k % 2, goalN: -1, doneN: -1, departAt: mode === 'agressif' ? this.t + rank.indexOf(k) * 0.8 : 0 };
+      u.moveOrder = { id, mode, arrivee, x: spots[k].x, z: spots[k].z, px: p.x, pz: p.z, dir, half: k % 2, goalN: -1, doneN: -1, departAt: mode === 'agressif' ? this.t + rank.indexOf(k) * 0.8 : 0, sect: spots[k].sect, face };
       this.stop(u); u.commitUntil = 0; u.pauseUntil = 0;
     });
     this.logEvent('moveorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — déplacement ${MOVE_MODES[mode]}, puis ${ARRIVALS[arrivee]}.`, { team: teamIndex, unit: units[0].id, ordre: id, mode });
@@ -14491,7 +14784,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // arrivée « tenir » : poste sur un vrai couvert tout proche face à la menace (ou au sens de la marche) → ordre de poste
   Battle.prototype.arriveOrder = function (u) {
     const o = u.moveOrder; u.moveOrder = null;
-    const th = this.mainThreat(u), face = th ? Math.atan2(th.z - u.z, th.x - u.x) : o.dir;
+    // (tous azimuts : le poste couvre de la menace connue, ou de son secteur ; le serre-file, de l'arrière)
+    const th = this.mainThreat(u), thb = th ? Math.atan2(th.z - u.z, th.x - u.x) : null, ring = o.sect !== undefined, face = ring ? (thb !== null && angDiff(o.sect, thb) < 2.1 ? thb : o.sect) : thb !== null ? thb : o.dir;
     const tp = { x: u.x + Math.cos(face) * 20, z: u.z + Math.sin(face) * 20 };
     // poste : un vrai couvert face à la menace à ≤ 5 m de sa place, à ORDER_GAP au moins de tout équipier (debout, en route,
     // ou à son poste) — l'escouade se répartit sur les couverts autour du point au lieu de s'agglutiner
@@ -14504,6 +14798,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       for (const c0 of this.map.coverPoints) {
         if (Math.abs(c0.x - u.x) > 6 || Math.abs(c0.z - u.z) > 6) continue;
         const h = this.hug(c0), d = Math.hypot(h.hx - u.x, h.hz - u.z); if (d > 5 || !free(h.hx, h.hz) || this.nearCorpse(h.hx, h.hz)) continue;
+        if (ring && Math.hypot(h.hx - o.px, h.hz - o.pz) > HOLD_ZONE) continue;
         if (!this.coverAt(h.hx, h.hz, tp.x, tp.z, true)) continue;
         const sc = -d + (this.map.hasLOS(h.hx, EYE.stand, h.hz, tp.x, CHEST.stand, tp.z) ? 2 : 0) + this.rng.next() * 0.01;
         if (sc > bs) { bs = sc; best = { x: h.hx, z: h.hz }; }
@@ -14511,6 +14806,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (best && this.map.findPath(u.x, u.z, best.x, best.z)) post = best;
     }
     u.keyOrder = { id: 'ordre' + o.id, nom: 'point ordonné', x: post.x, z: post.z, r: 2.5, menace: face, held: true, ordre: o.id };
+    if (ring) Object.assign(u.keyOrder, { cx: o.px, cz: o.pz, face0: o.face, sect: o.sect, hx: post.x, hz: post.z });
     this.stop(u); u.commitUntil = 0;
     this.logEvent('enplace', `${u.callsign} : « En place. »`, { unit: u.id, team: u.team, ordre: o.id, silent: true });
     const team = this.teams[u.team], g = (team.moveGroups || []).find(x => x.id === o.id);
@@ -14687,7 +14983,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // ~8 m pour se mettre à l'abri) ; trop près et rien autour : décrocher vers un couvert plus en arrière
       if (!cover) {
         const minR = Math.max(u.weapon.minRange, Math.min(MIN_CLOSE, d - 2));
-        const cp = this.findCover(u, threat, 9, { minRange: minR, requireShoot: true, preferDist: stand }) || this.findCover(u, threat, 9, { minRange: minR, preferDist: stand });
+        // sous le feu : d'abord un couvert tout proche (≤ 4 m) d'où l'on tire — chaque mètre à découvert se paie ; courir 8 m
+        // vers un « meilleur » couvert était la première cause de mort en mouvement
+        const cp = (beingShot && this.findCover(u, threat, 4, { minRange: minR, requireShoot: true, preferDist: stand })) || this.findCover(u, threat, 9, { minRange: minR, requireShoot: true, preferDist: stand }) || this.findCover(u, threat, 9, { minRange: minR, preferDist: stand });
         if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; }
         if (d < MIN_CLOSE && order !== 'hold') {
           const cp2 = this.findCover(u, threat, 16, { minRange: MIN_CLOSE, towards: home });
@@ -14958,6 +15256,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       for (const a of this.units) {
         if (a === u || (a.alive && a.team !== u.team) || Math.hypot(a.x - wp.x, a.z - wp.z) > (a.alive ? 0.6 : 0.45)) continue;
         if (this.map.walkableSegment(u.x, u.z, nw.x, nw.z)) { u.pathIdx++; return this.move(u); }
+        // un corps sur le point de passage, et pas de ligne droite vers le suivant : le point est déplacé à côté du corps
+        // (sinon la poussée qui contourne le corps et le chemin qui y ramène se contraient : allers-retours sur place)
+        if (!a.alive) {
+          const L = Math.hypot(wp.x - a.x, wp.z - a.z) || 1, qx = wp.x === a.x && wp.z === a.z ? u.x - a.x : wp.x - a.x, qz = wp.x === a.x && wp.z === a.z ? u.z - a.z : wp.z - a.z, Q = Math.hypot(qx, qz) || 1;
+          const px = a.x + qx / Q * 0.85, pz = a.z + qz / Q * 0.85;
+          if (L < 0.85 && this.map.inBounds(px, pz) && !this.map.insideObstacle(px, pz)) { u.path[u.pathIdx] = { x: px, z: pz }; }
+        }
         break;
       }
     }
@@ -14967,6 +15272,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const mv = Math.atan2(wp.z - u.z, wp.x - u.x); let aim = null;
     if (!u.target && d > 0.05) { let best = 99; for (const { k } of this.knownEnemies(u)) { if (this.t - k.t > 5) continue; const dd = Math.hypot(k.x - u.x, k.z - u.z); const a = Math.atan2(k.z - u.z, k.x - u.x); if (dd < best && angDiff(a, mv) < 1.9) { best = dd; aim = a; } } }
     let look = u.target && u.target.alive ? Math.atan2(u.target.z - u.z, u.target.x - u.x) : aim;
+    if (u.state === 'evade') { look = null; aim = null; }   // une grenade : on court, on ne recule pas en visant
     // course vers l'abri sous la menace (u.dash) : menace de côté ou derrière et plus de 3 m à faire → on se retourne et on
     // court droit vers l'abri (jusqu'à l'arrivée) ; plus près, on reste face à elle (pas chassé, marche arrière)
     // Hors menace, l'arme pointée vers une position connue (sans cible) : au-delà de 60° de la marche on n'avance plus qu'en
@@ -14975,7 +15281,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     let turned = false;
     // (un ennemi en vue à moins de ~8 m : on ne lui tourne pas le dos, on recule ou on se décale en le tenant en joue)
     const foeClose = () => { for (const e of this.enemiesOf(u)) if (e.alive && u.visible.has(e.id) && dist2(u, e) < MIN_CLOSE) return true; return false; };
-    if (u.dash && look !== null && d > 0.05 && angDiff(look, mv) > DASH_TURN) turned = (u.dashTurned || far()) && !foeClose();
+    // (riposte au contact : une cible acquise depuis moins de 2 s, on lui envoie d'abord sa rafale en se déplaçant vers
+    // l'abri, au lieu de lui tourner le dos ; les deux camps se voyaient, se retournaient ensemble et couraient sans un coup
+    // de feu)
+    const riposte = () => !!(u.target && u.target.alive && u.visible.has(u.target.id) && this.t - (u.targetAt || -99) < 2);
+    if (u.dash && look !== null && d > 0.05 && angDiff(look, mv) > DASH_TURN) turned = (u.dashTurned || (far() && !riposte())) && !foeClose();
     u.dashTurned = turned;
     if (turned) { look = null; aim = null; }
     const walkTurned = !turned && !u.target && aim !== null && angDiff(aim, mv) > Math.PI / 3 && (u.walkTurned || far());
@@ -14990,6 +15300,15 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     else { nx = u.x + (wp.x - u.x) / d * stepLen; nz = u.z + (wp.z - u.z) / d * stepLen; }
     // collision : les obstacles bloquent réellement
     // (si l'opérateur est déjà dans un obstacle — cas anormal — on le laisse en sortir)
+    // Un chemin qui rase le coin d'un obstacle (diagonale de la grille) : on glisse le long du bord (un seul axe) au lieu
+    // de buter — sinon nouveau chemin identique, retour au point précédent, et ainsi de suite (allers-retours sans fin)
+    if (this.map.insideObstacle(nx, nz) && !this.map.insideObstacle(u.x, u.z)) {
+      for (const [sx, sz] of Math.abs(nx - u.x) > Math.abs(nz - u.z) ? [[nx, u.z], [u.x, nz]] : [[u.x, nz], [nx, u.z]]) {
+        if (Math.hypot(sx - u.x, sz - u.z) > stepLen * 0.3 && this.map.inBounds(sx, sz) && !this.map.insideObstacle(sx, sz)) { nx = sx; nz = sz; break; }
+      }
+      // point de passage collé à l'obstacle (inatteignable à moins de 0,6 m) : tenu pour atteint, on passe au suivant
+      if (this.map.insideObstacle(nx, nz) && d < 0.6 && u.pathIdx + 1 < u.path.length) { u.pathIdx++; return; }
+    }
     if ((this.map.insideObstacle(nx, nz) && !this.map.insideObstacle(u.x, u.z)) || !this.map.inBounds(nx, nz)) {
       u.stuck += DT;
       if (u.stuck > 1.5) { // bloqué contre un bord : pas de côté aléatoire pour se dégager
@@ -15324,7 +15643,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   Battle.prototype.fireAt = function (u, e) {
     if (u.reloading > 0) return;
     if (u.ammo <= 0) return;
-    if (u.aimTimer > 0) { u.aimTimer -= DT; return; }
+    // mise en joue terminée : le premier coup part aussitôt (il attendait encore une cadence de tir entière, ~0,5 s, qui
+    // s'ajoutait au repérage et à la visée : « ils se voient et ne tirent pas »)
+    if (u.aimTimer > 0) { u.aimTimer -= DT; if (u.aimTimer <= 0) u.fireAcc = Math.max(u.fireAcc, 1); return; }
     if (this.t < (u.burstPauseUntil || 0)) return;   // entre deux rafales : on reprend la visée (et on se baisse derrière un couvert)
     const d = dist2(u, e);
     // sans ligne de vue sur la poitrine, pas de tir (la perception l'a vérifié ce pas-ci, on re-vérifie par sécurité)
@@ -15434,8 +15755,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const alive = this.teams.map(t => t.units.filter(u => u.alive).length);
     let winner = null, reason = null;
     if (alive[0] === 0 && alive[1] === 0) { winner = -1; reason = 'Les deux équipes sont hors de combat.'; }
-    else if (alive[0] === 0) { winner = 1; reason = `${this.teams[0].name} est entièrement neutralisée.`; }
-    else if (alive[1] === 0) { winner = 0; reason = `${this.teams[1].name} est entièrement neutralisée.`; }
+    else if (alive[0] === 0) { winner = 1; reason = `L’équipe ${this.teams[0].name} est entièrement neutralisée.`; }
+    else if (alive[1] === 0) { winner = 0; reason = `L’équipe ${this.teams[1].name} est entièrement neutralisée.`; }
     else if (this.zone && this.teams.some(t => t.capture >= 100)) {
       winner = this.teams[0].capture >= 100 ? 0 : 1; reason = `${this.teams[winner].name} a sécurisé la zone (100 %).`;
     }
@@ -16214,7 +16535,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function fillIcons(rootEl) { (rootEl || document).querySelectorAll('[data-ico]').forEach(e => { if (e.dataset.icoDone !== e.dataset.ico && OT.Ico) { e.innerHTML = OT.Ico(e.dataset.ico); e.dataset.icoDone = e.dataset.ico; } }); }
   // scène 1920×1080 mise à l'échelle et centrée dans la fenêtre (même mise en page à toutes les tailles)
   function fitStage() {
-    const z = Math.min(innerWidth / 1920, innerHeight / 1080) || 1; document.documentElement.style.setProperty('--zui', Math.max(0.5, z));
+    const z = Math.min(innerWidth / 1920, innerHeight / 1080) || 1; document.documentElement.style.setProperty('--zui', Math.max(0.5, z)); document.documentElement.style.setProperty('--stage-top', ((innerHeight - 1080 * z) / 2 / z) + 'px');
     for (const el of document.querySelectorAll('.stage1080')) { el.style.setProperty('--z', z); el.style.left = ((innerWidth - 1920 * z) / 2 / z) + 'px'; el.style.top = ((innerHeight - 1080 * z) / 2 / z) + 'px'; }
   }
   window.addEventListener('resize', fitStage); OT.fitStage = fitStage;
@@ -16271,7 +16592,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (!$('#crStats')) return;
     const c = profile.career, pct = (a, b) => b ? Math.round(100 * a / b) + ' %' : '—';
     const cells = [[c.battles, 'batailles'], [`${c.wins} / ${c.losses} / ${c.draws}`, 'V / D / N'], [pct(c.wins, c.battles), 'victoires'], [c.kills, 'neutralisations'],
-      [c.losses_units, 'opérateurs perdus'], [c.losses_units ? (c.kills / c.losses_units).toFixed(2) : (c.kills ? '∞' : '—'), 'ratio N / P'], [pct(c.hits || 0, c.shots || 0), 'balles au but'], [c.damage || 0, 'dégâts infligés'],
+      [c.losses_units, 'opérateurs perdus'], [c.losses_units ? (c.kills / c.losses_units).toFixed(2) : (c.kills ? '∞' : '—'), 'neutralisations par perte'], [pct(c.hits || 0, c.shots || 0), 'balles au but'], [c.damage || 0, 'dégâts infligés'],
       [c.headshots || 0, 'tirs à la tête'], [c.streaks || 0, 'séries'], [c.group || 0, 'de groupe'], [c.revenge || 0, 'revanches'], [c.veteran || 0, 'vétérans abattus'], [c.revives || 0, 'alliés relevés'], [c.nightWins || 0, 'victoires de nuit'], [c.captureWins || 0, 'zones prises']];
     $('#crStats').innerHTML = cells.map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join('');
     const maps = c.maps || {};
@@ -16405,7 +16726,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     $('#hqPacks').innerHTML = Object.values(PACKS).map(pk => { const free = profile.freePacks && profile.freePacks[pk.id];
       return `<div class="pack2 p-${pk.id}"><div class="foil"><span class="pemb">${pk.id === 'elite' ? '✪' : '◆'}</span><b>${esc(pk.name.replace('Paquet ', ''))}</b><small>${pk.cards} cartes</small></div>`
       + `<div class="odds">${packOdds(pk)}</div>`
-      + (free ? `<button class="on" data-pack="${pk.id}">Ouvrir — offert (${free})</button>` : `<button data-pack="${pk.id}" ${profile.credits >= pk.price ? '' : 'disabled'}>Ouvrir — ${pk.price} cr.</button>`) + `</div>`; }).join('');
+      + (free ? `<button class="on" data-pack="${pk.id}">Ouvrir — offert (${free})</button>` : `<button data-pack="${pk.id}" ${profile.credits >= pk.price ? '' : `disabled title="Crédits insuffisants : ${profile.credits} / ${pk.price}"`}>Ouvrir — ${pk.price} cr.</button>`) + `</div>`; }).join('');
     $('#hqPacks').querySelectorAll('button[data-pack]').forEach(b => b.addEventListener('click', () => {
       const cards = Game.openPack(profile, b.dataset.pack);
       if (!cards) { flash('Crédits insuffisants.'); return; }
@@ -16535,7 +16856,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         <div class="wspec"><b>Protection</b> : Plaques moyennes (III) — absorbe ${Math.round(ARMORS.medium.torso * 100)} % au torse, ${Math.round(ARMORS.medium.head * 100)} % à la tête · vitesse × ${ARMORS.medium.mobility}</div>
         <div class="contract ${Game.contractExpired(profile, o.id) ? 'bad' : ''}">Contrat : ${st.tours > 0 ? `${st.tours} mission${st.tours > 1 ? 's' : ''} restante${st.tours > 1 ? 's' : ''}` : 'expiré'} · renouvellement ${Game.renewPrice(profile, o.id)} cr. (+${CONTRACT.tours[o.rarity]} missions)${st.dupes ? ` · ${st.dupes} doublon${st.dupes > 1 ? 's' : ''}` : ''} <button class="mini" data-renew="${o.id}" ${profile.credits >= Game.renewPrice(profile, o.id) ? '' : 'disabled'}>Renouveler</button></div>
       </div>` : `<p class="muted">Recrutez cet opérateur (${PRICES.operator[o.rarity]} crédits) pour l’équiper et l’engager.</p>`;
-    else html = `<div class="histsum"><span><b>${st.battles}</b> batailles</span><span><b>${st.kills}</b> neutralisations</span><span><b>${st.downs || 0}</b> fois hors de combat</span><span><b>${(st.downs ? (st.kills / st.downs).toFixed(2) : (st.kills ? '∞' : '—'))}</b> ratio N / H</span><span><b>${st.headshots || 0}</b> tirs à la tête</span><span><b>${st.revives || 0}</b> alliés relevés</span></div>${(st.history || []).length ? `<table class="histt"><tr><th>Mission</th><th>Issue</th><th>Neutr.</th><th>Au but</th><th>Dégâts</th><th>XP</th></tr>${st.history.slice().reverse().map(h => `<tr class="${h.alive ? '' : 'dead'}"><td>${esc(h.m)}</td><td>${h.won ? 'Victoire' : h.draw ? 'Égalité' : 'Défaite'}${h.alive ? '' : ' · évacué'}</td><td>${h.kills}</td><td>${h.hits}/${h.shots}</td><td>${h.dmg}</td><td>+${h.xp}</td></tr>`).join('')}</table>` : '<div class="muted" style="padding:10px 0">Aucune bataille encore.</div>'}`;
+    else html = `<div class="histsum"><span><b>${st.battles}</b> batailles</span><span><b>${st.kills}</b> neutralisations</span><span><b>${st.downs || 0}</b> fois hors de combat</span><span><b>${(st.downs ? (st.kills / st.downs).toFixed(2) : (st.kills ? '∞' : '—'))}</b> neutralisations par mise hors de combat</span><span><b>${st.headshots || 0}</b> tirs à la tête</span><span><b>${st.revives || 0}</b> alliés relevés</span></div>${(st.history || []).length ? `<table class="histt"><tr><th>Mission</th><th>Issue</th><th>Neutr.</th><th>Au but</th><th>Dégâts</th><th>XP</th></tr>${st.history.slice().reverse().map(h => `<tr class="${h.alive ? '' : 'dead'}"><td>${esc(h.m)}</td><td>${h.won ? 'Victoire' : h.draw ? 'Égalité' : 'Défaite'}${h.alive ? '' : ' · évacué'}</td><td>${h.kills}</td><td>${h.hits}/${h.shots}</td><td>${h.dmg}</td><td>+${h.xp}</td></tr>`).join('')}</table>` : '<div class="muted" style="padding:10px 0">Aucune bataille encore.</div>'}`;
     $('#hqDetail').innerHTML = html;
     $('#hqDetail').querySelectorAll('[data-hg]').forEach(b => b.addEventListener('click', () => { const h = b.dataset.hg; if (!profile.headgear[h]) { if (Game.buyHeadgear(profile, h)) flash(`${OT.Figure.HEADGEAR[h].name} acheté.`); else { flash('Crédits insuffisants.'); return; } } Game.setHeadgear(profile, o.id, h); saveNow(); render(); }));
     $('#hqDetail').querySelectorAll('.promochoice').forEach(b => b.addEventListener('click', () => { if (Game.choosePromotion(profile, b.dataset.id, b.dataset.trait)) { flash(`${o.callsign} acquiert « ${TRAITS[b.dataset.trait].name} ».`); saveNow(); render(); } }));
@@ -17273,8 +17594,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       return { pos: V3(Z.x + Math.cos(a) * d, s.h || 3.4, Z.z + Math.sin(a) * d), look: V3(Z.x, 0.6, Z.z), pts: who.slice(0, 3), fov: 48, st: 0.8, lst: 0.6, pivot: V3(Z.x, 1.5, Z.z) };
     }
     if (s.kind === 'killcam') {   // plan serré sur la victime, qui se resserre pendant la chute
-      const m = meshes[s.vid]; if (!m) return null; const P = m.group.position, a = s.yaw || 0, d = (s.dd || 4.4) - Math.min(1.1, age * 0.35);
-      return { pos: V3(P.x + Math.cos(a) * d, 1.6 - Math.min(0.45, age * 0.15), P.z + Math.sin(a) * d), look: V3(P.x, 0.55, P.z), pts: [V3(P.x, 0.9, P.z)], fov: 40 - Math.min(6, age * 2), st: 0.3, lst: 0.2, pivot: V3(P.x, 1.2, P.z) };
+      const m = meshes[s.vid]; if (!m) return null; const P = bodyPos(m), a = s.yaw || 0, d = (s.dd || 4.4) - Math.min(1.1, age * 0.35);   // (le corps réel : le pantin physique peut glisser loin de la position de la simulation)
+      return { pos: V3(P.x + Math.cos(a) * d, 1.6 - Math.min(0.45, age * 0.15), P.z + Math.sin(a) * d), look: V3(P.x, 0.55, P.z), pts: [V3(P.x, Math.max(0.35, Math.min(0.9, P.y)), P.z)], fov: 40 - Math.min(6, age * 2), st: 0.3, lst: 0.2, pivot: V3(P.x, 1.2, P.z) };
     }
     if (s.kind === 'blast') {
       const a = (s.yaw || 0) + age * 0.18;
@@ -17322,6 +17643,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (s.kind === 'capture') out.push(Object.assign({}, s, { side, yaw: (s.yaw || 0) + y, h: 5.4 }));
     }
     return out;
+  }
+  // position du corps affiché (bassin), pas celle du groupe : après une chute physique le corps peut être à plusieurs mètres
+  const _bp = new THREE.Vector3();
+  function bodyPos(m) {
+    if (m._hips === undefined) { m._hips = null; m.group.traverse(o => { if (!m._hips && o.isBone && /Hips$/.test(o.name)) m._hips = o; }); }
+    if (!m._hips) return _bp.copy(m.group.position).setY(0.9);
+    m._hips.getWorldPosition(_bp); return _bp;
   }
   function eventShot(ev) {
     if (ev.kind === 'down') {
@@ -17643,21 +17971,29 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (scene.userData.dome) scene.userData.dome.visible = L.dome;
     }
     if (rain) { scene.remove(rain); rain.geometry.dispose(); rain.material.dispose(); rain = null; }
-    if (id === 'pluie') {   // gouttes en traits (segments) qui tombent dans un volume autour de la caméra
-      const N = 3500, pos = new Float32Array(N * 6);
-      for (let i = 0; i < N; i++) { const x = Math.random() * 90 - 13, y = Math.random() * 30, z = Math.random() * 70 - 15; pos.set([x, y, z, x + 0.05, y + 0.7, z + 0.02], i * 6); }
+    if (id === 'pluie') {   // gouttes en traits (segments) qui tombent dans un volume qui suit la caméra (dense de près, en gros plan aussi)
+      const N = 4500, pos = new Float32Array(N * 6);
+      for (let i = 0; i < N; i++) { const x = Math.random() * RAIN_BOX - RAIN_BOX / 2, y = Math.random() * 24, z = Math.random() * RAIN_BOX - RAIN_BOX / 2, l = 0.45 + Math.random() * 0.45; pos.set([x, y, z, x + 0.13 * l, y + l, z + 0.04 * l], i * 6); }
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xa8b8c8, transparent: true, opacity: 0.35, depthWrite: false })); rain.frustumCulled = false; scene.add(rain);
+      rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xa8b8c8, transparent: true, opacity: 0.3, depthWrite: false })); rain.frustumCulled = false; scene.add(rain);
     }
+    if (EFX && EFX.setRain) EFX.setRain(id === 'pluie');
+    if (EFX) EFX.night = id === 'nuit';   // traçantes plus vives de nuit   // ronds de pluie au sol, impacts au sol en gerbes d'eau
     $('#app').dataset.cond = id || 'jour';
     if (OT.Parking && battle && battle.map.id === 'parking') { OT.Parking.setConditions(id || 'jour', scene); buildLamps(false); } else buildLamps(id === 'nuit' || id === 'brouillard');
     RIM.k.value = id === 'nuit' ? RIM.nuit : 0; RIM.f.value = id === 'nuit' ? RIM.fond : 0; if (RENDU) RIM.d.value.copy(RENDU.lightDir);   // liseré de lune des soldats (côté lune)
     buildSteam();
     meteoSound();   // couche sonore de la météo (pluie, vent, nuit, oiseaux)
   }
+  const RAIN_BOX = 44;   // côté du volume de pluie autour de la caméra (m)
   function updateRain(dt) {
-    if (!rain) return; const a = rain.geometry.attributes.position.array, v = 26 * dt;
-    for (let i = 0; i < a.length; i += 6) { a[i + 1] -= v; a[i + 4] -= v; if (a[i + 1] < 0) { a[i + 1] += 30; a[i + 4] += 30; } }
+    if (!rain) return; const a = rain.geometry.attributes.position.array, v = 26 * dt, cx = camera.position.x, cz = camera.position.z, B = RAIN_BOX, h = B / 2;
+    for (let i = 0; i < a.length; i += 6) {
+      a[i + 1] -= v; a[i + 4] -= v; if (a[i + 1] < 0) { a[i + 1] += 24; a[i + 4] += 24; }
+      const dx = a[i] - cx, dz = a[i + 2] - cz;   // goutte sortie du volume : replacée de l'autre côté (même après un changement de plan)
+      if (dx > h || dx < -h) { const k = Math.floor((dx + h) / B) * B; a[i] -= k; a[i + 3] -= k; }
+      if (dz > h || dz < -h) { const k = Math.floor((dz + h) / B) * B; a[i + 2] -= k; a[i + 5] -= k; }
+    }
     rain.geometry.attributes.position.needsUpdate = true;
   }
 
@@ -17980,13 +18316,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (!buckets.has(k)) buckets.set(k, []); buckets.get(k).push(o);
     });
     const merge = (list, withNormal) => {
-      const useUv = list.every(m => m.geometry.attributes.uv);
+      const useUv = list.every(m => m.geometry.attributes.uv), useCol = withNormal && list.some(m => m.geometry.attributes.color);   // couleurs par sommet (sinon un matériau « vertexColors » sortirait noir)
       const parts = list.map(m => { const g = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()); g.applyMatrix4(m.matrixWorld); return g; });
       const n = parts.reduce((s, g) => s + g.attributes.position.count, 0), out = new THREE.BufferGeometry();
-      const pos = new Float32Array(n * 3), nor = withNormal ? new Float32Array(n * 3) : null, uv = useUv && withNormal ? new Float32Array(n * 2) : null;
+      const pos = new Float32Array(n * 3), nor = withNormal ? new Float32Array(n * 3) : null, uv = useUv && withNormal ? new Float32Array(n * 2) : null, col = useCol ? new Float32Array(n * 3).fill(1) : null;
       let o3 = 0, o2 = 0;
-      for (const g of parts) { pos.set(g.attributes.position.array, o3); if (nor) nor.set(g.attributes.normal.array, o3); if (uv) uv.set(g.attributes.uv.array, o2); o3 += g.attributes.position.count * 3; o2 += g.attributes.position.count * 2; g.dispose(); }
-      out.setAttribute('position', new THREE.BufferAttribute(pos, 3)); if (nor) out.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); if (uv) out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      for (const g of parts) { pos.set(g.attributes.position.array, o3); if (nor) nor.set(g.attributes.normal.array, o3); if (uv) uv.set(g.attributes.uv.array, o2); if (col && g.attributes.color && g.attributes.color.itemSize === 3) col.set(g.attributes.color.array, o3); o3 += g.attributes.position.count * 3; o2 += g.attributes.position.count * 2; g.dispose(); }
+      out.setAttribute('position', new THREE.BufferAttribute(pos, 3)); if (nor) out.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); if (uv) out.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); if (col) out.setAttribute('color', new THREE.BufferAttribute(col, 3));
       out.computeBoundingSphere(); return out;
     };
     for (const list of buckets.values()) {
@@ -18354,9 +18690,22 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     setTimeout(() => play('explosion_lourde', { x: ev.cx, y: 1, z: ev.cz }, { vol: 1, espace: true }), 400);
     cam.shake = Math.max(cam.shake || 0, 0.6);
   }
+  // corps qui touche le sol (chute animée ou pantin physique) : bouffée de poussière, ou gerbe d'eau sous la pluie
+  function fallDust() {
+    if (!EFX || !battle) return;
+    for (const u of battle.units) {
+      const m = meshes[u.id]; if (!m || !m.isSkinned) continue;
+      const p = bodyPos(m);
+      if (p.y > 0.75) { m._dusted = false; continue; }   // (bassin d'un corps allongé : ~0,45 m au-dessus du sol)
+      if (m._dusted || p.y > 0.52) continue;
+      m._dusted = true;
+      if (condNow === 'pluie') { EFX.footstep(p.x, p.z, true, 3); EFX.footstep(p.x + 0.3, p.z - 0.2, true, 3); } else EFX.dustPuff(p.x, p.z, 2);
+    }
+  }
   function updateFx() {
+    fallDust();
     const dt = Math.max(0, simTime - fxLast); fxLast = simTime;
-    if (EFX) EFX.update(Math.min(0.1, frameDt), camera, sun.color.clone().multiplyScalar(0.55).add(new THREE.Color(0.25, 0.27, 0.3)), scene.fog);
+    if (EFX) { const k = condNow === 'nuit' ? 0.2 : 1; EFX.update(Math.min(0.1, frameDt), camera, sun.color.clone().multiplyScalar(0.55 * k).add(new THREE.Color(0.25, 0.27, 0.3).multiplyScalar(0.35 + 0.65 * k)), scene.fog); }   // fumée et poussière sombres de nuit (la lune éclaire peu)
     for (let i = fx.length - 1; i >= 0; i--) {
       const f = fx[i];
       if (f.kind === 'tracer') {
@@ -18471,7 +18820,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (battle) { meteoSound(); Son.boucle('musique_bataille', { voie: 'musique', vol: 0.7 * musicVol, fondu: 1.5 }); }
   }
   window.OT_MUSIC = { set(v) { musicVol = v; SETTINGS.music = v; try { localStorage.setItem('ot-music', String(v)); localStorage.setItem('ot-settings', JSON.stringify(SETTINGS)); } catch (e) { /* rien */ } if (window.Son) Son.volumeBoucle('musique', (battle && !$('#app').classList.contains('hidden') ? 0.7 : 0.8) * v); }, get: () => musicVol };
-  function setMuted(m) { muted = m; try { localStorage.setItem('ot-mute', m ? '1' : '0'); } catch (e) { /* rien */ } $('#mute').textContent = m ? '🔇' : '🔊'; $('#mute').classList.toggle('on', !m); ambience(!m && !$('#app').classList.contains('hidden')); }
+  function setMuted(m) { muted = m; try { localStorage.setItem('ot-mute', m ? '1' : '0'); } catch (e) { /* rien */ } if (OT.Ico) $('#mute').innerHTML = OT.Ico(m ? 'sonoff' : 'son'); else $('#mute').textContent = m ? '🔇' : '🔊'; $('#mute').title = m ? 'Son coupé (cliquer pour l\'activer)' : 'Son activé (cliquer pour le couper)'; $('#mute').classList.toggle('muted', m); ambience(!m && !$('#app').classList.contains('hidden')); }
   $('#mute').addEventListener('click', () => setMuted(!muted));
   window.OT_MUTE = { get: () => muted, set: (m) => setMuted(!!m) };
   document.addEventListener('click', (e) => { if (e.target.closest('button') && !e.target.closest('#mute')) play('clic', null, { vol: 0.8, varie: 0.05 }); }, true);
@@ -18930,7 +19279,12 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }
   function openOrderMenu(cx, cy) {
     closeOrderMenu();
-    if (!battle || battle.over || reviewing || briefing || $('#app').classList.contains('hidden') || !$('#result').classList.contains('hidden')) return;
+    if (!battle || $('#app').classList.contains('hidden') || !$('#result').classList.contains('hidden')) return;
+    // refus expliqués (avant : rien ne se passait — « Revoir la bataille », le gros bouton de l'écran de fin, rejoue la
+    // bataille à l'identique et ressemble à une nouvelle partie où le clic droit ne marchait plus)
+    if (reviewing) { flashBattle('Revue de la bataille : elle est rejouée à l’identique, les ordres sont désactivés. Lancez une nouvelle bataille pour donner des ordres.'); return; }
+    if (briefing) { flashBattle('Ordre : lancez d’abord la mission.'); return; }
+    if (battle.over) { flashBattle('La bataille est terminée.'); return; }
     const p = ordGround(cx, cy); if (!p) { flashBattle('Ordre : cliquez sur le sol du terrain.'); return; }
     const pick = Object.assign({}, ordLast);
     const el = document.createElement('div'); el.className = 'ordmenu';
@@ -19078,7 +19432,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const r = battle.result;
     const title = r.winner === -1 ? 'Égalité' : (r.winner === 0 ? 'Vous avez gagné' : 'Vous avez perdu');
     $('#resTitle').textContent = title; $('#resTitle').className = r.winner === -1 ? '' : 'team' + r.winner;
-    r.teams.forEach((t, ti) => { $('#resName' + ti).textContent = t.name; $('#resPct' + ti).textContent = t.hpPct + '%'; $('#resPct' + ti).title = 'Vie restante de l\u2019équipe'; const g = insigniaGlyph(battle.teams[ti]); $('#resIns' + ti).innerHTML = OT.Embleme ? OT.Embleme.svg(g, ti ? '#a01a10' : '#c0281c') : g; $('#resRate' + ti).textContent = Math.round(t.units.reduce((s, u) => s + OT.Game.defRating(battle.units.find(x => x.id === u.id).def), 0) / Math.max(1, t.units.length)); });
+    r.teams.forEach((t, ti) => { $('#resName' + ti).textContent = t.name; $('#resPct' + ti).textContent = t.hpPct + '%'; $('#resPct' + ti).title = 'Vie restante de l\u2019équipe'; const g = insigniaGlyph(battle.teams[ti]); $('#resIns' + ti).innerHTML = OT.Embleme ? OT.Embleme.svg(g, ti ? '#a01a10' : '#f2f7ff') : g; $('#resRate' + ti).textContent = Math.round(t.units.reduce((s, u) => s + OT.Game.defRating(battle.units.find(x => x.id === u.id).def), 0) / Math.max(1, t.units.length)); });
     const row = (label, v0, v1) => `<span class="l">${v0}</span><span class="m">${label}</span><span class="r">${v1}</span>`;
     let html = '';
     if (battle.zone) html += row('Zone capturée', r.teams[0].capture + ' %', r.teams[1].capture + ' %');
@@ -19179,7 +19533,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // soldat (le chef de l'escouade), nom d'équipe, lieu, texte qui se tape lettre à lettre comme dans le jeu d'origine
     const lead = battle.teams[0].units[0]; let fac = DATA.UNIFORMS.find(x => x.id === battle.teams[0].uniform) || DATA.FACTIONS.allied;
     $('#brFig').src = (lead && OT.Portrait && OT.Portrait.render({ id: lead.def.id, modele: lead.def.faction ? 'soldat' : 'gign', weapon: lead.weapon.id, uniform: fac.uniform, vest: fac.vest, headgear: lead.def.headgear || 'casque', full: true, w: 420, h: 640, aiming: true })) || '';
-    $('#brTeam').textContent = battle.teams[0].name; $('#brSub').textContent = OT.MAPS[mis.mapId].name; $('#brLoc').textContent = `${String(8 + Math.floor(Math.random() * 10)).padStart(2, '0')}00 — ${OT.MAPS[mis.mapId].name}`;
+    $('#brTeam').textContent = battle.teams[0].name; $('#brSub').textContent = OT.MAPS[mis.mapId].name; $('#brLoc').textContent = `${String(mis.conditions === 'nuit' ? (22 + Math.floor(Math.random() * 6)) % 24 : 8 + Math.floor(Math.random() * 10)).padStart(2, '0')} h 00 — ${OT.MAPS[mis.mapId].name}`;   // heure cohérente avec les conditions (nuit : 22 h – 3 h)
     const full = mis.desc || ''; $('#brDesc').textContent = MANUAL ? full : ''; let ci = 0; clearInterval(showBriefing.tw);
     if (!MANUAL) showBriefing.tw = setInterval(() => { ci += 2; $('#brDesc').textContent = full.slice(0, ci) + (ci < full.length ? ' |' : ''); if (ci >= full.length) clearInterval(showBriefing.tw); }, 30);
     briefing = { t0: performance.now() / 1000, a0: Math.random() * 6.28 }; $('#briefing').classList.remove('hidden');
@@ -19210,7 +19564,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   $('#toggleHelp').addEventListener('click', () => $('#help').classList.toggle('hidden'));
   $('#moreBtn').addEventListener('click', (e) => { e.stopPropagation(); $('#app .controls').classList.toggle('open'); });
   document.addEventListener('pointerdown', (e) => { const c = $('#app .controls'); if (c && c.classList.contains('open') && !c.contains(e.target)) c.classList.remove('open'); });
-  $('#toggleJournal').addEventListener('click', () => { $('#journalWrap').classList.toggle('hidden'); $('#journal').scrollTop = $('#journal').scrollHeight; });
+  $('#toggleJournal').addEventListener('click', () => { $('#app .controls').classList.remove('open'); $('#journalWrap').classList.toggle('hidden'); $('#journal').scrollTop = $('#journal').scrollHeight; });
   $('#closeJournal').addEventListener('click', () => $('#journalWrap').classList.add('hidden'));
   document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => { setCamMode(b.dataset.cam); if (b.dataset.cam !== 'follow') cam.follow = null; }));
   // raccourcis clavier en bataille (positions physiques des touches : valables en AZERTY comme en QWERTY)
@@ -19408,8 +19762,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function draw(t) {
     const w = canvas.clientWidth, h = canvas.clientHeight; if (w && h && (canvas.width !== w || canvas.height !== h)) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
     // l'escouade à droite de l'écran (le titre occupe la gauche) ; la caméra glisse lentement de part et d'autre
-    const a = Math.sin(t * 0.12) * 0.3, wide = camera.aspect < 1.5 ? 1.15 : 1;
-    camera.position.set(0.6 + Math.sin(a) * 2.4, 1.45 + Math.sin(t * 0.2) * 0.08, (7.4 + Math.cos(a) * 1.0) * wide); camera.lookAt(0.9, 1.0, -0.2);
+    // écran plus étroit que 16:9 (4:3, 16:10) : recul et visée décalée pour garder les cinq soldats entiers dans l'image
+    const nar = Math.max(0, 16 / 9 - camera.aspect), a = Math.sin(t * 0.12) * 0.3, wide = 1 + nar * 0.75, dx = nar * 1.1;
+    camera.position.set(0.6 + dx + Math.sin(a) * 2.4, 1.45 + Math.sin(t * 0.2) * 0.08, (7.4 + Math.cos(a) * 1.0) * wide); camera.lookAt(0.9 + dx, 1.0, -0.2);
     const dp = dustGeo.attributes.position.array; for (let i = 0; i < dp.length; i += 3) { dp[i] += 0.002; dp[i + 1] += Math.sin(t + i) * 0.0008; if (dp[i] > 9) dp[i] = -5; } dustGeo.attributes.position.needsUpdate = true;
     renderer.render(scene, camera);
   }
@@ -19448,11 +19803,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
 (function () {
   const $ = (s) => document.querySelector(s); let k = 0;
   const slides = () => document.querySelectorAll('#guide .gslide');
-  function go(i) { k = i; slides().forEach((s, j) => s.classList.toggle('on', j === k)); document.querySelectorAll('#guide .gdots i').forEach((d, j) => d.classList.toggle('on', j === k)); $('#gNext').textContent = k === slides().length - 1 ? 'Commencer' : 'Suivant'; }
+  function go(i) { k = i; slides().forEach((s, j) => s.classList.toggle('on', j === k)); document.querySelectorAll('#guide .gdots i').forEach((d, j) => d.classList.toggle('on', j === k)); $('#gNext').textContent = k === slides().length - 1 ? 'Commencer' : 'Suivant'; $('#gPrev').hidden = k === 0; }
   function close() { $('#guide').classList.add('hidden'); try { localStorage.setItem('ot-guide', '1'); } catch (e) { /* rien */ } }
   window.OT_GUIDE = { open() { go(0); $('#guide').classList.remove('hidden'); }, maybe() { let seen = false; try { seen = localStorage.getItem('ot-guide') === '1'; } catch (e) { seen = true; } if (!seen && !/manual=1/.test(location.search)) this.open(); } };
   $('#gNext').addEventListener('click', () => { if (k < slides().length - 1) go(k + 1); else close(); });
   $('#gSkip').addEventListener('click', close);
+  $('#gPrev').addEventListener('click', () => { if (k > 0) go(k - 1); });
+  document.querySelectorAll('#guide .gdots i').forEach((d, j) => { d.style.cursor = 'pointer'; d.addEventListener('click', () => go(j)); });
   if (!$('#hq').classList.contains('hidden')) window.OT_GUIDE.maybe();   // QG déjà ouvert au chargement (?skipTitle=1)
 })();
 
