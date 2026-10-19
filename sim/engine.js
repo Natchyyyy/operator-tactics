@@ -1013,10 +1013,55 @@
       // au contact, l'arrière revient de préférence à qui ne voit pas la menace (on y perd le moins de feu)
       const sees = (a) => contact && th ? this.map.hasLOS(a.x, EYE.stand, a.z, th.x, CHEST.stand, th.z) : false;
       const perm = bestAssign(ms.map(a => { const h = home(a), b = Math.hypot(h.x - o.cx, h.z - o.cz) < 1 && h.s !== undefined ? h.s : Math.atan2(h.z - o.cz, h.x - o.cx), sv = sees(a); return sect.map(s => angDiff(b, s) + (sv && angDiff(s, face) > 2 ? 2 : 0)); }));
-      pl = team.holdPlans[o.ordre] = { key, ms, sect: {} };
+      pl = team.holdPlans[o.ordre] = { key, ms, sect: {}, face, contact: !!contact };
       ms.forEach((a, i) => { pl.sect[a.id] = sect[perm[i]]; });
     }
     return pl;
+  };
+  // ---- Serre-file intelligent (« Tenir », au contact, à quatre ou cinq) -------------------------------------------------
+  // Le serre-file (celui qui garde l'arrière) est un fusil de moins devant. Quand l'avant peine (un équipier touché il y a
+  // < 4 s, cloué ou très secoué, un équipier tombé il y a < 10 s, ou plus d'ennemis devant que de fusils pour leur
+  // répondre), il est envoyé en appui devant ; une menace derrière (vue ou entendue, ou un tir venu de l'arrière) le renvoie
+  // aussitôt à l'arrière. Hystérésis : au moins REAR_MIN s à l'arrière avant d'être lâché ; lâché, il ne revient (sans
+  // menace derrière) qu'après REAR_CALM s d'avant calme. Hors contact : la sûreté à 360° habituelle.
+  const REAR_ARC = 2.1, REAR_MIN = 4, REAR_CALM = 8;
+  Battle.prototype.holdRear = function (team, o, pl) {
+    team.holdRear = team.holdRear || {};
+    if (!pl.contact || pl.ms.length < 4) { delete team.holdRear[o.ordre]; return null; }
+    let gid = null, gd = 0;
+    for (const a of pl.ms) { const s = pl.sect[a.id]; if (s === undefined) continue; const d = angDiff(s, pl.face); if (d > gd) { gd = d; gid = a.id; } }
+    if (gd < REAR_ARC) { delete team.holdRear[o.ordre]; return null; }   // pas de secteur arrière (fermé par un mur)
+    const t = this.t;
+    let r = team.holdRear[o.ordre];
+    if (!r) r = team.holdRear[o.ordre] = { id: gid, released: false, since: -99, calm: t, back: false, t: -1 };
+    if (r.t === t && r.id === gid) return r;
+    r.t = t; r.id = gid;
+    const inRear = (x, z) => angDiff(Math.atan2(z - o.cz, x - o.cx), pl.face) > REAR_ARC;
+    let rearThreat = false, front = 0; const seen = new Set();
+    for (const a of pl.ms) {
+      if (t - a.lastShotByAt < 2 && a.lastShotBy && a.lastShotBy.alive && inRear(a.lastShotBy.x, a.lastShotBy.z)) rearThreat = true;
+      for (const e of this.enemiesOf(a)) {
+        const k = a.knowledge[e.id]; if (!e.alive || !k || t - k.t > 4 || seen.has(e.id)) continue; seen.add(e.id);
+        if (inRear(k.x, k.z)) { if (Math.hypot(k.x - o.cx, k.z - o.cz) < 35) rearThreat = true; }
+        else if (angDiff(Math.atan2(k.z - o.cz, k.x - o.cx), pl.face) < 1.6) front++;
+      }
+    }
+    const trouble = front > pl.ms.length - 1 || team.units.some(a => !a.alive && t - (a.downAt === undefined ? -99 : a.downAt) < 10) ||
+      pl.ms.some(a => t - a.lastHitAt < 4 || a.state === 'pinned' || a.suppression > 0.6);
+    const g = this.unitById(r.id);
+    if (!r.released) {
+      if (trouble && !rearThreat && t - r.since >= REAR_MIN) {
+        r.released = true; r.since = t; r.calm = t; r.back = false;
+        if (g) this.logEvent('appui', `${g.callsign} : « Je quitte l'arrière, j'appuie devant ! »`, { unit: g.id, team: g.team, silent: true });
+      }
+    } else {
+      if (trouble) r.calm = t;
+      if (rearThreat || (t - r.calm >= REAR_CALM && t - r.since >= REAR_MIN)) {
+        r.released = false; r.since = t; r.back = rearThreat;
+        if (g && rearThreat) this.logEvent('appui', `${g.callsign} : « Contact arrière, je reprends l'arrière ! »`, { unit: g.id, team: g.team, silent: true });
+      }
+    }
+    return r;
   };
   // un couvert de la position d'où l'on tire sur p (≤ 6 m de soi, ≤ HOLD_ZONE du point)
   Battle.prototype.holdSpot = function (u, o, p) {
@@ -1031,26 +1076,40 @@
     // 1) une cible en vue : feu depuis son poste ; s'il ne couvre pas d'elle et qu'on est sous le feu, un couvert voisin de la
     //    position d'où l'on tire (au plus un déplacement toutes les 4 s ; se déplacer plus tôt, à découvert, coûtait plus cher
     //    que de tirer d'où l'on est : mesuré)
+    const pl = this.holdPlan(u, o), mine = pl.sect[u.id] !== undefined ? pl.sect[u.id] : o.face0;
+    const rg = this.holdRear(this.teams[u.team], o, pl), guard = !!rg && rg.id === u.id;
+    // serre-file rappelé par une menace derrière : il regagne son poste tout de suite (même s'il tirait devant)
+    if (guard && !rg.released && rg.back && o.backAt !== rg.since) {
+      o.backAt = rg.since; o.reinf = undefined;
+      if (Math.hypot(o.hx - u.x, o.hz - u.z) > 0.6 && moveTo(o.hx, o.hz)) return;
+      o.x = o.hx; o.z = o.hz;
+    }
     if (threats.length) {
       const th = u.target && u.target.alive ? u.target : threats[0], cover = this.coverAt(u.x, u.z, th.x, th.z, true);
       if (!cover && beingShot && canMove) { const cp = this.holdSpot(u, o, th); if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.8 && moveTo(cp.x, cp.z)) return; }
       u.state = 'engage'; u.stance = ((u.reloading > 0 || this.t < (u.burstPauseUntil || 0)) && cover) ? 'crouch' : 'stand'; return;
     }
-    const pl = this.holdPlan(u, o), mine = pl.sect[u.id] !== undefined ? pl.sect[u.id] : o.face0;
     // menaces connues (vues ou entendues par l'équipe il y a moins de 5 s), situées depuis le point
     const known = [];
     for (const e of this.enemiesOf(u)) { const k = u.knowledge[e.id]; if (e.alive && k && this.t - k.t < 5) known.push({ e, k, b: Math.atan2(k.z - o.cz, k.x - o.cx), d: Math.hypot(k.x - o.cx, k.z - o.cz) }); }
     const owner = (b) => { let bo = null, bd = Infinity; for (const a of pl.ms) { const s = pl.sect[a.id]; if (s === undefined) continue; const d = angDiff(b, s); if (d < bd) { bd = d; bo = a; } } return bo; };
     let watch = null, reinf = null;
+    const released = rg && rg.released, ahead = (q) => angDiff(q.b, pl.face) <= REAR_ARC;
     if (beingShot) watch = u.lastShotBy;                                     // pris pour cible : face au tireur
-    else {
+    else if (guard && released) {
+      // serre-file lâché : en appui de l'avant, sur la menace de devant la plus proche du point ; s'il la voit déjà d'où il
+      // est, il se contente de s'y tourner (se déplacer sous le feu coûtait plus que cela ne rapportait : mesuré)
+      const T = known.filter(ahead).sort((p, q) => p.d - q.d)[0];
+      if (T && this.map.hasLOS(u.x, EYE.stand, u.z, T.k.x, CHEST.stand, T.k.z)) watch = T.k;
+      else if (T) reinf = T;
+    } else {
       const inMine = known.filter(q => owner(q.b) === u).sort((p, q) => p.d - q.d);
       if (inMine.length) watch = inMine[0].k;                               // une menace dans son secteur : on la tient en joue
       else if (known.length && pl.ms.length >= 2) {
         // appui mutuel : la menace la plus proche du point ; son secteur est tenu par « own » ; l'arrière par le plus éloigné
         const T = known.slice().sort((p, q) => p.d - q.d)[0], own = owner(T.b);
-        const free = pl.ms.filter(a => a !== own && a.keyOrder && a.keyOrder.ordre === o.ordre && !known.some(q => owner(q.b) === a));
-        const rear = pl.ms.length >= 3 ? free.slice().sort((p, q) => angDiff(pl.sect[q.id], T.b) - angDiff(pl.sect[p.id], T.b) || (p.id < q.id ? -1 : 1))[0] : null;
+        const free = pl.ms.filter(a => a !== own && !(released && a.id === rg.id) && a.keyOrder && a.keyOrder.ordre === o.ordre && !known.some(q => owner(q.b) === a));
+        const rear = pl.ms.length >= 3 && !released ? free.slice().sort((p, q) => angDiff(pl.sect[q.id], T.b) - angDiff(pl.sect[p.id], T.b) || (p.id < q.id ? -1 : 1))[0] : null;
         const side = known.filter(q => angDiff(q.b, T.b) < 1.05).length;   // ennemis de ce côté : autant d'appuis (à deux, aucun : l'autre garde l'arrière)
         const need = Math.min(side, Math.max(0, pl.ms.length - 2));
         const helpers = free.filter(a => a !== rear).sort((p, q) => angDiff(pl.sect[p.id], T.b) - angDiff(pl.sect[q.id], T.b) || (p.id < q.id ? -1 : 1)).slice(0, need);
@@ -1091,7 +1150,7 @@
   //  - arrivée « tenir » : un vrai couvert tout proche (≤ 4 m) face à la menace (ou au sens de la marche), et on y reste :
   //    c'est le poste de l'ordre « tenir » (followKeyOrder). Sans ordre, rien ne change.
   // Un ordre au plus toutes les 3 s par opérateur (garde-fou contre la micro-gestion).
-  const MOVE_MODES = { methodique: 'méthodique', agressif: 'agressif' }, ARRIVALS = { tenir: 'tenir la position' };
+  const MOVE_MODES = { methodique: 'méthodique', agressif: 'agressif' }, ARRIVALS = { tenir: 'tenir la position', manoeuvre: 'reprendre la manœuvre' };
   const ORDER_COOLDOWN = 3, ORDER_GAP = 4, BOUND_MAX = 9, BOUND_BARE = 7, SECTORS = [0, 0.61, -0.61];   // secteurs : ±35°
   // point du sol cliqué → point marchable (dans le terrain, hors obstacle : case libre la plus proche)
   Battle.prototype.orderPoint = function (x, z) {
@@ -1184,7 +1243,7 @@
   Battle.prototype.followMoveOrder = function (u, threats, beingShot) {
     const o = u.moveOrder, dNow = Math.hypot(o.x - u.x, o.z - u.z);
     // arrivé (ou sa place est prise par un équipier debout dessus : on s'arrête à côté)
-    if (dNow < 0.8 || (dNow < 1.6 && !u.goal && this.teams[u.team].units.some(a => a !== u && a.alive && Math.hypot(a.x - o.x, a.z - o.z) < 0.9))) { this.arriveOrder(u); this.followKeyOrder(u, threats); return; }
+    if (dNow < 0.8 || (dNow < 1.6 && !u.goal && this.teams[u.team].units.some(a => a !== u && a.alive && Math.hypot(a.x - o.x, a.z - o.z) < 0.9))) { this.arriveOrder(u); if (u.keyOrder) this.followKeyOrder(u, threats); return; }
     const th = threats.length ? (beingShot && u.lastShotBy && u.lastShotBy.alive ? u.lastShotBy : (u.target && u.target.alive ? u.target : threats[0])) : this.mainThreat(u);
     const tp = th || { x: o.x + Math.cos(o.dir) * 25, z: o.z + Math.sin(o.dir) * 25 };   // sans menace : dans le sens de la marche
     if (o.mode === 'agressif') this.orderRush(u, o, tp, threats, beingShot, dNow);
@@ -1209,7 +1268,7 @@
     const mx = o.x - u.x, mz = o.z - u.z, mL = Math.hypot(mx, mz) || 1;
     const tight = this.teams[u.team].units.some(a => a !== u && a.alive && a.moveOrder && a.moveOrder.id === o.id && a.moving && Math.hypot(a.x - u.x, a.z - u.z) < 2.5 && ((a.x - u.x) * mx + (a.z - u.z) * mz) / mL > 0.3);
     if (this.setGoal(u, o.x, o.z, 'order')) { u.state = tight ? 'advancing' : 'rush'; u.stance = 'stand'; return; }
-    this.arriveOrder(u); this.followKeyOrder(u, threats);                // plus de chemin : on tient où l'on est
+    this.arriveOrder(u); if (u.keyOrder) this.followKeyOrder(u, threats);                // plus de chemin : on tient où l'on est
   };
   Battle.prototype.orderBound = function (u, o, tp, threats, dNow) {
     const g = (this.teams[u.team].moveGroups || []).find(x => x.id === o.id), b = g ? g.bound : { group: o.half, n: 0 };
@@ -1234,7 +1293,7 @@
     let gx = o.x, gz = o.z, fx = o.x, fz = o.z;   // f : repli si le bond vers un couvert ferait un détour (refusé par setGoal)
     if (dNow > BOUND_MAX + 1) {
       const path = this.map.findPath(u.x, u.z, o.x, o.z);
-      if (!path) { this.arriveOrder(u); this.followKeyOrder(u, threats); return; }
+      if (!path) { this.arriveOrder(u); if (u.keyOrder) this.followKeyOrder(u, threats); return; }
       let px = u.x, pz = u.z, left = BOUND_BARE;
       for (const q of path) { const d = Math.hypot(q.x - px, q.z - pz); if (d >= left) { px += (q.x - px) / d * left; pz += (q.z - pz) / d * left; left = 0; break; } left -= d; px = q.x; pz = q.z; }
       const cp = this.findCover(u, tp, BOUND_MAX, { towards: { x: px, z: pz } });
