@@ -37,7 +37,9 @@
   const ECART_PAS = 0.21;
   // pas chassé refait (voir pasChasse) : bassin ramené vers la cible (rad), lacet max des pieds (rad), garde au sol des pieds
   // qui bougent (m), part gardée du rebond du bassin, bassin remonté (m)
-  const CHASSE = { actif: false, bassin: 0.4, lacet: 0.6, clr: 0.03, bob: 0.4, haut: 0 };
+  // (ancre : appuis tenus fixes, voir ancrer() ; libre : sans la borne de cheville par rapport au tibia — le tibia penché de côté
+  // faisait rouler la botte sur sa tranche et la remettait dans le sens du pas, -56°)
+  const CHASSE = { actif: true, bassin: 0.2, lacet: 0.6, clr: 0.04, bob: 0.4, haut: 0, libre: true, ancre: true };
   // recul : foulée de la marche arrière allongée (rapport)
   const RECUL = 1.45;
   // ouverture des pieds en marche / course (rad, pointe vers l'extérieur ; réel : 5 à 10°)
@@ -447,8 +449,14 @@
     // (vitesse d'appui : recul moyen du pied le plus bas par rapport au bassin, sur 2 images, foulée réduite comprise)
     const zr = (n, j) => ech[(n + N) % N][1][j].z - ech[(n + N) % N][0].z;
     let vSt = 0, nSt = 0; for (let n = 0; n < N; n++) { const A = ech[n][1], j = A[0].y < A[1].y ? 0 : 1; vSt -= s * (zr(n + 1, j) - zr(n - 1, j)); nSt++; } vSt = Math.max(1e-4, vSt / nSt);
-    return jambesIK(M, src, nom, (i, H, A, Aq) => {
+    // P.ancre : appuis tenus fixes dans le monde (voir ancrer) ; vitesse d'appui = celle du pied qui recule le plus (en z)
+    let AN = null, vA = vSt;
+    if (P.ancre) { const tg = ech.map(([H, A]) => A.map((a, j) => cib(H, a, j).sub(H))), rel = (n, j) => tg[(n + N) % N][j];
+      vA = 0; for (let n = 0; n < N; n++) vA -= Math.min(rel(n + 1, 0).z - rel(n - 1, 0).z, rel(n + 1, 1).z - rel(n - 1, 1).z); vA = Math.max(1e-4, vA / N);
+      AN = ancrer(rel, N, new THREE.Vector3(0, 0, vA / 2), (n, j) => Math.abs(rel(n + 1, j).z - rel(n - 1, j).z + vA) < 0.6 * vA); }
+    const clipF = jambesIK(M, src, nom, (i, H, A, Aq) => {
       const H0 = H.clone(), out = A.map((a, j) => cib(H0, a, j)), fr = [null, null];
+      if (AN) out.forEach((o, j) => { o.x = H0.x + AN[i][j].x; o.z = H0.z + AN[i][j].z; });
       // (tangage mesuré par rapport à l'avant du modèle (+Z) : pied « au-delà de la verticale », pointe en bas ET en arrière à la
       // poussée — 110° et plus dans la marche — l'ancien atan2(−y, horizontale) le voyait à 70° et ne le corrigeait pas)
       if (toes[0] && toes[1]) A.forEach((a, j) => { const f = W(toes[j]).sub(a), h = Math.hypot(f.x, f.z), len = f.length(); if (h < 1e-4) return; const sg = f.z < 0 && P.vol ? -1 : 1, p =Math.atan2(-f.y, h * sg), np = Math.min(kp < 1 ? p0 + (p - p0) * kp : p, P.pmax !== undefined ? p0 + P.pmax : 9);   // (pmax : pointe jamais plus basse que pmax rad sous la pose à plat)
@@ -458,7 +466,8 @@
         // (poids : cheville levée, OU pied qui bouge dans le monde — vitesse par rapport au bassin + vitesse d'appui — : un pied qui
         // avance encore ne touche pas le sol ; sinon, en fin d'oscillation, le talon arrivait en rasant le sol à 1-3 cm pendant
         // 0,1 s à la vitesse du corps : patinage)
-        const w = Math.max(sm(((a.y - gy) / kk - V.h0) / (V.h1 - V.h0)), sm((s * (zr(i + 1, j) - zr(i - 1, j)) + 0.7 * vSt) / (0.5 * vSt))); wSw[j] = w; if (w <= 0) return;
+        const vz = AN ? AN[(i + 1) % N][j].z - AN[(i - 1 + N) % N][j].z + vA : s * (zr(i + 1, j) - zr(i - 1, j)) + vSt;
+        const w = Math.max(sm(((a.y - gy) / kk - V.h0) / (V.h1 - V.h0)), sm((vz - 0.3 * (AN ? vA : vSt)) / (0.5 * (AN ? vA : vSt)))); wSw[j] = w; if (w <= 0) return;
         const th = V.tb + (V.tf - V.tb) * sm(((out[j].z - H0.z) / kk - V.zb) / (V.zf - V.zb));
         Aq[j] = Aq[j].clone().slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), th).multiply(RV[j].q), w);
         let mn = 1e9; for (const p of RV[j].pts) mn = Math.min(mn, p.clone().applyQuaternion(Aq[j]).y); mn += out[j].y;
@@ -468,6 +477,10 @@
       if (tR !== null && fr[0] && fr[1]) { const j = out[0].y + fr[0].y < out[1].y + fr[1].y ? 0 : 1, ty = out[j].y + fr[j].y, w = Math.max(0, Math.min(1, 1 - (ty - tR) / (0.08 * k)));
         if (w > 0) out[j].y += (tR - ty) * w * (1 - wSw[j]); }   // (sauf un pied en oscillation : il retombait d'une image à l'autre)
       return out; }, (i) => dy - (P.bas || 0) * kk + (P.bob !== undefined ? (P.bob - 1) * (ech[i][0].y - hy) : 0), false, ouv);
+    // (pied dessiné : la vitesse naturelle mesurée par mesureLoco sur l'os des orteils, qui tourne autrement, sous-estimait de 13 %
+    // le recul du pied d'appui (cadence trop haute) ; on donne celle de l'appui, chevilles inchangées)
+    if (clipF && P.vol) clipF.userData = Object.assign(clipF.userData || {}, { vitCuite: (AN ? vA : vSt) / (2 * src.duration / N) * HEIGHT / RAW_H, dirCuite: 0 });
+    return clipF;
   }
   // Pieds au sol : la plupart des cycles de la bibliothèque « flottent » (la pointe la plus basse du cycle 1 à 6 cm au-dessus
   // du sol, mesuré). On descend (ou remonte) le bassin de tout le clip pour que la pointe la plus basse soit à sa hauteur de
@@ -670,7 +683,7 @@
     M.clips.Pas_Avant_Course = legs(M.clips.Run_and_Shoot, 'Pas_Avant_Course');
     // patrouille (pas d'ennemi connu) : marche → petite course → course, mélangées selon la vitesse (voir marche())
     const TR = Object.assign({}, TROT, root.TROT_TEST || {});
-    if (M.clips.Running) { const t = foulee(M, M.clips.Running, 'Pas_Trot', TR.s, TR.hs, TR.rise, undefined, OUV_PIED, { cap: TR.cap }); if (t) { M.clips.Pas_Trot = t; M.trotErr = t.userData.err; } M.clips.Pas_Run = legs(M.clips.Running, 'Pas_Run'); }
+    if (M.clips.Running) { const t = foulee(M, M.clips.Running, 'Pas_Trot', TR.s, TR.hs, TR.rise, undefined, OUV_PIED, Object.assign({ cap: TR.cap }, TR.foulee || {})); if (t) { M.clips.Pas_Trot = t; M.trotErr = t.userData.err; } M.clips.Pas_Run = legs(M.clips.Running, 'Pas_Run'); }
     // marche en visant (« Pas_Glisse ») : la marche naturelle, bassin abaissé de GLISSE m (genoux fléchis, pieds aux mêmes
     // places) : la marche « glissée » d'un tireur qui progresse arme épaulée (talon-pointe, buste stable), au lieu du pas
     // d'affût très lent de Walk_Fight_Forward ou de la course accroupie de Run_and_Shoot
