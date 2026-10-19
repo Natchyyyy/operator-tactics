@@ -525,5 +525,16 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
     bonds = nb() - b0;
     const inf = b.teams[0].ordInfo[r.id], fx = inf.fx || [];
     check('fouiller : des places à voir derrière les couverts à 12 m au plus du point, visitées (réparties entre plusieurs) ; puis chacun tient (poste), sans bonds', r.ok && fx.length >= 3 && fx.every(f => Math.hypot(f.x - 20, f.z - 23) <= 12.5) && fx.filter(f => f.seen).length >= 3 && new Set(fx.map(f => f.by).filter(Boolean)).size >= 2 && srch > 20 && b.teams[0].units.every(u => !u.alive || (u.keyOrder && !u.moveOrder)) && bonds === 0, { n: fx.length, seen: fx.filter(f => f.seen).length, by: [...new Set(fx.map(f => f.by))], srch, bonds }); }
+  // R2 (version sans animation) : en Tenir, un équipier tombé dans la position est relevé quand rien n'est vu depuis 5 s ;
+  // pas tant qu'un équipier de l'ordre voit l'ennemi ; le sauveteur retourne ensuite à son poste
+  { const run = (busy) => { const b = mkV(5); while (b.t < 1) b.step();
+      const r = b.command('aller', 0, { x: 14, z: 23, units: null, mode: 'agressif', arrivee: 'tenir' });
+      while (b.t < 25 && b.teams[0].units.some(u => u.moveOrder)) b.step();
+      const a = b.teams[0].units[1]; a.alive = false; a.hp = 0; a.status = 'down'; a.downAt = b.t; a.bleedUntil = b.t + 20; a.rescue = null; b.stop(a);
+      const t0 = b.t, ms = b.teams[0].units.filter(u => u.alive);
+      while (b.t < t0 + 19 && !a.alive) { if (busy && b.t < t0 + 5) ms[0].sawEnemyAt = b.t; b.step(); }
+      return { r, up: a.alive, at: b.t - t0, keep: ms.every(u => u.keyOrder), rev: b.log.find(l => l.kind === 'revive') }; };
+    const A = run(false), B = run(true);
+    check('relève en Tenir : un équipier tombé dans la position est relevé au calme (le sauveteur garde son poste) ; pas tant qu\'un équipier de l\'ordre voit l\'ennemi', A.r.ok && A.up && A.keep && A.rev && B.up && B.at > 5 + 5, { A: { up: A.up, at: A.at, keep: A.keep }, B: { up: B.up, at: B.at } }); }
 }
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

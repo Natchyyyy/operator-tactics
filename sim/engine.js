@@ -1922,8 +1922,10 @@
     // évacuation d'un blessé à découvert : en cours, ou à décider (le plus proche des équipiers disponibles)
     if (u.drag) { if (this.continueDrag(u, threats)) return; }
     else if (this.tryDrag(u, threats)) return;
-    if (!threats.length && !beingShot && u.suppression < 0.4 && !u.throwing && u.state !== 'noammo' && !u.keyOrder && !u.moveOrder) {   // en poste (ou en route) sur ordre : il obéit
-      const a = this.downedToRevive(u);
+    if (threats.length) u.sawEnemyAt = this.t;
+    if (!threats.length && !beingShot && u.suppression < 0.4 && !u.throwing && u.state !== 'noammo' && !u.moveOrder && (!u.keyOrder || (process.env.NOR2 !== '1' && u.keyOrder.grp !== undefined && this.holdCalm(u)))) {   // en route sur ordre : il obéit ; en poste « tenir » : seulement au calme (R2)
+      let a = this.downedToRevive(u);
+      if (a && u.keyOrder) { const k = u.keyOrder, hx = k.hx !== undefined ? k.hx : k.x, hz = k.hz !== undefined ? k.hz : k.z; if (Math.hypot(a.x - hx, a.z - hz) > HOLD_REVIVE) a = null; }   // dans la position seulement
       if (a) {
         a.rescue = { by: u, t: this.t };
         const d = dist2(u, a);
@@ -2571,6 +2573,15 @@
     }
   };
   Battle.prototype.unitById = function (id) { return this.units.find(x => x.id === id); };
+  // R2 (sans animation) — en poste « tenir », on relève un équipier tombé DANS la position (< HOLD_REVIVE m du poste) quand
+  // aucun des équipiers de l'ordre n'a vu d'ennemi, tiré ni été pris pour cible depuis HOLD_CALM s ; pas le serre-file qui garde l'arrière
+  const HOLD_REVIVE = 10, HOLD_CALM = 5;
+  Battle.prototype.holdCalm = function (u) {
+    const hr = this.teams[u.team].holdRear;
+    if (hr) for (const k in hr) if (hr[k] && hr[k].id === u.id && !hr[k].released) return false;
+    const o = this.orderOf(u), ms = o ? this.orderMembers(this.teams[u.team], o.id) : [u];
+    return ms.every(a => this.t - (a.sawEnemyAt === undefined ? -99 : a.sawEnemyAt) > HOLD_CALM && this.t - a.lastShotByAt > HOLD_CALM && this.t - a.lastShotAt > HOLD_CALM);   // personne ne voit, ne tire (appui compris), ni ne se fait tirer dessus
+  };
   Battle.prototype.downedToRevive = function (u) {
     const reach = has(u, 'medic') ? 30 : 16; let best = null, bd = reach;
     for (const a of this.teams[u.team].units) {
