@@ -2067,9 +2067,10 @@
       `<div class="omsec">${o.titre}</div><div class="omrow">${o.choix.map(c => `<button class="omopt" data-cat="${cat}" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v] || ''}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>`).join('')
       + `<button class="omgo">Confirmer</button><div class="omhint">Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
     const main = $('main'), mr = main.getBoundingClientRect(); main.appendChild(el);
-    const W = el.offsetWidth, H = el.offsetHeight;
-    el.style.left = Math.round(Math.max(8, Math.min(mr.width - W - 8, cx - mr.left + 14))) + 'px';
-    el.style.top = Math.round(Math.max(8, Math.min(mr.height - H - 8, cy - mr.top - H / 2))) + 'px';
+    // taille réelle à l'écran (le menu suit l'échelle du HUD, CSS zoom) ; left/top s'expriment avant ce zoom
+    const z = parseFloat(getComputedStyle(el).zoom) || 1, br = el.getBoundingClientRect(), W = br.width, H = br.height;
+    el.style.left = (Math.max(8, Math.min(mr.width - W - 8, cx - mr.left + 14)) / z).toFixed(1) + 'px';
+    el.style.top = (Math.max(8, Math.min(mr.height - H - 8, cy - mr.top - H / 2)) / z).toFixed(1) + 'px';
     const show = () => el.querySelectorAll('.omopt').forEach(b => b.classList.toggle('on', pick[b.dataset.cat] === b.dataset.v));
     el.querySelectorAll('.omopt').forEach(b => b.addEventListener('click', () => { const was = pick[b.dataset.cat] === b.dataset.v; pick[b.dataset.cat] = b.dataset.v; show(); if (was) ordConfirm(); }));
     el.querySelector('.omgo').addEventListener('click', () => ordConfirm());
