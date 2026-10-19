@@ -255,5 +255,28 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   while (s1.t < 30) s1.step(); s1.command('aller', 0, { x: 40, z: 30, units: null, mode: 'agressif' }); s1.run();
   const s2 = mkA(9, { replayInputs: s1.inputs }); s2.run();
   check('ordre de déplacement : seuls les opérateurs désignés le reçoivent ; la bataille revue est identique', rs.ok && others === 0 && s1.inputs.filter(c => c.type === 'aller').length === 2 && JSON.stringify(s1.result.teams) === JSON.stringify(s2.result.teams) && s1.result.duration === s2.result.duration, { others });
+  // arrivée « reprendre la manœuvre » : l'ordre s'efface à l'arrivée, l'escouade repart seule (sans retour en arrière)
+  const runM = (seed, o) => {
+    const b = mkA(seed, o); while (b.t < 1) b.step();
+    const r = b.replayQueue ? { ok: true } : b.command('aller', 0, { x: 25, z: 23, units: null, mode: 'agressif', arrivee: 'manoeuvre' });
+    const arr = {}, dirx = Math.sign(b.map.spawns[1].x - b.teams[0].spawn.x) || 1, trace = [];
+    while (b.t < 40 && !b.over) {
+      b.step();
+      for (const u of b.teams[0].units) {
+        if (!u.alive) continue;
+        if (!u.moveOrder && b.t > 1.2 && !arr[u.id]) arr[u.id] = { t: b.t, x: u.x, moved: false, key: false, back: 0 };
+        const a = arr[u.id]; if (!a || b.t > a.t + 5) continue;
+        if (u.moving) a.moved = true; if (u.keyOrder || u.state === 'holdkey') a.key = true;
+        a.back = Math.max(a.back, (a.x - u.x) * dirx);
+      }
+      if (Math.abs(b.t - Math.round(b.t)) < 0.05) trace.push(b.units.map(u => u.x.toFixed(2) + ',' + u.z.toFixed(2)).join(';'));
+    }
+    return { b, r, arr: Object.values(arr), trace: trace.join('|') };
+  };
+  const R1 = runM(4), R2 = runM(4, { replayInputs: R1.b.inputs });
+  const rec = R1.b.inputs.filter(c => c.type === 'aller');
+  check('arrivée « reprendre la manœuvre » : ordre accepté, enregistré (arrivee: manoeuvre) et journalisé', R1.r.ok && rec.length === 1 && rec[0].arg.arrivee === 'manoeuvre' && R1.b.log.some(l => l.kind === 'moveorder' && /puis reprendre la manœuvre/.test(l.text)) && R1.b.log.some(l => l.kind === 'reprise' && /reprennent la manœuvre/.test(l.text)), { r: R1.r, rec });
+  check('arrivée « reprendre la manœuvre » : à l\'arrivée, plus d\'ordre (ni poste « tenir ») ; chacun repart seul dans les 5 s, sans revenir en arrière (≤ 3 m)', R1.arr.length === 5 && R1.arr.every(a => !a.key && a.moved && a.back <= 3) && R1.b.teams[0].units.every(u => !u.keyOrder), { arr: R1.arr });
+  check('arrivée « reprendre la manœuvre » : la bataille revue est identique (positions seconde par seconde, résultat)', R1.trace === R2.trace && JSON.stringify(R1.b.result) === JSON.stringify(R2.b.result) && R2.b.inputs.length === R1.b.inputs.length);
 }
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

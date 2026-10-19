@@ -1306,6 +1306,7 @@
   // arrivée « tenir » : poste sur un vrai couvert tout proche face à la menace (ou au sens de la marche) → ordre de poste
   Battle.prototype.arriveOrder = function (u) {
     const o = u.moveOrder; u.moveOrder = null;
+    if (o.arrivee === 'manoeuvre') { this.resumeManoeuvre(u, o); return; }
     // (tous azimuts : le poste couvre de la menace connue, ou de son secteur ; le serre-file, de l'arrière)
     const th = this.mainThreat(u), thb = th ? Math.atan2(th.z - u.z, th.x - u.x) : null, ring = o.sect !== undefined, face = ring ? (thb !== null && angDiff(o.sect, thb) < 2.1 ? thb : o.sect) : thb !== null ? thb : o.dir;
     const tp = { x: u.x + Math.cos(face) * 20, z: u.z + Math.sin(face) * 20 };
@@ -1335,6 +1336,28 @@
     if (g && !this.groupActive(g)) {
       const here = g.members.map(id => this.unitById(id)).filter(a => a && a.alive && a.keyOrder && a.keyOrder.ordre === o.id).map(a => a.callsign);
       this.logEvent('enplace', `${team.name} : ${here.join(', ')} ${here.length > 1 ? 'sont en place et tiennent' : 'est en place et tient'} la position.`, { team: u.team, ordre: o.id });
+    }
+  };
+  // arrivée « reprendre la manœuvre » : l'ordre s'efface et l'opérateur reprend la conduite autonome de l'escouade (voies,
+  // Tiroir, ordre d'équipe, IA habituelle) à partir d'où il est. Rien ne le ramène en arrière : sa voie devient la plus
+  // proche (son écart latéral est gardé : l'espacement de l'arrivée se conserve), ses anciens poste, point de ratissage et
+  // ralliement de voie sont oubliés ; tireur d'élite, ou équipe en « Tenir » : son poste est là où il est arrivé.
+  Battle.prototype.resumeManoeuvre = function (u, o) {
+    const team = this.teams[u.team], v = this.map.def.voies;
+    this.stop(u); u.keyOrder = null; u.commitUntil = 0; u.pauseUntil = 0;
+    u.zoneSpot = null; u.searchGoal = null; u.searchSince = undefined; u.rejoin = false; u.flankDone = false;
+    if (v && u.voie !== null && u.voie !== undefined) {
+      let best = null;
+      for (const [l, z] of [[-1, v.nord], [0, v.milieu], [1, v.sud]]) if (!best || Math.abs(u.z - z) < Math.abs(u.z - best[1])) best = [l, z];
+      u.voie = best[0]; u.laneDz = clamp(u.z - best[1], -4, 4);
+    }
+    u.post = u.role.id === 'marksman' || team.order === 'hold' ? { x: u.x, z: u.z } : null;
+    u.resumedAt = this.t; u.resumedOrder = o.id;
+    this.logEvent('reprise', `${u.callsign} : « Je reprends ma progression. »`, { unit: u.id, team: u.team, ordre: o.id, silent: true });
+    const g = (team.moveGroups || []).find(x => x.id === o.id);
+    if (g && !this.groupActive(g)) {
+      const here = g.members.map(id => this.unitById(id)).filter(a => a && a.alive && a.resumedOrder === o.id && !a.keyOrder && !a.moveOrder).map(a => a.callsign);
+      if (here.length) this.logEvent('reprise', `${team.name} : ${here.join(', ')} ${here.length > 1 ? 'sont arrivés et reprennent' : 'est arrivé et reprend'} la manœuvre.`, { team: u.team, ordre: o.id });
     }
   };
   Battle.prototype.decide = function (u) {
