@@ -89,9 +89,10 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   let moved = 0, downs = 0;
   for (let sd = 1; sd <= 12; sd++) {
     const b = mk(sd); const pos = {};
-    while (!b.over) { b.step(); for (const u of b.units) { if (u.alive) { delete pos[u.id]; continue; } if (!pos[u.id]) { pos[u.id] = { x: u.x, z: u.z }; downs++; } else if (Math.hypot(u.x - pos[u.id].x, u.z - pos[u.id].z) > 0.01) moved++; } }
+    // (exception : un blessé qu'un équipier tire à couvert — évacuation — suit son sauveteur)
+    while (!b.over) { b.step(); for (const u of b.units) { if (u.alive) { delete pos[u.id]; continue; } if (!pos[u.id]) { pos[u.id] = { x: u.x, z: u.z }; downs++; } else if (b.draggedBy(u)) pos[u.id] = { x: u.x, z: u.z }; else if (Math.hypot(u.x - pos[u.id].x, u.z - pos[u.id].z) > 0.01) moved++; } }
   }
-  check('à terre : un opérateur neutralisé ne se déplace plus jamais', downs > 20 && moved === 0, { downs, moved });
+  check('à terre : un opérateur neutralisé ne se déplace plus jamais (de lui-même : seul un sauveteur peut le tirer à couvert)', downs > 20 && moved === 0, { downs, moved });
 }
 {
   // ---- Couvert, espacement, distance d'engagement, précision à bout portant (sur de vraies batailles) ----
