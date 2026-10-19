@@ -590,7 +590,7 @@
       razGlisse() { const A = agents[0]; A.glisse.cumul = 0; A.glisse.tContact = 0; A.sauts = 0; },
       mesures() { const A = agents[0], f = A.frame; return { frame: f, seq: Base.meta.sequences[Base.seq[f]].nom, glisseMoy: A.glisse.moyenneCm(), glisseRecent: A.glisse.recentCm(), sauts: A.sauts, pos: A.soldat.pos.toArray(), yaw: A.soldat.yaw, simPos: A.ctl.pos.toArray(), vitAnim: Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]) }; },
       os(n) { const o = agents[0].soldat.os[Base.meta.os.indexOf(n)]; return o ? o.getWorldPosition(V3()).toArray() : null; },
-      camera(yaw, pitch, dist, cibleY) { agents[0].ctl.camYaw = yaw; cam.pitch = pitch; cam.dist = dist; cam.cibleY = cibleY; },
+      camera(yaw, pitch, dist, cibleY) { agents[0].ctl.camYaw = yaw; cam.pitch = pitch; cam.dist = dist; cam.cibleY = cibleY; cam.cible = null; },
       escouade: ajouterEscouade, agents,
       diag(i) { const A = agents[i]; const c = A.ctl; const vg = c.vitesseCible(), yg = c.yawCible(vg); const req = A.requete(vg, yg); const f = A.frame; const vit = Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]); const auRepos = vg.lengthSq() < 0.01 && vit < 0.35 && c.vel.lengthSq() < 0.04; const [best, bc] = chercher(req, c.visee ? 2 : 0, auRepos); return { frame: f, auRepos, best, bc, cc: cout(f, req), seqBest: Base.meta.sequences[Base.seq[best]].nom, req: Array.from(req).map(x => +x.toFixed(2)), fnCour: Array.from(Base.fn.slice(f * Base.nF, (f + 1) * Base.nF)).map(x => +x.toFixed(2)), fnBest: Array.from(Base.fn.slice(best * Base.nF, (best + 1) * Base.nF)).map(x => +x.toFixed(2)) }; }
     };
@@ -667,8 +667,11 @@
     const A = agents[0], S = A.soldat, Ctl = A.ctl;
     if (window.TRACE) { const g = S.orteils[0].getWorldPosition(V3()), d = S.orteils[1].getWorldPosition(V3()); window.TRACE.push([+horloge.toFixed(3), ...g.toArray().map(x => +x.toFixed(4)), ...d.toArray().map(x => +x.toFixed(4)), Base.contact[A.frame], +(S.verrous[0].delta ? S.verrous[0].delta.length() : 0).toFixed(3), +(S.verrous[1].delta ? S.verrous[1].delta.length() : 0).toFixed(3), A.frame, seuilOrteil]); }
     for (const B of agents) while (B.glisse.empreintes.length) { const e = B.glisse.empreintes.shift(); const m = new THREE.Mesh(new THREE.CircleGeometry(0.06, 16), new THREE.MeshBasicMaterial({ color: e.k ? 0x4fc3f7 : 0xff7b7b, transparent: true, opacity: 0.8 })); m.rotation.x = -Math.PI / 2; m.position.copy(e.p).setY(0.004); scene.add(m); empreintesMesh.push(m); if (empreintesMesh.length > 60 * agents.length) scene.remove(empreintesMesh.shift()); }
-    // caméra orbitale autour de l'agent 0
-    const cible = S.pos.clone().setY(cam.cibleY ?? 1.0);
+    // caméra orbitale autour de l'agent 0, cible lissée (le bassin oscille à chaque pas ; une caméra collée dessus amplifie
+    // le tangage)
+    const voulu = S.pos.clone().setY(cam.cibleY ?? 1.0);
+    if (!cam.cible) cam.cible = voulu.clone(); cam.cible.lerp(voulu, 1 - Math.exp(-dt / 0.12));
+    const cible = cam.cible;
     camera.position.set(cible.x + Math.sin(Ctl.camYaw + Math.PI) * cam.dist * Math.cos(cam.pitch), cible.y + cam.dist * Math.sin(cam.pitch), cible.z + Math.cos(Ctl.camYaw + Math.PI) * cam.dist * Math.cos(cam.pitch));
     camera.lookAt(cible);
     rendre();
