@@ -453,7 +453,7 @@
   let facteurRacine = 1, dernierSaut = -1, frame = 0, frameT = 0, poseQ, poseY = [0], ancQ, ancY = [0], derniereRecherche = 0, sauts = 0, sautsFen = [], styleCourant = 0;
   const glisse = new Glissement(); let seuilOrteil = 0.06; const traits = [], empreintesMesh = [];
   const HUD = {};
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.05, fusil: { avant: 0.03, droite: -0.09, haut: -0.03, tangage: -0.5, cant: 0.3, buste: 0.3, lissage: 0.06, appuiZ: 0.03, torsion: 0.6 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.05, fusil: { avant: 0.06, droite: -0.08, haut: -0.03, tangage: -0.5, cant: 0.3, buste: 0.3, lissage: 0.06, appuiZ: 0.03, torsion: 0.6 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   async function init() {
     renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
