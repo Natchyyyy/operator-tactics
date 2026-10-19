@@ -30,7 +30,11 @@
   // marche en visant (Pas_Glisse) : foulée × s, cheville levée au plus ~cap (m), demi-écart des chevilles larg (m), bassin
   // abaissé de bas (m), part gardée du rebond du bassin ; vol : pied en l'air dessiné (voir foulee() : talon ≤ 11 cm au lieu
   // de 25, pointe ≤ 17° vers le bas, semelle à 2,5 cm du sol au moins) ; bas 0,02 (et non 0,06) : genou ~25° à la pose (44°)
-  const GLISSE_P = { s: 0.85, cap: 0.07, larg: 0.16, bas: 0.02, bob: 0.35, vol: { h0: 0.01, h1: 0.04, tb: 0.3, tf: -0.12, zb: -0.25, zf: 0.2, clr: 0.025 } };
+  // marche glissée jouée vite (1,25 → 1,75 m/s) : chaque cheville rapprochée de d (m) du milieu (base 36 → ~22 cm, comme en course)
+  const GLISSE_SERRE = { v0: 1.25, v1: 1.75, d: 0.07 };
+  // (larg 0,19 : base vue de face 36 cm, vidéo 28-38 ; genouOut 0,2 rad : genoux un peu vers l'extérieur, au-dessus des pieds —
+  // de face les genouillères se frôlaient au passage de la jambe)
+  const GLISSE_P = { s: 0.85, cap: 0.07, larg: 0.19, genouOut: 0.2, bas: 0.02, bob: 0.35, vol: { h0: 0.01, h1: 0.04, tb: 0.3, tf: -0.12, zb: -0.25, zf: 0.2, clr: 0.025 } };
   // visée debout : flexion des genoux visée (rad)
   const GENOUX_VISEE = 0.38;
   // écart moyen des chevilles en marche (m)
@@ -315,6 +319,7 @@
   // devenait l'arrière et le genou de la jambe arrière pliait à l'envers (patte d'oiseau). Si le genou est presque tendu, son
   // plan est celui de l'avant du bassin ; s'il plie nettement vers l'arrière, il est retourné dans son plan ; s'il pointe sur
   // le côté (ni avant ni arrière), on le laisse.
+  let biaisGenou = 0;
   function planGenou(p, dir, lat, mini, cote) {
     // avant anatomique du genou dans le plan ⟂ à l'axe : f = dir × lat (jambe verticale : l'avant du bassin ; cuisse levée
     // à l'horizontale : le haut) ; g = côté gauche. Le genou est gardé dans le demi-espace avant : au plus GENOU_OUT vers
@@ -325,7 +330,7 @@
     if (pl < mini) p.addScaledVector(f, mini - pl);
     // (limite douce : au-delà de 60 % de la borne, l'angle s'en approche sans l'atteindre — pas de cassure de vitesse du genou)
     const doux = (x, lim) => { const a = 0.6 * lim; return x <= a ? x : a + (lim - a) * Math.tanh((x - a) / (lim - a)); };
-    let th = Math.atan2(p.dot(g), p.dot(f)) * cote; th = (th >= 0 ? doux(th, GENOU_OUT) : -doux(-th, GENOU_IN)) * cote;
+    let th = Math.atan2(p.dot(g), p.dot(f)) * cote + biaisGenou; th = (th >= 0 ? doux(th, GENOU_OUT) : -doux(-th, GENOU_IN)) * cote;   // (biaisGenou : genoux tournés un peu vers l'extérieur, cuisson de la marche visée)
     return p.copy(f).multiplyScalar(Math.cos(th)).addScaledVector(g, Math.sin(th));
   }
   // IK des jambes cuite dans un clip (30 clés/s) : pour chaque image, cible(i, H, A, Aq) donne la position monde voulue de
@@ -574,7 +579,7 @@
       });
       return out; }, (i) => (P.bob - 1) * (ech[i][0].y - hy) + (P.haut || 0) * kk, !!P.libre, undefined, P.bassin ? () => P.bassin : null);
     // vitesse et direction du déplacement (m/s jeu, rad : 0 = devant, > 0 = vers la gauche) : celles de l'appui
-    if (c) c.userData = Object.assign(c.userData || {}, { vitCuite: vS / (2 * src.duration / N) * HEIGHT / RAW_H, dirCuite: Math.atan2(vSt.x, vSt.z) });
+    if (c && !P.sansVit) c.userData = Object.assign(c.userData || {}, { vitCuite: vS / (2 * src.duration / N) * HEIGHT / RAW_H, dirCuite: Math.atan2(vSt.x, vSt.z) });
     return c;
   }
   // À genou (Kneeling_Reload, dont la pose de couverture accroupie est tirée) : dans l'animation le genou arrière reste à
@@ -697,7 +702,7 @@
     // (référence vidéo réelle : base large ~32 cm entre chevilles, pied d'appel bas ~10-12 cm, genoux fléchis tout le pas,
     // bassin plat — rebond ≤ 3 cm ; pas un peu plus courts et plus vifs que la marche normale)
     const GP = Object.assign({}, GLISSE_P, root.GLISSE_TEST || {});   // (GLISSE_TEST : réglage depuis les pages d'outils)
-    if (M.clips.Walking) { const g = foulee(M, M.clips.Walking, 'Pas_Glisse', GP.s, 1, 0, GP.kp !== undefined ? GP.kp : 1, OUV_PIED, GP); if (g) M.clips.Pas_Glisse = g; }
+    if (M.clips.Walking) { biaisGenou = GP.genouOut || 0; try { const g = foulee(M, M.clips.Walking, 'Pas_Glisse', GP.s, 1, 0, GP.kp !== undefined ? GP.kp : 1, OUV_PIED, GP); if (g) M.clips.Pas_Glisse = g; } finally { biaisGenou = 0; } }
     // pas moins écartés (les marches de la bibliothèque posent les chevilles à ~27 cm l'une de l'autre, une démarche en
     // « cow-boy » ; marche humaine : 8 à 17 cm, base tactique un peu plus large) : écart moyen ramené à ECART_PAS
     for (const n of ['Pas_Avant_Low']) if (M.clips[n]) { const c = resserre(M, M.clips[n], ECART_PAS); if (c) M.clips[n] = c; }
@@ -1328,6 +1333,8 @@
         while (psi > Math.PI) psi -= 2 * Math.PI; while (psi < -Math.PI) psi += 2 * Math.PI;
         // (orientation du bassin par rapport au groupe — la visée — pour borner la torsion épaules / bassin dans penche())
         this.bassinM = B + this.jambesCible + psi;
+        // (marche glissée jouée vite — petite course en visant — : base resserrée, pieds sous les hanches comme en course)
+        { const x = avant === 'Pas_Glisse' ? Math.max(0, Math.min(1, (v - GLISSE_SERRE.v0) / (GLISSE_SERRE.v1 - GLISSE_SERRE.v0))) : 0; this.serreK = (this.serreK || 0) + (x * x * (3 - 2 * x) - (this.serreK || 0)) * Math.min(1, dt * 3); }
         this.dosM = psi + a0; this.yawM = B; this.blendFrame = frameK; this.coteK = tot > 0 ? ((bw[PG] || 0) + (bw[PD] || 0)) / tot : 0; this.arrK = tot > 0 ? (bw[PR] || 0) / tot : 0;
         // (haut du corps calé sur la phase de SES jambes d'origine : celles du clip dont il est tiré, sinon la marche avant)
         const hb = haut.replace(/_Haut$/, ''), ph0 = M.phase0[hb] !== undefined ? M.phase0[hb] : (M.phase0[avant] || 0);
@@ -1562,6 +1569,7 @@
         if (!pieds[0][2] || !pieds[1][2]) return;
         group.updateMatrixWorld(true);
         const lat = WP(pieds[0][0]).sub(WP(pieds[1][0])); lat.y = 0; if (lat.lengthSq() < 1e-6) return; lat.normalize();   // vers la gauche du bassin
+        { const sk = (this.serreK || 0) * K * (1 - Math.min(1, k + kr)) * GLISSE_SERRE.d; if (sk > 0.002) { ikJambe(pieds[0][0], pieds[0][1], pieds[0][2], lat.clone().multiplyScalar(-sk), orteils[0]); ikJambe(pieds[1][0], pieds[1][1], pieds[1][2], lat.clone().multiplyScalar(sk), orteils[1]); } }
         const MIN = (0.15 + 0.05 * k + 0.06 * kr) * K,   // (chevilles à 15 cm au moins : les bottes ne se touchent jamais)
          sep = WP(pieds[0][2]).sub(WP(pieds[1][2])).dot(lat);
         if (sep < MIN) {   // (surtout le pied levé : celui au sol glisserait)
