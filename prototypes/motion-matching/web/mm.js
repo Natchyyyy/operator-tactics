@@ -561,7 +561,8 @@
     // Couvert (règle du jeu, sim/engine.js coverAt / computeCoverPoints) : point à `recul` m du bord du bloc, du côté opposé à
     // la menace ; on y va par le chemin le plus court qui contourne le bloc, on s'y arrête précisément, on s'accroupit face
     // à la menace (arme en garde basse ; clic droit pour épauler).
-    couvrir(bloc, menace) {
+    couvrir(bloc, menace, marge) {
+      marge = marge ?? 0.1;
       const cx = bloc.x + bloc.w / 2, cz = bloc.z + bloc.d / 2, m = V3(menace.x - cx, 0, menace.z - cz).normalize();
       const cotes = [[V3(1, 0, 0), V3(bloc.x + bloc.w, 0, cz)], [V3(-1, 0, 0), V3(bloc.x, 0, cz)], [V3(0, 0, 1), V3(cx, 0, bloc.z + bloc.d)], [V3(0, 0, -1), V3(cx, 0, bloc.z)]];
       // candidat caché = le segment menace → point traverse le bloc (poitrine accroupie sous le haut du bloc) ; parmi les
@@ -579,7 +580,7 @@
       // contournement : si le segment direct coupe le bloc (gonflé du rayon du soldat), on passe par le coin le plus proche
       const r = PARAMS.couvert.rayon, gx0 = bloc.x - r, gx1 = bloc.x + bloc.w + r, gz0 = bloc.z - r, gz1 = bloc.z + bloc.d + r;
       const coupe = (a, b) => segCoupeBoite(a, b, gx0, gx1, gz0, gz1); const _ancien = (a, b) => { let t0 = 0, t1 = 1; const dx = b.x - a.x, dz = b.z - a.z; for (const [p0, d, lo, hi] of [[a.x, dx, gx0, gx1], [a.z, dz, gz0, gz1]]) { if (Math.abs(d) < 1e-9) { if (p0 < lo || p0 > hi) return false; continue; } let ta = (lo - p0) / d, tb = (hi - p0) / d; if (ta > tb) [ta, tb] = [tb, ta]; t0 = Math.max(t0, ta); t1 = Math.min(t1, tb); if (t0 > t1) return false; } return true; };
-      const chemin = []; const coins = [V3(gx0 - 0.1, 0, gz0 - 0.1), V3(gx1 + 0.1, 0, gz0 - 0.1), V3(gx0 - 0.1, 0, gz1 + 0.1), V3(gx1 + 0.1, 0, gz1 + 0.1)];
+      const chemin = []; const coins = [V3(gx0 - marge, 0, gz0 - marge), V3(gx1 + marge, 0, gz0 - marge), V3(gx0 - marge, 0, gz1 + marge), V3(gx1 + marge, 0, gz1 + marge)];
       const expo = (c) => cache1(c) ? 0 : 3;   // coin exposé à la menace : 3 m de pénalité (on arrive par le côté abrité)
       if (coupe(this.pos, best)) { const ok = coins.filter(c => !coupe(this.pos, c) && !coupe(c, best)).sort((a, b) => this.pos.distanceTo(a) + a.distanceTo(best) + expo(a) - this.pos.distanceTo(b) - b.distanceTo(best) - expo(b)); if (ok.length) chemin.push(ok[0]); else { const c2 = coins.filter(c => !coupe(this.pos, c)).sort((a, b) => this.pos.distanceTo(a) - this.pos.distanceTo(b))[0]; if (c2) { chemin.push(c2); const c3 = coins.filter(c => !coupe(c2, c) && !coupe(c, best)).sort((a, b) => c2.distanceTo(a) + a.distanceTo(best) - c2.distanceTo(b) - b.distanceTo(best))[0]; if (c3) chemin.push(c3); } } }
       chemin.push(best);
@@ -648,7 +649,7 @@
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
   // « bataille » minimale pour le module ragdoll du jeu : horloge, obstacles (le bloc), journal des morts
   const BATAILLE = window.BATAILLE = { t: 0, over: false, log: [], map: { obstacles: [{ x: BLOC.x, z: BLOC.z, w: BLOC.w, d: BLOC.d, h: BLOC.h, kind: 'cover', name: 'bloc' }] } };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.55, avantMains: 0.3, hautMains: 0.45, vitesse: 1.0, penche: 0.65, flechi: 0.35 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.55, avantMains: 0.42, hautMains: 0.4, vitesse: 1.0, penche: 0.65, flechi: 0.5, depasse: 1.1 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -679,18 +680,29 @@
       const Mo = r.Mo, U = Mo.U, F = Mo.F, loc = new C.Vec3(U.x * 0.16 - F.x * 0.08, U.y * 0.16 - F.y * 0.08, U.z * 0.16 - F.z * 0.08);
       const p0 = torse.pointToWorldFrame(loc); void pm;
       this.kin = new C.Body({ mass: 0, type: C.Body.KINEMATIC, collisionFilterGroup: 0, collisionFilterMask: 0 }); this.kin.position.set(p0.x, p0.y, p0.z); W.addBody(this.kin);
-      this.cons = new C.PointToPointConstraint(torse, loc, this.kin, new C.Vec3(0, 0, 0), 600); W.addConstraint(this.cons);
+      this.cons = new C.PointToPointConstraint(torse, loc, this.kin, new C.Vec3(0, 0, 0), 300); W.addConstraint(this.cons);
+      // jambes molles qui traînent (pas de coups de pied) : amortissement fort sur cuisses et jambes pendant le traînage
+      this.amortis = [8, 9, 10, 11].map(i => [r.corps[i], r.corps[i].linearDamping, r.corps[i].angularDamping]); for (const [b] of this.amortis) { b.linearDamping = 0.6; b.angularDamping = 0.95; }
       this.W = W; return true;
     }
-    detacher() { if (this.W && this.cons) { this.W.removeConstraint(this.cons); this.W.removeBody(this.kin); } this.cons = null; this.kin = null; }
+    detacher() { if (this.W && this.cons) { this.W.removeConstraint(this.cons); this.W.removeBody(this.kin); } this.cons = null; this.kin = null; if (this.amortis) for (const [b, l, a] of this.amortis) { b.linearDamping = l; b.angularDamping = a; } this.amortis = null; }
     pas(dt) {
       const R = this.R, C = R.ctl, S = R.soldat, V = this.V; this.t += dt;
       if (this.etat === 'prise') {
         // accroupi partiel, mains vers le col ; à 0,6 s le blessé est repris en physique et attaché, puis on recule
         C.accroupi = false; C.profondeurExtra = PARAMS.sauvetage.flechi + 0.25; S.pencheExtra = PARAMS.sauvetage.penche; this.poidsMains = Math.min(1, this.poidsMains + dt / 0.5);
-        if (this.t > 0.7 && !this.cons) {
+        // blessé à plat ventre : on le roule sur le dos (rotation du squelette autour de son axe hanches → tête, 0,6 s)
+        // avant de le reprendre en physique — on traîne un homme sur le dos, tête en arrière, pas sur le ventre
+        if (this.t > 0.15 && this.roule == null) { const r0 = V.mort.m.rag; this.roule = 0; this.rouleTotal = 0;
+          if (r0 && r0.Mo) { const sk = V.mort.m.skinned.skeleton, S2 = new THREE.Matrix4().multiplyMatrices(sk.bones[r0.Mo.os[2]].matrixWorld, r0.Mo.inv[2]); const F = r0.Mo.F.clone().transformDirection(S2); if (F.y < -0.3) this.rouleTotal = Math.PI; } }
+        if (this.roule != null && this.roule < this.rouleTotal) {
+          const d = Math.min(this.rouleTotal - this.roule, dt / 0.6 * Math.PI); this.roule += d;
+          const hips = V.soldat.hips, tete = V.soldat.os[Base.meta.os.indexOf('Head')].getWorldPosition(V3()), ph = hips.getWorldPosition(V3());
+          const axe = tete.clone().sub(ph); axe.y = 0; if (axe.lengthSq() > 1e-4) { axe.normalize(); const q = Q().setFromAxisAngle(axe, d); const wq = hips.getWorldQuaternion(Q()); hips.quaternion.copy(hips.parent.getWorldQuaternion(Q()).invert().multiply(q).multiply(wq)); hips.updateMatrixWorld(true); }
+        }
+        if (this.t > 0.8 && !this.cons) {
           const m = V.mort.m; const r0 = m.rag;
-          if (r0 && r0.etat === 'physique') { if (!r0.fige) { } m.rag = null; m.update = () => {}; m.anim = { vx: 0, vz: 0 }; BATAILLE.log.push({ kind: 'down', enemy: V.mort.u.id, loc: 'traîné' }); OT.Ragdoll.mort(V.mort.u, m, BATAILLE); OT.Ragdoll.anime(V.mort.u, m, 1 / 60); }
+          if (r0 && r0.etat === 'physique') { if (!r0.fige) { } m.rag = null; m.update = () => {}; m.anim = { vx: 0, vz: 0 }; m.weapon = null;   // (l'arme est déjà au sol : elle ne revient pas en main) BATAILLE.log.push({ kind: 'down', enemy: V.mort.u.id, loc: 'traîné' }); OT.Ragdoll.mort(V.mort.u, m, BATAILLE); OT.Ragdoll.anime(V.mort.u, m, 1 / 60); }
           if (this.attacher()) { this.etat = 'traine'; this.t = 0; this.planifier(); } else this.etat = 'fin';
         }
       } else if (this.etat === 'traine') {
@@ -701,7 +713,7 @@
       } else if (this.etat === 'depose') {
         this.poidsMains = Math.max(0, this.poidsMains - dt / 0.5);
         S.pencheExtra = PARAMS.sauvetage.penche * Math.max(0, 1 - this.t / 0.6); C.profondeurExtra = PARAMS.sauvetage.flechi * Math.max(0, 1 - this.t / 0.6);
-        if (this.t > 0.6) { C.accroupi = false; C.verrouCible = null; C.cheminRecul = false; C.vitesseChemin = null; S.pencheExtra = 0; C.profondeurExtra = 0; this.etat = 'fin'; }
+        if (this.t > 0.6) { C.verrouCible = null; C.cheminRecul = false; C.vitesseChemin = null; S.pencheExtra = 0; C.profondeurExtra = 0; C.accroupi = true; C.couvert = { point: this.R.soldat.pos.clone(), yawMenace: Math.atan2(this.menace.x - this.R.soldat.pos.x, this.menace.z - this.R.soldat.pos.z) }; C.verrouCible = C.couvert.yawMenace; this.etat = 'fin'; }   // reste accroupi à couvert, face à la menace
       }
       if (this.etat === 'fin') { R.sauvetage = null; C.profondeurExtra = 0; return; }
       // mains vers le col (IK deux os, fondu) ; le point tenu suit LES MAINS telles qu'elles sont (portée des bras), pas l'inverse
@@ -717,7 +729,11 @@
     }
     // chemin à reculons vers le couvert : même règle que couvrir (point caché, contournement) depuis la position du sauveteur
     planifier() {
-      const C = this.R.ctl; const ch = C.couvrir(BLOC, this.menace); C.enRoute = null; C.cheminRecul = true; C.vitesseChemin = PARAMS.sauvetage.vitesse; C.cheminFin = true;
+      // coins contournés avec 1 m de marge (le blessé traîne ~1,2 m derrière le sauveteur et couperait l'angle) ; le sauveteur
+      // dépasse le point de couvert de `depasse` m dans la direction d'arrivée pour que ce soit le BLESSÉ qui finisse dessus
+      const C = this.R.ctl; const ch = C.couvrir(BLOC, this.menace, 1.0); C.enRoute = null; C.cheminRecul = true; C.vitesseChemin = PARAMS.sauvetage.vitesse; C.cheminFin = true;
+      const n = ch.length, fin = ch[n - 1], avant = n > 1 ? ch[n - 2] : this.R.soldat.pos.clone(); const dir = fin.clone().sub(avant); dir.y = 0; if (dir.lengthSq() > 1e-6) { dir.normalize(); const p2 = fin.clone().addScaledVector(dir, PARAMS.sauvetage.depasse); const r = PARAMS.couvert.rayon; if (!(p2.x > BLOC.x - r && p2.x < BLOC.x + BLOC.w + r && p2.z > BLOC.z - r && p2.z < BLOC.z + BLOC.d + r)) ch[n - 1] = p2; }
+      this.pointDepose = fin;
       C.surArrivee = () => { this.detacher(); this.etat = 'depose'; this.t = 0; const r = this.V.mort.m.rag; if (r) r.t = 0; };
       return ch;
     }
@@ -1018,7 +1034,7 @@
     scenarioT = { t: horloge + 2.2, menace, B }; return agents.length;
   }
   let scenarioT = null;
-  function scenarioTic() { if (!scenarioT) return; const sc = scenarioT; if (horloge >= sc.t && !sc.tue) { const B = sc.B, d = B.soldat.pos.clone().sub(V3(sc.menace.x, 0, sc.menace.z)).setY(0).normalize(); B.tuer('', d); sc.tue = horloge; } if (sc.tue && horloge >= sc.tue + 2.5) { sauver(0, agents.indexOf(sc.B), sc.menace); scenarioT = null; } }
+  function scenarioTic() { if (!scenarioT) return; const sc = scenarioT; if (horloge >= sc.t && !sc.tue) { const B = sc.B, d = B.soldat.pos.clone().sub(V3(sc.menace.x, 0, sc.menace.z)).setY(0).normalize(); B.tuer('', d); sc.tue = horloge; } if (sc.tue && horloge >= sc.tue + 0.8) { sauver(0, agents.indexOf(sc.B), sc.menace); scenarioT = null; } }
   // une balle depuis la caméra (T : torse, Y : tête, U : membre) sur le soldat joué
   function tirerSur(loc) { const A = agents[0]; if (A.mort) { A.ressusciter(); return; } const d = A.soldat.pos.clone().setY(1).sub(camera.position).normalize(); A.tuer(loc, d); }
   function cheminDemo() { const c = agents[0].ctl; c.chemin = [V3(4, 0, 0), V3(4, 0, 4), V3(-3, 0, 5), V3(-4, 0, -2), V3(1, 0, -4)]; c.cheminIdx = 0; dessinerChemin(); }
@@ -1039,7 +1055,7 @@
     const t0 = performance.now();
     for (const A of agents) A.pas(dt, now);
     galerieTic(); scenarioTic();
-    if (window.OT && OT.Ragdoll && agents.some(A => A.mort)) { BATAILLE.t = horloge; OT.Ragdoll.etape(dt, BATAILLE); for (const A of agents) if (A.mort) { A.mort.t += dt; OT.Ragdoll.anime(A.mort.u, A.mort.m, dt); } }
+    if (window.OT && OT.Ragdoll && agents.some(A => A.mort)) { BATAILLE.t = horloge; OT.Ragdoll.etape(dt, BATAILLE); for (const A of agents) if (A.mort) { A.mort.t += dt; OT.Ragdoll.anime(A.mort.u, A.mort.m, dt); const r = A.mort.m.rag; if (r && r.arme && r.arme.body && r.t < 0.6) { const v = r.arme.body.velocity; if (v.length() > 1.5) v.scale(1.5 / v.length(), v); } } }   // (l'arme lâchée ne vole pas à 2 m)
     tempsPas = tempsPas * 0.95 + (performance.now() - t0) * 0.05;
     const A = agents[0], S = A.soldat, Ctl = A.ctl;
     if (window.TRACE) { const g = S.orteils[0].getWorldPosition(V3()), d = S.orteils[1].getWorldPosition(V3()); window.TRACE.push([+horloge.toFixed(3), ...g.toArray().map(x => +x.toFixed(4)), ...d.toArray().map(x => +x.toFixed(4)), Base.contact[A.frame], +(S.verrous[0].delta ? S.verrous[0].delta.length() : 0).toFixed(3), +(S.verrous[1].delta ? S.verrous[1].delta.length() : 0).toFixed(3), A.frame, seuilOrteil]); }
