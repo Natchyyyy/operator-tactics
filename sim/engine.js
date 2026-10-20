@@ -133,6 +133,7 @@
     this.units = this.teams.flatMap(t => t.units);
     // Tiroir : deux moitiés d'escouade en alternance (le tireur d'élite reste en appui, hors des bonds)
     for (const team of this.teams) { let k = 0; for (const u of team.units) u.boundGroup = u.role.id === 'marksman' ? -1 : (k++ % 2); team.bound = { group: 0, since: 0, n: 0 }; }
+    for (const team of this.teams) { if (this.hasTactic(team, 'tiroir_lent')) this.lentHalves(team, team.units); this.initScout(team); }
     this.assignLanes();
     this.placeUnits();
     for (const team of this.teams) if (team.auto) this.initKarst(team);   // plans de l'adversaire (vague 2)
@@ -2474,14 +2475,48 @@
   // L'escouade est partagée en deux moitiés (boundGroup 0 / 1). La moitié « qui avance » fait un bond (≤ 11 m) jusqu'au couvert
   // suivant ; l'autre, arrêtée, couvre (face à la menace, prête à tirer). Quand tous ceux qui avancent sont arrivés (ou engagés),
   // les rôles s'inversent. Le tireur d'élite reste en appui (sa propre logique).
-  Battle.prototype.tiroirOn = function (u) { const tm = this.teams[u.team]; return this.hasTactic(tm, 'tiroir') && tm.order !== 'hold' && u.boundGroup >= 0; };
+  Battle.prototype.tiroirTeam = function (tm) { return this.hasTactic(tm, 'tiroir') || this.hasTactic(tm, 'tiroir_lent'); };
+  Battle.prototype.tiroirOn = function (u) { const tm = this.teams[u.team]; return this.tiroirTeam(tm) && tm.order !== 'hold' && u.boundGroup >= 0 && !this.scoutOn(tm); };
+  // T1b — « Tiroir lent » : un trinôme (groupe 0) bondit, un binôme (groupe 1 : le dernier opérateur et le tireur d'élite, ou
+  // les deux derniers sans tireur d'élite) reste la base de feu ; à son tour, le binôme ne dépasse jamais le trinôme (il
+  // s'arrête 3 m derrière le plus en arrière du trinôme). Après une perte : même partage sur les survivants.
+  Battle.prototype.lentHalves = function (team, us) {
+    const ms = us.filter(a => a.alive && a.role.id !== 'marksman').sort((a, b) => a.idx - b.idx), nb = Math.min(team.units.some(a => a.alive && a.role.id === 'marksman') ? 1 : 2, ms.length - 1);
+    ms.forEach((a, i) => { a.boundGroup = i >= ms.length - nb ? 1 : 0; a.boundDone = undefined; });
+  };
+  // T7 — « Éclaireur » : l'opérateur le plus perceptif (hors tireur d'élite) avance seul en tête ; les autres le suivent à
+  // SCOUT_GAP m en arrière (sur l'axe de progression, chacun sur sa voie) et ne bondissent pas. Au premier contact de
+  // l'escouade (un ennemi vu, entendu ou signalé), ou l'éclaireur tombé, chacun reprend sa conduite habituelle (Tiroir
+  // compris) ; 15 s sans aucun contact, l'éclaireur repart devant.
+  const SCOUT_GAP = 20;
+  Battle.prototype.initScout = function (team) {
+    if (!this.hasTactic(team, 'eclaireur')) return;
+    const s = team.units.filter(a => a.role.id !== 'marksman').sort((a, b) => b.def.perception - a.def.perception || a.idx - b.idx)[0];
+    if (s) { team.scout = s.id; team.scoutContact = -99; this.logEvent('eclaireur', `${s.callsign} : « Je passe devant. »`, { team: team.index, unit: s.id }); }
+  };
+  Battle.prototype.scoutOn = function (tm) {
+    if (!tm.scout || tm.order === 'hold' || this.t - tm.scoutContact < 15) return false;
+    const s = this.unitById(tm.scout); return !!(s && s.alive);
+  };
+  // vrai : l'opérateur attend (il est trop près de l'éclaireur) ; faux : il avance sans Tiroir ; null : pas d'éclaireur
+  Battle.prototype.scoutStep = function (u, threatPos) {
+    const tm = this.teams[u.team]; if (!this.scoutOn(tm)) return null;
+    if (u.id === tm.scout || u.role.id === 'marksman') return false;
+    const s = this.unitById(tm.scout), dirx = Math.sign(this.map.spawns[1 - u.team].x - tm.spawn.x) || 1;
+    if ((u.x - s.x) * dirx > -SCOUT_GAP) { this.stop(u); u.state = 'overwatch'; u.stance = 'stand'; u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x); return true; }
+    return false;
+  };
   const BUSY = { engage: 1, pinned: 1, shaken: 1, noammo: 1, reviving: 1, torevive: 1, throw: 1, sidestep: 1, closing: 1, tocover: 1, tokey: 1, holdkey: 1 };
   Battle.prototype.updateTiroir = function () {
     for (const team of this.teams) {
-      if (!this.hasTactic(team, 'tiroir') || team.order === 'hold') continue;
+      if (team.scout && team.units.some(u => u.alive && Object.values(u.knowledge).some(k => this.t - k.t < 1))) {   // Éclaireur : contact
+        if (this.scoutOn(team)) { const s = this.unitById(team.scout); this.logEvent('eclaireur', `${team.name} : contact — on rejoint ${s.callsign}.`, { team: team.index, unit: s.id, contact: true }); }
+        team.scoutContact = this.t;
+      }
+      if (!this.tiroirTeam(team) || team.order === 'hold') continue;
       // un équipier tombé (ou relevé) : les deux moitiés sont rééquilibrées (R3) — plus de moitié vide qui bondit sans appui
-      const all = team.units.filter(a => a.alive && a.boundGroup >= 0);
-      if (team.tiroirN !== all.length) { if (team.tiroirN !== undefined) this.rebalanceHalves(team, all, a => a.boundGroup, (a, h) => { a.boundGroup = h; a.boundDone = undefined; }); team.tiroirN = all.length; }
+      const all = team.units.filter(a => a.alive && a.boundGroup >= 0), lent = this.hasTactic(team, 'tiroir_lent');
+      if (team.tiroirN !== all.length) { if (team.tiroirN !== undefined) { if (lent) this.lentHalves(team, all); else this.rebalanceHalves(team, all, a => a.boundGroup, (a, h) => { a.boundGroup = h; a.boundDone = undefined; }); } team.tiroirN = all.length; }
       const b = team.bound, alive = all.filter(a => !a.moveOrder);   // en route sur ordre : bonds de son propre groupe
       if (!alive.length) continue;                       // tous en route sur ordre : le Tiroir de l'escouade attend
       const movers = alive.filter(a => a.boundGroup === b.group), others = alive.filter(a => a.boundGroup !== b.group);
@@ -2498,6 +2533,7 @@
   // reach (contact) : distance d'approche de la menace — les bonds s'arrêtent là (couverts choisis au-delà de ~70 % de reach),
   // et celui qui couvre rejoint d'abord un vrai couvert proche face à elle.
   Battle.prototype.tiroir = function (u, threatPos, dest, reach) {
+    const sc = this.scoutStep(u, threatPos); if (sc !== null) return sc;   // Éclaireur (T7) : avant le contact, à la place du Tiroir
     if (!this.tiroirOn(u)) return false;
     const b = this.teams[u.team].bound;
     const face = () => { u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x); };
@@ -2509,6 +2545,15 @@
     };
     if (u.goal && u.goalKind === 'bound') return true;                       // un bond en cours : on le termine
     if (u.boundGroup !== b.group || u.boundDone === b.n) return overwatch();  // on couvre (ou bond déjà fait)
+    if (u.boundGroup === 1 && this.hasTactic(this.teams[u.team], 'tiroir_lent')) {   // Tiroir lent : le binôme ne passe jamais devant le trinôme
+      const tm = this.teams[u.team], dirx = Math.sign(this.map.spawns[1 - u.team].x - tm.spawn.x) || 1, pr = (q) => (q.x - tm.spawn.x) * dirx;
+      const tri = tm.units.filter(a => a.alive && a.boundGroup === 0 && !a.moveOrder);
+      if (tri.length) {
+        const lim = Math.min(...tri.map(pr)) - 3, p0 = pr(u), pd = pr(dest);
+        if (p0 >= lim - 1) { u.boundDone = b.n; return overwatch(); }
+        if (pd > lim) { const f = (lim - p0) / (pd - p0); dest = { x: u.x + (dest.x - u.x) * f, z: u.z + (dest.z - u.z) * f }; reach = 0; }
+      }
+    }
     const stopAt = Math.max(3, reach || 0);
     const dNow = Math.hypot(dest.x - u.x, dest.z - u.z);
     if (dNow < stopAt) { u.boundDone = b.n; return overwatch(); }

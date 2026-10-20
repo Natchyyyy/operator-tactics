@@ -614,4 +614,28 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
     { early: A.early, r: A.r, fix: S && S.fix.length, flank: S && S.flank.length, supp });
   check('fixer et déborder : la bataille revue (carte jouée au contact) est identique, pas à pas', A.tr === B.tr && JSON.stringify(A.b.result) === JSON.stringify(B.b.result) && A.b.inputs.filter(c => c.type === 'tactic').length === 1, { n: A.b.inputs.length });
 }
+// ---- Vague 2 (partie B) : cartes passives « Éclaireur » (T7) et « Tiroir lent » (T1b) ----
+{ const mkP = (seed, tac, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams: [{ name: 'Alpha', order: 'careful', operators: GIGN, tactics: tac }, { name: 'Bravo', order: 'assault', operators: KARST, tactics: ['tiroir'] }] }, o || {}));
+  { const b = mkP(3, ['eclaireur', 'tiroir']), tm = b.teams[0], s = b.unitById(tm.scout), best = tm.units.filter(u => u.role.id !== 'marksman').sort((a, c) => c.def.perception - a.def.perception)[0];
+    let bad = 0, moved = 0, n = 0, adv = 0;   // un suiveur n'avance que lorsque l'éclaireur a ≥ 19 m d'avance sur lui
+    while (!b.over && b.t < 60 && b.scoutOn(tm)) {
+      const before = tm.units.map(u => ({ u, x: u.x, gap: s.x - u.x })); b.step(); n++; adv = s.x - tm.spawn.x;
+      for (const q of before) if (q.u.alive && q.u !== s && q.u.role.id !== 'marksman' && q.u.x - q.x > 0.05 && b.t > 1 && !tm.units.some(u => u.alive && Object.keys(u.knowledge).length)) { moved++; if (q.gap < 19) bad++; }   // (au contact, chacun réagit)
+    }
+    const contact = b.log.find(l => l.kind === 'eclaireur' && l.contact);
+    check('éclaireur : le plus perceptif part seul devant ; avant le contact les autres n\'avancent que s\'il a 20 m d\'avance sur eux ; au contact, l\'escouade le rejoint (journal)', s === best && n > 50 && adv > 10 && bad === 0 && contact && !b.scoutOn(tm) && b.log.some(l => l.kind === 'eclaireur' && /Je passe devant/.test(l.text)), { scout: s.callsign, n, adv, bad, moved, contact: contact && contact.t }); }
+  { const b = mkP(3, ['tiroir_lent']), tm = b.teams[0], g0 = tm.units.filter(u => u.boundGroup === 0), g1 = tm.units.filter(u => u.boundGroup === 1 && u.role.id !== 'marksman');
+    let over = 0, sw = 0, last = tm.bound.group;   // le binôme n'avance jamais quand il est à hauteur du trinôme (≤ 2 m derrière le plus en arrière)
+    while (!b.over && b.t < 45 && !tm.units.some(u => u.alive && u.visible.size)) {
+      const tri = g0.filter(u => u.alive), lim = tri.length === g0.length ? Math.min(...tri.map(a => a.x)) - 2 : Infinity, x0 = g1.map(u => u.x); b.step();
+      if (tm.bound.group !== last) { sw++; last = tm.bound.group; }
+      g1.forEach((u, i) => { if (u.alive && u.x - x0[i] > 0.05 && x0[i] > lim) over++; });
+    }
+    check('tiroir lent : un trinôme qui bondit, un binôme (avec le tireur d\'élite) qui couvre ; les rôles alternent et le binôme ne passe jamais devant le trinôme', g0.length === 3 && g1.length + tm.units.filter(u => u.role.id === 'marksman').length === 2 && sw >= 2 && over === 0, { g0: g0.length, g1: g1.length, sw, over }); }
+  { const play = (o) => { const b = mkP(6, ['eclaireur', 'tiroir_lent', 'fixer_deborder'], o), tr = [];
+      while (!b.over && b.t < 100) { if (!b.replayQueue && Math.abs(b.t - 30) < 0.05) b.command('tactic', 0, 'fixer_deborder'); b.step(); if (b.tick % 10 === 0) tr.push(b.units.map(u => u.x.toFixed(2) + ',' + u.z.toFixed(2)).join(';')); }
+      return { b, tr: tr.join('|') }; };
+    const P1 = play(), P2 = play({ replayInputs: P1.b.inputs });
+    check('éclaireur + tiroir lent : la bataille revue est identique, pas à pas', P1.tr === P2.tr && JSON.stringify(P1.b.result) === JSON.stringify(P2.b.result), {}); }
+}
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

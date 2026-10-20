@@ -2497,6 +2497,7 @@
     bouge: ['Je bouge !'], couvert: ['Couvert !'], enplace: ['En place.'], reprise: ['Je reprends ma progression.'],   // ordres de déplacement (clic droit)
     drag: ['Je le tire à couvert !'], smoke: ['Fumigène !'],   // évacuation d'un blessé
     feu: ['Feu !'], enappui: ['En appui !'], decroche: ['Je décroche !'], releve: ['Je prends sa place !'],               // feu retenu levé, appui, décrocher, relève dans les bonds
+    eclaireur: ['Je passe devant.'],   // carte « Éclaireur »
     fixer: ['On les fixe !'], deborde_nord: ['On déborde par le nord !'], deborde_sud: ['On déborde par le sud !'],   // carte « Fixer et déborder »
     plan_repli: ['On décroche !', 'Repli, on se regroupe !'], plan_contourner: ['On les contourne !', 'Je passe par le flanc !'], plan_embuscade: ['Embuscade, personne ne tire.', 'On les attend.'], plan_fumee: ['Fumée ! On les attend à la sortie.'],   // plans de l'adversaire
   };
@@ -2548,6 +2549,7 @@
     else if (e.kind === 'reprise' && u) bark(u, 'reprise');
     else if (e.kind === 'plan' && u) bark(u, 'plan_' + e.plan);
     else if (e.kind === 'fixer' && u) bark(u, 'fixer');
+    else if (e.kind === 'eclaireur' && u && !e.contact) bark(u, 'eclaireur');
     else if (e.kind === 'deborde' && u) bark(u, e.nord ? 'deborde_nord' : 'deborde_sud');
     else if (e.kind === 'down' && e.enemy && unitById[e.enemy]) {   // le coéquipier debout le plus proche du blessé
       const d = unitById[e.enemy]; let best = null, bd = 25; for (const a of battle.units) { if (!a.alive || a.team !== d.team) continue; const k = Math.hypot(a.x - d.x, a.z - d.z); if (k < bd) { bd = k; best = a; } }
