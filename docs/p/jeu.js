@@ -14488,6 +14488,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     this.updateTactics();
     this.updateTiroir();
     this.updateMoveGroups();   // ordres de déplacement « méthodiques » : bonds par groupe
+    this.updateFreinage();     // arrivée « freinage » : décrocher sur la 2e ligne quand ça chauffe
     if (this.tick % 10 === 5) this.updateKarst();   // plans de l'adversaire : une fois par seconde
     if (this.tick % 10 === 0) this.teamMemo();
     for (const u of this.units) if (u.alive) this.perceive(u);
@@ -14859,7 +14860,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // 2) l'ouïe : un tir ennemi récent et proche donne une position approximative (bien moins loin si l'arme est silencieuse)
       //    Vigie : tirs entendus 40 % plus loin, et les pas d'un ennemi en mouvement à moins de 12 m (sauf Fantôme)
       const hearR = (e.weapon.silenced ? 18 : 70) * (has(e, 'ghost') ? 0.7 : 1) * (has(u, 'sentinel') ? 1.4 : 1) * cond.hear;
-      if (!newVisible.has(e.id) && ((this.t - e.lastShotAt < 0.25 && d < hearR) || (has(u, 'sentinel') && e.moving && d < 12 && !has(e, 'ghost') && !this.alarmNear(e.x, e.z)))) {
+      if (!newVisible.has(e.id) && ((this.t - e.lastShotAt < 0.25 && d < hearR) || (has(u, 'sentinel') && e.moving && d < 12 && !has(e, 'ghost') && !this.stealthy(e) && !this.alarmNear(e.x, e.z)))) {
         const k = u.knowledge[e.id];
         if (!k || this.t - k.t > 1.5) {
           const err = 2 + d * 0.05;
@@ -15469,7 +15470,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // feu (arg.feu, absent = « à volonté ») : 'retenu' (embuscade : on ne tire pas tant qu'on n'est pas vu, pris à partie ou
   // que le joueur ne dit « Feu ! ») ; 'appui' (sur place, tir de suppression sur la zone menacée — voir appuiZone)
   const FIRE_MODES = { volonte: 'feu à volonté', retenu: 'feu retenu', appui: 'en appui' };
-  const MOVE_MODES = { methodique: 'méthodique', agressif: 'agressif', franchir: 'en franchissement', decrocher: 'en décrochage' }, ARRIVALS = { tenir: 'tenir la position', manoeuvre: 'reprendre la manœuvre', encercler: 'encercler', fouiller: 'fouiller les alentours' };
+  const MOVE_MODES = { methodique: 'méthodique', agressif: 'agressif', franchir: 'en franchissement', decrocher: 'en décrochage', discret: 'discret' }, ARRIVALS = { tenir: 'tenir la position', manoeuvre: 'reprendre la manœuvre', encercler: 'encercler', fouiller: 'fouiller les alentours', freinage: 'freinage (tenir, puis décrocher sur la 2e ligne)' };
   const VIA_MAX = 2, VIA_GAP = 2.5, VIA_NEAR = 2.2;   // points de passage : 2 au plus, places à 2,5 m en travers, « passé » à 2,2 m
   const ORDER_COOLDOWN = 3, ORDER_GAP = 4, BOUND_MAX = 9, BOUND_BARE = 7, SECTORS = [0, 0.61, -0.61];   // secteurs : ±35°
   // point du sol cliqué → point marchable (dans le terrain, hors obstacle : case libre la plus proche)
@@ -15483,8 +15484,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const team = this.teams[teamIndex]; if (!team || this.over) return { ok: false, reason: 'bataille terminée' };
     arg = arg || {};
     const mode = MOVE_MODES[arg.mode] ? arg.mode : null, arrivee = arg.arrivee === undefined ? 'tenir' : arg.arrivee;
-    const feu = arg.feu === undefined || arg.feu === null ? 'volonte' : arg.feu;
+    let feu = arg.feu === undefined || arg.feu === null ? 'volonte' : arg.feu;
     if (!mode || !ARRIVALS[arrivee] || !FIRE_MODES[feu]) return { ok: false, reason: 'ordre inconnu' };
+    if (mode === 'discret' && feu === 'volonte') feu = 'retenu';   // D5 : on ne tire pas tant qu'on n'est pas repérés (le feu retenu fait la règle)
     const p = this.orderPoint(+arg.x, +arg.z); if (!p) return { ok: false, reason: 'point hors du terrain' };
     const ids = Array.isArray(arg.units) && arg.units.length ? arg.units : null;
     const units = team.units.filter(u => u.alive && (!ids || ids.includes(u.id) || ids.includes(u.def.id)));
@@ -15531,7 +15533,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // (en appui, on s'installe : « reprendre la manœuvre » devient « tenir »)
     let arr = feu === 'appui' && arrivee === 'manoeuvre' ? 'tenir' : arrivee;
     if (arr === 'encercler') { const enc = units.length >= 3 ? this.encircleSpots(team, units, p, dir) : null; if (enc) enc.forEach((q, k) => { spots[k] = q; }); else arr = 'tenir'; }
-    if (arr === 'tenir') {
+    if (arr === 'tenir' || arr === 'freinage') {
       const sect = this.holdSectors(p.x, p.z, face, units.length);
       const perm = bestAssign(spots.map(q => { const c = Math.hypot(q.x - p.x, q.z - p.z) < 1; return sect.map(sa => c ? angDiff(face, sa) * 0.5 : angDiff(Math.atan2(q.z - p.z, q.x - p.x), sa)); }));
       spots.forEach((q, k) => { q.sect = perm[k] >= 0 ? sect[perm[k]] : face; });
@@ -15551,6 +15553,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     team.ordInfo = team.ordInfo || {};
     const fumee = !!arg.fumee && (mode === 'franchir' || mode === 'decrocher');
     team.ordInfo[id] = { feu, px: p.x, pz: p.z, dir, arr, released: feu !== 'retenu', orient: null, zone: null, appuiSaid: false, fumee, via: via.map(q => ({ x: q.x, z: q.z })), viaDone: 0 };
+    if (arr === 'freinage') {   // T5 : la 2e ligne = d'où l'on vient (le centre du groupe au départ ; trop près du point : 25 m derrière la marche)
+      let L2 = Math.hypot(cx - p.x, cz - p.z) >= FREIN_MIN ? { x: cx, z: cz } : this.orderPoint(p.x - Math.cos(dir) * 25, p.z - Math.sin(dir) * 25);
+      if (L2 && !this.map.findPath(p.x, p.z, L2.x, L2.z)) L2 = null;
+      team.ordInfo[id].frein = L2 ? { id, x: L2.x, z: L2.z, ids: units.map(u => u.id), armed: false, done: false } : null;
+    }
     if (fumee && mode === 'franchir') g.fumee = true;
     units.forEach((u, k) => {
       u.keyOrder = null; u.orderAt = this.t; u.reviving = null;
@@ -15631,7 +15638,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (inf.arr === 'encercler' && ms.length >= 3 && ms.every(a => a.moveOrder)) {
       const enc = this.encircleSpots(team, ms, P, face);
       if (enc) ms.forEach((u, k) => { const s = enc[k]; Object.assign(u.moveOrder, { x: s.x, z: s.z, sect: s.sect, hid: s.hid + '#' + id, px: s.cx, pz: s.cz, face: s.face, enc: { x: P.x, z: P.z } }); if (u.goalKind !== 'bound' && u.goalKind !== 'cover') this.stop(u); });
-    } else if (inf.arr === 'tenir') {
+    } else if (inf.arr === 'tenir' || inf.arr === 'freinage') {
       const sect = this.holdSectors(P.x, P.z, face, ms.length);
       const at = ms.map(a => a.moveOrder ? { x: a.moveOrder.x, z: a.moveOrder.z } : { x: a.keyOrder.hx !== undefined ? a.keyOrder.hx : a.keyOrder.x, z: a.keyOrder.hz !== undefined ? a.keyOrder.hz : a.keyOrder.z });
       const perm = bestAssign(at.map(q2 => { const c = Math.hypot(q2.x - P.x, q2.z - P.z) < 1; return sect.map(sa => c ? angDiff(face, sa) * 0.5 : angDiff(Math.atan2(q2.z - P.z, q2.x - P.x), sa)); }));
@@ -15701,6 +15708,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const o = this.orderOf(u); if (!o) return;
     if (u.holdFire) {
       if (u.state === 'engage') { const th = u.target && u.target.alive ? u.target : threats[0]; u.state = 'wait'; u.stance = th && this.coverAt(u.x, u.z, th.x, th.z, false) ? 'crouch' : u.stance; }
+      if (this.stealthy(u)) u.stance = 'crouch';   // D5 : discret — accroupi en route comme à l'arrêt, tant qu'on n'est pas repérés
       return;
     }
     if (o.inf.feu === 'appui') this.appuiFire(u, o, threats);
@@ -15714,6 +15722,42 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     u.pauseUntil = 0;
     this.orderBound(u, o, tp, threats, dNow);
     if (u.state === 'bounding') { u.state = 'retreat'; u.target = null; }
+  };
+  // D5 — « Discret » : les bonds méthodiques, accroupis (vitesse × 0,55, repérage × 0,6 : les règles de la posture basse,
+  // rien de plus), feu retenu jusqu'à ce que le groupe soit repéré, pris à partie ou qu'un ennemi arrive tout près ; les pas
+  // ne s'entendent pas (trait Vigie). Une fois le feu ouvert : un ordre méthodique ordinaire.
+  Battle.prototype.stealthy = function (u) {
+    if (!u.moveOrder || u.moveOrder.mode !== 'discret') return false;
+    const o = this.orderOf(u); return !!(o && o.inf.feu === 'retenu' && !o.inf.released);
+  };
+  // T5 — arrivée « Freinage » (défense mobile) : on tient le point comme « Tenir » ; dès que ça chauffe (un équipier de
+  // l'ordre touché ou tombé depuis la mise en place, ou un ennemi vu à moins de FREIN_CLOSE m d'un équipier en poste),
+  // tout le groupe décroche par bonds (D4) sur la 2e ligne — l'endroit d'où il est parti — et la tient. Une seule fois :
+  // c'est la règle choisie par le joueur avec l'ordre, pas une décision de l'IA.
+  const FREIN_CLOSE = 15, FREIN_MIN = 15;
+  Battle.prototype.updateFreinage = function () {
+    if (this.over) return;
+    for (const team of this.teams) {
+      const oi = team.ordInfo; if (!oi) continue;
+      for (const k in oi) {
+        const f = oi[k].frein; if (!f || f.done) continue;
+        const ms = this.orderMembers(team, f.id); if (!ms.length) { f.done = true; continue; }
+        const posted = ms.filter(a => !a.moveOrder && a.keyOrder && a.keyOrder.grp === f.id); if (!posted.length) continue;
+        if (!f.armed) { f.armed = true; f.at = this.t; }
+        let why = null;
+        if (f.ids.some(id => { const a = this.unitById(id); return a && !a.alive; })) why = 'homme à terre';
+        else for (const a of ms) {
+          if (a.lastHitAt > f.at) { why = 'un blessé'; break; }
+          if (a.keyOrder) for (const e of this.enemiesOf(a)) if (e.alive && a.visible.has(e.id) && dist2(a, e) < FREIN_CLOSE) { why = 'ennemi tout près'; break; }
+          if (why) break;
+        }
+        if (!why) continue;
+        const r = this.moveOrder(team.index, { units: ms.map(a => a.id), x: f.x, z: f.z, mode: 'decrocher', arrivee: 'tenir', plan: 'freinage' });
+        if (!r.ok) { if (!/un ordre toutes/.test(r.reason)) f.done = true; continue; }   // (délai entre deux ordres : on réessaie au pas suivant)
+        f.done = true;
+        this.logEvent('freinage', `${team.name} : ${ms.map(a => a.callsign).join(', ')} — ${why} : « On décroche sur la deuxième ligne ! »`, { team: team.index, unit: ms[0].id, ordre: r.id, why });
+      }
+    }
   };
   // R1 — « Contact ! » : quand un équipier annonce un nouveau contact, ceux qui guettent sans cible (en couverture, en pause,
   // en attente, en ratissage) tournent le regard vers lui pendant CONTACT_LOOK s — sauf le serre-file qui garde l'arrière
@@ -15930,7 +15974,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (!team.moveGroups || !team.moveGroups.length) continue;
       team.moveGroups = team.moveGroups.filter(g => this.groupActive(g));
       for (const g of team.moveGroups) {
-        if (g.mode !== 'methodique' && g.mode !== 'franchir' && g.mode !== 'decrocher') continue;
+        if (g.mode !== 'methodique' && g.mode !== 'franchir' && g.mode !== 'decrocher' && g.mode !== 'discret') continue;   // (discret : les bonds méthodiques, accroupis)
         const act = g.members.map(id => this.unitById(id)).filter(u => u && u.alive && u.moveOrder && u.moveOrder.id === g.id);
         if (act.length < g.members.length) this.rebalanceHalves(team, act, u => u.moveOrder.half, (u, h) => { u.moveOrder.half = h; });   // un équipier tombé : moitiés refaites
         if (g.mode === 'franchir') { this.updateCrossing(team, g, act); if (g.phase === 'cross') continue; }   // pas de bonds pendant un passage
@@ -21238,6 +21282,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     manoeuvre: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="8" cy="22" r="3.2" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M11.5 19.5C15 15 18 13 24 12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M19 7l6 5-5 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     tenir: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4l10 4v7c0 6.5-4.3 11-10 13-5.7-2-10-6.5-10-13V8z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M11 16l4 4 6-7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     decrocher: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M17 8l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/><path d="M26 12l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 7v18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="23" cy="7" r="2.2" fill="currentColor" opacity=".55"/></svg>',
+    // discret : deux empreintes de pas, légères ; freinage : un bouclier, une flèche qui recule vers une 2e ligne
+    discret: '<svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="11" cy="20" rx="3.2" ry="5" fill="currentColor" opacity=".55"/><circle cx="11" cy="27.5" r="2" fill="currentColor" opacity=".55"/><ellipse cx="21" cy="10" rx="3.2" ry="5" fill="currentColor"/><circle cx="21" cy="17.5" r="2" fill="currentColor"/><path d="M4 30h24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 3" opacity=".6"/></svg>',
+    freinage: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M21 4l7 3v5c0 4.6-3 7.8-7 9.2-4-1.4-7-4.6-7-9.2V7z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M13 22l-6 4 6 4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".8"/><path d="M7 26h10" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" opacity=".8"/><path d="M3 18v12" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
     lampe: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 29V8.5C9 6 11 4 13.5 4H22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M18 4h7l1 3h-9z" fill="currentColor"/><path d="M19 11l-2 4M23 11v4M27 11l2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".6"/><path d="M5 29h8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>',
     // « Plus… » : grenades sur ordre, fouiller
     frag: '<svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="15" cy="19" rx="8" ry="9" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M11 10h8M15 10V6.5M15 6.5h5l3 3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 19h12M15 13v12" stroke="currentColor" stroke-width="1.6" opacity=".6"/></svg>',
@@ -21266,11 +21313,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       { v: 'methodique', nom: 'Méthodique', aide: 'Bonds, appui mutuel', desc: 'Doctrine française : une moitié bondit de couvert en couvert pendant que l’autre couvre, chacun son secteur ; pauses à chaque couvert.' },
       { v: 'agressif', nom: 'Agressif', aide: 'Vite, tire en avançant', desc: 'Droit au point au pas de course, en tirant sur ce qu’on voit ; courte halte à couvert seulement sous le feu.' },
       { v: 'franchir', nom: 'Franchir', aide: 'Un par un sous appui', desc: 'Comme Méthodique, mais un espace découvert sur le trajet se traverse un par un (deux par deux à 4 ou 5), au sprint, pendant que les autres couvrent le côté dangereux depuis le bord ; le premier passé couvre l’autre côté.' },
-      { v: 'decrocher', nom: 'Décrocher', aide: 'Repli par bonds, sous appui', desc: 'Pour quitter un combat qui tourne mal : clic droit en arrière. Une moitié tire pour couvrir pendant que l’autre court jusqu’au couvert suivant vers le point, puis on inverse, sans halte pour engager. Arrivée : face au danger.' }] },
+      { v: 'decrocher', nom: 'Décrocher', aide: 'Repli par bonds, sous appui', desc: 'Pour quitter un combat qui tourne mal : clic droit en arrière. Une moitié tire pour couvrir pendant que l’autre court jusqu’au couvert suivant vers le point, puis on inverse, sans halte pour engager. Arrivée : face au danger.' },
+      { v: 'discret', nom: 'Discret', aide: 'Accroupis, sans tirer', desc: 'Approche silencieuse : les bonds de Méthodique, mais accroupis (plus lents, bien plus durs à repérer, pas qu’on entend), et personne ne tire tant que le groupe n’est pas repéré, pris à partie ou qu’un ennemi n’arrive tout près — alors tout le monde ouvre le feu (« Feu ! ») et l’on finit en Méthodique.' }] },
     arrivee: { titre: 'Arrivée', choix: [
       { v: 'tenir', nom: 'Tenir la position', aide: 'À couvert, face à la menace', desc: 'Sur place : un couvert tout proche, face à la menace (ou dans le sens de la marche), et on y reste.' },
       { v: 'encercler', nom: 'Encercler', aide: 'Prendre la position par deux côtés', desc: 'L’escouade se partage en deux : chaque moitié prend position d’un côté du point (à 8–14 m, à angle d’environ 100°, sans se faire face), à couvert, et le tient. À moins de trois : tenir la position.' },
-      { v: 'manoeuvre', nom: 'Reprendre la manœuvre', aide: 'Puis l’escouade continue seule', desc: 'Une fois sur le point, l’ordre s’efface : l’escouade reprend sa progression d’elle-même (voies, Tiroir, ordre de l’équipe) à partir de là, sans revenir en arrière.' }] },
+      { v: 'manoeuvre', nom: 'Reprendre la manœuvre', aide: 'Puis l’escouade continue seule', desc: 'Une fois sur le point, l’ordre s’efface : l’escouade reprend sa progression d’elle-même (voies, Tiroir, ordre de l’équipe) à partir de là, sans revenir en arrière.' },
+      { v: 'freinage', nom: 'Freinage', aide: 'Tenir, puis décrocher', desc: 'Défense mobile : on tient le point comme « Tenir la position » ; dès que ça chauffe (un équipier touché ou à terre, ou un ennemi à moins de 15 m), tout le groupe décroche par bonds sur une 2e ligne — l’endroit d’où il est parti — et la tient. Une seule fois.' }] },
   };
   const ordLast = { mode: 'methodique', arrivee: 'tenir' };
   try { const s = JSON.parse(localStorage.getItem('ot-ordre') || 'null'); if (s) for (const k in ordLast) if (s[k] && ORD_OPTS[k].choix.some(c => c.v === s[k])) ordLast[k] = s[k]; } catch (e) { /* stockage indisponible */ }
@@ -21458,7 +21507,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (!r.ok) { flashBattle(`Ordre refusé : ${r.reason}.`); return; }
     ordLast.mode = pick.mode; ordLast.arrivee = pick.arrivee; try { localStorage.setItem('ot-ordre', JSON.stringify(ordLast)); } catch (e) { /* stockage indisponible */ }
     const nm = (cat) => ORD_OPTS[cat].choix.concat(cat === 'arrivee' ? ORD_PLUS_ARR : []).find(c => c.v === pick[cat]).nom.toLowerCase();
-    const fe = pick.feu === 'volonte' ? '' : `, feu ${ORD_FEU.find(c => c.v === pick.feu).nom.toLowerCase()}`;
+    const fe = pick.feu === 'volonte' ? (pick.mode === 'discret' ? ', feu retenu jusqu’au contact' : '') : `, feu ${ORD_FEU.find(c => c.v === pick.feu).nom.toLowerCase()}`;
     const fu = fum ? (r.fumee ? ', avec fumée' : ' (fumée impossible : pas de fumigène ou pas de trajectoire)') : '';
     const vi = via.length ? ` par ${via.length} point${via.length > 1 ? 's' : ''} de passage` : '';
     flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}${vi}${fu}, puis ${nm('arrivee')}${fe}.`); pumpLog();
@@ -21492,6 +21541,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // déplacement + l'arrivée habituelle ; tout droit vers l'extérieur = l'arrivée + le dernier déplacement ; au centre = annuler ;
   // sur « Plus d'options » = le menu complet. Secteurs comptés depuis le haut, dans le sens des aiguilles d'une montre.
   const WH = { r0: 34, r1: 102, r2: 172 };
+  // anneau extérieur : les arrivées, avec (ordres avancés) deux façons de tenir qui règlent le feu — Embuscade = tenir +
+  // feu retenu, Appui = tenir + feu d'appui (la ligne « Feu » du menu complet, sans l'ouvrir) — et Fouiller
+  const WH_FEU = [{ v: 'w_embuscade', nom: 'Embuscade', arrivee: 'tenir', feu: 'retenu' }, { v: 'w_appui', nom: 'Appui', arrivee: 'tenir', feu: 'appui' }];
+  ORD_SVG.w_embuscade = ORD_SVG.retenu; ORD_SVG.w_appui = ORD_SVG.appui;
+  function ordWheelArrs() {
+    const A = ORD_OPTS.arrivee.choix, by = (v) => A.find(c => c.v === v);
+    return SETTINGS.ordAdv ? [by('tenir'), ...WH_FEU, by('encercler'), by('freinage'), by('manoeuvre'), ...ORD_PLUS_ARR] : A;
+  }
   function whAng(dx, dy) { let a = Math.atan2(dx, -dy); if (a < 0) a += Math.PI * 2; return a; }
   function whSec(a, n) { return Math.round(a / (Math.PI * 2 / n)) % n; }
   function whPt(c, r, a) { return `${(c + r * Math.sin(a)).toFixed(1)},${(c - r * Math.cos(a)).toFixed(1)}`; }
@@ -21501,7 +21558,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }
   function ordHoldOpen() {
     const h = ordHold; if (!h || h.el) return; clearTimeout(h.timer);
-    const modes = ORD_OPTS.mode.choix, arrs = ORD_OPTS.arrivee.choix.concat(SETTINGS.ordAdv ? ORD_PLUS_ARR : []);
+    const modes = ORD_OPTS.mode.choix, arrs = ordWheelArrs();
     const R = WH.r2 + 4, el = document.createElement('div'); el.className = 'ordwheel';
     let svg = `<svg width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}">`, lab = '';
     const ring = (list, ri, ro, k) => list.forEach((c, i) => {
@@ -21531,7 +21588,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     else if (r < WH.r0) { h.zone = 'x'; h.mode = null; h.arr = null; }
     else if (r < WH.r1) { h.zone = 'mode'; h.mode = h.modes[whSec(a, h.modes.length)].v; h.arr = null; }
     else { h.zone = 'arr'; h.arr = h.arrs[whSec(a, h.arrs.length)].v; }   // (au-delà de la roue aussi : on ne perd pas le choix en dépassant)
-    const mode = h.mode || ordLast.mode, arr = h.zone === 'arr' ? h.arr : ordArrDefaut();
+    const mode = h.mode || ordLast.mode, arr = h.zone === 'arr' ? h.arr : ordArrDefaut(), ac = h.arrs.find(c => c.v === arr);
     h.el.querySelectorAll('[data-k]').forEach(n => {
       const v = n.dataset.k === 'mode' ? h.modes[+n.dataset.i].v : h.arrs[+n.dataset.i].v;
       const on = n.dataset.k === 'mode' ? (h.zone === 'mode' || h.zone === 'arr') && v === mode : h.zone === 'arr' && v === arr;
@@ -21541,7 +21598,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     h.el.querySelector('.whc').classList.toggle('on', h.zone === 'x');
     h.el.querySelector('.whmore').classList.toggle('on', h.zone === 'menu');
     h.el.querySelector('.whmid').innerHTML = h.zone === 'x' ? '<b>Annuler</b>' : h.zone === 'menu' ? '<b>Menu</b>'
-      : `<b>${ordNom('mode', mode)}</b><small>puis ${ordNom('arrivee', arr).toLowerCase()}</small>`;
+      : `<b>${ordNom('mode', mode)}</b><small>puis ${(ac ? ac.nom : ordNom('arrivee', arr)).toLowerCase()}</small>`;
   }
   function ordHoldCancel() { const h = ordHold; if (!h) return; clearTimeout(h.timer); if (h.el) h.el.remove(); ordHold = null; ordMarkGhost(null); }
   function ordHoldEnd(cx, cy) {
@@ -21552,7 +21609,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     ordHoldMove(cx, cy); const z = h.zone, mode = h.mode || ordLast.mode, arr = h.arr; ordHoldCancel();
     if (z === 'x') { flashBattle('Ordre annulé.'); if (MANUAL) render(); return; }
     if (z === 'menu') { ordMenuAt(h.cx, h.cy, h.p); return; }
-    ordSend(h.p, { mode, arrivee: z === 'arr' ? arr : ordArrDefaut() }, false);
+    const w = z === 'arr' && WH_FEU.find(c => c.v === arr);   // Embuscade / Appui : tenir, avec ce feu
+    ordSend(h.p, w ? { mode, arrivee: w.arrivee, feu: w.feu } : { mode, arrivee: z === 'arr' ? arr : ordArrDefaut() }, false);
   }
 
   // ---- Sélection à la souris (20/10) : rectangle (clic gauche maintenu) ou clic sur un opérateur ; cercles au sol sous les choisis
@@ -21749,7 +21807,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     flash: ['Je ne vois plus rien !', 'Aveuglé !'], shaken: ['Repli !', 'Je décroche !', 'Ça chauffe trop !'], suppress: ['Feu de suppression !', 'Je les cloue !'], down: ['Homme à terre !', 'On a un blessé !', 'Il est touché !'],
     bouge: ['Je bouge !'], couvert: ['Couvert !'], enplace: ['En place.'], reprise: ['Je reprends ma progression.'],   // ordres de déplacement (clic droit)
     drag: ['Je le tire à couvert !'], smoke: ['Fumigène !'],   // évacuation d'un blessé
-    feu: ['Feu !'], enappui: ['En appui !'], decroche: ['Je décroche !'], releve: ['Je prends sa place !'],               // feu retenu levé, appui, décrocher, relève dans les bonds
+    feu: ['Feu !'], enappui: ['En appui !'], decroche: ['Je décroche !'], releve: ['Je prends sa place !'], freinage: ['On décroche, deuxième ligne !'],               // feu retenu levé, appui, décrocher, relève dans les bonds
     eclaireur: ['Je passe devant.'],   // carte « Éclaireur »
     fixer: ['On les fixe !'], deborde_nord: ['On déborde par le nord !'], deborde_sud: ['On déborde par le sud !'],   // carte « Fixer et déborder »
     plan_repli: ['On décroche !', 'Repli, on se regroupe !'], plan_contourner: ['On les contourne !', 'Je passe par le flanc !'], plan_embuscade: ['Embuscade, personne ne tire.', 'On les attend.'], plan_fumee: ['Fumée ! On les attend à la sortie.'],   // plans de l'adversaire
@@ -21796,7 +21854,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     else if (e.kind === 'suppress' && Math.random() < 0.5) bark(u, 'suppress');
     // (ordre d'un plan adverse, silencieux : sa bulle vient de l'événement « plan »)
     else if ((e.kind === 'moveorder' && !e.silent) || e.kind === 'bond') { bark(u, e.mode === 'decrocher' ? 'decroche' : 'bouge'); if (e.couvre) bark(unitById[e.couvre], 'couvert'); }
-    else if ((e.kind === 'feu' || e.kind === 'enappui' || e.kind === 'releve') && u) bark(u, e.kind);
+    else if ((e.kind === 'feu' || e.kind === 'enappui' || e.kind === 'releve' || e.kind === 'freinage') && u) bark(u, e.kind);
     else if (e.kind === 'couvre') bark(u, 'couvert');
     else if (e.kind === 'enplace' && u) bark(u, 'enplace');
     else if (e.kind === 'reprise' && u) bark(u, 'reprise');

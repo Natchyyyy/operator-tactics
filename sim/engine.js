@@ -307,6 +307,7 @@
     this.updateTactics();
     this.updateTiroir();
     this.updateMoveGroups();   // ordres de déplacement « méthodiques » : bonds par groupe
+    this.updateFreinage();     // arrivée « freinage » : décrocher sur la 2e ligne quand ça chauffe
     if (this.tick % 10 === 5) this.updateKarst();   // plans de l'adversaire : une fois par seconde
     if (this.tick % 10 === 0) this.teamMemo();
     for (const u of this.units) if (u.alive) this.perceive(u);
@@ -678,7 +679,7 @@
       // 2) l'ouïe : un tir ennemi récent et proche donne une position approximative (bien moins loin si l'arme est silencieuse)
       //    Vigie : tirs entendus 40 % plus loin, et les pas d'un ennemi en mouvement à moins de 12 m (sauf Fantôme)
       const hearR = (e.weapon.silenced ? 18 : 70) * (has(e, 'ghost') ? 0.7 : 1) * (has(u, 'sentinel') ? 1.4 : 1) * cond.hear;
-      if (!newVisible.has(e.id) && ((this.t - e.lastShotAt < 0.25 && d < hearR) || (has(u, 'sentinel') && e.moving && d < 12 && !has(e, 'ghost') && !this.alarmNear(e.x, e.z)))) {
+      if (!newVisible.has(e.id) && ((this.t - e.lastShotAt < 0.25 && d < hearR) || (has(u, 'sentinel') && e.moving && d < 12 && !has(e, 'ghost') && !this.stealthy(e) && !this.alarmNear(e.x, e.z)))) {
         const k = u.knowledge[e.id];
         if (!k || this.t - k.t > 1.5) {
           const err = 2 + d * 0.05;
@@ -1288,7 +1289,7 @@
   // feu (arg.feu, absent = « à volonté ») : 'retenu' (embuscade : on ne tire pas tant qu'on n'est pas vu, pris à partie ou
   // que le joueur ne dit « Feu ! ») ; 'appui' (sur place, tir de suppression sur la zone menacée — voir appuiZone)
   const FIRE_MODES = { volonte: 'feu à volonté', retenu: 'feu retenu', appui: 'en appui' };
-  const MOVE_MODES = { methodique: 'méthodique', agressif: 'agressif', franchir: 'en franchissement', decrocher: 'en décrochage' }, ARRIVALS = { tenir: 'tenir la position', manoeuvre: 'reprendre la manœuvre', encercler: 'encercler', fouiller: 'fouiller les alentours' };
+  const MOVE_MODES = { methodique: 'méthodique', agressif: 'agressif', franchir: 'en franchissement', decrocher: 'en décrochage', discret: 'discret' }, ARRIVALS = { tenir: 'tenir la position', manoeuvre: 'reprendre la manœuvre', encercler: 'encercler', fouiller: 'fouiller les alentours', freinage: 'freinage (tenir, puis décrocher sur la 2e ligne)' };
   const VIA_MAX = 2, VIA_GAP = 2.5, VIA_NEAR = 2.2;   // points de passage : 2 au plus, places à 2,5 m en travers, « passé » à 2,2 m
   const ORDER_COOLDOWN = 3, ORDER_GAP = 4, BOUND_MAX = 9, BOUND_BARE = 7, SECTORS = [0, 0.61, -0.61];   // secteurs : ±35°
   // point du sol cliqué → point marchable (dans le terrain, hors obstacle : case libre la plus proche)
@@ -1302,8 +1303,9 @@
     const team = this.teams[teamIndex]; if (!team || this.over) return { ok: false, reason: 'bataille terminée' };
     arg = arg || {};
     const mode = MOVE_MODES[arg.mode] ? arg.mode : null, arrivee = arg.arrivee === undefined ? 'tenir' : arg.arrivee;
-    const feu = arg.feu === undefined || arg.feu === null ? 'volonte' : arg.feu;
+    let feu = arg.feu === undefined || arg.feu === null ? 'volonte' : arg.feu;
     if (!mode || !ARRIVALS[arrivee] || !FIRE_MODES[feu]) return { ok: false, reason: 'ordre inconnu' };
+    if (mode === 'discret' && feu === 'volonte') feu = 'retenu';   // D5 : on ne tire pas tant qu'on n'est pas repérés (le feu retenu fait la règle)
     const p = this.orderPoint(+arg.x, +arg.z); if (!p) return { ok: false, reason: 'point hors du terrain' };
     const ids = Array.isArray(arg.units) && arg.units.length ? arg.units : null;
     const units = team.units.filter(u => u.alive && (!ids || ids.includes(u.id) || ids.includes(u.def.id)));
@@ -1350,7 +1352,7 @@
     // (en appui, on s'installe : « reprendre la manœuvre » devient « tenir »)
     let arr = feu === 'appui' && arrivee === 'manoeuvre' ? 'tenir' : arrivee;
     if (arr === 'encercler') { const enc = units.length >= 3 ? this.encircleSpots(team, units, p, dir) : null; if (enc) enc.forEach((q, k) => { spots[k] = q; }); else arr = 'tenir'; }
-    if (arr === 'tenir') {
+    if (arr === 'tenir' || arr === 'freinage') {
       const sect = this.holdSectors(p.x, p.z, face, units.length);
       const perm = bestAssign(spots.map(q => { const c = Math.hypot(q.x - p.x, q.z - p.z) < 1; return sect.map(sa => c ? angDiff(face, sa) * 0.5 : angDiff(Math.atan2(q.z - p.z, q.x - p.x), sa)); }));
       spots.forEach((q, k) => { q.sect = perm[k] >= 0 ? sect[perm[k]] : face; });
@@ -1370,6 +1372,11 @@
     team.ordInfo = team.ordInfo || {};
     const fumee = !!arg.fumee && (mode === 'franchir' || mode === 'decrocher');
     team.ordInfo[id] = { feu, px: p.x, pz: p.z, dir, arr, released: feu !== 'retenu', orient: null, zone: null, appuiSaid: false, fumee, via: via.map(q => ({ x: q.x, z: q.z })), viaDone: 0 };
+    if (arr === 'freinage') {   // T5 : la 2e ligne = d'où l'on vient (le centre du groupe au départ ; trop près du point : 25 m derrière la marche)
+      let L2 = Math.hypot(cx - p.x, cz - p.z) >= FREIN_MIN ? { x: cx, z: cz } : this.orderPoint(p.x - Math.cos(dir) * 25, p.z - Math.sin(dir) * 25);
+      if (L2 && !this.map.findPath(p.x, p.z, L2.x, L2.z)) L2 = null;
+      team.ordInfo[id].frein = L2 ? { id, x: L2.x, z: L2.z, ids: units.map(u => u.id), armed: false, done: false } : null;
+    }
     if (fumee && mode === 'franchir') g.fumee = true;
     units.forEach((u, k) => {
       u.keyOrder = null; u.orderAt = this.t; u.reviving = null;
@@ -1450,7 +1457,7 @@
     if (inf.arr === 'encercler' && ms.length >= 3 && ms.every(a => a.moveOrder)) {
       const enc = this.encircleSpots(team, ms, P, face);
       if (enc) ms.forEach((u, k) => { const s = enc[k]; Object.assign(u.moveOrder, { x: s.x, z: s.z, sect: s.sect, hid: s.hid + '#' + id, px: s.cx, pz: s.cz, face: s.face, enc: { x: P.x, z: P.z } }); if (u.goalKind !== 'bound' && u.goalKind !== 'cover') this.stop(u); });
-    } else if (inf.arr === 'tenir') {
+    } else if (inf.arr === 'tenir' || inf.arr === 'freinage') {
       const sect = this.holdSectors(P.x, P.z, face, ms.length);
       const at = ms.map(a => a.moveOrder ? { x: a.moveOrder.x, z: a.moveOrder.z } : { x: a.keyOrder.hx !== undefined ? a.keyOrder.hx : a.keyOrder.x, z: a.keyOrder.hz !== undefined ? a.keyOrder.hz : a.keyOrder.z });
       const perm = bestAssign(at.map(q2 => { const c = Math.hypot(q2.x - P.x, q2.z - P.z) < 1; return sect.map(sa => c ? angDiff(face, sa) * 0.5 : angDiff(Math.atan2(q2.z - P.z, q2.x - P.x), sa)); }));
@@ -1520,6 +1527,7 @@
     const o = this.orderOf(u); if (!o) return;
     if (u.holdFire) {
       if (u.state === 'engage') { const th = u.target && u.target.alive ? u.target : threats[0]; u.state = 'wait'; u.stance = th && this.coverAt(u.x, u.z, th.x, th.z, false) ? 'crouch' : u.stance; }
+      if (this.stealthy(u)) u.stance = 'crouch';   // D5 : discret — accroupi en route comme à l'arrêt, tant qu'on n'est pas repérés
       return;
     }
     if (o.inf.feu === 'appui') this.appuiFire(u, o, threats);
@@ -1533,6 +1541,42 @@
     u.pauseUntil = 0;
     this.orderBound(u, o, tp, threats, dNow);
     if (u.state === 'bounding') { u.state = 'retreat'; u.target = null; }
+  };
+  // D5 — « Discret » : les bonds méthodiques, accroupis (vitesse × 0,55, repérage × 0,6 : les règles de la posture basse,
+  // rien de plus), feu retenu jusqu'à ce que le groupe soit repéré, pris à partie ou qu'un ennemi arrive tout près ; les pas
+  // ne s'entendent pas (trait Vigie). Une fois le feu ouvert : un ordre méthodique ordinaire.
+  Battle.prototype.stealthy = function (u) {
+    if (!u.moveOrder || u.moveOrder.mode !== 'discret') return false;
+    const o = this.orderOf(u); return !!(o && o.inf.feu === 'retenu' && !o.inf.released);
+  };
+  // T5 — arrivée « Freinage » (défense mobile) : on tient le point comme « Tenir » ; dès que ça chauffe (un équipier de
+  // l'ordre touché ou tombé depuis la mise en place, ou un ennemi vu à moins de FREIN_CLOSE m d'un équipier en poste),
+  // tout le groupe décroche par bonds (D4) sur la 2e ligne — l'endroit d'où il est parti — et la tient. Une seule fois :
+  // c'est la règle choisie par le joueur avec l'ordre, pas une décision de l'IA.
+  const FREIN_CLOSE = 15, FREIN_MIN = 15;
+  Battle.prototype.updateFreinage = function () {
+    if (this.over) return;
+    for (const team of this.teams) {
+      const oi = team.ordInfo; if (!oi) continue;
+      for (const k in oi) {
+        const f = oi[k].frein; if (!f || f.done) continue;
+        const ms = this.orderMembers(team, f.id); if (!ms.length) { f.done = true; continue; }
+        const posted = ms.filter(a => !a.moveOrder && a.keyOrder && a.keyOrder.grp === f.id); if (!posted.length) continue;
+        if (!f.armed) { f.armed = true; f.at = this.t; }
+        let why = null;
+        if (f.ids.some(id => { const a = this.unitById(id); return a && !a.alive; })) why = 'homme à terre';
+        else for (const a of ms) {
+          if (a.lastHitAt > f.at) { why = 'un blessé'; break; }
+          if (a.keyOrder) for (const e of this.enemiesOf(a)) if (e.alive && a.visible.has(e.id) && dist2(a, e) < FREIN_CLOSE) { why = 'ennemi tout près'; break; }
+          if (why) break;
+        }
+        if (!why) continue;
+        const r = this.moveOrder(team.index, { units: ms.map(a => a.id), x: f.x, z: f.z, mode: 'decrocher', arrivee: 'tenir', plan: 'freinage' });
+        if (!r.ok) { if (!/un ordre toutes/.test(r.reason)) f.done = true; continue; }   // (délai entre deux ordres : on réessaie au pas suivant)
+        f.done = true;
+        this.logEvent('freinage', `${team.name} : ${ms.map(a => a.callsign).join(', ')} — ${why} : « On décroche sur la deuxième ligne ! »`, { team: team.index, unit: ms[0].id, ordre: r.id, why });
+      }
+    }
   };
   // R1 — « Contact ! » : quand un équipier annonce un nouveau contact, ceux qui guettent sans cible (en couverture, en pause,
   // en attente, en ratissage) tournent le regard vers lui pendant CONTACT_LOOK s — sauf le serre-file qui garde l'arrière
@@ -1749,7 +1793,7 @@
       if (!team.moveGroups || !team.moveGroups.length) continue;
       team.moveGroups = team.moveGroups.filter(g => this.groupActive(g));
       for (const g of team.moveGroups) {
-        if (g.mode !== 'methodique' && g.mode !== 'franchir' && g.mode !== 'decrocher') continue;
+        if (g.mode !== 'methodique' && g.mode !== 'franchir' && g.mode !== 'decrocher' && g.mode !== 'discret') continue;   // (discret : les bonds méthodiques, accroupis)
         const act = g.members.map(id => this.unitById(id)).filter(u => u && u.alive && u.moveOrder && u.moveOrder.id === g.id);
         if (act.length < g.members.length) this.rebalanceHalves(team, act, u => u.moveOrder.half, (u, h) => { u.moveOrder.half = h; });   // un équipier tombé : moitiés refaites
         if (g.mode === 'franchir') { this.updateCrossing(team, g, act); if (g.phase === 'cross') continue; }   // pas de bonds pendant un passage

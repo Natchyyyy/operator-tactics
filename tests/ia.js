@@ -638,5 +638,25 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
       return { b, tr: tr.join('|') }; };
     const P1 = play(), P2 = play({ replayInputs: P1.b.inputs });
     check('éclaireur + tiroir lent : la bataille revue est identique, pas à pas', P1.tr === P2.tr && JSON.stringify(P1.b.result) === JSON.stringify(P2.b.result), {}); }
+  const mkW = (seed, bo, ao) => new Battle({ seed, mapId: 'parking', teams: [{ name: 'Alpha', order: ao || 'assault', operators: GIGN, tactics: ['tiroir'] }, { name: 'Bravo', order: bo || 'assault', operators: KARST, tactics: ['tiroir'] }] });
+  // D5 — Discret : feu retenu imposé, accroupis en route tant qu'on n'est pas repérés, pas un coup avant ; repérés plus tard qu'en méthodique
+  { const run = (mode, sd) => { const b = mkW(sd, 'hold'); while (b.t < 1) b.step();
+      const r = b.command('aller', 0, { x: 40, z: 23, units: null, mode, arrivee: 'tenir' }), inf = b.teams[0].ordInfo[r.id];
+      let mv = 0, cr = 0, seen = null, early = 0; const sh = b.shoot.bind(b); b.shoot = function (u, e, d) { if (u.team === 0 && !inf.released) early++; return sh(u, e, d); };
+      while (!b.over && b.t < 70) { b.step(); const us = b.teams[0].units.filter(u => u.alive);
+        for (const u of us) if (u.moveOrder && u.moving && !inf.released) { mv++; if (u.stance === 'crouch') cr++; }
+        if (seen === null && b.teams[1].units.some(e => e.alive && us.some(u => e.visible.has(u.id)))) seen = b.t; }
+      return { ok: r.ok, feu: inf.feu, crouch: mv ? cr / mv : 0, seen: seen === null ? 70 : seen, early }; };
+    const D = [1, 2, 3, 4].map(s => run('discret', s)), M = [1, 2, 3, 4].map(s => run('methodique', s)), avg = (a) => a.reduce((s, x) => s + x.seen, 0) / a.length;
+    check('discret : feu retenu imposé, accroupis en route avant d\'être repérés (> 80 %), pas un tir avant, repérés plus tard qu\'en méthodique (moyenne, 4 graines)', D.every(d => d.ok && d.feu === 'retenu' && d.crouch > 0.8 && d.early === 0) && avg(D) > avg(M) + 5, { D, M: M.map(m => m.seen) }); }
+  // T5 — Freinage : on tient ; quand ça chauffe, décrochage par bonds vers la 2e ligne (d'où l'on vient), une seule fois, rejoué à l'identique
+  { const play = (opts) => { const b = new Battle(Object.assign({ seed: 2, mapId: 'parking', teams: [{ name: 'Alpha', order: 'assault', operators: GIGN, tactics: ['tiroir'] }, { name: 'Bravo', order: 'assault', operators: KARST, tactics: ['tiroir'] }] }, opts || {}));
+      while (b.t < 1) b.step(); const r = b.replayQueue ? { ok: true } : b.command('aller', 0, { x: 30, z: 23, units: null, mode: 'agressif', arrivee: 'freinage' }), f = r.id ? b.teams[0].ordInfo[r.id].frein : null;
+      let back = null; const tr = [];
+      while (!b.over && b.t < 80) { b.step(); if (b.tick % 10 === 0) tr.push(b.teams[0].units.map(u => u.x.toFixed(2) + ',' + u.z.toFixed(2)).join(';'));
+        const ev = b.log.find(l => l.kind === 'freinage'); if (ev && !back) back = ev.ordre; }
+      return { b, r, f, back, tr: tr.join('|') }; };
+    const P = play(), Q = play({ replayInputs: P.b.inputs }), inf2 = P.back && P.b.teams[0].ordInfo[P.back];
+    check('freinage : 2e ligne = point de départ, décrochage déclenché une fois (ordre « décrocher » vers la 2e ligne), rejoué à l\'identique', P.r.ok && P.f && Math.hypot(P.f.x - 6, P.f.z - 23) < 6 && P.back && inf2 && Math.hypot(inf2.px - P.f.x, inf2.pz - P.f.z) < 1 && P.b.log.filter(l => l.kind === 'freinage').length === 1 && P.tr === Q.tr, { f: P.f, back: P.back }); }
 }
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

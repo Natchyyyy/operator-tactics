@@ -2262,6 +2262,9 @@
     manoeuvre: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="8" cy="22" r="3.2" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M11.5 19.5C15 15 18 13 24 12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M19 7l6 5-5 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     tenir: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4l10 4v7c0 6.5-4.3 11-10 13-5.7-2-10-6.5-10-13V8z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M11 16l4 4 6-7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     decrocher: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M17 8l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/><path d="M26 12l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 7v18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="23" cy="7" r="2.2" fill="currentColor" opacity=".55"/></svg>',
+    // discret : deux empreintes de pas, légères ; freinage : un bouclier, une flèche qui recule vers une 2e ligne
+    discret: '<svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="11" cy="20" rx="3.2" ry="5" fill="currentColor" opacity=".55"/><circle cx="11" cy="27.5" r="2" fill="currentColor" opacity=".55"/><ellipse cx="21" cy="10" rx="3.2" ry="5" fill="currentColor"/><circle cx="21" cy="17.5" r="2" fill="currentColor"/><path d="M4 30h24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 3" opacity=".6"/></svg>',
+    freinage: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M21 4l7 3v5c0 4.6-3 7.8-7 9.2-4-1.4-7-4.6-7-9.2V7z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M13 22l-6 4 6 4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".8"/><path d="M7 26h10" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" opacity=".8"/><path d="M3 18v12" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
     lampe: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 29V8.5C9 6 11 4 13.5 4H22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M18 4h7l1 3h-9z" fill="currentColor"/><path d="M19 11l-2 4M23 11v4M27 11l2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".6"/><path d="M5 29h8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>',
     // « Plus… » : grenades sur ordre, fouiller
     frag: '<svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="15" cy="19" rx="8" ry="9" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M11 10h8M15 10V6.5M15 6.5h5l3 3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 19h12M15 13v12" stroke="currentColor" stroke-width="1.6" opacity=".6"/></svg>',
@@ -2290,11 +2293,13 @@
       { v: 'methodique', nom: 'Méthodique', aide: 'Bonds, appui mutuel', desc: 'Doctrine française : une moitié bondit de couvert en couvert pendant que l’autre couvre, chacun son secteur ; pauses à chaque couvert.' },
       { v: 'agressif', nom: 'Agressif', aide: 'Vite, tire en avançant', desc: 'Droit au point au pas de course, en tirant sur ce qu’on voit ; courte halte à couvert seulement sous le feu.' },
       { v: 'franchir', nom: 'Franchir', aide: 'Un par un sous appui', desc: 'Comme Méthodique, mais un espace découvert sur le trajet se traverse un par un (deux par deux à 4 ou 5), au sprint, pendant que les autres couvrent le côté dangereux depuis le bord ; le premier passé couvre l’autre côté.' },
-      { v: 'decrocher', nom: 'Décrocher', aide: 'Repli par bonds, sous appui', desc: 'Pour quitter un combat qui tourne mal : clic droit en arrière. Une moitié tire pour couvrir pendant que l’autre court jusqu’au couvert suivant vers le point, puis on inverse, sans halte pour engager. Arrivée : face au danger.' }] },
+      { v: 'decrocher', nom: 'Décrocher', aide: 'Repli par bonds, sous appui', desc: 'Pour quitter un combat qui tourne mal : clic droit en arrière. Une moitié tire pour couvrir pendant que l’autre court jusqu’au couvert suivant vers le point, puis on inverse, sans halte pour engager. Arrivée : face au danger.' },
+      { v: 'discret', nom: 'Discret', aide: 'Accroupis, sans tirer', desc: 'Approche silencieuse : les bonds de Méthodique, mais accroupis (plus lents, bien plus durs à repérer, pas qu’on entend), et personne ne tire tant que le groupe n’est pas repéré, pris à partie ou qu’un ennemi n’arrive tout près — alors tout le monde ouvre le feu (« Feu ! ») et l’on finit en Méthodique.' }] },
     arrivee: { titre: 'Arrivée', choix: [
       { v: 'tenir', nom: 'Tenir la position', aide: 'À couvert, face à la menace', desc: 'Sur place : un couvert tout proche, face à la menace (ou dans le sens de la marche), et on y reste.' },
       { v: 'encercler', nom: 'Encercler', aide: 'Prendre la position par deux côtés', desc: 'L’escouade se partage en deux : chaque moitié prend position d’un côté du point (à 8–14 m, à angle d’environ 100°, sans se faire face), à couvert, et le tient. À moins de trois : tenir la position.' },
-      { v: 'manoeuvre', nom: 'Reprendre la manœuvre', aide: 'Puis l’escouade continue seule', desc: 'Une fois sur le point, l’ordre s’efface : l’escouade reprend sa progression d’elle-même (voies, Tiroir, ordre de l’équipe) à partir de là, sans revenir en arrière.' }] },
+      { v: 'manoeuvre', nom: 'Reprendre la manœuvre', aide: 'Puis l’escouade continue seule', desc: 'Une fois sur le point, l’ordre s’efface : l’escouade reprend sa progression d’elle-même (voies, Tiroir, ordre de l’équipe) à partir de là, sans revenir en arrière.' },
+      { v: 'freinage', nom: 'Freinage', aide: 'Tenir, puis décrocher', desc: 'Défense mobile : on tient le point comme « Tenir la position » ; dès que ça chauffe (un équipier touché ou à terre, ou un ennemi à moins de 15 m), tout le groupe décroche par bonds sur une 2e ligne — l’endroit d’où il est parti — et la tient. Une seule fois.' }] },
   };
   const ordLast = { mode: 'methodique', arrivee: 'tenir' };
   try { const s = JSON.parse(localStorage.getItem('ot-ordre') || 'null'); if (s) for (const k in ordLast) if (s[k] && ORD_OPTS[k].choix.some(c => c.v === s[k])) ordLast[k] = s[k]; } catch (e) { /* stockage indisponible */ }
@@ -2482,7 +2487,7 @@
     if (!r.ok) { flashBattle(`Ordre refusé : ${r.reason}.`); return; }
     ordLast.mode = pick.mode; ordLast.arrivee = pick.arrivee; try { localStorage.setItem('ot-ordre', JSON.stringify(ordLast)); } catch (e) { /* stockage indisponible */ }
     const nm = (cat) => ORD_OPTS[cat].choix.concat(cat === 'arrivee' ? ORD_PLUS_ARR : []).find(c => c.v === pick[cat]).nom.toLowerCase();
-    const fe = pick.feu === 'volonte' ? '' : `, feu ${ORD_FEU.find(c => c.v === pick.feu).nom.toLowerCase()}`;
+    const fe = pick.feu === 'volonte' ? (pick.mode === 'discret' ? ', feu retenu jusqu’au contact' : '') : `, feu ${ORD_FEU.find(c => c.v === pick.feu).nom.toLowerCase()}`;
     const fu = fum ? (r.fumee ? ', avec fumée' : ' (fumée impossible : pas de fumigène ou pas de trajectoire)') : '';
     const vi = via.length ? ` par ${via.length} point${via.length > 1 ? 's' : ''} de passage` : '';
     flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}${vi}${fu}, puis ${nm('arrivee')}${fe}.`); pumpLog();
@@ -2516,6 +2521,14 @@
   // déplacement + l'arrivée habituelle ; tout droit vers l'extérieur = l'arrivée + le dernier déplacement ; au centre = annuler ;
   // sur « Plus d'options » = le menu complet. Secteurs comptés depuis le haut, dans le sens des aiguilles d'une montre.
   const WH = { r0: 34, r1: 102, r2: 172 };
+  // anneau extérieur : les arrivées, avec (ordres avancés) deux façons de tenir qui règlent le feu — Embuscade = tenir +
+  // feu retenu, Appui = tenir + feu d'appui (la ligne « Feu » du menu complet, sans l'ouvrir) — et Fouiller
+  const WH_FEU = [{ v: 'w_embuscade', nom: 'Embuscade', arrivee: 'tenir', feu: 'retenu' }, { v: 'w_appui', nom: 'Appui', arrivee: 'tenir', feu: 'appui' }];
+  ORD_SVG.w_embuscade = ORD_SVG.retenu; ORD_SVG.w_appui = ORD_SVG.appui;
+  function ordWheelArrs() {
+    const A = ORD_OPTS.arrivee.choix, by = (v) => A.find(c => c.v === v);
+    return SETTINGS.ordAdv ? [by('tenir'), ...WH_FEU, by('encercler'), by('freinage'), by('manoeuvre'), ...ORD_PLUS_ARR] : A;
+  }
   function whAng(dx, dy) { let a = Math.atan2(dx, -dy); if (a < 0) a += Math.PI * 2; return a; }
   function whSec(a, n) { return Math.round(a / (Math.PI * 2 / n)) % n; }
   function whPt(c, r, a) { return `${(c + r * Math.sin(a)).toFixed(1)},${(c - r * Math.cos(a)).toFixed(1)}`; }
@@ -2525,7 +2538,7 @@
   }
   function ordHoldOpen() {
     const h = ordHold; if (!h || h.el) return; clearTimeout(h.timer);
-    const modes = ORD_OPTS.mode.choix, arrs = ORD_OPTS.arrivee.choix.concat(SETTINGS.ordAdv ? ORD_PLUS_ARR : []);
+    const modes = ORD_OPTS.mode.choix, arrs = ordWheelArrs();
     const R = WH.r2 + 4, el = document.createElement('div'); el.className = 'ordwheel';
     let svg = `<svg width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}">`, lab = '';
     const ring = (list, ri, ro, k) => list.forEach((c, i) => {
@@ -2555,7 +2568,7 @@
     else if (r < WH.r0) { h.zone = 'x'; h.mode = null; h.arr = null; }
     else if (r < WH.r1) { h.zone = 'mode'; h.mode = h.modes[whSec(a, h.modes.length)].v; h.arr = null; }
     else { h.zone = 'arr'; h.arr = h.arrs[whSec(a, h.arrs.length)].v; }   // (au-delà de la roue aussi : on ne perd pas le choix en dépassant)
-    const mode = h.mode || ordLast.mode, arr = h.zone === 'arr' ? h.arr : ordArrDefaut();
+    const mode = h.mode || ordLast.mode, arr = h.zone === 'arr' ? h.arr : ordArrDefaut(), ac = h.arrs.find(c => c.v === arr);
     h.el.querySelectorAll('[data-k]').forEach(n => {
       const v = n.dataset.k === 'mode' ? h.modes[+n.dataset.i].v : h.arrs[+n.dataset.i].v;
       const on = n.dataset.k === 'mode' ? (h.zone === 'mode' || h.zone === 'arr') && v === mode : h.zone === 'arr' && v === arr;
@@ -2565,7 +2578,7 @@
     h.el.querySelector('.whc').classList.toggle('on', h.zone === 'x');
     h.el.querySelector('.whmore').classList.toggle('on', h.zone === 'menu');
     h.el.querySelector('.whmid').innerHTML = h.zone === 'x' ? '<b>Annuler</b>' : h.zone === 'menu' ? '<b>Menu</b>'
-      : `<b>${ordNom('mode', mode)}</b><small>puis ${ordNom('arrivee', arr).toLowerCase()}</small>`;
+      : `<b>${ordNom('mode', mode)}</b><small>puis ${(ac ? ac.nom : ordNom('arrivee', arr)).toLowerCase()}</small>`;
   }
   function ordHoldCancel() { const h = ordHold; if (!h) return; clearTimeout(h.timer); if (h.el) h.el.remove(); ordHold = null; ordMarkGhost(null); }
   function ordHoldEnd(cx, cy) {
@@ -2576,7 +2589,8 @@
     ordHoldMove(cx, cy); const z = h.zone, mode = h.mode || ordLast.mode, arr = h.arr; ordHoldCancel();
     if (z === 'x') { flashBattle('Ordre annulé.'); if (MANUAL) render(); return; }
     if (z === 'menu') { ordMenuAt(h.cx, h.cy, h.p); return; }
-    ordSend(h.p, { mode, arrivee: z === 'arr' ? arr : ordArrDefaut() }, false);
+    const w = z === 'arr' && WH_FEU.find(c => c.v === arr);   // Embuscade / Appui : tenir, avec ce feu
+    ordSend(h.p, w ? { mode, arrivee: w.arrivee, feu: w.feu } : { mode, arrivee: z === 'arr' ? arr : ordArrDefaut() }, false);
   }
 
   // ---- Sélection à la souris (20/10) : rectangle (clic gauche maintenu) ou clic sur un opérateur ; cercles au sol sous les choisis
@@ -2773,7 +2787,7 @@
     flash: ['Je ne vois plus rien !', 'Aveuglé !'], shaken: ['Repli !', 'Je décroche !', 'Ça chauffe trop !'], suppress: ['Feu de suppression !', 'Je les cloue !'], down: ['Homme à terre !', 'On a un blessé !', 'Il est touché !'],
     bouge: ['Je bouge !'], couvert: ['Couvert !'], enplace: ['En place.'], reprise: ['Je reprends ma progression.'],   // ordres de déplacement (clic droit)
     drag: ['Je le tire à couvert !'], smoke: ['Fumigène !'],   // évacuation d'un blessé
-    feu: ['Feu !'], enappui: ['En appui !'], decroche: ['Je décroche !'], releve: ['Je prends sa place !'],               // feu retenu levé, appui, décrocher, relève dans les bonds
+    feu: ['Feu !'], enappui: ['En appui !'], decroche: ['Je décroche !'], releve: ['Je prends sa place !'], freinage: ['On décroche, deuxième ligne !'],               // feu retenu levé, appui, décrocher, relève dans les bonds
     eclaireur: ['Je passe devant.'],   // carte « Éclaireur »
     fixer: ['On les fixe !'], deborde_nord: ['On déborde par le nord !'], deborde_sud: ['On déborde par le sud !'],   // carte « Fixer et déborder »
     plan_repli: ['On décroche !', 'Repli, on se regroupe !'], plan_contourner: ['On les contourne !', 'Je passe par le flanc !'], plan_embuscade: ['Embuscade, personne ne tire.', 'On les attend.'], plan_fumee: ['Fumée ! On les attend à la sortie.'],   // plans de l'adversaire
@@ -2820,7 +2834,7 @@
     else if (e.kind === 'suppress' && Math.random() < 0.5) bark(u, 'suppress');
     // (ordre d'un plan adverse, silencieux : sa bulle vient de l'événement « plan »)
     else if ((e.kind === 'moveorder' && !e.silent) || e.kind === 'bond') { bark(u, e.mode === 'decrocher' ? 'decroche' : 'bouge'); if (e.couvre) bark(unitById[e.couvre], 'couvert'); }
-    else if ((e.kind === 'feu' || e.kind === 'enappui' || e.kind === 'releve') && u) bark(u, e.kind);
+    else if ((e.kind === 'feu' || e.kind === 'enappui' || e.kind === 'releve' || e.kind === 'freinage') && u) bark(u, e.kind);
     else if (e.kind === 'couvre') bark(u, 'couvert');
     else if (e.kind === 'enplace' && u) bark(u, 'enplace');
     else if (e.kind === 'reprise' && u) bark(u, 'reprise');
