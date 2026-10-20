@@ -65,8 +65,8 @@
       // marquage au sol (rendu seulement) : rangées doubles [x0, z0, places], places le long des murs [x, z, places, pas en x, pas en z]
       marquage: { rangees: [[13, 17, 6], [49, 17, 6]], murs: [[7.6, 41, 7, 2.5, 0], [0, 10.8, 2, 0, 2.5], [0, 30.1, 4, 0, 2.5], [67, 10.8, 2, 0, 2.5], [67, 30.1, 2, 0, 2.5]] },   // (places des murs ouest et est au sud : alignées sur la voiture et le fourgon garés)
       // Un vrai parking de centre-ville, à l'arrière des boutiques de la Grand-Rue, vu du ciel : au nord la ruelle de service
-      // (arrière des immeubles en briques, portes de service, entrées arrière des boutiques en face des deux passages du
-      // grillage, bennes, fourgons de livraison) ; au sud la rue, derrière un muret à grille, avec l'unique entrée-sortie des
+      // (arrière des immeubles en briques, portes de service, bennes, fourgons de livraison), fermée côté parking par une
+      // ligne continue d'annexes et de palissades — on n'y entre que par ses deux bouts et le porche du milieu ; au sud la rue, derrière un muret à grille, avec l'unique entrée-sortie des
       // voitures (barrières, guérite), le quai de la navette et une partie du parking fermée pour travaux ; à l'ouest et à
       // l'est des murs de clôture (portes piétonnes derrière les zones de départ). Entre les deux, deux rangées doubles de
       // places orientées nord-sud (voitures garées en marche avant, capot vers le milieu : des lignes de couvert en travers du
@@ -118,7 +118,7 @@
           cap(box(0.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), -1), cap(box(0.2, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon'), -1),
           box(0.2, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
           // ---- EST : poste électrique sur son îlot planté ; places le long du mur est (au sud, la camionnette du chantier)
-          box(60.4, 25.4, 2.2, 2.2, 2.6, 'wall', 'poste électrique'), box(60.6, 24.4, 1.0, 0.5, 1.4, 'cover', 'armoire'),   // (décalé au sud : pas en face de la caisse automatique)
+          box(60.4, 24.5, 2.2, 2.2, 2.6, 'wall', 'poste électrique'), box(60.6, 23.85, 1.0, 0.5, 1.4, 'cover', 'armoire'),   // (décalé au sud : pas en face de la caisse automatique)
           cap(box(66.6, 11.0, 5.2, 2.1, 2.4, 'wall', 'fourgon'), 1), cap(box(67.3, 13.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'), 1),
           cap(box(67.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), 1), cap(box(66.6, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon (chantier)'), 1),   // camionnette de l'équipe du chantier, entrée par le bout des séparateurs
           box(71.3, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
@@ -150,10 +150,10 @@
         bac(13.6, 15.4, 4.4, 1.4), bac(18.6, 15.4, 4.0, 1.4), [box(13.6, 32.2, 4.6, 1.4, 1.7, 'wall', 'haie')], bac(18.8, 32.2, 3.0, 1.4),
         [box(49.4, 15.4, 4.0, 1.4, 1.7, 'wall', 'haie')], bac(54.0, 15.4, 4.4, 1.4), bac(50.2, 32.2, 3.0, 1.4), bac(54.6, 32.2, 3.8, 1.4),
         // rangées de places (ouest : x 13–23 ; est : x 49–59), du nord (z 17) au sud (z 32) — pas en miroir : à l'ouest le
-        // passage à travers la rangée est au milieu (z 22–24,5), à l'est il est plus au sud (z 27–29,5) et la rangée est
-        // ouverte côté nord-ouest
+        // passage à travers la rangée est au milieu (z 22–24,5), à l'est il est plus au nord (z 19,5–22) et la rangée est
+        // ouverte au sud
         rangee(13, 17, 'vf.vv.', '.v.fvv', [0, 3, 5, 1, 6, 2, 4, 7, 0, 5]),
-        rangee(49, 17, '.vvf.v', 'vv.f.v', [2, 6, 9, 4, 1, 7, 3, 5, 10, 11])
+        rangee(49, 17, 'v.vfv.', 'v.vf.v', [2, 6, 9, 4, 1, 7, 3, 5, 10, 11])
       ),
     },
   };

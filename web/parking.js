@@ -155,7 +155,7 @@
     const hatch = (x0, z0, w, h, col) => { p.strokeStyle = col; p.lineWidth = M(0.12); p.strokeRect(M(x0), M(z0), M(w), M(h)); p.save(); p.beginPath(); p.rect(M(x0), M(z0), M(w), M(h)); p.clip(); for (let k = -h; k < w; k += 0.7) line(x0 + k, z0 + h, x0 + k + h, z0); p.restore(); };
     const text = (x, z, t, r, size, col) => { p.save(); p.translate(M(x), M(z)); p.rotate(r || 0); p.font = `bold ${M(size || 1.1)}px Arial`; p.textAlign = 'center'; p.textBaseline = 'middle'; p.fillStyle = col || white; p.fillText(t, 0, 0); p.restore(); };
     // ruelle : bande de béton le long du muret grillagé (aire de livraison, plates-formes des bennes) et caniveau central
-    const ruelle = OB.filter(o => /^clôture grillagée/.test(o.name || ''));
+    const ruelle = OB.filter(o => /^(clôture grillagée|palissade)/.test(o.name || ''));   // (ruelle fermée : la limite est la ligne des palissades)
     if (ruelle.length) {
       const zf = Math.min(...ruelle.map(o => o.z));
       p.fillStyle = 'rgba(146,142,134,1)'; p.fillRect(0, M(zf - 3.2), M(W), M(3.2));

@@ -514,6 +514,116 @@
     for (let i = 0; i < 7; i++) add(g, new T.BoxGeometry(o.w * 0.8, 0.02, 0.01), k.grille, 0, y0 + 0.25 + i * 0.09, o.d * 0.46 + 0.005);
     return g;
   }
+  // ---------------------------------------------------------------------------------------------
+  // La fermeture de la ruelle (côté parking) : annexes en briques, quai de chargement, palissades. Tout reste DANS la boîte
+  // de la simulation (au plus 0,3 m de saillie : rideaux, descentes d'eau), pour que personne ne traverse un objet dessiné.
+  // ---------------------------------------------------------------------------------------------
+  // porte de service plate (sans le modèle : il avance de 0,75 m dans le passage)
+  function flatDoor(g, x, y0, R) {
+    const k = K();
+    add(g, new T.BoxGeometry(1.2, 2.25, 0.06), k.acier, x, y0 + 1.125, 0.03);
+    add(g, new T.BoxGeometry(1.0, 2.1, 0.04), R() < 0.4 ? k.portePeinte : k.porte, x, y0 + 1.06, 0.07);
+    add(g, new T.BoxGeometry(0.7, 0.04, 0.05), k.acier, x, y0 + 1.0, 0.1);
+    add(g, new T.BoxGeometry(1.4, 0.05, 0.3), k.galva, x, y0 + 2.5, 0.15);
+    add(g, new T.SphereGeometry(0.08, 10, 8), k.lampe, x, y0 + 2.36, 0.1); if (!LAMPES.includes(k.lampe)) LAMPES.push(k.lampe);
+  }
+  // fenêtre haute grillagée (réserve)
+  function highWin(g, x, y, R) {
+    const k = K(); add(g, new T.BoxGeometry(1.0, 0.62, 0.04), k.acier, x, y, 0.02);
+    add(g, new T.PlaneGeometry(0.88, 0.5), winMat(0.9), x, y, 0.045);
+    for (let i = -3; i <= 3; i++) add(g, cyl(0.016, 0.62, 6), k.galva, x + i * 0.13, y, 0.08);
+    add(g, new T.BoxGeometry(1.12, 0.07, 0.12), k.chaperon, x, y - 0.35, 0.06);
+  }
+  // acrotère : chaperon en couronne autour d'un toit-terrasse sombre (et non une dalle claire qui couvre tout le toit)
+  function rim(g, W, Dd, H, h) {
+    const c = K().chaperon, t = 0.32, y = H / 2 + h / 2 - 0.04;
+    for (const s of [-1, 1]) { add(g, new T.BoxGeometry(W + 0.1, h, t), c, 0, y, s * (Dd / 2 - t / 2 + 0.05)); add(g, new T.BoxGeometry(t, h, Dd + 0.1 - 2 * t), c, s * (W / 2 - t / 2 + 0.05), y, 0); }
+  }
+  // une annexe basse en briques : volume, chaperon, toit, puis chaque face habillée par spec[face] = liste d'éléments
+  // ([type, x local le long de la face, largeur]) ; faces : s (sud, parking), n (nord, ruelle), e, o
+  function lowBuilding(o, tone, seed, spec) {
+    const k = K(), g = new T.Group(), R = rng(seed), W = o.w, Dd = o.d, H = o.h, y0 = -H / 2;
+    add(g, boxW(W, H, Dd, TILE), brickMat(tone), 0, 0, 0);
+    rim(g, W, Dd, H, 0.28); add(g, new T.BoxGeometry(W - 0.3, 0.04, Dd - 0.3), k.toit, 0, H / 2 + 0.02, 0);
+    if (W > 5) { const u = (R() - 0.5) * (W - 3); add(g, new T.BoxGeometry(1.3, 0.8, 1.0), k.clim, u, H / 2 + 0.4, 0); add(g, cyl(0.3, 0.02, 16), k.grille, u, H / 2 + 0.81, 0); }
+    const faces = { s: [0, Dd / 2, 0, W], n: [0, -Dd / 2, Math.PI, W], e: [W / 2, 0, Math.PI / 2, Dd], o: [-W / 2, 0, -Math.PI / 2, Dd] };
+    for (const f of Object.keys(faces)) {
+      const [fx, fz, ry, L] = faces[f], q = new T.Group(); q.position.set(fx, 0, fz); q.rotation.y = ry; g.add(q);
+      const wins = [];
+      for (const [kind, x, w] of spec[f] || []) {
+        if (kind === 'rideau') shutter(q, x, y0, 0, w, Math.min(3.0, H - 0.8));
+        else if (kind === 'porte') flatDoor(q, x, y0, R);
+        else if (kind === 'haute') { highWin(q, x, y0 + Math.min(2.9, H - 0.8), R); wins.push([x + L / 2, Math.min(2.9, H - 0.8) - 0.3]); }
+        else if (kind === 'eau') downspout(q, x, y0, 0, H);
+        else if (kind === 'compteurs') meters(q, x, y0, 0, R);
+        else if (kind === 'clim') wallAC(q, x, y0 + 2.5, 0, R);
+        else if (kind === 'tag') decal(q, tagTex(seed * 7 + Math.round(x * 3)), w, w * 0.375, x, y0 + 0.5 + w * 0.19, 0.02, 0, 0.9);
+        else if (kind === 'plaque') plate(q, x, y0 + 2.0, 0, 0.6, 0.3, plateTex('interdit', 'DÉFENSE', 'de stationner'));
+      }
+      decal(q, grimeTex(seed + f.charCodeAt(0), L, H, wins), L, H, 0, 0, 0.012);
+    }
+    return g;
+  }
+  // quai de chargement : bâtiment bas en parpaings enduits, côté ruelle deux rideaux sur un quai (butoirs noirs, bandes
+  // jaunes et noires), côté parking un mur aveugle avec une imposte et des tags
+  function loadingDock(o) {
+    const k = K(), g = new T.Group(), R = rng(73), W = o.w, Dd = o.d, H = o.h, y0 = -H / 2;
+    const enduit = mat('renduit', () => { const B = brick('parpaing'); return new T.MeshStandardMaterial({ map: B.map, normalMap: B.normalMap, roughness: 0.92, color: 0xcfc9bc }); });
+    add(g, boxW(W, H, Dd, TILE), enduit, 0, 0, 0);
+    rim(g, W, Dd, H, 0.22); add(g, new T.BoxGeometry(W - 0.3, 0.04, Dd - 0.3), k.toit, 0, H / 2 + 0.02, 0);
+    const stripes = mat('rzebra', () => { const c = canvas(256, 32), q = c.getContext('2d'); q.fillStyle = '#1a1a1a'; q.fillRect(0, 0, 256, 32); q.fillStyle = '#e0b21e'; for (let x = -32; x < 256; x += 32) { q.beginPath(); q.moveTo(x, 32); q.lineTo(x + 16, 0); q.lineTo(x + 32, 0); q.lineTo(x + 16, 32); q.fill(); } const t = tex(c, true, true); t.repeat.set(W / 2, 1); return new T.MeshStandardMaterial({ map: t, roughness: 0.7 }); });
+    const n = new T.Group(); n.position.z = -Dd / 2; n.rotation.y = Math.PI; g.add(n);   // face ruelle
+    for (const x of [-W / 4, W / 4]) {
+      shutter(n, x, y0 + 0.9, 0, 2.8, Math.min(2.4, H - 1.3));
+      for (const s of [-1, 1]) add(n, new T.BoxGeometry(0.3, 0.45, 0.18), k.acierNoir, x + s * 1.1, y0 + 0.62, 0.09);   // butoirs en caoutchouc
+    }
+    add(n, new T.PlaneGeometry(W - 0.2, 0.22), stripes, 0, y0 + 0.78, 0.015);
+    flatDoor(n, W / 2 - 0.9, y0, R); downspout(n, -W / 2 + 0.3, y0, 0, H);
+    decal(n, grimeTex(74, W, H, []), W, H, 0, 0, 0.012);
+    const s = new T.Group(); s.position.z = Dd / 2; g.add(s);   // face parking : mur aveugle
+    highWin(s, -1.6, y0 + 2.4, R); highWin(s, 1.6, y0 + 2.4, R); downspout(s, W / 2 - 0.3, y0, 0, H);
+    decal(s, tagTex(321), 2.4, 0.9, -2.2, y0 + 1.0, 0.02, 0, 0.9); decal(s, grimeTex(75, W, H, []), W, H, 0, 0, 0.012);
+    for (const [x, ry] of [[W / 2, Math.PI / 2], [-W / 2, -Math.PI / 2]]) { const e = new T.Group(); e.position.x = x; e.rotation.y = ry; g.add(e); decal(e, grimeTex(76 + ry, Dd, H, []), Dd, H, 0, 0, 0.012); }
+    return g;
+  }
+  // palissades pleines (jusqu'à 2,6 m) : planches de chantier peintes (affiches inventées) ou tôle ondulée galvanisée
+  function hoardTex(kind) {
+    const key = 'palis' + kind; if (CACHE[key]) return CACHE[key];
+    const R = rng(kind === 'tole' ? 5 : 9), N = 512, c = canvas(N, 256), g = c.getContext('2d'), hc = canvas(N, 256), hg = hc.getContext('2d');
+    if (kind === 'tole') {
+      for (let x = 0; x < N; x++) { const v = 0.5 + 0.5 * Math.sin(x / N * Math.PI * 2 * 24); const l = 140 + v * 50; g.fillStyle = `rgb(${l | 0},${(l + 4) | 0},${(l + 8) | 0})`; g.fillRect(x, 0, 1, 256); hg.fillStyle = `rgb(${(v * 255) | 0},0,0)`; hg.fillRect(x, 0, 1, 256); }
+      for (let k = 0; k < 40; k++) { g.fillStyle = `rgba(120,60,25,${0.1 + R() * 0.25})`; g.fillRect(R() * N, 150 + R() * 100, 2 + R() * 5, 10 + R() * 60); }
+      const gr = g.createLinearGradient(0, 180, 0, 256); gr.addColorStop(0, 'rgba(50,35,20,0)'); gr.addColorStop(1, 'rgba(50,35,20,0.5)'); g.fillStyle = gr; g.fillRect(0, 180, N, 76);
+    } else {
+      for (let x = 0; x < N; x += 32) { const l = 60 + R() * 12; g.fillStyle = `rgb(${(l * 0.55) | 0},${l | 0},${(l * 0.7) | 0})`; g.fillRect(x, 0, 32, 256); g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x + 31, 0, 1, 256); hg.fillStyle = '#c0c0c0'; hg.fillRect(x + 1, 0, 30, 256); }
+      for (let k = 0; k < 60; k++) { g.fillStyle = `rgba(20,20,15,${0.05 + R() * 0.1})`; g.fillRect(R() * N, R() * 256, 1 + R() * 2, 4 + R() * 30); }
+    }
+    return (CACHE[key] = { map: tex(c, true, true), normalMap: normalTex(hc, kind === 'tole' ? 2.5 : 1.2) });
+  }
+  function posterTex() {
+    const key = 'affichePalis'; if (CACHE[key]) return CACHE[key];
+    const c = canvas(512, 256), g = c.getContext('2d'); g.fillStyle = '#f1ede2'; g.fillRect(0, 0, 512, 256); g.fillStyle = '#2b5d8a'; g.fillRect(0, 0, 512, 64);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.font = 'bold 34px Arial'; g.fillText('BIENTÔT ICI', 256, 33);
+    g.fillStyle = '#20262c'; g.font = 'bold 40px Arial'; g.fillText('Résidence des Tanneurs', 256, 112); g.font = '26px Arial'; g.fillText('24 logements · commerces en rez-de-chaussée', 256, 162);
+    g.fillStyle = '#7a7f84'; g.font = '20px Arial'; g.fillText('Permis de construire affiché en mairie', 256, 214);
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 4; return (CACHE[key] = t);
+  }
+  function hoarding(o, kind) {
+    const k = K(), g = new T.Group(), along = o.w >= o.d, L = along ? o.w : o.d, Th = along ? o.d : o.w, H = o.h, y0 = -H / 2;
+    const q = new T.Group(); q.rotation.y = along ? 0 : Math.PI / 2; g.add(q);
+    const P = hoardTex(kind), m = mat('palisM' + kind, () => { const t = P.map.clone(); t.needsUpdate = true; t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(L / 4, 1); const nm = P.normalMap.clone(); nm.needsUpdate = true; nm.wrapS = nm.wrapT = T.RepeatWrapping; nm.repeat.set(L / 4, 1); return new T.MeshStandardMaterial({ map: t, normalMap: nm, roughness: kind === 'tole' ? 0.45 : 0.85, metalness: kind === 'tole' ? 0.6 : 0 }); });
+    add(q, new T.BoxGeometry(L, H - 0.12, Th * 0.5), m, 0, 0.06, 0);
+    const post = kind === 'tole' ? k.galva : k.bois, n = Math.max(1, Math.round(L / 2.4));
+    for (let i = 0; i <= n; i++) add(q, new T.BoxGeometry(0.12, H, Th), post, -L / 2 + Math.min(L - 0.06, Math.max(0.06, i * L / n)), 0, 0);
+    add(q, new T.BoxGeometry(L, 0.06, Th * 0.7), post, 0, H / 2 - 0.03, 0);
+    add(q, new T.BoxGeometry(L, 0.14, Th * 0.62), k.beton, 0, y0 + 0.07, 0);   // longrine béton au pied
+    if (kind !== 'tole') {   // côté parking (+z) : une affiche de promoteur inventée et un tag ; côté ruelle : tags
+      const a = new T.Mesh(new T.PlaneGeometry(2.6, 1.3), mat('affPalis', () => new T.MeshStandardMaterial({ map: posterTex(), roughness: 0.8 }))); a.position.set(-L / 2 + 2.4, 0.35, Th * 0.25 + 0.012); a.receiveShadow = true; q.add(a);
+      decal(q, tagTex(612), 2.0, 0.75, L / 2 - 2.2, y0 + 0.9, Th * 0.25 + 0.02, 0, 0.85);
+      const b = new T.Group(); b.rotation.y = Math.PI; q.add(b); decal(b, tagTex(613), 1.8, 0.68, -1.0, y0 + 0.85, Th * 0.25 + 0.02, 0, 0.85);
+    } else { decal(q, tagTex(614), 1.9, 0.71, L / 2 - 2.6, y0 + 0.85, Th * 0.25 + 0.02, 0, 0.85); plate(q, -L / 2 + 1.6, y0 + 1.6, Th * 0.25 + 0.01, 0.6, 0.3, plateTex('interdit', 'PROPRIÉTÉ', 'privée')); }
+    return g;
+  }
   // une pièce de la simulation habillée, ou null
   function mesh(o) {
     const n = o.name || '';
@@ -522,6 +632,14 @@
       if (n.startsWith('annexe')) return annexe(o);
       if (n.startsWith('local poubelles')) return binShed(o);
       if (n.startsWith('clôture grillagée')) return fence(o);
+      // fermeture de la ruelle (repère local : s = côté parking, n = côté ruelle ; x local le long de la face, vu de dehors)
+      if (n === 'bâtiment garage') return lowBuilding(o, 'brun', 81, { s: [['rideau', -3.2, 3.0], ['rideau', 0.6, 3.0], ['porte', 3.6], ['eau', 5.5]], n: [['porte', -2.5], ['compteurs', -1.0], ['clim', 2.0], ['haute', 4.3], ['eau', -5.5]], e: [['eau', 1.6], ['tag', -0.4, 1.6]], o: [['plaque', 0.8]] });
+      if (n === 'bâtiment atelier') return lowBuilding(o, 'rouge', 82, { s: [['haute', 0]], n: [['porte', 0]], e: [['compteurs', 0.4]], o: [['tag', 0, 1.6]] });
+      if (n === 'bâtiment local') return lowBuilding(o, 'peint', 83, { n: [['haute', 0.8], ['eau', -1.9]], o: [['porte', 0]], s: [['tag', -0.6, 1.5]] });
+      if (n === 'bâtiment entrepôt') return lowBuilding(o, 'rouge', 84, { s: [['rideau', -0.4, 3.2], ['eau', 2.7], ['haute', 2.0]], n: [['porte', 1.2], ['clim', -1.4], ['eau', -2.7]], o: [['tag', 0, 1.8]] });
+      if (n === 'quai de chargement') return loadingDock(o);
+      if (n === 'palissade chantier') return hoarding(o, 'bois');
+      if (n === 'palissade tôle') return hoarding(o, 'tole');
       if (n.startsWith('clim')) return condenser(o);
       if (n === 'benne' && hasM('benne')) return model('benne', o.w, o.h, o.d, { tol: 0.3, rot: o.z < 5 ? Math.PI : 0 });
       if (n === 'armoire' && hasM('armoire')) return model('armoire', o.w, o.h, o.d, { tol: 0.3 });
@@ -556,20 +674,16 @@
     for (let i = 0; i < 16; i++) { const x = 2 + R() * 68, z = 1.5 + R() * 8; groundDecal(group, stainTex(10 + i), 1.2 + R() * 2.2, 1.0 + R() * 1.6, x, z, R() * 3, 0.8); }
     const grate = mat('ravaloir', () => new T.MeshStandardMaterial({ color: 0x1d1e1f, roughness: 0.5, metalness: 0.8 }));
     for (const x of [16.5, 48.5]) { const gm = new T.Mesh(new T.BoxGeometry(0.9, 0.02, 0.5), grate); gm.position.set(x, 0.01, 5.6); gm.receiveShadow = true; group.add(gm); for (let i = 0; i < 6; i++) { const b = new T.Mesh(new T.BoxGeometry(0.04, 0.025, 0.42), k.acierNoir); b.position.set(x - 0.35 + i * 0.14, 0.015, 5.6); group.add(b); } }
-    // portail du passage ouest ouvert, rabattu côté parking contre le grillage
-    { const gate = new T.Group(); gate.position.set(24, 0, 11.05); gate.rotation.y = 0.12; group.add(gate);
-      const L = 3.3, H = 2.0; for (const [x, y, w, h] of [[-L / 2, H / 2, 0.05, H], [L / 2, H / 2, 0.05, H], [0, H, L, 0.05], [0, 0.08, L, 0.05], [0, H / 2, L, 0.04]]) { const m = new T.Mesh(w > 0.1 ? cyl(0.024, w, 8) : cyl(0.024, h, 8), k.galva); m.position.set(x - L / 2, y + 0.06, 0); if (w > 0.1) m.rotation.z = Math.PI / 2; m.castShadow = true; gate.add(m); }
-      const ch = new T.Mesh(new T.PlaneGeometry(L, H), chainMat()); const uv = ch.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * L / 0.07, uv.getY(i) * H / 0.07); ch.position.set(-L / 2, H / 2 + 0.06, 0); ch.renderOrder = 2; gate.add(ch);
-      const w = new T.Mesh(cyl(0.08, 0.05, 12), k.caoutchouc || k.acierNoir); w.position.set(-L, 0.08, 0); gate.add(w); }
+    // (plus de portail : la ruelle est fermée côté parking ; le porche du milieu reste ouvert)
     // poteaux électriques en bois le long du grillage (dans le muret), transformateur, câbles vers les immeubles
     const pole = mat('rpoteau', () => new T.MeshStandardMaterial({ color: 0x5b4632, roughness: 0.92 }));
     const wire = mat('rcable', () => new T.MeshStandardMaterial({ color: 0x111111, roughness: 0.7 }));
-    const poles = [[12.5, 10.65], [36, 10.65], [58.5, 10.65]], tops = [];
+    const poles = [[25.6, 10.9], [52.5, 10.8]], tops = [];   // dans les palissades (pas à travers un toit)
     for (const [x, z] of poles) {
       const p = new T.Mesh(cyl(0.14, 9.5, 10), pole); p.position.set(x, 4.75, z); p.castShadow = true; group.add(p);
       const arm = new T.Mesh(new T.BoxGeometry(1.8, 0.1, 0.1), pole); arm.position.set(x, 8.9, z); arm.castShadow = true; group.add(arm);
       for (const s of [-0.75, 0, 0.75]) { const ins = new T.Mesh(cyl(0.04, 0.14, 6), k.chaperon); ins.position.set(x + s, 9.02, z); group.add(ins); }
-      if (x === 36) { const tr = new T.Mesh(cyl(0.32, 0.9, 14), k.galva); tr.position.set(x, 7.6, z - 0.4); tr.castShadow = true; group.add(tr); }
+      if (x === 52.5) { const tr = new T.Mesh(cyl(0.32, 0.9, 14), k.galva); tr.position.set(x, 7.6, z - 0.4); tr.castShadow = true; group.add(tr); }
       tops.push(new T.Vector3(x, 9.05, z));
     }
     const span = (a, b, sag) => { const pts = []; for (let i = 0; i <= 12; i++) { const t = i / 12, p = a.clone().lerp(b, t); p.y -= sag * 4 * t * (1 - t); pts.push(p); } const c = new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 16, 0.012, 4, false), wire); group.add(c); };

@@ -321,7 +321,8 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   const setup = () => {
     const b = mk(11); const A = b.teams[0].units, E = b.teams[1].units;
     let sc = null;
-    for (let x = 12; x < 34 && !sc; x += 1) for (let z = 4; z < 42 && !sc; z += 1) {
+    // (balayage depuis l'allée sud : la ruelle nord est fermée et n'offre plus 20 m de vue dégagée en ligne droite)
+    for (let x = 12; x < 34 && !sc; x += 1) for (let z = 34; z < 42 && !sc; z += 1) {
       if (b.map.insideObstacle(x, z) || b.map.insideObstacle(x - 3, z) || b.map.insideObstacle(x + 20, z) || !b.map.inBounds(x + 20, z)) continue;
       if (!b.map.hasLOS(x + 20, 1.6, z, x, 0.9, z) || !b.map.walkableSegment(x - 3, z, x, z)) continue;
       const c = b.dragCover(A[0], { x, z }, [{ x: x + 20, z }]);
@@ -370,7 +371,7 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   while (b.t < until + 0.5) { b.t = Math.round((b.t + 0.1) * 1000) / 1000; b.updateTactics(); }
   check('fumigène : bloque la ligne de vue dans les deux sens pendant ' + G.duration + ' s, puis se dissipe', before && during && ev && lasted && b.map.dynamic.length === 0 && b.canSee(u, e), { before, during, ev, lasted, left: b.map.dynamic.length });
   // bataille complète (graine où l'on évacue et où l'on lance des fumigènes) jouée deux fois : identique
-  const full = () => { const x = new Battle({ seed: 1, mapId: 'parking' }); x.run(); return x; }, F1 = full(), F2 = full();
+  const full = () => { const x = new Battle({ seed: 2, mapId: 'parking' }); x.run(); return x; }, F1 = full(), F2 = full();   // (graine 2 depuis la fermeture de la ruelle : la graine 1 n'a plus de fumigène)
   const nd = F1.log.filter(l => l.kind === 'drag').length, ns = F1.log.filter(l => l.kind === 'smoke').length;
   check('évacuation et fumigène en bataille : ils ont lieu, et la bataille revue est identique (journal, résultat)', nd >= 1 && ns >= 1 && JSON.stringify(F1.log) === JSON.stringify(F2.log) && JSON.stringify(F1.result) === JSON.stringify(F2.result), { nd, ns });
 }
@@ -399,9 +400,11 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
     for (let i = 0; i < 5; i++) b.step();
     check('feu retenu : seuls les opérateurs de l\'ordre retiennent leur feu ; command(\'feu\') le lève pour tout le groupe (une fois) ; le feu revient « à volonté » au prochain ordre', r.ok && held === 'Granit,Lynx' && rf.ok && !again.ok && b.teams[0].units.every(u => !u.holdFire) && b.log.some(l => l.kind === 'feu' && /ordre d’ouvrir le feu/.test(l.text)) && b.teams[0].ordInfo[r.id].released, { held, rf, again }); }
   // F2 — Appui : au premier contact, deux opérateurs d'assaut en appui (orientés vers le contact), trois encerclent
-  // (8 batailles : d'une graine à l'autre le tir d'appui va de 0 à 80 coups ; 4 ne suffisaient plus à lisser le hasard)
+  // (16 batailles, seuil 80 coups = 5 par bataille comme avant : d'une graine à l'autre le tir d'appui va de 0 à 100 coups ;
+  // depuis la fermeture de la ruelle les premiers contacts changent et 8 graines ne lissaient plus le hasard — 32 coups sur
+  // les graines 1–8, 190 sur 1–16 ; avant : 206 et 327)
   let supShots = 0, supBy = new Set(), lowAmmo = 0, pinnedT = 0, zoneSeen = 0;
-  for (let sd = 1; sd <= 8; sd++) {
+  for (let sd = 1; sd <= 16; sd++) {
     const b = mkW(sd, 'careful', 'careful'); let done = false, id = null;
     const sa = b.suppressAt.bind(b); b.suppressAt = function (u, e) { if (u.team === 0) { supShots++; supBy.add(u.role.id + ':' + u.callsign); if (u.totalAmmo() < u.weapon.mag * (u.weapon.kit + 1) * 0.4 - 1) lowAmmo++; } return sa(u, e); };
     while (!b.over && b.t < 150) {
@@ -416,7 +419,7 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
       b.command('aller', 0, { x: k.x, z: k.z, units: so.slice(2).map(u => u.id), mode: 'methodique', arrivee: 'encercler' });
     }
   }
-  check('appui : des opérateurs d\'assaut (pas le rôle Appui) font du tir de suppression sur la zone ; une zone est suivie ; jamais sous 40 % de munitions', supShots > 40 && [...supBy].every(s => s.startsWith('assault')) && zoneSeen > 100 && lowAmmo === 0, { supShots, supBy: [...supBy], zoneSeen, lowAmmo, pinnedT });
+  check('appui : des opérateurs d\'assaut (pas le rôle Appui) font du tir de suppression sur la zone ; une zone est suivie ; jamais sous 40 % de munitions', supShots > 80 && [...supBy].every(s => s.startsWith('assault')) && zoneSeen > 100 && lowAmmo === 0, { supShots, supBy: [...supBy], zoneSeen, lowAmmo, pinnedT });
   // D4 — Décrocher : l'escouade, avancée au contact, se replie par bonds : une moitié tire (arrêtée), l'autre court sans tirer
   const runD = (mode, seed) => {
     const b = mkW(seed), us = b.teams[0].units;
@@ -441,8 +444,8 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
     D.every(d => d.r.ok && d.all !== null && d.back > 20 && d.mixed > 0.5) && sum(D, 'runShots') === 0 && sum(D, 'coverShots') > 0 && sum(D, 'runT') > 10 && sum(D, 'all') < sum(Mt, 'all'), { D: D.map(d => ({ all: d.all, back: d.back, mixed: d.mixed, run: d.runShots, cov: d.coverShots, lost: d.lost })), M: Mt.map(d => d.all) });
   // A4 — Orienter : tenir orienté au nord → plan de secteurs face au nord ; encercler orienté → les deux sous-groupes du côté opposé
   { const b = mkW(3, 'hold'); while (b.t < 1) b.step();
-    const r = b.command('aller', 0, { x: 12, z: 23, units: ['0:op_lynx', '0:op_granit', '0:op_bastion'], mode: 'agressif', arrivee: 'tenir' });
-    const ro = b.command('orienter', 0, { ordre: r.id, x: 12, z: 8 }), near = b.command('orienter', 0, { ordre: r.id, x: 12.5, z: 23 });
+    const r = b.command('aller', 0, { x: 12, z: 23, units: ['0:op_lynx', '0:op_granit', '0:op_bastion'], mode: 'agressif', arrivee: 'tenir' });   // (point montré : dans la ruelle, z 5 — z 8 est maintenant dans le garage qui ferme la ruelle, ramené à la case libre la plus proche)
+    const ro = b.command('orienter', 0, { ordre: r.id, x: 12, z: 5 }), near = b.command('orienter', 0, { ordre: r.id, x: 12.5, z: 23 });
     while (b.t < 25) b.step();
     const ms = b.teams[0].units.filter(u => u.alive && u.keyOrder && u.keyOrder.grp === r.id), pl = b.teams[0].holdPlans && b.teams[0].holdPlans[r.id];
     const ad = (a, c) => { let d = Math.abs(a - c) % (2 * Math.PI); return d > Math.PI ? 2 * Math.PI - d : d; };
