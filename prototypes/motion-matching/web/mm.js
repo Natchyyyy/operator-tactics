@@ -313,8 +313,12 @@
     }
     // (20/10 : « bras en T ») mains libres et accroupi : les clips Crouched de 100STYLE ont les bras tendus à l'horizontale (ils
     // tiennent une arme imaginaire) ; on ramène les mains au repos devant les cuisses (IK), poids = accroupi × mains libres
-    brasRepos(w) {
-      w = Math.max(0, Math.min(1, w)) * Math.max(0, Math.min(1, (this.profondeur || 0) / 0.3)); if (w <= 0.001) return;
+    brasRepos(w, dt) {
+      // tenu encore 0,6 s après la sortie de l'accroupi (fondu 0,25 s) : le fondu des clips accroupis → debout (0,3 s) laissait
+      // les bras en T une fraction de seconde quand il se relève en rangeant l'arme (retour utilisateur 20/10)
+      const prof = Math.max(0, Math.min(1, (this.profondeur || 0) / 0.3));
+      if (prof >= 0.999 && w > 0.5) this.reposTenu = 0.6; else this.reposTenu = Math.max(0, (this.reposTenu || 0) - (dt || 1 / 60));
+      w = Math.max(0, Math.min(1, w)) * Math.max(prof, Math.min(1, this.reposTenu / 0.25)); if (w <= 0.001) return;
       const D = this.mains.D, G = this.mains.G; if (D.some(x => !x) || G.some(x => !x)) return;
       const hp = this.hips, qS = hp.getWorldQuaternion(Q()), pS = hp.getWorldPosition(V3()), al = this.align[Base.meta.os.indexOf('Hips')];
       const avant = V3(0, 0, 1).applyQuaternion(qS).applyQuaternion(al).setY(0).normalize(), droite = avant.clone().cross(V3(0, 1, 0)).normalize();
@@ -326,11 +330,11 @@
     }
     tenirFusil(actif, dt) {
       const w = this.fusil; if (!w) return;
-      if (this.dos && (this.poidsDos ?? 0) >= 0.999) { this.porterDos(dt, true); for (const d of this.doigts) d.os.quaternion.copy(d.repos); this.paM = 0; this.brasRepos(1); return; }
+      if (this.dos && (this.poidsDos ?? 0) >= 0.999) { this.porterDos(dt, true); for (const d of this.doigts) d.os.quaternion.copy(d.repos); this.paM = 0; this.brasRepos(1, dt); return; }
       // fondu : la prise s'installe / se défait en ~0,25 s (mains, doigts), le fusil apparaît quand la prise est à moitié faite
       this.poidsArme = Math.max(0, Math.min(1, (this.poidsArme ?? 0) + (actif ? 1 : -1) * dt / 0.25));
       const pa = this.poidsArme; w.visible = pa > 0.5;
-      if (pa <= 0) { for (const d of this.doigts) d.os.quaternion.copy(d.repos); this.fusilPos = null; this.fusilPosLoc = null; this.paM = 0; this.brasRepos(1); return; }
+      if (pa <= 0) { for (const d of this.doigts) d.os.quaternion.copy(d.repos); this.fusilPos = null; this.fusilPosLoc = null; this.paM = 0; this.brasRepos(1, dt); return; }
       const D = this.mains.D, G = this.mains.G; if (D.some(x => !x) || G.some(x => !x)) return;
       // deux ports : low ready (défaut) et épaulé en visée (regard verrouillé) ; fondu entre les deux
       this.poidsVisee = Math.max(0, Math.min(1, (this.poidsVisee ?? 0) + ((this.viseeEpaulee ? 1 : -1) * dt / 0.3)));
@@ -448,7 +452,7 @@
         main[2].quaternion.copy(F.getWorldQuaternion(Q()).invert().multiply(qw)); main[2].updateMatrixWorld(true);
       }
       for (const d of this.doigts) if (d.prise) d.os.quaternion.copy(d.repos).slerp(d.prise, (this.paM ?? pa) * (d.indexD ? pv : 1));   // index droit : tendu hors de la détente en low ready, sur la détente en visée
-      this.brasRepos(1 - (this.paM ?? pa));
+      this.brasRepos(1 - (this.paM ?? pa), dt);
       // épaulé : la tête se penche vers la crosse (joue sur la crosse) et baisse un peu vers le viseur
       const tete = this.os[Base.meta.os.indexOf('Head')];
       if (tete && pv > 0.001) {
@@ -1097,6 +1101,10 @@
       S.recul = this.recul; S.viseeEpaulee = !!Ctl.verrouRegard; S.viseeYaw = Ctl.verrouRegard ? (Ctl.verrouCible ?? Ctl.camYaw) : null; S.dos = !!this.sauvetage; S.tenirFusil(Ctl.visee, dt);
       if (this.sauvetage) this.sauvetage.pas(dt);
       if (this.leve) this.leverTic(dt);
+      // détecteur « bras en T » (diagnostic, 20/10) : bras tendu à l'horizontale sans arme en main → événement brasT (bannière)
+      if (this === agents[0] && (S.paM ?? 1) < 0.5 && horloge - (this.brasTT || -9) > 1) { for (const k of ['D', 'G']) { const m = S.mains[k]; if (!m || m.some(x => !x)) continue;
+        const a = m[0].getWorldPosition(V3()), f = m[1].getWorldPosition(V3()), h = m[2].getWorldPosition(V3()); const d = f.clone().sub(a).normalize(), e = h.clone().sub(f).normalize();
+        if (Math.abs(d.y) < 0.35 && d.dot(e) > 0.85) { this.brasTT = horloge; EVENEMENTS.push({ t: +horloge.toFixed(2), qui: 0, k: 'brasT', loc: k + ' ' + Base.meta.sequences[Base.seq[this.frame]].nom.replace('.bvh', '') + ' dos' + (S.poidsDos || 0).toFixed(1) + ' prof' + (S.profondeur || 0).toFixed(1) + ' tenu' + (S.reposTenu || 0).toFixed(1) + (this.sauvetage ? ' ' + this.sauvetage.etat : '') + (this.leve ? ' leve' : '') }); break; } } }
       this.inst = this.glisse.mesurer(S.orteils, dt, contacts);
       this.vGoal = vGoal; this.contacts = contacts;
       while (this.sautsFen.length && now - this.sautsFen[0] > 2000) this.sautsFen.shift();
@@ -1189,11 +1197,14 @@
 
   function evenements() {
     const Ctl = () => agents[0].ctl;
-    addEventListener('keydown', e => { const c = Ctl(); c.touches[e.code] = true; if (e.code === 'KeyV') { c.visee = !c.visee; } if (e.code === 'KeyC') { c.accroupi = !c.accroupi; if (!c.accroupi) { c.couvert = null; c.verrouCible = null; } } if (e.code === 'KeyB') seCouvrir(); if (e.code === 'KeyG') galerie(); if (e.code === 'KeyH') { const j = agents.findIndex(B => B.mort); if (j > 0) sauver(0, j); else scenarioSauvetage(); } if (e.code === 'KeyT' || e.code === 'KeyY' || e.code === 'KeyU') tirerSur(e.code === 'KeyY' ? 'tête' : e.code === 'KeyU' ? 'membre' : ''); if (e.code === 'KeyP') basculerChemin(); if (e.code === 'KeyR') reinit(); if (e.code === 'KeyI') { for (const id of ['hud', 'boutons', 'credit']) { const el = document.getElementById(id); if (el) el.style.display = el.style.display === 'none' ? '' : 'none'; } } if (/^Digit[123]$/.test(e.code)) preset(+e.code[5]); if (e.code === 'KeyE') ajouterEscouade(); if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
+    // (20/10) après un preset, le cerveau du soldat joué gardait la main (il annulait visée et tir) : la première commande du
+    // joueur (touche de déplacement, V, C, ou clic droit) lui rend le contrôle ; les ennemis gardent leur cerveau
+    const reprendreMain = () => { const A = agents[0]; if (!A || !A.cerveau || A.sauvetage || A.leve) return; A.cerveau = null; const c = A.ctl; c.couvert = null; c.enRoute = null; c.chemin = null; c.verrouCible = null; c.verrouRegard = false; c.tir = false; c.tirEnMarchant = false; c.sprint = false; c.vitesseChemin = null; };
+    addEventListener('keydown', e => { if (/^(Key[WZQSDVC]|Arrow|Shift)/.test(e.code)) reprendreMain(); const c = Ctl(); c.touches[e.code] = true; if (e.code === 'KeyV') { c.visee = !c.visee; } if (e.code === 'KeyC') { c.accroupi = !c.accroupi; if (!c.accroupi) { c.couvert = null; c.verrouCible = null; } } if (e.code === 'KeyB') seCouvrir(); if (e.code === 'KeyG') galerie(); if (e.code === 'KeyH') { const j = agents.findIndex(B => B.mort); if (j > 0) sauver(0, j); else scenarioSauvetage(); } if (e.code === 'KeyT' || e.code === 'KeyY' || e.code === 'KeyU') tirerSur(e.code === 'KeyY' ? 'tête' : e.code === 'KeyU' ? 'membre' : ''); if (e.code === 'KeyP') basculerChemin(); if (e.code === 'KeyR') reinit(); if (e.code === 'KeyI') { for (const id of ['hud', 'boutons', 'credit']) { const el = document.getElementById(id); if (el) el.style.display = el.style.display === 'none' ? '' : 'none'; } } if (/^Digit[123]$/.test(e.code)) preset(+e.code[5]); if (e.code === 'KeyE') ajouterEscouade(); if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
     addEventListener('keyup', e => { Ctl().touches[e.code] = false; });
     addEventListener('blur', () => { Ctl().touches = {}; Ctl().verrouRegard = false; Ctl().tir = false; });
     let drag = null;
-    renderer.domElement.addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, b: e.button, moved: false }; cam.auto = null; if (e.button === 2) Ctl().verrouRegard = true; if (e.button === 0 && Ctl().verrouRegard) Ctl().tir = true; });
+    renderer.domElement.addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, b: e.button, moved: false }; cam.auto = null; if (e.button === 2) { reprendreMain(); Ctl().verrouRegard = true; } if (e.button === 0 && Ctl().verrouRegard) Ctl().tir = true; });
     addEventListener('mousemove', e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; Ctl().camYaw -= dx * 0.006; cam.pitch = Math.max(0.08, Math.min(1.3, cam.pitch + dy * 0.004)); drag.x = e.clientX; drag.y = e.clientY; });
     addEventListener('mouseup', e => { if (drag && !drag.moved && Ctl().chemin && e.button === 0) ajouterPoint(e); drag = null; if (e.button === 2) { Ctl().verrouRegard = false; Ctl().tir = false; } if (e.button === 0) Ctl().tir = false; });
     renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
