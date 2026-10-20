@@ -648,7 +648,7 @@
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
   // « bataille » minimale pour le module ragdoll du jeu : horloge, obstacles (le bloc), journal des morts
   const BATAILLE = window.BATAILLE = { t: 0, over: false, log: [], map: { obstacles: [{ x: BLOC.x, z: BLOC.z, w: BLOC.w, d: BLOC.d, h: BLOC.h, kind: 'cover', name: 'bloc' }] } };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.55, avantMains: 0.35, hautMains: 0.5, vitesse: 0.7 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.55, avantMains: 0.4, hautMains: 0.55, vitesse: 1.0, penche: 0.45 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -693,12 +693,14 @@
         }
       } else if (this.etat === 'traine') {
         const r = V.mort.m.rag; if (r) { r.calme = 0; r.t = Math.min(r.t, 0.5); r.aFiger = false; }   // (jamais figé pendant qu'on le traîne)
+        C.accroupi = false; S.pencheExtra = PARAMS.sauvetage.penche;                              // debout, buste penché (pas accroupi : on recule à ~1 m/s)
         const pm = this.pointMains(); if (this.kin) { this.kin.velocity.set((pm.x - this.kin.position.x) / Math.max(dt, 1e-3), (pm.y - this.kin.position.y) / Math.max(dt, 1e-3), (pm.z - this.kin.position.z) / Math.max(dt, 1e-3)); this.kin.position.set(pm.x, pm.y, pm.z); }
         // le sauveteur regarde le blessé (ses hanches) et recule
         const hv = V.soldat.hips.getWorldPosition(V3()); C.verrouCible = Math.atan2(hv.x - S.pos.x, hv.z - S.pos.z);
       } else if (this.etat === 'depose') {
         this.poidsMains = Math.max(0, this.poidsMains - dt / 0.5);
-        if (this.t > 0.6) { C.accroupi = false; C.verrouCible = null; C.cheminRecul = false; C.vitesseChemin = null; this.etat = 'fin'; }
+        S.pencheExtra = PARAMS.sauvetage.penche * Math.max(0, 1 - this.t / 0.6);
+        if (this.t > 0.6) { C.accroupi = false; C.verrouCible = null; C.cheminRecul = false; C.vitesseChemin = null; S.pencheExtra = 0; this.etat = 'fin'; }
       }
       if (this.etat === 'fin') { R.sauvetage = null; return; }
       // mains sur le col (IK deux os), avec un fondu
@@ -867,7 +869,7 @@
       const cf = Base.contact[this.frame];
       const contacts = S.orteils.map((o, k) => !!(cf & (k ? 1 : 2)) && o.getWorldPosition(V3()).y < seuilOrteil);
       S.reposTotal = vGoalNul && this.facteurRacine < 0.05; S.pivot = pivote && Math.abs(errCapR) > 0.15;
-      S.pencher((S.profondeur || 0) * PARAMS.accroupi.penche * (1 - 0.7 * (S.poidsVisee || 0)));   // en visée le buste se redresse (joue sur la crosse)
+      S.pencher((S.profondeur || 0) * PARAMS.accroupi.penche * (1 - 0.7 * (S.poidsVisee || 0)) + (S.pencheExtra || 0));   // en visée le buste se redresse (joue sur la crosse)
       if (PARAMS.verrou) S.verrouPieds(contacts, dt);
       // tir (clic gauche maintenu en visée) : cadence soutenue du fusil d'assaut du jeu (110 coups/min), recul 1 → 0 en 0,1 s
       this.recul = Math.max(0, (this.recul || 0) - dt * 10); this.tirAcc = Math.max(0, (this.tirAcc || 0) - dt);
