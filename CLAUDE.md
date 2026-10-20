@@ -1,5 +1,14 @@
 # OPERATOR TACTICS — instructions pour toute nouvelle session Claude
 
+## Protocole d'économie de tokens (demandé par l'utilisateur, 20/10 — prioritaire)
+1. Lectures ciblées : `grep` / numéros de ligne d'abord, puis seulement les lignes utiles ; jamais un fichier
+   de plus de 200 lignes en entier pour une seule fonction. Ne jamais inspecter `node_modules`, `dist`, `build`, `.git`,
+   `package-lock.json`, ni les assets/données brutes (`.glb`, `.gltf`, `.obj`, `.bin`, gros `.json`).
+2. Tests groupés : pas de test ni de build après chaque petite modification ; tout modifier proprement, puis UNE
+   vérification globale en fin d'étape. Sorties filtrées (`--silent`, `--quiet`, `tail -n 20`).
+3. Modifications ciblées (outil d'édition) ; ne jamais réécrire un fichier entier dans le chat.
+4. Réponses très courtes : plan en 2 lignes avant d'agir, résultat en 3 lignes après. Pas de politesse ni de long résumé.
+
 Lire d'abord : ce fichier, puis `conception/ETAT_DU_PROJET.md` (où on en est, choix validés, suite),
 `A_FAIRE.md`, `conception/doctrines/decisions.md`, `conception/doctrines/strategies_gign.md`, `README.md`.
 
