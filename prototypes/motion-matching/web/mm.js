@@ -1003,8 +1003,8 @@
       // Swat/Rushed (jambes qui se lèvent peu), genoux fléchis, buste penché, vitesse plafonnée à 2 m/s (Ctl.vitesseCible)
       const viseeCourse = !!Ctl.verrouRegard && !Ctl.accroupi && vGoal.lengthSq() > 1.6 * 1.6;
       const courseRapide = !Ctl.verrouRegard && vGoal.lengthSq() > 2.1 * 2.1; S.attenueBob = courseRapide ? 0.15 : 1;
-      if (!this.sauvetage) S.pencheExtra = viseeCourse ? 0.18 : 0;
-      const styleVoulu = Ctl.accroupi ? 1 : (Ctl.visee && !mainsLibres && !courseRapide) ? 2 : 0;      // 1 = accroupi (Crouched), 2 = Swat (arme), 0 = neutre
+      if (!this.sauvetage) S.pencheExtra = viseeCourse ? 0.1 : 0;
+      const styleVoulu = (Ctl.accroupi || viseeCourse) ? 1 : (Ctl.visee && !mainsLibres && !courseRapide) ? 2 : 0;      // 1 = accroupi (Crouched : jambes écartées, genoux pliés — aussi pour la glissade en visée), 2 = Swat (arme), 0 = neutre
       this.derniereRecherche += dt;
       // recherche immédiate dès que l'intention change (touche pressée / relâchée, direction) : réactivité au clavier
       const intention = vGoal.x.toFixed(1) + ',' + vGoal.z.toFixed(1) + ',' + (Ctl.verrouRegard ? 1 : 0);
@@ -1104,7 +1104,7 @@
       const parDessus = Ctl.couvert && Ctl.verrouRegard;
       // visée par-dessus : on se redresse juste assez pour que la bouche du canon passe 8 cm au-dessus du bloc (asservi)
       if (parDessus && S.fusil && S.fusilQAff) { const by = S.fusil.position.clone().add(S.fusil.bouchePt.clone().applyQuaternion(S.fusilQAff)).y; this.profVisee = Math.max(0, Math.min(1, (this.profVisee ?? PARAMS.accroupi.parDessus) + (by - (BLOC.h + 0.08)) * 1.5 * dt)); } else this.profVisee = PARAMS.accroupi.parDessus;
-      const profVoulue = Math.max(Ctl.profondeurExtra || 0, viseeCourse ? 0.22 : 0, Ctl.accroupi ? (parDessus ? this.profVisee : vGoal.lengthSq() < 0.01 ? 1 : PARAMS.accroupi.marche) : 0);
+      const profVoulue = Math.max(Ctl.profondeurExtra || 0, viseeCourse ? 0.0 : 0, Ctl.accroupi ? (parDessus ? this.profVisee : vGoal.lengthSq() < 0.01 ? 1 : PARAMS.accroupi.marche) : 0);
       S.profondeur = (S.profondeur || 0) + (profVoulue - (S.profondeur || 0)) * (1 - Math.exp(-dt / PARAMS.accroupi.tau));
       const squatVoulu = Ctl.accroupi && vGoal.lengthSq() < 0.01 && !parDessus ? 1 : 0;
       S.squat = (S.squat || 0) + (squatVoulu - (S.squat || 0)) * (1 - Math.exp(-dt / 0.35));
