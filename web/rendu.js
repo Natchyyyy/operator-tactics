@@ -195,6 +195,9 @@
       if (X.SMAAPass) { smaa = new X.SMAAPass(size.x * pr, size.y * pr); composer.addPass(smaa); }
     }
     R.composer = composer; R.grade = grade;
+    // réglage « Qualité » : en basse qualité, pas d'occlusion ambiante ni de rayons de soleil (les deux passes les plus chères)
+    R.quality = 'haute';
+    R.setQuality = function (q) { R.quality = q; if (hbao) hbao.enabled = q !== 'basse'; };
     R.setSize = function (w, h) { if (composer) { composer.setSize(w, h); if (grade) grade.uniforms.resolution.value.set(w * renderer.getPixelRatio(), h * renderer.getPixelRatio()); } };
     // ---- ombres ajustées à la vue : caméra près du sol → carte d'ombre resserrée autour de ce qu'elle regarde (2 à 3 fois
     // plus fine) ; vue haute → tout le terrain. Centre accroché au texel de la carte : pas de scintillement en mouvement.
@@ -219,7 +222,7 @@
     // position du soleil à l'écran pour les rayons (jour seulement ; nulle si le soleil est derrière la caméra)
     const SR = { p: new T.Vector3(), f: new T.Vector3() };
     function sunRays() {
-      const u = grade.uniforms; if (R.amb.night || !R.amb.rays) { u.rays.value = 0; return; }
+      const u = grade.uniforms; if (R.amb.night || !R.amb.rays || R.quality === 'basse') { u.rays.value = 0; return; }
       camera.getWorldDirection(SR.f); const fac = SR.f.dot(R.lightDir); if (fac < 0.2) { u.rays.value = 0; return; }
       SR.p.copy(camera.position).addScaledVector(R.lightDir, 500).project(camera);
       u.sunUV.value.set(SR.p.x * 0.5 + 0.5, SR.p.y * 0.5 + 0.5); u.rays.value = R.amb.rays * T.MathUtils.smoothstep(fac, 0.2, 0.75);

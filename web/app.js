@@ -1573,6 +1573,7 @@
   function applyQuality() {
     const dpr = window.devicePixelRatio || 1;
     renderer.setPixelRatio(SETTINGS.quality === 'haute' ? Math.min(dpr, 2) : SETTINGS.quality === 'moyenne' ? 1 : 0.7);
+    if (RENDU && RENDU.setQuality) RENDU.setQuality(SETTINGS.quality);
     if (renderer.shadowMap.enabled !== !!SETTINGS.shadows) { renderer.shadowMap.enabled = !!SETTINGS.shadows; scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.needsUpdate = true; }); }); }
     resize();
   }
