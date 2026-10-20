@@ -303,7 +303,7 @@
           diffuseColor.rgb = col;`)
         .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
           float rDry = uHasR > 0.5 ? clamp(0.25 + 0.85 * mix(texture2D(tDetR, duv).g, texture2D(tDetR, duv * 0.29 + vec2(0.13, 0.71)).g, uMix), 0.3, 1.0) : 0.93;
-          roughnessFactor = mix(mix(rDry, 0.8, gp.a), 0.55, smoothstep(0.05, 0.55, wet));
+          roughnessFactor = mix(mix(rDry, 0.8, gp.a), mix(0.55, 0.26, uWet), smoothstep(0.05, 0.55, wet));   // sous la pluie : bitume trempé, presque miroir
           roughnessFactor = mix(roughnessFactor, 0.12, pool); roughnessFactor = mix(roughnessFactor, 0.35, oil * 0.6);`)
         .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
           { vec3 nt = texture2D(tDetN, duv).xyz * 2.0 - 1.0; float bump = (1.0 - pool) * (1.0 - gp.a * 0.5);
