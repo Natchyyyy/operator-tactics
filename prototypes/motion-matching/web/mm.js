@@ -104,7 +104,7 @@
   // IK deux os : tourne H (racine) et K (milieu) pour amener A (extrémité) sur cibleA ; garde l'orientation mondiale de A.
   // Construction géométrique directe (triangle des longueurs) : le coude/genou reste dans le plan de flexion actuel quand il
   // est bien défini, sinon du côté de `pole` (coudes vers le bas, genoux vers l'avant). La cible est ramenée à portée.
-  function ikDeuxOs(H, K, A, cibleA, pole) {
+  function ikDeuxOs(H, K, A, cibleA, pole, forcerPole) {
     const pH = H.getWorldPosition(V3()), pK = K.getWorldPosition(V3()), pA = A.getWorldPosition(V3());
     const a = pK.distanceTo(pH), b = pA.distanceTo(pK);
     const maxC = (a + b) * 0.985, d = cibleA.clone().sub(pH), dist = d.length();
@@ -117,7 +117,8 @@
     const nat = HK.clone().addScaledVector(dirC, -HK.dot(dirC));                       // côté naturel (longueur = sinus × a)
     const pol = pole ? pole.clone().addScaledVector(dirC, -pole.dot(dirC)) : V3();
     let bend;
-    if (pol.lengthSq() > 1e-6) {
+    if (forcerPole && pol.lengthSq() > 1e-6) bend = pol.normalize();   // (20/10) garde basse : le coude DOIT suivre le pôle (ouvert à droite, crosse derrière le bras)
+    else if (pol.lengthSq() > 1e-6) {
       pol.normalize();
       const nl = nat.length(), natN = nl > 1e-6 ? nat.clone().divideScalar(nl) : pol.clone();
       const net = Math.min(1, nl / (0.35 * a));                                     // 0 = tendu (côté indéfini) … 1 = bien plié
@@ -438,8 +439,8 @@
         const paM = this.paM = pa * Math.max(0, Math.min(1, (0.15 - (this.poidsDos || 0)) / 0.15));
         cible = mainData.clone().lerp(cible, paM);
         // pôles : coudes vers le bas ; le droit rentré vers le corps (pas d'« aile de poulet »), le gauche un peu en arrière
-        const pole = k === 'D' ? V3(0, -1, 0).addScaledVector(dir, -0.25).addScaledVector(droite, -pv * 0.5).normalize() : V3(0, -1, 0).addScaledVector(dir, -0.35).normalize();
-        ikDeuxOs(main[0], main[1], main[2], cible, pole);
+        const pole = k === 'D' ? V3(0, -1, 0).addScaledVector(dir, -0.25 + (1 - pv) * 0.15).addScaledVector(droite, (1 - pv) * 0.5 - pv * 0.5).normalize() : V3(0, -1, 0).addScaledVector(dir, -0.35).normalize();
+        ikDeuxOs(main[0], main[1], main[2], cible, pole, k === 'D' && pv < 0.5);   // garde basse : coude droit forcé vers l'extérieur (la crosse passe entre les côtes et le bras)
         const qw = qData.clone().slerp((this.fusilQAff || this.fusilQ).clone().multiply(pr.q), paM);
         // orientation de la main sur l'arme ; la torsion du poignet est partagée avec l'avant-bras (il roule autour de son axe,
         // ce qui ne déplace pas la main) pour éviter un poignet vrillé
@@ -711,7 +712,7 @@
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
   // « bataille » minimale pour le module ragdoll du jeu : horloge, obstacles (le bloc), journal des morts
   const BATAILLE = window.BATAILLE = { t: 0, over: false, log: [], map: { obstacles: [{ x: BLOC.x, z: BLOC.z, w: BLOC.w, d: BLOC.d, h: BLOC.h, kind: 'cover', name: 'bloc' }] } };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.7, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.45, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 1.0, flechi: 0.7, depasse: 2.2, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, rea: { duree: 3.0, releve: 2.2, cadence: 1.8, amplitude: 0.04, flanc: 0.5 }, graines: [6, 2, 25], capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.22, droite: 0.19, haut: -0.14, tangage: 0.2, tangageMax: -0.45, tangageCouvert: -0.9, cant: 0.3, roulis: -0.35, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.7, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.45, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 1.0, flechi: 0.7, depasse: 2.2, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, rea: { duree: 3.0, releve: 2.2, cadence: 1.8, amplitude: 0.04, flanc: 0.5 }, graines: [6, 2, 25], capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.1, droite: 0.25, haut: -0.25, tangage: 0.2, tangageMax: -0.45, tangageCouvert: -0.9, cant: 0.3, roulis: -0.35, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
