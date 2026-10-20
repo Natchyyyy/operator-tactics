@@ -50,15 +50,15 @@
       asymetrique: true,
       // z des trois voies d'approche, routes de l'IA : nord par la ruelle (derrière le grillage), milieu à travers les rangées
       // de voitures et la station de lavage, sud le long du muret de la rue (quai de la navette, kiosque, chantier).
-      voies: { nord: 5.5, milieu: 23, sud: 34 },
+      voies: { nord: 4.5, milieu: 23, sud: 34 },
       // positions clés (pour les ordres du joueur : « tenir » une position) : par paires en miroir, chaque camp a la sienne.
       // x, z : où se tient l'opérateur (case libre, collé à un couvert d'au moins 0,9 m) ; r : rayon « tenue » ; menace :
       // direction d'où vient la menace (radians, atan2(dz, dx)), le couvert est de ce côté ; voie : -1 nord, 0 milieu, 1 sud
       positionsCles: [
         { id: 'lavage-ouest', nom: 'Piste 1 du lavage', x: 35.1, z: 25.0, r: 2.5, menace: 0, voie: 0 },
         { id: 'lavage-est', nom: 'Piste 2 du lavage', x: 36.9, z: 25.0, r: 2.5, menace: Math.PI, voie: 0 },
-        { id: 'ruelle-ouest', nom: 'Caisses de la ruelle', x: 27.9, z: 8.2, r: 2.5, menace: 0, voie: -1 },
-        { id: 'ruelle-est', nom: 'Palettes de la ruelle', x: 39.1, z: 3.2, r: 2.5, menace: Math.PI, voie: -1 },
+        { id: 'ruelle-ouest', nom: 'Caisses de la ruelle', x: 25.5, z: 6.5, r: 2.5, menace: 0, voie: -1 },
+        { id: 'ruelle-est', nom: 'Palettes de la ruelle', x: 46.2, z: 5.0, r: 2.5, menace: Math.PI, voie: -1 },
         { id: 'quai-ouest', nom: 'Jardinière du quai (ouest)', x: 29.9, z: 34.7, r: 2.5, menace: 0, voie: 1 },
         { id: 'quai-est', nom: 'Jardinière du quai (est)', x: 42.1, z: 34.7, r: 2.5, menace: Math.PI, voie: 1 },
       ],
@@ -80,18 +80,27 @@
           box(-1, 0, 1, 46, 3.2, 'wall', 'mur ouest'), box(72, 0, 1, 46, 3.2, 'wall', 'mur est'),
           box(44, 46, 7, 1, 1.1, 'wall', 'mur portail sud'),
           box(46.9, 42.4, 1.6, 1.8, 2.5, 'wall', 'guérite'),                     // guérite du gardien, sur l'îlot entre l'entrée et la sortie
-          // ---- NORD : ruelle de service à l'arrière des immeubles en briques (portes de service, escaliers de secours),
-          // séparée du parking par un muret surmonté d'un grillage (on voit à travers), avec deux passages.
-          // Au milieu, une chicane : l'annexe en briques d'un immeuble avance dans la ruelle, en face le local à poubelles.
-          box(9, 10.5, 15, 0.3, 0.8, 'cover', 'clôture grillagée'), box(27.5, 10.5, 19, 0.3, 0.8, 'cover', 'clôture grillagée'),
-          box(50, 10.5, 13, 0.3, 0.8, 'cover', 'clôture grillagée'),
-          box(30, 0, 7, 6.0, 5.0, 'wall', 'annexe'), box(39, 7.2, 4, 3.3, 2.0, 'wall', 'local poubelles'),
-          box(28.4, 7.6, 1.2, 1.2, 1.0, 'cover', 'caisses'), box(37.7, 7.8, 1.2, 1.2, 1.0, 'cover', 'palettes'),   // à couvert dans la chicane
-          box(33.0, 6.0, 1.8, 1.2, 1.8, 'wall', 'rolls'),                        // rolls de livraison devant le rideau de l'annexe (ferme la chicane)
-          box(12, 0.9, 5.2, 2.1, 2.4, 'wall', 'fourgon'), box(56, 8.2, 5.2, 2.1, 2.4, 'wall', 'fourgon'),
-          box(0.5, 0.4, 2.0, 1.4, 1.3, 'cover', 'benne'), box(20, 8.8, 2.0, 1.4, 1.3, 'cover', 'benne'), box(52.5, 0.4, 2.0, 1.4, 1.3, 'cover', 'benne'),
+          // ---- NORD : la ruelle de service, à l'arrière des immeubles en briques (portes de service, escaliers de secours).
+          // Elle est FERMÉE côté parking, sur toute sa longueur, par une ligne continue d'annexes, de palissades et d'un quai
+          // de chargement (pas de jour, on ne voit ni ne tire à travers) : on n'y entre que par ses trois bouches — au bout
+          // ouest (x 5,6–9,4, près du départ ouest), au bout est (x 63–66,6) et par le porche du milieu (x 32,5–35,5), qui
+          // débouche derrière la station de lavage. Pas en miroir : à l'ouest un garage long (ruelle étroite, fourgon garé
+          // dedans) puis une cour derrière la palissade de chantier ; à l'est le quai de chargement, une cour derrière la
+          // palissade en tôle (un fourgon y attend), puis un immeuble plus profond. Au milieu, une chicane serrée : l'annexe
+          // en briques avance dans la ruelle, l'atelier et le local technique la resserrent (2,4 m) de part et d'autre du porche.
+          box(9.4, 7.0, 11.6, 4.2, 4.2, 'wall', 'bâtiment garage'),               // garage en briques (rideaux côté parking)
+          box(21, 10.7, 8.5, 0.4, 2.6, 'wall', 'palissade chantier'),            // palissade de chantier en planches (cour derrière)
+          box(29.5, 8.4, 3.0, 2.8, 3.6, 'wall', 'bâtiment atelier'),             // atelier : côté ouest du porche
+          box(35.5, 8.4, 4.5, 2.8, 3.4, 'wall', 'bâtiment local'),               // local technique : côté est du porche
+          box(40, 7.6, 8, 3.6, 3.2, 'wall', 'quai de chargement'),               // quai de chargement (rideaux côté ruelle)
+          box(48, 10.6, 9, 0.4, 2.6, 'wall', 'palissade tôle'),                  // clôture pleine en tôle ondulée (cour derrière)
+          box(57, 6.8, 6.0, 4.4, 4.6, 'wall', 'bâtiment entrepôt'),              // petit entrepôt (ruelle étroite à son pied)
+          box(30, 0, 7, 6.0, 5.0, 'wall', 'annexe'),
+          box(26.2, 6.0, 1.2, 1.2, 1.0, 'cover', 'caisses'), box(44.5, 4.4, 1.2, 1.2, 1.0, 'cover', 'palettes'),   // à couvert dans les cours
+          box(12, 0.9, 5.2, 2.1, 2.4, 'wall', 'fourgon'), cap(box(50.5, 8.0, 5.2, 2.1, 2.4, 'wall', 'fourgon'), -1),
+          box(0.5, 0.4, 2.0, 1.4, 1.3, 'cover', 'benne'), box(22.0, 8.9, 2.0, 1.4, 1.3, 'cover', 'benne'), box(52.5, 0.4, 2.0, 1.4, 1.3, 'cover', 'benne'),
           box(7.6, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'), box(28.2, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'), box(61.5, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'),
-          box(18.6, 8.9, 1.2, 1.2, 1.0, 'cover', 'palettes'), box(43.9, 0.4, 1.2, 1.2, 1.3, 'cover', 'caisses'), box(37.4, 2.6, 1.2, 1.2, 1.0, 'cover', 'palettes'),
+          box(43.9, 0.4, 1.2, 1.2, 1.3, 'cover', 'caisses'), box(37.4, 2.6, 1.2, 1.2, 1.0, 'cover', 'palettes'),
           box(66.2, 7.6, 1.2, 1.2, 1.5, 'cover', 'caisses'), box(3.6, 8.4, 1.2, 1.2, 1.0, 'cover', 'palettes'),
           // ---- MILIEU (entre les rangées, x 23–49) : disposé en miroir autour de x = 36 pour l'équité ; station de lavage
           // (deux pistes, local technique au nord, muret entre les pistes), un fourgon qui attend son tour au nord, un autre
@@ -100,7 +109,7 @@
           box(34.6, 17.9, 2.8, 3.6, 3.3, 'wall', 'lavage local'), box(35.7, 21.5, 0.6, 6.6, 1.1, 'cover', 'lavage muret'),
           cap(box(34.95, 12.5, 2.1, 4.8, 2.4, 'wall', 'fourgon (lavage)'), 1),     // fourgon du technicien de la station, à 1,2 m de la porte du local (sinon fourgon + local blanc = un faux camion)
           cap(box(34.95, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon (nettoyage)'), 1),  // nettoyeur à la main (lustrage) sur l'aire de séchage, auvent ouvert
-          box(33.3, 11.0, 5.4, 1.6, 1.7, 'wall', 'haie'), box(35.4, 11.5, 1.2, 0.5, 3.6, 'wall', 'totem'),
+          box(35.6, 11.2, 4.4, 1.0, 1.7, 'wall', 'haie'), box(38.0, 11.45, 1.2, 0.5, 3.6, 'wall', 'totem'),   // au pied du local technique, à l'est du porche
           cap(box(27.9, 18.6, 1.9, 4.4, 1.4, 'cover', 'voiture'), -1), box(28.5, 23.4, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), cap(box(27.9, 24.6, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
           cap(box(42.2, 18.6, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), -1), box(42.7, 23.4, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), cap(box(42.2, 24.6, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),
           // ---- OUEST : caisse automatique (piétons) sur son îlot ; places le long du mur ouest, borne de recharge
@@ -109,7 +118,7 @@
           cap(box(0.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), -1), cap(box(0.2, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon'), -1),
           box(0.2, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
           // ---- EST : poste électrique sur son îlot planté ; places le long du mur est (au sud, la camionnette du chantier)
-          box(60.4, 21.9, 2.2, 2.2, 2.6, 'wall', 'poste électrique'), box(60.6, 24.6, 1.0, 0.5, 1.4, 'cover', 'armoire'),
+          box(60.4, 25.4, 2.2, 2.2, 2.6, 'wall', 'poste électrique'), box(60.6, 24.4, 1.0, 0.5, 1.4, 'cover', 'armoire'),   // (décalé au sud : pas en face de la caisse automatique)
           cap(box(66.6, 11.0, 5.2, 2.1, 2.4, 'wall', 'fourgon'), 1), cap(box(67.3, 13.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'), 1),
           cap(box(67.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), 1), cap(box(66.6, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon (chantier)'), 1),   // camionnette de l'équipe du chantier, entrée par le bout des séparateurs
           box(71.3, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
@@ -139,10 +148,12 @@
         ],
         // îlots plantés aux bouts des rangées (jardinières avec arbre, ou haies taillées), en miroir
         bac(13.6, 15.4, 4.4, 1.4), bac(18.6, 15.4, 4.0, 1.4), [box(13.6, 32.2, 4.6, 1.4, 1.7, 'wall', 'haie')], bac(18.8, 32.2, 3.0, 1.4),
-        bac(49.4, 15.4, 4.0, 1.4), bac(54.0, 15.4, 4.4, 1.4), bac(50.2, 32.2, 3.0, 1.4), [box(53.8, 32.2, 4.6, 1.4, 1.7, 'wall', 'haie')],
-        // rangées de places (ouest : x 13–23 ; est : x 49–59, en miroir), du nord (z 17) au sud (z 32)
+        [box(49.4, 15.4, 4.0, 1.4, 1.7, 'wall', 'haie')], bac(54.0, 15.4, 4.4, 1.4), bac(50.2, 32.2, 3.0, 1.4), bac(54.6, 32.2, 3.8, 1.4),
+        // rangées de places (ouest : x 13–23 ; est : x 49–59), du nord (z 17) au sud (z 32) — pas en miroir : à l'ouest le
+        // passage à travers la rangée est au milieu (z 22–24,5), à l'est il est plus au sud (z 27–29,5) et la rangée est
+        // ouverte côté nord-ouest
         rangee(13, 17, 'vf.vv.', '.v.fvv', [0, 3, 5, 1, 6, 2, 4, 7, 0, 5]),
-        rangee(49, 17, '.v.fvv', 'vf.vv.', [2, 6, 9, 4, 1, 7, 3, 5, 10, 11])
+        rangee(49, 17, '.vvf.v', 'vv.f.v', [2, 6, 9, 4, 1, 7, 3, 5, 10, 11])
       ),
     },
   };

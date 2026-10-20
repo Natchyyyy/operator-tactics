@@ -982,7 +982,7 @@
     g.traverse(m => {
       if (!m.isMesh || !m.material || Array.isArray(m.material) || !m.material.color) return;
       const key = m.material.uuid + '|' + k % PAL.length;
-      m.material = tintCache[key] || (tintCache[key] = (() => { const c = m.material.clone(); c.color.multiply(col).multiplyScalar(Math.min(f, 1.45)); return c; })());
+      m.material = tintCache[key] || (tintCache[key] = (() => { const c = m.material.clone(); c.color.multiply(col).multiplyScalar(Math.min(f, 1.45)); if (root.Modeles3D && root.Modeles3D.vernir) root.Modeles3D.vernir(c); return c; })());
     });
     return g;
   }

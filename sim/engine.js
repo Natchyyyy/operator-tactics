@@ -2613,7 +2613,12 @@
       // 3) contourner : au contact, les deux plus éloignés de la menace la prennent par un côté
       if (k.plan === 'contourner' && !k.flank && k.contactAt !== null && this.t - k.contactAt > k.flankDelay && known.length && alive.length >= 3) {
         const T = cen(known), C = cen(alive), cand = free.slice().sort((a, b) => Math.hypot(b.x - T.x, b.z - T.z) - Math.hypot(a.x - T.x, a.z - T.z) || (a.id < b.id ? -1 : 1)).slice(0, 2);
-        if (cand.length === 2) {
+        if (cand.length === 2 && this.map.def.voies && k.flankLane) {   // carte à voies : ils passent par la voie de flanc (même conduite que les flancs de départ)
+          const v = this.map.def.voies, lane = Math.abs(T.z - v.nord) > Math.abs(T.z - v.sud) ? -1 : 1;
+          cand.forEach(u => { u.voie = lane; u.laneDz = 0; this.resetRoute(u); });
+          k.flank = true; k.lastAt = this.t;
+          this.logEvent('plan', `${team.name} : « ${KARST_SAY.contourner} » (${cand.map(u => u.callsign).join(', ')})`, { team: team.index, unit: cand[0].id, plan: 'contourner' });
+        } else if (cand.length === 2) {
           let dx = T.x - C.x, dz = T.z - C.z; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
           for (const s of [k.side, -k.side]) {
             const W = this.orderPoint(T.x - dx * 4 - dz * s * (k.flankW || 13), T.z - dz * 4 + dx * s * (k.flankW || 13)), F = this.orderPoint(T.x - dz * s * 5, T.z + dx * s * 5);

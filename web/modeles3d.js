@@ -37,10 +37,30 @@
         new Loader().parse(buf, '', (g) => {
           const sc = g.scene; sc.updateMatrixWorld(true);
           sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.userData.keep = true; if (o.material) { o.material.side = THREE.FrontSide; if (o.material.color) o.material.color.multiplyScalar(n === 'fusil' ? 1 : 0.8); o.material.roughness = Math.max(o.material.roughness || 0, 0.55); for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (o.material[k]) o.material[k].anisotropy = 8; } } });
+          if (VERNIS[n]) vernir(sc, VERNIS[n]);
           S.scenes[n] = sc; S.boxes[n] = new THREE.Box3().setFromObject(sc); if (n === 'fusil') try { separerChargeur(sc); } catch (e) { console.warn('chargeur :', e); } delete M[n]; done();
         }, (e) => { console.warn('modèle ' + n + ' :', e); done(); });
       } catch (e) { console.warn('modèle ' + n + ' :', e); done(); }
     });
+  }
+  // Carrosseries : vernis (couche transparente brillante par-dessus la peinture, comme une vraie voiture) — reflète le ciel
+  // et les lampadaires, ce qui donne tout de suite du volume et du « vrai » aux véhicules. La couche est atténuée là où la
+  // texture est presque noire (pneus, joints).
+  const VERNIS = { berline: [0.75, 0.16], pickup: [0.65, 0.2], fourgon: [0.6, 0.2], bus: [0.6, 0.18] };
+  function vernir(sc, cfg) {
+    sc.traverse(o => {
+      if (!o.isMesh || !o.material || Array.isArray(o.material) || o.material.isMeshPhysicalMaterial) return;
+      const src = o.material, m = new THREE.MeshPhysicalMaterial();
+      THREE.MeshStandardMaterial.prototype.copy.call(m, src); m.defines = { STANDARD: '', PHYSICAL: '' };
+      m.clearcoat = cfg[0]; m.clearcoatRoughness = cfg[1]; m.envMapIntensity = (src.envMapIntensity || 1) * 1.1;
+      m.onBeforeCompile = vernisHook; m.customProgramCacheKey = vernisKey; m.needsUpdate = true; o.material = m;
+    });
+  }
+  function vernisKey() { return 'vernis'; }
+  function vernisHook(sh) {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
+      { float vL = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)), vS = max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b)) - min(diffuseColor.r, min(diffuseColor.g, diffuseColor.b));
+        material.clearcoat *= mix(0.25, 1.0, smoothstep(0.012, 0.05, vL + vS)); }`);
   }
   // Chargeur détachable : les triangles du fusil dont le centre tombe dans la zone du chargeur (repère du modèle :
   // |x − CHG.x| < CHG.dx, y < CHG.y) forment un maillage à part (même matériau, mêmes sommets), nommé « chargeur ».
@@ -104,7 +124,7 @@
     if (w.mag && S.chargeurBox) { const mc = S.chargeurBox.getCenter(new THREE.Vector3()); w.magCenter = P(mc.x, mc.y); w.magHome = w.mag.position.clone(); }
     w.isMeshy = true; return w;
   }
-  S.load = load; S.has = has; S.copie = copie; S.fit = fit; S.arme = arme;
+  S.load = load; S.vernir = (m) => { if (m && m.isMeshPhysicalMaterial && m.clearcoat > 0) { m.onBeforeCompile = vernisHook; m.customProgramCacheKey = vernisKey; } return m; }; S.has = has; S.copie = copie; S.fit = fit; S.arme = arme;
   S.whenReady = (fn) => { if (S.ready) fn(); else S.onReady.push(fn); };
   root.Modeles3D = S;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load); else setTimeout(load, 0);
