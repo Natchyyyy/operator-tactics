@@ -2180,7 +2180,7 @@
   const ORD_PLUS_ARR = [{ v: 'fouiller', nom: 'Fouiller', aide: 'Débusquer autour (12 m)', desc: 'Une fois sur le point, chacun va voir derrière les couverts autour (12 m) pour débusquer un ennemi caché ; un ennemi en vue : on se bat. Fini : on tient là où l’on est.' }];
   const ORD_GREN = [{ v: 'frag', nom: 'Grenade', desc: 'Grenade à fragmentation au point cliqué (8 à 24 m du lanceur). Refusée si un équipier est à moins de 5 m du point.' },
     { v: 'flash', nom: 'Flash', desc: 'Grenade incapacitante au point cliqué (8 à 24 m) : aveugle quelques secondes ceux qui voient l’éclair (alliés compris).' },
-    { v: 'smoke', nom: 'Fumigène', desc: 'Nuage au point cliqué (3 à 24 m) : bloque la vue des deux côtés pendant 14 s.' }];
+    { v: 'smoke', nom: 'Fumée', desc: 'Fumigène au point cliqué (3 à 24 m) : bloque la vue des deux côtés pendant 14 s.' }];
   const ORD_OPTS = {
     mode: { titre: 'Déplacement', choix: [
       { v: 'methodique', nom: 'Méthodique', aide: 'Bonds, appui mutuel', desc: 'Doctrine française : une moitié bondit de couvert en couvert pendant que l’autre couvre, chacun son secteur ; pauses à chaque couvert.' },
@@ -2265,9 +2265,9 @@
       + `<button class="omplus">Plus…</button><div class="ommore"><div class="omsec">Autre arrivée</div><div class="omrow">${ORD_PLUS_ARR.map(c => `<button class="omopt" data-cat="arrivee" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div><div class="omsec">Lancer ici</div><div class="omfeu omgren">${ORD_GREN.map(c => { const n = ordGrenCount(c.v); return `<button class="omopt omf omg" data-g="${c.v}" title="${escapeHtml(c.desc)}"${n ? '' : ' disabled'}><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><i>${n}</i></button>`; }).join('')}</div></div>`
       + `<button class="omgo">Confirmer</button><div class="omhint">${ordVia.length ? `<b class="omvia">Par ${ordVia.length} point${ordVia.length > 1 ? 's' : ''} de passage</b> · ` : ''}Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
     $('main').appendChild(el);
-    const show = () => { el.querySelectorAll('.omopt').forEach(b => b.classList.toggle('on', pick[b.dataset.cat] === b.dataset.v)); el.classList.toggle('fumok', pick.mode === 'franchir' || pick.mode === 'decrocher'); el.querySelector('.omfum').classList.toggle('on', !!pick.fumee); };
+    const show = () => { el.querySelectorAll('.omopt[data-cat]').forEach(b => b.classList.toggle('on', pick[b.dataset.cat] === b.dataset.v)); el.classList.toggle('fumok', pick.mode === 'franchir' || pick.mode === 'decrocher'); el.querySelector('.omfum').classList.toggle('on', !!pick.fumee); };
     el.querySelector('.omfum').addEventListener('click', () => { pick.fumee = !pick.fumee; show(); });
-    el.querySelectorAll('.omopt').forEach(b => b.addEventListener('click', () => { const was = pick[b.dataset.cat] === b.dataset.v; pick[b.dataset.cat] = b.dataset.v; show(); if (was) ordConfirm(); }));
+    el.querySelectorAll('.omopt[data-cat]').forEach(b => b.addEventListener('click', () => { const was = pick[b.dataset.cat] === b.dataset.v; pick[b.dataset.cat] = b.dataset.v; show(); if (was) ordConfirm(); }));
     el.querySelector('.omgo').addEventListener('click', () => ordConfirm());
     el.classList.toggle('plus', ordPlusOpen);
     el.querySelector('.omplus').addEventListener('click', () => { ordPlusOpen = !ordPlusOpen; el.classList.toggle('plus', ordPlusOpen); ordPlace(el, cx, cy); });
@@ -2420,7 +2420,7 @@
     for (const c of ordViaG.children.slice()) { ordViaG.remove(c); c.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material !== ordDash) o.material.dispose(); }); }
     for (const { pts, n } of sets) {
       if (pts.length > 1) ordViaG.add(ordViaLine(pts));
-      for (let i = 0; i < n; i++) { const r = groundHolo(0.5, { color: 0x9fd0ff, alpha: 0.9, fill: 0.35 }); r.position.set(pts[i].x, 0.03, pts[i].z); ordViaG.add(r); }
+      for (let i = 0; i < n; i++) { const r = groundHolo(0.75, { color: 0x9fd0ff, alpha: 0.95, fill: 0.4 }); r.position.set(pts[i].x, 0.03, pts[i].z); ordViaG.add(r); }
     }
   }
   function updateOrderMarks() {

@@ -1394,7 +1394,8 @@
   #app .ordmenu .omplus { display: block; margin: 10px 0 0 auto; padding: 3px 9px; border-radius: 7px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.04); color: rgba(220,230,240,.8); font: 600 11px/1.2 var(--ui, sans-serif); letter-spacing: .06em; cursor: pointer; }
   #app .ordmenu .omplus::after { content: ' ▸'; } #app .ordmenu.plus .omplus::after { content: ' ▾'; } #app .ordmenu .omplus:hover { border-color: rgba(255,255,255,.3); color: #fff; }
   #app .ordmenu .ommore { display: none; } #app .ordmenu.plus .ommore { display: block; } #app .ordmenu .ommore .omsec:first-child { margin-top: 4px; }
-  #app .ordmenu .omg { grid-template-columns: 16px minmax(0, 1fr) auto; } #app .ordmenu .omg i { font-style: normal; font-size: 10.5px; color: rgba(220,230,240,.6); }
+  #app .ordmenu .omopt.omf.omg { grid-template-columns: 18px minmax(0, 1fr); grid-template-rows: auto auto; row-gap: 0; } #app .ordmenu .omg .omico { grid-row: span 2; align-self: center; }
+  #app .ordmenu .omg i { font-style: normal; font-size: 10px; line-height: 1.1; color: rgba(220,230,240,.6); } #app .ordmenu .omg i::before { content: '× '; }
   #app .ordmenu .omopt:disabled { opacity: .38; cursor: default; } #app .ordmenu .omopt:disabled:hover { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.09); }
   #app .ordmenu .omsec { display: flex; align-items: center; justify-content: space-between; min-height: 20px; }
   #app .ordmenu .omfum { visibility: hidden; display: inline-flex; align-items: center; gap: 4px; margin: 0; padding: 2px 7px; border-radius: 6px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.04); color: rgba(220,230,240,.8); font: 600 10.5px/1.2 var(--ui, sans-serif); letter-spacing: .02em; text-transform: none; cursor: pointer; }
