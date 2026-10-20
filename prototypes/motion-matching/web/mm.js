@@ -560,7 +560,11 @@
       }
       // position des hanches
       // accroupi : hauteur de hanches VISÉE (les clips Crouched varient de 0,74 à 0,85 m), descente = écart × profondeur
-      const h0 = (poseY[0] + this.offY[0]) * this.echelle + this.solY;
+      let h0 = (poseY[0] + this.offY[0]) * this.echelle + this.solY;
+      // (20/10 : « il sautille » en courant) : le rebond vertical des hanches du clip de course (9 cm, accéléré ×1,35) est
+      // atténué autour d'une moyenne lente quand l'agent le demande (course rapide : facteur 0,35)
+      this.hMoy = this.hMoy == null ? h0 : this.hMoy + (h0 - this.hMoy) * (1 - Math.exp(-dt / 0.4));
+      h0 = this.hMoy + (h0 - this.hMoy) * (this.attenueBob ?? 1);
       const desc = this.descActuelle = Math.max(0, h0 - PARAMS.accroupi.hanches) * (this.profondeur || 0);
       const h = h0 - desc;
       const monde = this.tmpV.set(this.pos.x, h, this.pos.z);
@@ -984,7 +988,7 @@
       // (20/10 : « il court avec un balai dans les fesses ») : en course rapide (> 2,1 m/s) arme en main, clips de course
       // naturels (Neutral_FR : foulée longue, buste penché) — les clips Swat/Rushed sont une marche rapide raide ; les mains
       // restent posées sur l'arme par l'IK
-      const courseRapide = vGoal.lengthSq() > 2.1 * 2.1;
+      const courseRapide = vGoal.lengthSq() > 2.1 * 2.1; S.attenueBob = courseRapide ? 0.35 : 1;
       const styleVoulu = Ctl.accroupi ? 1 : (Ctl.visee && !mainsLibres && !courseRapide) ? 2 : 0;      // 1 = accroupi (Crouched), 2 = Swat (arme), 0 = neutre
       this.derniereRecherche += dt;
       // recherche immédiate dès que l'intention change (touche pressée / relâchée, direction) : réactivité au clavier
