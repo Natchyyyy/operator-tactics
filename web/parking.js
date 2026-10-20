@@ -643,7 +643,7 @@
     const R = rng(seed), W = 512, H = 1024, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
     const rc = document.createElement('canvas'); rc.width = W; rc.height = H; const r = rc.getContext('2d');
     const ec = document.createElement('canvas'); ec.width = W; ec.height = H; const e = ec.getContext('2d');
-    const walls = { creme: ['#d9cdb3', '#c9bc9f'], rose: ['#d4a99a', '#c39586'], blanc: ['#e3e0d8', '#cfcbc1'], sable: ['#c8b48e', '#b7a27b'], gris: ['#a9aaa6', '#97989a'], brique: ['#8e4e3a', '#7a4231'], pierre: ['#8a6a52', '#755944'] }[tone] || ['#d0c6b0', '#bfb59e'];
+    const walls = { creme: ['#d9cdb3', '#c9bc9f'], rose: ['#d4a99a', '#c39586'], blanc: ['#e3e0d8', '#cfcbc1'], sable: ['#c8b48e', '#b7a27b'], gris: ['#a9aaa6', '#97989a'], brique: ['#865240', '#734536'], pierre: ['#8a6a52', '#755944'] }[tone] || ['#d0c6b0', '#bfb59e'];
     const grd = g.createLinearGradient(0, 0, 0, H); grd.addColorStop(0, walls[0]); grd.addColorStop(1, walls[1]); g.fillStyle = grd; g.fillRect(0, 0, W, H);
     const briqueVraie = tone === 'brique';   // briques : appareil à l'échelle réelle ajouté dans le shader (fenetresInterieures), pas peint ici
     if (tone === 'pierre' || (tone === 'brique' && !briqueVraie)) {   // appareil de pierres de taille : joints clairs, teinte de chaque élément
@@ -698,7 +698,7 @@
         vFWPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vFWN = normalize(mat3(modelMatrix) * objectNormal);`);
       sh.fragmentShader = 'uniform float uDay, uNight, uSeed, uWM, uWK, uWB; uniform sampler2D tWA, tWN; varying vec3 vFWPos; varying vec3 vFWN;\nfloat fH(vec2 p) { return fract(sin(dot(p, vec2(41.31, 289.17))) * 15731.743); }\n' + sh.fragmentShader
         .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        float fGlass = 0.0; vec3 fInt = vec3(0.0);
+        float fGlass = 0.0; vec3 fInt = vec3(0.0); vec2 fTilt = vec2(0.0); float fRev = 0.0, fAO = 1.0;
         #ifdef USE_ROUGHNESSMAP
         if (abs(vFWN.y) < 0.5) {
           vec2 cell = vec2(fract(vMapUv.x) * 4.0, (1.0 - fract(vMapUv.y)) * 8.0), fc = fract(cell);
@@ -706,6 +706,14 @@
           // vitre : fenêtre de la grille ET rugosité très faible (pas les volets fermés ni le montant)
           float inWin = step(0.18, fc.x) * step(fc.x, 0.82) * step(0.22, fc.y) * step(fc.y, 0.78);
           fGlass = inWin * (1.0 - smoothstep(0.08, 0.3, texelRoughness.g));
+          // relief de la baie : tableau (embrasure de 10 cm tout autour de la vitre, tourné vers l'ouverture), appui saillant
+          // dessous (dessus éclairé, ombre portée sous lui) — la façade cesse d'être une image plate
+          vec2 dw = vec2(min(fc.x - 0.18, 0.82 - fc.x) * 3.5, min(fc.y - 0.22, 0.78 - fc.y) * 3.25);   // distance au bord de la baie (m), > 0 dedans
+          if (min(dw.x, dw.y) > 0.0 && min(dw.x, dw.y) < 0.1) { fRev = 1.0; fGlass = 0.0;
+            if (dw.x < dw.y) fTilt.x = fc.x < 0.5 ? 1.0 : -1.0; else fTilt.y = fc.y < 0.5 ? -1.0 : 1.0; }
+          float sy = (fc.y - 0.78) * 3.25, sx = min(fc.x - 0.15, 0.85 - fc.x);
+          if (sx > 0.0 && sy > 0.0 && sy < 0.07) { fTilt.y = 0.85; fRev = 2.0; }
+          if (sx > 0.0 && sy >= 0.07 && sy < 0.2) fAO = mix(0.55, 1.0, (sy - 0.07) / 0.13);
           if (fGlass > 0.0) {
             vec3 N = normalize(vFWN), Tg = normalize(cross(vec3(0.0, 1.0, 0.0), N)), V = normalize(vFWPos - cameraPosition);
             vec3 d = vec3(dot(V, Tg), V.y, max(dot(V, -N), 0.02));
@@ -745,12 +753,17 @@
           }
         }
         #endif
+        if (fRev > 0.5) diffuseColor.rgb = fRev > 1.5 ? vec3(0.42, 0.4, 0.37) : diffuseColor.rgb * 0.0 + vec3(0.3, 0.28, 0.25);
+        diffuseColor.rgb *= fAO;
+        diffuseColor.rgb = mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, 0.8);   // façades moins saturées
         vec2 wUv = vec2(vMapUv.x * 14.0, vMapUv.y * 26.0) / uWM;
         if (abs(vFWN.y) < 0.5) { vec3 wA = texture2D(tWA, wUv).rgb / max(textureLod(tWA, wUv, 12.0).rgb, vec3(0.02));
           diffuseColor.rgb *= mix(vec3(1.0), clamp(wA, 0.0, 2.5), uWK * (1.0 - fGlass)); }`)
         .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         if (abs(vFWN.y) < 0.5 && fGlass < 0.5) { vec3 Nw = normalize(vFWN), Tw = normalize(cross(vec3(0.0, 1.0, 0.0), Nw)); vec3 nt = texture2D(tWN, wUv).xyz * 2.0 - 1.0;
-          normal = normalize((viewMatrix * vec4(normalize(Tw * nt.x * uWB + vec3(0.0, 1.0, 0.0) * nt.y * uWB + Nw * max(nt.z, 0.2)), 0.0)).xyz); }`)
+          vec3 nW = normalize(Tw * nt.x * uWB + vec3(0.0, 1.0, 0.0) * nt.y * uWB + Nw * max(nt.z, 0.2));
+          if (fRev > 0.5) nW = normalize(Nw * 0.3 + Tw * fTilt.x + vec3(0.0, fTilt.y, 0.0));
+          normal = normalize((viewMatrix * vec4(nW, 0.0)).xyz); }`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         totalEmissiveRadiance = mix(totalEmissiveRadiance, fInt, fGlass);`);
     };
@@ -767,6 +780,9 @@
     for (let f = 0; f < 6; f++) { if (f === 2 || f === 3) continue; const fw = (f < 2 ? d : w); for (let k = 0; k < 4; k++) { const i = f * 4 + k; uv.setXY(i, uv.getX(i) * fw / F.tileW, uv.getY(i) * h / F.tileH); } }
     const body = new T.Mesh(geo, [fm, fm, roof, roof, fm, fm]); body.position.y = h / 2; g.add(body);
     const par = new T.Mesh(new T.BoxGeometry(w + 0.3, 0.7, d + 0.3), roof); par.position.y = h + 0.35; g.add(par);
+    // corniche saillante sous l'acrotère et bandeau au-dessus du rez-de-chaussée (ombres portées sur la façade)
+    const cor = new T.Mesh(new T.BoxGeometry(w + 0.7, 0.28, d + 0.7), roof); cor.position.y = h - 0.05; cor.castShadow = true; g.add(cor);
+    if (h > 12) { const band = new T.Mesh(new T.BoxGeometry(w + 0.24, 0.3, d + 0.24), roof); band.position.y = 3.9; band.castShadow = true; g.add(band); }
     const R = rng(seed * 31 + 7), K = M3();
     // toit : climatiseurs, château d'eau, antennes
     for (let k = 0; k < 3 + Math.floor(R() * 4); k++) { const a = new T.Mesh(new T.BoxGeometry(1 + R(), 0.8 + R() * 0.5, 1 + R()), mat('clim', () => new T.MeshStandardMaterial({ color: 0xc8c8c2, roughness: 0.6, metalness: 0.3 }))); a.position.set((R() - 0.5) * (w - 3), h + 0.5, (R() - 0.5) * (d - 3)); g.add(a); }
