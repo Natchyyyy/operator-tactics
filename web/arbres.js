@@ -43,7 +43,7 @@
   const MATS = {};
   function feuillesMat(teinte) {
     const key = teinte || 'std'; if (MATS[key]) return MATS[key];
-    const m = new T.MeshStandardMaterial({ map: leafTex(), alphaTest: 0.45, side: T.DoubleSide, roughness: 0.78, metalness: 0, vertexColors: true, color: teinte === 'haie' ? 0xa8b89a : 0xdde4d6 });
+    const m = new T.MeshStandardMaterial({ map: leafTex(), alphaTest: 0.45, side: T.DoubleSide, roughness: 0.78, metalness: 0, vertexColors: true, color: teinte === 'haie' ? 0xc6d4b2 : 0xdde4d6 });
     m.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = VENT.time;
       sh.vertexShader = 'uniform float uTime; attribute float aSway;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>

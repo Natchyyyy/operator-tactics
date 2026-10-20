@@ -1228,7 +1228,7 @@
     }
     geo.computeVertexNormals();
     const AR = root.Arbres;   // avec arbres.js : cœur sombre (l'ombre dans la haie) et coque de cartes de feuilles par-dessus
-    const h = new T.Mesh(geo, AR ? mat('haieCoeur', () => new T.MeshStandardMaterial({ color: 0x1e2c17, roughness: 1 })) : feuillageMat()); h.position.y = -o.h / 2 + ph + hh / 2 - 0.08; g.add(h);
+    const h = new T.Mesh(geo, AR ? mat('haieCoeur', () => new T.MeshStandardMaterial({ color: 0x2b3e20, roughness: 1 })) : feuillageMat()); h.position.y = -o.h / 2 + ph + hh / 2 - 0.08; g.add(h);
     if (AR) { const sh = AR.massif(hw + 0.12, hh + 0.06, hd + 0.12, Math.floor(o.x * 7 + o.z * 3), true); sh.position.y = -o.h / 2 + ph - 0.08; g.add(sh); }
     return g;
   }
