@@ -84,8 +84,13 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
 - Traîner un blessé à couvert (H ; scénario de démo si personne n'est mort) : le sauveteur va à la tête du blessé (arrivée
   précise), s'accroupit, saisit le col du gilet (IK des deux mains), le blessé est remis en physique depuis sa pose
   allongée et son torse est attaché à un point tenu dans les mains (articulation cannon) ; le sauveteur recule
-  (clips de marche arrière accroupie, face au blessé, 0,7 m/s) jusqu'au point de couvert (même règle que B, contournement),
-  lâche, se relève, reprend son arme. Jambes qui traînent, bras ballants, tête en arrière : physique, pas d'animation.
+  (debout genoux fléchis, buste penché 0,65 rad, marche arrière face au blessé, 1 m/s) jusqu'au couvert : contournement des
+  coins avec 1 m de marge (le corps traîne 1,2 m derrière), dernier tronçon dans l'axe de la menace en revenant vers le bloc
+  (le blessé finit perpendiculaire au bloc, tête près du bloc) ; un blessé tombé à plat ventre est d'abord roulé sur le dos ;
+  jambes amorties (pas de coups de pied) ; à l'arrivée il lâche et reste accroupi à couvert face à la menace, arme reprise.
+  Scénario complet (H) : chute → prise 0,8 s après → traînage ~8 s. Jambes qui traînent, bras ballants, tête en arrière : physique, pas d'animation.
+- Rythme (v31) : lecture accélérée / ralentie (×0,75-1,35, lissée 0,3 s) pour coller à la vitesse voulue — les clips
+  100STYLE marchent à 0,9 m/s et reculent à 0,5 ; mesuré : marche 1,2-1,28 m/s, recul 1,0, sprint 2,6.
 - Agent critique (sous-agent indépendant, photos de référence vs captures éclairées `?clair=1`) : v22 38-64 %, v23
   85 % → 92-94 % en low ready après corrections (crosse derrière l'épaule, plongée 27°, roulis) ; voir captures/crit-*.png.
 - Commandes : ZQSD relatif à la caméra, le soldat regarde là où il va ; clic droit maintenu = épaulé (`PARAMS.epaule`, fondu
