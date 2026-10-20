@@ -1305,7 +1305,7 @@
     // preset est la même quel que soit le moment où on clique
     for (const B of agents) { if (B.mort) B.ressusciter(); B.leve = null; B.sauvetage = null; B.finRafale = null; B.cerveau = null; } EVENEMENTS.length = 0; viderMurs();
     while (agents.length) { const B = agents.pop(); scene.remove(B.soldat.group); }
-    CINE.etapes = null; CINE.tics = []; CINE.titre = ''; CINE.t = 0; galerieT = null; scenarioT = null; horloge = 0;
+    CINE.etapes = null; CINE.tics = []; CINE.titre = ''; CINE.t = 0; CINE.noms = null; galerieT = null; scenarioT = null; horloge = 0;
     for (const m of empreintesMesh) scene.remove(m); empreintesMesh.length = 0;
     await nouveauSoldat(V3(0, 0, 0), 0); dessinerChemin(); }
   function placer(A, x, z, yaw) { A.soldat.pos.set(x, 0, z); A.soldat.yaw = yaw; A.ctl.pos.copy(A.soldat.pos); A.ctl.yaw = yaw; A.ctl.vel.set(0, 0, 0); A.ctl.acc.set(0, 0, 0); A.ctl.yawV = 0; A.ctl.camYaw = yaw; }
@@ -1325,7 +1325,7 @@
     ajouterMur(cx + 5.0, BLOC.z - 1.1, 0.4, 8.1, 2.4);   // de 0,5 m devant le bloc jusqu'à 7 m derrière : cache tout le côté nord/ouest, pas la ligne de V
     const T2 = await nouveauSoldat(V3(cx + 35.0, 0, BLOC.z - 1.6), -Math.PI / 2); T2.ctl.visee = true; T2.cerveau = new Cerveau(T2, 1, { tenir: true });   // dans l'axe de la traversée de V
     camAuto(() => [R, V], { vitesse: 0.08 });
-    cine('Preset 1 — sauvetage et réanimation (simulé)', [], []);
+    cine('Preset 1 — sauvetage et réanimation (simulé)', [], []); CINE.noms = ['R', 'V', 'T1', 'T2'];
     return agents.length;
   }
   // Preset 2 — galerie de morts : 5 coureurs, impacts différents au même instant (tête / torse / jambe / dos / côté)
@@ -1338,7 +1338,7 @@
     const B = agents[0]; placer(B, cx - 3.0, BLOC.z + BLOC.d + 4.5, Math.PI); B.ctl.visee = true; B.cerveau = new Cerveau(B, 0);
     const T = await nouveauSoldat(V3(cx + 1.5, 0, BLOC.z - 7.0), 0); T.ctl.visee = true; T.cerveau = new Cerveau(T, 1, { tenir: true });
     camAuto(() => [B, T], { vitesse: 0.07, pitch: 0.55, marge: 3.0 });
-    cine('Preset 3 — couvert sous le feu (simulé)', [], []);
+    cine('Preset 3 — couvert sous le feu (simulé)', [], []); CINE.noms = ['B', 'T'];
     return agents.length;
   }
   const PRESETS = [preset1, preset2, preset3];
@@ -1400,7 +1400,7 @@
     const vit = Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]);
     const rec = A.glisse.recentCm(), moy = A.glisse.moyenneCm();
     // bandeau du bas pendant un preset : chrono + derniers événements du journal (lisible même interface masquée)
-    { const cr = document.getElementById('credit'); if (cr) { if (!cr.dataset.credit) cr.dataset.credit = cr.textContent; if (CINE.titre) { const noms = ['R', 'V', 'T1', 'T2', 'T3']; const lib = { voit: 'voit', perd: 'perd de vue', touche: 'touche', rate: 'rate', abat: 'abat', couvert: 'va au couvert', suppression: 'tire pour se couvrir', traine: 'traîne', releve: 'relève sur place', 'traine-trop-long': 'trop long à découvert (fumigène au jeu)' }; const ev = EVENEMENTS.filter(e => e.k !== 'rate' && e.k !== 'voit' && e.k !== 'perd').slice(-4).map(e => `${e.t.toFixed(1)} s ${noms[e.qui] || e.qui} ${lib[e.k] || e.k}${e.qui2 != null ? ' ' + (noms[e.qui2] || e.qui2) : ''}${e.loc ? ' (' + e.loc + ')' : ''}${e.hp != null ? ' pv ' + e.hp : ''}`); cr.textContent = `${CINE.titre} · ${CINE.t.toFixed(1)} s — ${ev.join(' · ') || '…'}`; cr.style.display = ''; cr.style.color = '#c6ccd6'; } else if (cr.dataset.credit) { cr.textContent = cr.dataset.credit; cr.style.color = ''; } } }
+    { const cr = document.getElementById('credit'); if (cr) { if (!cr.dataset.credit) cr.dataset.credit = cr.textContent; if (CINE.titre) { const noms = CINE.noms || ['R', 'V', 'T1', 'T2', 'T3']; const lib = { voit: 'voit', perd: 'perd de vue', touche: 'touche', rate: 'rate', abat: 'abat', couvert: 'va au couvert', suppression: 'tire pour se couvrir', traine: 'traîne', releve: 'relève sur place', 'traine-trop-long': 'trop long à découvert (fumigène au jeu)' }; const ev = EVENEMENTS.filter(e => e.k !== 'rate' && e.k !== 'voit' && e.k !== 'perd').slice(-4).map(e => `${e.t.toFixed(1)} s ${noms[e.qui] || e.qui} ${lib[e.k] || e.k}${e.qui2 != null ? ' ' + (noms[e.qui2] || e.qui2) : ''}${e.loc ? ' (' + e.loc + ')' : ''}${e.hp != null ? ' pv ' + e.hp : ''}`); cr.textContent = `${CINE.titre} · ${CINE.t.toFixed(1)} s — ${ev.join(' · ') || '…'}`; cr.style.display = ''; cr.style.color = '#c6ccd6'; } else if (cr.dataset.credit) { cr.textContent = cr.dataset.credit; cr.style.color = ''; } } }
     HUD.etat.innerHTML = `<span style="float:right;color:#7f8794">v${VERSION}</span>${CINE.titre ? `<b style="color:#ffb347">${CINE.titre}</b> · ${CINE.t.toFixed(1)} s${CINE.etapes || agents.some(A => A.cerveau) ? '' : ' (terminé)'}<br>` : ''}<b>${s.nom.replace('.bvh', '')}</b> image ${f - s.debut}/${s.fin - s.debut}<br>vitesse animation <b>${vit.toFixed(2)} m/s</b> · cible ${A.vGoal.length().toFixed(2)} m/s<br>sauts : ${(A.sautsFen.length / 2).toFixed(1)}/s (total ${A.sauts}) · ${agents.length} soldat${agents.length > 1 ? 's' : ''} · simulation ${tempsPas.toFixed(2)} ms/pas<br>mode : ${Ctl.chemin ? 'chemin' : 'clavier'}${Ctl.visee ? ' · <span class=on>arme</span>' : ''}${Ctl.verrouRegard ? ' · <span class=on>regard verrouillé</span>' : ''}${Ctl.accroupi ? ' · <span class=on>accroupi</span>' : ''}`;
     const pct = Math.min(100, rec / 30 * 100); HUD.jauge.style.width = pct + '%'; HUD.jauge.style.background = rec < 5 ? '#5ad17a' : rec < 15 ? '#ffb347' : '#ff6b6b';
     HUD.jaugeTxt.textContent = `glissement des pieds : ${rec.toFixed(1)} cm/s (2 s) · ${moy.toFixed(1)} cm/s depuis le début · instantané ${((A.inst || 0) * 100).toFixed(0)} cm/s`;
