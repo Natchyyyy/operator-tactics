@@ -168,3 +168,31 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   pendant le traînage (physique) ; les réactions de la galerie se ressemblent (réglages du ragdoll du jeu, non touchés ici) ;
   glissement sur le chemin de démo 16,7 cm/s depuis le rythme (13 avant). Données StartStop_* présentes dans
   donnees/100style/ mais pas dans la base.
+
+## Intégration dans le jeu (notice pour le chat du jeu, 21/10)
+Principe : **le jeu décide, le motion matching exécute.** Les cerveaux de `sim/` gardent toute la tactique ; le module
+n'a besoin que d'ordres simples par soldat, et il rend la pose (os three.js) + la position/orientation réelles.
+
+- **Fichiers à embarquer** (depuis `prototypes/motion-matching/web/`) : `mm.js` (le module, ~175 Ko ; à découper en
+  `Base` + `Soldat` + `Ctl` + `Agent`, le `Cerveau` et les presets restent ici comme scènes de test), les données de mouvement
+  `base.json` + `base.0.bin`/`base.1.bin`/`base.2.bin` (23 Mo, à servir une fois, extension `.wasm` chez l'hébergeur
+  claude.ai comme pour le reste), `gltf.js`, `cannon-es.js` et `ragdoll.js` (déjà ceux du jeu), modèles `gign_hd.glb` /
+  `fusil.glb` (ceux du jeu). `three.min.js` r159 = celui du jeu.
+- **Ordres (objet contrôleur `Ctl`, un par soldat)** : `chemin` (liste de points) + `cheminFin` (arrêt précis au dernier
+  point) + `vitesseChemin` (m/s) ou `touches` (clavier) ; `visee` (arme en main), `verrouRegard` + `verrouCible` (yaw :
+  épaulé, buste vers la cible, tir possible), `tir`, `tirEnMarchant` (tire tout le long du trajet), `sprint`, `accroupi`,
+  `couvrir(bloc, menace, marge)` (va au point de couvert et s'y accroupit face à la menace ; `surArrivee` = rappel),
+  `arriver()`. Événements rendus : `enRoute`/`couvert`, position `pos`, `yaw`, vitesse `vel`.
+- **Agent** (un par soldat) : `pas(dt)` chaque pas fixe de 1/60 s (`boucleAuto`), `tuer(loc, dir)` → ragdoll du jeu,
+  `relever(yaw)` (réanimé : relevé en 3 temps puis motion matching), `ressusciter()`, `sauvetage` (classe `Sauvetage` :
+  `sauver(iR, iV, menace)` — approche, prise au col, traînage en L derrière le couvert, dépose, réa, relevé) ; `tirs`
+  compte les coups joués (recul, flash). Le tir « règles du jeu » (chance de toucher, dégâts) reste dans `sim/`.
+- **Rendu** : `Soldat` tient le GLB, les os, le fusil (IK deux mains, low ready / épaulé / à la sangle), les empreintes.
+  `S.dos` = arme à la sangle, `S.aCouvert`, `S.profondeur` (accroupi), `S.pencheExtra`. Pose finale après `appliquer()`,
+  `tenirFusil()`, `verrouPieds()`, `raseMottes()` (glissade en visée).
+- **Coût** : ~0,3 ms par soldat et par pas (recherche toutes les 0,1 s) → 10 soldats ≈ 3 ms/pas, OK à 60 Hz. Pas fixe
+  1/60 s obligatoire (même résultat sur tous les écrans).
+- **Reste à brancher côté jeu** : remplacer `Cerveau` par les cerveaux de `sim/` (mêmes ordres), plusieurs obstacles
+  (`BLOC` + `MURS` → les obstacles de la carte dans `couvrir`/`horsBloc`/`cheminVers`), les autres armes (points de prise
+  `PRISE` par arme), les équipes/couleurs, les sons. Les réglages validés par l'utilisateur sont dans `PARAMS` (garde
+  basse, épaulé, couvert 0,7 m, sauvetage) : ne pas les changer sans lui.
