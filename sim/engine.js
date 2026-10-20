@@ -2596,7 +2596,7 @@
           if (grp.length >= 2 && D && D.d < 30) {
             const sp = team.spawn; let ax = C.x - D.q.x, az = C.z - D.q.z, L = Math.hypot(ax, az) || 1; ax /= L; az /= L;
             let bx = sp.x - C.x, bz = sp.z - C.z; const M = Math.hypot(bx, bz) || 1; bx = ax + 0.5 * bx / M; bz = az + 0.5 * bz / M; const N = Math.hypot(bx, bz) || 1;
-            if (this.karstOrder(team, 'repli', { x: C.x + bx / N * 14, z: C.z + bz / N * 14, mode: 'decrocher', arrivee: 'tenir', feu: 'retenu', fumee: true }, grp, { until: this.t + 30, afterFire: 12 })) { k.repliLeft--; continue; }
+            if (this.karstOrder(team, 'repli', { x: C.x + bx / N * 14, z: C.z + bz / N * 14, mode: 'decrocher', arrivee: 'tenir', feu: k.repliFeu || 'retenu', fumee: true }, grp, { until: this.t + 30, afterFire: 12 })) { k.repliLeft--; continue; }
           }
         }
       }
@@ -2616,7 +2616,7 @@
         if (cand.length === 2) {
           let dx = T.x - C.x, dz = T.z - C.z; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
           for (const s of [k.side, -k.side]) {
-            const W = this.orderPoint(T.x - dx * 4 - dz * s * 13, T.z - dz * 4 + dx * s * 13), F = this.orderPoint(T.x - dz * s * 5, T.z + dx * s * 5);
+            const W = this.orderPoint(T.x - dx * 4 - dz * s * (k.flankW || 13), T.z - dz * 4 + dx * s * (k.flankW || 13)), F = this.orderPoint(T.x - dz * s * 5, T.z + dx * s * 5);
             if (!W || !F || Math.hypot(W.x - T.x, W.z - T.z) < 8) continue;
             if (this.karstOrder(team, 'contourner', { x: F.x, z: F.z, via: [W], mode: k.flankMode || 'methodique', arrivee: 'manoeuvre' }, cand, { until: this.t + 60, afterFire: 999 })) { k.flank = true; break; }
           }
