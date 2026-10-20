@@ -115,6 +115,20 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   corps (cinématique 0,4 s après le gel). Mesuré : mains à ≤ 4 cm du col pendant tout le traînage ; aucun corps dans le
   bloc ; blessé et sauveteur masqués de la menace (rayons) ; blessé final hanches 0,23, tête 0,27-0,30, genoux 0,13,
   pieds 0,10, bras au sol.
+- Presets simulés (touches 1/2/3, v34) : rien n'est écrit à l'avance, on place les soldats et un « cerveau » de bot
+  (`class Cerveau`, règles portées de `sim/engine.js` avec les mêmes chiffres) décide à chaque pas : perception (champ
+  112°, repérage probabiliste, ouïe des coups ±1 m, le bloc de 1,1 m cache un homme accroupi), tir (chance de toucher du
+  jeu, rafales 4-8 coups puis pause 0,3-0,65 s, seuil 8 %), dégâts (fusil 5,56 42 pts, localisation tête/torse/membre,
+  plaques moyennes, 92 pv), suppression, prise de couvert (2-3 coups de suppression puis course au bloc, accroupi derrière,
+  redressé pour tirer, baissé entre deux rafales), évacuation (`tryDrag` : on neutralise d'abord une menace fraîche à
+  < 20 m — demande de l'utilisateur —, on traîne le blessé seulement si un ennemi vivant connu voit l'endroit où il est
+  tombé, sinon on le relève sur place) et relève (massage 3 s, le relevé repart à 46 pv). Aléa entièrement graine
+  (`PARAMS.graines`) : même scène à chaque lancement. Preset 1 : V traverse devant le bloc, T1 (tient sa position au
+  sud) l'abat ; R (arrivait par le nord) entend, se couvre, se redresse, abat T1 ; T2 (35 m à l'est, derrière un mur
+  qui lui cache le couvert de R mais pas la zone où V est tombé) oblige à traîner V derrière le bloc avant la réa ;
+  V se relève accroupi à couvert. Preset 3 : B à découvert face à T (12 m) ; pris sous le feu, B tire 2-3 coups puis
+  court au bloc, riposte par-dessus et abat T. `EVENEMENTS` (journal : voit/perd, touche/rate, abat, couvert, traîne,
+  relève) permet de relire la scène ; `outils` : balayage de graines sans rendu (~5 s par scène).
 - Rythme (v31) : lecture accélérée / ralentie (×0,75-1,35, lissée 0,3 s) pour coller à la vitesse voulue — les clips
   100STYLE marchent à 0,9 m/s et reculent à 0,5 ; mesuré : marche 1,2-1,28 m/s, recul 1,0, sprint 2,6.
 - Agent critique (sous-agent indépendant, photos de référence vs captures éclairées `?clair=1`) : v22 38-64 %, v23
