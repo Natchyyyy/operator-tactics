@@ -19647,16 +19647,42 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       }
     }
     if (cam.mode === 'sat') {
-      const map = battle.map; const want = new THREE.Vector3(map.width / 2, 78, map.depth / 2 + 22), look = new THREE.Vector3(map.width / 2, 0, map.depth / 2);
+      const map = battle.map; const want = new THREE.Vector3(map.width / 2, 56, map.depth / 2 + 16), look = new THREE.Vector3(map.width / 2, 0, map.depth / 2);
       if (!cam.init) { cam.pos.copy(want); cam.look.copy(look); cam.init = true; }
       cam.pos.lerp(want, 0.08); cam.look.lerp(look, 0.08); camera.position.copy(cam.pos); camera.lookAt(cam.look); return;
     }
     // libre (orbite)
+    camKeysMove();
     const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
     const want = new THREE.Vector3(cam.target.x + cam.dist * cp * Math.cos(cam.yaw), cam.target.y + cam.dist * sp, cam.target.z + cam.dist * cp * Math.sin(cam.yaw));
     if (!cam.init) { cam.pos.copy(want); cam.look.copy(cam.target); cam.init = true; }
     cam.pos.lerp(want, 0.2); cam.look.lerp(cam.target, 0.2);
     camera.position.copy(cam.pos); camera.lookAt(cam.look);
+  }
+  // Z Q S D (positions physiques : W A S D en QWERTY) : la vue libre glisse au sol, dans le sens où l'on regarde ; vitesse
+  // selon le zoom (≈ la hauteur de l'écran en 1,5 s), Maj : ×2,5. Depuis une autre caméra, la première touche passe en libre
+  // en gardant le cadrage (comme le bouton du milieu).
+  const CAM_KEYS = { KeyW: [0, 1], KeyS: [0, -1], KeyA: [-1, 0], KeyD: [1, 0] }, camKeys = {};
+  let camKeysT = 0;
+  function camKeyDown(code) {
+    if (cam.mode !== 'free' && battle) {
+      const p = camera.position, d = new THREE.Vector3(); camera.getWorldDirection(d);
+      const k = d.y < -0.05 ? -p.y / d.y : 30, tx = p.x + d.x * k, tz = p.z + d.z * k;
+      setCamMode('free'); cam.follow = null; cam.target.set(tx, 0, tz);
+      cam.yaw = Math.atan2(p.z - tz, p.x - tx); cam.pitch = Math.max(0.15, Math.min(1.5, Math.atan2(p.y, Math.hypot(p.x - tx, p.z - tz)))); cam.dist = Math.max(8, Math.min(140, p.distanceTo(cam.target)));
+      cam.pos.copy(p); cam.look.copy(cam.target); cam.init = true;
+    }
+    camKeys[code] = true;
+  }
+  function camKeysMove() {
+    const now = performance.now(), dt = Math.min(0.1, (now - (camKeysT || now)) / 1000); camKeysT = now;
+    let f = 0, r = 0; for (const c in CAM_KEYS) if (camKeys[c]) { r += CAM_KEYS[c][0]; f += CAM_KEYS[c][1]; }
+    if (!f && !r) return;
+    const v = Math.max(6, cam.dist * 0.7) * (camKeys.shift ? 2.5 : 1) * dt, L = Math.hypot(f, r);
+    const fx = -Math.cos(cam.yaw), fz = -Math.sin(cam.yaw), rx = Math.sin(cam.yaw), rz = -Math.cos(cam.yaw);
+    cam.follow = null;
+    cam.target.x += (fx * f + rx * r) / L * v; cam.target.z += (fz * f + rz * r) / L * v;
+    if (battle) { cam.target.x = Math.max(-10, Math.min(battle.map.width + 10, cam.target.x)); cam.target.z = Math.max(-10, Math.min(battle.map.depth + 10, cam.target.z)); }
   }
   function setCamMode(mode) { finale = null; cam.mode = mode; cam.shot = null; cam.init = false; if (mode === 'director') DIRECTOR.battle = null; document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === mode)); if (mode === 'free') { cam.target.set(battle.map.width / 2, 0, battle.map.depth / 2); cam.dist = 60; } }
   (function cameraControls() {
@@ -21150,7 +21176,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function buildTacticCards() {
     battle.teams.forEach((team, ti) => {
       const el = $('#tactics' + ti);
-      let na = 0; const KEYS = ['A', 'Z', 'E'];
+      let na = 0; const KEYS = ['4', '5', '6'];
       el.innerHTML = team.tacticIds.map(id => { const t = DATA.TACTICS[id]; const key = ti === 0 && t.active ? KEYS[na++] || '' : ''; return `<div class="tcard ${t.active ? '' : 'passive'} ${ti === 1 ? 'enemy' : ''}" data-tactic="${id}" ${key ? `data-key="${key}"` : ''} title="${escapeHtml(t.desc)}"><div class="ticon">${tacIcon(id)}</div><div class="tname">${escapeHtml(t.name)}</div><div class="tuse"></div><div class="cd"></div></div>`; }).join('');
       // Rotation : faire passer toute l'escouade par une autre voie, en pleine bataille (touches R / F / V : nord / milieu / sud)
       if (SHOW_ROTATION && ti === 0 && battle.map.def.voies) el.insertAdjacentHTML('beforeend', `<div class="tcard rotcard" title="Rotation : toute l'escouade (hors tireur d'élite) passe par la voie choisie. Une rotation toutes les 10 s ; impossible en ordre « Tenir ».">
@@ -21928,14 +21954,19 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   $('#closeJournal').addEventListener('click', () => $('#journalWrap').classList.add('hidden'));
   document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => { setCamMode(b.dataset.cam); if (b.dataset.cam !== 'follow') cam.follow = null; }));
   // raccourcis clavier en bataille (positions physiques des touches : valables en AZERTY comme en QWERTY)
-  // Espace : lancer / pause · 1, 2, 3 : vitesse ×1, ×2, ×4 · A, Z, E : tactiques actives 1 à 3 · R, F, V : rotation nord / milieu / sud · C : caméra suivante · J : journal
+  // Espace : lancer / pause · 1, 2, 3 : vitesse ×1, ×2, ×4 · 4, 5, 6 : tactiques actives 1 à 3 · R, F, V : rotation nord / milieu / sud · C : caméra suivante · J : journal
+  // Z Q S D (W A S D en QWERTY) : déplacer la vue (passe en caméra libre), Maj : plus vite — d'où les tactiques sur 4 5 6 (20/10)
   const CAMS = ['director', 'follow', 'sat', 'free'];
+  window.addEventListener('keyup', (e) => { delete camKeys[e.code]; if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') camKeys.shift = false; });
+  window.addEventListener('blur', () => { for (const k in camKeys) delete camKeys[k]; });
   window.addEventListener('keydown', (e) => {
     if (e.target.matches('input,select,textarea') || $('#app').classList.contains('hidden') || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.code === 'Space') { e.preventDefault(); $('#play').click(); return; }
     const sp = { Digit1: '1', Digit2: '2', Digit3: '4', Numpad1: '1', Numpad2: '2', Numpad3: '4' }[e.code];
     if (sp) { const b = document.querySelector(`[data-speed="${sp}"]`); if (b) b.click(); return; }
-    const ti = { KeyQ: 0, KeyW: 1, KeyE: 2 }[e.code];
+    camKeys.shift = e.shiftKey;
+    if (CAM_KEYS[e.code]) { e.preventDefault(); camKeyDown(e.code); return; }
+    const ti = { Digit4: 0, Digit5: 1, Digit6: 2, Numpad4: 0, Numpad5: 1, Numpad6: 2 }[e.code];
     if (ti !== undefined) { const cards = [...document.querySelectorAll('#tactics0 .tcard')].filter(c => !c.classList.contains('passive') && !c.classList.contains('rotcard')); if (cards[ti]) cards[ti].click(); return; }
     const rl = SHOW_ROTATION ? { KeyR: -1, KeyF: 0, KeyV: 1 }[e.code] : undefined;
     if (rl !== undefined) { const bt = document.querySelector(`#tactics0 .rotcard button[data-lane="${rl}"]`); if (bt) bt.click(); return; }
@@ -21993,6 +22024,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     skip: () => { skipToEnd(); return battle.result; },
     camShot: (kind, id) => { if (kind === 'shoulder' || kind === 'dolly') { setCamMode('director'); cam.shot = { kind, id, side: 1, until: simTime + 999 }; cam.cutAt = simTime; } else { setCamMode('follow'); cam.follow = id; } render(); for (let i = 0; i < 60; i++) applyCamera(); render(); return [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)); },
     stepRaw: (n) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; return battle.t; },   // sans rendu (outils de capture)
+    camTarget: () => [cam.target.x, cam.target.z].map(v => +v.toFixed(2)),   // diagnostic (ZQSD)
     camPos: () => ({ pos: [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)), fov: camera.fov, mode: cam.mode, shot: cam.shot && cam.shot.kind, paused, briefing: !!briefing, finale: !!finale }),   // diagnostic
     dirTrace: (n, probe) => directorTrace(n || 600, probe), camera3: () => camera, rim: () => RIM,   // (mesures : projection des soldats à l'écran)
     dirWatch: (on) => { if (on === false) { const r = DIRECTOR.mon ? dirReport(DIRECTOR.mon) : null; DIRECTOR.mon = null; return r; } DIRECTOR.mon = { shots: [], badKinds: {} }; return true; },   // relevé en temps réel : API.dirWatch() puis API.dirWatch(false)
