@@ -1153,7 +1153,7 @@
   async function videz() { for (const B of agents) { if (B.mort) B.ressusciter(); B.leve = null; B.sauvetage = null; B.finRafale = null; } while (agents.length > 1) { const B = agents.pop(); scene.remove(B.soldat.group); } CINE.etapes = null; CINE.tics = []; galerieT = null; scenarioT = null;
     const A0 = agents[0], c = A0.ctl; c.chemin = null; c.couvert = null; c.enRoute = null; c.accroupi = false; c.touches = {}; c.verrouRegard = false; c.verrouCible = null; c.tir = false; c.vitesseChemin = null; c.cheminRecul = false; c.surArrivee = null; A0.soldat.pencheExtra = 0; c.profondeurExtra = 0; for (const B of agents) B.glisse.empreintes.length = 0; for (const m of empreintesMesh) scene.remove(m); empreintesMesh.length = 0; dessinerChemin(); }
   function placer(A, x, z, yaw) { A.soldat.pos.set(x, 0, z); A.soldat.yaw = yaw; A.ctl.pos.copy(A.soldat.pos); A.ctl.yaw = yaw; A.ctl.vel.set(0, 0, 0); A.ctl.acc.set(0, 0, 0); A.ctl.yawV = 0; A.ctl.camYaw = yaw; }
-  function camAuto(cibles, opts) { cam.auto = Object.assign({ cibles, vitesse: 0.10, pitch: 0.5, marge: 3.5 }, opts || {}); cam.pitch = cam.auto.pitch; cam.dist = 8; cam.cible = null; }
+  function camAuto(cibles, opts) { cam.auto = Object.assign({ cibles, vitesse: 0.10, pitch: 0.5, marge: 3.5 }, opts || {}); cam.pitch = cam.auto.pitch; cam.dist = 10; cam.cible = null; }
   // Preset 1 — sauvetage et réanimation : un tireur abat un soldat qui traverse devant le bloc ; son coéquipier court le
   // chercher, le traîne derrière le bloc, le réanime, et le blessé se relève (accroupi à couvert)
   async function preset1() {
@@ -1227,6 +1227,7 @@
               const Hm = Ar === S2.mains.D[0] ? S2.mains.D[2] : S2.mains.G[2]; if (!Hm) continue; const pM = Hm.getWorldPosition(V3()); const e0 = pM.clone().sub(pE).normalize().applyQuaternion(q), e1 = d1.clone(); e1.y = Math.max(-0.9, (0.08 - 0.12) / Math.max(pM.distanceTo(pE), 0.05)); { const hz = Math.hypot(e1.x, e1.z) || 1, hzV = Math.sqrt(Math.max(0, 1 - e1.y * e1.y)); e1.x *= hzV / hz; e1.z *= hzV / hz; e1.normalize(); }
               const q2 = Q().setFromUnitVectors(e0, e1); const fw0 = Fo.getWorldQuaternion(Q()), fw1 = q2.clone().multiply(q).multiply(fw0); A.mort.aplati.cibles.push([Fo, Fo.quaternion.clone(), w1.clone().invert().multiply(fw1)]); } } } }
         if (A.mort.aplati && A.mort.aplati.t < 0.4) { const ap = A.mort.aplati; ap.t += dt; const k = Math.min(1, ap.t / 0.4); for (const [o, q0, q1] of ap.cibles) { o.quaternion.copy(q0).slerp(q1, k); o.updateMatrixWorld(true); } }
+        if (r && r.corps && !r.fige && !A.mort.aplatirBras && r.t > 0.8) { for (const i of [8, 9, 10, 11]) { const b = r.corps[i]; if (b.position.y > 0.2 && b.velocity.y > -0.4) b.velocity.y = -0.4; } }   /* après la chute : pas de genou qui reste dressé (charnière) */
         if (r && r.corps && !r.fige && A.mort.aplatirBras) { for (const i of [8, 9, 10, 11]) { const b = r.corps[i]; if (b.position.y > 0.17 && b.velocity.y > -0.4) b.velocity.y = -0.4; } if (r.t > 1.5) r.aFiger = true; } } }   // (l'arme lâchée ne vole pas à 2 m) ; déposé : se pose en 1,5 s puis figé (et jambes couchées, ci-dessus)
     tempsPas = tempsPas * 0.95 + (performance.now() - t0) * 0.05;
     const A = agents[0], S = A.soldat, Ctl = A.ctl;
@@ -1238,7 +1239,7 @@
     if (cam.auto) {   // cinématique : centre des acteurs, distance selon leur étalement, orbite lente
       const pts = cam.auto.cibles().map(a => a.soldat ? (a.mort ? a.soldat.hips.getWorldPosition(V3()).setY(0) : a.soldat.pos.clone()) : a); if (pts.length) {
         const c = pts.reduce((acc, p) => acc.add(p), V3()).multiplyScalar(1 / pts.length); let et = 0; for (const p of pts) et = Math.max(et, p.distanceTo(c));
-        voulu = c.setY(0.6); Ctl.camYaw += dt * cam.auto.vitesse; cam.pitch += (cam.auto.pitch - cam.pitch) * (1 - Math.exp(-dt / 0.5)); const dv = Math.max(4, Math.min(11, et * 1.6 + cam.auto.marge)); cam.dist += (dv - cam.dist) * (1 - Math.exp(-dt / 0.8)); } }
+        voulu = c.setY(0.6); Ctl.camYaw += dt * cam.auto.vitesse; cam.pitch += (cam.auto.pitch - cam.pitch) * (1 - Math.exp(-dt / 0.5)); const dv = Math.max(4, Math.min(14, et * 2.2 + cam.auto.marge)); cam.dist += (dv - cam.dist) * (1 - Math.exp(-dt / 0.8)); } }
     if (!cam.cible) cam.cible = voulu.clone(); cam.cible.lerp(voulu, 1 - Math.exp(-dt / 0.12));
     const cible = cam.cible;
     camera.position.set(cible.x + Math.sin(Ctl.camYaw + Math.PI) * cam.dist * Math.cos(cam.pitch), cible.y + cam.dist * Math.sin(cam.pitch), cible.z + Math.cos(Ctl.camYaw + Math.PI) * cam.dist * Math.cos(cam.pitch));
