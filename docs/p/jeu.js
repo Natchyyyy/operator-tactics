@@ -10315,7 +10315,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // fin d'après-midi : soleil chaud assez haut pour éclairer franchement le sol (rapport lumière / ombre ≈ 4:1, comme une
     // vraie journée claire), ombres plus froides et plus denses, ciel moins laiteux, étalonnage « cinéma » (ombres sarcelle,
     // hautes lumières ambrées)
-    jour:       { elev: 31, azim: 238, turb: 2.6, ray: 2.0, mie: 0.0028, g: 0.88, exp: 1.0, sun: [0xffcf9a, 8.2], env: 0.62, hemi: 0.22, cielTint: [2.7, 2.55, 2.3], rays: 0.25, fog: [0xb3b9bf, 0.0036], clouds: 0.5, cloudTint: 0xfff1e2, cloudDark: 0x8d8f9a, bloom: [0.22, 0.35, 0.95], grade: { c: 1.12, s: 1.1, warm: [1.1, 1.01, 0.88], cool: [0.92, 1.0, 1.07], vig: 0.3, grain: 0.012, lift: [0.0012, 0.0016, 0.0024] } },
+    jour:       { elev: 31, azim: 238, turb: 2.6, ray: 2.0, mie: 0.0028, g: 0.88, exp: 1.0, sun: [0xffcf9a, 8.2], env: 0.62, hemi: 0.22, cielTint: [2.7, 2.55, 2.3], rays: 0.25, fog: [0xb3b9bf, 0.0055], clouds: 0.5, cloudTint: 0xfff1e2, cloudDark: 0x8d8f9a, bloom: [0.22, 0.35, 0.95], grade: { c: 1.12, s: 1.1, warm: [1.1, 1.01, 0.88], cool: [0.92, 1.0, 1.07], vig: 0.3, grain: 0.012, lift: [0.0012, 0.0016, 0.0024] } },
     nuit:       { elev: -12, azim: 215, turb: 2, ray: 0.3, mie: 0.002, g: 0.7, exp: 1.1, sun: [0x7d94d6, 0.95], env: 0.22, hemi: 0.28, fog: [0x070a10, 0.016], clouds: 0.62, cloudTint: 0x2a3348, cloudDark: 0x0c1018, bloom: [0.32, 0.45, 0.95], night: true, grade: { c: 1.04, s: 0.9, warm: [1.08, 0.99, 0.86], cool: [0.88, 0.97, 1.14], vig: 0.4, grain: 0.03, lift: [0.0035, 0.005, 0.009] } },
     brouillard: { elev: 18, azim: 215, turb: 12, ray: 2.5, mie: 0.02, g: 0.9, exp: 0.8, sun: [0xe8ecf0, 1.0], env: 0.85, hemi: 0.85, fog: [0x9aa1a8, 0.03], clouds: 0.2, cloudTint: 0xdfe3e6, cloudDark: 0x9aa1a8, bloom: [0.25, 0.6, 0.95], grade: { c: 0.96, s: 0.84, warm: [1.03, 1.0, 0.96], cool: [0.97, 1.0, 1.03], vig: 0.24, grain: 0.02, lift: [0.006, 0.0065, 0.007] } },
     pluie:      { elev: 20, azim: 215, turb: 14, ray: 3, mie: 0.02, g: 0.85, exp: 0.88, sun: [0xc8d0dc, 1.25], env: 0.8, hemi: 0.85, fog: [0x47505a, 0.013], clouds: 0.15, cloudTint: 0x6c7580, cloudDark: 0x2c323a, bloom: [0.35, 0.6, 0.9], grade: { c: 1.08, s: 0.86, warm: [1.0, 1.0, 0.97], cool: [0.93, 0.99, 1.07], vig: 0.34, grain: 0.022, lift: [0.002, 0.0026, 0.0034] } },
@@ -19653,12 +19653,18 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     // libre (orbite)
     camKeysMove();
-    const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
-    const want = new THREE.Vector3(cam.target.x + cam.dist * cp * Math.cos(cam.yaw), cam.target.y + cam.dist * sp, cam.target.z + cam.dist * cp * Math.sin(cam.yaw));
-    if (!cam.init) { cam.pos.copy(want); cam.look.copy(cam.target); cam.init = true; }
-    cam.pos.lerp(want, 0.2); cam.look.lerp(cam.target, 0.2);
+    // Hauteur d'homme (20/10) : en zoomant sous LOW_D m, le point visé monte vers les yeux (1,6 m) et la vue se redresse
+    // vers l'horizon ; au plus près (CAM_MIN m), on est à hauteur d'homme et l'on regarde droit devant.
+    const lowK = Math.max(0, Math.min(1, (LOW_D - cam.dist) / (LOW_D - CAM_MIN))), pitch = Math.min(cam.pitch, 1.5 - lowK * 1.42);
+    const ty = cam.target.y + lowK * 1.6, cp = Math.cos(pitch), sp = Math.sin(pitch);
+    const want = new THREE.Vector3(cam.target.x + cam.dist * cp * Math.cos(cam.yaw), Math.max(0.6, ty + cam.dist * sp), cam.target.z + cam.dist * cp * Math.sin(cam.yaw));
+    const tgt = new THREE.Vector3(cam.target.x, ty, cam.target.z);
+    if (!cam.init) { cam.pos.copy(want); cam.look.copy(tgt); cam.init = true; }
+    cam.pos.lerp(want, 0.2); cam.look.lerp(tgt, 0.2);
+    if (lowK > 0) pushOut(cam.pos, 0.2);   // près du sol : jamais dans une voiture ou un mur
     camera.position.copy(cam.pos); camera.lookAt(cam.look);
   }
+  const CAM_MIN = 2.2, LOW_D = 14;   // zoom libre au plus près ; en dessous de LOW_D, la vue descend vers hauteur d'homme
   // Z Q S D (positions physiques : W A S D en QWERTY) : la vue libre glisse au sol, dans le sens où l'on regarde ; vitesse
   // selon le zoom (≈ la hauteur de l'écran en 1,5 s), Maj : ×2,5. Depuis une autre caméra, la première touche passe en libre
   // en gardant le cadrage (comme le bouton du milieu).
@@ -19669,7 +19675,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const p = camera.position, d = new THREE.Vector3(); camera.getWorldDirection(d);
       const k = d.y < -0.05 ? -p.y / d.y : 30, tx = p.x + d.x * k, tz = p.z + d.z * k;
       setCamMode('free'); cam.follow = null; cam.target.set(tx, 0, tz);
-      cam.yaw = Math.atan2(p.z - tz, p.x - tx); cam.pitch = Math.max(0.15, Math.min(1.5, Math.atan2(p.y, Math.hypot(p.x - tx, p.z - tz)))); cam.dist = Math.max(8, Math.min(140, p.distanceTo(cam.target)));
+      cam.yaw = Math.atan2(p.z - tz, p.x - tx); cam.pitch = Math.max(0.15, Math.min(1.5, Math.atan2(p.y, Math.hypot(p.x - tx, p.z - tz)))); cam.dist = Math.max(CAM_MIN, Math.min(140, p.distanceTo(cam.target)));
       cam.pos.copy(p); cam.look.copy(cam.target); cam.init = true;
     }
     camKeys[code] = true;
@@ -19678,7 +19684,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const now = performance.now(), dt = Math.min(0.1, (now - (camKeysT || now)) / 1000); camKeysT = now;
     let f = 0, r = 0; for (const c in CAM_KEYS) if (camKeys[c]) { r += CAM_KEYS[c][0]; f += CAM_KEYS[c][1]; }
     if (!f && !r) return;
-    const v = Math.max(6, cam.dist * 0.7) * (camKeys.shift ? 2.5 : 1) * dt, L = Math.hypot(f, r);
+    const v = Math.max(4, cam.dist * 0.7) * (camKeys.shift ? 2.5 : 1) * dt, L = Math.hypot(f, r);
     const fx = -Math.cos(cam.yaw), fz = -Math.sin(cam.yaw), rx = Math.sin(cam.yaw), rz = -Math.cos(cam.yaw);
     cam.follow = null;
     cam.target.x += (fx * f + rx * r) / L * v; cam.target.z += (fz * f + rz * r) / L * v;
@@ -19725,7 +19731,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       }
     });
     canvas.addEventListener('pointercancel', () => { if (drag && drag.b === 2) ordHoldCancel(); selBoxHide(); drag = null; });
-    canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (cam.mode !== 'free') return; cam.dist = Math.max(8, Math.min(140, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); if (MANUAL) render(); }, { passive: false });
+    canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (cam.mode !== 'free') return; cam.dist = Math.max(CAM_MIN, Math.min(140, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); if (MANUAL) render(); }, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   })();
 
@@ -19770,7 +19776,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
 
   // ---- Conditions (jour, nuit, brouillard, pluie) : lumière, brouillard de distance, pluie ; effets de jeu dans engine.js ----
   const LOOK = {
-    jour:       { hemi: [0xdce6ee, 0x6a6052, 1.3], sun: [0xfff0d4, 2.7], fog: [0xc9d1d5, 80, 280], bg: 0xbfcad2, dome: true },
+    jour:       { hemi: [0xdce6ee, 0x6a6052, 1.3], sun: [0xfff0d4, 2.7], fog: [0xc9d1d5, 30, 260], bg: 0xbfcad2, dome: true },
     nuit:       { hemi: [0x40507a, 0x14161c, 0.42], sun: [0x8fa6ff, 0.7], fog: [0x06080d, 35, 120], bg: 0x05070b, dome: false },
     brouillard: { hemi: [0xc0c6cc, 0x4a4844, 1.0], sun: [0xe8ecf0, 0.9], fog: [0x8b9198, 22, 95], bg: 0x8b9198, dome: false },
     pluie:      { hemi: [0x9aa6b4, 0x2e3034, 0.8], sun: [0xc8d0dc, 0.9], fog: [0x3a4149, 40, 140], bg: 0x2a3036, dome: false },
@@ -22025,6 +22031,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     camShot: (kind, id) => { if (kind === 'shoulder' || kind === 'dolly') { setCamMode('director'); cam.shot = { kind, id, side: 1, until: simTime + 999 }; cam.cutAt = simTime; } else { setCamMode('follow'); cam.follow = id; } render(); for (let i = 0; i < 60; i++) applyCamera(); render(); return [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)); },
     stepRaw: (n) => { for (let i = 0; i < (n || 1); i++) stepSim(); acc = DT; return battle.t; },   // sans rendu (outils de capture)
     camTarget: () => [cam.target.x, cam.target.z].map(v => +v.toFixed(2)),   // diagnostic (ZQSD)
+    camSet: (o) => { if (cam.mode !== 'free') setCamMode('free'); Object.assign(cam, o.dist !== undefined ? { dist: o.dist } : {}, o.yaw !== undefined ? { yaw: o.yaw } : {}, o.pitch !== undefined ? { pitch: o.pitch } : {}); if (o.x !== undefined) cam.target.set(o.x, 0, o.z); cam.init = false; },   // diagnostic (captures)
     camPos: () => ({ pos: [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(2)), fov: camera.fov, mode: cam.mode, shot: cam.shot && cam.shot.kind, paused, briefing: !!briefing, finale: !!finale }),   // diagnostic
     dirTrace: (n, probe) => directorTrace(n || 600, probe), camera3: () => camera, rim: () => RIM,   // (mesures : projection des soldats à l'écran)
     dirWatch: (on) => { if (on === false) { const r = DIRECTOR.mon ? dirReport(DIRECTOR.mon) : null; DIRECTOR.mon = null; return r; } DIRECTOR.mon = { shots: [], badKinds: {} }; return true; },   // relevé en temps réel : API.dirWatch() puis API.dirWatch(false)
