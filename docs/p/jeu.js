@@ -6655,15 +6655,17 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (!o.isMesh || !o.material || Array.isArray(o.material) || o.material.isMeshPhysicalMaterial) return;
       const src = o.material, m = new THREE.MeshPhysicalMaterial();
       THREE.MeshStandardMaterial.prototype.copy.call(m, src); m.defines = { STANDARD: '', PHYSICAL: '' };
-      m.clearcoat = cfg[0]; m.clearcoatRoughness = cfg[1]; m.envMapIntensity = (src.envMapIntensity || 1) * 1.1;
+      m.clearcoat = cfg[0]; m.clearcoatRoughness = cfg[1]; m.envMapIntensity = (src.envMapIntensity || 1) * 1.4;
       m.onBeforeCompile = vernisHook; m.customProgramCacheKey = vernisKey; m.needsUpdate = true; o.material = m;
     });
   }
-  function vernisKey() { return 'vernis'; }
+  function vernisKey() { return 'vernis2'; }
   function vernisHook(sh) {
     sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
       { float vL = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)), vS = max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b)) - min(diffuseColor.r, min(diffuseColor.g, diffuseColor.b));
         material.clearcoat *= mix(0.25, 1.0, smoothstep(0.012, 0.05, vL + vS)); }`);
+    // reflet direct des lampes dans le vernis (pare-brise la nuit) : plafonné, pas de tache blanche brûlée
+    sh.fragmentShader = sh.fragmentShader.replace('float dotNVcc = saturate(', 'clearcoatSpecularDirect *= min(1.0, 2.5 / max(max(clearcoatSpecularDirect.r, clearcoatSpecularDirect.g), max(clearcoatSpecularDirect.b, 1e-4))); float dotNVcc = saturate(');
   }
   // Chargeur détachable : les triangles du fusil dont le centre tombe dans la zone du chargeur (repère du modèle :
   // |x − CHG.x| < CHG.dx, y < CHG.y) forment un maillage à part (même matériau, mêmes sommets), nommé « chargeur ».
@@ -10152,6 +10154,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     betonClair: { src: 'concrete_wall_008', f: ['pbr_beton_couleur.jpg', 'pbr_beton_relief.jpg', 'pbr_beton_rugosite.jpg'], metres: 3, gain: 1.35, mix: 0.3 },
     trottoir:   { src: 'concrete_pavement', f: ['pbr_dalles_couleur.jpg', 'pbr_dalles_relief.jpg', 'pbr_dalles_rugosite.jpg'], metres: 2.4, gain: 1.35, mix: 0 },
     brique:     { src: 'red_brick_03', f: ['pbr_brique_couleur.jpg', 'pbr_brique_relief.jpg', 'pbr_brique_rugosite.jpg'], metres: 1.25, gain: 1.15, mix: 0 },
+    ecorce:     { src: 'bark_platanus', f: ['pbr_ecorce_couleur.jpg', 'pbr_ecorce_relief.jpg', null], metres: 1.0, gain: 2.0, mix: 0 },
     briqueSombre: { src: 'red_brick_03', f: ['pbr_brique_couleur.jpg', 'pbr_brique_relief.jpg', 'pbr_brique_rugosite.jpg'], metres: 1.25, gain: 0.75, mix: 0 },
   };
   const CIEL = 'pbr_ciel_ville.jpg';
@@ -10182,7 +10185,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     d.u = { tDet: { value: proc.map }, tDetN: { value: proc.normal }, tDetR: { value: proc.normal }, uM: { value: proc.meters }, gain: { value: 1 }, hasR: { value: 0 }, mix: { value: proc.mix === undefined ? 0.35 : proc.mix } };
     dets[cle] = d;
     if (!M || !actif()) return d;
-    Promise.all([charger(M.f[0], true), charger(M.f[1], false), charger(M.f[2], false)]).then(([c, n, r]) => {
+    Promise.all([charger(M.f[0], true), charger(M.f[1], false), M.f[2] ? charger(M.f[2], false) : Promise.resolve(null)]).then(([c, n, r]) => {
       if (!c || !n) return;   // fichier manquant : on garde le procédural
       d.u.tDet.value = c; d.u.tDetN.value = n; d.u.uM.value = M.metres; d.u.gain.value = M.gain; d.u.mix.value = M.mix;
       if (r) { d.u.tDetR.value = r; d.u.hasR.value = 1; }
@@ -10309,7 +10312,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // fin d'après-midi : soleil chaud assez haut pour éclairer franchement le sol (rapport lumière / ombre ≈ 4:1, comme une
     // vraie journée claire), ombres plus froides et plus denses, ciel moins laiteux, étalonnage « cinéma » (ombres sarcelle,
     // hautes lumières ambrées)
-    jour:       { elev: 31, azim: 238, turb: 3.2, ray: 1.25, mie: 0.0028, g: 0.88, exp: 0.95, sun: [0xffcf9a, 8.2], env: 0.62, hemi: 0.22, cielTint: [2.7, 2.55, 2.3], rays: 0.25, fog: [0xbdb8ae, 0.0029], clouds: 0.5, cloudTint: 0xfff1e2, cloudDark: 0x8d8f9a, bloom: [0.22, 0.35, 0.95], grade: { c: 1.17, s: 1.12, warm: [1.1, 1.01, 0.88], cool: [0.92, 1.0, 1.07], vig: 0.3, grain: 0.012, lift: [0.0012, 0.0016, 0.0024] } },
+    jour:       { elev: 31, azim: 238, turb: 2.6, ray: 2.0, mie: 0.0028, g: 0.88, exp: 1.0, sun: [0xffcf9a, 8.2], env: 0.62, hemi: 0.22, cielTint: [2.7, 2.55, 2.3], rays: 0.25, fog: [0xbdb8ae, 0.0029], clouds: 0.5, cloudTint: 0xfff1e2, cloudDark: 0x8d8f9a, bloom: [0.22, 0.35, 0.95], grade: { c: 1.12, s: 1.1, warm: [1.1, 1.01, 0.88], cool: [0.92, 1.0, 1.07], vig: 0.3, grain: 0.012, lift: [0.0012, 0.0016, 0.0024] } },
     nuit:       { elev: -12, azim: 215, turb: 2, ray: 0.3, mie: 0.002, g: 0.7, exp: 1.1, sun: [0x7d94d6, 0.95], env: 0.22, hemi: 0.28, fog: [0x070a10, 0.016], clouds: 0.62, cloudTint: 0x2a3348, cloudDark: 0x0c1018, bloom: [0.32, 0.45, 0.95], night: true, grade: { c: 1.04, s: 0.9, warm: [1.08, 0.99, 0.86], cool: [0.88, 0.97, 1.14], vig: 0.4, grain: 0.03, lift: [0.0035, 0.005, 0.009] } },
     brouillard: { elev: 18, azim: 215, turb: 12, ray: 2.5, mie: 0.02, g: 0.9, exp: 0.8, sun: [0xe8ecf0, 1.0], env: 0.85, hemi: 0.85, fog: [0x9aa1a8, 0.03], clouds: 0.2, cloudTint: 0xdfe3e6, cloudDark: 0x9aa1a8, bloom: [0.25, 0.6, 0.95], grade: { c: 0.96, s: 0.84, warm: [1.03, 1.0, 0.96], cool: [0.97, 1.0, 1.03], vig: 0.24, grain: 0.02, lift: [0.006, 0.0065, 0.007] } },
     pluie:      { elev: 20, azim: 215, turb: 14, ray: 3, mie: 0.02, g: 0.85, exp: 0.88, sun: [0xc8d0dc, 1.25], env: 0.8, hemi: 0.85, fog: [0x47505a, 0.013], clouds: 0.15, cloudTint: 0x6c7580, cloudDark: 0x2c323a, bloom: [0.35, 0.6, 0.9], grade: { c: 1.08, s: 0.86, warm: [1.0, 1.0, 0.97], cool: [0.93, 0.99, 1.07], vig: 0.34, grain: 0.022, lift: [0.002, 0.0026, 0.0034] } },
@@ -12125,14 +12128,19 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function planter(o) {
     const K = M3(), g = new T.Group();
     const outer = new T.Mesh(new T.BoxGeometry(o.w, o.h, o.d), K.betonClair); g.add(outer);
-    const soil = new T.Mesh(new T.BoxGeometry(o.w - 0.2, 0.05, o.d - 0.2), mat('terre', () => new T.MeshStandardMaterial({ color: 0x3a2c20, roughness: 1 }))); soil.position.y = o.h / 2 - 0.08; g.add(soil);
+    const soil = new T.Mesh(new T.BoxGeometry(o.w - 0.2, 0.05, o.d - 0.2), mat('terre', () => new T.MeshStandardMaterial({ color: 0x3a2c20, roughness: 1 }))); soil.position.y = root.Arbres ? o.h / 2 + 0.004 : o.h / 2 - 0.08; g.add(soil);   // (avec arbres.js : terre à ras du bord, le feuillage pousse dessus)
     // couvre-sol : touffes basses et irrégulières (deux verts, un peu de paille), pas de « boules »
     const leaf = mat('buisV', () => feuillage(new T.MeshStandardMaterial({ color: 0x41592c, roughness: 0.9, vertexColors: true }))), leaf2 = mat('buis2V', () => feuillage(new T.MeshStandardMaterial({ color: 0x5b6b33, roughness: 0.95, vertexColors: true }))), paille = mat('pailleV', () => feuillage(new T.MeshStandardMaterial({ color: 0x8a7a4a, roughness: 1, vertexColors: true })));
-    const R = rng(Math.floor(o.x * 13 + o.z * 7)), n = Math.round((o.w * o.d) * 5);
+    const R = rng(Math.floor(o.x * 13 + o.z * 7)), n = root.Arbres ? 0 : Math.round((o.w * o.d) * 5), AR = root.Arbres;
+    if (AR) {   // arbres.js : couvre-sol en cartes de feuilles et quelques arbustes (même feuillage que les arbres et les haies)
+      const cs = AR.massif(o.w - 0.22, 0.22, o.d - 0.22, Math.floor(o.x * 13 + o.z * 7)); cs.position.y = o.h / 2; g.add(cs);
+      const na = Math.max(1, Math.round(o.w * o.d * 0.8));
+      for (let k = 0; k < na; k++) { const px = (R() - 0.5) * (o.w - 0.6), pz = (R() - 0.5) * (o.d - 0.6); if (Math.hypot(px, pz) < 0.35) continue; const r = 0.45 + R() * 0.3, b = AR.massif(r, r * 0.9, r, k * 31 + 5); b.position.set(px, o.h / 2, pz); g.add(b); }
+    }
     for (let k = 0; k < n; k++) { const r = 0.07 + R() * 0.11, b = new T.Mesh(bushGeo(k, true), R() < 0.15 ? paille : R() < 0.5 ? leaf2 : leaf); b.scale.setScalar(r); b.position.set((R() - 0.5) * (o.w - 0.3), o.h / 2 - 0.03 + r * 0.3, (R() - 0.5) * (o.d - 0.3)); b.scale.set(r * (1 + R() * 0.6), r * (0.35 + R() * 0.35), r * (1 + R() * 0.6)); b.rotation.y = R() * 6; b.castShadow = true; g.add(b); }
     // du volume : arbustes bas (boules irrégulières de 30 à 55 cm) et touffes de graminées (lames fines)
     const nb = Math.max(2, Math.round(o.w * o.d * 1.2));
-    for (let k = 0; k < nb; k++) { const r = 0.16 + R() * 0.12, b = new T.Mesh(bushGeo(k + 2), R() < 0.5 ? leaf : leaf2); const px = (R() - 0.5) * (o.w - 0.5), pz = (R() - 0.5) * (o.d - 0.5); if (Math.hypot(px, pz) < 0.35) continue; b.position.set(px, o.h / 2 + r * 0.55, pz); b.scale.set(r * (1 + R() * 0.4), r * (0.9 + R() * 0.6), r * (1 + R() * 0.4)); b.rotation.set((R() - 0.5) * 0.3, R() * 6, (R() - 0.5) * 0.3); b.castShadow = true; g.add(b); }
+    for (let k = 0; k < (AR ? 0 : nb); k++) { const r = 0.16 + R() * 0.12, b = new T.Mesh(bushGeo(k + 2), R() < 0.5 ? leaf : leaf2); const px = (R() - 0.5) * (o.w - 0.5), pz = (R() - 0.5) * (o.d - 0.5); if (Math.hypot(px, pz) < 0.35) continue; b.position.set(px, o.h / 2 + r * 0.55, pz); b.scale.set(r * (1 + R() * 0.4), r * (0.9 + R() * 0.6), r * (1 + R() * 0.4)); b.rotation.set((R() - 0.5) * 0.3, R() * 6, (R() - 0.5) * 0.3); b.castShadow = true; g.add(b); }
     const lame = mat('graminee', () => new T.MeshStandardMaterial({ color: 0x7d8a45, roughness: 0.9, side: T.DoubleSide }));
     for (let k = 0; k < nb; k++) { const t = new T.Group(), px = (R() - 0.5) * (o.w - 0.4), pz = (R() - 0.5) * (o.d - 0.4); if (Math.hypot(px, pz) < 0.35) continue;
       for (let j = 0; j < 7; j++) { const h = 0.3 + R() * 0.3, bl = new T.Mesh(new T.PlaneGeometry(0.035, h), lame); bl.position.y = h / 2; bl.rotation.set((R() - 0.5) * 0.7, R() * 3, (R() - 0.5) * 0.7); t.add(bl); }
@@ -12405,10 +12413,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // arbres le long des rues et voitures garées le long des trottoirs (modèles Meshy si chargés)
     const M3d = ctx && ctx.M3;
     const ARBRE = M3d && M3d.has('arbre') ? 'arbre' : 'palmier';
-    if (M3d && M3d.has(ARBRE)) for (let k = 0; k < 18; k++) {
+    if ((M3d && M3d.has(ARBRE)) || root.Arbres) for (let k = 0; k < 18; k++) {
       const sd = k % 3, t = R(); let x, z;
       if (sd === 0) { x = -14 + t * (W + 28); z = D + 17; if (gate && Math.abs(x - gate.x - gate.w / 2) < 6) continue; } else if (sd === 1) { x = W + 17; z = t * (D + 10); } else { x = -17; z = t * (D + 10); }
-      const p = M3d.fit(ARBRE, 3, ARBRE === 'arbre' ? 5.5 + R() * 2.5 : 7 + R() * 4, 3, { byHeight: true, rot: k * 2.3 }); p.children[0].position.y = 0; p.position.set(x, 0.14, z); p.traverse(o => { if (o.isMesh) { o.castShadow = true; o.userData.keep = true; } }); group.add(p);
+      const hA = 5.5 + R() * 2.5, p = root.Arbres ? root.Arbres.arbre(hA + 0.5, k + 11) : M3d.fit(ARBRE, 3, ARBRE === 'arbre' ? hA : 7 + R() * 4, 3, { byHeight: true, rot: k * 2.3 }); if (!root.Arbres) p.children[0].position.y = 0; p.position.set(x, 0.14, z); p.traverse(o => { if (o.isMesh) { o.castShadow = true; o.userData.keep = true; } }); group.add(p);
     }
     if (M3d && M3d.has('berline')) {
       const kinds = ['berline', 'pickup', 'fourgon', 'berline'];
@@ -12715,7 +12723,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const n = ph2(x, z) * 0.05 + (R() - 0.5) * 0.04; p.setXYZ(i, x + Math.sign(x) * n * rx, y + (y > 0 ? n : 0), z + Math.sign(z) * n * rz);
     }
     geo.computeVertexNormals();
-    const h = new T.Mesh(geo, feuillageMat()); h.position.y = -o.h / 2 + ph + hh / 2 - 0.08; g.add(h);
+    const AR = root.Arbres;   // avec arbres.js : cœur sombre (l'ombre dans la haie) et coque de cartes de feuilles par-dessus
+    const h = new T.Mesh(geo, AR ? mat('haieCoeur', () => new T.MeshStandardMaterial({ color: 0x1e2c17, roughness: 1 })) : feuillageMat()); h.position.y = -o.h / 2 + ph + hh / 2 - 0.08; g.add(h);
+    if (AR) { const sh = AR.massif(hw + 0.12, hh + 0.06, hd + 0.12, Math.floor(o.x * 7 + o.z * 3), true); sh.position.y = -o.h / 2 + ph - 0.08; g.add(sh); }
     return g;
   }
   function totem(o) {
@@ -13055,6 +13065,173 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }
   function tick(t) { U.time.value = t; }
   root.Parking = { build, mesh, setConditions, tick, asphalt, concrete, worldMat, teinter, brickDet };
+})(window.OT = window.OT || {});
+
+;//@@OT web/arbres.js@@
+// Arbres d'alignement (platanes / tilleuls de ville) et feuillage de haie, faits par programme :
+//  - tronc et charpentières : cylindres coniques légèrement tordus, écorce de platane (scannée, pbr.js ; procédurale sinon) ;
+//  - houppier : des centaines de « cartes » de feuillage (rameaux feuillus dessinés dans une texture à transparence, découpe
+//    alpha) groupées en touffes au bout des branches ; les normales des cartes pointent vers l'extérieur du houppier
+//    (éclairage doux et volumique, comme les arbres des jeux AAA, au lieu de plans plats qui s'allument un par un) ;
+//    lumière qui traverse les feuilles à contre-jour ; balancement léger au vent dans le shader ;
+//  - géométries partagées : 4 modèles d'arbre, copiés (une seule géométrie par modèle) ; ≈ 600 à 900 triangles par arbre ;
+//  - ombres portées découpées par la transparence (les feuilles projettent une ombre tachetée).
+// OT.Arbres.arbre(hauteur, graine) → THREE.Group posé au sol ; OT.Arbres.feuillesMat() pour d'autres végétaux (haies).
+(function (root) {
+  const T = window.THREE;
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const VENT = { time: { value: 0 } };
+  // ---- texture de rameau feuillu : 2 × 2 variantes dans une texture 512², fond transparent ----
+  let LEAF = null;
+  function leafTex() {
+    if (LEAF) return LEAF;
+    const N = 512, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), R = rng(907);
+    for (let v = 0; v < 4; v++) {
+      const ox = (v % 2) * N / 2, oy = Math.floor(v / 2) * N / 2, S = N / 2;
+      g.save(); g.beginPath(); g.rect(ox, oy, S, S); g.clip();
+      // rameau : tige du bas vers le haut, ramilles
+      const twig = (x0, y0, x1, y1, w) => { g.strokeStyle = 'rgba(70,52,34,1)'; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo((x0 + x1) / 2 + (R() - 0.5) * 20, (y0 + y1) / 2, x1, y1); g.stroke(); };
+      const cx = ox + S / 2, base = oy + S - 6; twig(cx, base, cx + (R() - 0.5) * 40, oy + 30, 3);
+      const leaves = 34 + Math.floor(R() * 10);
+      for (let k = 0; k < leaves; k++) {
+        const a = R() * Math.PI * 2, r = Math.sqrt(R()) * S * 0.4, x = cx + Math.cos(a) * r, y = oy + S * 0.47 + Math.sin(a) * r * 0.95;
+        if (R() < 0.3) twig(cx, oy + S * 0.55 + (R() - 0.5) * 40, x, y, 1.2);
+        const L = 22 + R() * 18, W = L * (0.5 + R() * 0.25), rot = a + Math.PI / 2 + (R() - 0.5) * 1.2;
+        const sh = R(), col = [Math.round(58 + sh * 42 + R() * 12), Math.round(84 + sh * 48 + R() * 14), Math.round(36 + sh * 24)];
+        g.save(); g.translate(x, y); g.rotate(rot);
+        const grd = g.createLinearGradient(-W / 2, 0, W / 2, 0); grd.addColorStop(0, `rgb(${col[0] * 0.78 | 0},${col[1] * 0.78 | 0},${col[2] * 0.78 | 0})`); grd.addColorStop(0.5, `rgb(${col[0]},${col[1]},${col[2]})`); grd.addColorStop(1, `rgb(${col[0] * 0.85 | 0},${col[1] * 0.85 | 0},${col[2] * 0.85 | 0})`);
+        g.fillStyle = grd; g.beginPath(); g.moveTo(0, -L / 2); g.bezierCurveTo(W / 2, -L / 4, W / 2, L / 4, 0, L / 2); g.bezierCurveTo(-W / 2, L / 4, -W / 2, -L / 4, 0, -L / 2); g.fill();
+        g.strokeStyle = `rgba(${col[0] * 1.3 | 0},${col[1] * 1.2 | 0},${col[2] | 0},0.5)`; g.lineWidth = 1; g.beginPath(); g.moveTo(0, -L / 2 + 2); g.lineTo(0, L / 2 - 2); g.stroke();   // nervure
+        g.restore();
+      }
+      g.restore();
+    }
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 8; t.generateMipmaps = true; t.minFilter = T.LinearMipmapLinearFilter;
+    return (LEAF = t);
+  }
+  // ---- matériau des feuilles : découpe alpha, double face, normales du houppier, translucidité, vent ----
+  const MATS = {};
+  function feuillesMat(teinte) {
+    const key = teinte || 'std'; if (MATS[key]) return MATS[key];
+    const m = new T.MeshStandardMaterial({ map: leafTex(), alphaTest: 0.45, side: T.DoubleSide, roughness: 0.78, metalness: 0, vertexColors: true, color: teinte === 'haie' ? 0xa8b89a : 0xdde4d6 });
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = VENT.time;
+      sh.vertexShader = 'uniform float uTime; attribute float aSway;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        { vec4 wp0 = modelMatrix * vec4(transformed, 1.0); float ph = wp0.x * 0.35 + wp0.z * 0.27;
+          transformed += vec3(sin(uTime * 1.3 + ph), sin(uTime * 2.1 + ph * 1.7) * 0.5, cos(uTime * 1.1 + ph)) * 0.05 * aSway; }`);
+      // double face SANS retourner la normale côté envers : la normale est celle du houppier (sinon une carte sur deux, vue de
+      // dos, devient noire)
+      sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', T.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', ''));
+      sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+        // lumière qui traverse les feuilles : la face éclairée par derrière garde une partie de la lumière directe, plus jaune
+        #if NUM_DIR_LIGHTS > 0
+        { vec3 Ld = directionalLights[0].direction; float back = saturate(dot(-geometryViewDir, Ld) * 0.6 + 0.4) * saturate(-dot(geometryNormal, Ld) + 0.3);
+          reflectedLight.indirectDiffuse += directionalLights[0].color * diffuseColor.rgb * vec3(0.9, 1.0, 0.45) * back * 0.22; }
+        #endif`);
+    };
+    m.customProgramCacheKey = () => 'feuilles' + key;
+    return (MATS[key] = m);
+  }
+  // cartes de feuillage autour de centres de touffes ; normales = direction depuis le centre du houppier (adoucie)
+  function cartes(touffes, centre, R, opts) {
+    const pos = [], nor = [], uv = [], col = [], sway = [], idx = []; let nv = 0;
+    const q = new T.Quaternion(), e = new T.Euler(), v = new T.Vector3(), n = new T.Vector3();
+    for (const tf of touffes) {
+      for (let k = 0; k < tf.n; k++) {
+        const p = new T.Vector3(R() * 2 - 1, R() * 2 - 1, R() * 2 - 1);
+        if (tf.boite) { if (R() < 0.8) { const ax = R() < tf.pz ? 2 : R() < 0.5 ? 0 : 1; p.setComponent(ax, ax === 1 ? 0.92 + R() * 0.08 : (R() < 0.5 ? -1 : 1) * (0.9 + R() * 0.1)); } }   // haie : surtout en surface (dessus et côtés)
+        else if (p.lengthSq() > 1) p.normalize();
+        p.multiply(tf.r).add(tf.c);
+        const s = opts.taille * (0.75 + R() * 0.5); e.set(R() * Math.PI, R() * Math.PI * 2, R() * Math.PI); q.setFromEuler(e);
+        const vv = Math.floor(R() * 4), u0 = (vv % 2) * 0.5, v0 = Math.floor(vv / 2) * 0.5;
+        const out = n.copy(p).sub(centre); out.y *= opts.aplatY || 1; out.normalize(); const shade = 0.75 + 0.35 * Math.max(0, out.y) + (R() - 0.5) * 0.2;
+        const tint = opts.teinte ? opts.teinte(R) : [1, 1, 1];
+        for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
+          v.set(a * s, b * s, 0).applyQuaternion(q).add(p); pos.push(v.x, v.y, v.z);
+          // normale : mélange de celle du houppier (dominante) et d'un peu de bruit
+          const nn = n.copy(v).sub(centre); nn.y *= opts.aplatY || 1; nn.normalize(); nor.push(nn.x, nn.y, nn.z);
+          uv.push(u0 + (a + 0.5) * 0.5, 1 - (v0 + (0.5 - b) * 0.5));
+          col.push(shade * tint[0], shade * tint[1], shade * tint[2]); sway.push(Math.max(0, (v.y - opts.y0) / Math.max(1, opts.h - opts.y0)));
+        }
+        idx.push(nv, nv + 1, nv + 2, nv, nv + 2, nv + 3); nv += 4;
+      }
+    }
+    const g = new T.BufferGeometry();
+    g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new T.Float32BufferAttribute(nor, 3));
+    g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); g.setAttribute('color', new T.Float32BufferAttribute(col, 3)); g.setAttribute('aSway', new T.Float32BufferAttribute(sway, 1));
+    g.setIndex(idx); g.computeBoundingSphere(); g.computeBoundingBox(); return g;
+  }
+  // ---- écorce ----
+  let ECORCE = null;
+  function ecorceMat() {
+    if (ECORCE) return ECORCE;
+    const N = 256, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), R = rng(55);
+    g.fillStyle = '#6b5f50'; g.fillRect(0, 0, N, N);
+    for (let k = 0; k < 120; k++) { g.fillStyle = `rgba(${R() < 0.5 ? '150,140,115' : '60,50,40'},${0.2 + R() * 0.35})`; const w = 10 + R() * 40, h = 8 + R() * 30; g.beginPath(); g.ellipse(R() * N, R() * N, w / 2, h / 2, R(), 0, 7); g.fill(); }   // plaques du platane
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.wrapS = t.wrapT = T.RepeatWrapping;
+    const det = { map: t, normal: t, meters: 1.2 };
+    const P = root.Parking, d = root.PBR ? root.PBR.det('ecorce', det) : det;
+    ECORCE = P && P.worldMat ? P.worldMat(d, { roughness: 0.9, bump: 1.2 }) : new T.MeshStandardMaterial({ map: t, roughness: 0.9 });
+    return ECORCE;
+  }
+  function branche(a, b, r0, r1) {
+    const d = b.clone().sub(a), L = d.length(), g = new T.CylinderGeometry(r1, r0, L, 7, 3, true);
+    g.translate(0, L / 2, 0); const m = new T.Matrix4().makeRotationFromQuaternion(new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize())); g.applyMatrix4(m); g.translate(a.x, a.y, a.z);
+    return g;
+  }
+  // ---- modèles d'arbre (4 variantes, hauteur de référence 6 m, mis à l'échelle à la pose) ----
+  const MODELES = [];
+  function modele(v) {
+    if (MODELES[v]) return MODELES[v];
+    const R = rng(1201 + v * 77), H = 6, troncH = 2.2 + R() * 0.5, centre = new T.Vector3(0, troncH + 2.0, 0);
+    const bois = [], touffes = [];
+    const top = new T.Vector3((R() - 0.5) * 0.25, troncH, (R() - 0.5) * 0.25);
+    bois.push(branche(new T.Vector3(0, -0.1, 0), top, 0.17, 0.13));
+    const nb = 4 + Math.floor(R() * 2);
+    for (let k = 0; k < nb; k++) {
+      const a = k / nb * Math.PI * 2 + R() * 0.6, el = 0.8 + R() * 0.45, L = 1.25 + R() * 0.6;
+      const end = top.clone().add(new T.Vector3(Math.cos(a) * Math.cos(el) * L, Math.sin(el) * L, Math.sin(a) * Math.cos(el) * L));
+      bois.push(branche(top, end, 0.1, 0.045));
+      const end2 = end.clone().add(new T.Vector3(Math.cos(a + 0.6) * 0.7, 0.6 + R() * 0.4, Math.sin(a + 0.6) * 0.7)); bois.push(branche(end, end2, 0.045, 0.02));
+      touffes.push({ c: end2.clone(), r: new T.Vector3(0.9, 0.7, 0.9).multiplyScalar(0.9 + R() * 0.3), n: 28 });
+      touffes.push({ c: end.clone().lerp(top, 0.25).add(new T.Vector3(0, 0.3, 0)), r: new T.Vector3(0.9, 0.65, 0.9), n: 16 });
+    }
+    touffes.push({ c: top.clone().add(new T.Vector3(0, 2.4, 0)), r: new T.Vector3(1.1, 0.75, 1.1), n: 36 });   // cime
+    touffes.push({ c: top.clone().add(new T.Vector3(0, 1.6, 0)), r: new T.Vector3(1.0, 0.7, 1.0), n: 22 });   // cœur (masque le vide central)
+    const feuilles = cartes(touffes, centre, R, { taille: 0.95, aplatY: 1.3, y0: troncH, h: H, teinte: (r) => [0.92 + r() * 0.16, 0.95 + r() * 0.1, 0.85 + r() * 0.2] });
+    const boisG = mergeGeos(bois);
+    return (MODELES[v] = { feuilles, bois: boisG, h: H });
+  }
+  function mergeGeos(list) {
+    const pos = [], nor = [], uv = [], idx = []; let off = 0;
+    for (const g of list) {
+      const p = g.attributes.position, n = g.attributes.normal, u = g.attributes.uv;
+      for (let i = 0; i < p.count; i++) { pos.push(p.getX(i), p.getY(i), p.getZ(i)); nor.push(n.getX(i), n.getY(i), n.getZ(i)); uv.push(u.getX(i), u.getY(i)); }
+      const ix = g.index.array; for (let i = 0; i < ix.length; i++) idx.push(ix[i] + off); off += p.count; g.dispose();
+    }
+    const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new T.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeBoundingSphere(); return g;
+  }
+  let lastT = 0;
+  function tick() { const t = performance.now() / 1000; if (t !== lastT) { lastT = t; VENT.time.value = t % 1000; } }
+  // un arbre posé au sol (y = 0 au pied), hauteur h (m), variante par graine
+  function arbre(h, seed) {
+    const M = modele(((seed % 4) + 4) % 4), g = new T.Group(), s = h / M.h;
+    const tronc = new T.Mesh(M.bois, ecorceMat()); tronc.castShadow = true; tronc.receiveShadow = true;
+    const f = new T.Mesh(M.feuilles, feuillesMat()); f.castShadow = true; f.receiveShadow = true; f.onBeforeRender = tick;
+    g.add(tronc, f); g.scale.set(s * (0.9 + ((seed * 37) % 10) / 50), s, s * (0.9 + ((seed * 53) % 10) / 50)); g.rotation.y = seed * 1.37;
+    g.traverse(o => { if (o.isMesh) o.userData.keep = true; }); g.userData.arbre = true;
+    return g;
+  }
+  // coque de feuillage pour une haie / un massif : cartes réparties dans une boîte (w × h × d), normales vers l'extérieur
+  // boite : cartes surtout en surface d'une boîte (haie taillée) ; sinon dans un ellipsoïde (arbuste)
+  function massif(w, h, d, seed, boite) {
+    const R = rng(seed || 7), touffes = [], n = Math.max(10, Math.round((w * d + (w + d) * h * 2) * (boite ? 14 : h < 0.4 ? 30 : 12)));
+    const c = new T.Vector3(0, boite ? h * 0.3 : h < 0.4 ? -1.2 : h * 0.2, 0);   // couvre-sol bas : normales presque verticales
+    touffes.push({ c: new T.Vector3(0, h / 2, 0), r: new T.Vector3(w / 2, h / 2, d / 2), n, boite, pz: w / (w + d) * 0.6 });
+    const g = cartes(touffes, c, R, { taille: boite ? 0.4 : 0.45, aplatY: 1, y0: 0, h, teinte: (r) => [0.8 + r() * 0.15, 0.85 + r() * 0.15, 0.75 + r() * 0.15] });
+    const m = new T.Mesh(g, feuillesMat('haie')); m.castShadow = true; m.receiveShadow = true; m.onBeforeRender = tick; m.userData.keep = true; return m;
+  }
+  root.Arbres = { arbre, massif, feuillesMat, tick };
 })(window.OT = window.OT || {});
 
 ;//@@OT web/portrait.js@@
@@ -13429,6 +13606,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // (sans plan : tirage à la graine, 1 ou 2 par flanc) ; relancé en bataille, il redistribue les survivants (engine.js : replan).
     tenailles: { id: 'tenailles', name: 'Tenailles', active: true, plan: [2, 2], uses: 2, cooldown: 20, desc: 'Plan de voies : deux opérateurs par le flanc nord, deux par le flanc sud, un seul tient le milieu ; on prend l\'adversaire en étau. Relancé en bataille, il redéploie les survivants selon ce plan.' },
     rush_milieu: { id: 'rush_milieu', name: 'Rush milieu', active: true, plan: [0, 0], uses: 2, cooldown: 20, desc: 'Plan de voies : toute l\'escouade passe par l\'axe central, groupée, pour forcer le passage. Relancé en bataille, il regroupe les survivants au milieu.' },
+    // Vague 2 (strategies_gign.md T4, T7, T1b) — cartes de l'escouade du joueur seulement (joueur: true : jamais données à l'adversaire)
+    fixer_deborder: { id: 'fixer_deborder', name: 'Fixer et déborder', active: true, joueur: true, uses: 2, cooldown: 25, desc: 'Au moment choisi : les deux opérateurs les plus proches de l\'ennemi repéré le fixent par un tir d\'appui ; les autres le contournent par le flanc le plus court et l\'encerclent.' },
+    eclaireur: { id: 'eclaireur', name: 'Éclaireur', active: false, joueur: true, desc: 'L\'opérateur le plus perceptif avance seul en tête ; les autres suivent à une vingtaine de mètres et ne s\'engagent qu\'au contact. Remplace le Tiroir tant qu\'il n\'y a pas de contact.' },
+    tiroir_lent: { id: 'tiroir_lent', name: 'Tiroir lent', active: false, joueur: true, desc: 'Tiroir plus sûr : un trinôme bondit pendant qu\'un binôme reste la base de feu ; le binôme ne passe jamais devant, il rejoint quand le trinôme est en place.' },
   };
 
   // ---- DÉFIS -------------------------------------------------------------------------
@@ -14020,6 +14201,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     this.units = this.teams.flatMap(t => t.units);
     // Tiroir : deux moitiés d'escouade en alternance (le tireur d'élite reste en appui, hors des bonds)
     for (const team of this.teams) { let k = 0; for (const u of team.units) u.boundGroup = u.role.id === 'marksman' ? -1 : (k++ % 2); team.bound = { group: 0, since: 0, n: 0 }; }
+    for (const team of this.teams) { if (this.hasTactic(team, 'tiroir_lent')) this.lentHalves(team, team.units); this.initScout(team); }
     this.assignLanes();
     this.placeUnits();
     for (const team of this.teams) if (team.auto) this.initKarst(team);   // plans de l'adversaire (vague 2)
@@ -14194,6 +14376,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     this.updateTiroir();
     this.updateMoveGroups();   // ordres de déplacement « méthodiques » : bonds par groupe
     if (this.tick % 10 === 5) this.updateKarst();   // plans de l'adversaire : une fois par seconde
+    if (this.tick % 10 === 0) this.teamMemo();
     for (const u of this.units) if (u.alive) this.perceive(u);
     if (Math.abs((this.t % COMMS_EVERY)) < DT / 2 || (this.t % COMMS_EVERY) > COMMS_EVERY - DT / 2) this.comms();
     // ordre de traitement mélangé à chaque pas : aucune équipe n'a l'avantage d'agir toujours la première
@@ -15977,6 +16160,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // elle vieillit (personne ne la revoit) → on resserre de couvert en couvert ; périmée → on va voir ce qu'il en est
       const age = this.t - threatPos.t, stand = this.standoff(u);
       let reach = age < 6 ? stand : age < 14 ? MIN_CLOSE + 2 : MIN_CLOSE;
+      // fin de bataille : au plus deux adversaires debout, on est plus nombreux et plus personne ne tire depuis 10 s → on
+      // n'attend plus à distance de combat qu'il se montre (face-à-face immobiles jusqu'à la fin du temps) : on va le chercher
+      const foesUp = this.teams[1 - u.team].units.filter(e => e.alive).length;
+      const press = foesUp <= 2 && this.teams[u.team].units.filter(a => a.alive).length > foesUp && this.t - this.lastShotTime > 10;
+      if (press && age >= 3) reach = 0;
       // arrêté depuis 4 s sans aucune vue sur la position (voitures, murs : terrain fermé) : la distance de combat ne sert à
       // rien d'ici, on resserre (de couvert en couvert) jusqu'à ~10 m
       const los = this.map.hasLOS(u.x, EYE.stand, u.z, threatPos.x, CHEST.stand, threatPos.z);
@@ -15989,7 +16177,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           const cp = this.findCover(u, threatPos, 10, { requireShoot: true, minRange: Math.min(MIN_CLOSE, nd - 1), preferDist: clamp(nd, MIN_CLOSE, stand) });
           if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.6 && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; }
         }
-        reach = Math.min(reach, blindFor > 12 ? 0 : MIN_CLOSE + 2);
+        reach = Math.min(reach, blindFor > (press ? 6 : 12) ? 0 : MIN_CLOSE + 2);
       }
       // information ancienne (≥ 14 s) : on va VOIR la position, d'un point d'où on la découvre ; vue de près et vide → oubliée
       // (on ne marche plus jusque sur elle) ; sans vue possible, on s'en approche jusqu'à quelques mètres
@@ -16089,12 +16277,36 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       gx = u.post.x; gz = u.post.z;
     }
     // arrivé près de l'objectif sans avoir trouvé personne : ratisser la zone (points aléatoires autour de la zone ennemie)
-    if (progress >= span - 8) {
+    // (au plus deux adversaires debout et une dernière position connue pas encore vue : on y va tout de suite, d'où qu'on soit)
+    const endMemo = () => { const m = this.teams[u.team].memo; return m && this.teams[1 - u.team].units.filter(e => e.alive).length <= 2 && this.teams[1 - u.team].units.some(e => e.alive && m[e.id] && !m[e.id].visited); };
+    if (progress >= span - 8 || (u.role.id !== 'marksman' && endMemo())) {
       if (u.searchSince === undefined) u.searchSince = this.t;
       // ratissage prolongé sans contact (> 15 s) : on élargit à toute la carte (deux survivants ne tournent pas indéfiniment chacun chez l'autre)
       const wide = this.t - u.searchSince > 15;
       if (!u.searchGoal || this.t > u.searchUntil || Math.hypot(u.searchGoal.x - u.x, u.searchGoal.z - u.z) < 1.5) {
-        for (let k = 0; k < 10; k++) {
+        if (u.searchMemo) { u.searchMemo.visited = true; u.searchMemo = null; }   // dernière position connue : vue (ou temps écoulé)
+        u.searchGoal = null;
+        // fin de bataille (ratissage élargi, ou au plus deux adversaires debout) : d'abord la dernière position connue d'un
+        // adversaire encore debout (mémoire de l'équipe, voir teamMemo), d'autant plus large qu'elle est ancienne ; sinon le
+        // point tiré le plus loin des équipiers (on ne fouille pas tous au même endroit, on couvre la carte)
+        const foes = this.teams[1 - u.team].units.filter(e => e.alive), memo = this.teams[u.team].memo || {};
+        if (wide || foes.length <= 2) {
+          let m = null; for (const e of foes) { const q = memo[e.id]; if (q && !q.visited && (!m || q.t > m.t)) m = q; }
+          if (m) {
+            const r = Math.min(12, (this.t - m.t) * 0.4), a = this.rng.range(0, Math.PI * 2), f = this.map.nearestFree(m.x + Math.cos(a) * r * this.rng.next(), m.z + Math.sin(a) * r * this.rng.next());
+            if (f) { u.searchGoal = this.map.centerOf(f.c, f.r); u.searchUntil = this.t + 10; u.searchMemo = m; }
+          }
+          if (!u.searchGoal && wide) {
+            const mates = this.teams[u.team].units.filter(a => a.alive && a !== u); let best = null, bs = -Infinity;
+            for (let k = 0; k < 8; k++) {
+              const f = this.map.nearestFree(this.rng.range(4, this.map.width - 4), this.rng.range(3, this.map.depth - 3)); if (!f) continue;
+              const c = this.map.centerOf(f.c, f.r), sc = Math.min(25, ...mates.map(a => Math.hypot(a.x - c.x, a.z - c.z)).concat([99])) - Math.hypot(c.x - u.x, c.z - u.z) * 0.15;
+              if (sc > bs) { bs = sc; best = c; }
+            }
+            if (best) { u.searchGoal = best; u.searchUntil = this.t + 10; }
+          }
+        }
+        for (let k = 0; k < 10 && !u.searchGoal; k++) {
           const a = this.rng.range(0, Math.PI * 2), r = this.rng.range(2, objective.r + 9);
           let sx = objective.x + Math.cos(a) * r, sz = clamp(objective.z + Math.sin(a) * r, 2, this.map.depth - 2);
           if (wide) { sx = this.rng.range(4, this.map.width - 4); sz = this.rng.range(3, this.map.depth - 3); }
@@ -16331,14 +16543,48 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // L'escouade est partagée en deux moitiés (boundGroup 0 / 1). La moitié « qui avance » fait un bond (≤ 11 m) jusqu'au couvert
   // suivant ; l'autre, arrêtée, couvre (face à la menace, prête à tirer). Quand tous ceux qui avancent sont arrivés (ou engagés),
   // les rôles s'inversent. Le tireur d'élite reste en appui (sa propre logique).
-  Battle.prototype.tiroirOn = function (u) { const tm = this.teams[u.team]; return this.hasTactic(tm, 'tiroir') && tm.order !== 'hold' && u.boundGroup >= 0; };
+  Battle.prototype.tiroirTeam = function (tm) { return this.hasTactic(tm, 'tiroir') || this.hasTactic(tm, 'tiroir_lent'); };
+  Battle.prototype.tiroirOn = function (u) { const tm = this.teams[u.team]; return this.tiroirTeam(tm) && tm.order !== 'hold' && u.boundGroup >= 0 && !this.scoutOn(tm); };
+  // T1b — « Tiroir lent » : un trinôme (groupe 0) bondit, un binôme (groupe 1 : le dernier opérateur et le tireur d'élite, ou
+  // les deux derniers sans tireur d'élite) reste la base de feu ; à son tour, le binôme ne dépasse jamais le trinôme (il
+  // s'arrête 3 m derrière le plus en arrière du trinôme). Après une perte : même partage sur les survivants.
+  Battle.prototype.lentHalves = function (team, us) {
+    const ms = us.filter(a => a.alive && a.role.id !== 'marksman').sort((a, b) => a.idx - b.idx), nb = Math.min(team.units.some(a => a.alive && a.role.id === 'marksman') ? 1 : 2, ms.length - 1);
+    ms.forEach((a, i) => { a.boundGroup = i >= ms.length - nb ? 1 : 0; a.boundDone = undefined; });
+  };
+  // T7 — « Éclaireur » : l'opérateur le plus perceptif (hors tireur d'élite) avance seul en tête ; les autres le suivent à
+  // SCOUT_GAP m en arrière (sur l'axe de progression, chacun sur sa voie) et ne bondissent pas. Au premier contact de
+  // l'escouade (un ennemi vu, entendu ou signalé), ou l'éclaireur tombé, chacun reprend sa conduite habituelle (Tiroir
+  // compris) ; 15 s sans aucun contact, l'éclaireur repart devant.
+  const SCOUT_GAP = 20;
+  Battle.prototype.initScout = function (team) {
+    if (!this.hasTactic(team, 'eclaireur')) return;
+    const s = team.units.filter(a => a.role.id !== 'marksman').sort((a, b) => b.def.perception - a.def.perception || a.idx - b.idx)[0];
+    if (s) { team.scout = s.id; team.scoutContact = -99; this.logEvent('eclaireur', `${s.callsign} : « Je passe devant. »`, { team: team.index, unit: s.id }); }
+  };
+  Battle.prototype.scoutOn = function (tm) {
+    if (!tm.scout || tm.order === 'hold' || this.t - tm.scoutContact < 15) return false;
+    const s = this.unitById(tm.scout); return !!(s && s.alive);
+  };
+  // vrai : l'opérateur attend (il est trop près de l'éclaireur) ; faux : il avance sans Tiroir ; null : pas d'éclaireur
+  Battle.prototype.scoutStep = function (u, threatPos) {
+    const tm = this.teams[u.team]; if (!this.scoutOn(tm)) return null;
+    if (u.id === tm.scout || u.role.id === 'marksman') return false;
+    const s = this.unitById(tm.scout), dirx = Math.sign(this.map.spawns[1 - u.team].x - tm.spawn.x) || 1;
+    if ((u.x - s.x) * dirx > -SCOUT_GAP) { this.stop(u); u.state = 'overwatch'; u.stance = 'stand'; u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x); return true; }
+    return false;
+  };
   const BUSY = { engage: 1, pinned: 1, shaken: 1, noammo: 1, reviving: 1, torevive: 1, throw: 1, sidestep: 1, closing: 1, tocover: 1, tokey: 1, holdkey: 1 };
   Battle.prototype.updateTiroir = function () {
     for (const team of this.teams) {
-      if (!this.hasTactic(team, 'tiroir') || team.order === 'hold') continue;
+      if (team.scout && team.units.some(u => u.alive && Object.values(u.knowledge).some(k => this.t - k.t < 1))) {   // Éclaireur : contact
+        if (this.scoutOn(team)) { const s = this.unitById(team.scout); this.logEvent('eclaireur', `${team.name} : contact — on rejoint ${s.callsign}.`, { team: team.index, unit: s.id, contact: true }); }
+        team.scoutContact = this.t;
+      }
+      if (!this.tiroirTeam(team) || team.order === 'hold') continue;
       // un équipier tombé (ou relevé) : les deux moitiés sont rééquilibrées (R3) — plus de moitié vide qui bondit sans appui
-      const all = team.units.filter(a => a.alive && a.boundGroup >= 0);
-      if (team.tiroirN !== all.length) { if (team.tiroirN !== undefined) this.rebalanceHalves(team, all, a => a.boundGroup, (a, h) => { a.boundGroup = h; a.boundDone = undefined; }); team.tiroirN = all.length; }
+      const all = team.units.filter(a => a.alive && a.boundGroup >= 0), lent = this.hasTactic(team, 'tiroir_lent');
+      if (team.tiroirN !== all.length) { if (team.tiroirN !== undefined) { if (lent) this.lentHalves(team, all); else this.rebalanceHalves(team, all, a => a.boundGroup, (a, h) => { a.boundGroup = h; a.boundDone = undefined; }); } team.tiroirN = all.length; }
       const b = team.bound, alive = all.filter(a => !a.moveOrder);   // en route sur ordre : bonds de son propre groupe
       if (!alive.length) continue;                       // tous en route sur ordre : le Tiroir de l'escouade attend
       const movers = alive.filter(a => a.boundGroup === b.group), others = alive.filter(a => a.boundGroup !== b.group);
@@ -16355,6 +16601,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // reach (contact) : distance d'approche de la menace — les bonds s'arrêtent là (couverts choisis au-delà de ~70 % de reach),
   // et celui qui couvre rejoint d'abord un vrai couvert proche face à elle.
   Battle.prototype.tiroir = function (u, threatPos, dest, reach) {
+    const sc = this.scoutStep(u, threatPos); if (sc !== null) return sc;   // Éclaireur (T7) : avant le contact, à la place du Tiroir
     if (!this.tiroirOn(u)) return false;
     const b = this.teams[u.team].bound;
     const face = () => { u.facing = Math.atan2(threatPos.z - u.z, threatPos.x - u.x); };
@@ -16366,6 +16613,15 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     };
     if (u.goal && u.goalKind === 'bound') return true;                       // un bond en cours : on le termine
     if (u.boundGroup !== b.group || u.boundDone === b.n) return overwatch();  // on couvre (ou bond déjà fait)
+    if (u.boundGroup === 1 && this.hasTactic(this.teams[u.team], 'tiroir_lent')) {   // Tiroir lent : le binôme ne passe jamais devant le trinôme
+      const tm = this.teams[u.team], dirx = Math.sign(this.map.spawns[1 - u.team].x - tm.spawn.x) || 1, pr = (q) => (q.x - tm.spawn.x) * dirx;
+      const tri = tm.units.filter(a => a.alive && a.boundGroup === 0 && !a.moveOrder);
+      if (tri.length) {
+        const lim = Math.min(...tri.map(pr)) - 3, p0 = pr(u), pd = pr(dest);
+        if (p0 >= lim - 1) { u.boundDone = b.n; return overwatch(); }
+        if (pd > lim) { const f = (lim - p0) / (pd - p0); dest = { x: u.x + (dest.x - u.x) * f, z: u.z + (dest.z - u.z) * f }; reach = 0; }
+      }
+    }
     const stopAt = Math.max(3, reach || 0);
     const dNow = Math.hypot(dest.x - u.x, dest.z - u.z);
     if (dNow < stopAt) { u.boundDone = b.n; return overwatch(); }
@@ -16404,10 +16660,49 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   Battle.prototype.useTactic = function (teamIndex, id) {
     const can = this.canUseTactic(teamIndex, id); if (!can.ok) return can;
     const team = this.teams[teamIndex], st = team.tactics[id], def = TACTICS[id];
+    let fd = null; if (id === 'fixer_deborder') { fd = this.fixerDeborder(teamIndex); if (!fd.ok) return fd; }
     st.uses--; st.used++; st.cooldownUntil = this.t + (def.cooldown || 0);
     if (def.plan) this.replan(teamIndex, id);   // plan de voies : les survivants sont redistribués selon ce plan
     this.logEvent('tactic', `${team.name} : ${def.name}.`, { team: teamIndex, tactic: id });
-    return { ok: true };
+    return fd || { ok: true };
+  };
+  // T4 — « Fixer et déborder » (carte active, jouée quand le joueur le décide) : sur l'ennemi repéré le plus proche de
+  // l'escouade (vu, entendu ou signalé il y a < 8 s), les deux opérateurs les plus proches passent en Appui (F2 : ordre
+  // Méthodique sur place, arrivée Tenir, feu « appui », zone arrosée = sa position) ; les autres le contournent par le
+  // flanc le plus court (voie nord ou sud ; sans voies, de côté) en Méthodique, puis l'Encerclent (A2 ; à moins de trois :
+  // Tenir). Ce sont deux ordres du clic droit ordinaires : marqueurs, bulles et fin d'ordre comme d'habitude.
+  Battle.prototype.fixerDeborder = function (teamIndex) {
+    const team = this.teams[teamIndex], us = team.units.filter(u => u.alive && !u.drag);
+    if (us.length < 3) return { ok: false, reason: 'il faut au moins trois opérateurs' };
+    if (us.some(u => this.t - (u.orderAt === undefined ? -99 : u.orderAt) < ORDER_COOLDOWN)) return { ok: false, reason: `un ordre toutes les ${ORDER_COOLDOWN} s` };
+    const C = this.teamCentroid(team); let T = null, td = Infinity;
+    for (const e of this.teams[1 - teamIndex].units) {
+      if (!e.alive) continue; let b = null; for (const u of us) { const q = u.knowledge[e.id]; if (q && (!b || q.t > b.t)) b = q; }
+      if (b && this.t - b.t < 8) { const d = Math.hypot(b.x - C.x, b.z - C.z); if (d < td) { td = d; T = b; } }
+    }
+    if (!T) return { ok: false, reason: 'aucun ennemi repéré' };
+    const byD = us.slice().sort((a, b) => Math.hypot(a.x - T.x, a.z - T.z) - Math.hypot(b.x - T.x, b.z - T.z) || (a.id < b.id ? -1 : 1));
+    const fix = byD.slice(0, 2), flank = byD.slice(2), F = { x: (fix[0].x + fix[1].x) / 2, z: (fix[0].z + fix[1].z) / 2 }, G = { x: flank.reduce((s, u) => s + u.x, 0) / flank.length, z: flank.reduce((s, u) => s + u.z, 0) / flank.length };
+    if (Math.hypot(F.x - T.x, F.z - T.z) < 4) return { ok: false, reason: 'trop près de l’ennemi' };
+    // le flanc : la voie nord ou sud au plus court (chemin le groupe → la voie à hauteur de l'ennemi → l'ennemi) ; sans voies, de côté
+    const v = this.map.def.voies, dirx = Math.sign(this.map.spawns[1 - teamIndex].x - team.spawn.x) || 1, opts = [];
+    if (v) { for (const [side, z] of [[-1, v.nord], [1, v.sud]]) opts.push({ side, w: this.orderPoint(T.x - dirx * 4, z) }); }
+    else { let dx = T.x - G.x, dz = T.z - G.z; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L; for (const s of [-1, 1]) opts.push({ side: dz * s < 0 ? -1 : 1, w: this.orderPoint(T.x - dx * 4 - dz * s * 13, T.z - dz * 4 + dx * s * 13) }); }
+    let best = null;
+    for (const o of opts) {
+      if (!o.w || Math.hypot(o.w.x - T.x, o.w.z - T.z) < 6) continue;
+      const l1 = this.pathLen(G.x, G.z, o.w.x, o.w.z), l2 = this.pathLen(o.w.x, o.w.z, T.x, T.z); if (l1 === null || l2 === null) continue; const L = l1 + l2;
+      if (!best || L < best.L) best = Object.assign({ L }, o);
+    }
+    if (!best) return { ok: false, reason: 'aucun passage pour déborder' };
+    const r1 = this.moveOrder(teamIndex, { x: F.x, z: F.z, units: fix.map(u => u.id), mode: 'methodique', arrivee: 'tenir', feu: 'appui' });
+    if (!r1.ok) return r1;
+    this.orientOrder(teamIndex, { ordre: r1.id, x: T.x, z: T.z });
+    const r2 = this.moveOrder(teamIndex, { x: T.x, z: T.z, via: [best.w], units: flank.map(u => u.id), mode: 'methodique', arrivee: 'encercler' });
+    const nord = best.side < 0;
+    this.logEvent('fixer', `${team.name} : ${fix.map(u => u.callsign).join(', ')} — « On les fixe ! »`, { team: teamIndex, unit: fix[0].id, ordre: r1.id });
+    if (r2.ok) this.logEvent('deborde', `${team.name} : ${flank.map(u => u.callsign).join(', ')} — « On déborde par le ${nord ? 'nord' : 'sud'} ! »`, { team: teamIndex, unit: flank[0].id, ordre: r2.id, nord });
+    return { ok: true, fix: r1.id, flank: r2.ok ? r2.id : null };
   };
   Battle.prototype.updateTactics = function () {
     // fumées : expiration
@@ -16422,30 +16717,40 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       }
     }
   };
+  // Mémoire d'équipe : la dernière position connue (vue, ouïe, radio) de chaque adversaire, gardée même quand l'information
+  // individuelle est oubliée ; sert au ratissage de fin de bataille (decide, 3). Une position plus récente efface « visité ».
+  Battle.prototype.teamMemo = function () {
+    for (const team of this.teams) {
+      const m = team.memo = team.memo || {};
+      for (const u of team.units) if (u.alive) for (const id in u.knowledge) { const k = u.knowledge[id]; if (!m[id] || k.t > m[id].t) m[id] = { x: k.x, z: k.z, t: k.t }; }
+    }
+  };
   // ---- Plans de l'adversaire (vague 2, strategies_gign.md §13.2) -----------------------------------------------------
   // L'équipe de l'IA (team.auto : missions, ligue, bataille libre) reçoit au départ UN plan, tiré à la graine (générateur à
   // part : le tirage principal n'est pas touché) et selon la situation (objectif, effectif) :
   //  - 'repli'      : se replier sous pression (deux fois au lieu d'une, dès le premier opérateur aveuglé ou touché) ;
   //  - 'contourner' : au contact, les deux opérateurs les plus éloignés de la menace la contournent par un côté (sur une
-  //                   carte à voies : par la voie de flanc la plus éloignée de la menace, comme les flancs de départ) ;
-  //  - 'embuscade'  : au départ, on s'installe à 15–21 % du chemin, feu retenu, et on attend (temps borné).
-  // (Mesuré sur 60 batailles par plan, parking, Alpha GIGN contre Bravo : sans plan 62 % pour Alpha ; un tiers du chemin
-  //  ou un flanc à travers le terrain donnaient l'avantage à Alpha — on arrivait en retard ou à découvert.)
+  //                   carte à voies : par la voie de flanc au plus court, comme les flancs de départ) ;
+  //  - 'embuscade'  : au départ, on s'installe à l'avant de sa zone de départ (5–9 % du chemin), feu retenu, et on attend
+  //                   (temps borné).
+  // (Mesuré sur 100 batailles par plan, parking : s'installer plus loin (15–40 % du chemin), décrocher dès qu'on est cloué,
+  //  ou contourner par la ruelle donnaient l'avantage à Alpha — on arrivait en retard, à découvert, ou dans un goulet.)
   // Réactions communes à tous les plans : décrocher sous la pression (aveuglé par une flash, touché, un tombé tout près) en
   // fumée, puis tenir feu retenu ; une fumée adverse à moins de 28 m → on tient en face, feu retenu, on les attend à la
   // sortie. Les plans passent par les ordres du clic droit (moveOrder, sans être enregistrés : ils découlent de l'état de
   // la bataille, la revue les refait à l'identique) ; chacun finit (temps, feu ouvert depuis un moment, fumée dissipée) par
   // « reprendre la manœuvre ». Jamais pour l'escouade du joueur (règle 1 du §13.3).
+  // (poids : contourner moitié moins souvent — séparer deux opérateurs coûte cher face à une escouade groupée)
   const KARST_PLANS = ['repli', 'contourner', 'embuscade'];
   const KARST_SAY = { repli: 'On décroche !', contourner: 'On les contourne !', embuscade: 'Embuscade, personne ne tire.', fumee: 'Fumée : on les attend à la sortie.' };
   Battle.prototype.initKarst = function (team) {
     const r = new RNG(((this.seed >>> 0) * 2654435761 + 7919 * (team.index + 1)) >>> 0);
     const n = team.units.filter(u => u.role.id !== 'marksman').length, ob = this.objective;
-    const w = { repli: 1, contourner: n >= 4 ? 1 : 0, embuscade: ob.type === 'hold' && ob.team !== team.index ? 0 : ob.type === 'capture' ? 0.5 : 1 };
+    const w = { repli: 1, contourner: n >= 4 ? 0.5 : 0, embuscade: ob.type === 'hold' && ob.team !== team.index ? 0 : ob.type === 'capture' ? 0.5 : 1 };
     let plan = 'repli';
     if (team.order !== 'hold') { const tot = KARST_PLANS.reduce((s, k) => s + w[k], 0); let x = r.next() * tot; for (const k of KARST_PLANS) { x -= w[k]; if (x < 0) { plan = k; break; } } }
     team.karst = { plan, repliLeft: plan === 'repli' ? 2 : 1, smokeLeft: 2, flank: false, ambush: false, ord: [], seen: [], contactAt: null,
-      flankDelay: 1 + r.next() * 2, ambushFrac: 0.15 + r.next() * 0.06, ambushFor: ob.type === 'capture' ? 30 : 50 + r.next() * 25, ambushAfter: 20, side: r.next() < 0.5 ? 1 : -1, lastAt: -99 };
+      flankDelay: 1 + r.next() * 2, ambushFrac: 0.05 + r.next() * 0.04, ambushFor: ob.type === 'capture' ? 30 : 50 + r.next() * 25, ambushAfter: 20, side: r.next() < 0.5 ? 1 : -1, lastAt: -99 };
   };
   Battle.prototype.karstBusy = function (u) {
     return !u.alive || u.role.id === 'marksman' || u.moveOrder || u.keyOrder || u.drag || u.reviving || u.throwing || u.state === 'noammo' || this.t - (u.orderAt === undefined ? -99 : u.orderAt) < ORDER_COOLDOWN;
@@ -16505,7 +16810,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (k.plan === 'contourner' && !k.flank && k.contactAt !== null && this.t - k.contactAt > k.flankDelay && known.length && alive.length >= 3) {
         const T = cen(known), C = cen(alive), cand = free.slice().sort((a, b) => Math.hypot(b.x - T.x, b.z - T.z) - Math.hypot(a.x - T.x, a.z - T.z) || (a.id < b.id ? -1 : 1)).slice(0, 2);
         if (cand.length === 2 && this.map.def.voies) {   // carte à voies : ils passent par la voie de flanc (même conduite que les flancs de départ)
-          const v = this.map.def.voies, lane = Math.abs(T.z - v.nord) > Math.abs(T.z - v.sud) ? -1 : 1;
+          const v = this.map.def.voies, G = cen(cand), dirx = Math.sign(this.map.spawns[1 - team.index].x - team.spawn.x) || 1;
+          let lane = 1, bl = Infinity;   // la voie de flanc au plus court (le groupe → la voie à hauteur de la menace → la menace)
+          for (const [l, z] of [[-1, v.nord], [1, v.sud]]) { const w = this.orderPoint(T.x - dirx * 4, z); if (!w) continue; const l1 = this.pathLen(G.x, G.z, w.x, w.z), l2 = this.pathLen(w.x, w.z, T.x, T.z); if (l1 !== null && l2 !== null && l1 + l2 < bl) { bl = l1 + l2; lane = l; } }
           cand.forEach(u => { u.voie = lane; u.laneDz = 0; this.resetRoute(u); });
           k.flank = true; k.lastAt = this.t;
           this.logEvent('plan', `${team.name} : « ${KARST_SAY.contourner} » (${cand.map(u => u.callsign).join(', ')})`, { team: team.index, unit: cand[0].id, plan: 'contourner' });
@@ -17088,7 +17395,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       career: { battles: 0, wins: 0, losses: 0, draws: 0, kills: 0, losses_units: 0, headshots: 0, streaks: 0, group: 0, revenge: 0, veteran: 0, revives: 0, shots: 0, hits: 0, damage: 0, maps: {}, recent: [] }, missions: {}, challenges: {}, lastSeed: null,
       // méta à la manière des jeux de cartes : nom et insigne d'équipe, uniforme, rang du joueur, tactiques, perks par opérateur
       teamName: 'Alpha', insignia: 'etoile', uniform: 'olive', unlocked: { insignias: ['etoile', 'bouclier'], uniforms: ['olive'] },
-      xp: 0, tactics: { owned: { tiroir: true, tenailles: true, rush_milieu: true }, equipped: ['tiroir'] }, perks: {}, packsOpened: 0,
+      xp: 0, tactics: { owned: { tiroir: true, tenailles: true, rush_milieu: true, fixer_deborder: true, eclaireur: true, tiroir_lent: true }, equipped: ['tiroir'] }, perks: {}, packsOpened: 0,
       league: null, leagueSeasons: 0, achievements: {}, tacticsUsed: 0,
       headgear: { casque: true, casque_lunettes: true },   // couvre-chefs possédés (communs à tous les opérateurs)
       campaigns: {}, quick: { wins: 0, played: 0 }, freePacks: {}, ops: { wins: 0, captureWins: 0, cleanWins: 0, done: {} },
@@ -17264,7 +17571,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function campaignMission(cid, mid) {
     const c = CAMPAIGNS.find(x => x.id === cid), base = MISSIONS.find(m => m.id === mid); if (!c || !base) return null;
     if (c.id === 'reguliere') return Object.assign({}, base, { campaign: cid, final: c.missions[c.missions.length - 1] === mid });
-    const extra = Object.keys(TACTICS).filter(t => !(base.enemyTactics || []).includes(t)).slice(0, c.extraTactic === true ? 1 : (c.extraTactic || 0));
+    const extra = Object.keys(TACTICS).filter(t => !TACTICS[t].joueur && !(base.enemyTactics || []).includes(t)).slice(0, c.extraTactic === true ? 1 : (c.extraTactic || 0));
     if (!c.levelBonus && !c.extraTactic && !c.levelClamp) return Object.assign({}, base, { id: `${cid}:${mid}`, campaign: cid, final: c.missions[c.missions.length - 1] === mid });   // campagne à missions propres
     return Object.assign({}, base, { id: `${cid}:${mid}`, name: `${base.name} (${c.id === 'veteran' ? 'vétéran' : 'élite'})`, campaign: cid, final: c.missions[c.missions.length - 1] === mid,
       // élite : niveaux de base resserrés (difficulté plus égale d'une mission à l'autre) et toujours cinq adversaires
@@ -17298,7 +17605,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const size = rate(0) > target + 4 ? 4 : 5;                     // escouade de recrues face à des vétérans : un adversaire de moins
     const objective = pick(['eliminate', 'eliminate', 'capture', 'capture', 'hold']);
     return { id: 'rapide', name: 'Bataille rapide', quick: true, faction, desc: 'Un adversaire à votre mesure.', mapId: 'parking', enemy: karst.slice(0, size), level,
-      order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: Object.keys(TACTICS).filter(id => !TACTICS[id].plan), reward: QUICK.reward, xp: QUICK.xp, difficulty: 2,
+      order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: Object.keys(TACTICS).filter(id => !TACTICS[id].plan && !TACTICS[id].joueur), reward: QUICK.reward, xp: QUICK.xp, difficulty: 2,
       conditions: pick(['jour', 'jour', 'jour', 'jour', 'jour', 'nuit', 'brouillard', 'pluie']) };
   }
   // niveau de l'adversaire de bataille rapide : l'écart de puissance avec une escouade de recrues, converti en niveaux
@@ -17928,6 +18235,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     tenailles: '<circle cx="50" cy="30" r="6" fill="#ff8a70" stroke="none"/><path d="M30 82 C22 58 26 42 40 33 M31 42 L40 33 L42 45" stroke="#eef5f1"/><path d="M70 82 C78 58 74 42 60 33 M69 42 L60 33 L58 45" stroke="#4ee089"/>',
     // rush milieu : trois flèches qui convergent vers l'axe central puis percent
     rush_milieu: '<path d="M50 84 V28 M39 40 L50 27 L61 40" stroke="#eef5f1"/><path d="M27 80 L42 62 M73 80 L58 62" stroke="#4ee089"/><path d="M20 52 H30 M70 52 H80" stroke="#4ee089" stroke-width="3" opacity=".55"/>',
+    // vague 2 : fixer et déborder (deux traits de feu sur la cible, une flèche qui la contourne), éclaireur (un devant, trois
+    // derrière), tiroir lent (trois qui montent, deux qui restent)
+    fixer_deborder: '<circle cx="70" cy="34" r="6" fill="#ff8a70" stroke="none"/><path d="M28 30 L60 33 M28 44 L60 36" stroke="#ffb070" stroke-dasharray="6 4"/><path d="M26 80 C56 88 78 72 74 46 M66 52 L74 43 L81 53" stroke="#4ee089"/>',
+    eclaireur: '<path d="M22 50 H78 M68 41 L79 50 L68 59" stroke="#eef5f1" opacity=".55"/><circle cx="62" cy="50" r="6" fill="#4ee089" stroke="none"/><circle cx="24" cy="34" r="5" fill="#eef5f1" stroke="none"/><circle cx="24" cy="50" r="5" fill="#eef5f1" stroke="none"/><circle cx="24" cy="66" r="5" fill="#eef5f1" stroke="none"/>',
+    tiroir_lent: '<path d="M58 80 V24 M47 36 L58 23 L69 36" stroke="#4ee089"/><path d="M28 86 V70" stroke="#eef5f1" opacity=".6"/><circle cx="28" cy="62" r="5" fill="#eef5f1" stroke="none"/><circle cx="40" cy="74" r="5" fill="#eef5f1" stroke="none"/>',
   };
   const tacEmblem = (id) => `<span class="cglyph tsvg"><svg viewBox="0 0 100 100" style="display:inline-block;width:1.25em;height:1.25em;vertical-align:middle" aria-hidden="true"><defs><linearGradient id="tg-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d3a2c"/><stop offset="1" stop-color="#0b1511"/></linearGradient></defs><polygon points="50,4 90,27 90,73 50,96 10,73 10,27" fill="url(#tg-${id})" stroke="#4ee089" stroke-width="3" stroke-linejoin="round"/><g fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">${TAC_SVG[id]}</g></svg></span>`;
   const tacArt = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'cart')) || (TAC_SVG[id] ? tacEmblem(id) : `<span class="cglyph">${TACTIC_ICON[id] || '◆'}</span>`);
@@ -18442,6 +18754,12 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     return `<svg class="${cls || 'timg'} lanesvg" viewBox="0 0 48 48" aria-hidden="true">${g}</svg>`;
   }
   TACTIC_ICON.tenailles = laneSvg([2, 1, 2]); TACTIC_ICON.rush_milieu = laneSvg([0, 4, 0], 0);
+  // vague 2 : Fixer et déborder (deux qui tirent sur la cible, une flèche qui la contourne), Éclaireur (un devant, les autres
+  // loin derrière), Tiroir lent (trois qui avancent, deux qui restent)
+  const tacSvg = (g) => `<svg class="timg lanesvg" viewBox="0 0 48 48" aria-hidden="true">${g}</svg>`, dot = (x, y) => `<circle cx="${x}" cy="${y}" r="3.3" fill="#fff" stroke="#0b0f14" stroke-width="1"/>`;
+  TACTIC_ICON.fixer_deborder = tacSvg(`<circle cx="38" cy="16" r="4" fill="#ff8a70"/><path d="M14 13 L31 15 M14 21 L31 17" stroke="#ffb070" stroke-width="2" stroke-dasharray="3 2"/><path d="M12 38 C30 44 42 36 40 24 M35.5 27 L40 22 L43.5 27.5" fill="none" stroke="#6fe3a0" stroke-width="2.6" stroke-linecap="round"/>${dot(10, 13)}${dot(10, 21)}${dot(8, 37)}`);
+  TACTIC_ICON.eclaireur = tacSvg(`<path d="M8 24 H40 M34 19.5 L41 24 L34 28.5" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="2.4" stroke-linecap="round"/>${dot(32, 24)}${dot(8, 16)}${dot(8, 24)}${dot(8, 32)}`);
+  TACTIC_ICON.tiroir_lent = tacSvg(`<path d="M28 10 V38 M23.5 15 L28 9 L32.5 15" fill="none" stroke="#6fe3a0" stroke-width="2.4" stroke-linecap="round"/>${dot(28, 18)}${dot(36, 24)}${dot(20, 24)}${dot(10, 34)}${dot(18, 38)}`);
   const tacIcon = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'timg')) || TACTIC_ICON[id] || '◆';      // icône dessinée si disponible
   const roleImg = (role) => (OT.imgTag && OT.imgTag('role_' + role, 'rimg')) || '';
   const $ = (s) => document.querySelector(s);
@@ -19448,6 +19766,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         mesh.traverse(m => { if (m.isMesh && m.material && m.material.color) { m.material = m.material.clone(); m.material.color.multiply(new THREE.Color(0x8fae7e)); } });   // tôle peinte en vert : la texture du modèle (gris clair très contrasté) faisait papier froissé
       } else if (has3('abribus') && nm.startsWith('abribus')) {   // côté ouvert (face +z du modèle) vers le bus, au sud
         mesh = M3.fit('abribus', o.w, o.h, o.d, { tol: 0.3 });
+      } else if (OT.Arbres && /^arbre/.test(nm)) {   // arbre d'alignement fait par programme (arbres.js : houppier en cartes de feuillage)
+        mesh = new THREE.Group(); const a = OT.Arbres.arbre(6.2 + (i % 3) * 0.6, i); a.position.y = -o.h / 2; mesh.add(a);
       } else if (has3('arbre') && /^(arbre|palmier)/.test(nm)) {   // arbre d'alignement (sa grille de pied disparaît dans le bac)
         mesh = M3.fit('arbre', 3, 6.4 + (i % 3) * 0.5, 3, { byHeight: true, rot: i * 1.7 }); mesh.position.y = 0;
         mesh.children[0].position.y = -o.h / 2 - 0.8;   // pied enfoncé : la dalle à grille (plus large que le bac) passe sous le sol, le corset reste dans le bac
@@ -20903,6 +21223,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     bouge: ['Je bouge !'], couvert: ['Couvert !'], enplace: ['En place.'], reprise: ['Je reprends ma progression.'],   // ordres de déplacement (clic droit)
     drag: ['Je le tire à couvert !'], smoke: ['Fumigène !'],   // évacuation d'un blessé
     feu: ['Feu !'], enappui: ['En appui !'], decroche: ['Je décroche !'], releve: ['Je prends sa place !'],               // feu retenu levé, appui, décrocher, relève dans les bonds
+    eclaireur: ['Je passe devant.'],   // carte « Éclaireur »
+    fixer: ['On les fixe !'], deborde_nord: ['On déborde par le nord !'], deborde_sud: ['On déborde par le sud !'],   // carte « Fixer et déborder »
     plan_repli: ['On décroche !', 'Repli, on se regroupe !'], plan_contourner: ['On les contourne !', 'Je passe par le flanc !'], plan_embuscade: ['Embuscade, personne ne tire.', 'On les attend.'], plan_fumee: ['Fumée ! On les attend à la sortie.'],   // plans de l'adversaire
   };
   function bark(u, kind) {
@@ -20952,6 +21274,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     else if (e.kind === 'enplace' && u) bark(u, 'enplace');
     else if (e.kind === 'reprise' && u) bark(u, 'reprise');
     else if (e.kind === 'plan' && u) bark(u, 'plan_' + e.plan);
+    else if (e.kind === 'fixer' && u) bark(u, 'fixer');
+    else if (e.kind === 'eclaireur' && u && !e.contact) bark(u, 'eclaireur');
+    else if (e.kind === 'deborde' && u) bark(u, e.nord ? 'deborde_nord' : 'deborde_sud');
     else if (e.kind === 'down' && e.enemy && unitById[e.enemy]) {   // le coéquipier debout le plus proche du blessé
       const d = unitById[e.enemy]; let best = null, bd = 25; for (const a of battle.units) { if (!a.alive || a.team !== d.team) continue; const k = Math.hypot(a.x - d.x, a.z - d.z); if (k < bd) { bd = k; best = a; } }
       bark(best, 'down');
@@ -21039,6 +21364,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const teams = Battle.defaultTeams();
     teams[0].order = $('#order0').value; teams[1].order = $('#order1').value;
     teams[1].autoTactics = true;   // l'adversaire de la bataille libre a ses plans (vague 2), comme en mission
+    teams[0].tactics = teams[0].tactics.concat(['fixer_deborder']);   // bataille libre : la carte active de la vague 2 à essayer
     const seedTxt = $('#seed').value.trim();
     const seed = seedTxt === '' ? Math.floor(Math.random() * 100000) : (parseInt(seedTxt, 10) || 1);
     return { seed, teams, mapId: $('#mapSel').value, conditions: $('#condSel').value === 'jour' ? undefined : $('#condSel').value };
