@@ -239,7 +239,8 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
       if (all !== null && b.t > all + 1) for (const u of b.teams[0].units) if (u.alive && u.state !== 'evade' && (!u.keyOrder || (Math.hypot(u.x - u.keyOrder.x, u.z - u.keyOrder.z) > 3 && !(u.keyOrder.hx !== undefined && Math.hypot(u.x - u.keyOrder.hx, u.z - u.keyOrder.hz) <= 8)))) held = false;
       if (all !== null && b.t > all + 12) break;
     }
-    const us = b.teams[0].units.filter(u => u.alive); let gap = Infinity;
+    // (sauf qui va relever ou évacuer un blessé : il le rejoint, c'est voulu)
+    const us = b.teams[0].units.filter(u => u.alive && !/^(todrag|drag|dragging|torevive|reviving)$/.test(u.state)); let gap = Infinity;
     for (let i = 0; i < us.length; i++) for (let j = i + 1; j < us.length; j++) gap = Math.min(gap, Math.hypot(us[i].x - us[j].x, us[i].z - us[j].z));
     return { b, r, spam, all, mixed: samples ? mixed / samples : 0, overwatch, spread, held, gap };
   };

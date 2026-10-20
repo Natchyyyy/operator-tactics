@@ -296,7 +296,7 @@
     return r;
   };
   Battle.prototype.applyCommand = function (type, team, arg) {
-    return type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : type === 'tenir' ? this.holdKeyPosition(team, arg && arg.pos, arg && arg.units) : type === 'aller' ? this.moveOrder(team, arg) : type === 'orienter' ? this.orientOrder(team, arg) : type === 'feu' ? this.releaseFire(team, arg) : type === 'grenade' ? this.grenadeOrder(team, arg) : { ok: false };
+    return type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : type === 'tenir' ? this.holdKeyPosition(team, arg && arg.pos, arg && arg.units) : type === 'aller' ? this.moveOrder(team, arg) : type === 'orienter' ? this.orientOrder(team, arg) : type === 'feu' ? this.releaseFire(team, arg) : type === 'grenade' ? this.grenadeOrder(team, arg) : type === 'lampadaire' ? this.lampOrder(team, arg) : { ok: false };
   };
   Battle.prototype.step = function () {
     if (this.over) return;
@@ -405,6 +405,54 @@
     this.logEvent('grenadeorder', `${team.name} : ${u.callsign} — ordre : ${G.name} sur le point désigné.`, { unit: u.id, team: teamIndex, gk: kind, silent: true });
     return { ok: true, unit: u.id, callsign: u.callsign, kind };
   };
+  // Éteindre un lampadaire (ordre du joueur, « Plus… ») : le plus proche des opérateurs choisis qui voit la lampe (45 m au
+  // plus) s'arrête, épaule et tire ; la lampe s'éteint. Le coup de feu s'entend et, de nuit, l'éclair le trahit.
+  Battle.prototype.lampOrder = function (teamIndex, arg) {
+    const team = this.teams[teamIndex]; if (!team || this.over || !arg) return { ok: false, reason: 'bataille terminée' };
+    let lamp = null, ld = 6;
+    for (const l of this.map.lamps) { const d = Math.hypot(l.x - arg.x, l.z - arg.z); if (l.on && d < ld) { ld = d; lamp = l; } }
+    if (!lamp) return { ok: false, reason: 'aucun lampadaire allumé près du point' };
+    const ids = Array.isArray(arg.units) && arg.units.length ? arg.units : null, h = this.map.lampHead(lamp);
+    let best = null, bd = 45, busy = false;
+    for (const u of team.units) {
+      if (!u.alive || (ids && !ids.includes(u.id) && !ids.includes(u.def.id))) continue;
+      if (u.throwing || u.lampShot || u.drag || u.reloading > 0 || this.t < u.blindUntil) { busy = true; continue; }
+      const d = Math.hypot(h.x - u.x, h.z - u.z);
+      if (d < bd && this.map.hasLOS(u.x, u.eyeY(), u.z, h.x, h.y, h.z)) { bd = d; best = u; }
+    }
+    if (!best) return { ok: false, reason: busy ? 'tous occupés' : 'personne ne voit la lampe (45 m au plus)' };
+    const u = best; this.stop(u); u.reviving = null; u.target = null; u.stance = 'stand'; u.facing = Math.atan2(h.z - u.z, h.x - u.x);
+    u.lampShot = { at: this.t + 0.5 + (1 - u.def.reflexes / 100) * 0.4, lamp: lamp.id };
+    this.logEvent('lamporder', `${team.name} : ${u.callsign} — ordre : éteindre le lampadaire.`, { unit: u.id, team: teamIndex, silent: true });
+    return { ok: true, unit: u.id, callsign: u.callsign };
+  };
+  Battle.prototype.shootLamp = function (u) {
+    const l = this.map.lamps[u.lampShot.lamp]; u.lampShot = null;
+    if (!u.alive || !l || !l.on || u.ammo <= 0) return;
+    const h = this.map.lampHead(l);
+    u.ammo--; u.stats.shots++; u.lastShotAt = this.t; this.lastShotTime = this.t;
+    l.on = false;
+    this.emit({ type: 'shot', shooter: u.id, target: null, from: { x: u.x, y: u.eyeY() - 0.15, z: u.z }, to: h, hit: false, lamp: l.id });
+    this.emit({ type: 'lamp', id: l.id, on: false, x: l.x, z: l.z });
+    this.logEvent('lampout', `${u.callsign} éteint un lampadaire : la zone est plongée dans le noir.`, { unit: u.id, team: u.team });
+  };
+  // Alarme de voiture : des balles dans la carrosserie la déclenchent (une fois par voiture) ; 25 s de sirène et de feux qui
+  // clignotent ; tant qu'elle hurle, on n'entend plus les pas à moins de 14 m.
+  Battle.prototype.carAlarm = function (o) {
+    if (!o || !/^voiture/.test(o.name || '') || (this.alarms && this.alarms.some(a => a.o === o))) return;
+    const x = o.x + o.w / 2, z = o.z + o.d / 2, until = this.t + 25;
+    (this.alarms || (this.alarms = [])).push({ o, x, z, until });
+    this.emit({ type: 'alarm', x, z, until });
+    this.logEvent('alarm', 'Une alarme de voiture se déclenche.', { silent: true });
+  };
+  // balles dans la carrosserie : l'alarme part à la 3e (compte par voiture, sans tirage au hasard)
+  Battle.prototype.carHit = function (o) {
+    const h = this.carHits || (this.carHits = new Map()), n = (h.get(o) || 0) + 1; h.set(o, n);
+    if (n === 3) this.carAlarm(o);
+  };
+  Battle.prototype.alarmNear = function (x, z) {
+    return !!this.alarms && this.alarms.some(a => this.t < a.until && Math.hypot(a.x - x, a.z - z) < 14);
+  };
   // E3 — « avec fumée » (Franchir, Décrocher) : le premier des opérateurs qui a encore un fumigène et une trajectoire le lance
   // entre (mx, mz) et le danger (dx, dz), à 6 m au plus de (mx, mz). Renvoie { u, ready } (nuage en place à ready), sinon null.
   Battle.prototype.coverSmoke = function (units, mx, mz, dx, dz, why) {
@@ -486,7 +534,7 @@
           if (!this.map.hasLOS(g.x, 0.5, g.z, u.x, u.eyeY(), u.z)) continue;
           const facing = angDiff(Math.atan2(g.z - u.z, g.x - u.x), u.facing) < Math.PI * 0.6;
           const dur = G.blind * (1 - d / G.radius) * (facing ? 1 : 0.4) + 0.8;
-          u.blindUntil = Math.max(u.blindUntil, this.t + dur); u.visible = new Set(); hits++;
+          u.blindUntil = Math.max(u.blindUntil, this.t + dur); u.visible = new Set(); hits++; this.noteDanger(u, 0.6);
           this.logEvent('flash', `${u.callsign} est aveuglé (${dur.toFixed(1)} s).`, { unit: u.id, team: u.team, silent: u.team === g.team });
         }
       }
@@ -593,7 +641,9 @@
       const d = dist2(u, e);
       // 1) la vue (de nuit, l'éclair d'une arme non silencieuse se voit à pleine portée)
       const lit = cond.flash > 1 && this.t - e.lastShotAt < 1.5 && !e.weapon.silenced;
-      const range = lit ? baseRange : visRange;
+      // de nuit, sous un lampadaire allumé : on se voit presque comme de jour
+      const lamp = !lit && cond.id === 'nuit' && this.map.lamps.length && this.map.litAt(e.x, e.z);
+      const range = lit ? baseRange : lamp ? baseRange * 0.8 : visRange;
       if (d <= range) {
         const ang = Math.atan2(e.z - u.z, e.x - u.x);
         // (pris pour cible par lui : les balles claquent, on tourne la tête vers le tireur — même hors du champ visuel)
@@ -602,7 +652,7 @@
           let p;
           if (u.visible.has(e.id)) p = 1;                   // on suit une cible déjà repérée
           else {
-            p = 0.35 * (1 - d / range) * (0.6 + u.def.perception / 100) * (lit ? cond.flash : cond.spot);
+            p = 0.35 * (1 - d / range) * (0.6 + u.def.perception / 100) * (lit ? cond.flash : lamp ? 0.9 : cond.spot);
             if (e.moving) p *= 1.6;
             if (this.t - e.lastShotAt < 1.5) p *= e.weapon.silenced ? 1.6 : 3;   // éclair de bouche, bruit
             if (e.stance === 'crouch') p *= 0.6;
@@ -628,7 +678,7 @@
       // 2) l'ouïe : un tir ennemi récent et proche donne une position approximative (bien moins loin si l'arme est silencieuse)
       //    Vigie : tirs entendus 40 % plus loin, et les pas d'un ennemi en mouvement à moins de 12 m (sauf Fantôme)
       const hearR = (e.weapon.silenced ? 18 : 70) * (has(e, 'ghost') ? 0.7 : 1) * (has(u, 'sentinel') ? 1.4 : 1) * cond.hear;
-      if (!newVisible.has(e.id) && ((this.t - e.lastShotAt < 0.25 && d < hearR) || (has(u, 'sentinel') && e.moving && d < 12 && !has(e, 'ghost')))) {
+      if (!newVisible.has(e.id) && ((this.t - e.lastShotAt < 0.25 && d < hearR) || (has(u, 'sentinel') && e.moving && d < 12 && !has(e, 'ghost') && !this.alarmNear(e.x, e.z)))) {
         const k = u.knowledge[e.id];
         if (!k || this.t - k.t > 1.5) {
           const err = 2 + d * 0.05;
@@ -760,6 +810,17 @@
   };
   // Le meilleur point de couverture contre une menace (ou une position connue), à distance raisonnable.
   // Le point renvoyé est le point plaqué contre l'obstacle ; seul un VRAI couvert local face à la menace est retenu.
+  // mètres du trajet en ligne droite (u → x,z) vus depuis la menace, debout (échantillons tous les 1,5 m, départ exclu)
+  const EXPO_COST = 0.9;
+  Battle.prototype.pathExposure = function (u, x, z, threat) {
+    const L = Math.hypot(x - u.x, z - u.z), n = Math.max(1, Math.ceil(L / 1.5)), step = L / n;
+    let m = 0;
+    for (let i = 1; i < n; i++) {
+      const f = i / n, px = u.x + (x - u.x) * f, pz = u.z + (z - u.z) * f;
+      if (this.map.hasLOS(threat.x, EYE.stand, threat.z, px, CHEST.stand, pz)) m += step;
+    }
+    return m;
+  };
   Battle.prototype.findCover = function (u, threat, maxDist, opts) {
     opts = opts || {};
     let best = null, bestScore = -Infinity; const cands = [];
@@ -798,6 +859,9 @@
       if (opts.flank && this.map.coverFrom(opts.flank.x, opts.flank.z, cx, cz, opts.flank.stance === 'stand')) continue; // la cible y serait encore couverte
       if (cv.level === 'partial') s += 3; else s += 1.5;
       if (canShoot) s += opts.wantShoot === false ? 0 : 4;
+      // le trajet : chaque mètre couru en vue de la menace coûte plus cher qu'un mètre à l'abri (on préfère un couvert moyen
+      // tout près à un bon couvert de l'autre côté de sa ligne de tir)
+      if (d > 1.5 && s + 0.05 > bestScore) s -= this.pathExposure(u, cx, cz, threat) * EXPO_COST;
       s += this.rng.next() * 0.05; // départage aléatoire des ex æquo (sinon l'ordre de la liste favoriserait un côté)
       if (s > bestScore) { bestScore = s; best = { x: cx, z: cz, obstacle: h.obstacle }; cands.push(best); }
     }
@@ -843,7 +907,7 @@
     if (kind === 'advance' || kind === 'search') ({ x, z } = this.spreadGoal(u, x, z));
     if (kind !== 'revive') { const c = this.nearCorpse(x, z); if (c) { const dx = x - c.x, dz = z - c.z, L = Math.hypot(dx, dz); const k = L > 1e-3 ? 0.9 / L : 0; const px = L > 1e-3 ? c.x + dx * k : x + 0.9, pz = L > 1e-3 ? c.z + dz * k : z; if (this.map.inBounds(px, pz) && !this.map.insideObstacle(px, pz)) { x = px; z = pz; } } }
     if (u.goal && Math.hypot(u.goal.x - x, u.goal.z - z) < 0.6 && u.path) { u.goalKind = kind; u.goalReq = req; return true; }
-    let path = this.map.findPath(u.x, u.z, x, z);
+    let path = this.map.findPath(u.x, u.z, x, z, this.dangerGrid(u));
     if (!path) { u.path = null; u.goal = null; return false; }
     // le chemin s'arrête au centre de la dernière case : on va jusqu'au point exact (un couvert « plaqué » contre son obstacle).
     // Si ce point n'est pas joignable en ligne droite depuis cette case (un coin d'obstacle entre les deux), on passe par une
@@ -1950,7 +2014,7 @@
       }
     }
     // grenade : en train de lancer, ou d'esquiver une grenade adverse → rien d'autre
-    if (u.throwing || (u.evade && this.t < u.evade.until)) return;
+    if (u.throwing || u.lampShot || (u.evade && this.t < u.evade.until)) return;
     if (!u.holdFire && this.tryGrenade(u)) return;
     // ordre « tenir la position clé » : passe avant tout le reste (l'IA fait ce qu'on lui dit)
     if (u.keyOrder) { this.followKeyOrder(u, threats); this.afterOrder(u, threats); return; }
@@ -2287,6 +2351,7 @@
     }
     // lancer de grenade en cours : la grenade part au bout du geste
     if (u.throwing && this.t >= u.throwing.at) this.releaseGrenade(u);
+    if (u.lampShot && this.t >= u.lampShot.at) this.shootLamp(u);
     // esquive d'une grenade signalée : courir à l'écart (une fois le réflexe passé)
     if (u.evade && !u.evade.started && this.t >= u.evade.at) this.startEvade(u);
     // déplacement
@@ -2308,7 +2373,7 @@
     // orientation : vers la cible si on en a une, sinon vers la marche (course retournée vers un couvert : vers la course)
     if (u.target && u.target.alive && !u.dashTurned) u.facing = Math.atan2(u.target.z - u.z, u.target.x - u.x);
     // tir
-    if (u.throwing) { u.fireAcc = 0; return; }   // on ne tire pas en lançant
+    if (u.throwing || u.lampShot) { u.fireAcc = 0; return; }   // on ne tire pas en lançant (ni pendant le tir sur une lampe)
     if (u.dashTurned) u.fireAcc = Math.min(u.fireAcc, 1);   // on ne tire pas dans son dos en courant vers l'abri
     else if (u.target && u.target.alive && u.visible.has(u.target.id) && u.state !== 'pinned' && u.state !== 'noammo' && u.state !== 'wait' && !u.holdFire) this.fireAt(u, u.target);
     else if (u.target && u.target.alive && u.state !== 'pinned' && u.state !== 'noammo' && !u.holdFire && this.canSuppress(u, u.target)) this.suppressAt(u, u.target);
@@ -2365,6 +2430,7 @@
     // regardant ses pieds
     const mv = Math.atan2(wp.z - u.z, wp.x - u.x); let aim = null;
     if (!u.target && d > 0.05) { let best = 99; for (const { k } of this.knownEnemies(u)) { if (this.t - k.t > 5) continue; const dd = Math.hypot(k.x - u.x, k.z - u.z); const a = Math.atan2(k.z - u.z, k.x - u.x); if (dd < best && angDiff(a, mv) < 1.9) { best = dd; aim = a; } } }
+    if (!u.target && aim === null && d > 0.05) { const z0 = this.dangerWatch(u); if (z0) { const a = Math.atan2(z0.z - u.z, z0.x - u.x); if (angDiff(a, mv) < 1.9) aim = a; } }   // Karst : l'arme vers l'endroit où un des siens est tombé
     let look = u.target && u.target.alive ? Math.atan2(u.target.z - u.z, u.target.x - u.x) : aim;
     if (u.state === 'evade') { look = null; aim = null; }   // une grenade : on court, on ne recule pas en visant
     const dragging = u.goalKind === 'drag' && !!u.drag;   // évacuation : allure fixe (DRAG.speed), regard sur le blessé
@@ -2779,7 +2845,44 @@
   // ---- Moral : voir tomber deux camarades proches en peu de temps, face à plusieurs ennemis, peut ébranler un opérateur ----
   // (test de sang-froid, au plus une fois toutes les 20 s ; Meneur proche et Sang-froid protègent). Ébranlé 5 s : il se met
   // à couvert vers l'arrière et ne tire que s'il voit sa cible ; il ne lance pas de grenade.
-  Battle.prototype.noteLoss = function (e) { const t = this.teams[e.team]; t.losses = (t.losses || []).concat([{ t: this.t, x: e.x, z: e.z }]).slice(-8); };
+  Battle.prototype.noteLoss = function (e) { const t = this.teams[e.team]; t.losses = (t.losses || []).concat([{ t: this.t, x: e.x, z: e.z }]).slice(-8); this.noteDanger(e, 1); };
+  // Mémoire du danger (Groupe Karst seulement : l'escouade du joueur ne décide rien seule) : là où un des siens est tombé ou
+  // a été aveuglé, la zone (rayon 6 m) devient chère à traverser pour les chemins, et ceux qui la voient la surveillent.
+  // Pas d'oubli : on ne retombe pas deux fois dans le même piège pendant la bataille.
+  const DANGER_R = 6, DANGER_COST = 2.5;
+  Battle.prototype.noteDanger = function (e, w) {
+    const t = this.teams[e.team]; if (!t.karst) return;
+    const ds = t.danger || (t.danger = []);
+    const near = ds.find(d => Math.hypot(d.x - e.x, d.z - e.z) < 3);
+    if (near) near.w = Math.min(2, near.w + w); else ds.push({ x: e.x, z: e.z, w, t: this.t });
+    if (ds.length > 6) ds.shift();
+    t.dangerGrid = null;
+  };
+  Battle.prototype.dangerGrid = function (u) {
+    const t = this.teams[u.team]; if (!t.karst || !t.danger || !t.danger.length) return null;
+    if (t.dangerGrid) return t.dangerGrid;
+    const m = this.map, g = new Float32Array(m.cols * m.rows);
+    for (const d of t.danger) {
+      const c0 = m.cellOf(d.x, d.z), R = Math.abs(m.cellOf(d.x + DANGER_R, d.z).c - c0.c) + 1;
+      for (let dc = -R; dc <= R; dc++) for (let dr = -R; dr <= R; dr++) {
+        const c = c0.c + dc, r = c0.r + dr; if (c < 0 || r < 0 || c >= m.cols || r >= m.rows) continue;
+        const p = m.centerOf(c, r), k = 1 - Math.hypot(p.x - d.x, p.z - d.z) / DANGER_R; if (k <= 0) continue;
+        g[r * m.cols + c] += DANGER_COST * d.w * k;
+      }
+    }
+    // un départ ou une arrivée dans la zone reste possible : seul le passage coûte
+    return (t.dangerGrid = g);
+  };
+  // zone dangereuse à surveiller (la plus proche, en vue, à moins de 30 m) — sinon null
+  Battle.prototype.dangerWatch = function (u) {
+    const t = this.teams[u.team]; if (!t.karst || !t.danger) return null;
+    let best = null, bd = 30;
+    for (const d of t.danger) {
+      const dd = Math.hypot(d.x - u.x, d.z - u.z); if (dd < 3 || dd >= bd) continue;
+      if (this.map.hasLOS(u.x, EYE.stand, u.z, d.x, 1.0, d.z)) { bd = dd; best = d; }
+    }
+    return best;
+  };
   Battle.prototype.moraleCheck = function (u, threats) {
     if (this.t < (u.nextMorale || 0) || threats.length < 2) return false;
     const losses = (this.teams[u.team].losses || []).filter(l => this.t - l.t < 10 && Math.hypot(l.x - u.x, l.z - u.z) < 20).length;
@@ -3101,7 +3204,7 @@
     const cv = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
     // derrière un couvert, seuls la tête et les épaules dépassent quand il se lève pour tirer : cible bien plus petite
     if (cv) p *= cv.level === 'partial' ? 0.28 : 0.12;
-    return { p: clamp(p, 0.03, 0.95), cover: cv };
+    return { p: clamp(p, 0.03, 0.95), cover: cv, soft: !!cv && this.map.softCover(cv.obstacle, u.x, u.z, e.x, e.z) };
   };
   Battle.prototype.fireAt = function (u, e) {
     if (u.reloading > 0) return;
@@ -3127,7 +3230,7 @@
   Battle.prototype.shoot = function (u, e, d) {
     u.ammo--; u.stats.shots++; u.lastShotAt = this.t; this.lastShotTime = this.t; u.burst++; u.aimHistory[e.id] = this.t;
     e.lastShotBy = u; e.lastShotByAt = this.t;
-    const { p, cover } = this.hitChance(u, e, d);
+    const { p, cover, soft } = this.hitChance(u, e, d);
     const hit = this.rng.chance(p);
     const from = { x: u.x, y: u.eyeY() - 0.15, z: u.z };
     let to;
@@ -3138,6 +3241,13 @@
       // la balle passe près : suppression (moindre si la cible est à couvert ou si le tir est lointain)
       const far = d > u.weapon.range ? 0.5 : 1;
       e.suppression = clamp(e.suppression + u.weapon.suppress * 0.55 * (cover ? 0.7 : 1) * far * (has(u, 'gunner') ? 1.2 : 1), 0, 1);
+      // derrière la tôle d'une voiture (hors bloc moteur), une balle sur six traverse : blessure atténuée (×0,5, jamais
+      // la tête), la tôle protège encore un peu
+      if (cover && /^voiture/.test(cover.obstacle.name || '')) this.carHit(cover.obstacle);
+      if (soft && this.rng.chance(PEN_CHANCE)) {
+        this.emit({ type: 'shot', shooter: u.id, target: e.id, from, to: { x: e.x, y: e.chestY() - 0.2, z: e.z }, hit: true, through: true });
+        this.applyHit(u, e, d, false, true); return;
+      }
       const spread = 0.4 + d * 0.03;
       to = { x: e.x + this.rng.gauss() * spread, y: e.chestY() + this.rng.gauss() * 0.5, z: e.z + this.rng.gauss() * spread };
       // balle perdue : un autre adversaire collé à la ligne de tir (à côté de la cible ou derrière elle) peut la prendre
@@ -3168,7 +3278,8 @@
     u.stats.strays = (u.stats.strays || 0) + 1;
     return c;
   };
-  Battle.prototype.applyHit = function (u, e, d, stray) {
+  const PEN_CHANCE = 0.16, PEN_DMG = 0.5;
+  Battle.prototype.applyHit = function (u, e, d, stray, through) {
     const w = u.weapon;
     const r = d / w.range;
     let fall = r <= 0.3 ? 1 : (r <= 1 ? 1 - (r - 0.3) / 0.7 * (1 - w.falloff) : Math.max(0.3 * w.falloff, w.falloff - (r - 1) * 0.7 * w.falloff));
@@ -3176,13 +3287,14 @@
     let loc, mult, prot;
     // derrière un couvert bas (jambes cachées), les balles qui portent trouvent la tête, le haut du torse ou les bras
     const low = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
-    const headP = low ? 0.14 : 0.08, torsoP = low ? 0.70 : 0.60;
+    const headP = through ? 0 : low ? 0.14 : 0.08, torsoP = through ? 0.55 : low ? 0.70 : 0.60;
     if (roll < headP) { loc = 'tête'; mult = 2.2; prot = e.armor.head; }
     else if (roll < torsoP) { loc = 'torse'; mult = 1.0; prot = e.armor.torso; }
     else { loc = 'membre'; mult = 0.55; prot = 0; }
     let dmg = w.damage * fall * mult * (1 - prot) * this.rng.range(0.85, 1.15);
     if (has(u, 'breach') && d < 10 && (w.cls === 'brèche' || w.cls === 'pm')) dmg *= 1.15;   // Enfonceur
     if (this.synergy(e, 'commandement')) dmg *= 0.9;                                                   // synergie Commandement
+    if (through) dmg *= PEN_DMG;                                                                       // à travers la tôle
     dmg = Math.round(dmg * 10) / 10;
     const before = e.hp;
     e.hp = Math.max(0, e.hp - dmg);
@@ -3190,7 +3302,7 @@
     u.stats.hits++; u.stats.damageDealt += dmg; e.stats.damageTaken += dmg; if (loc === 'tête') u.stats.headshots++;
     e.hitBy[u.id] = this.t;
     const absorbed = Math.round(w.damage * fall * mult * prot * 10) / 10;
-    let text = stray ? `Balle perdue : ${u.callsign} manque sa cible et touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV` : `${u.callsign} touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV`;
+    let text = through ? `${u.callsign} touche ${e.callsign} à travers la tôle (${loc}, ${d.toFixed(0)} m) : −${dmg} PV` : stray ? `Balle perdue : ${u.callsign} manque sa cible et touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV` : `${u.callsign} touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV`;
     if (absorbed > 0) text += ` (${absorbed} absorbés : ${e.armor.name})`;
     const prevStatus = e.status;
     if (e.hp <= 0) {

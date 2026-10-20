@@ -1382,6 +1382,9 @@
   #app .ordmenu .omopt small { font-size: 10px; line-height: 1.15; color: rgba(220,230,240,.66); }
   #app .ordmenu .omgo { display: block; width: 100%; margin-top: 12px; padding: 9px; border: 0; border-radius: 9px; background: linear-gradient(180deg, #3d9bff, #1f6fe0); color: #fff; font-family: 'Rajdhani', var(--ui, sans-serif); font-weight: 700; font-size: 15px; letter-spacing: .16em; text-transform: uppercase; box-shadow: 0 4px 14px rgba(31,111,224,.45); cursor: pointer; }
   #app .ordmenu .omgo:hover { filter: brightness(1.12); }
+  #app .ordmenu .omtop { display: block; width: 100%; margin-top: 10px; padding: 6px; border-radius: 9px; border: 1px solid rgba(242,211,107,.35); background: rgba(40,32,10,.35); color: rgba(255,233,168,.8); font-family: 'Rajdhani', var(--ui, sans-serif); font-weight: 700; font-size: 13px; letter-spacing: .08em; cursor: pointer; }
+  #app .ordmenu .omtop.on { border-color: #f2d36b; background: rgba(90,70,14,.6); color: #ffe9a8; box-shadow: inset 0 -2px 0 #f2d36b; }
+  #app .ordmenu.simple .omtop { display: none; }
   #app .ordmenu .omhint { margin-top: 6px; font-size: 10px; color: rgba(220,230,240,.55); text-align: center; }
   /* ligne « Feu » : un réglage, donc une petite ligne de trois (pas de grandes cartes) */
   #app .ordmenu .omfeu { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
@@ -1410,6 +1413,12 @@
   #app .roster .oall { flex: none; align-self: stretch; width: 54px; padding: 0; border-radius: 10px; border: 1px solid rgba(255,255,255,.14); background: linear-gradient(180deg, rgba(16,22,30,.78), rgba(10,14,19,.62)); color: rgba(220,230,240,.75); font-family: 'Rajdhani', var(--ui, sans-serif); font-weight: 700; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; backdrop-filter: blur(10px); cursor: pointer; }
   #app .roster .ogrp { flex: none; align-self: stretch; display: flex; flex-direction: column; gap: 4px; }
   #app .roster .ogrp button { flex: 1; width: 38px; padding: 0; border-radius: 8px; border: 1px solid rgba(255,255,255,.14); background: linear-gradient(180deg, rgba(16,22,30,.78), rgba(10,14,19,.62)); color: rgba(220,230,240,.75); font-family: 'Rajdhani', var(--ui, sans-serif); font-weight: 700; font-size: 12px; letter-spacing: .06em; backdrop-filter: blur(10px); cursor: pointer; }
+  #app .roster .otop { flex: none; align-self: stretch; display: none; flex-direction: column; gap: 4px; }
+  #app .roster .otop.has { display: flex; }
+  #app .roster .otop button { flex: 1; min-width: 46px; padding: 0 6px; border-radius: 8px; border: 1px solid #f2d36b; background: linear-gradient(180deg, rgba(60,48,12,.85), rgba(30,24,8,.75)); color: #ffe9a8; font-family: 'Rajdhani', var(--ui, sans-serif); font-weight: 700; font-size: 13px; letter-spacing: .08em; cursor: pointer; }
+  #app .roster .otop .topgo i { font-style: normal; opacity: .8; margin-left: 2px; }
+  #app .roster .otop .topx { flex: 0 0 22px; font-size: 11px; border-color: rgba(255,255,255,.2); background: rgba(10,14,19,.62); color: rgba(220,230,240,.75); }
+  #app .roster .otop .topgo:hover { box-shadow: 0 0 10px rgba(242,211,107,.5); }
   #app .roster .ogrp button:hover { border-color: rgba(255,255,255,.32); color: #fff; } #app .roster .ogrp button.on { border-color: #f2d36b; color: #ffe9a8; box-shadow: inset 0 -2px 0 #f2d36b; }
   #app .roster .oall.on { border-color: #f2d36b; color: #ffe9a8; background: linear-gradient(180deg, rgba(60,50,20,.8), rgba(30,24,10,.7)); box-shadow: inset 0 -2px 0 #f2d36b; }
   #app .card.osel, #app.hud3 .card.osel { border-color: #f2d36b; box-shadow: inset 3px 0 0 #f2d36b, 0 0 0 1px rgba(242,211,107,.75), 0 0 16px rgba(242,211,107,.35); }
@@ -1793,7 +1802,7 @@
 // Fichiers requis : en cas d'échec, message clair en français. Fichiers optionnels (sons, moteur physique) : on continue sans.
 // file:// ou injection de script refusée par la page : repli sur des <script src> ordinaires (progression par fichier).
 (function () {
-  const M = {"version":"bc8eabf564","parties":[{"f":"p/three.min.js","v":"7b1c5d75b2","o":668024},{"f":"p/three-addons.js","v":"a55d0a28b7","o":159571},{"f":"p/cannon-es.js","v":"548025ed5d","o":346660,"opt":1},{"f":"p/modeles-soldat.js","v":"797519c3d4","o":3073712},{"f":"p/modeles-gign.js","v":"c54e0ea433","o":2752068},{"f":"p/modeles-decor.js","v":"e1e96d1508","o":4727266},{"f":"p/sons.js","v":"58dd051c70","o":1552112,"opt":1},{"f":"p/jeu.js","v":"e12608c16a","o":1910867,"decoupe":1}]}, doc = document, t0 = performance.now();
+  const M = {"version":"f0caab6269","parties":[{"f":"p/three.min.js","v":"7b1c5d75b2","o":668024},{"f":"p/three-addons.js","v":"a55d0a28b7","o":159571},{"f":"p/cannon-es.js","v":"548025ed5d","o":346660,"opt":1},{"f":"p/modeles-soldat.js","v":"797519c3d4","o":3073712},{"f":"p/modeles-gign.js","v":"c54e0ea433","o":2752068},{"f":"p/modeles-decor.js","v":"e1e96d1508","o":4727266},{"f":"p/sons.js","v":"58dd051c70","o":1552112,"opt":1},{"f":"p/jeu.js","v":"a51918265e","o":1931797,"decoupe":1}]}, doc = document, t0 = performance.now();
   const total = M.parties.reduce((s, p) => s + p.o, 0), recu = M.parties.map(() => 0);
   let execs = 0, fini = false;
   doc.documentElement.classList.add('ot-charge');

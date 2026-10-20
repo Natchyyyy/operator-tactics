@@ -111,6 +111,8 @@ const Son = (() => {
   function mesure(){ if(!ac) return null; if(!an){ an = ac.createAnalyser(); an.fftSize = 2048; lim.connect(an); }
     const d = new Float32Array(an.fftSize); an.getFloatTimeDomainData(d); let p = 0, e = 0; for(const v of d){ p = Math.max(p, Math.abs(v)); e += v*v; }
     return { crete: 20*Math.log10(p + 1e-9), rms: 10*Math.log10(e/d.length + 1e-12), reduction: lim.reduction && lim.reduction.value !== undefined ? lim.reduction.value : lim.reduction }; }
-  return {init, jouer, mesure, charger, boucle, arreterBoucle, volumeBoucle, etat, debloquer, a: (nom) => !!buf[nom], get pret(){ return !!loading; }, volume(v){ if(master) master.gain.value = v; }};
+  // son fabriqué dans le navigateur (une fois) : gen(échantillons, fréquence d'échantillonnage)
+  function fabriquer(nom, dur, gen){ if(!init()) return false; if(buf[nom]) return true; const n = Math.floor(ac.sampleRate*dur), b = ac.createBuffer(1, n, ac.sampleRate); gen(b.getChannelData(0), ac.sampleRate); buf[nom] = [b]; return true; }
+  return {init, jouer, fabriquer, mesure, charger, boucle, arreterBoucle, volumeBoucle, etat, debloquer, a: (nom) => !!buf[nom], get pret(){ return !!loading; }, volume(v){ if(master) master.gain.value = v; }};
 })();
 window.Son = Son;

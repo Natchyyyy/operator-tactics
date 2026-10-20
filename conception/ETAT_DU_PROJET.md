@@ -1,4 +1,4 @@
-# État du projet — point au 20/10/2026 (version jouable 45)
+# État du projet — point au 20/10/2026 (version jouable 46)
 
 ## 1. Ce qui a été fait (17 → 20 octobre)
 
@@ -49,6 +49,17 @@
 - Police « OT Display » (zéro sans barre), menus et HUD polis, traceurs de balles enfin visibles.
 - Test de la page : clique sur tous les panneaux de récompenses.
 
+### 20/10 (version 46) — après la recherche Gemini
+- Couverts : le trajet compte (chaque mètre couru en vue de la menace coûte plus cher) ; temps passé en vue de l'ennemi en
+  baisse d'environ 10 % sur 24 batailles de jour.
+- Voitures : la tôle laisse passer 1 balle sur 6 (blessure ×0,5, jamais la tête) ; le bloc moteur (côté capot) arrête tout.
+- Groupe Karst : mémoire du danger (là où un des siens est tombé ou a été aveuglé : chemins qui contournent, arme pointée).
+- Décor : lampadaires (de nuit, on se voit presque comme de jour dessous ; « Plus… → Éteindre le lampadaire »),
+  alarmes de voiture (à la 3e balle : sirène et feux 25 s, couvre les pas), vitres de voitures qui se fendent.
+- Top action (« Ordres avancés ») : « ⏸ Attendre le top » dans le menu d'ordre, bouton TOP en bas pour tout lancer.
+- Refusé / plus tard : bonus par pays, se jeter au sol, refonte des effets, éclairage pré-calculé, lampes et lasers
+  sur les armes (plus tard), packs de soldats (plus tard), KTX2 (pas maintenant).
+
 ## 2. Choix validés par l'utilisateur (à respecter)
 - Stratégie = le joueur. L'IA exécute ; plans automatiques seulement pour l'ennemi.
 - Pas de nouvelle mécanique sans accord. Les agents peuvent améliorer l'existant.
@@ -63,9 +74,10 @@
 
 ## 3. Ce qu'il reste à faire
 **Proches**
-1. Retour de l'utilisateur sur la version 45 (beauté, fluidité sur son PC, arbres qui cachent parfois les soldats).
-2. Couverts : les soldats passent encore trop de temps à découvert en courant vers un couvert (choisir des couverts
-   plus proches / moins exposés).
+1. Retour de l'utilisateur sur la version 46 (beauté, fluidité sur son PC, arbres qui cachent parfois les soldats ;
+   nuit plus lisible sous les lampadaires : équilibre à surveiller).
+2. Couverts : premier pas fait (trajet exposé pénalisé) ; la part du temps en vue passée à courir vers un couvert reste
+   ~25 % : à revoir si le joueur le remarque encore.
 3. Batailles d'élimination parfois longues (24/200 dépassent 3 min) : échanges lents à 1 contre 2-3.
 4. Petits défauts : noms d'ennemis qui se chevauchent ; caméra automatique qui filme parfois un mur pendant un combat ;
    pas d'aperçu de la trajectoire des grenades, un soldat hors de portée ne s'avance pas pour lancer.

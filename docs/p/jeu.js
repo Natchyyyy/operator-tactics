@@ -356,7 +356,9 @@ const Son = (() => {
   function mesure(){ if(!ac) return null; if(!an){ an = ac.createAnalyser(); an.fftSize = 2048; lim.connect(an); }
     const d = new Float32Array(an.fftSize); an.getFloatTimeDomainData(d); let p = 0, e = 0; for(const v of d){ p = Math.max(p, Math.abs(v)); e += v*v; }
     return { crete: 20*Math.log10(p + 1e-9), rms: 10*Math.log10(e/d.length + 1e-12), reduction: lim.reduction && lim.reduction.value !== undefined ? lim.reduction.value : lim.reduction }; }
-  return {init, jouer, mesure, charger, boucle, arreterBoucle, volumeBoucle, etat, debloquer, a: (nom) => !!buf[nom], get pret(){ return !!loading; }, volume(v){ if(master) master.gain.value = v; }};
+  // son fabriqué dans le navigateur (une fois) : gen(échantillons, fréquence d'échantillonnage)
+  function fabriquer(nom, dur, gen){ if(!init()) return false; if(buf[nom]) return true; const n = Math.floor(ac.sampleRate*dur), b = ac.createBuffer(1, n, ac.sampleRate); gen(b.getChannelData(0), ac.sampleRate); buf[nom] = [b]; return true; }
+  return {init, jouer, fabriquer, mesure, charger, boucle, arreterBoucle, volumeBoucle, etat, debloquer, a: (nom) => !!buf[nom], get pret(){ return !!loading; }, volume(v){ if(master) master.gain.value = v; }};
 })();
 window.Son = Son;
 
@@ -10638,6 +10640,21 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }); t.colorSpace = T.SRGBColorSpace; return t; })();
   const bloodTex = (() => { const t = canvasTex(256, (g, S) => { const R = rng(13); for (let k = 0; k < 30; k++) { const x = S / 2 + (R() - 0.5) * S * 0.5, y = S / 2 + (R() - 0.5) * S * 0.5, r = S * (0.04 + R() * 0.16); const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(70,6,6,0.95)'); gr.addColorStop(0.7, 'rgba(60,4,4,0.8)'); gr.addColorStop(1, 'rgba(50,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } }); t.colorSpace = T.SRGBColorSpace; return t; })();
   const scorchTex = (() => { const t = canvasTex(256, (g, S) => { const R = rng(17); const gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); gr.addColorStop(0, 'rgba(8,7,6,0.95)'); gr.addColorStop(0.45, 'rgba(15,13,11,0.75)'); gr.addColorStop(1, 'rgba(20,18,15,0)'); g.fillStyle = gr; g.fillRect(0, 0, S, S); g.strokeStyle = 'rgba(5,5,5,0.5)'; for (let k = 0; k < 24; k++) { const a = R() * 6.28, L = S * (0.25 + R() * 0.25); g.lineWidth = 1 + R() * 3; g.beginPath(); g.moveTo(S / 2, S / 2); g.lineTo(S / 2 + Math.cos(a) * L, S / 2 + Math.sin(a) * L); g.stroke(); } }); t.colorSpace = T.SRGBColorSpace; return t; })();
+  // vitre touchée : étoile de fissures (trou net au centre, rayons, cercles brisés) — reste sur la voiture
+  const glassTex = (() => { const t = canvasTex(256, (g, S) => {
+    const R = rng(23), c = S / 2; g.clearRect(0, 0, S, S);
+    const gr = g.createRadialGradient(c, c, 0, c, c, S * 0.5); gr.addColorStop(0, 'rgba(235,240,245,0.55)'); gr.addColorStop(0.12, 'rgba(225,232,238,0.32)'); gr.addColorStop(0.5, 'rgba(220,228,235,0.08)'); gr.addColorStop(1, 'rgba(220,228,235,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, S, S);
+    g.fillStyle = 'rgba(12,12,14,0.95)'; g.beginPath(); g.arc(c, c, S * 0.018, 0, 6.28); g.fill();
+    g.strokeStyle = 'rgba(240,245,250,0.85)'; g.lineCap = 'round';
+    const rays = 11 + Math.floor(R() * 5), ends = [];
+    for (let k = 0; k < rays; k++) {
+      let a = k / rays * 6.28 + R() * 0.4, x = c, y = c, L = S * (0.28 + R() * 0.2); g.lineWidth = 1.6; g.beginPath(); g.moveTo(x, y);
+      for (let st = 0; st < 5; st++) { a += (R() - 0.5) * 0.35; x += Math.cos(a) * L / 5; y += Math.sin(a) * L / 5; g.lineTo(x, y); g.lineWidth = 1.2; }
+      g.stroke(); ends.push(a);
+    }
+    g.lineWidth = 1; for (const r of [0.07, 0.13, 0.21]) { for (let k = 0; k < rays; k++) { if (R() < 0.35) continue; const a0 = k / rays * 6.28 + R() * 0.3, a1 = a0 + 6.28 / rays * (0.7 + R() * 0.3), rr = S * r * (0.85 + R() * 0.3); g.beginPath(); g.moveTo(c + Math.cos(a0) * rr, c + Math.sin(a0) * rr); g.lineTo(c + Math.cos(a1) * rr * (0.9 + R() * 0.2), c + Math.sin(a1) * rr * (0.9 + R() * 0.2)); g.stroke(); } }
+  }); t.colorSpace = T.SRGBColorSpace; return t; })();
   // ---- assemblage
   function create(scene) {
     const add = new Pool(2400, T.AdditiveBlending, false), alpha = new Pool(1600, T.NormalBlending, true);
@@ -10646,7 +10663,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const casings = Bodies(400, new T.CylinderGeometry(0.0048, 0.0048, 0.045, 7), brass); scene.add(casings.mesh);
     const debris = Bodies(300, new T.DodecahedronGeometry(0.04, 0), new T.MeshStandardMaterial({ color: 0x6b6660, roughness: 0.95 })); scene.add(debris.mesh);
     const holes = Decals(500, holeTex, {}), blood = Decals(120, bloodTex, { rough: 0.3 }), scorch = Decals(40, scorchTex, {});
-    scene.add(holes.mesh); scene.add(blood.mesh); scene.add(scorch.mesh);
+    const cracks = Decals(160, glassTex, { rough: 0.05 });
+    scene.add(holes.mesh); scene.add(blood.mesh); scene.add(scorch.mesh); scene.add(cracks.mesh);
     const ripples = Ripples(700); scene.add(ripples.mesh);
     // réserve de lumières : toujours dans la scène, éteintes
     const lights = []; for (let i = 0; i < 6; i++) { const l = new T.PointLight(0xffb469, 0, 9, 2); l.position.set(0, -50, 0); scene.add(l); lights.push({ l, until: 0, i0: 0, dur: 0.05 }); }
@@ -10655,6 +10673,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const V = (x, y, z) => new T.Vector3(x, y, z), rnd = (a, b) => a + Math.random() * (b - a);
     const basis = (d) => { const u = new T.Vector3().crossVectors(d, Math.abs(d.y) < 0.9 ? V(0, 1, 0) : V(1, 0, 0)).normalize(); return [u, new T.Vector3().crossVectors(d, u)]; };
     const E = { casings, holes, blood, scorch, debris, pools: { add, alpha }, sound: null };
+    E.light = light;
     // éclair de bouche : origine p, direction d (unitaire)
     E.muzzle = function (p, d, silenced) {
       if (silenced) { alpha.add({ p: p.clone(), v: d.clone().multiplyScalar(0.6).add(V(0, 0.3, 0)), life: 0.6, size: 0.08, grow: 3, frame: 4 + Math.floor(Math.random() * 4), col: [0.7, 0.7, 0.7], a0: 0.25, drag: 2 }); return; }
@@ -10704,7 +10723,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       } else if (matter === 'impact_verre') {   // vitre : pluie d'éclats clairs qui scintillent, pas d'étincelle
         flash(0.04, [2.4, 2.6, 2.8]); chips(12, [1.15, 1.25, 1.35], 2.4, 0.85);
         for (let k = 0; k < 6; k++) add.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-1, 1), rnd(0, 1.2), rnd(-1, 1))), life: rnd(0.25, 0.55), size: 0.008, stretch: 0.01, frame: 3, col: [2.2, 2.4, 2.6], grav: 9.8, delay, floor: 0.01 });
-        puff(1, [0.75, 0.78, 0.8], 0.2, 0.06, 0.6, 0.5); hole = 0;
+        puff(1, [0.75, 0.78, 0.8], 0.2, 0.06, 0.6, 0.5); hole = 0; cracks.add(P, n, rnd(0.28, 0.45));
       } else if (matter === 'impact_sol' && E.wet) {   // sol détrempé : gerbe d'eau, pas de poussière
         for (let k = 0; k < 10; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.02), v: V(rnd(-0.8, 0.8), rnd(1.5, 3.5), rnd(-0.8, 0.8)), life: rnd(0.3, 0.55), size: rnd(0.012, 0.022), stretch: 0.012, frame: 13, col: [0.72, 0.77, 0.82], a0: 0.8, grav: 9.8, delay, floor: 0.01 });
         puff(2, [0.68, 0.72, 0.76], 0.22, 0.08, 0.6, 0.6); chips(3, [0.12, 0.12, 0.12], 2.5);
@@ -10773,7 +10792,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // pluie : ronds au sol et impacts au sol en gerbes d'eau
     E.ripples = ripples;
     E.setRain = function (on) { ripples.mesh.visible = !!on; E.wet = !!on; };
-    E.clear = function () { add.parts.length = 0; alpha.parts.length = 0; casings.list.length = 0; debris.list.length = 0; holes.clear(); blood.clear(); scorch.clear(); for (const L of lights) L.l.intensity = 0; add.update(0); alpha.update(0); casings.update(0); debris.update(0); };
+    E.clear = function () { add.parts.length = 0; alpha.parts.length = 0; casings.list.length = 0; debris.list.length = 0; holes.clear(); blood.clear(); scorch.clear(); cracks.clear(); for (const L of lights) L.l.intensity = 0; add.update(0); alpha.update(0); casings.update(0); debris.update(0); };
     return E;
   }
   root.Effets = { create };
@@ -12351,9 +12370,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // Assemblage
   // ---------------------------------------------------------------------------------------------
   const U = { wet: { value: 0 }, time: { value: 0 } };
-  let lights = [];
+  let lights = [], decorGroup = null;
   function build(map, group, ctx) {
-    NIGHT.mats.length = 0; lights = [];
+    NIGHT.mats.length = 0; lights = []; decorGroup = group;
     const W = map.width, D = map.depth, K = M3(), maps = groundMaps(map), OB = map.obstacles;
     group.add(groundMesh(map, maps, U));
     const pud = puddles(map, maps, U); if (pud) group.add(pud);
@@ -13072,16 +13091,27 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (night) {
       lightGroup = new T.Group();
       for (const p of lights) {
+        if (p.off) continue;
         const canopy = p.k && p.k < 60, I = canopy ? 20 : p.k > 150 ? 160 : 120;
         const l = new T.SpotLight(0xffc98a, I, canopy ? 12 : 26, canopy ? 1.25 : 1.05, canopy ? 0.9 : 0.8, 2);
-        l.position.copy(p); l.target.position.set(p.x, 0, p.z); lightGroup.add(l, l.target);
-        if (!canopy) { const h = halo(); h.position.copy(p); h.position.y -= 0.06; lightGroup.add(h); const c = cone(p.y); c.position.set(p.x, p.y / 2, p.z); lightGroup.add(c); }
+        l.position.copy(p); l.target.position.set(p.x, 0, p.z); lightGroup.add(l, l.target); p.objs = [l, l.target];
+        if (!canopy) { const h = halo(); h.position.copy(p); h.position.y -= 0.06; lightGroup.add(h); const c = cone(p.y); c.position.set(p.x, p.y / 2, p.z); lightGroup.add(c); p.objs.push(h, c); }
       }
       scene.add(lightGroup); lightGroup.updateMatrixWorld(true);
     }
   }
   function tick(t) { U.time.value = t; }
-  root.Parking = { build, mesh, setConditions, tick, asphalt, concrete, worldMat, teinter, brickDet };
+  // lampadaire éteint d'une balle (événement 'lamp' du moteur, mât en x,z) : ses têtes (à 1,7 m du mât) n'éclairent plus,
+  // l'ampoule est masquée par un verre brisé sombre (les éclats : impact de la balle)
+  function lampOff(x, z) {
+    for (const p of lights) {
+      if (p.off || Math.hypot(p.x - x, p.z - z) > 2.6) continue;
+      p.off = true;
+      if (p.objs && lightGroup) for (const o of p.objs) lightGroup.remove(o);
+      if (decorGroup) { const k = new T.Mesh(new T.BoxGeometry(0.64, 0.04, 0.26), new T.MeshStandardMaterial({ color: 0x141414, roughness: 0.6, metalness: 0.3 })); k.position.set(p.x, p.y - 0.005, p.z); k.rotation.y = Math.atan2(-(p.z - z), p.x - x); decorGroup.add(k); }
+    }
+  }
+  root.Parking = { lampOff, build, mesh, setConditions, tick, asphalt, concrete, worldMat, teinter, brickDet };
 })(window.OT = window.OT || {});
 
 ;//@@OT web/arbres.js@@
@@ -13751,7 +13781,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // une seule carte pour l'instant : le parking à l'arrière des boutiques de la Grand-Rue
   const MAPS = {
     parking: {
-      id: 'parking', name: 'Parking de la Grand-Rue', width: 72, depth: 46,
+      id: 'parking', name: 'Parking de la Grand-Rue', width: 72, depth: 46, lampadaires: true,
       spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
       acces: [[47.5, 45.5]],   // entrée-sortie des voitures (vérification de circulation)
       capture: { x: 36, z: 23, r: 6 },  // la station de lavage : deux pistes ouvertes au nord et au sud, local technique au nord, muret entre les pistes
@@ -13903,7 +13933,25 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     this.coverPoints = this.computeCoverPoints();
     this.dynamic = [];
+    this.lamps = def.lampadaires ? this.computeLamps() : [];
   }
+  // Lampadaires (mêmes emplacements que le rendu, web/parking.js lampAt) : de nuit, un lampadaire allumé éclaire ~9 m autour
+  // de son mât. On peut l'éteindre d'une balle (ordre du joueur).
+  const LAMP_R = 9, LAMP_H = 7.8;   // tête de la lampe : 7,85 m (rendu)
+  GameMap.prototype.computeLamps = function () {
+    const W = this.width, D = this.depth, out = [], gate = this.obstacles.find(o => o.name === 'mur portail sud');
+    const add = (x, z) => out.push({ id: out.length, x, z, on: true });
+    for (let x = -6; x <= W + 6; x += 14) if (!gate || Math.abs(x - gate.x - gate.w / 2) > 6) add(x, D + 3.2);
+    for (let z = 6; z <= D - 6; z += 14) { add(-3.2, z); add(W + 3.2, z); }
+    const mk = this.def.marquage; if (mk) for (const [x0, z0, n] of mk.rangees) add(x0 + 5, z0 + 2.5 * Math.floor(n / 2));
+    for (const o of this.obstacles) if (o.name === 'bac à fleurs' && o.w * o.d > 4) add(o.x + 0.4, o.z + o.d / 2);
+    return out;
+  };
+  GameMap.prototype.litAt = function (x, z) {
+    for (const l of this.lamps) if (l.on && Math.hypot(l.x - x, l.z - z) < LAMP_R) return l;
+    return null;
+  };
+  GameMap.prototype.lampHead = function (l) { return { x: l.x, y: LAMP_H, z: l.z }; };
 
   // Décor destructible : caisses et palettes en bois (couverts bas) cèdent aux explosions.
   GameMap.prototype.isDestructible = function (o) { return o.kind === 'cover' && /^(caisses|palettes)/.test(o.name || ''); };
@@ -13977,7 +14025,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   };
 
   // ---- A* sur la grille (8 voisins, pas de coupe de coin) -------------------------------
-  GameMap.prototype.findPath = function (x0, z0, x1, z1) {
+  // extra (facultatif) : coût ajouté par case (Float32Array cols × rows) — zones que l'on préfère contourner
+  GameMap.prototype.findPath = function (x0, z0, x1, z1, extra) {
     const start = this.nearestFreeReachable(x0, z0), goal = this.nearestFree(x1, z1);
     if (!start || !goal) return null;
     const cols = this.cols, rows = this.rows, n = cols * rows;
@@ -14005,7 +14054,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         if (dc && dr && (this.isBlocked(c + dc, r) || this.isBlocked(c, r + dr))) continue; // pas de coupe de coin
         const nk = key(nc, nr);
         if (closed[nk]) continue;
-        const cost = g[k] + ((dc && dr) ? 1.4142 : 1);
+        const cost = g[k] + ((dc && dr) ? 1.4142 : 1) + (extra ? extra[nk] : 0);
         if (cost < g[nk]) { g[nk] = cost; came[nk] = k; push([cost + h(nc, nr), nk]); }
       }
     }
@@ -14014,7 +14063,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (let k = gk; k !== -1; k = came[k]) { path.push(this.centerOf(k % cols, (k / cols) | 0)); if (k === sk) break; }
     path.reverse();
     // lissage : retirer les points intermédiaires quand la ligne droite est libre (au niveau du sol, avec le rayon)
-    return this.smoothPath(path);
+    return this.smoothPath(path, extra);
   };
 
   GameMap.prototype.walkableSegment = function (ax, az, bx, bz) {
@@ -14022,12 +14071,19 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (let i = 0; i <= steps; i++) { const t = i / steps; if (this.insideObstacle(ax + (bx - ax) * t, az + (bz - az) * t)) return false; }
     return true;
   };
-  GameMap.prototype.smoothPath = function (path) {
+  GameMap.prototype.smoothPath = function (path, extra) {
     if (path.length < 3) return path;
+    // avec des zones à contourner, un raccourci ne doit pas y entrer
+    const clear = (a, b) => {
+      if (!extra) return true;
+      const L = Math.hypot(b.x - a.x, b.z - a.z), n = Math.ceil(L / (CELL * 0.5));
+      for (let i = 1; i < n; i++) { const { c, r } = this.cellOf(a.x + (b.x - a.x) * i / n, a.z + (b.z - a.z) * i / n); if (extra[r * this.cols + c] > 0) return false; }
+      return true;
+    };
     const out = [path[0]]; let i = 0;
     while (i < path.length - 1) {
       let j = path.length - 1;
-      while (j > i + 1 && !this.walkableSegment(path[i].x, path[i].z, path[j].x, path[j].z)) j--;
+      while (j > i + 1 && !(this.walkableSegment(path[i].x, path[i].z, path[j].x, path[j].z) && clear(path[i], path[j]))) j--;
       out.push(path[j]); i = j;
     }
     return out;
@@ -14065,6 +14121,23 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const chest = this.blocker(tx, eye, tz, px, chestH, pz);
     if (chest) return { level: 'full', obstacle: chest };
     return { level: 'partial', obstacle: low };
+  };
+
+  // Tôle d'une voiture : une balle qui traverse l'habitacle (portières, vitres, coffre) peut passer ; seul le bloc moteur
+  // (1,3 m côté capot, o.dir) arrête vraiment. true si le trajet tireur (sx,sz) → cible (tx,tz) coupe la voiture hors du
+  // bloc moteur. Véhicule sans sens connu : couvert dur.
+  GameMap.prototype.softCover = function (o, sx, sz, tx, tz) {
+    if (!o || !o.dir || !/^voiture/.test(o.name || '')) return false;
+    const dx = tx - sx, dz = tz - sz; let t0 = 0, t1 = 1;
+    for (const [p, dp, lo, hi] of [[sx, dx, o.x, o.x + o.w], [sz, dz, o.z, o.z + o.d]]) {
+      if (Math.abs(dp) < 1e-9) { if (p < lo || p > hi) return false; continue; }
+      let a = (lo - p) / dp, b = (hi - p) / dp; if (a > b) { const k = a; a = b; b = k; }
+      t0 = Math.max(t0, a); t1 = Math.min(t1, b); if (t0 > t1) return false;
+    }
+    const tm = (t0 + t1) / 2, alongX = o.w >= o.d;
+    const c = alongX ? sx + dx * tm : sz + dz * tm, lo = alongX ? o.x : o.z, L = alongX ? o.w : o.d;
+    const fromHood = o.dir > 0 ? lo + L - c : c - lo;
+    return fromHood > 1.3;
   };
 
   // « Ouverture » d'un point : combien de points d'échantillon (grille) sont visibles depuis là, à hauteur d'homme,
@@ -14381,7 +14454,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     return r;
   };
   Battle.prototype.applyCommand = function (type, team, arg) {
-    return type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : type === 'tenir' ? this.holdKeyPosition(team, arg && arg.pos, arg && arg.units) : type === 'aller' ? this.moveOrder(team, arg) : type === 'orienter' ? this.orientOrder(team, arg) : type === 'feu' ? this.releaseFire(team, arg) : type === 'grenade' ? this.grenadeOrder(team, arg) : { ok: false };
+    return type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : type === 'tenir' ? this.holdKeyPosition(team, arg && arg.pos, arg && arg.units) : type === 'aller' ? this.moveOrder(team, arg) : type === 'orienter' ? this.orientOrder(team, arg) : type === 'feu' ? this.releaseFire(team, arg) : type === 'grenade' ? this.grenadeOrder(team, arg) : type === 'lampadaire' ? this.lampOrder(team, arg) : { ok: false };
   };
   Battle.prototype.step = function () {
     if (this.over) return;
@@ -14490,6 +14563,54 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     this.logEvent('grenadeorder', `${team.name} : ${u.callsign} — ordre : ${G.name} sur le point désigné.`, { unit: u.id, team: teamIndex, gk: kind, silent: true });
     return { ok: true, unit: u.id, callsign: u.callsign, kind };
   };
+  // Éteindre un lampadaire (ordre du joueur, « Plus… ») : le plus proche des opérateurs choisis qui voit la lampe (45 m au
+  // plus) s'arrête, épaule et tire ; la lampe s'éteint. Le coup de feu s'entend et, de nuit, l'éclair le trahit.
+  Battle.prototype.lampOrder = function (teamIndex, arg) {
+    const team = this.teams[teamIndex]; if (!team || this.over || !arg) return { ok: false, reason: 'bataille terminée' };
+    let lamp = null, ld = 6;
+    for (const l of this.map.lamps) { const d = Math.hypot(l.x - arg.x, l.z - arg.z); if (l.on && d < ld) { ld = d; lamp = l; } }
+    if (!lamp) return { ok: false, reason: 'aucun lampadaire allumé près du point' };
+    const ids = Array.isArray(arg.units) && arg.units.length ? arg.units : null, h = this.map.lampHead(lamp);
+    let best = null, bd = 45, busy = false;
+    for (const u of team.units) {
+      if (!u.alive || (ids && !ids.includes(u.id) && !ids.includes(u.def.id))) continue;
+      if (u.throwing || u.lampShot || u.drag || u.reloading > 0 || this.t < u.blindUntil) { busy = true; continue; }
+      const d = Math.hypot(h.x - u.x, h.z - u.z);
+      if (d < bd && this.map.hasLOS(u.x, u.eyeY(), u.z, h.x, h.y, h.z)) { bd = d; best = u; }
+    }
+    if (!best) return { ok: false, reason: busy ? 'tous occupés' : 'personne ne voit la lampe (45 m au plus)' };
+    const u = best; this.stop(u); u.reviving = null; u.target = null; u.stance = 'stand'; u.facing = Math.atan2(h.z - u.z, h.x - u.x);
+    u.lampShot = { at: this.t + 0.5 + (1 - u.def.reflexes / 100) * 0.4, lamp: lamp.id };
+    this.logEvent('lamporder', `${team.name} : ${u.callsign} — ordre : éteindre le lampadaire.`, { unit: u.id, team: teamIndex, silent: true });
+    return { ok: true, unit: u.id, callsign: u.callsign };
+  };
+  Battle.prototype.shootLamp = function (u) {
+    const l = this.map.lamps[u.lampShot.lamp]; u.lampShot = null;
+    if (!u.alive || !l || !l.on || u.ammo <= 0) return;
+    const h = this.map.lampHead(l);
+    u.ammo--; u.stats.shots++; u.lastShotAt = this.t; this.lastShotTime = this.t;
+    l.on = false;
+    this.emit({ type: 'shot', shooter: u.id, target: null, from: { x: u.x, y: u.eyeY() - 0.15, z: u.z }, to: h, hit: false, lamp: l.id });
+    this.emit({ type: 'lamp', id: l.id, on: false, x: l.x, z: l.z });
+    this.logEvent('lampout', `${u.callsign} éteint un lampadaire : la zone est plongée dans le noir.`, { unit: u.id, team: u.team });
+  };
+  // Alarme de voiture : des balles dans la carrosserie la déclenchent (une fois par voiture) ; 25 s de sirène et de feux qui
+  // clignotent ; tant qu'elle hurle, on n'entend plus les pas à moins de 14 m.
+  Battle.prototype.carAlarm = function (o) {
+    if (!o || !/^voiture/.test(o.name || '') || (this.alarms && this.alarms.some(a => a.o === o))) return;
+    const x = o.x + o.w / 2, z = o.z + o.d / 2, until = this.t + 25;
+    (this.alarms || (this.alarms = [])).push({ o, x, z, until });
+    this.emit({ type: 'alarm', x, z, until });
+    this.logEvent('alarm', 'Une alarme de voiture se déclenche.', { silent: true });
+  };
+  // balles dans la carrosserie : l'alarme part à la 3e (compte par voiture, sans tirage au hasard)
+  Battle.prototype.carHit = function (o) {
+    const h = this.carHits || (this.carHits = new Map()), n = (h.get(o) || 0) + 1; h.set(o, n);
+    if (n === 3) this.carAlarm(o);
+  };
+  Battle.prototype.alarmNear = function (x, z) {
+    return !!this.alarms && this.alarms.some(a => this.t < a.until && Math.hypot(a.x - x, a.z - z) < 14);
+  };
   // E3 — « avec fumée » (Franchir, Décrocher) : le premier des opérateurs qui a encore un fumigène et une trajectoire le lance
   // entre (mx, mz) et le danger (dx, dz), à 6 m au plus de (mx, mz). Renvoie { u, ready } (nuage en place à ready), sinon null.
   Battle.prototype.coverSmoke = function (units, mx, mz, dx, dz, why) {
@@ -14571,7 +14692,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           if (!this.map.hasLOS(g.x, 0.5, g.z, u.x, u.eyeY(), u.z)) continue;
           const facing = angDiff(Math.atan2(g.z - u.z, g.x - u.x), u.facing) < Math.PI * 0.6;
           const dur = G.blind * (1 - d / G.radius) * (facing ? 1 : 0.4) + 0.8;
-          u.blindUntil = Math.max(u.blindUntil, this.t + dur); u.visible = new Set(); hits++;
+          u.blindUntil = Math.max(u.blindUntil, this.t + dur); u.visible = new Set(); hits++; this.noteDanger(u, 0.6);
           this.logEvent('flash', `${u.callsign} est aveuglé (${dur.toFixed(1)} s).`, { unit: u.id, team: u.team, silent: u.team === g.team });
         }
       }
@@ -14678,7 +14799,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const d = dist2(u, e);
       // 1) la vue (de nuit, l'éclair d'une arme non silencieuse se voit à pleine portée)
       const lit = cond.flash > 1 && this.t - e.lastShotAt < 1.5 && !e.weapon.silenced;
-      const range = lit ? baseRange : visRange;
+      // de nuit, sous un lampadaire allumé : on se voit presque comme de jour
+      const lamp = !lit && cond.id === 'nuit' && this.map.lamps.length && this.map.litAt(e.x, e.z);
+      const range = lit ? baseRange : lamp ? baseRange * 0.8 : visRange;
       if (d <= range) {
         const ang = Math.atan2(e.z - u.z, e.x - u.x);
         // (pris pour cible par lui : les balles claquent, on tourne la tête vers le tireur — même hors du champ visuel)
@@ -14687,7 +14810,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           let p;
           if (u.visible.has(e.id)) p = 1;                   // on suit une cible déjà repérée
           else {
-            p = 0.35 * (1 - d / range) * (0.6 + u.def.perception / 100) * (lit ? cond.flash : cond.spot);
+            p = 0.35 * (1 - d / range) * (0.6 + u.def.perception / 100) * (lit ? cond.flash : lamp ? 0.9 : cond.spot);
             if (e.moving) p *= 1.6;
             if (this.t - e.lastShotAt < 1.5) p *= e.weapon.silenced ? 1.6 : 3;   // éclair de bouche, bruit
             if (e.stance === 'crouch') p *= 0.6;
@@ -14713,7 +14836,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // 2) l'ouïe : un tir ennemi récent et proche donne une position approximative (bien moins loin si l'arme est silencieuse)
       //    Vigie : tirs entendus 40 % plus loin, et les pas d'un ennemi en mouvement à moins de 12 m (sauf Fantôme)
       const hearR = (e.weapon.silenced ? 18 : 70) * (has(e, 'ghost') ? 0.7 : 1) * (has(u, 'sentinel') ? 1.4 : 1) * cond.hear;
-      if (!newVisible.has(e.id) && ((this.t - e.lastShotAt < 0.25 && d < hearR) || (has(u, 'sentinel') && e.moving && d < 12 && !has(e, 'ghost')))) {
+      if (!newVisible.has(e.id) && ((this.t - e.lastShotAt < 0.25 && d < hearR) || (has(u, 'sentinel') && e.moving && d < 12 && !has(e, 'ghost') && !this.alarmNear(e.x, e.z)))) {
         const k = u.knowledge[e.id];
         if (!k || this.t - k.t > 1.5) {
           const err = 2 + d * 0.05;
@@ -14845,6 +14968,17 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   };
   // Le meilleur point de couverture contre une menace (ou une position connue), à distance raisonnable.
   // Le point renvoyé est le point plaqué contre l'obstacle ; seul un VRAI couvert local face à la menace est retenu.
+  // mètres du trajet en ligne droite (u → x,z) vus depuis la menace, debout (échantillons tous les 1,5 m, départ exclu)
+  const EXPO_COST = 0.9;
+  Battle.prototype.pathExposure = function (u, x, z, threat) {
+    const L = Math.hypot(x - u.x, z - u.z), n = Math.max(1, Math.ceil(L / 1.5)), step = L / n;
+    let m = 0;
+    for (let i = 1; i < n; i++) {
+      const f = i / n, px = u.x + (x - u.x) * f, pz = u.z + (z - u.z) * f;
+      if (this.map.hasLOS(threat.x, EYE.stand, threat.z, px, CHEST.stand, pz)) m += step;
+    }
+    return m;
+  };
   Battle.prototype.findCover = function (u, threat, maxDist, opts) {
     opts = opts || {};
     let best = null, bestScore = -Infinity; const cands = [];
@@ -14883,6 +15017,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (opts.flank && this.map.coverFrom(opts.flank.x, opts.flank.z, cx, cz, opts.flank.stance === 'stand')) continue; // la cible y serait encore couverte
       if (cv.level === 'partial') s += 3; else s += 1.5;
       if (canShoot) s += opts.wantShoot === false ? 0 : 4;
+      // le trajet : chaque mètre couru en vue de la menace coûte plus cher qu'un mètre à l'abri (on préfère un couvert moyen
+      // tout près à un bon couvert de l'autre côté de sa ligne de tir)
+      if (d > 1.5 && s + 0.05 > bestScore) s -= this.pathExposure(u, cx, cz, threat) * EXPO_COST;
       s += this.rng.next() * 0.05; // départage aléatoire des ex æquo (sinon l'ordre de la liste favoriserait un côté)
       if (s > bestScore) { bestScore = s; best = { x: cx, z: cz, obstacle: h.obstacle }; cands.push(best); }
     }
@@ -14928,7 +15065,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (kind === 'advance' || kind === 'search') ({ x, z } = this.spreadGoal(u, x, z));
     if (kind !== 'revive') { const c = this.nearCorpse(x, z); if (c) { const dx = x - c.x, dz = z - c.z, L = Math.hypot(dx, dz); const k = L > 1e-3 ? 0.9 / L : 0; const px = L > 1e-3 ? c.x + dx * k : x + 0.9, pz = L > 1e-3 ? c.z + dz * k : z; if (this.map.inBounds(px, pz) && !this.map.insideObstacle(px, pz)) { x = px; z = pz; } } }
     if (u.goal && Math.hypot(u.goal.x - x, u.goal.z - z) < 0.6 && u.path) { u.goalKind = kind; u.goalReq = req; return true; }
-    let path = this.map.findPath(u.x, u.z, x, z);
+    let path = this.map.findPath(u.x, u.z, x, z, this.dangerGrid(u));
     if (!path) { u.path = null; u.goal = null; return false; }
     // le chemin s'arrête au centre de la dernière case : on va jusqu'au point exact (un couvert « plaqué » contre son obstacle).
     // Si ce point n'est pas joignable en ligne droite depuis cette case (un coin d'obstacle entre les deux), on passe par une
@@ -16035,7 +16172,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       }
     }
     // grenade : en train de lancer, ou d'esquiver une grenade adverse → rien d'autre
-    if (u.throwing || (u.evade && this.t < u.evade.until)) return;
+    if (u.throwing || u.lampShot || (u.evade && this.t < u.evade.until)) return;
     if (!u.holdFire && this.tryGrenade(u)) return;
     // ordre « tenir la position clé » : passe avant tout le reste (l'IA fait ce qu'on lui dit)
     if (u.keyOrder) { this.followKeyOrder(u, threats); this.afterOrder(u, threats); return; }
@@ -16372,6 +16509,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     // lancer de grenade en cours : la grenade part au bout du geste
     if (u.throwing && this.t >= u.throwing.at) this.releaseGrenade(u);
+    if (u.lampShot && this.t >= u.lampShot.at) this.shootLamp(u);
     // esquive d'une grenade signalée : courir à l'écart (une fois le réflexe passé)
     if (u.evade && !u.evade.started && this.t >= u.evade.at) this.startEvade(u);
     // déplacement
@@ -16393,7 +16531,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // orientation : vers la cible si on en a une, sinon vers la marche (course retournée vers un couvert : vers la course)
     if (u.target && u.target.alive && !u.dashTurned) u.facing = Math.atan2(u.target.z - u.z, u.target.x - u.x);
     // tir
-    if (u.throwing) { u.fireAcc = 0; return; }   // on ne tire pas en lançant
+    if (u.throwing || u.lampShot) { u.fireAcc = 0; return; }   // on ne tire pas en lançant (ni pendant le tir sur une lampe)
     if (u.dashTurned) u.fireAcc = Math.min(u.fireAcc, 1);   // on ne tire pas dans son dos en courant vers l'abri
     else if (u.target && u.target.alive && u.visible.has(u.target.id) && u.state !== 'pinned' && u.state !== 'noammo' && u.state !== 'wait' && !u.holdFire) this.fireAt(u, u.target);
     else if (u.target && u.target.alive && u.state !== 'pinned' && u.state !== 'noammo' && !u.holdFire && this.canSuppress(u, u.target)) this.suppressAt(u, u.target);
@@ -16450,6 +16588,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // regardant ses pieds
     const mv = Math.atan2(wp.z - u.z, wp.x - u.x); let aim = null;
     if (!u.target && d > 0.05) { let best = 99; for (const { k } of this.knownEnemies(u)) { if (this.t - k.t > 5) continue; const dd = Math.hypot(k.x - u.x, k.z - u.z); const a = Math.atan2(k.z - u.z, k.x - u.x); if (dd < best && angDiff(a, mv) < 1.9) { best = dd; aim = a; } } }
+    if (!u.target && aim === null && d > 0.05) { const z0 = this.dangerWatch(u); if (z0) { const a = Math.atan2(z0.z - u.z, z0.x - u.x); if (angDiff(a, mv) < 1.9) aim = a; } }   // Karst : l'arme vers l'endroit où un des siens est tombé
     let look = u.target && u.target.alive ? Math.atan2(u.target.z - u.z, u.target.x - u.x) : aim;
     if (u.state === 'evade') { look = null; aim = null; }   // une grenade : on court, on ne recule pas en visant
     const dragging = u.goalKind === 'drag' && !!u.drag;   // évacuation : allure fixe (DRAG.speed), regard sur le blessé
@@ -16864,7 +17003,44 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // ---- Moral : voir tomber deux camarades proches en peu de temps, face à plusieurs ennemis, peut ébranler un opérateur ----
   // (test de sang-froid, au plus une fois toutes les 20 s ; Meneur proche et Sang-froid protègent). Ébranlé 5 s : il se met
   // à couvert vers l'arrière et ne tire que s'il voit sa cible ; il ne lance pas de grenade.
-  Battle.prototype.noteLoss = function (e) { const t = this.teams[e.team]; t.losses = (t.losses || []).concat([{ t: this.t, x: e.x, z: e.z }]).slice(-8); };
+  Battle.prototype.noteLoss = function (e) { const t = this.teams[e.team]; t.losses = (t.losses || []).concat([{ t: this.t, x: e.x, z: e.z }]).slice(-8); this.noteDanger(e, 1); };
+  // Mémoire du danger (Groupe Karst seulement : l'escouade du joueur ne décide rien seule) : là où un des siens est tombé ou
+  // a été aveuglé, la zone (rayon 6 m) devient chère à traverser pour les chemins, et ceux qui la voient la surveillent.
+  // Pas d'oubli : on ne retombe pas deux fois dans le même piège pendant la bataille.
+  const DANGER_R = 6, DANGER_COST = 2.5;
+  Battle.prototype.noteDanger = function (e, w) {
+    const t = this.teams[e.team]; if (!t.karst) return;
+    const ds = t.danger || (t.danger = []);
+    const near = ds.find(d => Math.hypot(d.x - e.x, d.z - e.z) < 3);
+    if (near) near.w = Math.min(2, near.w + w); else ds.push({ x: e.x, z: e.z, w, t: this.t });
+    if (ds.length > 6) ds.shift();
+    t.dangerGrid = null;
+  };
+  Battle.prototype.dangerGrid = function (u) {
+    const t = this.teams[u.team]; if (!t.karst || !t.danger || !t.danger.length) return null;
+    if (t.dangerGrid) return t.dangerGrid;
+    const m = this.map, g = new Float32Array(m.cols * m.rows);
+    for (const d of t.danger) {
+      const c0 = m.cellOf(d.x, d.z), R = Math.abs(m.cellOf(d.x + DANGER_R, d.z).c - c0.c) + 1;
+      for (let dc = -R; dc <= R; dc++) for (let dr = -R; dr <= R; dr++) {
+        const c = c0.c + dc, r = c0.r + dr; if (c < 0 || r < 0 || c >= m.cols || r >= m.rows) continue;
+        const p = m.centerOf(c, r), k = 1 - Math.hypot(p.x - d.x, p.z - d.z) / DANGER_R; if (k <= 0) continue;
+        g[r * m.cols + c] += DANGER_COST * d.w * k;
+      }
+    }
+    // un départ ou une arrivée dans la zone reste possible : seul le passage coûte
+    return (t.dangerGrid = g);
+  };
+  // zone dangereuse à surveiller (la plus proche, en vue, à moins de 30 m) — sinon null
+  Battle.prototype.dangerWatch = function (u) {
+    const t = this.teams[u.team]; if (!t.karst || !t.danger) return null;
+    let best = null, bd = 30;
+    for (const d of t.danger) {
+      const dd = Math.hypot(d.x - u.x, d.z - u.z); if (dd < 3 || dd >= bd) continue;
+      if (this.map.hasLOS(u.x, EYE.stand, u.z, d.x, 1.0, d.z)) { bd = dd; best = d; }
+    }
+    return best;
+  };
   Battle.prototype.moraleCheck = function (u, threats) {
     if (this.t < (u.nextMorale || 0) || threats.length < 2) return false;
     const losses = (this.teams[u.team].losses || []).filter(l => this.t - l.t < 10 && Math.hypot(l.x - u.x, l.z - u.z) < 20).length;
@@ -17186,7 +17362,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const cv = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
     // derrière un couvert, seuls la tête et les épaules dépassent quand il se lève pour tirer : cible bien plus petite
     if (cv) p *= cv.level === 'partial' ? 0.28 : 0.12;
-    return { p: clamp(p, 0.03, 0.95), cover: cv };
+    return { p: clamp(p, 0.03, 0.95), cover: cv, soft: !!cv && this.map.softCover(cv.obstacle, u.x, u.z, e.x, e.z) };
   };
   Battle.prototype.fireAt = function (u, e) {
     if (u.reloading > 0) return;
@@ -17212,7 +17388,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   Battle.prototype.shoot = function (u, e, d) {
     u.ammo--; u.stats.shots++; u.lastShotAt = this.t; this.lastShotTime = this.t; u.burst++; u.aimHistory[e.id] = this.t;
     e.lastShotBy = u; e.lastShotByAt = this.t;
-    const { p, cover } = this.hitChance(u, e, d);
+    const { p, cover, soft } = this.hitChance(u, e, d);
     const hit = this.rng.chance(p);
     const from = { x: u.x, y: u.eyeY() - 0.15, z: u.z };
     let to;
@@ -17223,6 +17399,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // la balle passe près : suppression (moindre si la cible est à couvert ou si le tir est lointain)
       const far = d > u.weapon.range ? 0.5 : 1;
       e.suppression = clamp(e.suppression + u.weapon.suppress * 0.55 * (cover ? 0.7 : 1) * far * (has(u, 'gunner') ? 1.2 : 1), 0, 1);
+      // derrière la tôle d'une voiture (hors bloc moteur), une balle sur six traverse : blessure atténuée (×0,5, jamais
+      // la tête), la tôle protège encore un peu
+      if (cover && /^voiture/.test(cover.obstacle.name || '')) this.carHit(cover.obstacle);
+      if (soft && this.rng.chance(PEN_CHANCE)) {
+        this.emit({ type: 'shot', shooter: u.id, target: e.id, from, to: { x: e.x, y: e.chestY() - 0.2, z: e.z }, hit: true, through: true });
+        this.applyHit(u, e, d, false, true); return;
+      }
       const spread = 0.4 + d * 0.03;
       to = { x: e.x + this.rng.gauss() * spread, y: e.chestY() + this.rng.gauss() * 0.5, z: e.z + this.rng.gauss() * spread };
       // balle perdue : un autre adversaire collé à la ligne de tir (à côté de la cible ou derrière elle) peut la prendre
@@ -17253,7 +17436,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     u.stats.strays = (u.stats.strays || 0) + 1;
     return c;
   };
-  Battle.prototype.applyHit = function (u, e, d, stray) {
+  const PEN_CHANCE = 0.16, PEN_DMG = 0.5;
+  Battle.prototype.applyHit = function (u, e, d, stray, through) {
     const w = u.weapon;
     const r = d / w.range;
     let fall = r <= 0.3 ? 1 : (r <= 1 ? 1 - (r - 0.3) / 0.7 * (1 - w.falloff) : Math.max(0.3 * w.falloff, w.falloff - (r - 1) * 0.7 * w.falloff));
@@ -17261,13 +17445,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     let loc, mult, prot;
     // derrière un couvert bas (jambes cachées), les balles qui portent trouvent la tête, le haut du torse ou les bras
     const low = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
-    const headP = low ? 0.14 : 0.08, torsoP = low ? 0.70 : 0.60;
+    const headP = through ? 0 : low ? 0.14 : 0.08, torsoP = through ? 0.55 : low ? 0.70 : 0.60;
     if (roll < headP) { loc = 'tête'; mult = 2.2; prot = e.armor.head; }
     else if (roll < torsoP) { loc = 'torse'; mult = 1.0; prot = e.armor.torso; }
     else { loc = 'membre'; mult = 0.55; prot = 0; }
     let dmg = w.damage * fall * mult * (1 - prot) * this.rng.range(0.85, 1.15);
     if (has(u, 'breach') && d < 10 && (w.cls === 'brèche' || w.cls === 'pm')) dmg *= 1.15;   // Enfonceur
     if (this.synergy(e, 'commandement')) dmg *= 0.9;                                                   // synergie Commandement
+    if (through) dmg *= PEN_DMG;                                                                       // à travers la tôle
     dmg = Math.round(dmg * 10) / 10;
     const before = e.hp;
     e.hp = Math.max(0, e.hp - dmg);
@@ -17275,7 +17460,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     u.stats.hits++; u.stats.damageDealt += dmg; e.stats.damageTaken += dmg; if (loc === 'tête') u.stats.headshots++;
     e.hitBy[u.id] = this.t;
     const absorbed = Math.round(w.damage * fall * mult * prot * 10) / 10;
-    let text = stray ? `Balle perdue : ${u.callsign} manque sa cible et touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV` : `${u.callsign} touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV`;
+    let text = through ? `${u.callsign} touche ${e.callsign} à travers la tôle (${loc}, ${d.toFixed(0)} m) : −${dmg} PV` : stray ? `Balle perdue : ${u.callsign} manque sa cible et touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV` : `${u.callsign} touche ${e.callsign} (${loc}, ${d.toFixed(0)} m) : −${dmg} PV`;
     if (absorbed > 0) text += ` (${absorbed} absorbés : ${e.armor.name})`;
     const prevStatus = e.status;
     if (e.hp <= 0) {
@@ -20514,7 +20699,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function newBattle(opts) {
     clearOperators(); for (const f of fx) scene.remove(f.obj); fx.length = 0; decals.clear(); if (EFX) EFX.clear(); finale = null; postEnd = 0;
     if (!opts.replayInputs) { reviewing = false; $('#app').classList.remove('reviewing'); }
-    battle = new Battle(opts); simTime = 0; acc = 0; logIndex = 0; ended = false; fxLast = 0; lastAnimTime = 0; contactPlayed = false; pendingSounds.length = 0;
+    battle = new Battle(opts); simTime = 0; acc = 0; logIndex = 0; ended = false; fxLast = 0; lastAnimTime = 0; contactPlayed = false; pendingSounds.length = 0; ALARMS.length = 0;
     for (const k in unitById) delete unitById[k];
     buildMap(battle.map); applyConditions(opts.conditions);
     buildZone(); buildSpawnEmblems();
@@ -20562,15 +20747,40 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   const MAT_OF = (n) => /^(voiture|fourgon|bus|berline|camion)/.test(n) ? (Math.random() < 0.2 ? 'impact_verre' : 'impact_carrosserie') : /^(conteneur|cuve|tuyauterie|fût|pompe|armoire|barrière|bac|kiosque|abri)/.test(n) ? 'impact_metal' : /^(caisses|palettes|banc|étal)/.test(n) ? 'impact_bois' : /^(sacs|palmier)/.test(n) ? 'impact_sol' : 'impact_beton';
   function impactSound(p) {
     if (p.y < 0.15) return 'impact_sol';
+    if (p.y > 6) return 'impact_verre';   // tête de lampadaire
     let best = null, bd = 1.2;
     for (const o of battle.map.obstacles) { if (p.y > o.h + 0.3) continue; const d = Math.hypot(Math.max(o.x - p.x, 0, p.x - (o.x + o.w)), Math.max(o.z - p.z, 0, p.z - (o.z + o.d))); if (d < bd) { bd = d; best = o; } }
+    // voiture : au-dessus de ~60 % de sa hauteur, ce sont les vitres (elles se fendent et le restent)
+    if (best && /^voiture/.test(best.name || '')) return p.y > best.h * 0.62 ? 'impact_verre' : 'impact_carrosserie';
     return best ? MAT_OF(best.name || '') : 'impact_sol';
+  }
+  // alarme de voiture : sirène fabriquée une fois (montées-descentes, deux tons, gazouillis), feux qui clignotent
+  const ALARMS = [];
+  function genAlarm(d, sr) {
+    let ph = 0;
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr, c = t % 9; let f;
+      if (c < 3) f = 650 + 650 * ((c % 0.5) / 0.5);                 // montées rapides
+      else if (c < 6) f = ((c * 4) | 0) % 2 ? 1150 : 820;              // deux tons
+      else f = 1400 - 700 * ((c % 0.15) / 0.15);                       // gazouillis
+      ph += 2 * Math.PI * f / sr;
+      const sq = Math.tanh(Math.sin(ph) * 3) * 0.6 + Math.sin(ph * 2) * 0.15;
+      const env = Math.min(1, t * 20) * Math.min(1, (d.length / sr - t) * 4);
+      d[i] = sq * env * 0.5;
+    }
+  }
+  function alarmFx() {
+    for (let i = ALARMS.length - 1; i >= 0; i--) {
+      const a = ALARMS[i]; if (simTime > a.until) { ALARMS.splice(i, 1); continue; }
+      const k = Math.floor((simTime - a.t0) / 0.5); if (k === a.k) continue; a.k = k;
+      if (k % 2 === 0 && EFX && EFX.light) EFX.light(new THREE.Vector3(a.x, 0.75, a.z), 0xffa030, 40, 7, 0.28);
+    }
   }
   function stepSim() {
     for (const u of battle.units) { const m = meshes[u.id]; m.prev = m.cur; }
     battle.step(); simTime = battle.t;
     for (const u of battle.units) { meshes[u.id].cur = { x: u.x, z: u.z, facing: u.facing }; }
-    fogUpdate();
+    fogUpdate(); alarmFx();
     for (const ev of battle.drainEvents()) {
       if (ev.type === 'shot') {
         const sh = unitById[ev.shooter], cache = !fogShotShown(ev, sh);   // tireur non repéré, balle loin de l'escouade : on l'entend seulement
@@ -20580,6 +20790,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const imp = ev.hit ? 'impact_corps' : impactSound(ev.to);
         pendingSounds.push({ at: simTime + d / 110, name: imp, pos: ev.to, vol: ev.hit ? 1 : imp === 'impact_sol' ? 0.6 : 0.9 });
         if (!ev.hit && (imp === 'impact_beton' || imp === 'impact_metal') && Math.random() < 0.12) pendingSounds.push({ at: simTime + d / 110 + 0.01, name: 'ricochet', pos: ev.to, vol: 0.8 });
+      }
+      if (ev.type === 'lamp' && OT.Parking && OT.Parking.lampOff) OT.Parking.lampOff(ev.x, ev.z);
+      if (ev.type === 'alarm') {
+        ALARMS.push({ x: ev.x, z: ev.z, until: ev.until, t0: simTime, k: -1 });
+        if (window.Son && Son.fabriquer && Son.fabriquer('alarme_auto', Math.max(1, ev.until - simTime), genAlarm)) pendingSounds.push({ at: simTime + 0.2, name: 'alarme_auto', pos: { x: ev.x, y: 0.8, z: ev.z }, vol: 0.45 });
       }
       if (ev.type === 'shot' && ev.hit && Math.random() < 0.25) { const t = unitById[ev.target]; if (t && fogShown(t)) addBlood(t.x, t.z, 0.22); }
       if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); delete FOG.deadSeen[ev.unit]; const u = unitById[ev.unit]; if (u) directorEvent('revive', u.x, u.z); }
@@ -20921,6 +21136,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     manoeuvre: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="8" cy="22" r="3.2" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M11.5 19.5C15 15 18 13 24 12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M19 7l6 5-5 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     tenir: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4l10 4v7c0 6.5-4.3 11-10 13-5.7-2-10-6.5-10-13V8z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M11 16l4 4 6-7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     decrocher: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M17 8l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/><path d="M26 12l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 7v18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="23" cy="7" r="2.2" fill="currentColor" opacity=".55"/></svg>',
+    lampe: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 29V8.5C9 6 11 4 13.5 4H22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M18 4h7l1 3h-9z" fill="currentColor"/><path d="M19 11l-2 4M23 11v4M27 11l2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".6"/><path d="M5 29h8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>',
     // « Plus… » : grenades sur ordre, fouiller
     frag: '<svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="15" cy="19" rx="8" ry="9" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M11 10h8M15 10V6.5M15 6.5h5l3 3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 19h12M15 13v12" stroke="currentColor" stroke-width="1.6" opacity=".6"/></svg>',
     flash: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="10" y="10" width="12" height="17" rx="3" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M13 10V7h6v3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M4 9l3 2M28 9l-3 2M3 18h3M29 18h-3" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M17 13l-3 5h4l-3 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -20970,12 +21186,16 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function ordSelUndoDbl() { const h = ordSelHist.length >= 2 ? ordSelHist[ordSelHist.length - 2] : null; if (h && performance.now() - h.t < 700) { ordSel = h.s; ordShowSel(); } }   // un double-clic (suivre) ne change pas la sélection
   function ordRosterHooks(el) {
     if (ordRosterHooks.battle !== battle) {   // nouvelle bataille : « Tous » ; groupes par défaut = les deux moitiés du Tiroir (3 + 2)
-      ordRosterHooks.battle = battle; ordSel = null; ordSelHist = [];
+      ordRosterHooks.battle = battle; ordSel = null; ordSelHist = []; topClear();
       const us = battle.teams[0].units; ordGroups = [0, 1].map(k => new Set(us.filter((u, i) => (u.boundGroup === 0 || u.boundGroup === 1 ? u.boundGroup : i % 2) === k).map(u => u.id)));
     }
     el.insertAdjacentHTML('afterbegin', '<button class="oall on" title="Les ordres de déplacement (clic droit sur le sol) vont à toute l’escouade. Clic sur une carte : un seul opérateur ; Maj+clic : plusieurs.">Tous</button>'
-      + '<div class="ogrp">' + [0, 1].map(k => `<button data-g="${k}" title="Groupe ${k + 1} — clic : le choisir · Maj+clic : y ranger la sélection en cours">G${k + 1}</button>`).join('') + '</div>');
+      + '<div class="ogrp">' + [0, 1].map(k => `<button data-g="${k}" title="Groupe ${k + 1} — clic : le choisir · Maj+clic : y ranger la sélection en cours">G${k + 1}</button>`).join('') + '</div>'
+      + '<div class="otop"><button class="topgo" title="Top action : lance en même temps tous les ordres mis « en attente du top »">TOP <i></i></button><button class="topx" title="Annuler les ordres en attente du top">✕</button></div>');
     el.querySelector('.oall').addEventListener('click', () => ordSetSel(null));
+    el.querySelector('.topgo').addEventListener('click', () => topFire());
+    el.querySelector('.topx').addEventListener('click', () => { topClear(); flashBattle('Top action : ordres en attente annulés.'); });
+    topUI();
     el.querySelectorAll('.ogrp button').forEach(b => b.addEventListener('click', (e) => {
       const k = +b.dataset.g;
       if (e.shiftKey) { if (!ordSel) { flashBattle('Groupe : choisissez d’abord des opérateurs (cartes), puis Maj+clic sur G' + (k + 1) + '.'); return; } ordGroups[k] = new Set(ordSel); flashBattle(`Groupe ${k + 1} : ${ordWho()}.`); ordShowSel(); return; }
@@ -21024,8 +21244,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     el.innerHTML = `<div class="omhead"><b>Ordre</b><span class="omwho"></span></div>` + Object.entries(ORD_OPTS).map(([cat, o]) =>
       `<div class="omsec">${o.titre}${cat === 'mode' ? `<button class="omfum" title="Franchir, Décrocher : le premier qui a un fumigène le lance côté danger pour masquer le passage ou le repli (un fumigène par opérateur)."${nSmoke ? '' : ' disabled'}><span class="omico">${ORD_SVG.smoke}</span>Avec fumée <i>${nSmoke}</i></button>` : ''}</div><div class="omrow">${o.choix.map(c => `<button class="omopt" data-cat="${cat}" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v] || ''}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>`).join('')
       + `<div class="omsec omsecfeu">Feu</div><div class="omfeu">${ORD_FEU.map(c => `<button class="omopt omf" data-cat="feu" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b></button>`).join('')}</div>`
-      + `<button class="omplus">Plus…</button><div class="ommore"><div class="omsec">Autre arrivée</div><div class="omrow">${ORD_PLUS_ARR.map(c => `<button class="omopt" data-cat="arrivee" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div><div class="omsec">Lancer ici</div><div class="omfeu omgren">${ORD_GREN.map(c => { const n = ordGrenCount(c.v); return `<button class="omopt omf omg" data-g="${c.v}" title="${escapeHtml(c.desc)}"${n ? '' : ' disabled'}><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><i>${n}</i></button>`; }).join('')}</div></div>`
-      + `<button class="omgo">Confirmer</button><div class="omhint">${ordVia.length ? `<b class="omvia">Par ${ordVia.length} point${ordVia.length > 1 ? 's' : ''} de passage</b> · ` : ''}Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
+      + `<button class="omplus">Plus…</button><div class="ommore"><div class="omsec">Autre arrivée</div><div class="omrow">${ORD_PLUS_ARR.map(c => `<button class="omopt" data-cat="arrivee" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>${battle.map.lamps && battle.map.lamps.length ? `<div class="omsec">Décor</div><div class="omrow"><button class="omopt omlamp" title="Le plus proche des opérateurs choisis qui voit la lampe (45 m au plus) tire dessus : la zone autour (≈ 9 m) retombe dans le noir. Le coup de feu s’entend."${ordLampNear(p) ? '' : ' disabled'}><span class="omico">${ORD_SVG.lampe}</span><b>Éteindre le lampadaire</b><small>${ordLampNear(p) ? 'La zone retombe dans le noir' : 'Clic droit au pied d’un lampadaire allumé'}</small></button></div>` : ''}<div class="omsec">Lancer ici</div><div class="omfeu omgren">${ORD_GREN.map(c => { const n = ordGrenCount(c.v); return `<button class="omopt omf omg" data-g="${c.v}" title="${escapeHtml(c.desc)}"${n ? '' : ' disabled'}><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><i>${n}</i></button>`; }).join('')}</div></div>`
+      + `<button class="omtop" title="Top action : l’ordre (déplacement, grenade, lampadaire) attend le signal ; bouton TOP en bas pour tout lancer d’un coup">Attendre le top</button><button class="omgo">Confirmer</button><div class="omhint">${ordVia.length ? `<b class="omvia">Par ${ordVia.length} point${ordVia.length > 1 ? 's' : ''} de passage</b> · ` : ''}Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
     $('main').appendChild(el);
     const show = () => { el.querySelectorAll('.omopt[data-cat]').forEach(b => b.classList.toggle('on', pick[b.dataset.cat] === b.dataset.v)); el.classList.toggle('fumok', pick.mode === 'franchir' || pick.mode === 'decrocher'); el.querySelector('.omfum').classList.toggle('on', !!pick.fumee); };
     el.querySelector('.omfum').addEventListener('click', () => { pick.fumee = !pick.fumee; show(); });
@@ -21034,6 +21254,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     el.classList.toggle('plus', ordPlusOpen);
     el.querySelector('.omplus').addEventListener('click', () => { ordPlusOpen = !ordPlusOpen; el.classList.toggle('plus', ordPlusOpen); ordPlace(el, cx, cy); });
     el.querySelectorAll('.omg').forEach(b => b.addEventListener('click', () => ordGrenade(b.dataset.g)));
+    const lb = el.querySelector('.omlamp'); if (lb) lb.addEventListener('click', () => ordLamp());
+    el.querySelector('.omtop').addEventListener('click', () => { pick.top = !pick.top; el.querySelector('.omtop').classList.toggle('on', !!pick.top); el.querySelector('.omgo').textContent = pick.top ? 'Mettre en attente' : 'Confirmer'; });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     ordPlace(el, cx, cy);
     ordMenu = { el, p, pick }; show(); ordShowSel(); ordMarkGhost(p);
@@ -21061,14 +21283,52 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function ordViaClear() { if (!ordVia.length) return; ordVia = []; ordViaDraw(); }
   function ordGrenCount(k) { return ordUnits().filter(u => u.alive).reduce((n, u) => n + (u.grenades[k] || 0), 0); }
   function ordGrenade(kind) {
-    if (!ordMenu) return; const { p } = ordMenu;
+    if (!ordMenu) return; const { p } = ordMenu, top = !!ordMenu.pick.top;
     const ids = ordSel ? [...ordSel].filter(id => unitById[id] && unitById[id].alive) : null;
     closeOrderMenu();
     if (ids && !ids.length) { flashBattle('Grenade : aucun opérateur choisi n’est en état.'); return; }
-    const r = battle.command('grenade', 0, { x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, kind, units: ids });
+    const garg = { x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, kind, units: ids };
+    if (top) { topAdd('grenade', garg, `${ORD_GREN.find(c => c.v === kind).nom.toLowerCase()} (${ordWhoIds(ids)})`, p); return; }
+    const r = battle.command('grenade', 0, garg);
     const nom = ORD_GREN.find(c => c.v === kind).nom.toLowerCase();
     flashBattle(r.ok ? `${r.callsign} lance : ${nom}.` : `${ORD_GREN.find(c => c.v === kind).nom} impossible : ${r.reason}.`); pumpLog();
     if (MANUAL) render();
+  }
+  // lampadaire allumé à moins de 6 m du point (comme le moteur)
+  function ordLampNear(p) { return (battle.map.lamps || []).some(l => l.on && Math.hypot(l.x - p.x, l.z - p.z) < 6); }
+  function ordWhoIds(ids) { return ids ? ids.map(id => unitById[id] && unitById[id].callsign).filter(Boolean).join(', ') : 'le plus proche'; }
+  function ordLamp() {
+    if (!ordMenu) return; const { p } = ordMenu, top = !!ordMenu.pick.top;
+    const ids = ordSel ? [...ordSel].filter(id => unitById[id] && unitById[id].alive) : null;
+    closeOrderMenu();
+    if (ids && !ids.length) { flashBattle('Lampadaire : aucun opérateur choisi n’est en état.'); return; }
+    const arg = { x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids };
+    if (top) { topAdd('lampadaire', arg, `éteindre le lampadaire (${ordWhoIds(ids)})`, p); return; }
+    const r = battle.command('lampadaire', 0, arg);
+    flashBattle(r.ok ? `${r.callsign} tire sur le lampadaire.` : `Lampadaire : ${r.reason}.`); pumpLog();
+    if (MANUAL) render();
+  }
+  // ---- Top action : des ordres préparés « en attente du top » partent tous au même instant (bouton TOP). Ils restent
+  // ici jusqu'au top (rien n'est envoyé au moteur) ; au top, chacun passe par battle.command : rejoués à l'identique en revue.
+  const TOPQ = [];
+  function topAdd(type, arg, label, p) {
+    const mk = ordMarkMesh('ghost'); mk.position.set(p.x, 0, p.z); ordMarks.add(mk);
+    TOPQ.push({ type, arg, label, mk }); topUI();
+    flashBattle(`En attente du top (${TOPQ.length}) : ${label}.`);
+    if (MANUAL) render();
+  }
+  function topClear() { for (const q of TOPQ) ordFree(q.mk); TOPQ.length = 0; topUI(); }
+  function topFire() {
+    if (!TOPQ.length) { flashBattle('Top action : aucun ordre en attente (dans le menu d’ordre : « Attendre le top »).'); return; }
+    if (battle.over) { topClear(); return; }
+    const ko = [];
+    for (const q of TOPQ) { const r = battle.command(q.type, 0, q.arg); if (!r || !r.ok) ko.push(`${q.label} : ${r ? r.reason : 'refusé'}`); }
+    const n = TOPQ.length; topClear();
+    flashBattle(`TOP ! ${n - ko.length} ordre${n - ko.length > 1 ? 's' : ''} lancé${n - ko.length > 1 ? 's' : ''}${ko.length ? ' · refusé : ' + ko.join(' ; ') : ''}.`); pumpLog();
+    if (MANUAL) render();
+  }
+  function topUI() {
+    document.querySelectorAll('#roster0 .otop').forEach(d => { d.classList.toggle('has', TOPQ.length > 0); const i = d.querySelector('.topgo i'); if (i) i.textContent = TOPQ.length || ''; });
   }
   function closeOrderMenu() { if (!ordMenu) return; ordMenu.el.remove(); ordMenu = null; ordMarkGhost(null); }
   function ordConfirm() {
@@ -21077,7 +21337,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (ids && !ids.length) { closeOrderMenu(); flashBattle('Ordre refusé : aucun opérateur choisi n’est en état.'); return; }
     const fum = !!SETTINGS.ordAdv && !!pick.fumee && (pick.mode === 'franchir' || pick.mode === 'decrocher');
     const via = ordVia.slice();
-    const r = battle.command('aller', 0, Object.assign({ x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids, mode: pick.mode, arrivee: pick.arrivee, feu: pick.feu }, fum ? { fumee: true } : {}, via.length ? { via } : {}));
+    const aarg = Object.assign({ x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids, mode: pick.mode, arrivee: pick.arrivee, feu: pick.feu }, fum ? { fumee: true } : {}, via.length ? { via } : {});
+    if (pick.top) {
+      const nm0 = (cat) => ORD_OPTS[cat].choix.concat(cat === 'arrivee' ? ORD_PLUS_ARR : []).find(c => c.v === pick[cat]).nom.toLowerCase();
+      closeOrderMenu(); ordViaClear(); ordLast.mode = pick.mode; ordLast.arrivee = pick.arrivee;
+      topAdd('aller', aarg, `${who} — ${nm0('mode')}, puis ${nm0('arrivee')}`, p); return;
+    }
+    const r = battle.command('aller', 0, aarg);
     closeOrderMenu(); if (r.ok) ordViaClear();
     if (!r.ok) { flashBattle(`Ordre refusé : ${r.reason}.`); return; }
     ordLast.mode = pick.mode; ordLast.arrivee = pick.arrivee; try { localStorage.setItem('ot-ordre', JSON.stringify(ordLast)); } catch (e) { /* stockage indisponible */ }

@@ -1771,7 +1771,7 @@
   function newBattle(opts) {
     clearOperators(); for (const f of fx) scene.remove(f.obj); fx.length = 0; decals.clear(); if (EFX) EFX.clear(); finale = null; postEnd = 0;
     if (!opts.replayInputs) { reviewing = false; $('#app').classList.remove('reviewing'); }
-    battle = new Battle(opts); simTime = 0; acc = 0; logIndex = 0; ended = false; fxLast = 0; lastAnimTime = 0; contactPlayed = false; pendingSounds.length = 0;
+    battle = new Battle(opts); simTime = 0; acc = 0; logIndex = 0; ended = false; fxLast = 0; lastAnimTime = 0; contactPlayed = false; pendingSounds.length = 0; ALARMS.length = 0;
     for (const k in unitById) delete unitById[k];
     buildMap(battle.map); applyConditions(opts.conditions);
     buildZone(); buildSpawnEmblems();
@@ -1819,15 +1819,40 @@
   const MAT_OF = (n) => /^(voiture|fourgon|bus|berline|camion)/.test(n) ? (Math.random() < 0.2 ? 'impact_verre' : 'impact_carrosserie') : /^(conteneur|cuve|tuyauterie|fût|pompe|armoire|barrière|bac|kiosque|abri)/.test(n) ? 'impact_metal' : /^(caisses|palettes|banc|étal)/.test(n) ? 'impact_bois' : /^(sacs|palmier)/.test(n) ? 'impact_sol' : 'impact_beton';
   function impactSound(p) {
     if (p.y < 0.15) return 'impact_sol';
+    if (p.y > 6) return 'impact_verre';   // tête de lampadaire
     let best = null, bd = 1.2;
     for (const o of battle.map.obstacles) { if (p.y > o.h + 0.3) continue; const d = Math.hypot(Math.max(o.x - p.x, 0, p.x - (o.x + o.w)), Math.max(o.z - p.z, 0, p.z - (o.z + o.d))); if (d < bd) { bd = d; best = o; } }
+    // voiture : au-dessus de ~60 % de sa hauteur, ce sont les vitres (elles se fendent et le restent)
+    if (best && /^voiture/.test(best.name || '')) return p.y > best.h * 0.62 ? 'impact_verre' : 'impact_carrosserie';
     return best ? MAT_OF(best.name || '') : 'impact_sol';
+  }
+  // alarme de voiture : sirène fabriquée une fois (montées-descentes, deux tons, gazouillis), feux qui clignotent
+  const ALARMS = [];
+  function genAlarm(d, sr) {
+    let ph = 0;
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr, c = t % 9; let f;
+      if (c < 3) f = 650 + 650 * ((c % 0.5) / 0.5);                 // montées rapides
+      else if (c < 6) f = ((c * 4) | 0) % 2 ? 1150 : 820;              // deux tons
+      else f = 1400 - 700 * ((c % 0.15) / 0.15);                       // gazouillis
+      ph += 2 * Math.PI * f / sr;
+      const sq = Math.tanh(Math.sin(ph) * 3) * 0.6 + Math.sin(ph * 2) * 0.15;
+      const env = Math.min(1, t * 20) * Math.min(1, (d.length / sr - t) * 4);
+      d[i] = sq * env * 0.5;
+    }
+  }
+  function alarmFx() {
+    for (let i = ALARMS.length - 1; i >= 0; i--) {
+      const a = ALARMS[i]; if (simTime > a.until) { ALARMS.splice(i, 1); continue; }
+      const k = Math.floor((simTime - a.t0) / 0.5); if (k === a.k) continue; a.k = k;
+      if (k % 2 === 0 && EFX && EFX.light) EFX.light(new THREE.Vector3(a.x, 0.75, a.z), 0xffa030, 40, 7, 0.28);
+    }
   }
   function stepSim() {
     for (const u of battle.units) { const m = meshes[u.id]; m.prev = m.cur; }
     battle.step(); simTime = battle.t;
     for (const u of battle.units) { meshes[u.id].cur = { x: u.x, z: u.z, facing: u.facing }; }
-    fogUpdate();
+    fogUpdate(); alarmFx();
     for (const ev of battle.drainEvents()) {
       if (ev.type === 'shot') {
         const sh = unitById[ev.shooter], cache = !fogShotShown(ev, sh);   // tireur non repéré, balle loin de l'escouade : on l'entend seulement
@@ -1837,6 +1862,11 @@
         const imp = ev.hit ? 'impact_corps' : impactSound(ev.to);
         pendingSounds.push({ at: simTime + d / 110, name: imp, pos: ev.to, vol: ev.hit ? 1 : imp === 'impact_sol' ? 0.6 : 0.9 });
         if (!ev.hit && (imp === 'impact_beton' || imp === 'impact_metal') && Math.random() < 0.12) pendingSounds.push({ at: simTime + d / 110 + 0.01, name: 'ricochet', pos: ev.to, vol: 0.8 });
+      }
+      if (ev.type === 'lamp' && OT.Parking && OT.Parking.lampOff) OT.Parking.lampOff(ev.x, ev.z);
+      if (ev.type === 'alarm') {
+        ALARMS.push({ x: ev.x, z: ev.z, until: ev.until, t0: simTime, k: -1 });
+        if (window.Son && Son.fabriquer && Son.fabriquer('alarme_auto', Math.max(1, ev.until - simTime), genAlarm)) pendingSounds.push({ at: simTime + 0.2, name: 'alarme_auto', pos: { x: ev.x, y: 0.8, z: ev.z }, vol: 0.45 });
       }
       if (ev.type === 'shot' && ev.hit && Math.random() < 0.25) { const t = unitById[ev.target]; if (t && fogShown(t)) addBlood(t.x, t.z, 0.22); }
       if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); delete FOG.deadSeen[ev.unit]; const u = unitById[ev.unit]; if (u) directorEvent('revive', u.x, u.z); }
@@ -2178,6 +2208,7 @@
     manoeuvre: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="8" cy="22" r="3.2" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M11.5 19.5C15 15 18 13 24 12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M19 7l6 5-5 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     tenir: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4l10 4v7c0 6.5-4.3 11-10 13-5.7-2-10-6.5-10-13V8z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M11 16l4 4 6-7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     decrocher: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M17 8l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/><path d="M26 12l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 7v18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="23" cy="7" r="2.2" fill="currentColor" opacity=".55"/></svg>',
+    lampe: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 29V8.5C9 6 11 4 13.5 4H22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M18 4h7l1 3h-9z" fill="currentColor"/><path d="M19 11l-2 4M23 11v4M27 11l2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".6"/><path d="M5 29h8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>',
     // « Plus… » : grenades sur ordre, fouiller
     frag: '<svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="15" cy="19" rx="8" ry="9" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M11 10h8M15 10V6.5M15 6.5h5l3 3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 19h12M15 13v12" stroke="currentColor" stroke-width="1.6" opacity=".6"/></svg>',
     flash: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="10" y="10" width="12" height="17" rx="3" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M13 10V7h6v3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M4 9l3 2M28 9l-3 2M3 18h3M29 18h-3" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M17 13l-3 5h4l-3 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -2227,12 +2258,16 @@
   function ordSelUndoDbl() { const h = ordSelHist.length >= 2 ? ordSelHist[ordSelHist.length - 2] : null; if (h && performance.now() - h.t < 700) { ordSel = h.s; ordShowSel(); } }   // un double-clic (suivre) ne change pas la sélection
   function ordRosterHooks(el) {
     if (ordRosterHooks.battle !== battle) {   // nouvelle bataille : « Tous » ; groupes par défaut = les deux moitiés du Tiroir (3 + 2)
-      ordRosterHooks.battle = battle; ordSel = null; ordSelHist = [];
+      ordRosterHooks.battle = battle; ordSel = null; ordSelHist = []; topClear();
       const us = battle.teams[0].units; ordGroups = [0, 1].map(k => new Set(us.filter((u, i) => (u.boundGroup === 0 || u.boundGroup === 1 ? u.boundGroup : i % 2) === k).map(u => u.id)));
     }
     el.insertAdjacentHTML('afterbegin', '<button class="oall on" title="Les ordres de déplacement (clic droit sur le sol) vont à toute l’escouade. Clic sur une carte : un seul opérateur ; Maj+clic : plusieurs.">Tous</button>'
-      + '<div class="ogrp">' + [0, 1].map(k => `<button data-g="${k}" title="Groupe ${k + 1} — clic : le choisir · Maj+clic : y ranger la sélection en cours">G${k + 1}</button>`).join('') + '</div>');
+      + '<div class="ogrp">' + [0, 1].map(k => `<button data-g="${k}" title="Groupe ${k + 1} — clic : le choisir · Maj+clic : y ranger la sélection en cours">G${k + 1}</button>`).join('') + '</div>'
+      + '<div class="otop"><button class="topgo" title="Top action : lance en même temps tous les ordres mis « en attente du top »">TOP <i></i></button><button class="topx" title="Annuler les ordres en attente du top">✕</button></div>');
     el.querySelector('.oall').addEventListener('click', () => ordSetSel(null));
+    el.querySelector('.topgo').addEventListener('click', () => topFire());
+    el.querySelector('.topx').addEventListener('click', () => { topClear(); flashBattle('Top action : ordres en attente annulés.'); });
+    topUI();
     el.querySelectorAll('.ogrp button').forEach(b => b.addEventListener('click', (e) => {
       const k = +b.dataset.g;
       if (e.shiftKey) { if (!ordSel) { flashBattle('Groupe : choisissez d’abord des opérateurs (cartes), puis Maj+clic sur G' + (k + 1) + '.'); return; } ordGroups[k] = new Set(ordSel); flashBattle(`Groupe ${k + 1} : ${ordWho()}.`); ordShowSel(); return; }
@@ -2281,8 +2316,8 @@
     el.innerHTML = `<div class="omhead"><b>Ordre</b><span class="omwho"></span></div>` + Object.entries(ORD_OPTS).map(([cat, o]) =>
       `<div class="omsec">${o.titre}${cat === 'mode' ? `<button class="omfum" title="Franchir, Décrocher : le premier qui a un fumigène le lance côté danger pour masquer le passage ou le repli (un fumigène par opérateur)."${nSmoke ? '' : ' disabled'}><span class="omico">${ORD_SVG.smoke}</span>Avec fumée <i>${nSmoke}</i></button>` : ''}</div><div class="omrow">${o.choix.map(c => `<button class="omopt" data-cat="${cat}" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v] || ''}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>`).join('')
       + `<div class="omsec omsecfeu">Feu</div><div class="omfeu">${ORD_FEU.map(c => `<button class="omopt omf" data-cat="feu" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b></button>`).join('')}</div>`
-      + `<button class="omplus">Plus…</button><div class="ommore"><div class="omsec">Autre arrivée</div><div class="omrow">${ORD_PLUS_ARR.map(c => `<button class="omopt" data-cat="arrivee" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div><div class="omsec">Lancer ici</div><div class="omfeu omgren">${ORD_GREN.map(c => { const n = ordGrenCount(c.v); return `<button class="omopt omf omg" data-g="${c.v}" title="${escapeHtml(c.desc)}"${n ? '' : ' disabled'}><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><i>${n}</i></button>`; }).join('')}</div></div>`
-      + `<button class="omgo">Confirmer</button><div class="omhint">${ordVia.length ? `<b class="omvia">Par ${ordVia.length} point${ordVia.length > 1 ? 's' : ''} de passage</b> · ` : ''}Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
+      + `<button class="omplus">Plus…</button><div class="ommore"><div class="omsec">Autre arrivée</div><div class="omrow">${ORD_PLUS_ARR.map(c => `<button class="omopt" data-cat="arrivee" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>${battle.map.lamps && battle.map.lamps.length ? `<div class="omsec">Décor</div><div class="omrow"><button class="omopt omlamp" title="Le plus proche des opérateurs choisis qui voit la lampe (45 m au plus) tire dessus : la zone autour (≈ 9 m) retombe dans le noir. Le coup de feu s’entend."${ordLampNear(p) ? '' : ' disabled'}><span class="omico">${ORD_SVG.lampe}</span><b>Éteindre le lampadaire</b><small>${ordLampNear(p) ? 'La zone retombe dans le noir' : 'Clic droit au pied d’un lampadaire allumé'}</small></button></div>` : ''}<div class="omsec">Lancer ici</div><div class="omfeu omgren">${ORD_GREN.map(c => { const n = ordGrenCount(c.v); return `<button class="omopt omf omg" data-g="${c.v}" title="${escapeHtml(c.desc)}"${n ? '' : ' disabled'}><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><i>${n}</i></button>`; }).join('')}</div></div>`
+      + `<button class="omtop" title="Top action : l’ordre (déplacement, grenade, lampadaire) attend le signal ; bouton TOP en bas pour tout lancer d’un coup">Attendre le top</button><button class="omgo">Confirmer</button><div class="omhint">${ordVia.length ? `<b class="omvia">Par ${ordVia.length} point${ordVia.length > 1 ? 's' : ''} de passage</b> · ` : ''}Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
     $('main').appendChild(el);
     const show = () => { el.querySelectorAll('.omopt[data-cat]').forEach(b => b.classList.toggle('on', pick[b.dataset.cat] === b.dataset.v)); el.classList.toggle('fumok', pick.mode === 'franchir' || pick.mode === 'decrocher'); el.querySelector('.omfum').classList.toggle('on', !!pick.fumee); };
     el.querySelector('.omfum').addEventListener('click', () => { pick.fumee = !pick.fumee; show(); });
@@ -2291,6 +2326,8 @@
     el.classList.toggle('plus', ordPlusOpen);
     el.querySelector('.omplus').addEventListener('click', () => { ordPlusOpen = !ordPlusOpen; el.classList.toggle('plus', ordPlusOpen); ordPlace(el, cx, cy); });
     el.querySelectorAll('.omg').forEach(b => b.addEventListener('click', () => ordGrenade(b.dataset.g)));
+    const lb = el.querySelector('.omlamp'); if (lb) lb.addEventListener('click', () => ordLamp());
+    el.querySelector('.omtop').addEventListener('click', () => { pick.top = !pick.top; el.querySelector('.omtop').classList.toggle('on', !!pick.top); el.querySelector('.omgo').textContent = pick.top ? 'Mettre en attente' : 'Confirmer'; });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     ordPlace(el, cx, cy);
     ordMenu = { el, p, pick }; show(); ordShowSel(); ordMarkGhost(p);
@@ -2318,14 +2355,52 @@
   function ordViaClear() { if (!ordVia.length) return; ordVia = []; ordViaDraw(); }
   function ordGrenCount(k) { return ordUnits().filter(u => u.alive).reduce((n, u) => n + (u.grenades[k] || 0), 0); }
   function ordGrenade(kind) {
-    if (!ordMenu) return; const { p } = ordMenu;
+    if (!ordMenu) return; const { p } = ordMenu, top = !!ordMenu.pick.top;
     const ids = ordSel ? [...ordSel].filter(id => unitById[id] && unitById[id].alive) : null;
     closeOrderMenu();
     if (ids && !ids.length) { flashBattle('Grenade : aucun opérateur choisi n’est en état.'); return; }
-    const r = battle.command('grenade', 0, { x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, kind, units: ids });
+    const garg = { x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, kind, units: ids };
+    if (top) { topAdd('grenade', garg, `${ORD_GREN.find(c => c.v === kind).nom.toLowerCase()} (${ordWhoIds(ids)})`, p); return; }
+    const r = battle.command('grenade', 0, garg);
     const nom = ORD_GREN.find(c => c.v === kind).nom.toLowerCase();
     flashBattle(r.ok ? `${r.callsign} lance : ${nom}.` : `${ORD_GREN.find(c => c.v === kind).nom} impossible : ${r.reason}.`); pumpLog();
     if (MANUAL) render();
+  }
+  // lampadaire allumé à moins de 6 m du point (comme le moteur)
+  function ordLampNear(p) { return (battle.map.lamps || []).some(l => l.on && Math.hypot(l.x - p.x, l.z - p.z) < 6); }
+  function ordWhoIds(ids) { return ids ? ids.map(id => unitById[id] && unitById[id].callsign).filter(Boolean).join(', ') : 'le plus proche'; }
+  function ordLamp() {
+    if (!ordMenu) return; const { p } = ordMenu, top = !!ordMenu.pick.top;
+    const ids = ordSel ? [...ordSel].filter(id => unitById[id] && unitById[id].alive) : null;
+    closeOrderMenu();
+    if (ids && !ids.length) { flashBattle('Lampadaire : aucun opérateur choisi n’est en état.'); return; }
+    const arg = { x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids };
+    if (top) { topAdd('lampadaire', arg, `éteindre le lampadaire (${ordWhoIds(ids)})`, p); return; }
+    const r = battle.command('lampadaire', 0, arg);
+    flashBattle(r.ok ? `${r.callsign} tire sur le lampadaire.` : `Lampadaire : ${r.reason}.`); pumpLog();
+    if (MANUAL) render();
+  }
+  // ---- Top action : des ordres préparés « en attente du top » partent tous au même instant (bouton TOP). Ils restent
+  // ici jusqu'au top (rien n'est envoyé au moteur) ; au top, chacun passe par battle.command : rejoués à l'identique en revue.
+  const TOPQ = [];
+  function topAdd(type, arg, label, p) {
+    const mk = ordMarkMesh('ghost'); mk.position.set(p.x, 0, p.z); ordMarks.add(mk);
+    TOPQ.push({ type, arg, label, mk }); topUI();
+    flashBattle(`En attente du top (${TOPQ.length}) : ${label}.`);
+    if (MANUAL) render();
+  }
+  function topClear() { for (const q of TOPQ) ordFree(q.mk); TOPQ.length = 0; topUI(); }
+  function topFire() {
+    if (!TOPQ.length) { flashBattle('Top action : aucun ordre en attente (dans le menu d’ordre : « Attendre le top »).'); return; }
+    if (battle.over) { topClear(); return; }
+    const ko = [];
+    for (const q of TOPQ) { const r = battle.command(q.type, 0, q.arg); if (!r || !r.ok) ko.push(`${q.label} : ${r ? r.reason : 'refusé'}`); }
+    const n = TOPQ.length; topClear();
+    flashBattle(`TOP ! ${n - ko.length} ordre${n - ko.length > 1 ? 's' : ''} lancé${n - ko.length > 1 ? 's' : ''}${ko.length ? ' · refusé : ' + ko.join(' ; ') : ''}.`); pumpLog();
+    if (MANUAL) render();
+  }
+  function topUI() {
+    document.querySelectorAll('#roster0 .otop').forEach(d => { d.classList.toggle('has', TOPQ.length > 0); const i = d.querySelector('.topgo i'); if (i) i.textContent = TOPQ.length || ''; });
   }
   function closeOrderMenu() { if (!ordMenu) return; ordMenu.el.remove(); ordMenu = null; ordMarkGhost(null); }
   function ordConfirm() {
@@ -2334,7 +2409,13 @@
     if (ids && !ids.length) { closeOrderMenu(); flashBattle('Ordre refusé : aucun opérateur choisi n’est en état.'); return; }
     const fum = !!SETTINGS.ordAdv && !!pick.fumee && (pick.mode === 'franchir' || pick.mode === 'decrocher');
     const via = ordVia.slice();
-    const r = battle.command('aller', 0, Object.assign({ x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids, mode: pick.mode, arrivee: pick.arrivee, feu: pick.feu }, fum ? { fumee: true } : {}, via.length ? { via } : {}));
+    const aarg = Object.assign({ x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids, mode: pick.mode, arrivee: pick.arrivee, feu: pick.feu }, fum ? { fumee: true } : {}, via.length ? { via } : {});
+    if (pick.top) {
+      const nm0 = (cat) => ORD_OPTS[cat].choix.concat(cat === 'arrivee' ? ORD_PLUS_ARR : []).find(c => c.v === pick[cat]).nom.toLowerCase();
+      closeOrderMenu(); ordViaClear(); ordLast.mode = pick.mode; ordLast.arrivee = pick.arrivee;
+      topAdd('aller', aarg, `${who} — ${nm0('mode')}, puis ${nm0('arrivee')}`, p); return;
+    }
+    const r = battle.command('aller', 0, aarg);
     closeOrderMenu(); if (r.ok) ordViaClear();
     if (!r.ok) { flashBattle(`Ordre refusé : ${r.reason}.`); return; }
     ordLast.mode = pick.mode; ordLast.arrivee = pick.arrivee; try { localStorage.setItem('ot-ordre', JSON.stringify(ordLast)); } catch (e) { /* stockage indisponible */ }

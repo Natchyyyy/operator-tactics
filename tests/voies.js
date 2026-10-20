@@ -41,9 +41,9 @@ const V = MAPS.parking.voies;
 }
 {
   // un flanqueur se rabat une fois à hauteur de la zone (capture) : il finit par entrer dans la zone ou la couvrir depuis son flanc
-  // (8 graines : sur 4, un ou deux flanqueurs tués avant d'arriver à hauteur suffisaient à passer sous le seuil)
+  // (16 graines : sur 4 puis sur 8, un ou deux flanqueurs tués avant d'arriver à hauteur suffisaient à passer sous le seuil)
   let n = 0, rab = 0;
-  for (let s = 1; s <= 8; s++) {
+  for (let s = 1; s <= 16; s++) {
     const b = mk(s, { objective: { type: 'capture' } });
     while (!b.over && b.t < 60) b.step();
     for (const u of b.units) if (u.voie) { n++; if (u.flankDone) rab++; }

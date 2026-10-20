@@ -196,7 +196,7 @@ async def main():
         # ennemis non repérés (réglage par défaut) : pendant la bataille, les soldats de Bravo dessinés sont exactement ceux
         # qu'un opérateur d'Alpha voit (à un fondu de 0,3 s près) ; ni étiquette ni carte détaillée pour les autres ; tout est révélé à la fin
         fog = await pg.evaluate("""() => { API.pause(true); API.start({ mapId: 'parking', seed: 3 }); let bad = [], hid = 0, seen = 0, cards = true;
-          for (let i = 0; i < 24 && !API.battle().over; i++) { API.stepRaw(10); API.render(); const f = API.fog(), s = new Set(f.spotted), d = new Set(f.drawn), fa = new Set(f.fading);
+          for (let i = 0; i < 45 && !API.battle().over; i++) { API.stepRaw(10); API.render(); const f = API.fog(), s = new Set(f.spotted), d = new Set(f.drawn), fa = new Set(f.fading);
             if (!f.on || f.alive.some(id => !fa.has(id) && s.has(id) !== d.has(id)) || f.labels.some(id => !s.has(id) && !fa.has(id))) bad.push([+API.battle().t.toFixed(1), f.spotted, f.drawn, f.fading, f.labels]);
             for (const id of f.alive) if (!s.has(id) && !document.querySelector(`.card[data-id="${id}"]`).classList.contains('unseen')) cards = false;
             hid += f.alive.length - f.spotted.length; seen += f.spotted.length; }

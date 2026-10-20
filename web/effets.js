@@ -192,6 +192,21 @@
   }); t.colorSpace = T.SRGBColorSpace; return t; })();
   const bloodTex = (() => { const t = canvasTex(256, (g, S) => { const R = rng(13); for (let k = 0; k < 30; k++) { const x = S / 2 + (R() - 0.5) * S * 0.5, y = S / 2 + (R() - 0.5) * S * 0.5, r = S * (0.04 + R() * 0.16); const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(70,6,6,0.95)'); gr.addColorStop(0.7, 'rgba(60,4,4,0.8)'); gr.addColorStop(1, 'rgba(50,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } }); t.colorSpace = T.SRGBColorSpace; return t; })();
   const scorchTex = (() => { const t = canvasTex(256, (g, S) => { const R = rng(17); const gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); gr.addColorStop(0, 'rgba(8,7,6,0.95)'); gr.addColorStop(0.45, 'rgba(15,13,11,0.75)'); gr.addColorStop(1, 'rgba(20,18,15,0)'); g.fillStyle = gr; g.fillRect(0, 0, S, S); g.strokeStyle = 'rgba(5,5,5,0.5)'; for (let k = 0; k < 24; k++) { const a = R() * 6.28, L = S * (0.25 + R() * 0.25); g.lineWidth = 1 + R() * 3; g.beginPath(); g.moveTo(S / 2, S / 2); g.lineTo(S / 2 + Math.cos(a) * L, S / 2 + Math.sin(a) * L); g.stroke(); } }); t.colorSpace = T.SRGBColorSpace; return t; })();
+  // vitre touchée : étoile de fissures (trou net au centre, rayons, cercles brisés) — reste sur la voiture
+  const glassTex = (() => { const t = canvasTex(256, (g, S) => {
+    const R = rng(23), c = S / 2; g.clearRect(0, 0, S, S);
+    const gr = g.createRadialGradient(c, c, 0, c, c, S * 0.5); gr.addColorStop(0, 'rgba(235,240,245,0.55)'); gr.addColorStop(0.12, 'rgba(225,232,238,0.32)'); gr.addColorStop(0.5, 'rgba(220,228,235,0.08)'); gr.addColorStop(1, 'rgba(220,228,235,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, S, S);
+    g.fillStyle = 'rgba(12,12,14,0.95)'; g.beginPath(); g.arc(c, c, S * 0.018, 0, 6.28); g.fill();
+    g.strokeStyle = 'rgba(240,245,250,0.85)'; g.lineCap = 'round';
+    const rays = 11 + Math.floor(R() * 5), ends = [];
+    for (let k = 0; k < rays; k++) {
+      let a = k / rays * 6.28 + R() * 0.4, x = c, y = c, L = S * (0.28 + R() * 0.2); g.lineWidth = 1.6; g.beginPath(); g.moveTo(x, y);
+      for (let st = 0; st < 5; st++) { a += (R() - 0.5) * 0.35; x += Math.cos(a) * L / 5; y += Math.sin(a) * L / 5; g.lineTo(x, y); g.lineWidth = 1.2; }
+      g.stroke(); ends.push(a);
+    }
+    g.lineWidth = 1; for (const r of [0.07, 0.13, 0.21]) { for (let k = 0; k < rays; k++) { if (R() < 0.35) continue; const a0 = k / rays * 6.28 + R() * 0.3, a1 = a0 + 6.28 / rays * (0.7 + R() * 0.3), rr = S * r * (0.85 + R() * 0.3); g.beginPath(); g.moveTo(c + Math.cos(a0) * rr, c + Math.sin(a0) * rr); g.lineTo(c + Math.cos(a1) * rr * (0.9 + R() * 0.2), c + Math.sin(a1) * rr * (0.9 + R() * 0.2)); g.stroke(); } }
+  }); t.colorSpace = T.SRGBColorSpace; return t; })();
   // ---- assemblage
   function create(scene) {
     const add = new Pool(2400, T.AdditiveBlending, false), alpha = new Pool(1600, T.NormalBlending, true);
@@ -200,7 +215,8 @@
     const casings = Bodies(400, new T.CylinderGeometry(0.0048, 0.0048, 0.045, 7), brass); scene.add(casings.mesh);
     const debris = Bodies(300, new T.DodecahedronGeometry(0.04, 0), new T.MeshStandardMaterial({ color: 0x6b6660, roughness: 0.95 })); scene.add(debris.mesh);
     const holes = Decals(500, holeTex, {}), blood = Decals(120, bloodTex, { rough: 0.3 }), scorch = Decals(40, scorchTex, {});
-    scene.add(holes.mesh); scene.add(blood.mesh); scene.add(scorch.mesh);
+    const cracks = Decals(160, glassTex, { rough: 0.05 });
+    scene.add(holes.mesh); scene.add(blood.mesh); scene.add(scorch.mesh); scene.add(cracks.mesh);
     const ripples = Ripples(700); scene.add(ripples.mesh);
     // réserve de lumières : toujours dans la scène, éteintes
     const lights = []; for (let i = 0; i < 6; i++) { const l = new T.PointLight(0xffb469, 0, 9, 2); l.position.set(0, -50, 0); scene.add(l); lights.push({ l, until: 0, i0: 0, dur: 0.05 }); }
@@ -209,6 +225,7 @@
     const V = (x, y, z) => new T.Vector3(x, y, z), rnd = (a, b) => a + Math.random() * (b - a);
     const basis = (d) => { const u = new T.Vector3().crossVectors(d, Math.abs(d.y) < 0.9 ? V(0, 1, 0) : V(1, 0, 0)).normalize(); return [u, new T.Vector3().crossVectors(d, u)]; };
     const E = { casings, holes, blood, scorch, debris, pools: { add, alpha }, sound: null };
+    E.light = light;
     // éclair de bouche : origine p, direction d (unitaire)
     E.muzzle = function (p, d, silenced) {
       if (silenced) { alpha.add({ p: p.clone(), v: d.clone().multiplyScalar(0.6).add(V(0, 0.3, 0)), life: 0.6, size: 0.08, grow: 3, frame: 4 + Math.floor(Math.random() * 4), col: [0.7, 0.7, 0.7], a0: 0.25, drag: 2 }); return; }
@@ -258,7 +275,7 @@
       } else if (matter === 'impact_verre') {   // vitre : pluie d'éclats clairs qui scintillent, pas d'étincelle
         flash(0.04, [2.4, 2.6, 2.8]); chips(12, [1.15, 1.25, 1.35], 2.4, 0.85);
         for (let k = 0; k < 6; k++) add.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-1, 1), rnd(0, 1.2), rnd(-1, 1))), life: rnd(0.25, 0.55), size: 0.008, stretch: 0.01, frame: 3, col: [2.2, 2.4, 2.6], grav: 9.8, delay, floor: 0.01 });
-        puff(1, [0.75, 0.78, 0.8], 0.2, 0.06, 0.6, 0.5); hole = 0;
+        puff(1, [0.75, 0.78, 0.8], 0.2, 0.06, 0.6, 0.5); hole = 0; cracks.add(P, n, rnd(0.28, 0.45));
       } else if (matter === 'impact_sol' && E.wet) {   // sol détrempé : gerbe d'eau, pas de poussière
         for (let k = 0; k < 10; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.02), v: V(rnd(-0.8, 0.8), rnd(1.5, 3.5), rnd(-0.8, 0.8)), life: rnd(0.3, 0.55), size: rnd(0.012, 0.022), stretch: 0.012, frame: 13, col: [0.72, 0.77, 0.82], a0: 0.8, grav: 9.8, delay, floor: 0.01 });
         puff(2, [0.68, 0.72, 0.76], 0.22, 0.08, 0.6, 0.6); chips(3, [0.12, 0.12, 0.12], 2.5);
@@ -327,7 +344,7 @@
     // pluie : ronds au sol et impacts au sol en gerbes d'eau
     E.ripples = ripples;
     E.setRain = function (on) { ripples.mesh.visible = !!on; E.wet = !!on; };
-    E.clear = function () { add.parts.length = 0; alpha.parts.length = 0; casings.list.length = 0; debris.list.length = 0; holes.clear(); blood.clear(); scorch.clear(); for (const L of lights) L.l.intensity = 0; add.update(0); alpha.update(0); casings.update(0); debris.update(0); };
+    E.clear = function () { add.parts.length = 0; alpha.parts.length = 0; casings.list.length = 0; debris.list.length = 0; holes.clear(); blood.clear(); scorch.clear(); cracks.clear(); for (const L of lights) L.l.intensity = 0; add.update(0); alpha.update(0); casings.update(0); debris.update(0); };
     return E;
   }
   root.Effets = { create };

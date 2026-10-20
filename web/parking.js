@@ -838,9 +838,9 @@
   // Assemblage
   // ---------------------------------------------------------------------------------------------
   const U = { wet: { value: 0 }, time: { value: 0 } };
-  let lights = [];
+  let lights = [], decorGroup = null;
   function build(map, group, ctx) {
-    NIGHT.mats.length = 0; lights = [];
+    NIGHT.mats.length = 0; lights = []; decorGroup = group;
     const W = map.width, D = map.depth, K = M3(), maps = groundMaps(map), OB = map.obstacles;
     group.add(groundMesh(map, maps, U));
     const pud = puddles(map, maps, U); if (pud) group.add(pud);
@@ -1559,14 +1559,25 @@
     if (night) {
       lightGroup = new T.Group();
       for (const p of lights) {
+        if (p.off) continue;
         const canopy = p.k && p.k < 60, I = canopy ? 20 : p.k > 150 ? 160 : 120;
         const l = new T.SpotLight(0xffc98a, I, canopy ? 12 : 26, canopy ? 1.25 : 1.05, canopy ? 0.9 : 0.8, 2);
-        l.position.copy(p); l.target.position.set(p.x, 0, p.z); lightGroup.add(l, l.target);
-        if (!canopy) { const h = halo(); h.position.copy(p); h.position.y -= 0.06; lightGroup.add(h); const c = cone(p.y); c.position.set(p.x, p.y / 2, p.z); lightGroup.add(c); }
+        l.position.copy(p); l.target.position.set(p.x, 0, p.z); lightGroup.add(l, l.target); p.objs = [l, l.target];
+        if (!canopy) { const h = halo(); h.position.copy(p); h.position.y -= 0.06; lightGroup.add(h); const c = cone(p.y); c.position.set(p.x, p.y / 2, p.z); lightGroup.add(c); p.objs.push(h, c); }
       }
       scene.add(lightGroup); lightGroup.updateMatrixWorld(true);
     }
   }
   function tick(t) { U.time.value = t; }
-  root.Parking = { build, mesh, setConditions, tick, asphalt, concrete, worldMat, teinter, brickDet };
+  // lampadaire éteint d'une balle (événement 'lamp' du moteur, mât en x,z) : ses têtes (à 1,7 m du mât) n'éclairent plus,
+  // l'ampoule est masquée par un verre brisé sombre (les éclats : impact de la balle)
+  function lampOff(x, z) {
+    for (const p of lights) {
+      if (p.off || Math.hypot(p.x - x, p.z - z) > 2.6) continue;
+      p.off = true;
+      if (p.objs && lightGroup) for (const o of p.objs) lightGroup.remove(o);
+      if (decorGroup) { const k = new T.Mesh(new T.BoxGeometry(0.64, 0.04, 0.26), new T.MeshStandardMaterial({ color: 0x141414, roughness: 0.6, metalness: 0.3 })); k.position.set(p.x, p.y - 0.005, p.z); k.rotation.y = Math.atan2(-(p.z - z), p.x - x); decorGroup.add(k); }
+    }
+  }
+  root.Parking = { lampOff, build, mesh, setConditions, tick, asphalt, concrete, worldMat, teinter, brickDet };
 })(window.OT = window.OT || {});

@@ -8,6 +8,10 @@
    vérification globale en fin d'étape. Sorties filtrées (`--silent`, `--quiet`, `tail -n 20`).
 3. Modifications ciblées (outil d'édition) ; ne jamais réécrire un fichier entier dans le chat.
 4. Réponses très courtes : plan en 2 lignes avant d'agir, résultat en 3 lignes après. Pas de politesse ni de long résumé.
+5. Sécurité `/compact` : quand une étape est 100 % finie (aucun bug ni test rouge en suspens, jamais au milieu d'un
+   débogage) et/ou que l'historique s'allonge (> 10-15 échanges), mettre à jour `STATE.md` à la racine (10 lignes max :
+   dernière modification réussie, fichiers touchés, prochaine tâche), puis finir le message par la ligne exacte :
+   🟢 [SÉCURITÉ OK — État sauvegardé dans STATE.md : Tu peux lancer `/compact` (ou une nouvelle session) sans risque]
 
 ## Moniteur de contexte (demandé par l'utilisateur, 20/10)
 À la fin de chaque réponse, évaluer silencieusement la conversation et ajouter une alerte si besoin :
@@ -58,7 +62,7 @@ le Groupe Karst). L'utilisateur parle français, préfère des explications simp
 - Captures : `outils/capture.py` (WebGL logiciel, lent) ; API du jeu `window.API` (start, stepRaw, look, camShot…),
   `?manual=1` pour piloter pas à pas. Le dossier `captures/` n'est pas versionné.
 - **Publication jouable** : artifact claude.ai `https://claude.ai/code/artifact/HMXhuguP85cpBoDChL2kRU`
-  (version 45 au 20/10). Après un build propre : copier `dist/artifact.html` et les fichiers changés dans un dossier
+  (version 46 au 20/10). Après un build propre : copier `dist/artifact.html` et les fichiers changés dans un dossier
   temporaire, puis publier avec `file_path` = artifact.html, `url` = celle ci-dessus et `files` = { "p/jeu.js": …,
   et tout fichier nouveau/modifié de `dist/publier.json` (ex. `hd/pbr_*.jpg`) }. Les fichiers non renvoyés restent.
 - Rapports du PC de l'utilisateur (RTX 5070 Ti, une session Claude Code y teste `main` toutes les heures environ) :

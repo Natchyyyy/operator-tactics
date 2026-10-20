@@ -43,7 +43,7 @@
   // une seule carte pour l'instant : le parking à l'arrière des boutiques de la Grand-Rue
   const MAPS = {
     parking: {
-      id: 'parking', name: 'Parking de la Grand-Rue', width: 72, depth: 46,
+      id: 'parking', name: 'Parking de la Grand-Rue', width: 72, depth: 46, lampadaires: true,
       spawns: [ { x: 5.5, z: 23, r: 3.5 }, { x: 66.5, z: 23, r: 3.5 } ],
       acces: [[47.5, 45.5]],   // entrée-sortie des voitures (vérification de circulation)
       capture: { x: 36, z: 23, r: 6 },  // la station de lavage : deux pistes ouvertes au nord et au sud, local technique au nord, muret entre les pistes
@@ -195,7 +195,25 @@
     }
     this.coverPoints = this.computeCoverPoints();
     this.dynamic = [];
+    this.lamps = def.lampadaires ? this.computeLamps() : [];
   }
+  // Lampadaires (mêmes emplacements que le rendu, web/parking.js lampAt) : de nuit, un lampadaire allumé éclaire ~9 m autour
+  // de son mât. On peut l'éteindre d'une balle (ordre du joueur).
+  const LAMP_R = 9, LAMP_H = 7.8;   // tête de la lampe : 7,85 m (rendu)
+  GameMap.prototype.computeLamps = function () {
+    const W = this.width, D = this.depth, out = [], gate = this.obstacles.find(o => o.name === 'mur portail sud');
+    const add = (x, z) => out.push({ id: out.length, x, z, on: true });
+    for (let x = -6; x <= W + 6; x += 14) if (!gate || Math.abs(x - gate.x - gate.w / 2) > 6) add(x, D + 3.2);
+    for (let z = 6; z <= D - 6; z += 14) { add(-3.2, z); add(W + 3.2, z); }
+    const mk = this.def.marquage; if (mk) for (const [x0, z0, n] of mk.rangees) add(x0 + 5, z0 + 2.5 * Math.floor(n / 2));
+    for (const o of this.obstacles) if (o.name === 'bac à fleurs' && o.w * o.d > 4) add(o.x + 0.4, o.z + o.d / 2);
+    return out;
+  };
+  GameMap.prototype.litAt = function (x, z) {
+    for (const l of this.lamps) if (l.on && Math.hypot(l.x - x, l.z - z) < LAMP_R) return l;
+    return null;
+  };
+  GameMap.prototype.lampHead = function (l) { return { x: l.x, y: LAMP_H, z: l.z }; };
 
   // Décor destructible : caisses et palettes en bois (couverts bas) cèdent aux explosions.
   GameMap.prototype.isDestructible = function (o) { return o.kind === 'cover' && /^(caisses|palettes)/.test(o.name || ''); };
@@ -269,7 +287,8 @@
   };
 
   // ---- A* sur la grille (8 voisins, pas de coupe de coin) -------------------------------
-  GameMap.prototype.findPath = function (x0, z0, x1, z1) {
+  // extra (facultatif) : coût ajouté par case (Float32Array cols × rows) — zones que l'on préfère contourner
+  GameMap.prototype.findPath = function (x0, z0, x1, z1, extra) {
     const start = this.nearestFreeReachable(x0, z0), goal = this.nearestFree(x1, z1);
     if (!start || !goal) return null;
     const cols = this.cols, rows = this.rows, n = cols * rows;
@@ -297,7 +316,7 @@
         if (dc && dr && (this.isBlocked(c + dc, r) || this.isBlocked(c, r + dr))) continue; // pas de coupe de coin
         const nk = key(nc, nr);
         if (closed[nk]) continue;
-        const cost = g[k] + ((dc && dr) ? 1.4142 : 1);
+        const cost = g[k] + ((dc && dr) ? 1.4142 : 1) + (extra ? extra[nk] : 0);
         if (cost < g[nk]) { g[nk] = cost; came[nk] = k; push([cost + h(nc, nr), nk]); }
       }
     }
@@ -306,7 +325,7 @@
     for (let k = gk; k !== -1; k = came[k]) { path.push(this.centerOf(k % cols, (k / cols) | 0)); if (k === sk) break; }
     path.reverse();
     // lissage : retirer les points intermédiaires quand la ligne droite est libre (au niveau du sol, avec le rayon)
-    return this.smoothPath(path);
+    return this.smoothPath(path, extra);
   };
 
   GameMap.prototype.walkableSegment = function (ax, az, bx, bz) {
@@ -314,12 +333,19 @@
     for (let i = 0; i <= steps; i++) { const t = i / steps; if (this.insideObstacle(ax + (bx - ax) * t, az + (bz - az) * t)) return false; }
     return true;
   };
-  GameMap.prototype.smoothPath = function (path) {
+  GameMap.prototype.smoothPath = function (path, extra) {
     if (path.length < 3) return path;
+    // avec des zones à contourner, un raccourci ne doit pas y entrer
+    const clear = (a, b) => {
+      if (!extra) return true;
+      const L = Math.hypot(b.x - a.x, b.z - a.z), n = Math.ceil(L / (CELL * 0.5));
+      for (let i = 1; i < n; i++) { const { c, r } = this.cellOf(a.x + (b.x - a.x) * i / n, a.z + (b.z - a.z) * i / n); if (extra[r * this.cols + c] > 0) return false; }
+      return true;
+    };
     const out = [path[0]]; let i = 0;
     while (i < path.length - 1) {
       let j = path.length - 1;
-      while (j > i + 1 && !this.walkableSegment(path[i].x, path[i].z, path[j].x, path[j].z)) j--;
+      while (j > i + 1 && !(this.walkableSegment(path[i].x, path[i].z, path[j].x, path[j].z) && clear(path[i], path[j]))) j--;
       out.push(path[j]); i = j;
     }
     return out;
@@ -357,6 +383,23 @@
     const chest = this.blocker(tx, eye, tz, px, chestH, pz);
     if (chest) return { level: 'full', obstacle: chest };
     return { level: 'partial', obstacle: low };
+  };
+
+  // Tôle d'une voiture : une balle qui traverse l'habitacle (portières, vitres, coffre) peut passer ; seul le bloc moteur
+  // (1,3 m côté capot, o.dir) arrête vraiment. true si le trajet tireur (sx,sz) → cible (tx,tz) coupe la voiture hors du
+  // bloc moteur. Véhicule sans sens connu : couvert dur.
+  GameMap.prototype.softCover = function (o, sx, sz, tx, tz) {
+    if (!o || !o.dir || !/^voiture/.test(o.name || '')) return false;
+    const dx = tx - sx, dz = tz - sz; let t0 = 0, t1 = 1;
+    for (const [p, dp, lo, hi] of [[sx, dx, o.x, o.x + o.w], [sz, dz, o.z, o.z + o.d]]) {
+      if (Math.abs(dp) < 1e-9) { if (p < lo || p > hi) return false; continue; }
+      let a = (lo - p) / dp, b = (hi - p) / dp; if (a > b) { const k = a; a = b; b = k; }
+      t0 = Math.max(t0, a); t1 = Math.min(t1, b); if (t0 > t1) return false;
+    }
+    const tm = (t0 + t1) / 2, alongX = o.w >= o.d;
+    const c = alongX ? sx + dx * tm : sz + dz * tm, lo = alongX ? o.x : o.z, L = alongX ? o.w : o.d;
+    const fromHood = o.dir > 0 ? lo + L - c : c - lo;
+    return fromHood > 1.3;
   };
 
   // « Ouverture » d'un point : combien de points d'échantillon (grille) sont visibles depuis là, à hauteur d'homme,
