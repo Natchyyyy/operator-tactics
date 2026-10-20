@@ -205,6 +205,11 @@
     tenailles: '<circle cx="50" cy="30" r="6" fill="#ff8a70" stroke="none"/><path d="M30 82 C22 58 26 42 40 33 M31 42 L40 33 L42 45" stroke="#eef5f1"/><path d="M70 82 C78 58 74 42 60 33 M69 42 L60 33 L58 45" stroke="#4ee089"/>',
     // rush milieu : trois flèches qui convergent vers l'axe central puis percent
     rush_milieu: '<path d="M50 84 V28 M39 40 L50 27 L61 40" stroke="#eef5f1"/><path d="M27 80 L42 62 M73 80 L58 62" stroke="#4ee089"/><path d="M20 52 H30 M70 52 H80" stroke="#4ee089" stroke-width="3" opacity=".55"/>',
+    // vague 2 : fixer et déborder (deux traits de feu sur la cible, une flèche qui la contourne), éclaireur (un devant, trois
+    // derrière), tiroir lent (trois qui montent, deux qui restent)
+    fixer_deborder: '<circle cx="70" cy="34" r="6" fill="#ff8a70" stroke="none"/><path d="M28 30 L60 33 M28 44 L60 36" stroke="#ffb070" stroke-dasharray="6 4"/><path d="M26 80 C56 88 78 72 74 46 M66 52 L74 43 L81 53" stroke="#4ee089"/>',
+    eclaireur: '<path d="M22 50 H78 M68 41 L79 50 L68 59" stroke="#eef5f1" opacity=".55"/><circle cx="62" cy="50" r="6" fill="#4ee089" stroke="none"/><circle cx="24" cy="34" r="5" fill="#eef5f1" stroke="none"/><circle cx="24" cy="50" r="5" fill="#eef5f1" stroke="none"/><circle cx="24" cy="66" r="5" fill="#eef5f1" stroke="none"/>',
+    tiroir_lent: '<path d="M58 80 V24 M47 36 L58 23 L69 36" stroke="#4ee089"/><path d="M28 86 V70" stroke="#eef5f1" opacity=".6"/><circle cx="28" cy="62" r="5" fill="#eef5f1" stroke="none"/><circle cx="40" cy="74" r="5" fill="#eef5f1" stroke="none"/>',
   };
   const tacEmblem = (id) => `<span class="cglyph tsvg"><svg viewBox="0 0 100 100" style="display:inline-block;width:1.25em;height:1.25em;vertical-align:middle" aria-hidden="true"><defs><linearGradient id="tg-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d3a2c"/><stop offset="1" stop-color="#0b1511"/></linearGradient></defs><polygon points="50,4 90,27 90,73 50,96 10,73 10,27" fill="url(#tg-${id})" stroke="#4ee089" stroke-width="3" stroke-linejoin="round"/><g fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">${TAC_SVG[id]}</g></svg></span>`;
   const tacArt = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'cart')) || (TAC_SVG[id] ? tacEmblem(id) : `<span class="cglyph">${TACTIC_ICON[id] || '◆'}</span>`);

@@ -595,4 +595,23 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
     const P1 = play(), P2 = play({ replayInputs: P1.b.inputs });
     check('plans Karst : la bataille revue est identique, pas à pas (les plans découlent de l\'état, pas des commandes)', P1.tr === P2.tr && JSON.stringify(P1.b.result) === JSON.stringify(P2.b.result) && P1.b.log.some(l => l.kind === 'plan'), {}); }
 }
+// ---- Vague 2 (partie B) : carte « Fixer et déborder » (T4) ----
+{ const mkF = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams: [{ name: 'Alpha', order: 'assault', operators: GIGN, tactics: ['tiroir', 'fixer_deborder'] }, { name: 'Bravo', order: 'assault', operators: KARST, tactics: ['tiroir'] }] }, o || {}));
+  const run = (o) => { const b = mkF(4, o); let early = null, r = null, at = null, tr = [];
+    while (!b.over && b.t < 120) {
+      if (!b.replayQueue) {
+        if (Math.abs(b.t - 2) < 0.05) early = b.command('tactic', 0, 'fixer_deborder');
+        if (!r && b.teams[0].units.some(u => u.alive && Object.keys(u.knowledge).length) && b.t > 3) { r = b.command('tactic', 0, 'fixer_deborder'); at = b.t; }
+      }
+      b.step(); if (b.tick % 10 === 0) tr.push(b.units.map(u => u.x.toFixed(2) + ',' + u.z.toFixed(2) + ',' + u.state).join(';'));
+      if (r && r.ok && !run.snap && b.t > at + 0.5) run.snap = { fix: b.teams[0].units.filter(u => { const q = b.orderOf(u); return q && q.id === r.fix; }), flank: b.teams[0].units.filter(u => u.moveOrder && u.moveOrder.id === r.flank), inf: b.teams[0].ordInfo[r.fix], g: b.teams[0].ordInfo[r.flank] };
+    }
+    return { b, early, r, tr: tr.join('|') }; };
+  run.snap = null; const A = run(), S = run.snap, B = run({ replayInputs: A.b.inputs });
+  const supp = S && S.fix.reduce((n, u) => n + (u.stats.suppressShots || 0), 0);
+  check('fixer et déborder : refusé sans ennemi repéré ; au contact, deux opérateurs (les plus proches) en appui sur la menace, les autres débordent par une voie (point de passage) pour encercler ; bulles « On les fixe ! » / « On déborde… »',
+    A.early && !A.early.ok && /aucun ennemi/.test(A.early.reason) && A.r && A.r.ok && S && S.fix.length === 2 && S.inf.feu === 'appui' && S.inf.orient && S.flank.length >= 2 && S.g.via.length === 1 && A.b.log.some(l => l.kind === 'fixer') && A.b.log.some(l => l.kind === 'deborde' && /par le (nord|sud)/.test(l.text)) && A.b.teams[0].tactics.fixer_deborder.uses === 1,
+    { early: A.early, r: A.r, fix: S && S.fix.length, flank: S && S.flank.length, supp });
+  check('fixer et déborder : la bataille revue (carte jouée au contact) est identique, pas à pas', A.tr === B.tr && JSON.stringify(A.b.result) === JSON.stringify(B.b.result) && A.b.inputs.filter(c => c.type === 'tactic').length === 1, { n: A.b.inputs.length });
+}
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

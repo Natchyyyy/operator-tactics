@@ -42,7 +42,7 @@
       career: { battles: 0, wins: 0, losses: 0, draws: 0, kills: 0, losses_units: 0, headshots: 0, streaks: 0, group: 0, revenge: 0, veteran: 0, revives: 0, shots: 0, hits: 0, damage: 0, maps: {}, recent: [] }, missions: {}, challenges: {}, lastSeed: null,
       // méta à la manière des jeux de cartes : nom et insigne d'équipe, uniforme, rang du joueur, tactiques, perks par opérateur
       teamName: 'Alpha', insignia: 'etoile', uniform: 'olive', unlocked: { insignias: ['etoile', 'bouclier'], uniforms: ['olive'] },
-      xp: 0, tactics: { owned: { tiroir: true, tenailles: true, rush_milieu: true }, equipped: ['tiroir'] }, perks: {}, packsOpened: 0,
+      xp: 0, tactics: { owned: { tiroir: true, tenailles: true, rush_milieu: true, fixer_deborder: true, eclaireur: true, tiroir_lent: true }, equipped: ['tiroir'] }, perks: {}, packsOpened: 0,
       league: null, leagueSeasons: 0, achievements: {}, tacticsUsed: 0,
       headgear: { casque: true, casque_lunettes: true },   // couvre-chefs possédés (communs à tous les opérateurs)
       campaigns: {}, quick: { wins: 0, played: 0 }, freePacks: {}, ops: { wins: 0, captureWins: 0, cleanWins: 0, done: {} },

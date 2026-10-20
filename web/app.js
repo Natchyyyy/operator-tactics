@@ -28,6 +28,12 @@
     return `<svg class="${cls || 'timg'} lanesvg" viewBox="0 0 48 48" aria-hidden="true">${g}</svg>`;
   }
   TACTIC_ICON.tenailles = laneSvg([2, 1, 2]); TACTIC_ICON.rush_milieu = laneSvg([0, 4, 0], 0);
+  // vague 2 : Fixer et déborder (deux qui tirent sur la cible, une flèche qui la contourne), Éclaireur (un devant, les autres
+  // loin derrière), Tiroir lent (trois qui avancent, deux qui restent)
+  const tacSvg = (g) => `<svg class="timg lanesvg" viewBox="0 0 48 48" aria-hidden="true">${g}</svg>`, dot = (x, y) => `<circle cx="${x}" cy="${y}" r="3.3" fill="#fff" stroke="#0b0f14" stroke-width="1"/>`;
+  TACTIC_ICON.fixer_deborder = tacSvg(`<circle cx="38" cy="16" r="4" fill="#ff8a70"/><path d="M14 13 L31 15 M14 21 L31 17" stroke="#ffb070" stroke-width="2" stroke-dasharray="3 2"/><path d="M12 38 C30 44 42 36 40 24 M35.5 27 L40 22 L43.5 27.5" fill="none" stroke="#6fe3a0" stroke-width="2.6" stroke-linecap="round"/>${dot(10, 13)}${dot(10, 21)}${dot(8, 37)}`);
+  TACTIC_ICON.eclaireur = tacSvg(`<path d="M8 24 H40 M34 19.5 L41 24 L34 28.5" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="2.4" stroke-linecap="round"/>${dot(32, 24)}${dot(8, 16)}${dot(8, 24)}${dot(8, 32)}`);
+  TACTIC_ICON.tiroir_lent = tacSvg(`<path d="M28 10 V38 M23.5 15 L28 9 L32.5 15" fill="none" stroke="#6fe3a0" stroke-width="2.4" stroke-linecap="round"/>${dot(28, 18)}${dot(36, 24)}${dot(20, 24)}${dot(10, 34)}${dot(18, 38)}`);
   const tacIcon = (id) => (OT.imgTag && OT.imgTag('tac_' + id, 'timg')) || TACTIC_ICON[id] || '◆';      // icône dessinée si disponible
   const roleImg = (role) => (OT.imgTag && OT.imgTag('role_' + role, 'rimg')) || '';
   const $ = (s) => document.querySelector(s);
@@ -1034,6 +1040,8 @@
         mesh.traverse(m => { if (m.isMesh && m.material && m.material.color) { m.material = m.material.clone(); m.material.color.multiply(new THREE.Color(0x8fae7e)); } });   // tôle peinte en vert : la texture du modèle (gris clair très contrasté) faisait papier froissé
       } else if (has3('abribus') && nm.startsWith('abribus')) {   // côté ouvert (face +z du modèle) vers le bus, au sud
         mesh = M3.fit('abribus', o.w, o.h, o.d, { tol: 0.3 });
+      } else if (OT.Arbres && /^arbre/.test(nm)) {   // arbre d'alignement fait par programme (arbres.js : houppier en cartes de feuillage)
+        mesh = new THREE.Group(); const a = OT.Arbres.arbre(6.2 + (i % 3) * 0.6, i); a.position.y = -o.h / 2; mesh.add(a);
       } else if (has3('arbre') && /^(arbre|palmier)/.test(nm)) {   // arbre d'alignement (sa grille de pied disparaît dans le bac)
         mesh = M3.fit('arbre', 3, 6.4 + (i % 3) * 0.5, 3, { byHeight: true, rot: i * 1.7 }); mesh.position.y = 0;
         mesh.children[0].position.y = -o.h / 2 - 0.8;   // pied enfoncé : la dalle à grille (plus large que le bac) passe sous le sol, le corset reste dans le bac
@@ -2489,6 +2497,7 @@
     bouge: ['Je bouge !'], couvert: ['Couvert !'], enplace: ['En place.'], reprise: ['Je reprends ma progression.'],   // ordres de déplacement (clic droit)
     drag: ['Je le tire à couvert !'], smoke: ['Fumigène !'],   // évacuation d'un blessé
     feu: ['Feu !'], enappui: ['En appui !'], decroche: ['Je décroche !'], releve: ['Je prends sa place !'],               // feu retenu levé, appui, décrocher, relève dans les bonds
+    fixer: ['On les fixe !'], deborde_nord: ['On déborde par le nord !'], deborde_sud: ['On déborde par le sud !'],   // carte « Fixer et déborder »
     plan_repli: ['On décroche !', 'Repli, on se regroupe !'], plan_contourner: ['On les contourne !', 'Je passe par le flanc !'], plan_embuscade: ['Embuscade, personne ne tire.', 'On les attend.'], plan_fumee: ['Fumée ! On les attend à la sortie.'],   // plans de l'adversaire
   };
   function bark(u, kind) {
@@ -2538,6 +2547,8 @@
     else if (e.kind === 'enplace' && u) bark(u, 'enplace');
     else if (e.kind === 'reprise' && u) bark(u, 'reprise');
     else if (e.kind === 'plan' && u) bark(u, 'plan_' + e.plan);
+    else if (e.kind === 'fixer' && u) bark(u, 'fixer');
+    else if (e.kind === 'deborde' && u) bark(u, e.nord ? 'deborde_nord' : 'deborde_sud');
     else if (e.kind === 'down' && e.enemy && unitById[e.enemy]) {   // le coéquipier debout le plus proche du blessé
       const d = unitById[e.enemy]; let best = null, bd = 25; for (const a of battle.units) { if (!a.alive || a.team !== d.team) continue; const k = Math.hypot(a.x - d.x, a.z - d.z); if (k < bd) { bd = k; best = a; } }
       bark(best, 'down');
@@ -2625,6 +2636,7 @@
     const teams = Battle.defaultTeams();
     teams[0].order = $('#order0').value; teams[1].order = $('#order1').value;
     teams[1].autoTactics = true;   // l'adversaire de la bataille libre a ses plans (vague 2), comme en mission
+    teams[0].tactics = teams[0].tactics.concat(['fixer_deborder']);   // bataille libre : la carte active de la vague 2 à essayer
     const seedTxt = $('#seed').value.trim();
     const seed = seedTxt === '' ? Math.floor(Math.random() * 100000) : (parseInt(seedTxt, 10) || 1);
     return { seed, teams, mapId: $('#mapSel').value, conditions: $('#condSel').value === 'jour' ? undefined : $('#condSel').value };

@@ -157,7 +157,7 @@ check('Bélier revient dans l\'escouade', Game.toggleSquad(p, 'op_belier') && Ga
   check('rang : Recrue à 0 XP, Opérateur à 150, rang suivant indiqué', Game.rankFor(0) === 0 && Game.rankFor(150) === 1 && Game.xpToNextRank(0) === 150 && Game.xpToNextRank(99999) === null);
   const r0 = Game.teamRating(q); q.operators.op_vautour.xp = 900; q.operators.op_lynx.xp = 900; const r1 = Game.teamRating(q);
   check('la puissance d\'équipe est un nombre lisible qui augmente avec les niveaux', r0 > 20 && r0 < 80 && r1 > r0, [r0, r1]);
-  check('tactiques : le Tiroir et les plans de voies (Tenailles, Rush milieu), possédés d\'office, Tiroir équipé ; une tactique inconnue est refusée', Object.keys(DATA.TACTICS).join() === 'tiroir,tenailles,rush_milieu' && Object.keys(DATA.TACTICS).every(id => q.tactics.owned[id]) && q.tactics.equipped.join() === 'tiroir' && !Game.equipTactic(q, 'barrage'));
+  check('tactiques : le Tiroir, les plans de voies (Tenailles, Rush milieu) et les cartes de la vague 2 (Fixer et déborder, Éclaireur, Tiroir lent), possédés d\'office, Tiroir équipé ; une tactique inconnue est refusée', Object.keys(DATA.TACTICS).join() === 'tiroir,tenailles,rush_milieu,fixer_deborder,eclaireur,tiroir_lent' && Object.keys(DATA.TACTICS).every(id => q.tactics.owned[id]) && q.tactics.equipped.join() === 'tiroir' && !Game.equipTactic(q, 'barrage'));
   const mt = DATA.MISSIONS[0], teams = Game.buildTeams(q, mt);
   check('le Tiroir part dans la bataille des deux côtés', teams[0].tactics.join() === 'tiroir' && teams[1].tactics.join() === 'tiroir');
   // paquets : tirage déterministe

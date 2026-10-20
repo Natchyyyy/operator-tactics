@@ -2547,10 +2547,49 @@
   Battle.prototype.useTactic = function (teamIndex, id) {
     const can = this.canUseTactic(teamIndex, id); if (!can.ok) return can;
     const team = this.teams[teamIndex], st = team.tactics[id], def = TACTICS[id];
+    let fd = null; if (id === 'fixer_deborder') { fd = this.fixerDeborder(teamIndex); if (!fd.ok) return fd; }
     st.uses--; st.used++; st.cooldownUntil = this.t + (def.cooldown || 0);
     if (def.plan) this.replan(teamIndex, id);   // plan de voies : les survivants sont redistribués selon ce plan
     this.logEvent('tactic', `${team.name} : ${def.name}.`, { team: teamIndex, tactic: id });
-    return { ok: true };
+    return fd || { ok: true };
+  };
+  // T4 — « Fixer et déborder » (carte active, jouée quand le joueur le décide) : sur l'ennemi repéré le plus proche de
+  // l'escouade (vu, entendu ou signalé il y a < 8 s), les deux opérateurs les plus proches passent en Appui (F2 : ordre
+  // Méthodique sur place, arrivée Tenir, feu « appui », zone arrosée = sa position) ; les autres le contournent par le
+  // flanc le plus court (voie nord ou sud ; sans voies, de côté) en Méthodique, puis l'Encerclent (A2 ; à moins de trois :
+  // Tenir). Ce sont deux ordres du clic droit ordinaires : marqueurs, bulles et fin d'ordre comme d'habitude.
+  Battle.prototype.fixerDeborder = function (teamIndex) {
+    const team = this.teams[teamIndex], us = team.units.filter(u => u.alive && !u.drag);
+    if (us.length < 3) return { ok: false, reason: 'il faut au moins trois opérateurs' };
+    if (us.some(u => this.t - (u.orderAt === undefined ? -99 : u.orderAt) < ORDER_COOLDOWN)) return { ok: false, reason: `un ordre toutes les ${ORDER_COOLDOWN} s` };
+    const C = this.teamCentroid(team); let T = null, td = Infinity;
+    for (const e of this.teams[1 - teamIndex].units) {
+      if (!e.alive) continue; let b = null; for (const u of us) { const q = u.knowledge[e.id]; if (q && (!b || q.t > b.t)) b = q; }
+      if (b && this.t - b.t < 8) { const d = Math.hypot(b.x - C.x, b.z - C.z); if (d < td) { td = d; T = b; } }
+    }
+    if (!T) return { ok: false, reason: 'aucun ennemi repéré' };
+    const byD = us.slice().sort((a, b) => Math.hypot(a.x - T.x, a.z - T.z) - Math.hypot(b.x - T.x, b.z - T.z) || (a.id < b.id ? -1 : 1));
+    const fix = byD.slice(0, 2), flank = byD.slice(2), F = { x: (fix[0].x + fix[1].x) / 2, z: (fix[0].z + fix[1].z) / 2 }, G = { x: flank.reduce((s, u) => s + u.x, 0) / flank.length, z: flank.reduce((s, u) => s + u.z, 0) / flank.length };
+    if (Math.hypot(F.x - T.x, F.z - T.z) < 4) return { ok: false, reason: 'trop près de l’ennemi' };
+    // le flanc : la voie nord ou sud au plus court (chemin le groupe → la voie à hauteur de l'ennemi → l'ennemi) ; sans voies, de côté
+    const v = this.map.def.voies, dirx = Math.sign(this.map.spawns[1 - teamIndex].x - team.spawn.x) || 1, opts = [];
+    if (v) { for (const [side, z] of [[-1, v.nord], [1, v.sud]]) opts.push({ side, w: this.orderPoint(T.x - dirx * 4, z) }); }
+    else { let dx = T.x - G.x, dz = T.z - G.z; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L; for (const s of [-1, 1]) opts.push({ side: dz * s < 0 ? -1 : 1, w: this.orderPoint(T.x - dx * 4 - dz * s * 13, T.z - dz * 4 + dx * s * 13) }); }
+    let best = null;
+    for (const o of opts) {
+      if (!o.w || Math.hypot(o.w.x - T.x, o.w.z - T.z) < 6) continue;
+      const l1 = this.pathLen(G.x, G.z, o.w.x, o.w.z), l2 = this.pathLen(o.w.x, o.w.z, T.x, T.z); if (l1 === null || l2 === null) continue; const L = l1 + l2;
+      if (!best || L < best.L) best = Object.assign({ L }, o);
+    }
+    if (!best) return { ok: false, reason: 'aucun passage pour déborder' };
+    const r1 = this.moveOrder(teamIndex, { x: F.x, z: F.z, units: fix.map(u => u.id), mode: 'methodique', arrivee: 'tenir', feu: 'appui' });
+    if (!r1.ok) return r1;
+    this.orientOrder(teamIndex, { ordre: r1.id, x: T.x, z: T.z });
+    const r2 = this.moveOrder(teamIndex, { x: T.x, z: T.z, via: [best.w], units: flank.map(u => u.id), mode: 'methodique', arrivee: 'encercler' });
+    const nord = best.side < 0;
+    this.logEvent('fixer', `${team.name} : ${fix.map(u => u.callsign).join(', ')} — « On les fixe ! »`, { team: teamIndex, unit: fix[0].id, ordre: r1.id });
+    if (r2.ok) this.logEvent('deborde', `${team.name} : ${flank.map(u => u.callsign).join(', ')} — « On déborde par le ${nord ? 'nord' : 'sud'} ! »`, { team: teamIndex, unit: flank[0].id, ordre: r2.id, nord });
+    return { ok: true, fix: r1.id, flank: r2.ok ? r2.id : null };
   };
   Battle.prototype.updateTactics = function () {
     // fumées : expiration
