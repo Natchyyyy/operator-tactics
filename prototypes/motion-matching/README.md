@@ -103,12 +103,25 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   dos 1,0 s autour d'un axe au ras du sol (plus de jambes qui se lèvent) ; cuisses et tibias ramenés vers la ligne de
   traction ; à la dépose, le corps est figé 1,5 s après le lâcher puis les jambes sont couchées au sol de façon cinématique
   (genoux à 13 cm, pieds à 10 cm, fondu 0,4 s) — la charnière de cannon tenait sinon le tibia en « tente » sur le pied.
-  Mesuré : hanches du blessé 0,21-0,28 m pendant le traînage, tête 0,40-0,54 ; dernier tronçon en s'éloignant du bloc
-  (2 m) dans l'axe de la menace pour que le corps soit tiré et non poussé.
+  Dernier tronçon en s'éloignant du bloc (1 m) dans l'axe de la menace pour que le corps soit tiré et non poussé.
+  Après 4 rounds de critique sur le traînage (45 → 58 → 62 %) : coin contourné à 1,4 m et point de couvert reculé de
+  0,45 m (le blessé, qui traîne 1,2 m derrière et en travers, coupait l'angle du bloc) ; point de prise qui suit le corps
+  pendant l'approche (recul 0,8 m de la tête : le genou du sauveteur ne passe plus dans la tête au roulé) ; posture de
+  traction = genoux fléchis (hanches 0,57), buste en arrière (−0,3 rad, lissé 0,3 s), bras tendus vers le bas (bras de
+  44 cm : les mains ne descendent pas sous 0,62 m, donc épaules du blessé à ~0,45 m, tête 0,5) ; arme plaquée au dos
+  (centre 18 cm sous Spine2, diagonale 45°), retour en 0,8 s avec les mains qui ne prennent l'arme que sur la seconde
+  moitié (sinon l'IK visait la poignée derrière l'épaule : bras tendu en l'air sans but) ; jambes du blessé ramenées au
+  sol dans les virages (vitesse verticale ≤ −0,6 au-dessus de 20 cm) ; à la dépose, jambes ET bras couchés le long du
+  corps (cinématique 0,4 s après le gel). Mesuré : mains à ≤ 4 cm du col pendant tout le traînage ; aucun corps dans le
+  bloc ; blessé et sauveteur masqués de la menace (rayons) ; blessé final hanches 0,23, tête 0,27-0,30, genoux 0,13,
+  pieds 0,10, bras au sol.
 - Rythme (v31) : lecture accélérée / ralentie (×0,75-1,35, lissée 0,3 s) pour coller à la vitesse voulue — les clips
   100STYLE marchent à 0,9 m/s et reculent à 0,5 ; mesuré : marche 1,2-1,28 m/s, recul 1,0, sprint 2,6.
 - Agent critique (sous-agent indépendant, photos de référence vs captures éclairées `?clair=1`) : v22 38-64 %, v23
   85 % → 92-94 % en low ready après corrections (crosse derrière l'épaule, plongée 27°, roulis) ; voir captures/crit-*.png.
+  Accroupi / couvert 91-96 %. Traînage (critique « directeur d'animation AAA », plus sévère) : 62 % au dernier round ;
+  ce qu'il reste à lui reprocher demande des animations dédiées (roulé en 3 clés avec une main à la hanche, regard
+  par-dessus l'épaule pendant le recul, geste de désanglage, idle de respiration) ou vient du modèle (bras courts).
 - Commandes : ZQSD relatif à la caméra, le soldat regarde là où il va ; clic droit maintenu = épaulé (`PARAMS.epaule`, fondu
   0,3 s) + regard verrouillé sur la caméra (pas de côté, recul) ; la caméra seule ne fait jamais tourner le soldat.
 - E : escouade de 5 soldats (4 de plus sur des chemins, arme sortie) ; chaque agent = soldat + contrôleur + lecture de la base ;
