@@ -306,7 +306,7 @@
       const qFinal = (upV.lengthSq() > 1e-6 && upC.lengthSq() > 1e-6 ? Q().setFromUnitVectors(upC, upV) : Q()).multiply(qd);   // dessus de l'arme vers l'extérieur du dos
       const posDos = centre.clone();
       if (!this.fusilPosDos) { this.fusilPosDos = posDos.clone(); this.fusilQDos = qFinal.clone(); }
-      const kl = 1 - Math.exp(-dt / 0.08); this.fusilPosDos.lerp(posDos, kl); this.fusilQDos.slerp(qFinal, kl);
+      this.fusilPosDos.copy(posDos); this.fusilQDos.copy(qFinal);   // attache RIGIDE aux hanches (demande 20/10 : lissée, elle « volait » derrière lui en marchant / courant)
       if (k >= 0.999 || !this.fusilQAff) { w.position.copy(this.fusilPosDos); w.quaternion.copy(this.fusilQDos); }
       else { w.position.lerp(this.fusilPosDos, k); w.quaternion.slerp(this.fusilQDos, k); }
       w.visible = true; return k;
@@ -687,7 +687,7 @@
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
   // « bataille » minimale pour le module ragdoll du jeu : horloge, obstacles (le bloc), journal des morts
   const BATAILLE = window.BATAILLE = { t: 0, over: false, log: [], map: { obstacles: [{ x: BLOC.x, z: BLOC.z, w: BLOC.w, d: BLOC.d, h: BLOC.h, kind: 'cover', name: 'bloc' }] } };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.7, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.45, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 1.0, flechi: 0.7, depasse: 1.5, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, rea: { duree: 3.0, releve: 2.2, cadence: 1.8, amplitude: 0.04, flanc: 0.5 }, graines: [6, 2, 25], capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.7, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.45, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 1.0, flechi: 0.7, depasse: 2.2, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, rea: { duree: 3.0, releve: 2.2, cadence: 1.8, amplitude: 0.04, flanc: 0.5 }, graines: [6, 2, 25], capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -844,7 +844,10 @@
       // (demande utilisateur 20/10 : « qu'il se mette BIEN derrière l'obstacle ») : le côté est choisi pour que le CORPS
       // couché (des pieds, à 0,5 m de la face, à la tête, puis le sauveteur accroupi derrière) soit caché de TOUTES les
       // positions ennemies connues (bloc et murs), pas seulement la silhouette du sauveteur au point de couvert.
-      const PS = PARAMS.sauvetage, score = (p, n, pMs, cacheQ) => { const fin = p.clone().addScaledVector(n, PS.ecartFace); let tot = 0, cnt = 0; for (const q of pMs) for (let s = -0.5; s <= PS.depasse + 0.01; s += 0.2) { cnt++; if (cacheQ(q, fin.clone().addScaledVector(n, s))) tot++; } return cnt ? tot / cnt : 0; };
+      // géométrie en L : le sauveteur recule le long de la face à `ecartL` m (même ligne que le coin contourné), puis tout
+      // droit le long de la normale sur `droit` m ; le corps (≈ 1,5 m derrière lui) finit dans l'axe, entre `ecartL` et le bout
+      const PS = PARAMS.sauvetage, ecartL = PS.margeCoin + PARAMS.couvert.rayon, droit = PS.depasse;
+      const score = (p, n, pMs, cacheQ) => { const A = p.clone().addScaledVector(n, ecartL - PARAMS.couvert.recul); let tot = 0, cnt = 0; for (const q of pMs) for (let s = -0.3; s <= droit + 0.01; s += 0.2) { cnt++; if (cacheQ(q, A.clone().addScaledVector(n, s))) tot++; } return cnt ? tot / cnt : 0; };
       const C = this.R.ctl; const ch = C.couvrir(BLOC, this.menace, PARAMS.sauvetage.margeCoin, { score }); C.enRoute = null; C.cheminRecul = true; C.cheminTol = 0.12; C.vitesseChemin = PARAMS.sauvetage.vitesse; C.cheminFin = true;
       // dernier tronçon PERPENDICULAIRE à la face (sa normale, pas la direction de la menace : en diagonale le corps
       // dépassait du bloc), en s'ÉLOIGNANT du bloc : on recule, le corps suit derrière ; il finit perpendiculaire au bloc,
@@ -854,10 +857,9 @@
       // Le point de couvert (0,55 m de la face) est reculé de `ecartFace` : le blessé traîne 1,2 m derrière et en travers,
       // ses jambes coupaient le coin du bloc (mesuré : hanches à 0,2 m de la face en passant le coin).
       const n = ch.length, fin = ch[n - 1]; const loin = (C.couvertNormale || fin.clone().sub(V3(this.menace.x, 0, this.menace.z))).clone(); loin.y = 0; loin.normalize();
-      ch[n - 1] = fin.clone().addScaledVector(loin, 0.45 - PARAMS.couvert.recul);   // point d'alignement, près de la face
-      fin.addScaledVector(loin, PARAMS.sauvetage.ecartFace);
-      ch.push(fin.clone().addScaledVector(loin, PARAMS.sauvetage.depasse));
-      this.pointDepose = fin; this.axeDepose = loin;
+      const A = fin.clone().addScaledVector(loin, ecartL - PARAMS.couvert.recul);   // coude du L, dans l'axe, à `ecartL` de la face
+      ch[n - 1] = A; ch.push(A.clone().addScaledVector(loin, droit));
+      this.pointDepose = A.clone().addScaledVector(loin, droit * 0.5); this.axeDepose = loin;
       C.surArrivee = () => { this.detacher(); this.etat = 'depose'; this.t = 0; const r = this.V.mort.m.rag; if (r) r.t = 0; this.V.mort.aplatir = true; this.V.mort.aplatirBras = true; this.controleDepose(); };
       return ch;
     }

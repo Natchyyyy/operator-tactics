@@ -132,7 +132,7 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
 - Presets, règles demandées par l'utilisateur (20/10, v35) : on ne réanime JAMAIS à découvert — s'il y a un couvert
   à ≤ 8 m du blessé on le traîne derrière d'abord, du côté caché de TOUTES les positions ennemies connues (bloc ET
   murs), et le côté est choisi pour que ce soit le CORPS couché qui soit caché (score sur pieds → tête → sauveteur),
-  dernier tronçon perpendiculaire à la face (point d'alignement à 0,45 m, puis 1,9 m tout droit) ; contrôle à la dépose
+  chemin de traînage en L (le long de la face à 1,8 m, même ligne que le coin contourné, puis 2,2 m tout droit dans l'axe : plus de zigzag) ; arme à la sangle attachée rigidement aux hanches (lissée, elle flottait derrière lui en course) ; contrôle à la dépose
   (événement `depose`, part du corps cachée, ex. 0,83-1,0). Prise au col : le sauveteur est pinglé à l'arrivée (le
   contrôleur arrivait encore lancé), s'il a roulé le blessé (le corps bouge de ~0,7 m) il se redresse, fait un pas
   jusqu'au nouveau point idéal (`replace`) et reprend ; attache seulement une fois en place (≤ 12 cm) : mains à
