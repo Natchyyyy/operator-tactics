@@ -592,15 +592,18 @@
     // à la menace (arme en garde basse ; clic droit pour épauler).
     couvrir(bloc, menace, marge) {
       marge = marge ?? 0.1;
-      const cx = bloc.x + bloc.w / 2, cz = bloc.z + bloc.d / 2, m = V3(menace.x - cx, 0, menace.z - cz).normalize();
+      // menace = un point, ou { liste: [{x,z}, …] } : on se cache de TOUTES les positions ennemies connues (score moyen)
+      const liste = menace.liste && menace.liste.length ? menace.liste : [menace];
+      const cx = bloc.x + bloc.w / 2, cz = bloc.z + bloc.d / 2, m = liste.reduce((acc, q) => acc.add(V3(q.x - cx, 0, q.z - cz).normalize()), V3()).normalize(); if (m.lengthSq() < 1e-6) m.set(0, 0, -1);
+      menace = { x: cx + m.x * 10, z: cz + m.z * 10 };   // direction moyenne (pour le cap « face à la menace »)
       const cotes = [[V3(1, 0, 0), V3(bloc.x + bloc.w, 0, cz)], [V3(-1, 0, 0), V3(bloc.x, 0, cz)], [V3(0, 0, 1), V3(cx, 0, bloc.z + bloc.d)], [V3(0, 0, -1), V3(cx, 0, bloc.z)]];
       // candidat caché = le segment menace → point traverse le bloc (poitrine accroupie sous le haut du bloc) ; parmi les
       // cachés, le plus proche du soldat ; sinon le côté le plus à l'opposé de la menace (règle du jeu : coverAt)
-      const pM = V3(menace.x, 0, menace.z), cache1 = (p) => segCoupeBoite(pM, p, bloc.x, bloc.x + bloc.w, bloc.z, bloc.z + bloc.d);
+      const pMs = liste.map(q => V3(q.x, 0, q.z)), pM = V3(menace.x, 0, menace.z), cache1 = (p) => pMs.every(q => segCoupeBoite(q, p, bloc.x, bloc.x + bloc.w, bloc.z, bloc.z + bloc.d));
       // caché = le point ET les deux épaules (±epaules, perpendiculaire à la menace) sont derrière le bloc
       // score de chaque candidat = part de la silhouette (5 rayons sur ±epaules) cachée par le bloc ; le mieux caché gagne,
       // à égalité le plus proche
-      const couvert = (p) => { const u = pM.clone().sub(p); u.y = 0; u.normalize(); const lat = V3(-u.z, 0, u.x); let n = 0; for (let k = -3; k <= 3; k++) if (cache1(p.clone().addScaledVector(lat, k / 3 * PARAMS.couvert.epaules))) n++; return n / 7; };
+      const couvert = (p) => { let tot = 0; for (const q of pMs) { const u = q.clone().sub(p); u.y = 0; u.normalize(); const lat = V3(-u.z, 0, u.x); let n = 0; for (let k = -3; k <= 3; k++) if (segCoupeBoite(q, p.clone().addScaledVector(lat, k / 3 * PARAMS.couvert.epaules), bloc.x, bloc.x + bloc.w, bloc.z, bloc.z + bloc.d)) n++; tot += n / 7; } return tot / pMs.length; };
       // le point glisse le long du bord (±0,5 m, en restant à 0,25 m des coins) pour cacher le plus de silhouette
       const cands = [];
       for (const [n, e] of cotes) { const t = V3(-n.z, 0, n.x), demi = (Math.abs(n.x) > 0.5 ? bloc.d : bloc.w) / 2 - 0.25;
@@ -616,11 +619,11 @@
       this.chemin = chemin; this.cheminIdx = 0; this.cheminFin = true; this.couvert = null; this.accroupiApproche = false; this.enRoute = { point: best, yawMenace: Math.atan2(menace.x - best.x, menace.z - best.z) }; this.verrouCible = null;
       return chemin;
     },
-    arriver() { if (this.surArrivee) { const f = this.surArrivee; this.surArrivee = null; this.chemin = null; this.cheminFin = false; f(); return; } if (!this.enRoute) return; this.couvert = this.enRoute; this.enRoute = null; this.chemin = null; this.cheminFin = false; this.accroupi = true; this.verrouCible = this.couvert.yawMenace; },
+    arriver() { this.tirEnMarchant = false; if (this.surArrivee) { const f = this.surArrivee; this.surArrivee = null; this.chemin = null; this.cheminFin = false; f(); return; } if (!this.enRoute) return; this.couvert = this.enRoute; this.enRoute = null; this.chemin = null; this.cheminFin = false; this.accroupi = true; this.verrouCible = this.couvert.yawMenace; },
     yawCible(vGoal) {
       // il regarde là où il va ; bouton droit de la souris maintenu : regard verrouillé sur la direction de la caméra
       // (marche tactique vers la touche, buste vers la cible ; recul si la cible est derrière) — la caméra seule ne fait jamais tourner le soldat
-      if (this.verrouRegard && !(this.chemin && this.chemin.length)) { const m = this.modeVisee(vGoal); if (m !== 'avant') return this.verrouCible ?? this.camYaw; }
+      if (this.verrouRegard && (!(this.chemin && this.chemin.length) || this.tirEnMarchant)) { const m = this.modeVisee(vGoal); if (m !== 'avant') return this.verrouCible ?? this.camYaw; }
       if (this.verrouCible != null && (vGoal.lengthSq() < 1e-4 || this.cheminRecul)) return this.verrouCible;   // à couvert : face à la menace ; traîne un blessé : face à lui, à reculons
       if (vGoal.lengthSq() < 1e-4) return this.yaw;
       return Math.atan2(vGoal.x, vGoal.z);
@@ -678,7 +681,7 @@
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
   // « bataille » minimale pour le module ragdoll du jeu : horloge, obstacles (le bloc), journal des morts
   const BATAILLE = window.BATAILLE = { t: 0, over: false, log: [], map: { obstacles: [{ x: BLOC.x, z: BLOC.z, w: BLOC.w, d: BLOC.d, h: BLOC.h, kind: 'cover', name: 'bloc' }] } };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.6, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 0.65, flechi: 0.7, depasse: 1.0, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, rea: { duree: 3.0, releve: 1.6, cadence: 1.8, amplitude: 0.04, flanc: 0.5 }, graines: [6, 2, 25], capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.45, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 1.0, flechi: 0.7, depasse: 1.0, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, rea: { duree: 3.0, releve: 1.6, cadence: 1.8, amplitude: 0.04, flanc: 0.5 }, graines: [6, 2, 25], capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -723,6 +726,7 @@
       // le point tenu démarre LÀ où est le col (pas d'à-coup), puis suit les mains à ≤ 1,5 m/s (le corps est soulevé)
       const Mo = r.Mo, U = Mo.U, F = Mo.F, loc = new C.Vec3(U.x * 0.16 - F.x * 0.08, U.y * 0.16 - F.y * 0.08, U.z * 0.16 - F.z * 0.08);
       const p0 = torse.pointToWorldFrame(loc); void pm;
+      { const S = this.R.soldat, mains = ['D', 'G'].map(k => S.mains[k] && S.mains[k][2] ? S.mains[k][2].getWorldPosition(V3()) : null).filter(Boolean); const c = mains.length ? mains.reduce((a, b) => a.add(b), V3()).multiplyScalar(1 / mains.length) : null; const tete = V.soldat.os[Base.meta.os.indexOf('Head')].getWorldPosition(V3()); EVENEMENTS.push({ t: +horloge.toFixed(2), qui: agents.indexOf(this.R), k: 'prise', dMainsCol: c ? +Math.hypot(c.x - p0.x, c.y - p0.y, c.z - p0.z).toFixed(2) : null, hMains: c ? +c.y.toFixed(2) : null, dPiedsTete: +Math.hypot(S.pos.x - tete.x, S.pos.z - tete.z).toFixed(2), hCol: +p0.y.toFixed(2) }); }
       this.kin = new C.Body({ mass: 0, type: C.Body.KINEMATIC, collisionFilterGroup: 0, collisionFilterMask: 0 }); this.kin.position.set(p0.x, p0.y, p0.z); W.addBody(this.kin);
       this.cons = new C.PointToPointConstraint(torse, loc, this.kin, new C.Vec3(0, 0, 0), 300); W.addConstraint(this.cons);
       // jambes molles qui traînent (pas de coups de pied) : amortissement fort sur cuisses et jambes pendant le traînage
@@ -744,6 +748,7 @@
       if (this.etat === 'approche' && this.t > 12) { EVENEMENTS.push({ t: +horloge.toFixed(2), qui: agents.indexOf(R), k: 'approche-abandon' }); this.finir(); }
       if (this.etat === 'prise') {
         // accroupi partiel, mains vers le col ; à 0,6 s le blessé est repris en physique et attaché, puis on recule
+        R.facteurRacine = 0;   // arrêt net : le clip de course continuait à déplacer le sauveteur de ~1 m pendant la prise (il « chopait » le col à 1,3 m du corps)
         C.accroupi = false; C.profondeurExtra = PARAMS.sauvetage.flechi + 0.25; S.pencheExtra = PARAMS.sauvetage.penche; this.poidsMains = Math.min(1, this.poidsMains + dt / 0.5);
         { const col = this.pointCol(); col.y = Math.max(col.y + 0.03, 0.16); this.cibleMains = col; }   // les mains vont au col RÉEL du blessé (il était pris « dans le vide » 20-30 cm devant le corps)
         // blessé à plat ventre : on le roule sur le dos (rotation du squelette autour de son axe hanches → tête, 0,6 s)
@@ -1224,10 +1229,12 @@
         // à découvert sous le feu (touché, pris sous les balles, ou cible trop dure) et un couvert à portée : 2-3 coups de
         // suppression puis on court au couvert (règle coverUp du jeu ; le tir en courant n'existe pas ici)
         const expose = !this.tenir && !c.couvert && !c.enRoute && !this.replie;
+        // (demande utilisateur 20/10) : il part TOUT DE SUITE vers le couvert en marchant arme en joue, lâche 2-3 coups de
+        // suppression en chemin (précision « en mouvement » du jeu), puis sprinte ; à couvert, il riposte par-dessus
         if (expose && (t - this.touche < 2 || this.suppression > REGLES.suppCouvert) && this.couvertPossible(cible)) {
-          if (!this.supp) { this.supp = { reste: 2 + Math.floor(RNG() * 2) }; this.log('suppression', { coups: this.supp.reste }); }
+          this.supp = { reste: 2 + Math.floor(RNG() * 2) }; this.replie = true; this.auCouvert(cible); c.tirEnMarchant = true; c.vitesseChemin = c.vitesses.marche; this.log('suppression', { coups: this.supp.reste });
         }
-        if (this.supp && this.supp.reste <= 0) { this.supp = null; this.replie = true; this.auCouvert(cible); return; }
+        if (c.enRoute && c.tirEnMarchant && this.supp && this.supp.reste <= 0) { this.supp = null; c.tirEnMarchant = false; c.verrouRegard = false; c.tir = false; c.vitesseChemin = c.vitesses.course; this.log('sprint'); }
         this.engager(cible, dmin, dt);
         return;
       }
@@ -1251,13 +1258,16 @@
       if (!ths.length) ths.push({ x: m.x, z: m.z, fresh: false });   // couvert à portée, aucune menace connue : on se cache de la dernière connue
       const tOpen = Math.max(0, d - 1) / c.vitesses.course + 3.0 / PARAMS.sauvetage.vitesse;   // temps à découvert : aller au blessé + le tirer (~3 m)
       if (ths.some(x => x.fresh) && tOpen > REGLES.dragMaxOpen) this.log('traine-trop-long', { tOpen: +tOpen.toFixed(1) });   // jeu : fumigène obligatoire (pas de fumigène ici : il y va quand même)
-      this.log('traine', { qui2: agents.indexOf(V), menaces: ths.length }); A.sauvetage = new Sauvetage(A, V, { x: ths[0].x, z: ths[0].z }); A.sauvetage.reanimer = true; }
+      // côté du couvert : caché de TOUTES les positions ennemies connues (celui qu'on vient d'abattre compris : d'autres peuvent être par là)
+      const liste = []; for (const [E, k] of this.connu) liste.push(E.mort ? { x: E.soldat.pos.x, z: E.soldat.pos.z } : { x: k.x, z: k.z }); for (const q of ths) if (!liste.some(l => Math.hypot(l.x - q.x, l.z - q.z) < 1)) liste.push({ x: q.x, z: q.z });
+      this.log('traine', { qui2: agents.indexOf(V), menaces: liste.length }); const dm = liste.reduce((acc, q) => acc.add(V3(q.x - cx, 0, q.z - cz).normalize()), V3()).normalize(); if (dm.lengthSq() < 1e-6) dm.set(ths[0].x - cx, 0, ths[0].z - cz).normalize();
+      A.sauvetage = new Sauvetage(A, V, { x: cx + dm.x * 10, z: cz + dm.z * 10, liste }); A.sauvetage.reanimer = true; }   // menace « moyenne » pour le cap final, liste pour le choix du côté
     couvertPossible(E) { const A = this.A, cx = BLOC.x + BLOC.w / 2, cz = BLOC.z + BLOC.d / 2; if (Math.hypot(cx - A.soldat.pos.x, cz - A.soldat.pos.z) > REGLES.couvertMax) return false; const ch = A.ctl.couvrir(BLOC, { x: E.soldat.pos.x, z: E.soldat.pos.z }); const ok = A.ctl.couvertScore > 0.6; A.ctl.chemin = null; A.ctl.cheminFin = false; A.ctl.enRoute = null; return ok; }
     auCouvert(E) { const A = this.A, c = A.ctl; c.tir = false; c.verrouRegard = false; c.couvrir(BLOC, { x: E.soldat.pos.x, z: E.soldat.pos.z }); c.vitesseChemin = c.vitesses.course; c.accroupi = false; this.log('couvert'); dessinerChemin(); }
     engager(E, d, dt) {
       const A = this.A, c = A.ctl, p = E.soldat.hips.getWorldPosition(V3());
       c.visee = true; c.verrouCible = Math.atan2(p.x - A.soldat.pos.x, p.z - A.soldat.pos.z);
-      if (c.enRoute) { c.tir = false; c.verrouRegard = false; return; }   // on court au couvert sans tirer
+      if (c.enRoute && !c.tirEnMarchant) { c.tir = false; c.verrouRegard = false; return; }   // on sprinte au couvert sans tirer
       if (this.pause > 0) { c.tir = false; return; }   // entre deux rafales (à découvert : on garde la cible en joue)
       c.verrouRegard = true;   // épaulé (à couvert : il se redresse pour tirer par-dessus)
       this.visee = Math.max(0, this.visee - dt);
