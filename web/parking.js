@@ -616,14 +616,19 @@
   function planter(o) {
     const K = M3(), g = new T.Group();
     const outer = new T.Mesh(new T.BoxGeometry(o.w, o.h, o.d), K.betonClair); g.add(outer);
-    const soil = new T.Mesh(new T.BoxGeometry(o.w - 0.2, 0.05, o.d - 0.2), mat('terre', () => new T.MeshStandardMaterial({ color: 0x3a2c20, roughness: 1 }))); soil.position.y = o.h / 2 - 0.08; g.add(soil);
+    const soil = new T.Mesh(new T.BoxGeometry(o.w - 0.2, 0.05, o.d - 0.2), mat('terre', () => new T.MeshStandardMaterial({ color: 0x3a2c20, roughness: 1 }))); soil.position.y = root.Arbres ? o.h / 2 + 0.004 : o.h / 2 - 0.08; g.add(soil);   // (avec arbres.js : terre à ras du bord, le feuillage pousse dessus)
     // couvre-sol : touffes basses et irrégulières (deux verts, un peu de paille), pas de « boules »
     const leaf = mat('buisV', () => feuillage(new T.MeshStandardMaterial({ color: 0x41592c, roughness: 0.9, vertexColors: true }))), leaf2 = mat('buis2V', () => feuillage(new T.MeshStandardMaterial({ color: 0x5b6b33, roughness: 0.95, vertexColors: true }))), paille = mat('pailleV', () => feuillage(new T.MeshStandardMaterial({ color: 0x8a7a4a, roughness: 1, vertexColors: true })));
-    const R = rng(Math.floor(o.x * 13 + o.z * 7)), n = Math.round((o.w * o.d) * 5);
+    const R = rng(Math.floor(o.x * 13 + o.z * 7)), n = root.Arbres ? 0 : Math.round((o.w * o.d) * 5), AR = root.Arbres;
+    if (AR) {   // arbres.js : couvre-sol en cartes de feuilles et quelques arbustes (même feuillage que les arbres et les haies)
+      const cs = AR.massif(o.w - 0.22, 0.22, o.d - 0.22, Math.floor(o.x * 13 + o.z * 7)); cs.position.y = o.h / 2; g.add(cs);
+      const na = Math.max(1, Math.round(o.w * o.d * 0.8));
+      for (let k = 0; k < na; k++) { const px = (R() - 0.5) * (o.w - 0.6), pz = (R() - 0.5) * (o.d - 0.6); if (Math.hypot(px, pz) < 0.35) continue; const r = 0.45 + R() * 0.3, b = AR.massif(r, r * 0.9, r, k * 31 + 5); b.position.set(px, o.h / 2, pz); g.add(b); }
+    }
     for (let k = 0; k < n; k++) { const r = 0.07 + R() * 0.11, b = new T.Mesh(bushGeo(k, true), R() < 0.15 ? paille : R() < 0.5 ? leaf2 : leaf); b.scale.setScalar(r); b.position.set((R() - 0.5) * (o.w - 0.3), o.h / 2 - 0.03 + r * 0.3, (R() - 0.5) * (o.d - 0.3)); b.scale.set(r * (1 + R() * 0.6), r * (0.35 + R() * 0.35), r * (1 + R() * 0.6)); b.rotation.y = R() * 6; b.castShadow = true; g.add(b); }
     // du volume : arbustes bas (boules irrégulières de 30 à 55 cm) et touffes de graminées (lames fines)
     const nb = Math.max(2, Math.round(o.w * o.d * 1.2));
-    for (let k = 0; k < nb; k++) { const r = 0.16 + R() * 0.12, b = new T.Mesh(bushGeo(k + 2), R() < 0.5 ? leaf : leaf2); const px = (R() - 0.5) * (o.w - 0.5), pz = (R() - 0.5) * (o.d - 0.5); if (Math.hypot(px, pz) < 0.35) continue; b.position.set(px, o.h / 2 + r * 0.55, pz); b.scale.set(r * (1 + R() * 0.4), r * (0.9 + R() * 0.6), r * (1 + R() * 0.4)); b.rotation.set((R() - 0.5) * 0.3, R() * 6, (R() - 0.5) * 0.3); b.castShadow = true; g.add(b); }
+    for (let k = 0; k < (AR ? 0 : nb); k++) { const r = 0.16 + R() * 0.12, b = new T.Mesh(bushGeo(k + 2), R() < 0.5 ? leaf : leaf2); const px = (R() - 0.5) * (o.w - 0.5), pz = (R() - 0.5) * (o.d - 0.5); if (Math.hypot(px, pz) < 0.35) continue; b.position.set(px, o.h / 2 + r * 0.55, pz); b.scale.set(r * (1 + R() * 0.4), r * (0.9 + R() * 0.6), r * (1 + R() * 0.4)); b.rotation.set((R() - 0.5) * 0.3, R() * 6, (R() - 0.5) * 0.3); b.castShadow = true; g.add(b); }
     const lame = mat('graminee', () => new T.MeshStandardMaterial({ color: 0x7d8a45, roughness: 0.9, side: T.DoubleSide }));
     for (let k = 0; k < nb; k++) { const t = new T.Group(), px = (R() - 0.5) * (o.w - 0.4), pz = (R() - 0.5) * (o.d - 0.4); if (Math.hypot(px, pz) < 0.35) continue;
       for (let j = 0; j < 7; j++) { const h = 0.3 + R() * 0.3, bl = new T.Mesh(new T.PlaneGeometry(0.035, h), lame); bl.position.y = h / 2; bl.rotation.set((R() - 0.5) * 0.7, R() * 3, (R() - 0.5) * 0.7); t.add(bl); }
@@ -896,10 +901,10 @@
     // arbres le long des rues et voitures garées le long des trottoirs (modèles Meshy si chargés)
     const M3d = ctx && ctx.M3;
     const ARBRE = M3d && M3d.has('arbre') ? 'arbre' : 'palmier';
-    if (M3d && M3d.has(ARBRE)) for (let k = 0; k < 18; k++) {
+    if ((M3d && M3d.has(ARBRE)) || root.Arbres) for (let k = 0; k < 18; k++) {
       const sd = k % 3, t = R(); let x, z;
       if (sd === 0) { x = -14 + t * (W + 28); z = D + 17; if (gate && Math.abs(x - gate.x - gate.w / 2) < 6) continue; } else if (sd === 1) { x = W + 17; z = t * (D + 10); } else { x = -17; z = t * (D + 10); }
-      const p = M3d.fit(ARBRE, 3, ARBRE === 'arbre' ? 5.5 + R() * 2.5 : 7 + R() * 4, 3, { byHeight: true, rot: k * 2.3 }); p.children[0].position.y = 0; p.position.set(x, 0.14, z); p.traverse(o => { if (o.isMesh) { o.castShadow = true; o.userData.keep = true; } }); group.add(p);
+      const hA = 5.5 + R() * 2.5, p = root.Arbres ? root.Arbres.arbre(hA + 0.5, k + 11) : M3d.fit(ARBRE, 3, ARBRE === 'arbre' ? hA : 7 + R() * 4, 3, { byHeight: true, rot: k * 2.3 }); if (!root.Arbres) p.children[0].position.y = 0; p.position.set(x, 0.14, z); p.traverse(o => { if (o.isMesh) { o.castShadow = true; o.userData.keep = true; } }); group.add(p);
     }
     if (M3d && M3d.has('berline')) {
       const kinds = ['berline', 'pickup', 'fourgon', 'berline'];
@@ -1206,7 +1211,9 @@
       const n = ph2(x, z) * 0.05 + (R() - 0.5) * 0.04; p.setXYZ(i, x + Math.sign(x) * n * rx, y + (y > 0 ? n : 0), z + Math.sign(z) * n * rz);
     }
     geo.computeVertexNormals();
-    const h = new T.Mesh(geo, feuillageMat()); h.position.y = -o.h / 2 + ph + hh / 2 - 0.08; g.add(h);
+    const AR = root.Arbres;   // avec arbres.js : cœur sombre (l'ombre dans la haie) et coque de cartes de feuilles par-dessus
+    const h = new T.Mesh(geo, AR ? mat('haieCoeur', () => new T.MeshStandardMaterial({ color: 0x1e2c17, roughness: 1 })) : feuillageMat()); h.position.y = -o.h / 2 + ph + hh / 2 - 0.08; g.add(h);
+    if (AR) { const sh = AR.massif(hw + 0.12, hh + 0.06, hd + 0.12, Math.floor(o.x * 7 + o.z * 3), true); sh.position.y = -o.h / 2 + ph - 0.08; g.add(sh); }
     return g;
   }
   function totem(o) {

@@ -16,6 +16,7 @@
     betonClair: { src: 'concrete_wall_008', f: ['pbr_beton_couleur.jpg', 'pbr_beton_relief.jpg', 'pbr_beton_rugosite.jpg'], metres: 3, gain: 1.35, mix: 0.3 },
     trottoir:   { src: 'concrete_pavement', f: ['pbr_dalles_couleur.jpg', 'pbr_dalles_relief.jpg', 'pbr_dalles_rugosite.jpg'], metres: 2.4, gain: 1.35, mix: 0 },
     brique:     { src: 'red_brick_03', f: ['pbr_brique_couleur.jpg', 'pbr_brique_relief.jpg', 'pbr_brique_rugosite.jpg'], metres: 1.25, gain: 1.15, mix: 0 },
+    ecorce:     { src: 'bark_platanus', f: ['pbr_ecorce_couleur.jpg', 'pbr_ecorce_relief.jpg', null], metres: 1.0, gain: 2.0, mix: 0 },
     briqueSombre: { src: 'red_brick_03', f: ['pbr_brique_couleur.jpg', 'pbr_brique_relief.jpg', 'pbr_brique_rugosite.jpg'], metres: 1.25, gain: 0.75, mix: 0 },
   };
   const CIEL = 'pbr_ciel_ville.jpg';
@@ -46,7 +47,7 @@
     d.u = { tDet: { value: proc.map }, tDetN: { value: proc.normal }, tDetR: { value: proc.normal }, uM: { value: proc.meters }, gain: { value: 1 }, hasR: { value: 0 }, mix: { value: proc.mix === undefined ? 0.35 : proc.mix } };
     dets[cle] = d;
     if (!M || !actif()) return d;
-    Promise.all([charger(M.f[0], true), charger(M.f[1], false), charger(M.f[2], false)]).then(([c, n, r]) => {
+    Promise.all([charger(M.f[0], true), charger(M.f[1], false), M.f[2] ? charger(M.f[2], false) : Promise.resolve(null)]).then(([c, n, r]) => {
       if (!c || !n) return;   // fichier manquant : on garde le procédural
       d.u.tDet.value = c; d.u.tDetN.value = n; d.u.uM.value = M.metres; d.u.gain.value = M.gain; d.u.mix.value = M.mix;
       if (r) { d.u.tDetR.value = r; d.u.hasR.value = 1; }

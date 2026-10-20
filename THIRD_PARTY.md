@@ -27,3 +27,4 @@ Conversion : redimensionnées (2048 px pour l'asphalte, 1024 / 512 px pour le re
 | `pbr_dalles_{couleur,relief,rugosite}.jpg` | concrete_pavement | https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_pavement/ | trottoirs |
 | `pbr_brique_{couleur,relief,rugosite}.jpg` | red_brick_03 | https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/red_brick_03/ | murs de briques |
 | `pbr_ciel_ville.jpg` | canary_wharf (HDRI) | https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/canary_wharf_1k.hdr — converti en JPEG (ciel et soleil écrêtés) | éclairage d'ambiance et reflets (jour, pluie, brouillard) |
+| `pbr_ecorce_{couleur,relief}.jpg` | bark_platanus | https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/bark_platanus/ (`_diff_1k`, `_nor_gl_1k`, réduites à 512 px) | troncs des arbres (`web/arbres.js`) |
