@@ -497,6 +497,15 @@
       for (const n of ['Neck', 'Head']) { const h = this.os[Base.meta.os.indexOf(n)]; if (!h) continue; const q2 = Q().slerp.call(Q(), qc, 0.5); const hw = h.getWorldQuaternion(Q()); h.quaternion.copy(h.parent.getWorldQuaternion(Q()).invert().multiply(q2).multiply(hw)); h.updateMatrixWorld(true); }
       this.group.updateMatrixWorld(true);
     }
+    // (20/10) « rase-mottes » : en glissade de visée, un pied dont les orteils dépassent hMax est ramené vers le sol (IK de la
+    // jambe, genou vers l'avant) — pas de sautillement, il y a toujours un pied d'appui
+    raseMottes(hMax) {
+      const b = (n) => this.os.find(o => o && o.name.endsWith(n));
+      for (const c of ['Left', 'Right']) { const H = b(c + 'UpLeg'), K = b(c + 'Leg'), A = b(c + 'Foot'), T = b(c + 'ToeBase'); if (!H || !K || !A || !T) continue;
+        for (let it = 0; it < 3; it++) { const pT = T.getWorldPosition(V3()), pA = A.getWorldPosition(V3()); const exces = pT.y - hMax; if (exces <= 0.005) break;
+          const cible = pA.clone(); cible.y -= exces; ikDeuxOs(H, K, A, cible, V3(Math.sin(this.yaw), 0.3, Math.cos(this.yaw)).normalize(), true); } }
+      this.group.updateMatrixWorld(true);
+    }
     verrouPieds(contacts, dt) {
       for (let k = 0; k < 2; k++) {
         const [H, K, A, T] = this.jambes[k]; const vr = this.verrous[k]; if (!H || !K || !A || !T) continue;
@@ -616,7 +625,7 @@
       const d = this.direction(); if (!d) return V3();
       const sprint = this.touches['ShiftLeft'] || this.touches['ShiftRight'];
       let v = sprint ? this.vitesses.course : this.vitesses.marche;
-      if (this.verrouRegard) { const m = this.modeVisee(d.clone().multiplyScalar(v)); if (m === 'recul') v = Math.min(v, this.vitesses.lat); else v = Math.min(v, 2.0); }   // à reculons : lent ; en avant arme en joue : glissade tactique ≤ 2 m/s (20/10)
+      if (this.verrouRegard) { const m = this.modeVisee(d.clone().multiplyScalar(v)); if (m === 'recul') v = Math.min(v, this.vitesses.lat); else v = Math.min(v, 1.7); }   // à reculons : lent ; en avant arme en joue : glissade tactique ≤ 1,7 m/s (20/10)
       return d.multiplyScalar(v);
     },
     // Visée (regard verrouillé) : déplacement TACTIQUE, pas de pas chassé. « avant » : il marche vers là où on le pousse
@@ -1002,7 +1011,7 @@
       // (20/10, photo de référence « course en visant ») : arme épaulée en déplacement rapide = glissade tactique : clips
       // Swat/Rushed (jambes qui se lèvent peu), genoux fléchis, buste penché, vitesse plafonnée à 2 m/s (Ctl.vitesseCible)
       const viseeCourse = !!Ctl.verrouRegard && !Ctl.accroupi && vGoal.lengthSq() > 1.6 * 1.6;
-      const courseRapide = !Ctl.verrouRegard && vGoal.lengthSq() > 2.1 * 2.1; S.attenueBob = courseRapide ? 0.15 : 1;
+      const courseRapide = !Ctl.verrouRegard && vGoal.lengthSq() > 2.1 * 2.1; S.attenueBob = (courseRapide || viseeCourse) ? 0.15 : 1;
       if (!this.sauvetage) S.pencheExtra = viseeCourse ? 0.1 : 0;
       const styleVoulu = (Ctl.accroupi || viseeCourse) ? 1 : (Ctl.visee && !mainsLibres && !courseRapide) ? 2 : 0;      // 1 = accroupi (Crouched : jambes écartées, genoux pliés — aussi pour la glissade en visée), 2 = Swat (arme), 0 = neutre
       this.derniereRecherche += dt;
@@ -1119,6 +1128,7 @@
       S.pencheLisse = (S.pencheLisse ?? 0) + ((S.pencheExtra || 0) - (S.pencheLisse ?? 0)) * (1 - Math.exp(-dt / 0.3));   /* penché extra lissé (prise 0,65 → traînage −0,2 sans à-coup) */
         S.pencher((S.profondeur || 0) * PARAMS.accroupi.penche * (1 - 0.7 * (S.poidsVisee || 0)) + S.pencheLisse);   // en visée le buste se redresse (joue sur la crosse)
       if (PARAMS.verrou) S.verrouPieds(contacts, dt);
+      if (viseeCourse) S.raseMottes(0.04);   // glissade en visée : le pied levé rase le sol (≤ 4 cm), jamais de phase en l'air (20/10)
       // tir (clic gauche maintenu en visée) : cadence soutenue du fusil d'assaut du jeu (110 coups/min), recul 1 → 0 en 0,1 s
       this.recul = Math.max(0, (this.recul || 0) - dt * 10); this.tirAcc = Math.max(0, (this.tirAcc || 0) - dt);
       if (Ctl.tir && Ctl.visee && Ctl.verrouRegard && (S.poidsVisee || 0) > 0.9 && this.tirAcc <= 0) { this.recul = 1; this.tirAcc = 60 / 110; this.tirs = (this.tirs || 0) + 1; if (S.fusil && S.fusil.flash) S.fusil.flashT = 0.04; }
