@@ -649,7 +649,7 @@
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
   // « bataille » minimale pour le module ragdoll du jeu : horloge, obstacles (le bloc), journal des morts
   const BATAILLE = window.BATAILLE = { t: 0, over: false, log: [], map: { obstacles: [{ x: BLOC.x, z: BLOC.z, w: BLOC.w, d: BLOC.d, h: BLOC.h, kind: 'cover', name: 'bloc' }] } };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.55, avantMains: 0.42, hautMains: 0.4, vitesse: 1.0, penche: 0.65, flechi: 0.5, depasse: 0.5 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.55, avantMains: 0.42, hautMains: 0.4, vitesse: 1.0, penche: 0.65, flechi: 0.5, depasse: 0.5 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -826,7 +826,12 @@
         this.styleCourant = styleVoulu;
       }
       // avance dans la séquence
-      this.frameT += dt * Base.meta.fps;
+      // rythme : la lecture est accélérée / ralentie (×0,75 à ×1,35, lissé 0,3 s) pour que la vitesse du clip colle à la
+      // vitesse voulue — les clips 100STYLE marchent à 0,9 m/s et reculent à 0,5 m/s, le jeu demande 1,25 et 1,0
+      { const vc = Math.hypot(Base.v[this.frame * 3], Base.v[this.frame * 3 + 2]), vg = Math.sqrt(vGoal.lengthSq()); const voulu = vc > 0.3 && vg > 0.3 ? Math.max(PARAMS.rythmeMin, Math.min(PARAMS.rythmeMax, vg / vc)) : 1;
+        this.rythme = (this.rythme ?? 1) + (voulu - (this.rythme ?? 1)) * (1 - Math.exp(-dt / 0.3)); }
+      const dtR = dt * this.rythme;
+      this.frameT += dtR * Base.meta.fps;
       while (this.frameT >= 1) { this.frameT -= 1; this.frame++; if (!Base.ok[this.frame] || Base.seq[this.frame] !== Base.seq[this.frame - 1]) { this.frame--; this.frameT = 0.999; break; } }
       S.poseDe(this.frame, this.frameT, this.poseQ, this.poseY);
       // déplacement par la racine de l'animation (vitesse locale → monde). La simulation du clavier est ensuite RECALÉE sur le
@@ -838,7 +843,7 @@
       // feraient dériver le soldat de 50 cm en quelques secondes) ; le verrou des pieds garde les appuis en place
       const vGoalNul = vGoal.lengthSq() < 0.01 && Ctl.vel.lengthSq() < 0.04 && Math.hypot(v[i * 3], v[i * 3 + 2]) < 0.35;
       this.facteurRacine += ((vGoalNul ? 0 : 1) - this.facteurRacine) * Math.min(1, dt / (vGoalNul ? 0.3 : 0.05));
-      S.yaw += w[i] * dt * this.facteurRacine;
+      S.yaw += w[i] * dtR * this.facteurRacine;
       // Correction de cap (« rotation warping ») : la base ne contient pas tous les virages, et la recherche se contentait
       // souvent d'une marche qui tourne doucement (D → 50° au lieu de 90°, parfois du mauvais côté). Quand on veut se
       // déplacer, le cap du soldat est ramené vers le cap voulu en plus de la rotation du clip (demi-vie 0,2 s, ≤ 3 rad/s) ;
@@ -867,7 +872,7 @@
         let e = Math.atan2(vGoal.x, vGoal.z) - Math.atan2(vl.x, vl.z); e = Math.atan2(Math.sin(e), Math.cos(e));
         vl.applyAxisAngle(UP, Math.max(-lim, Math.min(lim, e)));
       }
-      S.pos.addScaledVector(vl, dt * this.facteurRacine); this.vMonde = vl.clone().multiplyScalar(this.facteurRacine);
+      S.pos.addScaledVector(vl, dtR * this.facteurRacine); this.vMonde = vl.clone().multiplyScalar(this.facteurRacine * this.rythme);
       // bloc : on ne le traverse pas (le soldat est un cercle de PARAMS.couvert.rayon)
       if (BLOC) { const r = PARAMS.couvert.rayon, nx = Math.max(BLOC.x, Math.min(BLOC.x + BLOC.w, S.pos.x)), nz = Math.max(BLOC.z, Math.min(BLOC.z + BLOC.d, S.pos.z)); const dx = S.pos.x - nx, dz = S.pos.z - nz, dd = Math.hypot(dx, dz); if (dd < r) { if (dd < 1e-6) S.pos.x = nx - r; else { S.pos.x = nx + dx / dd * r; S.pos.z = nz + dz / dd * r; } } }
       // à couvert : recalage final sur le point (≤ 10 cm, pendant la descente)
