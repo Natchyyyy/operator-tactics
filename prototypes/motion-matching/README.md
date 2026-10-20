@@ -143,7 +143,9 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   (v35) le corps restait verrouillé sur la menace et il dérivait vers le bloc puis reculait (v36).
   Relevé en trois temps (2,2 s) : buste redressé sur une main au sol (IK), jambes repliées et hanches qui montent,
   main libre posée sur le genou, arme reprise à 70 % (v36 : les clips accroupis ont les bras tendus pour une arme → « bras
-  en T » ; même raison pour les clips neutres, bras qui balancent, quand l'arme est à la sangle). Arme à la sangle pendant le sauvetage : le long de la jambe droite, canon en bas,
+  en T » ; même raison pour les clips neutres, bras qui balancent, quand il marche mains libres pendant le sauvetage).
+  Anti-piétinement (v36) : si on veut avancer mais que l'animation reste immobile > 0,25 s, la recherche exclut les images
+  lentes (avant, à certaines cadences d'écran, le traînage retombait sur une image immobile et le soldat glissait au sol). Arme à la sangle pendant le sauvetage : le long de la jambe droite, canon en bas,
   attachée aux hanches (plus en travers du dos). Couvert : 0,7 m de la face (le canon entrait dans le bloc à 0,55).
 - Rythme (v31) : lecture accélérée / ralentie (×0,75-1,35, lissée 0,3 s) pour coller à la vitesse voulue — les clips
   100STYLE marchent à 0,9 m/s et reculent à 0,5 ; mesuré : marche 1,2-1,28 m/s, recul 1,0, sprint 2,6.

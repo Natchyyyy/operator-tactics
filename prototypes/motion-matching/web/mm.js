@@ -85,10 +85,10 @@
   // angVoulu (rad, repère des hanches) : en visée, seules les images dont la vitesse part dans cette direction (±50°), ou
   // presque immobiles, sont candidates — sinon la recherche prenait une marche arrière pour un pas de côté
   function dirOk(i, angVoulu) { if (angVoulu == null) return true; const { angV, vitV } = Base; if (vitV[i] < 0.3) return true; const e = angV[i] - angVoulu; return Math.abs(Math.atan2(Math.sin(e), Math.cos(e))) < 0.87; }
-  function chercher(req, styleVoulu, seulRepos, seulArret, seulFrontal, angVoulu) {
-    const { N, nF, fn, ok, style, repos, arret, frontal } = Base; let best = -1, bc = Infinity;
+  function chercher(req, styleVoulu, seulRepos, seulArret, seulFrontal, angVoulu, seulMobile) {
+    const { N, nF, fn, ok, style, repos, arret, frontal, vitV } = Base; let best = -1, bc = Infinity;
     for (let i = 0; i < N; i++) {
-      if (!ok[i] || style[i] !== styleVoulu || (seulRepos && !repos[i]) || (seulArret && !arret[i]) || (seulFrontal && !frontal[i]) || !dirOk(i, angVoulu)) continue;
+      if (!ok[i] || style[i] !== styleVoulu || (seulRepos && !repos[i]) || (seulArret && !arret[i]) || (seulFrontal && !frontal[i]) || !dirOk(i, angVoulu) || (seulMobile && vitV[i] < 0.3)) continue;
       let c = 0; const o = i * nF;
       for (let k = 0; k < nF; k++) { const d = fn[o + k] - req[k]; c += d * d; if (c >= bc) break; }
       if (c < bc) { bc = c; best = i; }
@@ -956,7 +956,10 @@
       // recherche toutes les 0,1 s, ou tout de suite si on change de style
       // (20/10) arme à la sangle (sauvetage) : clips neutres (bras qui balancent) — les clips « arme » (Swat / Rushed) ont les
       // bras raides le long du corps, faits pour être posés sur le fusil par l'IK : sans fusil en main ils donnaient un mannequin
-      const styleVoulu = Ctl.accroupi ? 1 : (Ctl.visee && !(S.dos && (S.poidsDos || 0) > 0.5)) ? 2 : 0;      // 1 = accroupi (Crouched), 2 = Swat (arme), 0 = neutre
+      // Seulement quand il MARCHE mains libres (approche du blessé, trajet vers le point de réa) : en traînant (marche arrière,
+      // mains au col) le style neutre tombait parfois sur le clip immobile et le soldat glissait au sol (retour utilisateur 20/10).
+      const mainsLibres = !!this.sauvetage && (this.sauvetage.etat === 'approche' || this.sauvetage.etat === 'versRea') && S.dos && (S.poidsDos || 0) > 0.5;
+      const styleVoulu = Ctl.accroupi ? 1 : (Ctl.visee && !mainsLibres) ? 2 : 0;      // 1 = accroupi (Crouched), 2 = Swat (arme), 0 = neutre
       this.derniereRecherche += dt;
       // recherche immédiate dès que l'intention change (touche pressée / relâchée, direction) : réactivité au clavier
       const intention = vGoal.x.toFixed(1) + ',' + vGoal.z.toFixed(1) + ',' + (Ctl.verrouRegard ? 1 : 0);
@@ -974,8 +977,12 @@
         const modeV = Ctl.modeVisee(vGoal), recule = modeV === 'recul' || !!Ctl.cheminRecul;
         const seulFrontal = !recule;                                                          // il marche vers là où il va (même en visée)
         const angVoulu = recule && vGoal.lengthSq() > 0.01 ? Math.atan2(vGoal.x, vGoal.z) - S.yaw : null;   // recul en visée : direction voulue dans le repère des hanches
-        const [best, bc] = chercher(req, styleVoulu, auRepos, arretVoulu, seulFrontal, angVoulu);
-        const cc = (!finClip && Base.ok[f] && Base.style[f] === styleVoulu && (!auRepos || Base.repos[f]) && (!arretVoulu || Base.arret[f]) && (!seulFrontal || Base.frontal[f]) && dirOk(f, angVoulu)) ? cout(f, req) : Infinity;
+        // piétinement (retour utilisateur 20/10 : « il glisse au sol sans animation ») : on veut avancer mais l'animation reste
+        // à l'arrêt depuis > 0,25 s — la recherche retombait toujours sur la même image immobile (minimum local, coût égal au
+        // courant) ; on exclut alors les images lentes : la meilleure image EN MOUVEMENT est prise, quel que soit son coût
+        this.pietine = vGoal.lengthSq() > 0.25 && vitAnimCour < 0.2 ? (this.pietine || 0) + dt : 0; const seulMobile = this.pietine > 0.25;
+        const [best, bc] = chercher(req, styleVoulu, auRepos, arretVoulu, seulFrontal, angVoulu, seulMobile);
+        const cc = (!finClip && !seulMobile && Base.ok[f] && Base.style[f] === styleVoulu && (!auRepos || Base.repos[f]) && (!arretVoulu || Base.arret[f]) && (!seulFrontal || Base.frontal[f]) && dirOk(f, angVoulu)) ? cout(f, req) : Infinity;
         if (this === agents[0]) { JOURNAL.push([+horloge.toFixed(2), +cc.toFixed(1), +bc.toFixed(1), best, f]); if (JOURNAL.length > 400) JOURNAL.shift(); }
         // les marges évitent les sauts inutiles en régime établi ; mais si on veut avancer alors que l'animation est à l'arrêt
         // (départ, ou arrêt forcé à un virage), on prend la meilleure image sans marge : sinon un repos « atypique » peut
