@@ -981,7 +981,11 @@
       // Seulement quand il MARCHE mains libres (approche du blessé, trajet vers le point de réa) : en traînant (marche arrière,
       // mains au col) le style neutre tombait parfois sur le clip immobile et le soldat glissait au sol (retour utilisateur 20/10).
       const mainsLibres = !!this.sauvetage && (this.sauvetage.etat === 'approche' || this.sauvetage.etat === 'versRea') && S.dos && (S.poidsDos || 0) > 0.5;
-      const styleVoulu = Ctl.accroupi ? 1 : (Ctl.visee && !mainsLibres) ? 2 : 0;      // 1 = accroupi (Crouched), 2 = Swat (arme), 0 = neutre
+      // (20/10 : « il court avec un balai dans les fesses ») : en course rapide (> 2,1 m/s) arme en main, clips de course
+      // naturels (Neutral_FR : foulée longue, buste penché) — les clips Swat/Rushed sont une marche rapide raide ; les mains
+      // restent posées sur l'arme par l'IK
+      const courseRapide = vGoal.lengthSq() > 2.1 * 2.1;
+      const styleVoulu = Ctl.accroupi ? 1 : (Ctl.visee && !mainsLibres && !courseRapide) ? 2 : 0;      // 1 = accroupi (Crouched), 2 = Swat (arme), 0 = neutre
       this.derniereRecherche += dt;
       // recherche immédiate dès que l'intention change (touche pressée / relâchée, direction) : réactivité au clavier
       const intention = vGoal.x.toFixed(1) + ',' + vGoal.z.toFixed(1) + ',' + (Ctl.verrouRegard ? 1 : 0);
