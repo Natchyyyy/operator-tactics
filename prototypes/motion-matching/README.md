@@ -77,6 +77,15 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   de 4 cm le long du canon, bouche relevée de 2° autour de la crosse, Spine2 basculé de 0,05 rad vers l'arrière, mains qui
   suivent par IK (0 mm d'écart) ; cadence soutenue du fusil d'assaut (sim/data.js : 110 coups/min) ; éclair de bouche simple
   (cœur + langue + lumière, 40 ms). Pas de douilles ni de traçantes ici (effets du jeu).
+- Morts en ragdoll (T torse / Y tête / U membre depuis la caméra ; G : galerie de 5 coureurs) : module du JEU tel quel
+  (web/ragdoll.js + cannon-es, copiés, non versionnés ici), branché par un adaptateur : vitesses tirées de la pose de
+  motion matching en cours (élan du coureur), impulsion sur la partie touchée, collisions sol + bloc, arme lâchée ;
+  l'agent mort ne fait plus de motion matching (ses os sont tenus par la physique).
+- Traîner un blessé à couvert (H ; scénario de démo si personne n'est mort) : le sauveteur va à la tête du blessé (arrivée
+  précise), s'accroupit, saisit le col du gilet (IK des deux mains), le blessé est remis en physique depuis sa pose
+  allongée et son torse est attaché à un point tenu dans les mains (articulation cannon) ; le sauveteur recule
+  (clips de marche arrière accroupie, face au blessé, 0,7 m/s) jusqu'au point de couvert (même règle que B, contournement),
+  lâche, se relève, reprend son arme. Jambes qui traînent, bras ballants, tête en arrière : physique, pas d'animation.
 - Agent critique (sous-agent indépendant, photos de référence vs captures éclairées `?clair=1`) : v22 38-64 %, v23
   85 % → 92-94 % en low ready après corrections (crosse derrière l'épaule, plongée 27°, roulis) ; voir captures/crit-*.png.
 - Commandes : ZQSD relatif à la caméra, le soldat regarde là où il va ; clic droit maintenu = épaulé (`PARAMS.epaule`, fondu

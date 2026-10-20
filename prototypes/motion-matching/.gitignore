@@ -6,3 +6,5 @@ web/gltf.js
 web/gign_hd.glb
 captures/
 web/fusil.glb
+web/cannon-es.js
+web/ragdoll.js
