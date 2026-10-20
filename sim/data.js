@@ -208,6 +208,10 @@
     // (sans plan : tirage à la graine, 1 ou 2 par flanc) ; relancé en bataille, il redistribue les survivants (engine.js : replan).
     tenailles: { id: 'tenailles', name: 'Tenailles', active: true, plan: [2, 2], uses: 2, cooldown: 20, desc: 'Plan de voies : deux opérateurs par le flanc nord, deux par le flanc sud, un seul tient le milieu ; on prend l\'adversaire en étau. Relancé en bataille, il redéploie les survivants selon ce plan.' },
     rush_milieu: { id: 'rush_milieu', name: 'Rush milieu', active: true, plan: [0, 0], uses: 2, cooldown: 20, desc: 'Plan de voies : toute l\'escouade passe par l\'axe central, groupée, pour forcer le passage. Relancé en bataille, il regroupe les survivants au milieu.' },
+    // Vague 2 (strategies_gign.md T4, T7, T1b) — cartes de l'escouade du joueur seulement (joueur: true : jamais données à l'adversaire)
+    fixer_deborder: { id: 'fixer_deborder', name: 'Fixer et déborder', active: true, joueur: true, uses: 2, cooldown: 25, desc: 'Au moment choisi : les deux opérateurs les plus proches de l\'ennemi repéré le fixent par un tir d\'appui ; les autres le contournent par le flanc le plus court et l\'encerclent.' },
+    eclaireur: { id: 'eclaireur', name: 'Éclaireur', active: false, joueur: true, desc: 'L\'opérateur le plus perceptif avance seul en tête ; les autres suivent à une vingtaine de mètres et ne s\'engagent qu\'au contact. Remplace le Tiroir tant qu\'il n\'y a pas de contact.' },
+    tiroir_lent: { id: 'tiroir_lent', name: 'Tiroir lent', active: false, joueur: true, desc: 'Tiroir plus sûr : un trinôme bondit pendant qu\'un binôme reste la base de feu ; le binôme ne passe jamais devant, il rejoint quand le trinôme est en place.' },
   };
 
   // ---- DÉFIS -------------------------------------------------------------------------

@@ -218,7 +218,7 @@
   function campaignMission(cid, mid) {
     const c = CAMPAIGNS.find(x => x.id === cid), base = MISSIONS.find(m => m.id === mid); if (!c || !base) return null;
     if (c.id === 'reguliere') return Object.assign({}, base, { campaign: cid, final: c.missions[c.missions.length - 1] === mid });
-    const extra = Object.keys(TACTICS).filter(t => !(base.enemyTactics || []).includes(t)).slice(0, c.extraTactic === true ? 1 : (c.extraTactic || 0));
+    const extra = Object.keys(TACTICS).filter(t => !TACTICS[t].joueur && !(base.enemyTactics || []).includes(t)).slice(0, c.extraTactic === true ? 1 : (c.extraTactic || 0));
     if (!c.levelBonus && !c.extraTactic && !c.levelClamp) return Object.assign({}, base, { id: `${cid}:${mid}`, campaign: cid, final: c.missions[c.missions.length - 1] === mid });   // campagne à missions propres
     return Object.assign({}, base, { id: `${cid}:${mid}`, name: `${base.name} (${c.id === 'veteran' ? 'vétéran' : 'élite'})`, campaign: cid, final: c.missions[c.missions.length - 1] === mid,
       // élite : niveaux de base resserrés (difficulté plus égale d'une mission à l'autre) et toujours cinq adversaires
@@ -252,7 +252,7 @@
     const size = rate(0) > target + 4 ? 4 : 5;                     // escouade de recrues face à des vétérans : un adversaire de moins
     const objective = pick(['eliminate', 'eliminate', 'capture', 'capture', 'hold']);
     return { id: 'rapide', name: 'Bataille rapide', quick: true, faction, desc: 'Un adversaire à votre mesure.', mapId: 'parking', enemy: karst.slice(0, size), level,
-      order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: Object.keys(TACTICS).filter(id => !TACTICS[id].plan), reward: QUICK.reward, xp: QUICK.xp, difficulty: 2,
+      order: objective === 'hold' ? 'assault' : pick(['assault', 'careful', 'hold']), objective, duration: 120, enemyTactics: Object.keys(TACTICS).filter(id => !TACTICS[id].plan && !TACTICS[id].joueur), reward: QUICK.reward, xp: QUICK.xp, difficulty: 2,
       conditions: pick(['jour', 'jour', 'jour', 'jour', 'jour', 'nuit', 'brouillard', 'pluie']) };
   }
   // niveau de l'adversaire de bataille rapide : l'écart de puissance avec une escouade de recrues, converti en niveaux

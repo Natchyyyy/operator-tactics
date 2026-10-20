@@ -307,6 +307,7 @@
     this.updateTiroir();
     this.updateMoveGroups();   // ordres de déplacement « méthodiques » : bonds par groupe
     if (this.tick % 10 === 5) this.updateKarst();   // plans de l'adversaire : une fois par seconde
+    if (this.tick % 10 === 0) this.teamMemo();
     for (const u of this.units) if (u.alive) this.perceive(u);
     if (Math.abs((this.t % COMMS_EVERY)) < DT / 2 || (this.t % COMMS_EVERY) > COMMS_EVERY - DT / 2) this.comms();
     // ordre de traitement mélangé à chaque pas : aucune équipe n'a l'avantage d'agir toujours la première
@@ -2090,6 +2091,11 @@
       // elle vieillit (personne ne la revoit) → on resserre de couvert en couvert ; périmée → on va voir ce qu'il en est
       const age = this.t - threatPos.t, stand = this.standoff(u);
       let reach = age < 6 ? stand : age < 14 ? MIN_CLOSE + 2 : MIN_CLOSE;
+      // fin de bataille : au plus deux adversaires debout, on est plus nombreux et plus personne ne tire depuis 10 s → on
+      // n'attend plus à distance de combat qu'il se montre (face-à-face immobiles jusqu'à la fin du temps) : on va le chercher
+      const foesUp = this.teams[1 - u.team].units.filter(e => e.alive).length;
+      const press = foesUp <= 2 && this.teams[u.team].units.filter(a => a.alive).length > foesUp && this.t - this.lastShotTime > 10;
+      if (press && age >= 3) reach = 0;
       // arrêté depuis 4 s sans aucune vue sur la position (voitures, murs : terrain fermé) : la distance de combat ne sert à
       // rien d'ici, on resserre (de couvert en couvert) jusqu'à ~10 m
       const los = this.map.hasLOS(u.x, EYE.stand, u.z, threatPos.x, CHEST.stand, threatPos.z);
@@ -2102,7 +2108,7 @@
           const cp = this.findCover(u, threatPos, 10, { requireShoot: true, minRange: Math.min(MIN_CLOSE, nd - 1), preferDist: clamp(nd, MIN_CLOSE, stand) });
           if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.6 && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; }
         }
-        reach = Math.min(reach, blindFor > 12 ? 0 : MIN_CLOSE + 2);
+        reach = Math.min(reach, blindFor > (press ? 6 : 12) ? 0 : MIN_CLOSE + 2);
       }
       // information ancienne (≥ 14 s) : on va VOIR la position, d'un point d'où on la découvre ; vue de près et vide → oubliée
       // (on ne marche plus jusque sur elle) ; sans vue possible, on s'en approche jusqu'à quelques mètres
@@ -2202,12 +2208,36 @@
       gx = u.post.x; gz = u.post.z;
     }
     // arrivé près de l'objectif sans avoir trouvé personne : ratisser la zone (points aléatoires autour de la zone ennemie)
-    if (progress >= span - 8) {
+    // (au plus deux adversaires debout et une dernière position connue pas encore vue : on y va tout de suite, d'où qu'on soit)
+    const endMemo = () => { const m = this.teams[u.team].memo; return m && this.teams[1 - u.team].units.filter(e => e.alive).length <= 2 && this.teams[1 - u.team].units.some(e => e.alive && m[e.id] && !m[e.id].visited); };
+    if (progress >= span - 8 || (u.role.id !== 'marksman' && endMemo())) {
       if (u.searchSince === undefined) u.searchSince = this.t;
       // ratissage prolongé sans contact (> 15 s) : on élargit à toute la carte (deux survivants ne tournent pas indéfiniment chacun chez l'autre)
       const wide = this.t - u.searchSince > 15;
       if (!u.searchGoal || this.t > u.searchUntil || Math.hypot(u.searchGoal.x - u.x, u.searchGoal.z - u.z) < 1.5) {
-        for (let k = 0; k < 10; k++) {
+        if (u.searchMemo) { u.searchMemo.visited = true; u.searchMemo = null; }   // dernière position connue : vue (ou temps écoulé)
+        u.searchGoal = null;
+        // fin de bataille (ratissage élargi, ou au plus deux adversaires debout) : d'abord la dernière position connue d'un
+        // adversaire encore debout (mémoire de l'équipe, voir teamMemo), d'autant plus large qu'elle est ancienne ; sinon le
+        // point tiré le plus loin des équipiers (on ne fouille pas tous au même endroit, on couvre la carte)
+        const foes = this.teams[1 - u.team].units.filter(e => e.alive), memo = this.teams[u.team].memo || {};
+        if (wide || foes.length <= 2) {
+          let m = null; for (const e of foes) { const q = memo[e.id]; if (q && !q.visited && (!m || q.t > m.t)) m = q; }
+          if (m) {
+            const r = Math.min(12, (this.t - m.t) * 0.4), a = this.rng.range(0, Math.PI * 2), f = this.map.nearestFree(m.x + Math.cos(a) * r * this.rng.next(), m.z + Math.sin(a) * r * this.rng.next());
+            if (f) { u.searchGoal = this.map.centerOf(f.c, f.r); u.searchUntil = this.t + 10; u.searchMemo = m; }
+          }
+          if (!u.searchGoal && wide) {
+            const mates = this.teams[u.team].units.filter(a => a.alive && a !== u); let best = null, bs = -Infinity;
+            for (let k = 0; k < 8; k++) {
+              const f = this.map.nearestFree(this.rng.range(4, this.map.width - 4), this.rng.range(3, this.map.depth - 3)); if (!f) continue;
+              const c = this.map.centerOf(f.c, f.r), sc = Math.min(25, ...mates.map(a => Math.hypot(a.x - c.x, a.z - c.z)).concat([99])) - Math.hypot(c.x - u.x, c.z - u.z) * 0.15;
+              if (sc > bs) { bs = sc; best = c; }
+            }
+            if (best) { u.searchGoal = best; u.searchUntil = this.t + 10; }
+          }
+        }
+        for (let k = 0; k < 10 && !u.searchGoal; k++) {
           const a = this.rng.range(0, Math.PI * 2), r = this.rng.range(2, objective.r + 9);
           let sx = objective.x + Math.cos(a) * r, sz = clamp(objective.z + Math.sin(a) * r, 2, this.map.depth - 2);
           if (wide) { sx = this.rng.range(4, this.map.width - 4); sz = this.rng.range(3, this.map.depth - 3); }
@@ -2535,30 +2565,40 @@
       }
     }
   };
+  // Mémoire d'équipe : la dernière position connue (vue, ouïe, radio) de chaque adversaire, gardée même quand l'information
+  // individuelle est oubliée ; sert au ratissage de fin de bataille (decide, 3). Une position plus récente efface « visité ».
+  Battle.prototype.teamMemo = function () {
+    for (const team of this.teams) {
+      const m = team.memo = team.memo || {};
+      for (const u of team.units) if (u.alive) for (const id in u.knowledge) { const k = u.knowledge[id]; if (!m[id] || k.t > m[id].t) m[id] = { x: k.x, z: k.z, t: k.t }; }
+    }
+  };
   // ---- Plans de l'adversaire (vague 2, strategies_gign.md §13.2) -----------------------------------------------------
   // L'équipe de l'IA (team.auto : missions, ligue, bataille libre) reçoit au départ UN plan, tiré à la graine (générateur à
   // part : le tirage principal n'est pas touché) et selon la situation (objectif, effectif) :
   //  - 'repli'      : se replier sous pression (deux fois au lieu d'une, dès le premier opérateur aveuglé ou touché) ;
   //  - 'contourner' : au contact, les deux opérateurs les plus éloignés de la menace la contournent par un côté (sur une
-  //                   carte à voies : par la voie de flanc la plus éloignée de la menace, comme les flancs de départ) ;
-  //  - 'embuscade'  : au départ, on s'installe à 15–21 % du chemin, feu retenu, et on attend (temps borné).
-  // (Mesuré sur 60 batailles par plan, parking, Alpha GIGN contre Bravo : sans plan 62 % pour Alpha ; un tiers du chemin
-  //  ou un flanc à travers le terrain donnaient l'avantage à Alpha — on arrivait en retard ou à découvert.)
+  //                   carte à voies : par la voie de flanc au plus court, comme les flancs de départ) ;
+  //  - 'embuscade'  : au départ, on s'installe à l'avant de sa zone de départ (5–9 % du chemin), feu retenu, et on attend
+  //                   (temps borné).
+  // (Mesuré sur 100 batailles par plan, parking : s'installer plus loin (15–40 % du chemin), décrocher dès qu'on est cloué,
+  //  ou contourner par la ruelle donnaient l'avantage à Alpha — on arrivait en retard, à découvert, ou dans un goulet.)
   // Réactions communes à tous les plans : décrocher sous la pression (aveuglé par une flash, touché, un tombé tout près) en
   // fumée, puis tenir feu retenu ; une fumée adverse à moins de 28 m → on tient en face, feu retenu, on les attend à la
   // sortie. Les plans passent par les ordres du clic droit (moveOrder, sans être enregistrés : ils découlent de l'état de
   // la bataille, la revue les refait à l'identique) ; chacun finit (temps, feu ouvert depuis un moment, fumée dissipée) par
   // « reprendre la manœuvre ». Jamais pour l'escouade du joueur (règle 1 du §13.3).
+  // (poids : contourner moitié moins souvent — séparer deux opérateurs coûte cher face à une escouade groupée)
   const KARST_PLANS = ['repli', 'contourner', 'embuscade'];
   const KARST_SAY = { repli: 'On décroche !', contourner: 'On les contourne !', embuscade: 'Embuscade, personne ne tire.', fumee: 'Fumée : on les attend à la sortie.' };
   Battle.prototype.initKarst = function (team) {
     const r = new RNG(((this.seed >>> 0) * 2654435761 + 7919 * (team.index + 1)) >>> 0);
     const n = team.units.filter(u => u.role.id !== 'marksman').length, ob = this.objective;
-    const w = { repli: 1, contourner: n >= 4 ? 1 : 0, embuscade: ob.type === 'hold' && ob.team !== team.index ? 0 : ob.type === 'capture' ? 0.5 : 1 };
+    const w = { repli: 1, contourner: n >= 4 ? 0.5 : 0, embuscade: ob.type === 'hold' && ob.team !== team.index ? 0 : ob.type === 'capture' ? 0.5 : 1 };
     let plan = 'repli';
     if (team.order !== 'hold') { const tot = KARST_PLANS.reduce((s, k) => s + w[k], 0); let x = r.next() * tot; for (const k of KARST_PLANS) { x -= w[k]; if (x < 0) { plan = k; break; } } }
     team.karst = { plan, repliLeft: plan === 'repli' ? 2 : 1, smokeLeft: 2, flank: false, ambush: false, ord: [], seen: [], contactAt: null,
-      flankDelay: 1 + r.next() * 2, ambushFrac: 0.15 + r.next() * 0.06, ambushFor: ob.type === 'capture' ? 30 : 50 + r.next() * 25, ambushAfter: 20, side: r.next() < 0.5 ? 1 : -1, lastAt: -99 };
+      flankDelay: 1 + r.next() * 2, ambushFrac: 0.05 + r.next() * 0.04, ambushFor: ob.type === 'capture' ? 30 : 50 + r.next() * 25, ambushAfter: 20, side: r.next() < 0.5 ? 1 : -1, lastAt: -99 };
   };
   Battle.prototype.karstBusy = function (u) {
     return !u.alive || u.role.id === 'marksman' || u.moveOrder || u.keyOrder || u.drag || u.reviving || u.throwing || u.state === 'noammo' || this.t - (u.orderAt === undefined ? -99 : u.orderAt) < ORDER_COOLDOWN;
@@ -2618,7 +2658,9 @@
       if (k.plan === 'contourner' && !k.flank && k.contactAt !== null && this.t - k.contactAt > k.flankDelay && known.length && alive.length >= 3) {
         const T = cen(known), C = cen(alive), cand = free.slice().sort((a, b) => Math.hypot(b.x - T.x, b.z - T.z) - Math.hypot(a.x - T.x, a.z - T.z) || (a.id < b.id ? -1 : 1)).slice(0, 2);
         if (cand.length === 2 && this.map.def.voies) {   // carte à voies : ils passent par la voie de flanc (même conduite que les flancs de départ)
-          const v = this.map.def.voies, lane = Math.abs(T.z - v.nord) > Math.abs(T.z - v.sud) ? -1 : 1;
+          const v = this.map.def.voies, G = cen(cand), dirx = Math.sign(this.map.spawns[1 - team.index].x - team.spawn.x) || 1;
+          let lane = 1, bl = Infinity;   // la voie de flanc au plus court (le groupe → la voie à hauteur de la menace → la menace)
+          for (const [l, z] of [[-1, v.nord], [1, v.sud]]) { const w = this.orderPoint(T.x - dirx * 4, z); if (!w) continue; const l1 = this.pathLen(G.x, G.z, w.x, w.z), l2 = this.pathLen(w.x, w.z, T.x, T.z); if (l1 !== null && l2 !== null && l1 + l2 < bl) { bl = l1 + l2; lane = l; } }
           cand.forEach(u => { u.voie = lane; u.laneDz = 0; this.resetRoute(u); });
           k.flank = true; k.lastAt = this.t;
           this.logEvent('plan', `${team.name} : « ${KARST_SAY.contourner} » (${cand.map(u => u.callsign).join(', ')})`, { team: team.index, unit: cand[0].id, plan: 'contourner' });
