@@ -52,15 +52,18 @@
       if (!o.isMesh || !o.material || Array.isArray(o.material) || o.material.isMeshPhysicalMaterial) return;
       const src = o.material, m = new THREE.MeshPhysicalMaterial();
       THREE.MeshStandardMaterial.prototype.copy.call(m, src); m.defines = { STANDARD: '', PHYSICAL: '' };
-      m.clearcoat = cfg[0]; m.clearcoatRoughness = cfg[1]; m.envMapIntensity = (src.envMapIntensity || 1) * 1.1;
+      m.clearcoat = cfg[0]; m.clearcoatRoughness = cfg[1]; m.envMapIntensity = (src.envMapIntensity || 1) * 1.4;
       m.onBeforeCompile = vernisHook; m.customProgramCacheKey = vernisKey; m.needsUpdate = true; o.material = m;
     });
   }
-  function vernisKey() { return 'vernis'; }
+  function vernisKey() { return 'vernis3'; }
   function vernisHook(sh) {
     sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
       { float vL = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)), vS = max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b)) - min(diffuseColor.r, min(diffuseColor.g, diffuseColor.b));
         material.clearcoat *= mix(0.25, 1.0, smoothstep(0.012, 0.05, vL + vS)); }`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n { float mS = max(reflectedLight.directSpecular.r, max(reflectedLight.directSpecular.g, reflectedLight.directSpecular.b)); reflectedLight.directSpecular *= min(1.0, 0.9 / max(mS, 1e-4)); }');
+    // reflet direct des lampes dans le vernis (pare-brise la nuit) : plafonné, pas de tache blanche brûlée
+    sh.fragmentShader = sh.fragmentShader.replace('float dotNVcc = saturate(', 'clearcoatSpecularDirect *= min(1.0, 0.8 / max(max(clearcoatSpecularDirect.r, clearcoatSpecularDirect.g), max(clearcoatSpecularDirect.b, 1e-4))); float dotNVcc = saturate(');
   }
   // Chargeur détachable : les triangles du fusil dont le centre tombe dans la zone du chargeur (repère du modèle :
   // |x − CHG.x| < CHG.dx, y < CHG.y) forment un maillage à part (même matériau, mêmes sommets), nommé « chargeur ».
