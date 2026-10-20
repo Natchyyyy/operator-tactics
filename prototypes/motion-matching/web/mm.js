@@ -296,8 +296,8 @@
       const avant = V3(0, 0, 1).applyQuaternion(qS).applyQuaternion(al).normalize(), haut = V3(0, 1, 0).applyQuaternion(qS).applyQuaternion(al).normalize(), droite = avant.clone().cross(haut).normalize();
       // crosse en haut à droite de l'omoplate, canon en bas à gauche, l'arme plaquée au dos
       // (centre de l'arme au milieu du dos, 12 cm sous Spine2 : à +5 cm la crosse de 37 cm dépassait au-dessus du casque)
-      const centre = pS.clone().addScaledVector(avant, -0.15).addScaledVector(haut, -0.12);
-      const axe = droite.clone().multiplyScalar(-0.55).addScaledVector(haut, -0.8).normalize();           // direction de la bouche
+      const centre = pS.clone().addScaledVector(avant, -0.15).addScaledVector(haut, -0.18);
+      const axe = droite.clone().multiplyScalar(-0.7).addScaledVector(haut, -0.7).normalize();           // direction de la bouche
       const qd = Q().setFromUnitVectors(V3(0, 0, 1), axe);
       const upA = V3(0, 1, 0).applyQuaternion(qd), upV = avant.clone().negate().projectOnPlane(axe).normalize(), upC = upA.clone().projectOnPlane(axe).normalize();
       const qFinal = (upV.lengthSq() > 1e-6 && upC.lengthSq() > 1e-6 ? Q().setFromUnitVectors(upC, upV) : Q()).multiply(qd);   // dessus de l'arme vers l'extérieur du dos
@@ -410,11 +410,14 @@
           const axe = V3(0, 0, 1).applyQuaternion(this.fusilQ);
           for (let it = 0; it < 20 && cible.distanceTo(ep) > portee; it++) cible.addScaledVector(axe, -0.02);
         }
-        cible = mainData.clone().lerp(cible, pa);
+        // retour de la bandoulière : l'arme vient du dos en 0,8 s, les mains ne la prennent que sur la seconde moitié
+        // (sinon l'IK visait la poignée derrière l'épaule : bras tendu en l'air sans but)
+        const paM = pa * Math.max(0, Math.min(1, (1 - (this.poidsDos || 0) - 0.5) / 0.5));
+        cible = mainData.clone().lerp(cible, paM);
         // pôles : coudes vers le bas ; le droit rentré vers le corps (pas d'« aile de poulet »), le gauche un peu en arrière
         const pole = k === 'D' ? V3(0, -1, 0).addScaledVector(dir, -0.25).addScaledVector(droite, -0.5).normalize() : V3(0, -1, 0).addScaledVector(dir, -0.35).normalize();
         ikDeuxOs(main[0], main[1], main[2], cible, pole);
-        const qw = qData.clone().slerp((this.fusilQAff || this.fusilQ).clone().multiply(pr.q), pa);
+        const qw = qData.clone().slerp((this.fusilQAff || this.fusilQ).clone().multiply(pr.q), paM);
         // orientation de la main sur l'arme ; la torsion du poignet est partagée avec l'avant-bras (il roule autour de son axe,
         // ce qui ne déplace pas la main) pour éviter un poignet vrillé
         const F = main[1]; let qLoc = F.getWorldQuaternion(Q()).invert().multiply(qw);          // main dans le repère de l'avant-bras
@@ -673,7 +676,7 @@
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
   // « bataille » minimale pour le module ragdoll du jeu : horloge, obstacles (le bloc), journal des morts
   const BATAILLE = window.BATAILLE = { t: 0, over: false, log: [], map: { obstacles: [{ x: BLOC.x, z: BLOC.z, w: BLOC.w, d: BLOC.d, h: BLOC.h, kind: 'cover', name: 'bloc' }] } };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.8, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 0.65, flechi: 0.5, depasse: 1.0, margeCoin: 1.4, ecartFace: 0.45 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.8, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 0.65, flechi: 0.65, depasse: 1.0, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.2, hautMainsTraine: 0.5 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -694,7 +697,7 @@
       this.pointPrise = pt;
     }
     // point tenu dans les mains : devant le sauveteur, à hauteur de hanches basses
-    pointMains() { const S = this.R.soldat, fwd = V3(Math.sin(S.yaw), 0, Math.cos(S.yaw)); return S.pos.clone().addScaledVector(fwd, PARAMS.sauvetage.avantMains).setY(PARAMS.sauvetage.hautMains); }
+    pointMains() { const S = this.R.soldat, fwd = V3(Math.sin(S.yaw), 0, Math.cos(S.yaw)); return S.pos.clone().addScaledVector(fwd, PARAMS.sauvetage.avantMains).setY(this.etat === 'traine' ? PARAMS.sauvetage.hautMainsTraine : PARAMS.sauvetage.hautMains); }
     attacher() {
       const V = this.V, m = V.mort.m, r = m.rag; if (!r || !r.corps) return false;
       const C = window.CANNON, torse = r.corps[2], W = torse.world; if (!W) return false;
@@ -746,13 +749,13 @@
           if (r.corps && this.kin) { const hb0 = r.corps[0], kp0 = this.kin.position; const ux = kp0.x - hb0.position.x, uz = kp0.z - hb0.position.z, un = Math.hypot(ux, uz) || 1; const dx = ux / un, dz = uz / un;
             for (const i of [8, 9, 10, 11]) { const b = r.corps[i]; const rx = b.position.x - hb0.position.x, rz = b.position.z - hb0.position.z; const lat = rx * (-dz) + rz * dx; b.velocity.x += -(-dz) * lat * 3 * dt * 10; b.velocity.z += -(dx) * lat * 3 * dt * 10; } }
           if (r.corps && this.kin) { const hb = r.corps[0], kp = this.kin.position; const ax = Math.atan2(kp.x - hb.position.x, kp.z - hb.position.z); const sk = V.mort.m.skinned.skeleton; const hp = sk.bones[r.Mo.os[0]].getWorldPosition(V3()), tp = sk.bones[r.Mo.os[3]].getWorldPosition(V3()); const ac = Math.atan2(tp.x - hp.x, tp.z - hp.z); let e = ax - ac; e = Math.atan2(Math.sin(e), Math.cos(e)); for (const i of [0, 1, 2]) r.corps[i].angularVelocity.y += Math.max(-1.5, Math.min(1.5, e * 2)) * dt * 8; } }
-        C.accroupi = false; S.pencheExtra = PARAMS.sauvetage.penche; C.profondeurExtra = PARAMS.sauvetage.flechi;   // debout mais genoux fléchis et buste penché (pas le style accroupi : on recule à ~1 m/s)
+        C.accroupi = false; S.pencheExtra = PARAMS.sauvetage.pencheTraine; C.profondeurExtra = PARAMS.sauvetage.flechi;   // debout genoux fléchis, buste légèrement EN ARRIÈRE (on tire une charge : le poids est derrière les talons, bras tendus devant), pas le style accroupi : on recule à ~1 m/s
         // le sauveteur regarde le blessé (ses hanches) et recule
         const hv = V.soldat.hips.getWorldPosition(V3()); C.verrouCible = Math.atan2(hv.x - S.pos.x, hv.z - S.pos.z);
       } else if (this.etat === 'depose') {
         { const r = V.mort.m.rag; if (r && r.corps && !r.fige) { r.t = Math.min(r.t, 0.3); for (const i of [8, 9, 10, 11]) { const b = r.corps[i]; if (b.position.y > 0.12 && b.velocity.y > -0.5) b.velocity.y = -0.5; if (b.position.y > 0.22) { b.angularVelocity.x *= 0.5; b.angularVelocity.z *= 0.5; } } } }   // le corps se pose : genoux et pieds au sol (pas de genou dressé)
         C.accroupi = true; this.poidsMains = Math.max(0, this.poidsMains - dt / 0.35);   // il reste bas (accroupi) en lâchant, ne se relève jamais à couvert
-        S.pencheExtra = PARAMS.sauvetage.penche * Math.max(0, 1 - this.t / 0.6); C.profondeurExtra = PARAMS.sauvetage.flechi * Math.max(0, 1 - this.t / 0.6);
+        S.pencheExtra = PARAMS.sauvetage.pencheTraine * Math.max(0, 1 - this.t / 0.6); C.profondeurExtra = PARAMS.sauvetage.flechi * Math.max(0, 1 - this.t / 0.6);
         if (this.t > 1.2) { C.verrouCible = null; C.cheminRecul = false; C.vitesseChemin = null; S.pencheExtra = 0; C.profondeurExtra = 0; C.accroupi = true; C.couvert = { point: this.R.soldat.pos.clone(), yawMenace: Math.atan2(this.menace.x - this.R.soldat.pos.x, this.menace.z - this.R.soldat.pos.z) }; C.verrouCible = C.couvert.yawMenace; this.etat = 'fin'; }   // reste accroupi à couvert, face à la menace
       }
       if (this.etat === 'fin') { R.sauvetage = null; C.profondeurExtra = 0; return; }
@@ -939,7 +942,8 @@
       const cf = Base.contact[this.frame];
       const contacts = S.orteils.map((o, k) => !!(cf & (k ? 1 : 2)) && o.getWorldPosition(V3()).y < seuilOrteil);
       S.reposTotal = vGoalNul && this.facteurRacine < 0.05; S.pivot = pivote && Math.abs(errCapR) > 0.15;
-      S.pencher((S.profondeur || 0) * PARAMS.accroupi.penche * (1 - 0.7 * (S.poidsVisee || 0)) + (S.pencheExtra || 0));   // en visée le buste se redresse (joue sur la crosse)
+      S.pencheLisse = (S.pencheLisse ?? 0) + ((S.pencheExtra || 0) - (S.pencheLisse ?? 0)) * (1 - Math.exp(-dt / 0.3));   /* penché extra lissé (prise 0,65 → traînage −0,2 sans à-coup) */
+        S.pencher((S.profondeur || 0) * PARAMS.accroupi.penche * (1 - 0.7 * (S.poidsVisee || 0)) + S.pencheLisse);   // en visée le buste se redresse (joue sur la crosse)
       if (PARAMS.verrou) S.verrouPieds(contacts, dt);
       // tir (clic gauche maintenu en visée) : cadence soutenue du fusil d'assaut du jeu (110 coups/min), recul 1 → 0 en 0,1 s
       this.recul = Math.max(0, (this.recul || 0) - dt * 10); this.tirAcc = Math.max(0, (this.tirAcc || 0) - dt);
