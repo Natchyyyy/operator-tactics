@@ -129,6 +129,19 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   V se relève accroupi à couvert. Preset 3 : B à découvert face à T (12 m) ; pris sous le feu, B tire 2-3 coups puis
   court au bloc, riposte par-dessus et abat T. `EVENEMENTS` (journal : voit/perd, touche/rate, abat, couvert, traîne,
   relève) permet de relire la scène ; `outils` : balayage de graines sans rendu (~5 s par scène).
+- Presets, règles demandées par l'utilisateur (20/10, v35) : on ne réanime JAMAIS à découvert — s'il y a un couvert
+  à ≤ 8 m du blessé on le traîne derrière d'abord, du côté caché de TOUTES les positions ennemies connues (bloc ET
+  murs), et le côté est choisi pour que ce soit le CORPS couché qui soit caché (score sur pieds → tête → sauveteur),
+  dernier tronçon perpendiculaire à la face (point d'alignement à 0,45 m, puis 1,9 m tout droit) ; contrôle à la dépose
+  (événement `depose`, part du corps cachée, ex. 0,83-1,0). Prise au col : le sauveteur est pinglé à l'arrivée (le
+  contrôleur arrivait encore lancé), s'il a roulé le blessé (le corps bouge de ~0,7 m) il se redresse, fait un pas
+  jusqu'au nouveau point idéal (`replace`) et reprend ; attache seulement une fois en place (≤ 12 cm) : mains à
+  3-7 cm du col mesuré. Sous le feu (preset 3) : il part tout de suite au couvert arme en joue, tire TOUT LE LONG
+  (précision « en mouvement » ×0,55, puis « en course » ×0,3 ; cible masquée par le bloc : tir à l'aveugle vers la
+  dernière position, chance ÷2), vitesse linéaire marche → course selon la distance restante (`sprint` à 40 %).
+  Relevé en trois temps (2,2 s) : buste redressé sur une main au sol (IK), jambes repliées et hanches qui montent,
+  arme reprise sur le dernier quart. Arme à la sangle pendant le sauvetage : le long de la jambe droite, canon en bas,
+  attachée aux hanches (plus en travers du dos). Couvert : 0,7 m de la face (le canon entrait dans le bloc à 0,55).
 - Rythme (v31) : lecture accélérée / ralentie (×0,75-1,35, lissée 0,3 s) pour coller à la vitesse voulue — les clips
   100STYLE marchent à 0,9 m/s et reculent à 0,5 ; mesuré : marche 1,2-1,28 m/s, recul 1,0, sprint 2,6.
 - Agent critique (sous-agent indépendant, photos de référence vs captures éclairées `?clair=1`) : v22 38-64 %, v23
