@@ -640,7 +640,8 @@
     const ec = document.createElement('canvas'); ec.width = W; ec.height = H; const e = ec.getContext('2d');
     const walls = { creme: ['#d9cdb3', '#c9bc9f'], rose: ['#d4a99a', '#c39586'], blanc: ['#e3e0d8', '#cfcbc1'], sable: ['#c8b48e', '#b7a27b'], gris: ['#a9aaa6', '#97989a'], brique: ['#8e4e3a', '#7a4231'], pierre: ['#8a6a52', '#755944'] }[tone] || ['#d0c6b0', '#bfb59e'];
     const grd = g.createLinearGradient(0, 0, 0, H); grd.addColorStop(0, walls[0]); grd.addColorStop(1, walls[1]); g.fillStyle = grd; g.fillRect(0, 0, W, H);
-    if (tone === 'brique' || tone === 'pierre') {   // appareil de briques / pierres de taille : joints clairs, teinte de chaque élément
+    const briqueVraie = tone === 'brique';   // briques : appareil à l'échelle réelle ajouté dans le shader (fenetresInterieures), pas peint ici
+    if (tone === 'pierre' || (tone === 'brique' && !briqueVraie)) {   // appareil de pierres de taille : joints clairs, teinte de chaque élément
       const bw = tone === 'brique' ? 16 : 40, bh = tone === 'brique' ? 6 : 16;
       for (let y = 0; y < H; y += bh) for (let x = -(Math.floor(y / bh) % 2) * bw / 2; x < W; x += bw) {
         const t = 0.82 + R() * 0.3; g.fillStyle = `rgba(${tone === 'brique' ? '150,80,58' : '140,108,84'},${0.25 + R() * 0.35})`; g.globalAlpha = 1; g.fillRect(x + 1, y + 1, bw - 1.5, bh - 1.5);
@@ -649,6 +650,7 @@
       // corniches à chaque étage
       for (let y = 0; y < H; y += H / 8) { g.fillStyle = 'rgba(210,200,185,0.55)'; g.fillRect(0, y + H / 8 - 6, W, 5); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, y + H / 8 - 1, W, 2); }
     }
+    if (briqueVraie) for (let y = 0; y < H; y += H / 8) { g.fillStyle = 'rgba(210,200,185,0.55)'; g.fillRect(0, y + H / 8 - 6, W, 5); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, y + H / 8 - 1, W, 2); }
     r.fillStyle = '#e6e6e6'; r.fillRect(0, 0, W, H); e.fillStyle = '#000'; e.fillRect(0, 0, W, H);
     // coulures et taches
     for (let k = 0; k < 60; k++) { g.fillStyle = `rgba(60,50,40,${0.03 + R() * 0.05})`; const x = R() * W; g.fillRect(x, R() * H, 2 + R() * 10, 40 + R() * 200); }
@@ -680,12 +682,16 @@
   // gagne de la profondeur sous tous les angles. Le jour, pièces dans la pénombre derrière le reflet du ciel ; la nuit, les
   // pièces allumées (mêmes que la carte d'émission) sont éclairées de l'intérieur, les autres restent sombres.
   const FAC = { uDay: { value: 1 }, uNight: { value: 0 } };
-  function fenetresInterieures(m, seed) {
+  // + matière du mur à l'échelle réelle : briques (scannées, ou procédurales en secours) ou enduit / béton (relief et nuances),
+  // couleur normalisée par sa moyenne (la teinte de la façade est gardée), relief appliqué dans le repère de la face
+  function fenetresInterieures(m, seed, tone) {
+    const brique = tone === 'brique', dW = brique ? PBRdet('brique', brickDet()) : PBRdet('beton', concrete()), wu = detU(dW);
     m.onBeforeCompile = (sh) => {
       sh.uniforms.uDay = FAC.uDay; sh.uniforms.uNight = FAC.uNight; sh.uniforms.uSeed = { value: seed };
+      Object.assign(sh.uniforms, { tWA: wu.tDet, tWN: wu.tDetN, uWM: wu.uM, uWK: { value: brique ? 0.9 : 0.45 }, uWB: { value: brique ? 1.0 : 0.55 } });
       sh.vertexShader = 'varying vec3 vFWPos; varying vec3 vFWN;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
         vFWPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vFWN = normalize(mat3(modelMatrix) * objectNormal);`);
-      sh.fragmentShader = 'uniform float uDay, uNight, uSeed; varying vec3 vFWPos; varying vec3 vFWN;\nfloat fH(vec2 p) { return fract(sin(dot(p, vec2(41.31, 289.17))) * 15731.743); }\n' + sh.fragmentShader
+      sh.fragmentShader = 'uniform float uDay, uNight, uSeed, uWM, uWK, uWB; uniform sampler2D tWA, tWN; varying vec3 vFWPos; varying vec3 vFWN;\nfloat fH(vec2 p) { return fract(sin(dot(p, vec2(41.31, 289.17))) * 15731.743); }\n' + sh.fragmentShader
         .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         float fGlass = 0.0; vec3 fInt = vec3(0.0);
         #ifdef USE_ROUGHNESSMAP
@@ -733,7 +739,13 @@
             diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.25, fGlass);
           }
         }
-        #endif`)
+        #endif
+        vec2 wUv = vec2(vMapUv.x * 14.0, vMapUv.y * 26.0) / uWM;
+        if (abs(vFWN.y) < 0.5) { vec3 wA = texture2D(tWA, wUv).rgb / max(textureLod(tWA, wUv, 12.0).rgb, vec3(0.02));
+          diffuseColor.rgb *= mix(vec3(1.0), clamp(wA, 0.0, 2.5), uWK * (1.0 - fGlass)); }`)
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        if (abs(vFWN.y) < 0.5 && fGlass < 0.5) { vec3 Nw = normalize(vFWN), Tw = normalize(cross(vec3(0.0, 1.0, 0.0), Nw)); vec3 nt = texture2D(tWN, wUv).xyz * 2.0 - 1.0;
+          normal = normalize((viewMatrix * vec4(normalize(Tw * nt.x * uWB + vec3(0.0, 1.0, 0.0) * nt.y * uWB + Nw * max(nt.z, 0.2)), 0.0)).xyz); }`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         totalEmissiveRadiance = mix(totalEmissiveRadiance, fInt, fGlass);`);
     };
@@ -743,7 +755,7 @@
   function building(w, h, d, tone, seed) {
     const F = facadeTex(seed % 4, tone), g = new T.Group(); tone = tone || '';
     const fm = new T.MeshStandardMaterial({ map: F.map, roughnessMap: F.rough, roughness: 1, metalness: 0.1, emissiveMap: F.emi, emissive: 0xffffff, emissiveIntensity: 0 });
-    NIGHT.mats.push(fm); fenetresInterieures(fm, seed % 97);
+    NIGHT.mats.push(fm); fenetresInterieures(fm, seed % 97, tone);
     const roof = mat('toitImm', () => worldMat(concrete(), { roughness: 0.95 }));
     const geo = new T.BoxGeometry(w, h, d); const uv = geo.attributes.uv;
     // UV en mètres (faces latérales) : la tuile de façade fait F.tileW × F.tileH m

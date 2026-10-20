@@ -17,7 +17,7 @@
     uniforms: {
       tDiffuse: { value: null }, time: { value: 0 }, resolution: { value: new T.Vector2(1, 1) },
       contrast: { value: 1.12 }, saturation: { value: 1.1 }, warm: { value: new T.Vector3(1.07, 1.0, 0.91) }, cool: { value: new T.Vector3(0.98, 1.0, 1.02) },
-      vignette: { value: 0.32 }, grain: { value: 0.018 }, aberration: { value: 0.0012 }, exposure: { value: 1.0 },
+      vignette: { value: 0.32 }, grain: { value: 0.018 }, aberration: { value: 0.0005 }, exposure: { value: 1.0 },
       lift: { value: new T.Vector3(0, 0, 0) }, sharpen: { value: 0.35 },
     },
     vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
