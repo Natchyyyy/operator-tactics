@@ -648,7 +648,7 @@
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
   // « bataille » minimale pour le module ragdoll du jeu : horloge, obstacles (le bloc), journal des morts
   const BATAILLE = window.BATAILLE = { t: 0, over: false, log: [], map: { obstacles: [{ x: BLOC.x, z: BLOC.z, w: BLOC.w, d: BLOC.d, h: BLOC.h, kind: 'cover', name: 'bloc' }] } };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.55, avantMains: 0.4, hautMains: 0.55, vitesse: 1.0, penche: 0.45 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.55, avantMains: 0.3, hautMains: 0.45, vitesse: 1.0, penche: 0.65, flechi: 0.35 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -674,9 +674,11 @@
       const V = this.V, m = V.mort.m, r = m.rag; if (!r || !r.corps) return false;
       const C = window.CANNON, torse = r.corps[2], W = torse.world; if (!W) return false;
       const pm = this.pointMains();
-      this.kin = new C.Body({ mass: 0, type: C.Body.KINEMATIC, collisionFilterGroup: 0, collisionFilterMask: 0 }); this.kin.position.set(pm.x, pm.y, pm.z); W.addBody(this.kin);
-      // pivot : haut du dos (col du gilet), dans le repère du torse (axe U = vers la tête, F = vers l'avant du corps)
+      // pivot : haut du dos (col du gilet), dans le repère du torse (axe U = vers la tête, F = vers l'avant du corps) ;
+      // le point tenu démarre LÀ où est le col (pas d'à-coup), puis suit les mains à ≤ 1,5 m/s (le corps est soulevé)
       const Mo = r.Mo, U = Mo.U, F = Mo.F, loc = new C.Vec3(U.x * 0.16 - F.x * 0.08, U.y * 0.16 - F.y * 0.08, U.z * 0.16 - F.z * 0.08);
+      const p0 = torse.pointToWorldFrame(loc); void pm;
+      this.kin = new C.Body({ mass: 0, type: C.Body.KINEMATIC, collisionFilterGroup: 0, collisionFilterMask: 0 }); this.kin.position.set(p0.x, p0.y, p0.z); W.addBody(this.kin);
       this.cons = new C.PointToPointConstraint(torse, loc, this.kin, new C.Vec3(0, 0, 0), 600); W.addConstraint(this.cons);
       this.W = W; return true;
     }
@@ -685,7 +687,7 @@
       const R = this.R, C = R.ctl, S = R.soldat, V = this.V; this.t += dt;
       if (this.etat === 'prise') {
         // accroupi partiel, mains vers le col ; à 0,6 s le blessé est repris en physique et attaché, puis on recule
-        C.accroupi = true; this.poidsMains = Math.min(1, this.poidsMains + dt / 0.5);
+        C.accroupi = false; C.profondeurExtra = PARAMS.sauvetage.flechi + 0.25; S.pencheExtra = PARAMS.sauvetage.penche; this.poidsMains = Math.min(1, this.poidsMains + dt / 0.5);
         if (this.t > 0.7 && !this.cons) {
           const m = V.mort.m; const r0 = m.rag;
           if (r0 && r0.etat === 'physique') { if (!r0.fige) { } m.rag = null; m.update = () => {}; m.anim = { vx: 0, vz: 0 }; BATAILLE.log.push({ kind: 'down', enemy: V.mort.u.id, loc: 'traîné' }); OT.Ragdoll.mort(V.mort.u, m, BATAILLE); OT.Ragdoll.anime(V.mort.u, m, 1 / 60); }
@@ -693,24 +695,24 @@
         }
       } else if (this.etat === 'traine') {
         const r = V.mort.m.rag; if (r) { r.calme = 0; r.t = Math.min(r.t, 0.5); r.aFiger = false; }   // (jamais figé pendant qu'on le traîne)
-        C.accroupi = false; S.pencheExtra = PARAMS.sauvetage.penche;                              // debout, buste penché (pas accroupi : on recule à ~1 m/s)
-        const pm = this.pointMains(); if (this.kin) { this.kin.velocity.set((pm.x - this.kin.position.x) / Math.max(dt, 1e-3), (pm.y - this.kin.position.y) / Math.max(dt, 1e-3), (pm.z - this.kin.position.z) / Math.max(dt, 1e-3)); this.kin.position.set(pm.x, pm.y, pm.z); }
+        C.accroupi = false; S.pencheExtra = PARAMS.sauvetage.penche; C.profondeurExtra = PARAMS.sauvetage.flechi;   // debout mais genoux fléchis et buste penché (pas le style accroupi : on recule à ~1 m/s)
         // le sauveteur regarde le blessé (ses hanches) et recule
         const hv = V.soldat.hips.getWorldPosition(V3()); C.verrouCible = Math.atan2(hv.x - S.pos.x, hv.z - S.pos.z);
       } else if (this.etat === 'depose') {
         this.poidsMains = Math.max(0, this.poidsMains - dt / 0.5);
-        S.pencheExtra = PARAMS.sauvetage.penche * Math.max(0, 1 - this.t / 0.6);
-        if (this.t > 0.6) { C.accroupi = false; C.verrouCible = null; C.cheminRecul = false; C.vitesseChemin = null; S.pencheExtra = 0; this.etat = 'fin'; }
+        S.pencheExtra = PARAMS.sauvetage.penche * Math.max(0, 1 - this.t / 0.6); C.profondeurExtra = PARAMS.sauvetage.flechi * Math.max(0, 1 - this.t / 0.6);
+        if (this.t > 0.6) { C.accroupi = false; C.verrouCible = null; C.cheminRecul = false; C.vitesseChemin = null; S.pencheExtra = 0; C.profondeurExtra = 0; this.etat = 'fin'; }
       }
-      if (this.etat === 'fin') { R.sauvetage = null; return; }
-      // mains sur le col (IK deux os), avec un fondu
+      if (this.etat === 'fin') { R.sauvetage = null; C.profondeurExtra = 0; return; }
+      // mains vers le col (IK deux os, fondu) ; le point tenu suit LES MAINS telles qu'elles sont (portée des bras), pas l'inverse
       if (this.poidsMains > 0.001) {
-        const pm = this.pointMains(); const droite = V3(Math.sin(S.yaw + Math.PI / 2), 0, Math.cos(S.yaw + Math.PI / 2));
+        const pm = this.pointMains(); const droite = V3(Math.sin(S.yaw + Math.PI / 2), 0, Math.cos(S.yaw + Math.PI / 2)); const mains = [];
         for (const [k, sg] of [['D', 1], ['G', -1]]) {
           const main = S.mains[k]; if (main.some(x => !x)) continue;
           const cible = pm.clone().addScaledVector(droite, sg * 0.11); const pA = main[2].getWorldPosition(V3()); cible.lerp(pA, 1 - this.poidsMains);
-          ikDeuxOs(main[0], main[1], main[2], cible, V3(0, -1, 0).addScaledVector(droite, sg * 0.4).normalize());
+          ikDeuxOs(main[0], main[1], main[2], cible, V3(0, -1, 0).addScaledVector(droite, sg * 0.4).normalize()); mains.push(main[2].getWorldPosition(V3()));
         }
+        if (this.kin && mains.length === 2) { const c = mains[0].clone().add(mains[1]).multiplyScalar(0.5); c.y -= 0.04; const dtt = Math.max(dt, 1e-3); const k = this.kin.position, d = V3(c.x - k.x, c.y - k.y, c.z - k.z); if (d.length() > 1.5 * dtt) d.setLength(1.5 * dtt); this.kin.velocity.set(d.x / dtt, d.y / dtt, d.z / dtt); this.kin.position.set(k.x + d.x, k.y + d.y, k.z + d.z); }
       }
     }
     // chemin à reculons vers le couvert : même règle que couvrir (point caché, contournement) depuis la position du sauveteur
@@ -857,7 +859,7 @@
       const parDessus = Ctl.couvert && Ctl.verrouRegard;
       // visée par-dessus : on se redresse juste assez pour que la bouche du canon passe 8 cm au-dessus du bloc (asservi)
       if (parDessus && S.fusil && S.fusilQAff) { const by = S.fusil.position.clone().add(S.fusil.bouchePt.clone().applyQuaternion(S.fusilQAff)).y; this.profVisee = Math.max(0, Math.min(1, (this.profVisee ?? PARAMS.accroupi.parDessus) + (by - (BLOC.h + 0.08)) * 1.5 * dt)); } else this.profVisee = PARAMS.accroupi.parDessus;
-      const profVoulue = Ctl.accroupi ? (parDessus ? this.profVisee : vGoal.lengthSq() < 0.01 ? 1 : PARAMS.accroupi.marche) : 0;
+      const profVoulue = Math.max(Ctl.profondeurExtra || 0, Ctl.accroupi ? (parDessus ? this.profVisee : vGoal.lengthSq() < 0.01 ? 1 : PARAMS.accroupi.marche) : 0);
       S.profondeur = (S.profondeur || 0) + (profVoulue - (S.profondeur || 0)) * (1 - Math.exp(-dt / PARAMS.accroupi.tau));
       const squatVoulu = Ctl.accroupi && vGoal.lengthSq() < 0.01 && !parDessus ? 1 : 0;
       S.squat = (S.squat || 0) + (squatVoulu - (S.squat || 0)) * (1 - Math.exp(-dt / 0.35));
