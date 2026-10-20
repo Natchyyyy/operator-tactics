@@ -682,7 +682,7 @@
       this.kin = new C.Body({ mass: 0, type: C.Body.KINEMATIC, collisionFilterGroup: 0, collisionFilterMask: 0 }); this.kin.position.set(p0.x, p0.y, p0.z); W.addBody(this.kin);
       this.cons = new C.PointToPointConstraint(torse, loc, this.kin, new C.Vec3(0, 0, 0), 300); W.addConstraint(this.cons);
       // jambes molles qui traînent (pas de coups de pied) : amortissement fort sur cuisses et jambes pendant le traînage
-      this.amortis = [8, 9, 10, 11].map(i => [r.corps[i], r.corps[i].linearDamping, r.corps[i].angularDamping]); for (const [b] of this.amortis) { b.linearDamping = 0.6; b.angularDamping = 0.95; }
+      this.amortis = [8, 9, 10, 11].map(i => [r.corps[i], r.corps[i].linearDamping, r.corps[i].angularDamping]); for (const [b] of this.amortis) { b.angularDamping = 0.95; }   // (pas d'amortissement linéaire : il freinait la chute des jambes, qui « flottaient »)
       this.W = W; return true;
     }
     detacher() { if (this.W && this.cons) { this.W.removeConstraint(this.cons); this.W.removeBody(this.kin); } this.cons = null; this.kin = null; if (this.amortis) for (const [b, l, a] of this.amortis) { b.linearDamping = l; b.angularDamping = a; } this.amortis = null; }
@@ -698,7 +698,9 @@
         if (this.roule != null && this.roule < this.rouleTotal) {
           const d = Math.min(this.rouleTotal - this.roule, dt / 0.6 * Math.PI); this.roule += d;
           const hips = V.soldat.hips, tete = V.soldat.os[Base.meta.os.indexOf('Head')].getWorldPosition(V3()), ph = hips.getWorldPosition(V3());
-          const axe = tete.clone().sub(ph); axe.y = 0; if (axe.lengthSq() > 1e-4) { axe.normalize(); const q = Q().setFromAxisAngle(axe, d); const wq = hips.getWorldQuaternion(Q()); hips.quaternion.copy(hips.parent.getWorldQuaternion(Q()).invert().multiply(q).multiply(wq)); hips.updateMatrixWorld(true); }
+          // axe de roulé AU SOL (y = 0,12) sous le corps : les membres restent près du sol au lieu de passer en l'air
+          const axe = tete.clone().sub(ph); axe.y = 0; if (axe.lengthSq() > 1e-4) { axe.normalize(); const q = Q().setFromAxisAngle(axe, d); const wq = hips.getWorldQuaternion(Q()); hips.quaternion.copy(hips.parent.getWorldQuaternion(Q()).invert().multiply(q).multiply(wq));
+            const piv = V3(ph.x, 0.12, ph.z), np = ph.clone().sub(piv).applyQuaternion(q).add(piv); hips.position.copy(hips.parent.worldToLocal(np)); hips.updateMatrixWorld(true); }
         }
         if (this.t > 0.8 && !this.cons) {
           const m = V.mort.m; const r0 = m.rag;
@@ -711,7 +713,7 @@
         // le sauveteur regarde le blessé (ses hanches) et recule
         const hv = V.soldat.hips.getWorldPosition(V3()); C.verrouCible = Math.atan2(hv.x - S.pos.x, hv.z - S.pos.z);
       } else if (this.etat === 'depose') {
-        this.poidsMains = Math.max(0, this.poidsMains - dt / 0.5);
+        C.accroupi = true; this.poidsMains = Math.max(0, this.poidsMains - dt / 0.35);   // il reste bas (accroupi) en lâchant, ne se relève jamais à couvert
         S.pencheExtra = PARAMS.sauvetage.penche * Math.max(0, 1 - this.t / 0.6); C.profondeurExtra = PARAMS.sauvetage.flechi * Math.max(0, 1 - this.t / 0.6);
         if (this.t > 0.6) { C.verrouCible = null; C.cheminRecul = false; C.vitesseChemin = null; S.pencheExtra = 0; C.profondeurExtra = 0; C.accroupi = true; C.couvert = { point: this.R.soldat.pos.clone(), yawMenace: Math.atan2(this.menace.x - this.R.soldat.pos.x, this.menace.z - this.R.soldat.pos.z) }; C.verrouCible = C.couvert.yawMenace; this.etat = 'fin'; }   // reste accroupi à couvert, face à la menace
       }
@@ -735,7 +737,7 @@
       // dernier tronçon dans l'axe de la menace, en revenant VERS le bloc : le blessé finit perpendiculaire au bloc, tête
       // près du bloc, pieds à l'opposé de la menace (un corps de 1,8 m le long d'un bloc de 1,6 m dépasserait)
       const n = ch.length, fin = ch[n - 1]; const loin = fin.clone().sub(V3(this.menace.x, 0, this.menace.z)); loin.y = 0; loin.normalize();
-      ch[n - 1] = fin.clone().addScaledVector(loin, PARAMS.sauvetage.depasse + 1.5); ch.push(fin.clone().addScaledVector(loin, PARAMS.sauvetage.depasse));
+      ch[n - 1] = fin.clone().addScaledVector(loin, PARAMS.sauvetage.depasse + 2.5); ch.push(fin.clone().addScaledVector(loin, PARAMS.sauvetage.depasse));
       this.pointDepose = fin;
       C.surArrivee = () => { this.detacher(); this.etat = 'depose'; this.t = 0; const r = this.V.mort.m.rag; if (r) r.t = 0; };
       return ch;
@@ -1023,7 +1025,7 @@
     for (const B of agents) if (B.mort) B.ressusciter();
     while (agents.length > 1) { const B = agents.pop(); scene.remove(B.soldat.group); }
     const A0 = agents[0]; A0.soldat.pos.set(-3, 0, -6); A0.soldat.yaw = 0; A0.ctl.pos.copy(A0.soldat.pos); A0.ctl.yaw = 0; A0.ctl.chemin = null; A0.ctl.couvert = null; A0.ctl.enRoute = null; A0.ctl.accroupi = false;
-    for (let i = 1; i < 5; i++) { const B = await nouveauSoldat(V3(-3 + i * 1.5, 0, -6), 0); B.ctl.visee = true; }
+    for (let i = 1; i < 5; i++) { const B = await nouveauSoldat(V3(-3 + i * 2.0, 0, -6), 0); B.ctl.visee = true; }
     for (const B of agents) { B.ctl.touches = { KeyW: 1, ShiftLeft: 1 }; B.ctl.camYaw = 0; }
     galerieT = horloge + (delai ?? 1.8); return agents.length;
   }
