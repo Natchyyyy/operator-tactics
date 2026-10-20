@@ -1170,6 +1170,13 @@
     const f = (OT.Soldat3D && OT.Soldat3D.ready && !OT.SETTINGS_LOWMODEL && OT.Soldat3D.create({ modele: u.def.faction ? 'soldat' : 'gign', uniform: fac.uniform, weapon: u.weapon.id, attachments: u.att }))
       || Figure.build({ id: u.def.id, weapon: u.weapon.id, uniform: fac.uniform, vest: fac.vest, teamColor: t.color, headgear: u.def.headgear || (u.def.faction ? 'casque_lunettes' : 'casque'), attachments: u.att });
     rimPatch(f.group);   // liseré de lune (nuit)
+    // ombre de contact : tache douce et sombre sous les pieds (la carte d'ombre du soleil est trop grossière pour « poser » le
+    // soldat sur le sol, surtout à l'ombre et de nuit) ; s'efface quand il tombe
+    { if (!OT.blobTex) { const c = document.createElement('canvas'); c.width = c.height = 64; const q = c.getContext('2d'), gr = q.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.45, 'rgba(0,0,0,0.6)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); q.fillStyle = gr; q.fillRect(0, 0, 64, 64); OT.blobTex = new THREE.CanvasTexture(c); }
+      const bm = new THREE.MeshBasicMaterial({ map: OT.blobTex, color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, fog: false });
+      const blob = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 1.15), bm); blob.rotation.x = -Math.PI / 2; blob.position.y = 0.015; blob.renderOrder = 1; blob.userData.contact = true;
+      blob.onBeforeRender = () => { const uu = battle && battle.units.find(x => x.id === u.id); bm.opacity = uu && uu.alive ? 0.5 : Math.max(0, bm.opacity - 0.02); };
+      f.group.add(blob); }
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.41, 40), new THREE.MeshBasicMaterial({ color: t.color, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; f.group.add(ring);
     scene.add(f.group);
     const label = document.createElement('div'); label.className = 'label team' + u.team;

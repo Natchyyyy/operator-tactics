@@ -1490,6 +1490,28 @@
   }
   // nuit : fenêtres, lampadaires, enseignes allumés ; lumières ponctuelles des lampadaires ; pluie : sol mouillé
   let lightGroup = null;
+  // de nuit, sous chaque luminaire : halo autour de la lampe (diffusion dans l'air humide) et cône de lumière très léger
+  // (poussière, humidité) — additifs, sans écriture de profondeur ; le cône s'efface vers le sol et sur ses bords
+  const HALO = {};
+  function halo() {
+    if (!HALO.mat) { const c = document.createElement('canvas'); c.width = c.height = 128; const q = c.getContext('2d'), gr = q.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,236,200,1)'); gr.addColorStop(0.12, 'rgba(255,214,150,0.55)'); gr.addColorStop(0.4, 'rgba(255,190,120,0.12)'); gr.addColorStop(1, 'rgba(255,180,110,0)'); q.fillStyle = gr; q.fillRect(0, 0, 128, 128);
+      const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; HALO.mat = new T.MeshBasicMaterial({ map: t, color: 0xffffff, transparent: true, depthWrite: false, blending: T.AdditiveBlending, fog: false, opacity: 0.85 }); }
+    const sp = new T.Mesh(new T.PlaneGeometry(2.6, 2.6), HALO.mat); sp.renderOrder = 3; return horsAO(sp, true);
+  }
+  // pas dans les passes à matériau imposé (normales et profondeur de l'occlusion ambiante, ombres) : sinon ces volumes
+  // transparents y deviennent des formes opaques (taches sombres) ; le halo fait face à la caméra
+  function horsAO(o, face) {
+    o.castShadow = false; o.receiveShadow = false;
+    o.onBeforeRender = (r, sc, cam) => { o.geometry.setDrawRange(0, sc.overrideMaterial ? 0 : Infinity); if (face) { o.quaternion.copy(cam.quaternion); o.updateMatrixWorld(); o.modelViewMatrix.multiplyMatrices(cam.matrixWorldInverse, o.matrixWorld); o.normalMatrix.getNormalMatrix(o.modelViewMatrix); } };
+    return o;
+  }
+  function cone(h) {
+    if (!HALO.cone) HALO.cone = new T.ShaderMaterial({ transparent: true, depthWrite: false, blending: T.AdditiveBlending, side: T.DoubleSide, fog: false,
+      uniforms: { col: { value: new T.Color(0xffc98a) } },
+      vertexShader: 'varying float vY; varying vec3 vN, vV; void main() { vY = uv.y; vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = normalize(-mv.xyz); vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * mv; }',
+      fragmentShader: 'uniform vec3 col; varying float vY; varying vec3 vN, vV; void main() { float e = pow(abs(dot(normalize(vN), normalize(vV))), 2.0); float a = pow(vY, 1.6) * e * 0.05; gl_FragColor = vec4(col * a, a); }' });
+    const g = new T.Mesh(new T.CylinderGeometry(0.25, 3.2, h, 24, 1, true), HALO.cone); g.renderOrder = 2; return horsAO(g);
+  }
   function setConditions(id, scene) {
     const night = id === 'nuit'; NIGHT.on = night; FAC.uNight.value = night ? 1 : 0; FAC.uDay.value = night ? 0 : id === 'brouillard' || id === 'pluie' ? 0.8 : 1;
     for (const m of NIGHT.mats) m.emissiveIntensity = night ? (m.userData.nuit !== undefined ? m.userData.nuit * 0.7 : m.map && m.emissiveMap ? 1.0 : 3) : 0;   // fenêtres, enseignes : lisibles sans halo ; ampoules : seules vraies sources (halo)
@@ -1505,6 +1527,7 @@
         const canopy = p.k && p.k < 60, I = canopy ? 20 : p.k > 150 ? 160 : 120;
         const l = new T.SpotLight(0xffc98a, I, canopy ? 12 : 26, canopy ? 1.25 : 1.05, canopy ? 0.9 : 0.8, 2);
         l.position.copy(p); l.target.position.set(p.x, 0, p.z); lightGroup.add(l, l.target);
+        if (!canopy) { const h = halo(); h.position.copy(p); h.position.y -= 0.06; lightGroup.add(h); const c = cone(p.y); c.position.set(p.x, p.y / 2, p.z); lightGroup.add(c); }
       }
       scene.add(lightGroup); lightGroup.updateMatrixWorld(true);
     }

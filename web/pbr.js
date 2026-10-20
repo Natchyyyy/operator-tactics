@@ -13,8 +13,8 @@
   const MANIFESTE = {
     asphalte:   { src: 'asphalt_02', f: ['pbr_asphalte_couleur.jpg', 'pbr_asphalte_relief.jpg', 'pbr_asphalte_rugosite.jpg'], metres: 4.5, gain: 1.0, mix: 0.4 },
     beton:      { src: 'concrete_wall_008', f: ['pbr_beton_couleur.jpg', 'pbr_beton_relief.jpg', 'pbr_beton_rugosite.jpg'], metres: 3, gain: 1.3, mix: 0.3 },
-    betonClair: { src: 'concrete_wall_008', f: ['pbr_beton_couleur.jpg', 'pbr_beton_relief.jpg', 'pbr_beton_rugosite.jpg'], metres: 3, gain: 1.75, mix: 0.3 },
-    trottoir:   { src: 'concrete_pavement', f: ['pbr_dalles_couleur.jpg', 'pbr_dalles_relief.jpg', 'pbr_dalles_rugosite.jpg'], metres: 2.4, gain: 1.7, mix: 0 },
+    betonClair: { src: 'concrete_wall_008', f: ['pbr_beton_couleur.jpg', 'pbr_beton_relief.jpg', 'pbr_beton_rugosite.jpg'], metres: 3, gain: 1.35, mix: 0.3 },
+    trottoir:   { src: 'concrete_pavement', f: ['pbr_dalles_couleur.jpg', 'pbr_dalles_relief.jpg', 'pbr_dalles_rugosite.jpg'], metres: 2.4, gain: 1.35, mix: 0 },
     brique:     { src: 'red_brick_03', f: ['pbr_brique_couleur.jpg', 'pbr_brique_relief.jpg', 'pbr_brique_rugosite.jpg'], metres: 1.25, gain: 1.15, mix: 0 },
     briqueSombre: { src: 'red_brick_03', f: ['pbr_brique_couleur.jpg', 'pbr_brique_relief.jpg', 'pbr_brique_rugosite.jpg'], metres: 1.25, gain: 0.75, mix: 0 },
   };
