@@ -558,4 +558,41 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
     const P1 = play(), P2 = play({ replayInputs: P1.b.inputs }), types = P1.b.inputs.map(c => c.type);
     check('vague 2 : la bataille revue (grenades sur ordre, avec fumée, points de passage, fouiller, décrocher) est identique, pas à pas', types.filter(t => t === 'grenade').length >= 2 && types.filter(t => t === 'aller').length === 3 && P1.trace === P2.trace && JSON.stringify(P1.b.result) === JSON.stringify(P2.b.result), { types: types.join() }); }
 }
+// ---- Vague 2 (partie B) : plans du Groupe Karst (adversaire de l'IA, team.auto) ----
+{ const mkK = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams: [{ name: 'Alpha', order: 'assault', operators: GIGN, tactics: ['tiroir'] }, { name: 'Bravo', order: 'assault', operators: KARST, tactics: ['tiroir'], autoTactics: true }] }, o || {}));
+  const plans = {}, firstSeed = {};
+  for (let sd = 1; sd <= 30; sd++) { const b = mkK(sd); plans[b.teams[1].karst.plan] = (plans[b.teams[1].karst.plan] || 0) + 1; if (firstSeed[b.teams[1].karst.plan] === undefined) firstSeed[b.teams[1].karst.plan] = sd; }
+  const same = mkK(7).teams[1].karst.plan === mkK(7).teams[1].karst.plan, b0 = mkK(7);
+  check('plans Karst : un plan par bataille, tiré à la graine (même graine → même plan), les trois existent ; jamais pour l\'escouade du joueur', same && plans.repli > 0 && plans.contourner > 0 && plans.embuscade > 0 && !b0.teams[0].karst, plans);
+  // embuscade : installés tôt, feu retenu, puis reprise de la manœuvre
+  { const b = mkK(firstSeed.embuscade); while (b.t < 12) b.step();
+    const ms = b.teams[1].units.filter(u => u.alive && b.orderOf(u)), held = ms.filter(u => b.orderOf(u).inf.feu === 'retenu').length;
+    while (!b.over && b.t < 120) b.step();
+    check('plan « embuscade » : au départ, l\'escouade adverse va s\'installer près de chez elle, feu retenu, puis reprend la manœuvre', held >= 4 && b.log.some(l => l.kind === 'plan' && l.plan === 'embuscade') && b.log.some(l => l.kind === 'reprise' && l.team === 1), { held, n: ms.length }); }
+  // contourner : au contact, deux opérateurs changent de voie (flanc)
+  { const b = mkK(firstSeed.contourner); const v0 = {}; let ev = null;
+    while (!b.over && b.t < 90 && !ev) { b.step(); ev = b.log.find(l => l.kind === 'plan' && l.plan === 'contourner'); if (!ev) b.teams[1].units.forEach(u => { v0[u.id] = u.voie; }); }
+    const moved = ev ? b.teams[1].units.filter(u => u.voie !== v0[u.id] && Math.abs(u.voie) === 1).length : 0;
+    check('plan « contourner » : au contact, les deux plus éloignés de la menace passent par une voie de flanc', ev && moved >= 1 && b.teams[1].units.filter(u => u.alive && u.voie === b.teams[1].units.find(x => ev.unit === x.id).voie && Math.abs(u.voie) === 1).length >= 2 && b.teams[1].karst.contactAt !== null && ev.t >= b.teams[1].karst.contactAt, { ev: ev && ev.t, moved }); }
+  // fumée adverse : on tient en face, feu retenu, orienté vers le nuage ; la fumée dissipée, on reprend
+  { const b = mkK(firstSeed.repli); while (b.t < 8) b.step();
+    const C = b.teams[1].units.filter(u => u.alive), cx = C.reduce((s, u) => s + u.x, 0) / C.length - 14, cz = C.reduce((s, u) => s + u.z, 0) / C.length;
+    const cloud = { x: cx - 2.7, z: cz - 2.7, w: 5.4, d: 5.4, h: 3, kind: 'smoke', name: 'fumée', until: b.t + 15, team: 0 }; b.map.dynamic.push(cloud);
+    while (b.t < 10.5) b.step();
+    const ev = b.log.find(l => l.kind === 'plan' && l.plan === 'fumee'), inf = ev && b.teams[1].ordInfo[ev.ordre];
+    while (b.t < 30 && !b.over) b.step();
+    const o = ev && b.teams[1].karst.ord.find(x => x.id === ev.ordre);
+    check('fumée adverse : le Groupe Karst tient en face, feu retenu, orienté vers le nuage ; dissipée, l\'ordre se termine', ev && inf.feu === 'retenu' && inf.orient && Math.hypot(inf.orient.x - cx, inf.orient.z - cz) < 1.5 && o && o.done, { ev: !!ev, done: o && o.done }); }
+  // sous la pression (flash) : décrocher en fumée, feu retenu
+  { let found = null;
+    for (let sd = 1; sd <= 30 && !found; sd++) { const b = mkK(sd); b.run(); const e = b.log.find(l => l.kind === 'plan' && l.plan === 'repli'); if (e) found = { b, e }; }
+    const mo = found && found.b.log.find(l => l.kind === 'moveorder' && l.ordre === found.e.ordre);
+    check('sous la pression : des opérateurs adverses décrochent (mode Décrocher, feu retenu), le journal le dit', found && mo && mo.mode === 'decrocher' && mo.feu === 'retenu' && mo.silent, { found: !!found }); }
+  // rejouabilité : plans Karst + commandes du joueur → bataille revue identique
+  { const play = (o) => { const b = mkK(firstSeed.embuscade, o), tr = [];
+      while (!b.over && b.t < 150) { if (!b.replayQueue && Math.abs(b.t - 20) < 0.05) b.command('grenade', 0, { x: 30, z: 23, kind: 'smoke', units: null }); b.step(); if (b.tick % 10 === 0) tr.push(b.units.map(u => u.x.toFixed(2) + ',' + u.z.toFixed(2) + ',' + u.state).join(';')); }
+      return { b, tr: tr.join('|') }; };
+    const P1 = play(), P2 = play({ replayInputs: P1.b.inputs });
+    check('plans Karst : la bataille revue est identique, pas à pas (les plans découlent de l\'état, pas des commandes)', P1.tr === P2.tr && JSON.stringify(P1.b.result) === JSON.stringify(P2.b.result) && P1.b.log.some(l => l.kind === 'plan'), {}); }
+}
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);
