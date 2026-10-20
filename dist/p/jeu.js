@@ -6659,13 +6659,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       m.onBeforeCompile = vernisHook; m.customProgramCacheKey = vernisKey; m.needsUpdate = true; o.material = m;
     });
   }
-  function vernisKey() { return 'vernis2'; }
+  function vernisKey() { return 'vernis3'; }
   function vernisHook(sh) {
     sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
       { float vL = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)), vS = max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b)) - min(diffuseColor.r, min(diffuseColor.g, diffuseColor.b));
         material.clearcoat *= mix(0.25, 1.0, smoothstep(0.012, 0.05, vL + vS)); }`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n { float mS = max(reflectedLight.directSpecular.r, max(reflectedLight.directSpecular.g, reflectedLight.directSpecular.b)); reflectedLight.directSpecular *= min(1.0, 0.9 / max(mS, 1e-4)); }');
     // reflet direct des lampes dans le vernis (pare-brise la nuit) : plafonné, pas de tache blanche brûlée
-    sh.fragmentShader = sh.fragmentShader.replace('float dotNVcc = saturate(', 'clearcoatSpecularDirect *= min(1.0, 2.5 / max(max(clearcoatSpecularDirect.r, clearcoatSpecularDirect.g), max(clearcoatSpecularDirect.b, 1e-4))); float dotNVcc = saturate(');
+    sh.fragmentShader = sh.fragmentShader.replace('float dotNVcc = saturate(', 'clearcoatSpecularDirect *= min(1.0, 0.8 / max(max(clearcoatSpecularDirect.r, clearcoatSpecularDirect.g), max(clearcoatSpecularDirect.b, 1e-4))); float dotNVcc = saturate(');
   }
   // Chargeur détachable : les triangles du fusil dont le centre tombe dans la zone du chargeur (repère du modèle :
   // |x − CHG.x| < CHG.dx, y < CHG.y) forment un maillage à part (même matériau, mêmes sommets), nommé « chargeur ».
@@ -10312,7 +10313,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // fin d'après-midi : soleil chaud assez haut pour éclairer franchement le sol (rapport lumière / ombre ≈ 4:1, comme une
     // vraie journée claire), ombres plus froides et plus denses, ciel moins laiteux, étalonnage « cinéma » (ombres sarcelle,
     // hautes lumières ambrées)
-    jour:       { elev: 31, azim: 238, turb: 2.6, ray: 2.0, mie: 0.0028, g: 0.88, exp: 1.0, sun: [0xffcf9a, 8.2], env: 0.62, hemi: 0.22, cielTint: [2.7, 2.55, 2.3], rays: 0.25, fog: [0xbdb8ae, 0.0029], clouds: 0.5, cloudTint: 0xfff1e2, cloudDark: 0x8d8f9a, bloom: [0.22, 0.35, 0.95], grade: { c: 1.12, s: 1.1, warm: [1.1, 1.01, 0.88], cool: [0.92, 1.0, 1.07], vig: 0.3, grain: 0.012, lift: [0.0012, 0.0016, 0.0024] } },
+    jour:       { elev: 31, azim: 238, turb: 2.6, ray: 2.0, mie: 0.0028, g: 0.88, exp: 1.0, sun: [0xffcf9a, 8.2], env: 0.62, hemi: 0.22, cielTint: [2.7, 2.55, 2.3], rays: 0.25, fog: [0xb3b9bf, 0.0036], clouds: 0.5, cloudTint: 0xfff1e2, cloudDark: 0x8d8f9a, bloom: [0.22, 0.35, 0.95], grade: { c: 1.12, s: 1.1, warm: [1.1, 1.01, 0.88], cool: [0.92, 1.0, 1.07], vig: 0.3, grain: 0.012, lift: [0.0012, 0.0016, 0.0024] } },
     nuit:       { elev: -12, azim: 215, turb: 2, ray: 0.3, mie: 0.002, g: 0.7, exp: 1.1, sun: [0x7d94d6, 0.95], env: 0.22, hemi: 0.28, fog: [0x070a10, 0.016], clouds: 0.62, cloudTint: 0x2a3348, cloudDark: 0x0c1018, bloom: [0.32, 0.45, 0.95], night: true, grade: { c: 1.04, s: 0.9, warm: [1.08, 0.99, 0.86], cool: [0.88, 0.97, 1.14], vig: 0.4, grain: 0.03, lift: [0.0035, 0.005, 0.009] } },
     brouillard: { elev: 18, azim: 215, turb: 12, ray: 2.5, mie: 0.02, g: 0.9, exp: 0.8, sun: [0xe8ecf0, 1.0], env: 0.85, hemi: 0.85, fog: [0x9aa1a8, 0.03], clouds: 0.2, cloudTint: 0xdfe3e6, cloudDark: 0x9aa1a8, bloom: [0.25, 0.6, 0.95], grade: { c: 0.96, s: 0.84, warm: [1.03, 1.0, 0.96], cool: [0.97, 1.0, 1.03], vig: 0.24, grain: 0.02, lift: [0.006, 0.0065, 0.007] } },
     pluie:      { elev: 20, azim: 215, turb: 14, ray: 3, mie: 0.02, g: 0.85, exp: 0.88, sun: [0xc8d0dc, 1.25], env: 0.8, hemi: 0.85, fog: [0x47505a, 0.013], clouds: 0.15, cloudTint: 0x6c7580, cloudDark: 0x2c323a, bloom: [0.35, 0.6, 0.9], grade: { c: 1.08, s: 0.86, warm: [1.0, 1.0, 0.97], cool: [0.93, 0.99, 1.07], vig: 0.34, grain: 0.022, lift: [0.002, 0.0026, 0.0034] } },
@@ -12155,7 +12156,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const R = rng(seed), W = 512, H = 1024, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
     const rc = document.createElement('canvas'); rc.width = W; rc.height = H; const r = rc.getContext('2d');
     const ec = document.createElement('canvas'); ec.width = W; ec.height = H; const e = ec.getContext('2d');
-    const walls = { creme: ['#d9cdb3', '#c9bc9f'], rose: ['#d4a99a', '#c39586'], blanc: ['#e3e0d8', '#cfcbc1'], sable: ['#c8b48e', '#b7a27b'], gris: ['#a9aaa6', '#97989a'], brique: ['#8e4e3a', '#7a4231'], pierre: ['#8a6a52', '#755944'] }[tone] || ['#d0c6b0', '#bfb59e'];
+    const walls = { creme: ['#d9cdb3', '#c9bc9f'], rose: ['#d4a99a', '#c39586'], blanc: ['#e3e0d8', '#cfcbc1'], sable: ['#c8b48e', '#b7a27b'], gris: ['#a9aaa6', '#97989a'], brique: ['#865240', '#734536'], pierre: ['#8a6a52', '#755944'] }[tone] || ['#d0c6b0', '#bfb59e'];
     const grd = g.createLinearGradient(0, 0, 0, H); grd.addColorStop(0, walls[0]); grd.addColorStop(1, walls[1]); g.fillStyle = grd; g.fillRect(0, 0, W, H);
     const briqueVraie = tone === 'brique';   // briques : appareil à l'échelle réelle ajouté dans le shader (fenetresInterieures), pas peint ici
     if (tone === 'pierre' || (tone === 'brique' && !briqueVraie)) {   // appareil de pierres de taille : joints clairs, teinte de chaque élément
@@ -12210,7 +12211,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         vFWPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vFWN = normalize(mat3(modelMatrix) * objectNormal);`);
       sh.fragmentShader = 'uniform float uDay, uNight, uSeed, uWM, uWK, uWB; uniform sampler2D tWA, tWN; varying vec3 vFWPos; varying vec3 vFWN;\nfloat fH(vec2 p) { return fract(sin(dot(p, vec2(41.31, 289.17))) * 15731.743); }\n' + sh.fragmentShader
         .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        float fGlass = 0.0; vec3 fInt = vec3(0.0);
+        float fGlass = 0.0; vec3 fInt = vec3(0.0); vec2 fTilt = vec2(0.0); float fRev = 0.0, fAO = 1.0;
         #ifdef USE_ROUGHNESSMAP
         if (abs(vFWN.y) < 0.5) {
           vec2 cell = vec2(fract(vMapUv.x) * 4.0, (1.0 - fract(vMapUv.y)) * 8.0), fc = fract(cell);
@@ -12218,6 +12219,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           // vitre : fenêtre de la grille ET rugosité très faible (pas les volets fermés ni le montant)
           float inWin = step(0.18, fc.x) * step(fc.x, 0.82) * step(0.22, fc.y) * step(fc.y, 0.78);
           fGlass = inWin * (1.0 - smoothstep(0.08, 0.3, texelRoughness.g));
+          // relief de la baie : tableau (embrasure de 10 cm tout autour de la vitre, tourné vers l'ouverture), appui saillant
+          // dessous (dessus éclairé, ombre portée sous lui) — la façade cesse d'être une image plate
+          vec2 dw = vec2(min(fc.x - 0.18, 0.82 - fc.x) * 3.5, min(fc.y - 0.22, 0.78 - fc.y) * 3.25);   // distance au bord de la baie (m), > 0 dedans
+          if (min(dw.x, dw.y) > 0.0 && min(dw.x, dw.y) < 0.1) { fRev = 1.0; fGlass = 0.0;
+            if (dw.x < dw.y) fTilt.x = fc.x < 0.5 ? 1.0 : -1.0; else fTilt.y = fc.y < 0.5 ? -1.0 : 1.0; }
+          float sy = (fc.y - 0.78) * 3.25, sx = min(fc.x - 0.15, 0.85 - fc.x);
+          if (sx > 0.0 && sy > 0.0 && sy < 0.07) { fTilt.y = 0.85; fRev = 2.0; }
+          if (sx > 0.0 && sy >= 0.07 && sy < 0.2) fAO = mix(0.55, 1.0, (sy - 0.07) / 0.13);
           if (fGlass > 0.0) {
             vec3 N = normalize(vFWN), Tg = normalize(cross(vec3(0.0, 1.0, 0.0), N)), V = normalize(vFWPos - cameraPosition);
             vec3 d = vec3(dot(V, Tg), V.y, max(dot(V, -N), 0.02));
@@ -12257,12 +12266,17 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           }
         }
         #endif
+        if (fRev > 0.5) diffuseColor.rgb = fRev > 1.5 ? vec3(0.42, 0.4, 0.37) : diffuseColor.rgb * 0.0 + vec3(0.3, 0.28, 0.25);
+        diffuseColor.rgb *= fAO;
+        diffuseColor.rgb = mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, 0.8);   // façades moins saturées
         vec2 wUv = vec2(vMapUv.x * 14.0, vMapUv.y * 26.0) / uWM;
         if (abs(vFWN.y) < 0.5) { vec3 wA = texture2D(tWA, wUv).rgb / max(textureLod(tWA, wUv, 12.0).rgb, vec3(0.02));
           diffuseColor.rgb *= mix(vec3(1.0), clamp(wA, 0.0, 2.5), uWK * (1.0 - fGlass)); }`)
         .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         if (abs(vFWN.y) < 0.5 && fGlass < 0.5) { vec3 Nw = normalize(vFWN), Tw = normalize(cross(vec3(0.0, 1.0, 0.0), Nw)); vec3 nt = texture2D(tWN, wUv).xyz * 2.0 - 1.0;
-          normal = normalize((viewMatrix * vec4(normalize(Tw * nt.x * uWB + vec3(0.0, 1.0, 0.0) * nt.y * uWB + Nw * max(nt.z, 0.2)), 0.0)).xyz); }`)
+          vec3 nW = normalize(Tw * nt.x * uWB + vec3(0.0, 1.0, 0.0) * nt.y * uWB + Nw * max(nt.z, 0.2));
+          if (fRev > 0.5) nW = normalize(Nw * 0.3 + Tw * fTilt.x + vec3(0.0, fTilt.y, 0.0));
+          normal = normalize((viewMatrix * vec4(nW, 0.0)).xyz); }`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         totalEmissiveRadiance = mix(totalEmissiveRadiance, fInt, fGlass);`);
     };
@@ -12279,6 +12293,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (let f = 0; f < 6; f++) { if (f === 2 || f === 3) continue; const fw = (f < 2 ? d : w); for (let k = 0; k < 4; k++) { const i = f * 4 + k; uv.setXY(i, uv.getX(i) * fw / F.tileW, uv.getY(i) * h / F.tileH); } }
     const body = new T.Mesh(geo, [fm, fm, roof, roof, fm, fm]); body.position.y = h / 2; g.add(body);
     const par = new T.Mesh(new T.BoxGeometry(w + 0.3, 0.7, d + 0.3), roof); par.position.y = h + 0.35; g.add(par);
+    // corniche saillante sous l'acrotère et bandeau au-dessus du rez-de-chaussée (ombres portées sur la façade)
+    const cor = new T.Mesh(new T.BoxGeometry(w + 0.7, 0.28, d + 0.7), roof); cor.position.y = h - 0.05; cor.castShadow = true; g.add(cor);
+    if (h > 12) { const band = new T.Mesh(new T.BoxGeometry(w + 0.24, 0.3, d + 0.24), roof); band.position.y = 3.9; band.castShadow = true; g.add(band); }
     const R = rng(seed * 31 + 7), K = M3();
     // toit : climatiseurs, château d'eau, antennes
     for (let k = 0; k < 3 + Math.floor(R() * 4); k++) { const a = new T.Mesh(new T.BoxGeometry(1 + R(), 0.8 + R() * 0.5, 1 + R()), mat('clim', () => new T.MeshStandardMaterial({ color: 0xc8c8c2, roughness: 0.6, metalness: 0.3 }))); a.position.set((R() - 0.5) * (w - 3), h + 0.5, (R() - 0.5) * (d - 3)); g.add(a); }
@@ -12724,7 +12741,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     geo.computeVertexNormals();
     const AR = root.Arbres;   // avec arbres.js : cœur sombre (l'ombre dans la haie) et coque de cartes de feuilles par-dessus
-    const h = new T.Mesh(geo, AR ? mat('haieCoeur', () => new T.MeshStandardMaterial({ color: 0x1e2c17, roughness: 1 })) : feuillageMat()); h.position.y = -o.h / 2 + ph + hh / 2 - 0.08; g.add(h);
+    const h = new T.Mesh(geo, AR ? mat('haieCoeur', () => new T.MeshStandardMaterial({ color: 0x2b3e20, roughness: 1 })) : feuillageMat()); h.position.y = -o.h / 2 + ph + hh / 2 - 0.08; g.add(h);
     if (AR) { const sh = AR.massif(hw + 0.12, hh + 0.06, hd + 0.12, Math.floor(o.x * 7 + o.z * 3), true); sh.position.y = -o.h / 2 + ph - 0.08; g.add(sh); }
     return g;
   }
@@ -13113,7 +13130,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   const MATS = {};
   function feuillesMat(teinte) {
     const key = teinte || 'std'; if (MATS[key]) return MATS[key];
-    const m = new T.MeshStandardMaterial({ map: leafTex(), alphaTest: 0.45, side: T.DoubleSide, roughness: 0.78, metalness: 0, vertexColors: true, color: teinte === 'haie' ? 0xa8b89a : 0xdde4d6 });
+    const m = new T.MeshStandardMaterial({ map: leafTex(), alphaTest: 0.45, side: T.DoubleSide, roughness: 0.78, metalness: 0, vertexColors: true, color: teinte === 'haie' ? 0xc6d4b2 : 0xdde4d6 });
     m.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = VENT.time;
       sh.vertexShader = 'uniform float uTime; attribute float aSway;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
