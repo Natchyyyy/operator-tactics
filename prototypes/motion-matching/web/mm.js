@@ -199,6 +199,7 @@
       this.orteils = [b('LeftToeBase'), b('RightToeBase')];
       this.jambes = [['LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase'], ['RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase']].map(l => l.map(b));
       this.verrous = [{ actif: false, poids: 0, cible: V3() }, { actif: false, poids: 0, cible: V3() }];
+      { const [, , A, T] = this.jambes[0]; if (A && T) { const a = A.getWorldPosition(V3()), t = T.getWorldPosition(V3()); const hz = Math.hypot(t.x - a.x, t.z - a.z); if (hz > 1e-3) this.ratioPied = (t.y - a.y) / hz; } }   // pente cheville → orteils du modèle à plat (pose de liaison)
       this.mains = { D: [b('RightArm'), b('RightForeArm'), b('RightHand')], G: [b('LeftArm'), b('LeftForeArm'), b('LeftHand')] };
       this.fusil = null; this.gltf = gltf;
       // doigts (tous les os sous les mains) : pose de repos mémorisée
@@ -444,12 +445,17 @@
           const x = [vr.delta.x, 0, vr.delta.z], v = [vr.deltaV.x, 0, vr.deltaV.z];
           decroit(x, v, 0.08, dt); vr.delta.set(x[0], 0, x[2]); vr.deltaV.set(v[0], 0, v[2]);
         }
-        const desc = (this.profondeur || 0) * PARAMS.accroupi.descente;        // accroupi profond : les hanches sont descendues, les pieds restent au sol
+        const desc = this.descActuelle || 0;        // accroupi profond : les hanches sont descendues, les pieds restent au sol
         if (vr.delta.lengthSq() < 1e-8 && desc < 1e-4) continue;
         // genou vers l'avant du personnage (et un peu vers l'extérieur en squat) ; la cible est ramenée à portée par ikDeuxOs
         const pA = A.getWorldPosition(V3());
         const pole = V3(0, 0, 1).applyQuaternion(this.worldQ[0]).addScaledVector(V3(1, 0, 0).applyQuaternion(this.worldQ[0]), (k ? -0.4 : 0.4) * (this.profondeur || 0)).normalize();
-        ikDeuxOs(H, K, A, pA.clone().add(vr.delta).add(V3(0, desc, 0)), pole);
+        const ecart = V3(1, 0, 0).applyQuaternion(this.worldQ[0]).multiplyScalar((k ? -1 : 1) * PARAMS.accroupi.ecart * (this.profondeur || 0));   // squat : pieds écartés
+        ikDeuxOs(H, K, A, pA.clone().add(vr.delta).add(V3(0, desc, 0)).add(ecart), pole);
+        if ((this.profondeur || 0) > 0.01) {   // squat : pied à plat (talon au sol), pas sur la pointe
+          const pA2 = A.getWorldPosition(V3()), pT2 = T.getWorldPosition(V3()), dirP = pT2.clone().sub(pA2); const plat = dirP.clone(); plat.y = (this.ratioPied ?? -0.8) * Math.hypot(dirP.x, dirP.z);   // pied à plat = même pente cheville → orteils que debout
+          if (dirP.lengthSq() > 1e-6 && plat.lengthSq() > 1e-6) { const qc = Q().setFromUnitVectors(dirP.normalize(), plat.normalize()); const qp = Q().identity().slerp(qc, this.profondeur); const wq = A.getWorldQuaternion(Q()); A.quaternion.copy(A.parent.getWorldQuaternion(Q()).invert().multiply(qp).multiply(wq)); A.updateMatrixWorld(true); }
+        }
       }
     }
     // pose cible (yaw retiré) de l'image i, mélangée avec l'image i+1 par t ∈ [0,1[ : retourne quats mondiaux + hauteur
@@ -486,8 +492,10 @@
         o.quaternion.copy(parentQ).invert().multiply(w);
       }
       // position des hanches
-      const desc = (this.profondeur || 0) * PARAMS.accroupi.descente;
-      const h = (poseY[0] + this.offY[0]) * this.echelle + this.solY - desc;
+      // accroupi : hauteur de hanches VISÉE (les clips Crouched varient de 0,74 à 0,85 m), descente = écart × profondeur
+      const h0 = (poseY[0] + this.offY[0]) * this.echelle + this.solY;
+      const desc = this.descActuelle = Math.max(0, h0 - PARAMS.accroupi.hanches) * (this.profondeur || 0);
+      const h = h0 - desc;
       const monde = this.tmpV.set(this.pos.x, h, this.pos.z);
       this.hips.parent.updateWorldMatrix(true, false);
       this.hips.position.copy(this.hips.parent.worldToLocal(monde));
@@ -543,17 +551,21 @@
       const cotes = [[V3(1, 0, 0), V3(bloc.x + bloc.w, 0, cz)], [V3(-1, 0, 0), V3(bloc.x, 0, cz)], [V3(0, 0, 1), V3(cx, 0, bloc.z + bloc.d)], [V3(0, 0, -1), V3(cx, 0, bloc.z)]];
       // candidat caché = le segment menace → point traverse le bloc (poitrine accroupie sous le haut du bloc) ; parmi les
       // cachés, le plus proche du soldat ; sinon le côté le plus à l'opposé de la menace (règle du jeu : coverAt)
-      const pM = V3(menace.x, 0, menace.z), cache = (p) => segCoupeBoite(pM, p, bloc.x, bloc.x + bloc.w, bloc.z, bloc.z + bloc.d);
-      const cands = cotes.map(([n, e]) => ({ p: e.clone().addScaledVector(n, PARAMS.couvert.recul), sc: n.dot(m) }));
-      const caches = cands.filter(c => cache(c.p)).sort((a, b) => this.pos.distanceTo(a.p) - this.pos.distanceTo(b.p));
-      const best = (caches.length ? caches[0] : cands.sort((a, b) => a.sc - b.sc)[0]).p;
+      const pM = V3(menace.x, 0, menace.z), cache1 = (p) => segCoupeBoite(pM, p, bloc.x, bloc.x + bloc.w, bloc.z, bloc.z + bloc.d);
+      // caché = le point ET les deux épaules (±epaules, perpendiculaire à la menace) sont derrière le bloc
+      // score de chaque candidat = part de la silhouette (5 rayons sur ±epaules) cachée par le bloc ; le mieux caché gagne,
+      // à égalité le plus proche
+      const couvert = (p) => { const u = pM.clone().sub(p); u.y = 0; u.normalize(); const lat = V3(-u.z, 0, u.x); let n = 0; for (let k = -2; k <= 2; k++) if (cache1(p.clone().addScaledVector(lat, k / 2 * PARAMS.couvert.epaules))) n++; return n / 5; };
+      const cands = cotes.map(([n, e]) => { const p = e.clone().addScaledVector(n, PARAMS.couvert.recul); return { p, sc: n.dot(m), cv: couvert(p), d: this.pos.distanceTo(p) }; });
+      cands.sort((a, b) => b.cv - a.cv || a.d - b.d); const best = cands[0].p; this.couvertScore = cands[0].cv;
       // contournement : si le segment direct coupe le bloc (gonflé du rayon du soldat), on passe par le coin le plus proche
       const r = PARAMS.couvert.rayon, gx0 = bloc.x - r, gx1 = bloc.x + bloc.w + r, gz0 = bloc.z - r, gz1 = bloc.z + bloc.d + r;
       const coupe = (a, b) => segCoupeBoite(a, b, gx0, gx1, gz0, gz1); const _ancien = (a, b) => { let t0 = 0, t1 = 1; const dx = b.x - a.x, dz = b.z - a.z; for (const [p0, d, lo, hi] of [[a.x, dx, gx0, gx1], [a.z, dz, gz0, gz1]]) { if (Math.abs(d) < 1e-9) { if (p0 < lo || p0 > hi) return false; continue; } let ta = (lo - p0) / d, tb = (hi - p0) / d; if (ta > tb) [ta, tb] = [tb, ta]; t0 = Math.max(t0, ta); t1 = Math.min(t1, tb); if (t0 > t1) return false; } return true; };
       const chemin = []; const coins = [V3(gx0 - 0.1, 0, gz0 - 0.1), V3(gx1 + 0.1, 0, gz0 - 0.1), V3(gx0 - 0.1, 0, gz1 + 0.1), V3(gx1 + 0.1, 0, gz1 + 0.1)];
-      if (coupe(this.pos, best)) { const ok = coins.filter(c => !coupe(this.pos, c) && !coupe(c, best)).sort((a, b) => this.pos.distanceTo(a) + a.distanceTo(best) - this.pos.distanceTo(b) - b.distanceTo(best)); if (ok.length) chemin.push(ok[0]); else { const c2 = coins.filter(c => !coupe(this.pos, c)).sort((a, b) => this.pos.distanceTo(a) - this.pos.distanceTo(b))[0]; if (c2) { chemin.push(c2); const c3 = coins.filter(c => !coupe(c2, c) && !coupe(c, best)).sort((a, b) => c2.distanceTo(a) + a.distanceTo(best) - c2.distanceTo(b) - b.distanceTo(best))[0]; if (c3) chemin.push(c3); } } }
+      const expo = (c) => cache1(c) ? 0 : 3;   // coin exposé à la menace : 3 m de pénalité (on arrive par le côté abrité)
+      if (coupe(this.pos, best)) { const ok = coins.filter(c => !coupe(this.pos, c) && !coupe(c, best)).sort((a, b) => this.pos.distanceTo(a) + a.distanceTo(best) + expo(a) - this.pos.distanceTo(b) - b.distanceTo(best) - expo(b)); if (ok.length) chemin.push(ok[0]); else { const c2 = coins.filter(c => !coupe(this.pos, c)).sort((a, b) => this.pos.distanceTo(a) - this.pos.distanceTo(b))[0]; if (c2) { chemin.push(c2); const c3 = coins.filter(c => !coupe(c2, c) && !coupe(c, best)).sort((a, b) => c2.distanceTo(a) + a.distanceTo(best) - c2.distanceTo(b) - b.distanceTo(best))[0]; if (c3) chemin.push(c3); } } }
       chemin.push(best);
-      this.chemin = chemin; this.cheminIdx = 0; this.cheminFin = true; this.couvert = null; this.enRoute = { point: best, yawMenace: Math.atan2(menace.x - best.x, menace.z - best.z) }; this.verrouCible = null;
+      this.chemin = chemin; this.cheminIdx = 0; this.cheminFin = true; this.couvert = null; this.accroupiApproche = false; this.enRoute = { point: best, yawMenace: Math.atan2(menace.x - best.x, menace.z - best.z) }; this.verrouCible = null;
       return chemin;
     },
     arriver() { if (!this.enRoute) return; this.couvert = this.enRoute; this.enRoute = null; this.chemin = null; this.cheminFin = false; this.accroupi = true; this.verrouCible = this.couvert.yawMenace; },
@@ -579,7 +591,7 @@
       return [P, D];
     },
     pas(dt) {
-      if (this.direction() && (this.couvert || this.enRoute)) { this.couvert = null; this.enRoute = null; this.chemin = null; this.cheminFin = false; this.verrouCible = null; }   // une touche de déplacement quitte le couvert
+      if (this.direction() && (this.couvert || this.enRoute)) { this.couvert = null; this.enRoute = null; this.chemin = null; this.cheminFin = false; this.verrouCible = null; if (this.accroupiApproche) { this.accroupi = false; this.accroupiApproche = false; } }   // une touche de déplacement quitte le couvert
       const vGoal = this.vitesseCible(), yGoal = this.yawCible(vGoal);
       [this.pos, this.vel, this.acc] = ressortVitesse(this.pos, this.vel, this.acc, vGoal, this.hVitesse(vGoal), dt);
       [this.yaw, this.yawV] = ressortAngle(this.yaw, this.yawV, yGoal, this.hYaw, dt);
@@ -616,7 +628,7 @@
   const HUD = {};
   // bloc de couverture (m) : hauteur poitrine debout, au-dessus de la tête accroupi — comme les couverts bas du jeu
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { accroupi: { descente: 0.30, descenteMarche: 0.12, penche: 0.35, tau: 0.3 }, couvert: { recul: 0.55, rayon: 0.4 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { accroupi: { hanches: 0.45, marche: 0.55, penche: 0.45, tau: 0.3, ecart: 0.1, parDessus: 0.23, approche: 2.5 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -733,7 +745,10 @@
       // à couvert : recalage final sur le point (≤ 10 cm, pendant la descente)
       if (Ctl.couvert && vGoal.lengthSq() < 0.01) { const d = Ctl.couvert.point.clone().sub(S.pos); d.y = 0; if (d.length() > 0.005) S.pos.addScaledVector(d, 1 - Math.exp(-dt / 0.3)); }
       // accroupi profond (couvert) : à l'arrêt on descend de `descente`, en marche les clips Crouched + un peu ; lissé
-      const profVoulue = Ctl.accroupi ? (vGoal.lengthSq() < 0.01 ? 1 : PARAMS.accroupi.descenteMarche / PARAMS.accroupi.descente) : 0;
+      // approche d'un couvert : on s'abaisse à moins de `approche` m du point ; à couvert en visée : squat haut pour tirer PAR-DESSUS le bloc
+      if (Ctl.enRoute && !Ctl.accroupi && Ctl.enRoute.point.distanceTo(S.pos) < PARAMS.accroupi.approche) { Ctl.accroupi = true; Ctl.accroupiApproche = true; }
+      const parDessus = Ctl.couvert && Ctl.verrouRegard;
+      const profVoulue = Ctl.accroupi ? (parDessus ? PARAMS.accroupi.parDessus : vGoal.lengthSq() < 0.01 ? 1 : PARAMS.accroupi.marche) : 0;
       S.profondeur = (S.profondeur || 0) + (profVoulue - (S.profondeur || 0)) * (1 - Math.exp(-dt / PARAMS.accroupi.tau));
       Ctl.pos.copy(S.pos); Ctl.yaw = S.yaw;
       S.appliquer(this.poseQ, this.poseY, dt);
@@ -742,7 +757,7 @@
       const cf = Base.contact[this.frame];
       const contacts = S.orteils.map((o, k) => !!(cf & (k ? 1 : 2)) && o.getWorldPosition(V3()).y < seuilOrteil);
       S.reposTotal = vGoalNul && this.facteurRacine < 0.05; S.pivot = pivote && Math.abs(errCapR) > 0.15;
-      S.pencher((S.profondeur || 0) * PARAMS.accroupi.penche);
+      S.pencher((S.profondeur || 0) * PARAMS.accroupi.penche * (1 - 0.7 * (S.poidsVisee || 0)));   // en visée le buste se redresse (joue sur la crosse)
       if (PARAMS.verrou) S.verrouPieds(contacts, dt);
       // tir (clic gauche maintenu en visée) : cadence soutenue du fusil d'assaut du jeu (110 coups/min), recul 1 → 0 en 0,1 s
       this.recul = Math.max(0, (this.recul || 0) - dt * 10); this.tirAcc = Math.max(0, (this.tirAcc || 0) - dt);
