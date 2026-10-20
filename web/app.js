@@ -798,7 +798,10 @@
     if (EFX) EFX.night = id === 'nuit';   // traçantes plus vives de nuit   // ronds de pluie au sol, impacts au sol en gerbes d'eau
     $('#app').dataset.cond = id || 'jour';
     if (OT.Parking && battle && battle.map.id === 'parking') { OT.Parking.setConditions(id || 'jour', scene); buildLamps(false); } else buildLamps(id === 'nuit' || id === 'brouillard');
-    RIM.k.value = id === 'nuit' ? RIM.nuit : 0; RIM.f.value = id === 'nuit' ? RIM.fond : 0; if (RENDU) RIM.d.value.copy(RENDU.lightDir);   // liseré de lune des soldats (côté lune)
+    RIM.k.value = id === 'nuit' ? RIM.nuit : 0; RIM.f.value = id === 'nuit' ? RIM.fond : 0; if (RENDU) RIM.d.value.copy(RENDU.lightDir);
+    // de jour aussi, un liseré léger côté soleil (chaud) et un soupçon de lumière enveloppante : la silhouette du soldat se
+    // détache du décor même à contre-jour ou à l'ombre (éclairage de personnage des jeux « AAA »)
+    if (id === 'nuit') RIM.c.value.setRGB(0.55, 0.68, 1.0); else if (id === 'jour') { RIM.c.value.setRGB(1.0, 0.82, 0.62); RIM.k.value = 0.22; RIM.f.value = 0.012; } else { RIM.c.value.setRGB(0.8, 0.86, 0.95); RIM.k.value = 0.1; RIM.f.value = 0.01; }   // liseré de lune des soldats (côté lune)
     buildSteam();
     meteoSound();   // couche sonore de la météo (pluie, vent, nuit, oiseaux)
   }
