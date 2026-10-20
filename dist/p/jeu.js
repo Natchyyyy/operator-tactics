@@ -19697,7 +19697,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     //  · gauche : clic sur un opérateur = le choisir (Maj : en ajouter / retirer), clic sur le sol = « Tous » ;
     //    gauche maintenu + glisser = rectangle de sélection (Maj : ajoute) ;
     //  · droit : clic court = l'escouade choisie y va avec les derniers choix (déplacement + arrivée) ;
-    //    droit maintenu = liste d'ordres, on descend pour choisir, on lâche pour valider (ordHold*) ; Maj + clic droit : point de passage ;
+    //    droit maintenu = roue d'ordres (déplacement au centre, arrivée autour), on lâche pour valider (ordHold*) ; Maj + clic droit : point de passage ;
     //  · milieu maintenu + glisser = tourner la vue (Maj : déplacer la vue) ; molette : zoom.
     canvas.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });   // pas de défilement automatique du navigateur
     canvas.addEventListener('pointerdown', (e) => {
@@ -21475,8 +21475,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function ordArrDefaut() { return !!SETTINGS.ordAdv || ORD_OPTS.arrivee.choix.some(c => c.v === ordLast.arrivee) ? ordLast.arrivee : 'tenir'; }
   function ordNom(cat, v) { const c = ORD_OPTS[cat].choix.concat(cat === 'arrivee' ? ORD_PLUS_ARR : []).find(c => c.v === v); return c ? c.nom : v; }
 
-  // ---- Clic droit (20/10) : court = on y va avec les derniers choix ; maintenu (≥ 0,22 s ou la souris bouge) = une liste
-  // d'ordres s'ouvre au curseur, le dernier déplacement surligné ; on descend / monte pour choisir, on lâche pour valider.
+  // ---- Clic droit (20/10) : court = on y va avec les derniers choix ; maintenu (≥ 0,22 s ou la souris bouge) = la roue
+  // d'ordres (plus bas) s'ouvre au curseur.
   const HOLD_MS = 220, HOLD_PX = 10; let ordHold = null;
   function ordHoldStart(cx, cy) {
     ordHoldCancel(); closeOrderMenu();
@@ -21486,44 +21486,62 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     ordHold.timer = setTimeout(() => { if (ordHold && !ordHold.el) ordHoldOpen(); }, HOLD_MS);
     if (MANUAL) render();
   }
-  function ordHoldItems() {
-    const arr = ordArrDefaut(), mode = ordLast.mode, adv = !!SETTINGS.ordAdv;
-    const its = [{ k: 'annuler', nom: 'Annuler', aide: 'Ne rien ordonner' }, { sec: 'Déplacement' }];
-    for (const c of ORD_OPTS.mode.choix) its.push({ k: 'mode', v: c.v, nom: c.nom, aide: `puis ${ordNom('arrivee', arr).toLowerCase()}` });
-    its.push({ sec: 'Arrivée' });
-    for (const c of ORD_OPTS.arrivee.choix.concat(adv ? ORD_PLUS_ARR : [])) its.push({ k: 'arrivee', v: c.v, nom: c.nom, aide: `en ${ordNom('mode', mode).toLowerCase()}` });
-    its.push({ k: 'menu', nom: 'Plus d’options…', aide: adv ? 'Feu, fumée, grenades, top' : 'Le menu complet' });
-    return its;
+  // ---- Roue d'ordres (20/10, idée B de l'utilisateur) : clic droit maintenu = une roue à deux anneaux au curseur.
+  // Anneau intérieur : le déplacement ; anneau extérieur : l'arrivée. On glisse sur un déplacement, on continue vers
+  // l'extérieur jusqu'à l'arrivée, on lâche : les deux choix en un seul geste. Lâcher dans l'anneau intérieur = ce
+  // déplacement + l'arrivée habituelle ; tout droit vers l'extérieur = l'arrivée + le dernier déplacement ; au centre = annuler ;
+  // sur « Plus d'options » = le menu complet. Secteurs comptés depuis le haut, dans le sens des aiguilles d'une montre.
+  const WH = { r0: 34, r1: 102, r2: 172 };
+  function whAng(dx, dy) { let a = Math.atan2(dx, -dy); if (a < 0) a += Math.PI * 2; return a; }
+  function whSec(a, n) { return Math.round(a / (Math.PI * 2 / n)) % n; }
+  function whPt(c, r, a) { return `${(c + r * Math.sin(a)).toFixed(1)},${(c - r * Math.cos(a)).toFixed(1)}`; }
+  function whArc(c, ri, ro, a0, a1) {
+    const big = a1 - a0 > Math.PI ? 1 : 0;
+    return `M${whPt(c, ro, a0)}A${ro},${ro} 0 ${big} 1 ${whPt(c, ro, a1)}L${whPt(c, ri, a1)}A${ri},${ri} 0 ${big} 0 ${whPt(c, ri, a0)}Z`;
   }
   function ordHoldOpen() {
     const h = ordHold; if (!h || h.el) return; clearTimeout(h.timer);
-    const its = ordHoldItems(), el = document.createElement('div'); el.className = 'ordhold';
-    el.innerHTML = `<div class="ohwho">${escapeHtml(ordWho())}</div>` + its.map((it, i) => it.sec ? `<div class="ohsec">${it.sec}</div>`
-      : `<div class="ohit${it.k === 'annuler' ? ' ohx' : ''}" data-i="${i}"><span class="omico">${ORD_SVG[it.v] || ''}</span><b>${it.nom}</b><small>${it.aide}</small></div>`).join('')
-      + '<div class="ohhint">Glisser vers le bas / le haut pour défiler · lâcher pour valider</div>';
+    const modes = ORD_OPTS.mode.choix, arrs = ORD_OPTS.arrivee.choix.concat(SETTINGS.ordAdv ? ORD_PLUS_ARR : []);
+    const R = WH.r2 + 4, el = document.createElement('div'); el.className = 'ordwheel';
+    let svg = `<svg width="${R * 2}" height="${R * 2}" viewBox="0 0 ${R * 2} ${R * 2}">`, lab = '';
+    const ring = (list, ri, ro, k) => list.forEach((c, i) => {
+      const st = Math.PI * 2 / list.length, a = i * st, g = 0.035;
+      svg += `<path class="whs" data-k="${k}" data-i="${i}" d="${whArc(R, ri + 2, ro, a - st / 2 + g, a + st / 2 - g)}"/>`;
+      const rm = (ri + ro) / 2, x = R + rm * Math.sin(a), y = R - rm * Math.cos(a);
+      lab += `<div class="whl" data-k="${k}" data-i="${i}" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px"><span class="omico">${ORD_SVG[c.v] || ''}</span><b>${c.nom}</b></div>`;
+    });
+    ring(modes, WH.r0, WH.r1, 'mode'); ring(arrs, WH.r1, WH.r2, 'arr');
+    svg += `<circle class="whc" cx="${R}" cy="${R}" r="${WH.r0 - 1}"/></svg>`;
+    el.innerHTML = svg + lab + `<div class="whmid"></div><div class="whwho">${escapeHtml(ordWho())}</div><div class="whmore">Plus d’options…</div>`;
     el.addEventListener('contextmenu', (e) => e.preventDefault());
-    $('main').appendChild(el); h.el = el; h.its = its;
-    // la ligne du dernier déplacement arrive sous le curseur : lâcher sans bouger = l'ordre habituel
-    const def = el.querySelector(`.ohit[data-i="${its.findIndex(it => it.k === 'mode' && it.v === ordLast.mode)}"]`) || el.querySelector('.ohit');
-    const mr = $('main').getBoundingClientRect(), z = parseFloat(getComputedStyle(el).zoom) || 1, br = el.getBoundingClientRect(), dr = def.getBoundingClientRect();
-    const top = Math.max(8, Math.min(mr.height - br.height - 8, h.cy - mr.top - (dr.top - br.top) - dr.height / 2));
-    el.style.left = (Math.max(8, Math.min(mr.width - br.width - 8, h.cx - mr.left + 16)) / z).toFixed(1) + 'px';
-    el.style.top = (top / z).toFixed(1) + 'px';
-    // dernier déplacement surligné d'office ; la ligne suit le curseur seulement quand il bouge (liste repoussée par un bord)
-    h.idx = +def.dataset.i; el.querySelectorAll('.ohit').forEach(r => r.classList.toggle('on', r === def));
-    h.idx0 = h.idx; h.oy = h.my !== undefined ? h.my : h.cy;
+    document.body.appendChild(el);
+    // la roue reste entière à l'écran (repoussée par un bord si besoin ; les choix se lisent alors depuis son centre)
+    const cx = Math.max(R + 8, Math.min(innerWidth - R - 8, h.cx)), cy = Math.max(R + 30, Math.min(innerHeight - R - 46, h.cy));
+    el.style.left = (cx - R) + 'px'; el.style.top = (cy - R) + 'px';
+    Object.assign(h, { el, wx: cx, wy: cy, modes, arrs, zone: 'x', mode: null, arr: null });
+    ordHoldMove(h.mx !== undefined ? h.mx : h.cx, h.my !== undefined ? h.my : h.cy);
     if (MANUAL) render();
   }
-  // sélecteur qui défile : on part du dernier choix ; chaque cran de souris (hauteur d'une ligne) vers le bas / le haut
-  // passe à la ligne suivante / précédente, où que la liste soit à l'écran (elle peut être repoussée par un bord)
   function ordHoldMove(cx, cy) {
     const h = ordHold; if (!h) return; h.mx = cx; h.my = cy;
-    if (!h.el) { if (Math.hypot(cx - h.cx, cy - h.cy) >= HOLD_PX) ordHoldOpen(); return; }   // la souris bouge : la liste s'ouvre tout de suite
-    const rows = [...h.el.querySelectorAll('.ohit')], k0 = rows.findIndex(r => +r.dataset.i === h.idx0);
-    const step = (rows[0].getBoundingClientRect().height || 34) * 0.85;   // un peu moins qu'une ligne : ça défile sans grands gestes
-    const k = Math.max(0, Math.min(rows.length - 1, k0 + Math.round((cy - h.oy) / step)));
-    const i = +rows[k].dataset.i; if (i === h.idx) return; h.idx = i;
-    rows.forEach(r => r.classList.toggle('on', r === rows[k]));
+    if (!h.el) { if (Math.hypot(cx - h.cx, cy - h.cy) >= HOLD_PX) ordHoldOpen(); return; }   // la souris bouge : la roue s'ouvre tout de suite
+    const dx = cx - h.wx, dy = cy - h.wy, r = Math.hypot(dx, dy), a = whAng(dx, dy);
+    const mb = h.el.querySelector('.whmore').getBoundingClientRect();
+    if (cx >= mb.left - 6 && cx <= mb.right + 6 && cy >= mb.top - 6 && cy <= mb.bottom + 6) h.zone = 'menu';
+    else if (r < WH.r0) { h.zone = 'x'; h.mode = null; h.arr = null; }
+    else if (r < WH.r1) { h.zone = 'mode'; h.mode = h.modes[whSec(a, h.modes.length)].v; h.arr = null; }
+    else { h.zone = 'arr'; h.arr = h.arrs[whSec(a, h.arrs.length)].v; }   // (au-delà de la roue aussi : on ne perd pas le choix en dépassant)
+    const mode = h.mode || ordLast.mode, arr = h.zone === 'arr' ? h.arr : ordArrDefaut();
+    h.el.querySelectorAll('[data-k]').forEach(n => {
+      const v = n.dataset.k === 'mode' ? h.modes[+n.dataset.i].v : h.arrs[+n.dataset.i].v;
+      const on = n.dataset.k === 'mode' ? (h.zone === 'mode' || h.zone === 'arr') && v === mode : h.zone === 'arr' && v === arr;
+      n.classList.toggle('on', on);
+      n.classList.toggle('def', !on && h.zone !== 'menu' && (n.dataset.k === 'mode' ? h.zone === 'x' && v === mode : h.zone !== 'arr' && v === arr));
+    });
+    h.el.querySelector('.whc').classList.toggle('on', h.zone === 'x');
+    h.el.querySelector('.whmore').classList.toggle('on', h.zone === 'menu');
+    h.el.querySelector('.whmid').innerHTML = h.zone === 'x' ? '<b>Annuler</b>' : h.zone === 'menu' ? '<b>Menu</b>'
+      : `<b>${ordNom('mode', mode)}</b><small>puis ${ordNom('arrivee', arr).toLowerCase()}</small>`;
   }
   function ordHoldCancel() { const h = ordHold; if (!h) return; clearTimeout(h.timer); if (h.el) h.el.remove(); ordHold = null; ordMarkGhost(null); }
   function ordHoldEnd(cx, cy) {
@@ -21531,10 +21549,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (!h.el) {   // clic court : on y va, derniers choix, feu à volonté, sans étape d'orientation (ils surveillent seuls)
       ordHoldCancel(); ordSend(h.p, { mode: ordLast.mode, arrivee: ordArrDefaut() }, true); return;
     }
-    ordHoldMove(cx, cy); const it = h.its[h.idx]; ordHoldCancel();
-    if (!it || it.k === 'annuler') { flashBattle('Ordre annulé.'); if (MANUAL) render(); return; }
-    if (it.k === 'menu') { ordMenuAt(h.cx, h.cy, h.p); return; }
-    ordSend(h.p, it.k === 'mode' ? { mode: it.v, arrivee: ordArrDefaut() } : { mode: ordLast.mode, arrivee: it.v }, false);
+    ordHoldMove(cx, cy); const z = h.zone, mode = h.mode || ordLast.mode, arr = h.arr; ordHoldCancel();
+    if (z === 'x') { flashBattle('Ordre annulé.'); if (MANUAL) render(); return; }
+    if (z === 'menu') { ordMenuAt(h.cx, h.cy, h.p); return; }
+    ordSend(h.p, { mode, arrivee: z === 'arr' ? arr : ordArrDefaut() }, false);
   }
 
   // ---- Sélection à la souris (20/10) : rectangle (clic gauche maintenu) ou clic sur un opérateur ; cercles au sol sous les choisis

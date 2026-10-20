@@ -62,7 +62,7 @@ le Groupe Karst). L'utilisateur parle français, préfère des explications simp
 - Captures : `outils/capture.py` (WebGL logiciel, lent) ; API du jeu `window.API` (start, stepRaw, look, camShot…),
   `?manual=1` pour piloter pas à pas. Le dossier `captures/` n'est pas versionné.
 - **Publication jouable** : artifact claude.ai `https://claude.ai/code/artifact/HMXhuguP85cpBoDChL2kRU`
-  (version 50 au 20/10). Après un build propre : copier `dist/artifact.html` et les fichiers changés dans un dossier
+  (version 51 au 20/10). Après un build propre : copier `dist/artifact.html` et les fichiers changés dans un dossier
   temporaire, puis publier avec `file_path` = artifact.html, `url` = celle ci-dessus et `files` = { "p/jeu.js": …,
   et tout fichier nouveau/modifié de `dist/publier.json` (ex. `hd/pbr_*.jpg`) }. Les fichiers non renvoyés restent.
 - Rapports du PC de l'utilisateur (RTX 5070 Ti, une session Claude Code y teste `main` toutes les heures environ) :

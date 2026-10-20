@@ -9,6 +9,7 @@
   `GameMap.open/openLen`, `findPath(…, extra, hug)`, `RASER` dans `sim/engine.js`) et « ralentir avant un angle aveugle »
   (`Battle.cornerSpeed`). Tests ajoutés dans `tests/voies.js` ; `tests/ia.js` : rencontres mesurées sur 24 batailles,
   graine 5 pour le fumigène. Arme basse près des angles = laissé au motion matching (décision).
+- v51 : clic droit maintenu = roue d'ordres à deux anneaux (idée B choisie par l'utilisateur) : centre = déplacement, autour = arrivée, un seul geste ; centre de la roue = annuler ; « Plus d'options… » sous la roue = menu complet. Clic droit court inchangé. Idée D (ordres favoris) peut-être plus tard, l'utilisateur décidera après essai.
 - v50 : légère brume au loin (jour : densité 0,0036 → 0,0055) ; caméra libre jusqu'à hauteur d'homme (zoom au plus près 2,2 m ; sous 14 m la vue se redresse vers l'horizon, point visé à 1,6 m). Prochaine étape : remplacer le clic droit maintenu (idées proposées à l'utilisateur, il choisit).
 - v49 : caméra libre au clavier Z Q S D (positions physiques, W A S D en QWERTY ; Maj plus vite ; depuis une autre caméra,
   passe en libre en gardant le cadrage) — `camKeyDown/camKeysMove` dans `web/app.js` ; tactiques déplacées sur 4 5 6 (Z était
