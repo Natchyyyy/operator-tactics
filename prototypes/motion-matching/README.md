@@ -138,9 +138,12 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   jusqu'au nouveau point idéal (`replace`) et reprend ; attache seulement une fois en place (≤ 12 cm) : mains à
   3-7 cm du col mesuré. Sous le feu (preset 3) : il part tout de suite au couvert arme en joue, tire TOUT LE LONG
   (précision « en mouvement » ×0,55, puis « en course » ×0,3 ; cible masquée par le bloc : tir à l'aveugle vers la
-  dernière position, chance ÷2), vitesse linéaire marche → course selon la distance restante (`sprint` à 40 %).
+  dernière position, chance ÷2), vitesse linéaire marche → course sur la première moitié du trajet (`sprint` dès le quart) ;
+  en tirant en marchant le corps va vers le point (le buste vrille vers la menace, « mal épaulé » au-delà de ~60°) : avant
+  (v35) le corps restait verrouillé sur la menace et il dérivait vers le bloc puis reculait (v36).
   Relevé en trois temps (2,2 s) : buste redressé sur une main au sol (IK), jambes repliées et hanches qui montent,
-  arme reprise sur le dernier quart. Arme à la sangle pendant le sauvetage : le long de la jambe droite, canon en bas,
+  main libre posée sur le genou, arme reprise à 70 % (v36 : les clips accroupis ont les bras tendus pour une arme → « bras
+  en T » ; même raison pour les clips neutres, bras qui balancent, quand l'arme est à la sangle). Arme à la sangle pendant le sauvetage : le long de la jambe droite, canon en bas,
   attachée aux hanches (plus en travers du dos). Couvert : 0,7 m de la face (le canon entrait dans le bloc à 0,55).
 - Rythme (v31) : lecture accélérée / ralentie (×0,75-1,35, lissée 0,3 s) pour coller à la vitesse voulue — les clips
   100STYLE marchent à 0,9 m/s et reculent à 0,5 ; mesuré : marche 1,2-1,28 m/s, recul 1,0, sprint 2,6.

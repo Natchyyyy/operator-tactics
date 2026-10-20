@@ -2,7 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
-  const VERSION = 35;
+  const VERSION = 36;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);
@@ -586,7 +586,10 @@
     // (diagonales comprises), le buste et l'arme restent tournés vers la cible (vrille du tronc jusqu'à ~70°) ;
     // « recul » : la cible est derrière le déplacement (> 100°), il marche à reculons en lui faisant face ; hystérésis 10°.
     modeVisee(vGoal) {
-      if (!this.verrouRegard || (this.chemin && this.chemin.length)) return null;
+      // (20/10) en tirant en marchant / en courant vers le couvert, on raisonne comme sans chemin : corps vers là où il va
+      // (le buste vrille vers la menace, tir « mal épaulé » au-delà de ~60°), à reculons seulement si la menace est derrière.
+      // Avant : corps verrouillé sur la menace + clips frontaux seulement → il dérivait vers le bloc au lieu d'aller au point.
+      if (!this.verrouRegard || (this.chemin && this.chemin.length && !this.tirEnMarchant)) return null;
       if (vGoal.lengthSq() < 1e-4) return 'arret';
       let e = Math.atan2(vGoal.x, vGoal.z) - (this.verrouCible ?? this.camYaw); e = Math.abs(Math.atan2(Math.sin(e), Math.cos(e)));
       this.modeV = e <= (this.modeV === 'recul' ? 1.66 : 1.83) ? 'avant' : 'recul'; return this.modeV;
@@ -920,10 +923,16 @@
         if (o === S.hips) { const pc = o.getWorldPosition(V3()); const pb = L.hip0.clone().lerp(pc, kHanches); pb.y = L.hip0.y + (pc.y - L.hip0.y) * (kHanches * kHanches); o.position.copy(o.parent.worldToLocal(pb)); }
         o.updateMatrixWorld(true); }
       // main d'appui au sol, du côté où il était couché (la main la plus basse au départ), à 35 cm des hanches ; poids 0 → 1 → 0
-      if (!L.appui) { const pD = S.mains.D[2].getWorldPosition(V3()), pG = S.mains.G[2].getWorldPosition(V3()); L.appui = pD.y <= pG.y ? 'D' : 'G'; const h = S.hips.getWorldPosition(V3()); const lat = V3(Math.sin(L.yaw + Math.PI / 2), 0, Math.cos(L.yaw + Math.PI / 2)).multiplyScalar(L.appui === 'D' ? 1 : -1); L.pSol = V3(h.x, 0.03, h.z).addScaledVector(lat, 0.38).addScaledVector(V3(Math.sin(L.yaw), 0, Math.cos(L.yaw)), -0.1); }
+      // (20/10 : « bras en T ») : le point d'appui part de l'ÉPAULE (sous elle, 18 cm vers l'extérieur), pas de 38 cm des
+      // hanches — couché, ce point-là n'était atteignable qu'avec le bras tendu à l'horizontale (pose en T)
+      if (!L.appui) { const pD = S.mains.D[2].getWorldPosition(V3()), pG = S.mains.G[2].getWorldPosition(V3()); L.appui = pD.y <= pG.y ? 'D' : 'G'; const ep = S.mains[L.appui][0].getWorldPosition(V3()); const lat = V3(Math.sin(L.yaw + Math.PI / 2), 0, Math.cos(L.yaw + Math.PI / 2)).multiplyScalar(L.appui === 'D' ? 1 : -1); L.pSol = V3(ep.x, 0.03, ep.z).addScaledVector(lat, 0.18).addScaledVector(V3(Math.sin(L.yaw), 0, Math.cos(L.yaw)), -0.08); }
       const wA = ss(u / 0.2) * (1 - ss((u - 0.6) / 0.2)); const main = S.mains[L.appui];
       if (wA > 0.001 && main.every(x => x)) { const pA = main[2].getWorldPosition(V3()); const cible = L.pSol.clone().lerp(pA, 1 - wA); const lat = V3(Math.sin(L.yaw + Math.PI / 2), 0, Math.cos(L.yaw + Math.PI / 2)).multiplyScalar(L.appui === 'D' ? 1 : -1); ikDeuxOs(main[0], main[1], main[2], cible, V3(0, -0.5, 0).addScaledVector(lat, 0.8).normalize()); }
-      if (u >= 0.8 && !this.ctl.visee) { this.ctl.visee = true; }   // dernier quart : il reprend son arme
+      // (20/10) main libre posée sur le genou du même côté tant que l'arme n'est pas reprise : les clips accroupis ont ce bras
+      // tendu à l'horizontale (fait pour tenir une arme) — on le voyait en « T » pendant le relevé
+      { const libre = L.appui === 'D' ? 'G' : 'D', mL = S.mains[libre], genou = S.os[Base.meta.os.indexOf(libre === 'D' ? 'RightLeg' : 'LeftLeg')]; const wL = ss(u / 0.3) * (1 - ss((u - 0.72) / 0.12));   // lâche le genou quand la main part vers l'arme
+        if (wL > 0.001 && genou && mL.every(x => x)) { const pG = genou.getWorldPosition(V3()); pG.y += 0.06; const pH = mL[2].getWorldPosition(V3()); const cible = pG.lerp(pH, 1 - wL); const lat = V3(Math.sin(L.yaw + Math.PI / 2), 0, Math.cos(L.yaw + Math.PI / 2)).multiplyScalar(libre === 'D' ? 1 : -1); ikDeuxOs(mL[0], mL[1], mL[2], cible, V3(0, -0.4, 0).addScaledVector(lat, 0.6).addScaledVector(V3(Math.sin(L.yaw), 0, Math.cos(L.yaw)), -0.5).normalize()); } }
+      if (u >= 0.7 && !this.ctl.visee) { this.ctl.visee = true; }   // dernier tiers : il reprend son arme (20/10 : plus tôt, le bras libre pendait tendu vers le sol)
       if (u >= 1) { this.leve = null; const C = this.ctl; C.visee = true; C.accroupi = true; C.couvert = { point: S.pos.clone(), yawMenace: L.yaw }; C.verrouCible = L.yaw; }   // relevé : reste accroupi à couvert, face à la menace
     }
     // requête : partie pose = fiche de l'image courante ; partie trajectoire = prédiction du contrôleur dans le repère du personnage
@@ -945,7 +954,9 @@
       if (this.mort) return;                                       // ragdoll : les os sont tenus par la physique (voir ragdoll.js)
       const [vGoal, yGoal] = Ctl.pas(dt);
       // recherche toutes les 0,1 s, ou tout de suite si on change de style
-      const styleVoulu = Ctl.accroupi ? 1 : Ctl.visee ? 2 : 0;      // 1 = accroupi (Crouched), 2 = Swat (arme), 0 = neutre
+      // (20/10) arme à la sangle (sauvetage) : clips neutres (bras qui balancent) — les clips « arme » (Swat / Rushed) ont les
+      // bras raides le long du corps, faits pour être posés sur le fusil par l'IK : sans fusil en main ils donnaient un mannequin
+      const styleVoulu = Ctl.accroupi ? 1 : (Ctl.visee && !(S.dos && (S.poidsDos || 0) > 0.5)) ? 2 : 0;      // 1 = accroupi (Crouched), 2 = Swat (arme), 0 = neutre
       this.derniereRecherche += dt;
       // recherche immédiate dès que l'intention change (touche pressée / relâchée, direction) : réactivité au clavier
       const intention = vGoal.x.toFixed(1) + ',' + vGoal.z.toFixed(1) + ',' + (Ctl.verrouRegard ? 1 : 0);
@@ -1273,7 +1284,8 @@
       // en route vers le couvert sous le feu : plus il s'en approche, plus il accélère (marche → course, linéaire sur la
       // distance) ; il garde l'arme en joue et tire tant qu'il voit la cible (même en courant : arme mal épaulée)
       if (c.enRoute && c.tirEnMarchant && this.supp) { const pt = c.enRoute.point, dr = Math.hypot(pt.x - A.soldat.pos.x, pt.z - A.soldat.pos.z); if (this.supp.d0 == null) this.supp.d0 = Math.max(1, dr);
-        const u = Math.max(0, Math.min(1, 1 - dr / this.supp.d0)); c.vitesseChemin = c.vitesses.marche + (c.vitesses.course - c.vitesses.marche) * u; c.sprint = u > 0.4;
+        const u = Math.max(0, Math.min(1, (1 - dr / this.supp.d0) / 0.5));   // (20/10) pleine course dès la moitié du trajet, sprint dès le quart
+        c.vitesseChemin = c.vitesses.marche + (c.vitesses.course - c.vitesses.marche) * u; c.sprint = u > 0.5;
         if (c.sprint && !this.supp.sprint) { this.supp.sprint = true; this.log('sprint'); } }
       if (!c.enRoute && this.supp) { this.supp = null; c.sprint = false; }   // arrivé au couvert : fin du tir en marchant
       const V = c.enRoute ? null : this.blesse();
