@@ -457,11 +457,22 @@
       // épaulé : la tête se penche vers la crosse (joue sur la crosse) et baisse un peu vers le viseur
       const tete = this.os[Base.meta.os.indexOf('Head')];
       if (tete && pv > 0.001) {
-        const kT = pa * pv; const rDroite = droite.clone().negate();            // axe vers la gauche du tireur = -droite... (droite = dir × up pointe à droite)
-        const qT = Q().setFromAxisAngle(droite, -(E.joue ?? 0.22) * kT).multiply(Q().setFromAxisAngle(dir, (E.rouleTete ?? 0.3) * kT));   // baisse (autour de l'axe droite) + roulis vers la droite
+        // (20/10, photo de référence) la tête ne suit plus le buste vrillé ni le clip : elle est ORIENTÉE sur l'arme — regard
+        // dans l'axe du canon, visage penché de `joue` vers le bas (on regarde « sous les sourcils »), roulé de `rouleTete`
+        // vers la crosse. Repère « regard » de la tête = pose de liaison (bindQ : +Z devant, +Y dessus).
+        const kT = pa * pv, kH = Base.meta.os.indexOf('Head');
+        const canonDir = V3(0, 0, 1).applyQuaternion(this.fusilQAff || this.fusilQ).normalize(), dCanon = canonDir.clone().cross(V3(0, 1, 0)).normalize();
+        const tF = canonDir.clone().applyAxisAngle(dCanon, -(E.joue ?? 0.22)).normalize();
+        const qCible = Q().setFromRotationMatrix(new THREE.Matrix4().lookAt(V3(), tF.clone().negate(), V3(0, 1, 0))).premultiply(Q().setFromAxisAngle(tF, E.rouleTete ?? 0.3));
+        const qActuel = tete.getWorldQuaternion(Q()).multiply(this.bindQ[kH].clone().invert());
+        const qT = qCible.multiply(qActuel.invert());
         // moitié sur le cou (la tête descend et avance vers la crosse), moitié sur la tête
-        const couOs = this.os[Base.meta.os.indexOf('Neck')], qT2 = Q().slerp.call(Q(), qT, 0.5);
+        const couOs = this.os[Base.meta.os.indexOf('Neck')], qT2 = Q().slerp(qT, 0.5 * kT);
         for (const o of [couOs, tete]) { if (!o) continue; o.quaternion.copy(o.parent.getWorldQuaternion(Q()).invert().multiply(qT2).multiply(o.getWorldQuaternion(Q()))); o.updateMatrixWorld(true); }
+        // la tête vient SUR la crosse : le cou se plie sur le côté (rotation autour de l'axe du regard, à la base du cou), la
+        // tête contre-roule d'autant pour garder son orientation → elle se déplace de quelques cm vers la crosse
+        const pc = (E.pencheCou || 0) * kT;
+        if (couOs && pc) for (const [o, a] of [[couOs, pc], [tete, -pc]]) { const qr = Q().setFromAxisAngle(tF, a); o.quaternion.copy(o.parent.getWorldQuaternion(Q()).invert().multiply(qr).multiply(o.getWorldQuaternion(Q()))); o.updateMatrixWorld(true); }
       }
       // repères de mise au point : poignée (jaune), garde-main (cyan), jointure du majeur visée (vert D, bleu G), bout d'os de main (rouge)
       if (PARAMS.debug) {
@@ -716,7 +727,7 @@
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
   // « bataille » minimale pour le module ragdoll du jeu : horloge, obstacles (le bloc), journal des morts
   const BATAILLE = window.BATAILLE = { t: 0, over: false, log: [], map: { obstacles: [{ x: BLOC.x, z: BLOC.z, w: BLOC.w, d: BLOC.d, h: BLOC.h, kind: 'cover', name: 'bloc' }] } };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.7, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.45, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 1.0, flechi: 0.7, depasse: 2.2, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, rea: { duree: 3.0, releve: 2.2, cadence: 1.8, amplitude: 0.04, flanc: 0.5 }, graines: [6, 2, 25], capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.1, droite: 0.25, haut: -0.25, tangage: 0.2, tangageMax: -0.45, tangageCouvert: -0.9, cant: 0.3, roulis: -0.35, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.7, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.45, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 1.0, flechi: 0.7, depasse: 2.2, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, rea: { duree: 3.0, releve: 2.2, cadence: 1.8, amplitude: 0.04, flanc: 0.5 }, graines: [6, 2, 25], capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.1, droite: 0.25, haut: -0.25, tangage: 0.2, tangageMax: -0.45, tangageCouvert: -0.9, cant: 0.3, roulis: -0.35, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: 0.06, droite: 0.10, haut: -0.015, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.22, rouleTete: 0.5, pencheCou: 0.5, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -991,7 +1002,7 @@
       // (20/10, photo de référence « course en visant ») : arme épaulée en déplacement rapide = glissade tactique : clips
       // Swat/Rushed (jambes qui se lèvent peu), genoux fléchis, buste penché, vitesse plafonnée à 2 m/s (Ctl.vitesseCible)
       const viseeCourse = !!Ctl.verrouRegard && !Ctl.accroupi && vGoal.lengthSq() > 1.6 * 1.6;
-      const courseRapide = !Ctl.verrouRegard && vGoal.lengthSq() > 2.1 * 2.1; S.attenueBob = courseRapide ? 0.35 : 1;
+      const courseRapide = !Ctl.verrouRegard && vGoal.lengthSq() > 2.1 * 2.1; S.attenueBob = courseRapide ? 0.15 : 1;
       if (!this.sauvetage) S.pencheExtra = viseeCourse ? 0.18 : 0;
       const styleVoulu = Ctl.accroupi ? 1 : (Ctl.visee && !mainsLibres && !courseRapide) ? 2 : 0;      // 1 = accroupi (Crouched), 2 = Swat (arme), 0 = neutre
       this.derniereRecherche += dt;
@@ -1093,7 +1104,7 @@
       const parDessus = Ctl.couvert && Ctl.verrouRegard;
       // visée par-dessus : on se redresse juste assez pour que la bouche du canon passe 8 cm au-dessus du bloc (asservi)
       if (parDessus && S.fusil && S.fusilQAff) { const by = S.fusil.position.clone().add(S.fusil.bouchePt.clone().applyQuaternion(S.fusilQAff)).y; this.profVisee = Math.max(0, Math.min(1, (this.profVisee ?? PARAMS.accroupi.parDessus) + (by - (BLOC.h + 0.08)) * 1.5 * dt)); } else this.profVisee = PARAMS.accroupi.parDessus;
-      const profVoulue = Math.max(Ctl.profondeurExtra || 0, viseeCourse ? 0.35 : 0, Ctl.accroupi ? (parDessus ? this.profVisee : vGoal.lengthSq() < 0.01 ? 1 : PARAMS.accroupi.marche) : 0);
+      const profVoulue = Math.max(Ctl.profondeurExtra || 0, viseeCourse ? 0.22 : 0, Ctl.accroupi ? (parDessus ? this.profVisee : vGoal.lengthSq() < 0.01 ? 1 : PARAMS.accroupi.marche) : 0);
       S.profondeur = (S.profondeur || 0) + (profVoulue - (S.profondeur || 0)) * (1 - Math.exp(-dt / PARAMS.accroupi.tau));
       const squatVoulu = Ctl.accroupi && vGoal.lengthSq() < 0.01 && !parDessus ? 1 : 0;
       S.squat = (S.squat || 0) + (squatVoulu - (S.squat || 0)) * (1 - Math.exp(-dt / 0.35));
