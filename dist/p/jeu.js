@@ -6640,10 +6640,30 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         new Loader().parse(buf, '', (g) => {
           const sc = g.scene; sc.updateMatrixWorld(true);
           sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.userData.keep = true; if (o.material) { o.material.side = THREE.FrontSide; if (o.material.color) o.material.color.multiplyScalar(n === 'fusil' ? 1 : 0.8); o.material.roughness = Math.max(o.material.roughness || 0, 0.55); for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (o.material[k]) o.material[k].anisotropy = 8; } } });
+          if (VERNIS[n]) vernir(sc, VERNIS[n]);
           S.scenes[n] = sc; S.boxes[n] = new THREE.Box3().setFromObject(sc); if (n === 'fusil') try { separerChargeur(sc); } catch (e) { console.warn('chargeur :', e); } delete M[n]; done();
         }, (e) => { console.warn('modèle ' + n + ' :', e); done(); });
       } catch (e) { console.warn('modèle ' + n + ' :', e); done(); }
     });
+  }
+  // Carrosseries : vernis (couche transparente brillante par-dessus la peinture, comme une vraie voiture) — reflète le ciel
+  // et les lampadaires, ce qui donne tout de suite du volume et du « vrai » aux véhicules. La couche est atténuée là où la
+  // texture est presque noire (pneus, joints).
+  const VERNIS = { berline: [0.75, 0.16], pickup: [0.65, 0.2], fourgon: [0.6, 0.2], bus: [0.6, 0.18] };
+  function vernir(sc, cfg) {
+    sc.traverse(o => {
+      if (!o.isMesh || !o.material || Array.isArray(o.material) || o.material.isMeshPhysicalMaterial) return;
+      const src = o.material, m = new THREE.MeshPhysicalMaterial();
+      THREE.MeshStandardMaterial.prototype.copy.call(m, src); m.defines = { STANDARD: '', PHYSICAL: '' };
+      m.clearcoat = cfg[0]; m.clearcoatRoughness = cfg[1]; m.envMapIntensity = (src.envMapIntensity || 1) * 1.1;
+      m.onBeforeCompile = vernisHook; m.customProgramCacheKey = vernisKey; m.needsUpdate = true; o.material = m;
+    });
+  }
+  function vernisKey() { return 'vernis'; }
+  function vernisHook(sh) {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
+      { float vL = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)), vS = max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b)) - min(diffuseColor.r, min(diffuseColor.g, diffuseColor.b));
+        material.clearcoat *= mix(0.25, 1.0, smoothstep(0.012, 0.05, vL + vS)); }`);
   }
   // Chargeur détachable : les triangles du fusil dont le centre tombe dans la zone du chargeur (repère du modèle :
   // |x − CHG.x| < CHG.dx, y < CHG.y) forment un maillage à part (même matériau, mêmes sommets), nommé « chargeur ».
@@ -6707,7 +6727,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (w.mag && S.chargeurBox) { const mc = S.chargeurBox.getCenter(new THREE.Vector3()); w.magCenter = P(mc.x, mc.y); w.magHome = w.mag.position.clone(); }
     w.isMeshy = true; return w;
   }
-  S.load = load; S.has = has; S.copie = copie; S.fit = fit; S.arme = arme;
+  S.load = load; S.vernir = (m) => { if (m && m.isMeshPhysicalMaterial && m.clearcoat > 0) { m.onBeforeCompile = vernisHook; m.customProgramCacheKey = vernisKey; } return m; }; S.has = has; S.copie = copie; S.fit = fit; S.arme = arme;
   S.whenReady = (fn) => { if (S.ready) fn(); else S.onReady.push(fn); };
   root.Modeles3D = S;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load); else setTimeout(load, 0);
@@ -10113,6 +10133,67 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   root.Decor = { TEX, M, box, jersey, sandbags, barrel, car, palm, building, skyline, ground, skyTexture };
 })(window.OT = window.OT || {});
 
+;//@@OT web/pbr.js@@
+// Textures PBR scannées (Poly Haven, CC0 — voir THIRD_PARTY.md) : couleur, relief (normales OpenGL) et rugosité, publiées
+// dans hd/ à côté de la page (fichiers pbr_*.jpg). Remplacement « à chaud » des textures procédurales de parking.js :
+//  - OT.PBR.det(cle, detProcedural) rend un objet « détail » ({ map, normal, meters, u }) dont les uniformes (u.tDet,
+//    u.tDetN, u.tDetR, u.uM, u.gain, u.hasR, u.mix) sont lus par les matériaux ; au départ ce sont les textures
+//    procédurales, puis, quand les images scannées sont chargées, les uniformes basculent dessus (sans recompiler) ;
+//  - sans fichiers (page ouverte seule, ?hd=0, hors ligne, fichier manquant) : le procédural reste, rien ne casse ;
+//  - OT.PBR.ciel(cb) : panorama de ville (HDRI converti en JPG, soleil écrêté) pour l'éclairage d'ambiance et les reflets.
+// Pour changer une texture : déposer les fichiers dans web/hd et modifier le manifeste ci-dessous.
+(function (root) {
+  const T = window.THREE;
+  // metres : taille réelle d'une tuile ; gain : ajustement d'albédo (pour garder la luminosité voulue de chaque surface) ;
+  // mix : part du second échantillon à une autre échelle (anti-répétition ; 0 pour les motifs réguliers : briques, dalles)
+  const MANIFESTE = {
+    asphalte:   { src: 'asphalt_02', f: ['pbr_asphalte_couleur.jpg', 'pbr_asphalte_relief.jpg', 'pbr_asphalte_rugosite.jpg'], metres: 4.5, gain: 1.0, mix: 0.4 },
+    beton:      { src: 'concrete_wall_008', f: ['pbr_beton_couleur.jpg', 'pbr_beton_relief.jpg', 'pbr_beton_rugosite.jpg'], metres: 3, gain: 1.3, mix: 0.3 },
+    betonClair: { src: 'concrete_wall_008', f: ['pbr_beton_couleur.jpg', 'pbr_beton_relief.jpg', 'pbr_beton_rugosite.jpg'], metres: 3, gain: 1.35, mix: 0.3 },
+    trottoir:   { src: 'concrete_pavement', f: ['pbr_dalles_couleur.jpg', 'pbr_dalles_relief.jpg', 'pbr_dalles_rugosite.jpg'], metres: 2.4, gain: 1.35, mix: 0 },
+    brique:     { src: 'red_brick_03', f: ['pbr_brique_couleur.jpg', 'pbr_brique_relief.jpg', 'pbr_brique_rugosite.jpg'], metres: 1.25, gain: 1.15, mix: 0 },
+    briqueSombre: { src: 'red_brick_03', f: ['pbr_brique_couleur.jpg', 'pbr_brique_relief.jpg', 'pbr_brique_rugosite.jpg'], metres: 1.25, gain: 0.75, mix: 0 },
+  };
+  const CIEL = 'pbr_ciel_ville.jpg';
+  function actif() {
+    if (!/^https?:/.test(location.protocol) || /[?&]hd=0\b/.test(location.search)) return false;
+    return true;
+  }
+  const publie = (f) => !window.OT_HD || !!window.OT_HD.fichiers[f];   // build.js : liste des fichiers publiés (pas de 404)
+  const cache = {};
+  function charger(f, srgb) {
+    if (cache[f]) return cache[f];
+    return (cache[f] = new Promise((ok) => {
+      if (!publie(f)) return ok(null);
+      const img = new Image(); img.decoding = 'async';
+      img.onload = () => {
+        const t = new T.Texture(img); t.colorSpace = srgb ? T.SRGBColorSpace : T.NoColorSpace; t.wrapS = t.wrapT = T.RepeatWrapping;
+        t.anisotropy = 16; t.generateMipmaps = true; t.minFilter = T.LinearMipmapLinearFilter; t.needsUpdate = true; ok(t);
+      };
+      img.onerror = () => ok(null);
+      img.src = 'hd/' + f;
+    }));
+  }
+  const dets = {};
+  function det(cle, proc) {
+    if (dets[cle]) return dets[cle];
+    const M = MANIFESTE[cle];
+    const d = Object.assign({}, proc);
+    d.u = { tDet: { value: proc.map }, tDetN: { value: proc.normal }, tDetR: { value: proc.normal }, uM: { value: proc.meters }, gain: { value: 1 }, hasR: { value: 0 }, mix: { value: proc.mix === undefined ? 0.35 : proc.mix } };
+    dets[cle] = d;
+    if (!M || !actif()) return d;
+    Promise.all([charger(M.f[0], true), charger(M.f[1], false), charger(M.f[2], false)]).then(([c, n, r]) => {
+      if (!c || !n) return;   // fichier manquant : on garde le procédural
+      d.u.tDet.value = c; d.u.tDetN.value = n; d.u.uM.value = M.metres; d.u.gain.value = M.gain; d.u.mix.value = M.mix;
+      if (r) { d.u.tDetR.value = r; d.u.hasR.value = 1; }
+      d.scanne = M.src;
+    });
+    return d;
+  }
+  function ciel(cb) { if (!actif()) return; charger(CIEL, true).then(t => { if (t) { t.mapping = T.EquirectangularReflectionMapping; t.wrapS = T.RepeatWrapping; t.wrapT = T.ClampToEdgeWrapping; t.generateMipmaps = false; t.minFilter = T.LinearFilter; cb(t); } }); }
+  root.PBR = { det, ciel, MANIFESTE, actif, etat: () => Object.fromEntries(Object.entries(dets).map(([k, d]) => [k, d.scanne || 'procédural'])) };
+})(window.OT = window.OT || {});
+
 ;//@@OT web/rendu.js@@
 // Rendu « haut de gamme » de la bataille : chaîne de post-traitement, ciel physique, éclairage par environnement, ombres.
 //  - ciel : modèle de diffusion atmosphérique (Sky de three.js) + couche de nuages procéduraux ; le soleil du ciel et la
@@ -10133,12 +10214,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     uniforms: {
       tDiffuse: { value: null }, time: { value: 0 }, resolution: { value: new T.Vector2(1, 1) },
       contrast: { value: 1.12 }, saturation: { value: 1.1 }, warm: { value: new T.Vector3(1.07, 1.0, 0.91) }, cool: { value: new T.Vector3(0.98, 1.0, 1.02) },
-      vignette: { value: 0.32 }, grain: { value: 0.018 }, aberration: { value: 0.0012 }, exposure: { value: 1.0 },
+      vignette: { value: 0.32 }, grain: { value: 0.018 }, aberration: { value: 0.0005 }, exposure: { value: 1.0 },
       lift: { value: new T.Vector3(0, 0, 0) }, sharpen: { value: 0.35 },
+      sunUV: { value: new T.Vector2(0.5, 0.5) }, rays: { value: 0 }, rayCol: { value: new T.Vector3(1.0, 0.82, 0.6) },
     },
     vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `
-      uniform sampler2D tDiffuse; uniform float time, contrast, saturation, vignette, grain, aberration, exposure, sharpen; uniform vec2 resolution; uniform vec3 warm, cool, lift;
+      uniform sampler2D tDiffuse; uniform float time, contrast, saturation, vignette, grain, aberration, exposure, sharpen, rays; uniform vec2 resolution, sunUV; uniform vec3 warm, cool, lift, rayCol;
       varying vec2 vUv;
       float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       // lecture assainie : un seul pixel NaN (normale nulle, division par zéro) ne doit pas noircir tout l'écran
@@ -10152,6 +10234,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         vec3 nb = fetch(vUv + vec2(px, 0.0)) + fetch(vUv - vec2(px, 0.0)) + fetch(vUv + vec2(0.0, py)) + fetch(vUv - vec2(0.0, py));
         float lb = dot(base, vec3(0.2126, 0.7152, 0.0722)) + 0.01;
         c = max(c + clamp((base - nb * 0.25) * sharpen, vec3(-0.3 * lb), vec3(0.3 * lb)), vec3(0.0)) * exposure;
+        // rayons de soleil (diffusion dans l'air) : les pixels très lumineux (ciel autour du soleil, entre les immeubles et
+        // les feuillages) sont étirés depuis le soleil ; seulement quand le soleil est dans le champ ou juste à côté
+        if (rays > 0.001) {
+          vec2 dv = (sunUV - vUv) / 28.0; vec2 q = vUv + dv * hash(vUv * resolution + time) ; float acc = 0.0, w = 1.0;
+          for (int i = 0; i < 28; i++) { vec3 s = fetch(q); acc += max(dot(s, vec3(0.2126, 0.7152, 0.0722)) - 2.5, 0.0) * w; w *= 0.95; q += dv; }
+          float fall = 1.0 - smoothstep(0.0, 0.9, length((vUv - sunUV) * vec2(resolution.x / resolution.y, 1.0)));
+          c += rayCol * min(acc / 28.0, 2.0) * rays * fall;
+        }
         float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
         // contraste autour d'un gris moyen en espace logarithmique (stable en HDR)
         vec3 lc = log2(max(c, 1e-5)); lc = (lc - log2(0.18)) * contrast + log2(0.18); c = exp2(lc);
@@ -10216,7 +10306,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }
   // préréglages d'ambiance par condition : position du soleil, ciel, exposition, brouillard, intensité de l'environnement
   const AMB = {
-    jour:       { elev: 23, azim: 238, turb: 5.5, ray: 1.6, mie: 0.006, g: 0.82, exp: 0.95, sun: [0xffcb94, 6.2], env: 0.7, fog: [0xc8c2b8, 0.0040], clouds: 0.45, cloudTint: 0xffeedd, cloudDark: 0x8d8f9a, bloom: [0.3, 0.55, 0.92], grade: { c: 1.1, s: 1.08, warm: [1.08, 1.0, 0.9], cool: [0.95, 1.0, 1.05], vig: 0.3, grain: 0.014, lift: [0.0015, 0.0016, 0.002] } },   // fin d'après-midi : soleil bas et chaud, longues ombres
+    // fin d'après-midi : soleil chaud assez haut pour éclairer franchement le sol (rapport lumière / ombre ≈ 4:1, comme une
+    // vraie journée claire), ombres plus froides et plus denses, ciel moins laiteux, étalonnage « cinéma » (ombres sarcelle,
+    // hautes lumières ambrées)
+    jour:       { elev: 31, azim: 238, turb: 3.2, ray: 1.25, mie: 0.0028, g: 0.88, exp: 0.95, sun: [0xffcf9a, 8.2], env: 0.62, hemi: 0.22, cielTint: [2.7, 2.55, 2.3], rays: 0.25, fog: [0xbdb8ae, 0.0029], clouds: 0.5, cloudTint: 0xfff1e2, cloudDark: 0x8d8f9a, bloom: [0.22, 0.35, 0.95], grade: { c: 1.17, s: 1.12, warm: [1.1, 1.01, 0.88], cool: [0.92, 1.0, 1.07], vig: 0.3, grain: 0.012, lift: [0.0012, 0.0016, 0.0024] } },
     nuit:       { elev: -12, azim: 215, turb: 2, ray: 0.3, mie: 0.002, g: 0.7, exp: 1.1, sun: [0x7d94d6, 0.95], env: 0.22, hemi: 0.28, fog: [0x070a10, 0.016], clouds: 0.62, cloudTint: 0x2a3348, cloudDark: 0x0c1018, bloom: [0.32, 0.45, 0.95], night: true, grade: { c: 1.04, s: 0.9, warm: [1.08, 0.99, 0.86], cool: [0.88, 0.97, 1.14], vig: 0.4, grain: 0.03, lift: [0.0035, 0.005, 0.009] } },
     brouillard: { elev: 18, azim: 215, turb: 12, ray: 2.5, mie: 0.02, g: 0.9, exp: 0.8, sun: [0xe8ecf0, 1.0], env: 0.85, hemi: 0.85, fog: [0x9aa1a8, 0.03], clouds: 0.2, cloudTint: 0xdfe3e6, cloudDark: 0x9aa1a8, bloom: [0.25, 0.6, 0.95], grade: { c: 0.96, s: 0.84, warm: [1.03, 1.0, 0.96], cool: [0.97, 1.0, 1.03], vig: 0.24, grain: 0.02, lift: [0.006, 0.0065, 0.007] } },
     pluie:      { elev: 20, azim: 215, turb: 14, ray: 3, mie: 0.02, g: 0.85, exp: 0.88, sun: [0xc8d0dc, 1.25], env: 0.8, hemi: 0.85, fog: [0x47505a, 0.013], clouds: 0.15, cloudTint: 0x6c7580, cloudDark: 0x2c323a, bloom: [0.35, 0.6, 0.9], grade: { c: 1.08, s: 0.86, warm: [1.0, 1.0, 0.97], cool: [0.93, 0.99, 1.07], vig: 0.34, grain: 0.022, lift: [0.002, 0.0026, 0.0034] } },
@@ -10238,9 +10331,21 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const skyScene = new T.Scene();
     function bakeEnv() {
       if (!sky) return;
-      const s2 = new X.Sky(); s2.scale.setScalar(1000); s2.material.uniforms = T.UniformsUtils.clone(sky.material.uniforms); skyScene.clear(); skyScene.add(s2);
+      skyScene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material.isShaderMaterial && o.material.uniforms.tC) o.material.dispose(); }); const s2 = new X.Sky(); s2.scale.setScalar(1000); s2.material.uniforms = T.UniformsUtils.clone(sky.material.uniforms); skyScene.clear(); skyScene.add(s2);
       // sol de l'environnement : un disque gris chaud sous l'horizon (renvoi de lumière du bitume)
       const g = new T.Mesh(new T.CircleGeometry(900, 32), new T.MeshBasicMaterial({ color: new T.Color(0x4a4640).multiplyScalar(R.amb.night ? 0.1 : 0.9) })); g.rotation.x = -Math.PI / 2; g.position.y = -5; skyScene.add(g);
+      // panorama de ville scanné (pbr.js) : les immeubles, le sol et les arbres du panorama se reflètent dans les carrosseries
+      // et les vitres ; là où le panorama montre le ciel (blanc couvert), c'est notre ciel physique qui reste visible
+      if (R.cielTex && !R.amb.night) {
+        const t = R.amb.cielTint || [2.2, 2.2, 2.2];
+        const pm = new T.ShaderMaterial({ uniforms: { tC: { value: R.cielTex }, tint: { value: new T.Vector3().fromArray(t) } }, side: T.BackSide, depthWrite: false, transparent: true,
+          vertexShader: 'varying vec3 vD; void main() { vD = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+          fragmentShader: `uniform sampler2D tC; uniform vec3 tint; varying vec3 vD;
+            void main() { vec3 d = normalize(vD); vec2 uv = vec2(atan(d.z, d.x) * 0.15915494 + 0.5, asin(clamp(d.y, -1.0, 1.0)) * 0.31830989 + 0.5);
+              vec3 c = texture2D(tC, uv).rgb; float sky = smoothstep(0.82, 0.96, min(c.r, min(c.g, c.b))) * smoothstep(-0.02, 0.08, d.y);
+              gl_FragColor = vec4(c * tint, 1.0 - sky); }` });
+        const sp = new T.Mesh(new T.SphereGeometry(500, 48, 24), pm); sp.rotation.y = 1.2; skyScene.add(sp);
+      }
       if (envRT) envRT.dispose(); envRT = pmrem.fromScene(skyScene, 0.02, 1, 1000); scene.environment = envRT.texture;
     }
     // intensité de l'environnement : appliquée à tous les matériaux physiques (three r159 n'a pas de réglage global)
@@ -10266,6 +10371,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (R.bloom) { R.bloom.strength = A.bloom[0]; R.bloom.radius = A.bloom[1]; R.bloom.threshold = A.bloom[2]; }
     };
     R.setCenter = function (x, z) { R.center = new T.Vector3(x, 0, z); };
+    if (root.PBR) root.PBR.ciel((t) => { R.cielTex = t; bakeEnv(); R.applyEnv(); });
     // ---- chaîne de post-traitement ----
     let composer = null, hbao = null, grade = null, smaa = null;
     if (!SIMPLE && X.EffectComposer) {
@@ -10274,7 +10380,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       composer.addPass(new X.RenderPass(scene, camera));
       if (X.HBAOPass) {
         hbao = new X.HBAOPass(scene, camera, size.x, size.y);
-        hbao.updateHbaoMaterial({ radius: 0.55, distanceExponent: 1.6, bias: 0.02, samples: 16 });
+        hbao.updateHbaoMaterial({ radius: 0.9, distanceExponent: 1.4, bias: 0.015, samples: 16 });   // assez large pour assombrir le dessous des voitures et le pied des murs
         hbao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 4, samples: 16 });
         composer.addPass(hbao);
       }
@@ -10286,6 +10392,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (X.SMAAPass) { smaa = new X.SMAAPass(size.x * pr, size.y * pr); composer.addPass(smaa); }
     }
     R.composer = composer; R.grade = grade;
+    // réglage « Qualité » : en basse qualité, pas d'occlusion ambiante ni de rayons de soleil (les deux passes les plus chères)
+    R.quality = 'haute';
+    R.setQuality = function (q) { R.quality = q; if (hbao) hbao.enabled = q !== 'basse'; };
     R.setSize = function (w, h) { if (composer) { composer.setSize(w, h); if (grade) grade.uniforms.resolution.value.set(w * renderer.getPixelRatio(), h * renderer.getPixelRatio()); } };
     // ---- ombres ajustées à la vue : caméra près du sol → carte d'ombre resserrée autour de ce qu'elle regarde (2 à 3 fois
     // plus fine) ; vue haute → tout le terrain. Centre accroché au texel de la carte : pas de scintillement en mouvement.
@@ -10307,13 +10416,21 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       f.addScaledVector(SF.x, Math.round(a / texel) * texel - a).addScaledVector(SF.y, Math.round(b / texel) * texel - b);
       sun.position.copy(f).addScaledVector(R.lightDir, 120); sun.target.position.copy(f); sun.target.updateMatrixWorld();
     }
+    // position du soleil à l'écran pour les rayons (jour seulement ; nulle si le soleil est derrière la caméra)
+    const SR = { p: new T.Vector3(), f: new T.Vector3() };
+    function sunRays() {
+      const u = grade.uniforms; if (R.amb.night || !R.amb.rays || R.quality === 'basse') { u.rays.value = 0; return; }
+      camera.getWorldDirection(SR.f); const fac = SR.f.dot(R.lightDir); if (fac < 0.2) { u.rays.value = 0; return; }
+      SR.p.copy(camera.position).addScaledVector(R.lightDir, 500).project(camera);
+      u.sunUV.value.set(SR.p.x * 0.5 + 0.5, SR.p.y * 0.5 + 0.5); u.rays.value = R.amb.rays * T.MathUtils.smoothstep(fac, 0.2, 0.75);
+    }
     let t0 = performance.now();
     R.render = function () {
       if (!renderer.domElement.width || !renderer.domElement.height) return;   // toile pas encore dimensionnée (page masquée) : rien à dessiner
       const t = (performance.now() - t0) / 1000;
       clouds.material.uniforms.time.value = t; clouds.position.copy(camera.position); night.position.copy(camera.position); if (sky) sky.position.copy(camera.position);
       fitShadow();
-      if (composer) { grade.uniforms.time.value = t; composer.render(); } else renderer.render(scene, camera);
+      if (composer) { grade.uniforms.time.value = t; sunRays(); composer.render(); } else renderer.render(scene, camera);
     };
     R.passes = () => composer ? composer.passes : [];
     R.setConditions('jour');
@@ -11175,6 +11292,116 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (let i = 0; i < 7; i++) add(g, new T.BoxGeometry(o.w * 0.8, 0.02, 0.01), k.grille, 0, y0 + 0.25 + i * 0.09, o.d * 0.46 + 0.005);
     return g;
   }
+  // ---------------------------------------------------------------------------------------------
+  // La fermeture de la ruelle (côté parking) : annexes en briques, quai de chargement, palissades. Tout reste DANS la boîte
+  // de la simulation (au plus 0,3 m de saillie : rideaux, descentes d'eau), pour que personne ne traverse un objet dessiné.
+  // ---------------------------------------------------------------------------------------------
+  // porte de service plate (sans le modèle : il avance de 0,75 m dans le passage)
+  function flatDoor(g, x, y0, R) {
+    const k = K();
+    add(g, new T.BoxGeometry(1.2, 2.25, 0.06), k.acier, x, y0 + 1.125, 0.03);
+    add(g, new T.BoxGeometry(1.0, 2.1, 0.04), R() < 0.4 ? k.portePeinte : k.porte, x, y0 + 1.06, 0.07);
+    add(g, new T.BoxGeometry(0.7, 0.04, 0.05), k.acier, x, y0 + 1.0, 0.1);
+    add(g, new T.BoxGeometry(1.4, 0.05, 0.3), k.galva, x, y0 + 2.5, 0.15);
+    add(g, new T.SphereGeometry(0.08, 10, 8), k.lampe, x, y0 + 2.36, 0.1); if (!LAMPES.includes(k.lampe)) LAMPES.push(k.lampe);
+  }
+  // fenêtre haute grillagée (réserve)
+  function highWin(g, x, y, R) {
+    const k = K(); add(g, new T.BoxGeometry(1.0, 0.62, 0.04), k.acier, x, y, 0.02);
+    add(g, new T.PlaneGeometry(0.88, 0.5), winMat(0.9), x, y, 0.045);
+    for (let i = -3; i <= 3; i++) add(g, cyl(0.016, 0.62, 6), k.galva, x + i * 0.13, y, 0.08);
+    add(g, new T.BoxGeometry(1.12, 0.07, 0.12), k.chaperon, x, y - 0.35, 0.06);
+  }
+  // acrotère : chaperon en couronne autour d'un toit-terrasse sombre (et non une dalle claire qui couvre tout le toit)
+  function rim(g, W, Dd, H, h) {
+    const c = K().chaperon, t = 0.32, y = H / 2 + h / 2 - 0.04;
+    for (const s of [-1, 1]) { add(g, new T.BoxGeometry(W + 0.1, h, t), c, 0, y, s * (Dd / 2 - t / 2 + 0.05)); add(g, new T.BoxGeometry(t, h, Dd + 0.1 - 2 * t), c, s * (W / 2 - t / 2 + 0.05), y, 0); }
+  }
+  // une annexe basse en briques : volume, chaperon, toit, puis chaque face habillée par spec[face] = liste d'éléments
+  // ([type, x local le long de la face, largeur]) ; faces : s (sud, parking), n (nord, ruelle), e, o
+  function lowBuilding(o, tone, seed, spec) {
+    const k = K(), g = new T.Group(), R = rng(seed), W = o.w, Dd = o.d, H = o.h, y0 = -H / 2;
+    add(g, boxW(W, H, Dd, TILE), brickMat(tone), 0, 0, 0);
+    rim(g, W, Dd, H, 0.28); add(g, new T.BoxGeometry(W - 0.3, 0.04, Dd - 0.3), k.toit, 0, H / 2 + 0.02, 0);
+    if (W > 5) { const u = (R() - 0.5) * (W - 3); add(g, new T.BoxGeometry(1.3, 0.8, 1.0), k.clim, u, H / 2 + 0.4, 0); add(g, cyl(0.3, 0.02, 16), k.grille, u, H / 2 + 0.81, 0); }
+    const faces = { s: [0, Dd / 2, 0, W], n: [0, -Dd / 2, Math.PI, W], e: [W / 2, 0, Math.PI / 2, Dd], o: [-W / 2, 0, -Math.PI / 2, Dd] };
+    for (const f of Object.keys(faces)) {
+      const [fx, fz, ry, L] = faces[f], q = new T.Group(); q.position.set(fx, 0, fz); q.rotation.y = ry; g.add(q);
+      const wins = [];
+      for (const [kind, x, w] of spec[f] || []) {
+        if (kind === 'rideau') shutter(q, x, y0, 0, w, Math.min(3.0, H - 0.8));
+        else if (kind === 'porte') flatDoor(q, x, y0, R);
+        else if (kind === 'haute') { highWin(q, x, y0 + Math.min(2.9, H - 0.8), R); wins.push([x + L / 2, Math.min(2.9, H - 0.8) - 0.3]); }
+        else if (kind === 'eau') downspout(q, x, y0, 0, H);
+        else if (kind === 'compteurs') meters(q, x, y0, 0, R);
+        else if (kind === 'clim') wallAC(q, x, y0 + 2.5, 0, R);
+        else if (kind === 'tag') decal(q, tagTex(seed * 7 + Math.round(x * 3)), w, w * 0.375, x, y0 + 0.5 + w * 0.19, 0.02, 0, 0.9);
+        else if (kind === 'plaque') plate(q, x, y0 + 2.0, 0, 0.6, 0.3, plateTex('interdit', 'DÉFENSE', 'de stationner'));
+      }
+      decal(q, grimeTex(seed + f.charCodeAt(0), L, H, wins), L, H, 0, 0, 0.012);
+    }
+    return g;
+  }
+  // quai de chargement : bâtiment bas en parpaings enduits, côté ruelle deux rideaux sur un quai (butoirs noirs, bandes
+  // jaunes et noires), côté parking un mur aveugle avec une imposte et des tags
+  function loadingDock(o) {
+    const k = K(), g = new T.Group(), R = rng(73), W = o.w, Dd = o.d, H = o.h, y0 = -H / 2;
+    const enduit = mat('renduit', () => { const B = brick('parpaing'); return new T.MeshStandardMaterial({ map: B.map, normalMap: B.normalMap, roughness: 0.92, color: 0xcfc9bc }); });
+    add(g, boxW(W, H, Dd, TILE), enduit, 0, 0, 0);
+    rim(g, W, Dd, H, 0.22); add(g, new T.BoxGeometry(W - 0.3, 0.04, Dd - 0.3), k.toit, 0, H / 2 + 0.02, 0);
+    const stripes = mat('rzebra', () => { const c = canvas(256, 32), q = c.getContext('2d'); q.fillStyle = '#1a1a1a'; q.fillRect(0, 0, 256, 32); q.fillStyle = '#e0b21e'; for (let x = -32; x < 256; x += 32) { q.beginPath(); q.moveTo(x, 32); q.lineTo(x + 16, 0); q.lineTo(x + 32, 0); q.lineTo(x + 16, 32); q.fill(); } const t = tex(c, true, true); t.repeat.set(W / 2, 1); return new T.MeshStandardMaterial({ map: t, roughness: 0.7 }); });
+    const n = new T.Group(); n.position.z = -Dd / 2; n.rotation.y = Math.PI; g.add(n);   // face ruelle
+    for (const x of [-W / 4, W / 4]) {
+      shutter(n, x, y0 + 0.9, 0, 2.8, Math.min(2.4, H - 1.3));
+      for (const s of [-1, 1]) add(n, new T.BoxGeometry(0.3, 0.45, 0.18), k.acierNoir, x + s * 1.1, y0 + 0.62, 0.09);   // butoirs en caoutchouc
+    }
+    add(n, new T.PlaneGeometry(W - 0.2, 0.22), stripes, 0, y0 + 0.78, 0.015);
+    flatDoor(n, W / 2 - 0.9, y0, R); downspout(n, -W / 2 + 0.3, y0, 0, H);
+    decal(n, grimeTex(74, W, H, []), W, H, 0, 0, 0.012);
+    const s = new T.Group(); s.position.z = Dd / 2; g.add(s);   // face parking : mur aveugle
+    highWin(s, -1.6, y0 + 2.4, R); highWin(s, 1.6, y0 + 2.4, R); downspout(s, W / 2 - 0.3, y0, 0, H);
+    decal(s, tagTex(321), 2.4, 0.9, -2.2, y0 + 1.0, 0.02, 0, 0.9); decal(s, grimeTex(75, W, H, []), W, H, 0, 0, 0.012);
+    for (const [x, ry] of [[W / 2, Math.PI / 2], [-W / 2, -Math.PI / 2]]) { const e = new T.Group(); e.position.x = x; e.rotation.y = ry; g.add(e); decal(e, grimeTex(76 + ry, Dd, H, []), Dd, H, 0, 0, 0.012); }
+    return g;
+  }
+  // palissades pleines (jusqu'à 2,6 m) : planches de chantier peintes (affiches inventées) ou tôle ondulée galvanisée
+  function hoardTex(kind) {
+    const key = 'palis' + kind; if (CACHE[key]) return CACHE[key];
+    const R = rng(kind === 'tole' ? 5 : 9), N = 512, c = canvas(N, 256), g = c.getContext('2d'), hc = canvas(N, 256), hg = hc.getContext('2d');
+    if (kind === 'tole') {
+      for (let x = 0; x < N; x++) { const v = 0.5 + 0.5 * Math.sin(x / N * Math.PI * 2 * 24); const l = 140 + v * 50; g.fillStyle = `rgb(${l | 0},${(l + 4) | 0},${(l + 8) | 0})`; g.fillRect(x, 0, 1, 256); hg.fillStyle = `rgb(${(v * 255) | 0},0,0)`; hg.fillRect(x, 0, 1, 256); }
+      for (let k = 0; k < 40; k++) { g.fillStyle = `rgba(120,60,25,${0.1 + R() * 0.25})`; g.fillRect(R() * N, 150 + R() * 100, 2 + R() * 5, 10 + R() * 60); }
+      const gr = g.createLinearGradient(0, 180, 0, 256); gr.addColorStop(0, 'rgba(50,35,20,0)'); gr.addColorStop(1, 'rgba(50,35,20,0.5)'); g.fillStyle = gr; g.fillRect(0, 180, N, 76);
+    } else {
+      for (let x = 0; x < N; x += 32) { const l = 60 + R() * 12; g.fillStyle = `rgb(${(l * 0.55) | 0},${l | 0},${(l * 0.7) | 0})`; g.fillRect(x, 0, 32, 256); g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x + 31, 0, 1, 256); hg.fillStyle = '#c0c0c0'; hg.fillRect(x + 1, 0, 30, 256); }
+      for (let k = 0; k < 60; k++) { g.fillStyle = `rgba(20,20,15,${0.05 + R() * 0.1})`; g.fillRect(R() * N, R() * 256, 1 + R() * 2, 4 + R() * 30); }
+    }
+    return (CACHE[key] = { map: tex(c, true, true), normalMap: normalTex(hc, kind === 'tole' ? 2.5 : 1.2) });
+  }
+  function posterTex() {
+    const key = 'affichePalis'; if (CACHE[key]) return CACHE[key];
+    const c = canvas(512, 256), g = c.getContext('2d'); g.fillStyle = '#f1ede2'; g.fillRect(0, 0, 512, 256); g.fillStyle = '#2b5d8a'; g.fillRect(0, 0, 512, 64);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.font = 'bold 34px Arial'; g.fillText('BIENTÔT ICI', 256, 33);
+    g.fillStyle = '#20262c'; g.font = 'bold 40px Arial'; g.fillText('Résidence des Tanneurs', 256, 112); g.font = '26px Arial'; g.fillText('24 logements · commerces en rez-de-chaussée', 256, 162);
+    g.fillStyle = '#7a7f84'; g.font = '20px Arial'; g.fillText('Permis de construire affiché en mairie', 256, 214);
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 4; return (CACHE[key] = t);
+  }
+  function hoarding(o, kind) {
+    const k = K(), g = new T.Group(), along = o.w >= o.d, L = along ? o.w : o.d, Th = along ? o.d : o.w, H = o.h, y0 = -H / 2;
+    const q = new T.Group(); q.rotation.y = along ? 0 : Math.PI / 2; g.add(q);
+    const P = hoardTex(kind), m = mat('palisM' + kind, () => { const t = P.map.clone(); t.needsUpdate = true; t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(L / 4, 1); const nm = P.normalMap.clone(); nm.needsUpdate = true; nm.wrapS = nm.wrapT = T.RepeatWrapping; nm.repeat.set(L / 4, 1); return new T.MeshStandardMaterial({ map: t, normalMap: nm, roughness: kind === 'tole' ? 0.45 : 0.85, metalness: kind === 'tole' ? 0.6 : 0 }); });
+    add(q, new T.BoxGeometry(L, H - 0.12, Th * 0.5), m, 0, 0.06, 0);
+    const post = kind === 'tole' ? k.galva : k.bois, n = Math.max(1, Math.round(L / 2.4));
+    for (let i = 0; i <= n; i++) add(q, new T.BoxGeometry(0.12, H, Th), post, -L / 2 + Math.min(L - 0.06, Math.max(0.06, i * L / n)), 0, 0);
+    add(q, new T.BoxGeometry(L, 0.06, Th * 0.7), post, 0, H / 2 - 0.03, 0);
+    add(q, new T.BoxGeometry(L, 0.14, Th * 0.62), k.beton, 0, y0 + 0.07, 0);   // longrine béton au pied
+    if (kind !== 'tole') {   // côté parking (+z) : une affiche de promoteur inventée et un tag ; côté ruelle : tags
+      const a = new T.Mesh(new T.PlaneGeometry(2.6, 1.3), mat('affPalis', () => new T.MeshStandardMaterial({ map: posterTex(), roughness: 0.8 }))); a.position.set(-L / 2 + 2.4, 0.35, Th * 0.25 + 0.012); a.receiveShadow = true; q.add(a);
+      decal(q, tagTex(612), 2.0, 0.75, L / 2 - 2.2, y0 + 0.9, Th * 0.25 + 0.02, 0, 0.85);
+      const b = new T.Group(); b.rotation.y = Math.PI; q.add(b); decal(b, tagTex(613), 1.8, 0.68, -1.0, y0 + 0.85, Th * 0.25 + 0.02, 0, 0.85);
+    } else { decal(q, tagTex(614), 1.9, 0.71, L / 2 - 2.6, y0 + 0.85, Th * 0.25 + 0.02, 0, 0.85); plate(q, -L / 2 + 1.6, y0 + 1.6, Th * 0.25 + 0.01, 0.6, 0.3, plateTex('interdit', 'PROPRIÉTÉ', 'privée')); }
+    return g;
+  }
   // une pièce de la simulation habillée, ou null
   function mesh(o) {
     const n = o.name || '';
@@ -11183,6 +11410,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (n.startsWith('annexe')) return annexe(o);
       if (n.startsWith('local poubelles')) return binShed(o);
       if (n.startsWith('clôture grillagée')) return fence(o);
+      // fermeture de la ruelle (repère local : s = côté parking, n = côté ruelle ; x local le long de la face, vu de dehors)
+      if (n === 'bâtiment garage') return lowBuilding(o, 'brun', 81, { s: [['rideau', -3.2, 3.0], ['rideau', 0.6, 3.0], ['porte', 3.6], ['eau', 5.5]], n: [['porte', -2.5], ['compteurs', -1.0], ['clim', 2.0], ['haute', 4.3], ['eau', -5.5]], e: [['eau', 1.6], ['tag', -0.4, 1.6]], o: [['plaque', 0.8]] });
+      if (n === 'bâtiment atelier') return lowBuilding(o, 'rouge', 82, { s: [['haute', 0]], n: [['porte', 0]], e: [['compteurs', 0.4]], o: [['tag', 0, 1.6]] });
+      if (n === 'bâtiment local') return lowBuilding(o, 'peint', 83, { n: [['haute', 0.8], ['eau', -1.9]], o: [['porte', 0]], s: [['tag', -0.6, 1.5]] });
+      if (n === 'bâtiment entrepôt') return lowBuilding(o, 'rouge', 84, { s: [['rideau', -0.4, 3.2], ['eau', 2.7], ['haute', 2.0]], n: [['porte', 1.2], ['clim', -1.4], ['eau', -2.7]], o: [['tag', 0, 1.8]] });
+      if (n === 'quai de chargement') return loadingDock(o);
+      if (n === 'palissade chantier') return hoarding(o, 'bois');
+      if (n === 'palissade tôle') return hoarding(o, 'tole');
       if (n.startsWith('clim')) return condenser(o);
       if (n === 'benne' && hasM('benne')) return model('benne', o.w, o.h, o.d, { tol: 0.3, rot: o.z < 5 ? Math.PI : 0 });
       if (n === 'armoire' && hasM('armoire')) return model('armoire', o.w, o.h, o.d, { tol: 0.3 });
@@ -11217,20 +11452,16 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (let i = 0; i < 16; i++) { const x = 2 + R() * 68, z = 1.5 + R() * 8; groundDecal(group, stainTex(10 + i), 1.2 + R() * 2.2, 1.0 + R() * 1.6, x, z, R() * 3, 0.8); }
     const grate = mat('ravaloir', () => new T.MeshStandardMaterial({ color: 0x1d1e1f, roughness: 0.5, metalness: 0.8 }));
     for (const x of [16.5, 48.5]) { const gm = new T.Mesh(new T.BoxGeometry(0.9, 0.02, 0.5), grate); gm.position.set(x, 0.01, 5.6); gm.receiveShadow = true; group.add(gm); for (let i = 0; i < 6; i++) { const b = new T.Mesh(new T.BoxGeometry(0.04, 0.025, 0.42), k.acierNoir); b.position.set(x - 0.35 + i * 0.14, 0.015, 5.6); group.add(b); } }
-    // portail du passage ouest ouvert, rabattu côté parking contre le grillage
-    { const gate = new T.Group(); gate.position.set(24, 0, 11.05); gate.rotation.y = 0.12; group.add(gate);
-      const L = 3.3, H = 2.0; for (const [x, y, w, h] of [[-L / 2, H / 2, 0.05, H], [L / 2, H / 2, 0.05, H], [0, H, L, 0.05], [0, 0.08, L, 0.05], [0, H / 2, L, 0.04]]) { const m = new T.Mesh(w > 0.1 ? cyl(0.024, w, 8) : cyl(0.024, h, 8), k.galva); m.position.set(x - L / 2, y + 0.06, 0); if (w > 0.1) m.rotation.z = Math.PI / 2; m.castShadow = true; gate.add(m); }
-      const ch = new T.Mesh(new T.PlaneGeometry(L, H), chainMat()); const uv = ch.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * L / 0.07, uv.getY(i) * H / 0.07); ch.position.set(-L / 2, H / 2 + 0.06, 0); ch.renderOrder = 2; gate.add(ch);
-      const w = new T.Mesh(cyl(0.08, 0.05, 12), k.caoutchouc || k.acierNoir); w.position.set(-L, 0.08, 0); gate.add(w); }
+    // (plus de portail : la ruelle est fermée côté parking ; le porche du milieu reste ouvert)
     // poteaux électriques en bois le long du grillage (dans le muret), transformateur, câbles vers les immeubles
     const pole = mat('rpoteau', () => new T.MeshStandardMaterial({ color: 0x5b4632, roughness: 0.92 }));
     const wire = mat('rcable', () => new T.MeshStandardMaterial({ color: 0x111111, roughness: 0.7 }));
-    const poles = [[12.5, 10.65], [36, 10.65], [58.5, 10.65]], tops = [];
+    const poles = [[25.6, 10.9], [52.5, 10.8]], tops = [];   // dans les palissades (pas à travers un toit)
     for (const [x, z] of poles) {
       const p = new T.Mesh(cyl(0.14, 9.5, 10), pole); p.position.set(x, 4.75, z); p.castShadow = true; group.add(p);
       const arm = new T.Mesh(new T.BoxGeometry(1.8, 0.1, 0.1), pole); arm.position.set(x, 8.9, z); arm.castShadow = true; group.add(arm);
       for (const s of [-0.75, 0, 0.75]) { const ins = new T.Mesh(cyl(0.04, 0.14, 6), k.chaperon); ins.position.set(x + s, 9.02, z); group.add(ins); }
-      if (x === 36) { const tr = new T.Mesh(cyl(0.32, 0.9, 14), k.galva); tr.position.set(x, 7.6, z - 0.4); tr.castShadow = true; group.add(tr); }
+      if (x === 52.5) { const tr = new T.Mesh(cyl(0.32, 0.9, 14), k.galva); tr.position.set(x, 7.6, z - 0.4); tr.castShadow = true; group.add(tr); }
       tops.push(new T.Vector3(x, 9.05, z));
     }
     const span = (a, b, sag) => { const pts = []; for (let i = 0; i <= 12; i++) { const t = i / 12, p = a.clone().lerp(b, t); p.y -= sag * 4 * t * (1 - t); pts.push(p); } const c = new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 16, 0.012, 4, false), wire); group.add(c); };
@@ -11383,22 +11614,27 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // ---------------------------------------------------------------------------------------------
   // Matériau à détail en coordonnées du monde (anti-tuilage), pour les surfaces verticales et le trottoir
   // ---------------------------------------------------------------------------------------------
+  // uniformes d'un « détail » : ceux de pbr.js (textures scannées chargées à chaud) ou, à défaut, des textures procédurales
+  function detU(det) { return det.u || (det.u = { tDet: { value: det.map }, tDetN: { value: det.normal }, tDetR: { value: det.normal }, uM: { value: det.meters }, gain: { value: 1 }, hasR: { value: 0 }, mix: { value: 0.35 } }); }
+  const PBRdet = (cle, proc) => root.PBR ? root.PBR.det(cle, proc) : proc;
   function worldMat(det, opts) {
     opts = opts || {};
     const m = new T.MeshStandardMaterial({ color: opts.color || 0xffffff, roughness: opts.roughness === undefined ? 0.9 : opts.roughness, metalness: 0 });
     m.onBeforeCompile = (sh) => {
-      sh.uniforms.tDet = { value: det.map }; sh.uniforms.tDetN = { value: det.normal }; sh.uniforms.uM = { value: det.meters }; sh.uniforms.uBump = { value: opts.bump === undefined ? 1 : opts.bump };
+      const du = detU(det); Object.assign(sh.uniforms, { tDet: du.tDet, tDetN: du.tDetN, tDetR: du.tDetR, uM: du.uM, uGain: du.gain, uHasR: du.hasR, uMix: du.mix }); sh.uniforms.uBump = { value: opts.bump === undefined ? 1 : opts.bump };
       sh.uniforms.uStreak = { value: opts.streak || 0 };
       sh.vertexShader = 'varying vec3 vWP; varying vec3 vWN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWP = (modelMatrix * vec4(position, 1.0)).xyz; vWN = normalize(mat3(modelMatrix) * normal);');
-      sh.fragmentShader = 'uniform sampler2D tDet, tDetN; uniform float uM, uBump, uStreak; varying vec3 vWP; varying vec3 vWN;\n' +
+      sh.fragmentShader = 'uniform sampler2D tDet, tDetN, tDetR; uniform float uM, uBump, uStreak, uGain, uHasR, uMix; varying vec3 vWP; varying vec3 vWN;\n' +
         'vec3 triS(sampler2D t, vec3 p, vec3 w) { return texture2D(t, p.zy).rgb * w.x + texture2D(t, p.xz).rgb * w.y + texture2D(t, p.xy).rgb * w.z; }\n' +
         sh.fragmentShader.replace('#include <map_fragment>', `
           vec3 tw = pow(abs(vWN), vec3(4.0)); tw /= (tw.x + tw.y + tw.z);
           vec3 pw = vWP / uM;
-          vec3 dcol = mix(triS(tDet, pw, tw), triS(tDet, pw * 0.37 + 0.31, tw), 0.35);
+          vec3 dcol = mix(triS(tDet, pw, tw), triS(tDet, pw * 0.37 + 0.31, tw), uMix) * uGain;
           // coulures sous les arêtes (murs) : traînées verticales plus sombres
           float sx = (vWP.x + vWP.z) * 1.3; float st = uStreak * smoothstep(0.55, 1.0, fract(sin(floor(sx) * 12.9898) * 43758.5453) * (0.6 + 0.4 * sin(fract(sx) * 3.1416))) * (1.0 - tw.y) * smoothstep(0.0, 2.5, vWP.y);
           diffuseColor.rgb *= dcol * (1.0 - st * 0.22);`)
+          .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+          if (uHasR > 0.5) { vec3 twr = pow(abs(vWN), vec3(4.0)); twr /= (twr.x + twr.y + twr.z); roughnessFactor = clamp(roughnessFactor * (0.45 + 0.6 * triS(tDetR, vWP / uM, twr).g), 0.05, 1.0); }`)
           .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
           { vec3 nt; vec3 nw;
             if (tw.y > 0.5) { nt = texture2D(tDetN, pw.xz).xyz * 2.0 - 1.0; nw = vec3(nt.x * uBump, sign(vWN.y), nt.y * uBump); }
@@ -11406,7 +11642,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
             else { nt = texture2D(tDetN, pw.xy).xyz * 2.0 - 1.0; nw = vec3(nt.x * uBump, nt.y * uBump, sign(vWN.z)); }
             normal = normalize((viewMatrix * vec4(normalize(nw), 0.0)).xyz); }`);
     };
-    m.customProgramCacheKey = () => 'worldMat' + (opts.streak ? 's' : '');
+    m.customProgramCacheKey = () => 'worldMatP' + (opts.streak ? 's' : '');
     return m;
   }
   // ---------------------------------------------------------------------------------------------
@@ -11428,7 +11664,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const hatch = (x0, z0, w, h, col) => { p.strokeStyle = col; p.lineWidth = M(0.12); p.strokeRect(M(x0), M(z0), M(w), M(h)); p.save(); p.beginPath(); p.rect(M(x0), M(z0), M(w), M(h)); p.clip(); for (let k = -h; k < w; k += 0.7) line(x0 + k, z0 + h, x0 + k + h, z0); p.restore(); };
     const text = (x, z, t, r, size, col) => { p.save(); p.translate(M(x), M(z)); p.rotate(r || 0); p.font = `bold ${M(size || 1.1)}px Arial`; p.textAlign = 'center'; p.textBaseline = 'middle'; p.fillStyle = col || white; p.fillText(t, 0, 0); p.restore(); };
     // ruelle : bande de béton le long du muret grillagé (aire de livraison, plates-formes des bennes) et caniveau central
-    const ruelle = OB.filter(o => /^clôture grillagée/.test(o.name || ''));
+    const ruelle = OB.filter(o => /^(clôture grillagée|palissade)/.test(o.name || ''));   // (ruelle fermée : la limite est la ligne des palissades)
     if (ruelle.length) {
       const zf = Math.min(...ruelle.map(o => o.z));
       p.fillStyle = 'rgba(146,142,134,1)'; p.fillRect(0, M(zf - 3.2), M(W), M(3.2));
@@ -11557,15 +11793,15 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // Sol du parking
   // ---------------------------------------------------------------------------------------------
   function groundMesh(map, maps, U) {
-    const W = map.width, D = map.depth, A = asphalt();
+    const W = map.width, D = map.depth, A = PBRdet('asphalte', asphalt()), du = detU(A);
     const m = new T.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, metalness: 0 });
     m.onBeforeCompile = (sh) => {
-      Object.assign(sh.uniforms, { tDet: { value: A.map }, tDetN: { value: A.normal }, tPaint: { value: maps.paint }, tData: { value: maps.data }, uSize: { value: new T.Vector2(W, D) }, uM: { value: A.meters }, uWet: U.wet });
+      Object.assign(sh.uniforms, { tDet: du.tDet, tDetN: du.tDetN, tDetR: du.tDetR, uGain: du.gain, uHasR: du.hasR, uMix: du.mix, tPaint: { value: maps.paint }, tData: { value: maps.data }, uSize: { value: new T.Vector2(W, D) }, uM: du.uM, uWet: U.wet });
       sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWP = (modelMatrix * vec4(position, 1.0)).xyz;');
-      sh.fragmentShader = 'uniform sampler2D tDet, tDetN, tPaint, tData; uniform vec2 uSize; uniform float uM, uWet; varying vec3 vWP;\n' + sh.fragmentShader
+      sh.fragmentShader = 'uniform sampler2D tDet, tDetN, tDetR, tPaint, tData; uniform vec2 uSize; uniform float uM, uWet, uGain, uHasR, uMix; varying vec3 vWP;\n' + sh.fragmentShader
         .replace('#include <map_fragment>', `
           vec2 duv = vWP.xz / uM;
-          vec3 det = mix(texture2D(tDet, duv).rgb, texture2D(tDet, duv * 0.29 + vec2(0.13, 0.71)).rgb, 0.4);
+          vec3 det = mix(texture2D(tDet, duv).rgb, texture2D(tDet, duv * 0.29 + vec2(0.13, 0.71)).rgb, uMix) * uGain;
           vec2 muv = clamp(vWP.xz / uSize, 0.0, 1.0);
           vec4 gdat = texture2D(tData, muv); vec4 gp = texture2D(tPaint, muv);
           float grime = gdat.r, oil = gdat.b, wet = max(gdat.g, uWet * (0.35 + 0.65 * gdat.g));
@@ -11575,14 +11811,15 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           col *= mix(1.0, 0.5, smoothstep(0.05, 0.6, wet));
           diffuseColor.rgb = col;`)
         .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-          roughnessFactor = mix(mix(0.93, 0.8, gp.a), 0.55, smoothstep(0.05, 0.55, wet));
+          float rDry = uHasR > 0.5 ? clamp(0.25 + 0.85 * mix(texture2D(tDetR, duv).g, texture2D(tDetR, duv * 0.29 + vec2(0.13, 0.71)).g, uMix), 0.3, 1.0) : 0.93;
+          roughnessFactor = mix(mix(rDry, 0.8, gp.a), mix(0.55, 0.26, uWet), smoothstep(0.05, 0.55, wet));   // sous la pluie : bitume trempé, presque miroir
           roughnessFactor = mix(roughnessFactor, 0.12, pool); roughnessFactor = mix(roughnessFactor, 0.35, oil * 0.6);`)
         .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
           { vec3 nt = texture2D(tDetN, duv).xyz * 2.0 - 1.0; float bump = (1.0 - pool) * (1.0 - gp.a * 0.5);
             vec3 nw = normalize(vec3(nt.x * bump, 1.0, nt.y * bump));
             normal = normalize((viewMatrix * vec4(nw, 0.0)).xyz); }`);
     };
-    m.customProgramCacheKey = () => 'solParking';
+    m.customProgramCacheKey = () => 'solParkingP';
     const ge = new T.PlaneGeometry(W, D, 1, 1); const mesh = new T.Mesh(ge, m);
     mesh.rotation.x = -Math.PI / 2; mesh.position.set(W / 2, 0, D / 2); mesh.receiveShadow = true; mesh.userData.keep = true;
     return mesh;
@@ -11636,8 +11873,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   const MATS = {};
   const mat = (k, f) => MATS[k] || (MATS[k] = f());
   const M3 = () => ({
-    beton: mat('beton', () => worldMat(concrete(), { roughness: 0.92, streak: 1 })),
-    betonClair: mat('betonClair', () => worldMat(concrete('clair'), { roughness: 0.88, streak: 0.6 })),
+    beton: mat('beton', () => worldMat(PBRdet('beton', concrete()), { roughness: 0.92, streak: 1 })),
+    betonClair: mat('betonClair', () => worldMat(PBRdet('betonClair', concrete('clair')), { roughness: 0.88, streak: 0.6 })),
     joint: mat('joint', () => new T.MeshStandardMaterial({ color: 0x23211e, roughness: 1 })),
     metal: mat('metal', () => new T.MeshStandardMaterial({ color: 0x6d7276, roughness: 0.42, metalness: 0.85 })),
     metalSombre: mat('metalSombre', () => new T.MeshStandardMaterial({ color: 0x2b2e31, roughness: 0.5, metalness: 0.7 })),
@@ -11912,7 +12149,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const ec = document.createElement('canvas'); ec.width = W; ec.height = H; const e = ec.getContext('2d');
     const walls = { creme: ['#d9cdb3', '#c9bc9f'], rose: ['#d4a99a', '#c39586'], blanc: ['#e3e0d8', '#cfcbc1'], sable: ['#c8b48e', '#b7a27b'], gris: ['#a9aaa6', '#97989a'], brique: ['#8e4e3a', '#7a4231'], pierre: ['#8a6a52', '#755944'] }[tone] || ['#d0c6b0', '#bfb59e'];
     const grd = g.createLinearGradient(0, 0, 0, H); grd.addColorStop(0, walls[0]); grd.addColorStop(1, walls[1]); g.fillStyle = grd; g.fillRect(0, 0, W, H);
-    if (tone === 'brique' || tone === 'pierre') {   // appareil de briques / pierres de taille : joints clairs, teinte de chaque élément
+    const briqueVraie = tone === 'brique';   // briques : appareil à l'échelle réelle ajouté dans le shader (fenetresInterieures), pas peint ici
+    if (tone === 'pierre' || (tone === 'brique' && !briqueVraie)) {   // appareil de pierres de taille : joints clairs, teinte de chaque élément
       const bw = tone === 'brique' ? 16 : 40, bh = tone === 'brique' ? 6 : 16;
       for (let y = 0; y < H; y += bh) for (let x = -(Math.floor(y / bh) % 2) * bw / 2; x < W; x += bw) {
         const t = 0.82 + R() * 0.3; g.fillStyle = `rgba(${tone === 'brique' ? '150,80,58' : '140,108,84'},${0.25 + R() * 0.35})`; g.globalAlpha = 1; g.fillRect(x + 1, y + 1, bw - 1.5, bh - 1.5);
@@ -11921,6 +12159,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // corniches à chaque étage
       for (let y = 0; y < H; y += H / 8) { g.fillStyle = 'rgba(210,200,185,0.55)'; g.fillRect(0, y + H / 8 - 6, W, 5); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, y + H / 8 - 1, W, 2); }
     }
+    if (briqueVraie) for (let y = 0; y < H; y += H / 8) { g.fillStyle = 'rgba(210,200,185,0.55)'; g.fillRect(0, y + H / 8 - 6, W, 5); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, y + H / 8 - 1, W, 2); }
     r.fillStyle = '#e6e6e6'; r.fillRect(0, 0, W, H); e.fillStyle = '#000'; e.fillRect(0, 0, W, H);
     // coulures et taches
     for (let k = 0; k < 60; k++) { g.fillStyle = `rgba(60,50,40,${0.03 + R() * 0.05})`; const x = R() * W; g.fillRect(x, R() * H, 2 + R() * 10, 40 + R() * 200); }
@@ -11947,10 +12186,85 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     return (texCache[key] = { map, rough, emi, tileW: 14, tileH: 26 });
   }
   const NIGHT = { on: false, mats: [] };
+  // ---- fenêtres « à intérieur » (interior mapping) : derrière chaque vitre, une vraie pièce en perspective (mur du fond,
+  // murs latéraux, sol, plafond, un meuble, rideaux ou store) calculée dans le shader à partir du rayon de vue : la façade
+  // gagne de la profondeur sous tous les angles. Le jour, pièces dans la pénombre derrière le reflet du ciel ; la nuit, les
+  // pièces allumées (mêmes que la carte d'émission) sont éclairées de l'intérieur, les autres restent sombres.
+  const FAC = { uDay: { value: 1 }, uNight: { value: 0 } };
+  // + matière du mur à l'échelle réelle : briques (scannées, ou procédurales en secours) ou enduit / béton (relief et nuances),
+  // couleur normalisée par sa moyenne (la teinte de la façade est gardée), relief appliqué dans le repère de la face
+  function fenetresInterieures(m, seed, tone) {
+    const brique = tone === 'brique', dW = brique ? PBRdet('brique', brickDet()) : PBRdet('beton', concrete()), wu = detU(dW);
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uDay = FAC.uDay; sh.uniforms.uNight = FAC.uNight; sh.uniforms.uSeed = { value: seed };
+      Object.assign(sh.uniforms, { tWA: wu.tDet, tWN: wu.tDetN, uWM: wu.uM, uWK: { value: brique ? 0.9 : 0.45 }, uWB: { value: brique ? 1.0 : 0.55 } });
+      sh.vertexShader = 'varying vec3 vFWPos; varying vec3 vFWN;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+        vFWPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vFWN = normalize(mat3(modelMatrix) * objectNormal);`);
+      sh.fragmentShader = 'uniform float uDay, uNight, uSeed, uWM, uWK, uWB; uniform sampler2D tWA, tWN; varying vec3 vFWPos; varying vec3 vFWN;\nfloat fH(vec2 p) { return fract(sin(dot(p, vec2(41.31, 289.17))) * 15731.743); }\n' + sh.fragmentShader
+        .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        float fGlass = 0.0; vec3 fInt = vec3(0.0);
+        #ifdef USE_ROUGHNESSMAP
+        if (abs(vFWN.y) < 0.5) {
+          vec2 cell = vec2(fract(vMapUv.x) * 4.0, (1.0 - fract(vMapUv.y)) * 8.0), fc = fract(cell);
+          vec2 cid = floor(cell) + floor(vMapUv) * vec2(4.0, 8.0);
+          // vitre : fenêtre de la grille ET rugosité très faible (pas les volets fermés ni le montant)
+          float inWin = step(0.18, fc.x) * step(fc.x, 0.82) * step(0.22, fc.y) * step(fc.y, 0.78);
+          fGlass = inWin * (1.0 - smoothstep(0.08, 0.3, texelRoughness.g));
+          if (fGlass > 0.0) {
+            vec3 N = normalize(vFWN), Tg = normalize(cross(vec3(0.0, 1.0, 0.0), N)), V = normalize(vFWPos - cameraPosition);
+            vec3 d = vec3(dot(V, Tg), V.y, max(dot(V, -N), 0.02));
+            vec3 RS = vec3(3.5, 3.25, 3.6), p = vec3(fc.x * RS.x, (1.0 - fc.y) * RS.y, 0.0);
+            float tx = d.x > 1e-4 ? (RS.x - p.x) / d.x : (d.x < -1e-4 ? -p.x / d.x : 1e5);
+            float ty = d.y > 1e-4 ? (RS.y - p.y) / d.y : (d.y < -1e-4 ? -p.y / d.y : 1e5);
+            float tz = RS.z / d.z, t = min(tz, min(tx, ty)); vec3 hp = p + d * t;
+            float r1 = fH(cid + uSeed * 7.13 + N.xz * 3.1), r2 = fract(r1 * 13.7), r3 = fract(r1 * 71.3), r4 = fract(r1 * 291.1);
+            vec3 wallC = r2 < 0.33 ? vec3(0.62, 0.56, 0.46) : r2 < 0.66 ? vec3(0.5, 0.54, 0.56) : vec3(0.6, 0.52, 0.5);
+            vec3 col; float sh = 1.0;
+            if (t == tz) { col = wallC * 0.95;
+              // cadre / étagère sur le mur du fond
+              vec2 q = hp.xy - vec2(0.8 + r3 * 1.8, 1.5); if (abs(q.x) < 0.45 && abs(q.y) < 0.32) col = mix(vec3(0.25, 0.22, 0.2), vec3(0.55, 0.35, 0.25) * (0.6 + r4), step(abs(q.x), 0.4) * step(abs(q.y), 0.27)); }
+            else if (t == tx) { col = wallC * 0.78; }
+            else if (d.y < 0.0) { col = (r3 < 0.5 ? vec3(0.32, 0.21, 0.13) : vec3(0.3, 0.3, 0.32)) * (0.85 + 0.3 * fract(hp.x * 1.7)); sh = 0.8; }
+            else { col = vec3(0.78, 0.77, 0.74); sh = 1.15; }
+            // meuble (canapé, bureau, armoire) à mi-profondeur
+            float zf = 1.1 + r4 * 1.6, tf = zf / d.z;
+            if (tf < t) { vec3 fp = p + d * tf; float fh = r3 < 0.7 ? 0.85 : 1.9, fx0 = 0.3 + r2 * 1.4;
+              if (fp.y < fh && fp.x > fx0 && fp.x < fx0 + 1.4 + r1) { col = r3 < 0.35 ? vec3(0.22, 0.24, 0.3) : r3 < 0.7 ? vec3(0.4, 0.28, 0.18) : vec3(0.5, 0.48, 0.44); t = tf; hp = fp; sh = 0.85; } }
+            sh *= 1.0 - 0.55 * smoothstep(0.0, RS.z, hp.z);   // pénombre vers le fond
+            // rideaux sur les côtés, store à demi baissé en haut
+            float wx = (fc.x - 0.18) / 0.64, wy = (fc.y - 0.22) / 0.56, cw = 0.08 + 0.22 * r4, blind = r2 < 0.3 ? 0.15 + 0.5 * r3 : 0.0;
+            vec3 rid = r1 < 0.5 ? vec3(0.7, 0.62, 0.5) : vec3(0.45, 0.5, 0.58); float curt = 0.0;
+            if (r3 > 0.35 && (wx < cw || wx > 1.0 - cw)) curt = 1.0;
+            if (wy < blind) { curt = 1.0; rid = vec3(0.78, 0.76, 0.7) * (0.85 + 0.15 * step(0.5, fract(wy * 40.0))); }
+            col = mix(col * sh, rid, curt);
+            // éclairage : pénombre le jour ; la nuit, pièces allumées selon la carte d'émission (couleur de la lampe)
+            vec3 eL = vec3(0.0);
+            #ifdef USE_EMISSIVEMAP
+            eL = texture2D(emissiveMap, (floor(cell) + 0.5) / vec2(4.0, 8.0) * vec2(1.0, -1.0) + vec2(0.0, 1.0) + floor(vMapUv)).rgb;
+            #endif
+            float lit = step(0.05, eL.r);
+            vec3 nightL = lit * eL * (2.4 + 1.6 * curt) + (1.0 - lit) * (r4 < 0.08 ? vec3(0.03, 0.05, 0.12) : vec3(0.004));
+            fInt = col * (uDay * 0.09 + uNight * nightL);
+            diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.25, fGlass);
+          }
+        }
+        #endif
+        vec2 wUv = vec2(vMapUv.x * 14.0, vMapUv.y * 26.0) / uWM;
+        if (abs(vFWN.y) < 0.5) { vec3 wA = texture2D(tWA, wUv).rgb / max(textureLod(tWA, wUv, 12.0).rgb, vec3(0.02));
+          diffuseColor.rgb *= mix(vec3(1.0), clamp(wA, 0.0, 2.5), uWK * (1.0 - fGlass)); }`)
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        if (abs(vFWN.y) < 0.5 && fGlass < 0.5) { vec3 Nw = normalize(vFWN), Tw = normalize(cross(vec3(0.0, 1.0, 0.0), Nw)); vec3 nt = texture2D(tWN, wUv).xyz * 2.0 - 1.0;
+          normal = normalize((viewMatrix * vec4(normalize(Tw * nt.x * uWB + vec3(0.0, 1.0, 0.0) * nt.y * uWB + Nw * max(nt.z, 0.2)), 0.0)).xyz); }`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        totalEmissiveRadiance = mix(totalEmissiveRadiance, fInt, fGlass);`);
+    };
+    m.customProgramCacheKey = () => 'fenetresInt';
+    return m;
+  }
   function building(w, h, d, tone, seed) {
     const F = facadeTex(seed % 4, tone), g = new T.Group(); tone = tone || '';
     const fm = new T.MeshStandardMaterial({ map: F.map, roughnessMap: F.rough, roughness: 1, metalness: 0.1, emissiveMap: F.emi, emissive: 0xffffff, emissiveIntensity: 0 });
-    NIGHT.mats.push(fm);
+    NIGHT.mats.push(fm); fenetresInterieures(fm, seed % 97, tone);
     const roof = mat('toitImm', () => worldMat(concrete(), { roughness: 0.95 }));
     const geo = new T.BoxGeometry(w, h, d); const uv = geo.attributes.uv;
     // UV en mètres (faces latérales) : la tuile de façade fait F.tileW × F.tileH m
@@ -12028,7 +12342,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (const [x, z, n, dx, dz] of MK.murs) for (let k = 0; k < n; k++) { if (dx) stop(x + dx * (k + 0.5), z > D / 2 ? z + 4.3 : z + 0.7, 0); else stop(x < W / 2 ? x + 0.7 : x + 4.3, z + dz * (k + 0.5), Math.PI / 2); }
     // trottoirs et rues à l'ouest, au sud et à l'est (au nord : les immeubles de la ruelle) : trottoir (4 m), rue (10 m),
     // trottoir d'en face (4 m)
-    const side = mat('trottoir', () => worldMat(concrete('clair'), { roughness: 0.9 }));
+    const side = mat('trottoir', () => worldMat(PBRdet('trottoir', concrete('clair')), { roughness: 0.9 }));
     const road = mat('rue', () => { const A = asphalt(); const m = worldMat(A, { roughness: 0.9, bump: 0.8 }); m.color.setHex(0xd8d8d8); return m; });
     const ring = (inner, width, m, y) => {
       const x0 = -inner, x1 = W + inner, z1 = D + inner, t = width, zt = -1;   // les côtés s'arrêtent au pied des immeubles
@@ -12260,7 +12574,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     g.traverse(m => {
       if (!m.isMesh || !m.material || Array.isArray(m.material) || !m.material.color) return;
       const key = m.material.uuid + '|' + k % PAL.length;
-      m.material = tintCache[key] || (tintCache[key] = (() => { const c = m.material.clone(); c.color.multiply(col).multiplyScalar(Math.min(f, 1.45)); return c; })());
+      m.material = tintCache[key] || (tintCache[key] = (() => { const c = m.material.clone(); c.color.multiply(col).multiplyScalar(Math.min(f, 1.45)); if (root.Modeles3D && root.Modeles3D.vernir) root.Modeles3D.vernir(c); return c; })());
     });
     return g;
   }
@@ -12604,7 +12918,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }
   // ---- local à poubelles : murets en briques sur trois côtés (ouvert au nord, vers la ruelle), conteneurs dedans
   function localPoubelles(o) {
-    const g = new T.Group(), H = o.h, bm = mat('briqueMur', () => worldMat(brickDet(), { roughness: 0.9, streak: 0.8 })), K = M3(), th = 0.25;
+    const g = new T.Group(), H = o.h, bm = mat('briqueMur', () => worldMat(PBRdet('brique', brickDet()), { roughness: 0.9, streak: 0.8 })), K = M3(), th = 0.25;
     bx(g, th, H, o.d, bm, -o.w / 2 + th / 2, 0, 0); bx(g, th, H, o.d, bm, o.w / 2 - th / 2, 0, 0); bx(g, o.w, H, th, bm, 0, 0, o.d / 2 - th / 2);
     for (const x of [-o.w / 2 + th / 2, o.w / 2 - th / 2]) bx(g, th + 0.06, 0.08, o.d + 0.04, K.betonClair, x, H / 2 + 0.04, 0);
     bx(g, o.w + 0.04, 0.08, th + 0.06, K.betonClair, 0, H / 2 + 0.04, o.d / 2 - th / 2);
@@ -12615,13 +12929,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }
   // ---- replis de la ruelle (si ruelle.js n'est pas là) : murs du fond, annexe en briques, muret grillagé, clim au sol
   function annexeP(o) {
-    const g = new T.Group(), bm = mat('briqueSombre', () => worldMat(brickDet('sombre'), { roughness: 0.9, streak: 1 })), K = M3();
+    const g = new T.Group(), bm = mat('briqueSombre', () => worldMat(PBRdet('briqueSombre', brickDet('sombre')), { roughness: 0.9, streak: 1 })), K = M3();
     bx(g, o.w, o.h, o.d, bm, 0, 0, 0); bx(g, o.w + 0.2, 0.25, o.d + 0.2, K.betonClair, 0, o.h / 2 - 0.12, 0);
     bx(g, 2.6, 2.8, 0.06, std('rideauMetal', 0x8d9296, 0.45, 0.7), -0.8, -o.h / 2 + 1.4, o.d / 2 + 0.03);
     bx(g, 1.0, 2.1, 0.06, std('porteService', 0x5a3d2e, 0.6, 0.4), o.w / 2 - 1.2, -o.h / 2 + 1.05, o.d / 2 + 0.03);
     return g;
   }
-  function murRuelle(o) { const g = new T.Group(); bx(g, o.w, o.h, o.d, mat('briqueSombre', () => worldMat(brickDet('sombre'), { roughness: 0.9, streak: 1 })), 0, 0, 0); return g; }
+  function murRuelle(o) { const g = new T.Group(); bx(g, o.w, o.h, o.d, mat('briqueSombre', () => worldMat(PBRdet('briqueSombre', brickDet('sombre')), { roughness: 0.9, streak: 1 })), 0, 0, 0); return g; }
   function cloGrillage(o) {
     const K = M3(), g = new T.Group(), along = o.w >= o.d, L = along ? o.w : o.d, H = o.h, top = 2.4;
     bx(g, along ? L : o.w, H, along ? o.d : L, K.betonClair, 0, 0, 0);
@@ -12697,8 +13011,30 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }
   // nuit : fenêtres, lampadaires, enseignes allumés ; lumières ponctuelles des lampadaires ; pluie : sol mouillé
   let lightGroup = null;
+  // de nuit, sous chaque luminaire : halo autour de la lampe (diffusion dans l'air humide) et cône de lumière très léger
+  // (poussière, humidité) — additifs, sans écriture de profondeur ; le cône s'efface vers le sol et sur ses bords
+  const HALO = {};
+  function halo() {
+    if (!HALO.mat) { const c = document.createElement('canvas'); c.width = c.height = 128; const q = c.getContext('2d'), gr = q.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,236,200,1)'); gr.addColorStop(0.12, 'rgba(255,214,150,0.55)'); gr.addColorStop(0.4, 'rgba(255,190,120,0.12)'); gr.addColorStop(1, 'rgba(255,180,110,0)'); q.fillStyle = gr; q.fillRect(0, 0, 128, 128);
+      const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; HALO.mat = new T.MeshBasicMaterial({ map: t, color: 0xffffff, transparent: true, depthWrite: false, blending: T.AdditiveBlending, fog: false, opacity: 0.85 }); }
+    const sp = new T.Mesh(new T.PlaneGeometry(2.6, 2.6), HALO.mat); sp.renderOrder = 3; return horsAO(sp, true);
+  }
+  // pas dans les passes à matériau imposé (normales et profondeur de l'occlusion ambiante, ombres) : sinon ces volumes
+  // transparents y deviennent des formes opaques (taches sombres) ; le halo fait face à la caméra
+  function horsAO(o, face) {
+    o.castShadow = false; o.receiveShadow = false;
+    o.onBeforeRender = (r, sc, cam) => { o.geometry.setDrawRange(0, sc.overrideMaterial ? 0 : Infinity); if (face) { o.quaternion.copy(cam.quaternion); o.updateMatrixWorld(); o.modelViewMatrix.multiplyMatrices(cam.matrixWorldInverse, o.matrixWorld); o.normalMatrix.getNormalMatrix(o.modelViewMatrix); } };
+    return o;
+  }
+  function cone(h) {
+    if (!HALO.cone) HALO.cone = new T.ShaderMaterial({ transparent: true, depthWrite: false, blending: T.AdditiveBlending, side: T.DoubleSide, fog: false,
+      uniforms: { col: { value: new T.Color(0xffc98a) } },
+      vertexShader: 'varying float vY; varying vec3 vN, vV; void main() { vY = uv.y; vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = normalize(-mv.xyz); vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * mv; }',
+      fragmentShader: 'uniform vec3 col; varying float vY; varying vec3 vN, vV; void main() { float e = pow(abs(dot(normalize(vN), normalize(vV))), 2.0); float a = pow(vY, 1.6) * e * 0.05; gl_FragColor = vec4(col * a, a); }' });
+    const g = new T.Mesh(new T.CylinderGeometry(0.25, 3.2, h, 24, 1, true), HALO.cone); g.renderOrder = 2; return horsAO(g);
+  }
   function setConditions(id, scene) {
-    const night = id === 'nuit'; NIGHT.on = night;
+    const night = id === 'nuit'; NIGHT.on = night; FAC.uNight.value = night ? 1 : 0; FAC.uDay.value = night ? 0 : id === 'brouillard' || id === 'pluie' ? 0.8 : 1;
     for (const m of NIGHT.mats) m.emissiveIntensity = night ? (m.userData.nuit !== undefined ? m.userData.nuit * 0.7 : m.map && m.emissiveMap ? 1.0 : 3) : 0;   // fenêtres, enseignes : lisibles sans halo ; ampoules : seules vraies sources (halo)
     U.wet.value = id === 'pluie' ? 1 : id === 'brouillard' ? 0.35 : 0;
     if (root.Ruelle && root.Ruelle.setConditions) try { root.Ruelle.setConditions(id); } catch (e) { console.warn('ruelle :', e); }
@@ -12712,6 +13048,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const canopy = p.k && p.k < 60, I = canopy ? 20 : p.k > 150 ? 160 : 120;
         const l = new T.SpotLight(0xffc98a, I, canopy ? 12 : 26, canopy ? 1.25 : 1.05, canopy ? 0.9 : 0.8, 2);
         l.position.copy(p); l.target.position.set(p.x, 0, p.z); lightGroup.add(l, l.target);
+        if (!canopy) { const h = halo(); h.position.copy(p); h.position.y -= 0.06; lightGroup.add(h); const c = cone(p.y); c.position.set(p.x, p.y / 2, p.z); lightGroup.add(c); }
       }
       scene.add(lightGroup); lightGroup.updateMatrixWorld(true);
     }
@@ -13223,23 +13560,23 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       asymetrique: true,
       // z des trois voies d'approche, routes de l'IA : nord par la ruelle (derrière le grillage), milieu à travers les rangées
       // de voitures et la station de lavage, sud le long du muret de la rue (quai de la navette, kiosque, chantier).
-      voies: { nord: 5.5, milieu: 23, sud: 34 },
+      voies: { nord: 4.5, milieu: 23, sud: 34 },
       // positions clés (pour les ordres du joueur : « tenir » une position) : par paires en miroir, chaque camp a la sienne.
       // x, z : où se tient l'opérateur (case libre, collé à un couvert d'au moins 0,9 m) ; r : rayon « tenue » ; menace :
       // direction d'où vient la menace (radians, atan2(dz, dx)), le couvert est de ce côté ; voie : -1 nord, 0 milieu, 1 sud
       positionsCles: [
         { id: 'lavage-ouest', nom: 'Piste 1 du lavage', x: 35.1, z: 25.0, r: 2.5, menace: 0, voie: 0 },
         { id: 'lavage-est', nom: 'Piste 2 du lavage', x: 36.9, z: 25.0, r: 2.5, menace: Math.PI, voie: 0 },
-        { id: 'ruelle-ouest', nom: 'Caisses de la ruelle', x: 27.9, z: 8.2, r: 2.5, menace: 0, voie: -1 },
-        { id: 'ruelle-est', nom: 'Palettes de la ruelle', x: 39.1, z: 3.2, r: 2.5, menace: Math.PI, voie: -1 },
+        { id: 'ruelle-ouest', nom: 'Caisses de la ruelle', x: 25.5, z: 6.5, r: 2.5, menace: 0, voie: -1 },
+        { id: 'ruelle-est', nom: 'Palettes de la ruelle', x: 46.2, z: 5.0, r: 2.5, menace: Math.PI, voie: -1 },
         { id: 'quai-ouest', nom: 'Jardinière du quai (ouest)', x: 29.9, z: 34.7, r: 2.5, menace: 0, voie: 1 },
         { id: 'quai-est', nom: 'Jardinière du quai (est)', x: 42.1, z: 34.7, r: 2.5, menace: Math.PI, voie: 1 },
       ],
       // marquage au sol (rendu seulement) : rangées doubles [x0, z0, places], places le long des murs [x, z, places, pas en x, pas en z]
       marquage: { rangees: [[13, 17, 6], [49, 17, 6]], murs: [[7.6, 41, 7, 2.5, 0], [0, 10.8, 2, 0, 2.5], [0, 30.1, 4, 0, 2.5], [67, 10.8, 2, 0, 2.5], [67, 30.1, 2, 0, 2.5]] },   // (places des murs ouest et est au sud : alignées sur la voiture et le fourgon garés)
       // Un vrai parking de centre-ville, à l'arrière des boutiques de la Grand-Rue, vu du ciel : au nord la ruelle de service
-      // (arrière des immeubles en briques, portes de service, entrées arrière des boutiques en face des deux passages du
-      // grillage, bennes, fourgons de livraison) ; au sud la rue, derrière un muret à grille, avec l'unique entrée-sortie des
+      // (arrière des immeubles en briques, portes de service, bennes, fourgons de livraison), fermée côté parking par une
+      // ligne continue d'annexes et de palissades — on n'y entre que par ses deux bouts et le porche du milieu ; au sud la rue, derrière un muret à grille, avec l'unique entrée-sortie des
       // voitures (barrières, guérite), le quai de la navette et une partie du parking fermée pour travaux ; à l'ouest et à
       // l'est des murs de clôture (portes piétonnes derrière les zones de départ). Entre les deux, deux rangées doubles de
       // places orientées nord-sud (voitures garées en marche avant, capot vers le milieu : des lignes de couvert en travers du
@@ -13253,18 +13590,27 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           box(-1, 0, 1, 46, 3.2, 'wall', 'mur ouest'), box(72, 0, 1, 46, 3.2, 'wall', 'mur est'),
           box(44, 46, 7, 1, 1.1, 'wall', 'mur portail sud'),
           box(46.9, 42.4, 1.6, 1.8, 2.5, 'wall', 'guérite'),                     // guérite du gardien, sur l'îlot entre l'entrée et la sortie
-          // ---- NORD : ruelle de service à l'arrière des immeubles en briques (portes de service, escaliers de secours),
-          // séparée du parking par un muret surmonté d'un grillage (on voit à travers), avec deux passages.
-          // Au milieu, une chicane : l'annexe en briques d'un immeuble avance dans la ruelle, en face le local à poubelles.
-          box(9, 10.5, 15, 0.3, 0.8, 'cover', 'clôture grillagée'), box(27.5, 10.5, 19, 0.3, 0.8, 'cover', 'clôture grillagée'),
-          box(50, 10.5, 13, 0.3, 0.8, 'cover', 'clôture grillagée'),
-          box(30, 0, 7, 6.0, 5.0, 'wall', 'annexe'), box(39, 7.2, 4, 3.3, 2.0, 'wall', 'local poubelles'),
-          box(28.4, 7.6, 1.2, 1.2, 1.0, 'cover', 'caisses'), box(37.7, 7.8, 1.2, 1.2, 1.0, 'cover', 'palettes'),   // à couvert dans la chicane
-          box(33.0, 6.0, 1.8, 1.2, 1.8, 'wall', 'rolls'),                        // rolls de livraison devant le rideau de l'annexe (ferme la chicane)
-          box(12, 0.9, 5.2, 2.1, 2.4, 'wall', 'fourgon'), box(56, 8.2, 5.2, 2.1, 2.4, 'wall', 'fourgon'),
-          box(0.5, 0.4, 2.0, 1.4, 1.3, 'cover', 'benne'), box(20, 8.8, 2.0, 1.4, 1.3, 'cover', 'benne'), box(52.5, 0.4, 2.0, 1.4, 1.3, 'cover', 'benne'),
+          // ---- NORD : la ruelle de service, à l'arrière des immeubles en briques (portes de service, escaliers de secours).
+          // Elle est FERMÉE côté parking, sur toute sa longueur, par une ligne continue d'annexes, de palissades et d'un quai
+          // de chargement (pas de jour, on ne voit ni ne tire à travers) : on n'y entre que par ses trois bouches — au bout
+          // ouest (x 5,6–9,4, près du départ ouest), au bout est (x 63–66,6) et par le porche du milieu (x 32,5–35,5), qui
+          // débouche derrière la station de lavage. Pas en miroir : à l'ouest un garage long (ruelle étroite, fourgon garé
+          // dedans) puis une cour derrière la palissade de chantier ; à l'est le quai de chargement, une cour derrière la
+          // palissade en tôle (un fourgon y attend), puis un immeuble plus profond. Au milieu, une chicane serrée : l'annexe
+          // en briques avance dans la ruelle, l'atelier et le local technique la resserrent (2,4 m) de part et d'autre du porche.
+          box(9.4, 7.0, 11.6, 4.2, 4.2, 'wall', 'bâtiment garage'),               // garage en briques (rideaux côté parking)
+          box(21, 10.7, 8.5, 0.4, 2.6, 'wall', 'palissade chantier'),            // palissade de chantier en planches (cour derrière)
+          box(29.5, 8.4, 3.0, 2.8, 3.6, 'wall', 'bâtiment atelier'),             // atelier : côté ouest du porche
+          box(35.5, 8.4, 4.5, 2.8, 3.4, 'wall', 'bâtiment local'),               // local technique : côté est du porche
+          box(40, 7.6, 8, 3.6, 3.2, 'wall', 'quai de chargement'),               // quai de chargement (rideaux côté ruelle)
+          box(48, 10.6, 9, 0.4, 2.6, 'wall', 'palissade tôle'),                  // clôture pleine en tôle ondulée (cour derrière)
+          box(57, 6.8, 6.0, 4.4, 4.6, 'wall', 'bâtiment entrepôt'),              // petit entrepôt (ruelle étroite à son pied)
+          box(30, 0, 7, 6.0, 5.0, 'wall', 'annexe'),
+          box(26.2, 6.0, 1.2, 1.2, 1.0, 'cover', 'caisses'), box(44.5, 4.4, 1.2, 1.2, 1.0, 'cover', 'palettes'),   // à couvert dans les cours
+          box(12, 0.9, 5.2, 2.1, 2.4, 'wall', 'fourgon'), cap(box(50.5, 8.0, 5.2, 2.1, 2.4, 'wall', 'fourgon'), -1),
+          box(0.5, 0.4, 2.0, 1.4, 1.3, 'cover', 'benne'), box(22.0, 8.9, 2.0, 1.4, 1.3, 'cover', 'benne'), box(52.5, 0.4, 2.0, 1.4, 1.3, 'cover', 'benne'),
           box(7.6, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'), box(28.2, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'), box(61.5, 0.3, 1.0, 0.8, 1.0, 'cover', 'clim'),
-          box(18.6, 8.9, 1.2, 1.2, 1.0, 'cover', 'palettes'), box(43.9, 0.4, 1.2, 1.2, 1.3, 'cover', 'caisses'), box(37.4, 2.6, 1.2, 1.2, 1.0, 'cover', 'palettes'),
+          box(43.9, 0.4, 1.2, 1.2, 1.3, 'cover', 'caisses'), box(37.4, 2.6, 1.2, 1.2, 1.0, 'cover', 'palettes'),
           box(66.2, 7.6, 1.2, 1.2, 1.5, 'cover', 'caisses'), box(3.6, 8.4, 1.2, 1.2, 1.0, 'cover', 'palettes'),
           // ---- MILIEU (entre les rangées, x 23–49) : disposé en miroir autour de x = 36 pour l'équité ; station de lavage
           // (deux pistes, local technique au nord, muret entre les pistes), un fourgon qui attend son tour au nord, un autre
@@ -13273,7 +13619,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           box(34.6, 17.9, 2.8, 3.6, 3.3, 'wall', 'lavage local'), box(35.7, 21.5, 0.6, 6.6, 1.1, 'cover', 'lavage muret'),
           cap(box(34.95, 12.5, 2.1, 4.8, 2.4, 'wall', 'fourgon (lavage)'), 1),     // fourgon du technicien de la station, à 1,2 m de la porte du local (sinon fourgon + local blanc = un faux camion)
           cap(box(34.95, 28.1, 2.1, 5.2, 2.4, 'wall', 'fourgon (nettoyage)'), 1),  // nettoyeur à la main (lustrage) sur l'aire de séchage, auvent ouvert
-          box(33.3, 11.0, 5.4, 1.6, 1.7, 'wall', 'haie'), box(35.4, 11.5, 1.2, 0.5, 3.6, 'wall', 'totem'),
+          box(35.6, 11.2, 4.4, 1.0, 1.7, 'wall', 'haie'), box(38.0, 11.45, 1.2, 0.5, 3.6, 'wall', 'totem'),   // au pied du local technique, à l'est du porche
           cap(box(27.9, 18.6, 1.9, 4.4, 1.4, 'cover', 'voiture'), -1), box(28.5, 23.4, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), cap(box(27.9, 24.6, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), 1),
           cap(box(42.2, 18.6, 1.9, 4.4, 1.4, 'cover', 'voiture (pick-up)'), -1), box(42.7, 23.4, 0.8, 0.9, 1.4, 'cover', 'aspirateur'), cap(box(42.2, 24.6, 1.9, 4.4, 1.4, 'cover', 'voiture'), 1),
           // ---- OUEST : caisse automatique (piétons) sur son îlot ; places le long du mur ouest, borne de recharge
@@ -13282,7 +13628,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
           cap(box(0.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), -1), cap(box(0.2, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon'), -1),
           box(0.2, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
           // ---- EST : poste électrique sur son îlot planté ; places le long du mur est (au sud, la camionnette du chantier)
-          box(60.4, 21.9, 2.2, 2.2, 2.6, 'wall', 'poste électrique'), box(60.6, 24.6, 1.0, 0.5, 1.4, 'cover', 'armoire'),
+          box(60.4, 24.5, 2.2, 2.2, 2.6, 'wall', 'poste électrique'), box(60.6, 23.85, 1.0, 0.5, 1.4, 'cover', 'armoire'),   // (décalé au sud : pas en face de la caisse automatique)
           cap(box(66.6, 11.0, 5.2, 2.1, 2.4, 'wall', 'fourgon'), 1), cap(box(67.3, 13.6, 4.4, 1.9, 1.4, 'cover', 'voiture (pick-up)'), 1),
           cap(box(67.3, 30.4, 4.4, 1.9, 1.4, 'cover', 'voiture'), 1), cap(box(66.6, 35.3, 5.2, 2.1, 2.4, 'wall', 'fourgon (chantier)'), 1),   // camionnette de l'équipe du chantier, entrée par le bout des séparateurs
           box(71.3, 33.2, 0.5, 0.6, 1.5, 'cover', 'borne de recharge'),
@@ -13312,10 +13658,12 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         ],
         // îlots plantés aux bouts des rangées (jardinières avec arbre, ou haies taillées), en miroir
         bac(13.6, 15.4, 4.4, 1.4), bac(18.6, 15.4, 4.0, 1.4), [box(13.6, 32.2, 4.6, 1.4, 1.7, 'wall', 'haie')], bac(18.8, 32.2, 3.0, 1.4),
-        bac(49.4, 15.4, 4.0, 1.4), bac(54.0, 15.4, 4.4, 1.4), bac(50.2, 32.2, 3.0, 1.4), [box(53.8, 32.2, 4.6, 1.4, 1.7, 'wall', 'haie')],
-        // rangées de places (ouest : x 13–23 ; est : x 49–59, en miroir), du nord (z 17) au sud (z 32)
+        [box(49.4, 15.4, 4.0, 1.4, 1.7, 'wall', 'haie')], bac(54.0, 15.4, 4.4, 1.4), bac(50.2, 32.2, 3.0, 1.4), bac(54.6, 32.2, 3.8, 1.4),
+        // rangées de places (ouest : x 13–23 ; est : x 49–59), du nord (z 17) au sud (z 32) — pas en miroir : à l'ouest le
+        // passage à travers la rangée est au milieu (z 22–24,5), à l'est il est plus au nord (z 19,5–22) et la rangée est
+        // ouverte au sud
         rangee(13, 17, 'vf.vv.', '.v.fvv', [0, 3, 5, 1, 6, 2, 4, 7, 0, 5]),
-        rangee(49, 17, '.v.fvv', 'vf.vv.', [2, 6, 9, 4, 1, 7, 3, 5, 10, 11])
+        rangee(49, 17, 'v.vfv.', 'v.vf.v', [2, 6, 9, 4, 1, 7, 3, 5, 10, 11])
       ),
     },
   };
@@ -13674,6 +14022,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (const team of this.teams) { let k = 0; for (const u of team.units) u.boundGroup = u.role.id === 'marksman' ? -1 : (k++ % 2); team.bound = { group: 0, since: 0, n: 0 }; }
     this.assignLanes();
     this.placeUnits();
+    for (const team of this.teams) if (team.auto) this.initKarst(team);   // plans de l'adversaire (vague 2)
     this.logEvent('start', `Début de l'engagement — ${this.map.name} — graine ${this.seed}. ${this.teams.map(t => `${t.name} (${ORDERS[t.order].name})`).join(' contre ')}.`);
   }
   Battle.defaultTeams = function () {
@@ -13844,6 +14193,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     this.updateTactics();
     this.updateTiroir();
     this.updateMoveGroups();   // ordres de déplacement « méthodiques » : bonds par groupe
+    if (this.tick % 10 === 5) this.updateKarst();   // plans de l'adversaire : une fois par seconde
     for (const u of this.units) if (u.alive) this.perceive(u);
     if (Math.abs((this.t % COMMS_EVERY)) < DT / 2 || (this.t % COMMS_EVERY) > COMMS_EVERY - DT / 2) this.comms();
     // ordre de traitement mélangé à chaque pas : aucune équipe n'a l'avantage d'agir toujours la première
@@ -14858,7 +15208,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (!dg) dg = { x: cx - Math.cos(dir) * 15, z: cz - Math.sin(dir) * 15 };
       smoke = this.coverSmoke(units, cx, cz, dg.x, dg.z, 'le repli');
     }
-    this.logEvent('moveorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — déplacement ${MOVE_MODES[mode]}${fumee ? ' avec fumée' : ''}, puis ${ARRIVALS[arrivee]}${arr !== arrivee ? (feu === 'appui' ? ` (en appui : ${ARRIVALS[arr]})` : ` (à ${units.length}, ${ARRIVALS[arr]})`) : ''}${feu !== 'volonte' ? `, ${FIRE_MODES[feu]}` : ''}.`, { team: teamIndex, unit: units[0].id, ordre: id, mode, feu });
+    this.logEvent('moveorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — déplacement ${MOVE_MODES[mode]}${fumee ? ' avec fumée' : ''}, puis ${ARRIVALS[arrivee]}${arr !== arrivee ? (feu === 'appui' ? ` (en appui : ${ARRIVALS[arr]})` : ` (à ${units.length}, ${ARRIVALS[arr]})`) : ''}${feu !== 'volonte' ? `, ${FIRE_MODES[feu]}` : ''}.`, { team: teamIndex, unit: units[0].id, ordre: id, mode, feu, silent: !!arg.plan });
     return { ok: true, id, x: p.x, z: p.z, fumee: fumee ? (mode === 'franchir' ? units.some(u => (u.grenades.smoke || 0) > 0) : !!smoke) : undefined };
   };
   // ---- Feu et orientation des ordres du clic droit (vague 1 : strategies_gign.md F1, F2, A4) ---------------------------
@@ -16072,8 +16422,112 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       }
     }
   };
-  // tactiques actives jouées par l'IA : aucune pour l'instant (la seule tactique, le Tiroir, est passive)
-  Battle.prototype.autoTactics = function () {};
+  // ---- Plans de l'adversaire (vague 2, strategies_gign.md §13.2) -----------------------------------------------------
+  // L'équipe de l'IA (team.auto : missions, ligue, bataille libre) reçoit au départ UN plan, tiré à la graine (générateur à
+  // part : le tirage principal n'est pas touché) et selon la situation (objectif, effectif) :
+  //  - 'repli'      : se replier sous pression (deux fois au lieu d'une, dès le premier opérateur aveuglé ou touché) ;
+  //  - 'contourner' : au contact, les deux opérateurs les plus éloignés de la menace la contournent par un côté (sur une
+  //                   carte à voies : par la voie de flanc la plus éloignée de la menace, comme les flancs de départ) ;
+  //  - 'embuscade'  : au départ, on s'installe à 15–21 % du chemin, feu retenu, et on attend (temps borné).
+  // (Mesuré sur 60 batailles par plan, parking, Alpha GIGN contre Bravo : sans plan 62 % pour Alpha ; un tiers du chemin
+  //  ou un flanc à travers le terrain donnaient l'avantage à Alpha — on arrivait en retard ou à découvert.)
+  // Réactions communes à tous les plans : décrocher sous la pression (aveuglé par une flash, touché, un tombé tout près) en
+  // fumée, puis tenir feu retenu ; une fumée adverse à moins de 28 m → on tient en face, feu retenu, on les attend à la
+  // sortie. Les plans passent par les ordres du clic droit (moveOrder, sans être enregistrés : ils découlent de l'état de
+  // la bataille, la revue les refait à l'identique) ; chacun finit (temps, feu ouvert depuis un moment, fumée dissipée) par
+  // « reprendre la manœuvre ». Jamais pour l'escouade du joueur (règle 1 du §13.3).
+  const KARST_PLANS = ['repli', 'contourner', 'embuscade'];
+  const KARST_SAY = { repli: 'On décroche !', contourner: 'On les contourne !', embuscade: 'Embuscade, personne ne tire.', fumee: 'Fumée : on les attend à la sortie.' };
+  Battle.prototype.initKarst = function (team) {
+    const r = new RNG(((this.seed >>> 0) * 2654435761 + 7919 * (team.index + 1)) >>> 0);
+    const n = team.units.filter(u => u.role.id !== 'marksman').length, ob = this.objective;
+    const w = { repli: 1, contourner: n >= 4 ? 1 : 0, embuscade: ob.type === 'hold' && ob.team !== team.index ? 0 : ob.type === 'capture' ? 0.5 : 1 };
+    let plan = 'repli';
+    if (team.order !== 'hold') { const tot = KARST_PLANS.reduce((s, k) => s + w[k], 0); let x = r.next() * tot; for (const k of KARST_PLANS) { x -= w[k]; if (x < 0) { plan = k; break; } } }
+    team.karst = { plan, repliLeft: plan === 'repli' ? 2 : 1, smokeLeft: 2, flank: false, ambush: false, ord: [], seen: [], contactAt: null,
+      flankDelay: 1 + r.next() * 2, ambushFrac: 0.15 + r.next() * 0.06, ambushFor: ob.type === 'capture' ? 30 : 50 + r.next() * 25, ambushAfter: 20, side: r.next() < 0.5 ? 1 : -1, lastAt: -99 };
+  };
+  Battle.prototype.karstBusy = function (u) {
+    return !u.alive || u.role.id === 'marksman' || u.moveOrder || u.keyOrder || u.drag || u.reviving || u.throwing || u.state === 'noammo' || this.t - (u.orderAt === undefined ? -99 : u.orderAt) < ORDER_COOLDOWN;
+  };
+  Battle.prototype.karstOrder = function (team, kind, arg, units, end) {
+    const r = this.moveOrder(team.index, Object.assign({ units: units.map(u => u.id), plan: kind }, arg));
+    if (!r.ok) return null;
+    const k = team.karst, o = Object.assign({ id: r.id, kind, t: this.t }, end); k.ord.push(o); k.lastAt = this.t;
+    this.logEvent('plan', `${team.name} : « ${KARST_SAY[kind]} » (${units.map(u => u.callsign).join(', ')})`, { team: team.index, unit: units[0].id, plan: kind, ordre: r.id });
+    return o;
+  };
+  Battle.prototype.updateKarst = function () {
+    if (this.over) return;
+    for (const team of this.teams) {
+      const k = team.karst; if (!k) continue;
+      // fin des plans en cours : chacun reprend la manœuvre
+      for (const o of k.ord) {
+        if (o.done) continue;
+        const ms = this.orderMembers(team, o.id), inf = team.ordInfo[o.id];
+        const cloudGone = o.cloud && !this.map.dynamic.includes(o.cloud) && this.t > o.cloud.until + 2;
+        if (ms.length && this.t < o.until && !(inf.released && this.t - inf.releasedAt > o.afterFire) && !cloudGone) continue;
+        o.done = true;
+        for (const u of ms) { const mo = u.moveOrder && u.moveOrder.id === o.id ? u.moveOrder : { id: o.id }; u.moveOrder = null; this.resumeManoeuvre(u, mo); }
+      }
+      const alive = team.units.filter(u => u.alive); if (alive.length < 2) continue;
+      const known = [];   // ennemis connus (vus, entendus, radio) il y a moins de 6 s, encore debout
+      for (const e of this.teams[1 - team.index].units) { if (!e.alive) continue; let b = null; for (const u of alive) { const q = u.knowledge[e.id]; if (q && (!b || q.t > b.t)) b = q; } if (b && this.t - b.t < 6) known.push(b); }
+      if (known.length && k.contactAt === null) k.contactAt = this.t;
+      const free = alive.filter(u => !this.karstBusy(u));
+      const nearest = (p) => { let b = null, bd = Infinity; for (const q of known) { const d = Math.hypot(q.x - p.x, q.z - p.z); if (d < bd) { bd = d; b = q; } } return b ? { q: b, d: bd } : null; };
+      const cen = (us) => ({ x: us.reduce((s, u) => s + u.x, 0) / us.length, z: us.reduce((s, u) => s + u.z, 0) / us.length });
+      // 1) décrocher sous la pression (aveuglé, touché, un équipier tombé tout près il y a moins de 4 s ; « cloué » seul ne
+      //    suffit pas : se lever sous le feu coûtait plus cher que de rester)
+      if (k.repliLeft > 0 && this.t - k.lastAt > 8 && known.length) {
+        const lossNear = (u) => k.plan === 'repli' && (team.losses || []).some(l => this.t - l.t < 4 && Math.hypot(l.x - u.x, l.z - u.z) < 12);
+        const hurt = alive.filter(u => u.role.id !== 'marksman' && (this.t < u.blindUntil || lossNear(u)));
+        if (hurt.length) {
+          const grp = free.filter(u => hurt.some(h => Math.hypot(h.x - u.x, h.z - u.z) < 15)), C = grp.length ? cen(grp) : null, D = C && nearest(C);
+          if (grp.length >= 2 && D && D.d < 30) {
+            const sp = team.spawn; let ax = C.x - D.q.x, az = C.z - D.q.z, L = Math.hypot(ax, az) || 1; ax /= L; az /= L;
+            let bx = sp.x - C.x, bz = sp.z - C.z; const M = Math.hypot(bx, bz) || 1; bx = ax + 0.5 * bx / M; bz = az + 0.5 * bz / M; const N = Math.hypot(bx, bz) || 1;
+            if (this.karstOrder(team, 'repli', { x: C.x + bx / N * 14, z: C.z + bz / N * 14, mode: 'decrocher', arrivee: 'tenir', feu: 'retenu', fumee: true }, grp, { until: this.t + 30, afterFire: 12 })) { k.repliLeft--; continue; }
+          }
+        }
+      }
+      // 2) fumée adverse : on tient en face, feu retenu, et on les attend à la sortie
+      for (const c of this.map.dynamic) {
+        if (c.kind !== 'smoke' || c.team === team.index || k.seen.includes(c)) continue;
+        k.seen.push(c); if (k.smokeLeft <= 0 || alive.some(u => this.t - (u.sawEnemyAt === undefined ? -99 : u.sawEnemyAt) < 4)) continue;   // en plein échange de tirs (fumée d'évacuation…) : on continue le combat
+        const Q = { x: c.x + c.w / 2, z: c.z + c.d / 2 }, grp = free.filter(u => { const d = Math.hypot(u.x - Q.x, u.z - Q.z); return d < 28 && d > c.w / 2 + 1.5; });
+        if (!grp.length) continue;
+        const C = cen(grp), L = Math.hypot(C.x - Q.x, C.z - Q.z) || 1, P = { x: C.x + (C.x - Q.x) / L * 2, z: C.z + (C.z - Q.z) / L * 2 };
+        const o = this.karstOrder(team, 'fumee', { x: P.x, z: P.z, mode: 'methodique', arrivee: 'tenir', feu: 'retenu' }, grp, { until: c.until + 4, afterFire: 10, cloud: c });
+        if (o) { k.smokeLeft--; this.orientOrder(team.index, { ordre: o.id, x: Q.x, z: Q.z }); }
+      }
+      // 3) contourner : au contact, les deux plus éloignés de la menace la prennent par un côté
+      if (k.plan === 'contourner' && !k.flank && k.contactAt !== null && this.t - k.contactAt > k.flankDelay && known.length && alive.length >= 3) {
+        const T = cen(known), C = cen(alive), cand = free.slice().sort((a, b) => Math.hypot(b.x - T.x, b.z - T.z) - Math.hypot(a.x - T.x, a.z - T.z) || (a.id < b.id ? -1 : 1)).slice(0, 2);
+        if (cand.length === 2 && this.map.def.voies) {   // carte à voies : ils passent par la voie de flanc (même conduite que les flancs de départ)
+          const v = this.map.def.voies, lane = Math.abs(T.z - v.nord) > Math.abs(T.z - v.sud) ? -1 : 1;
+          cand.forEach(u => { u.voie = lane; u.laneDz = 0; this.resetRoute(u); });
+          k.flank = true; k.lastAt = this.t;
+          this.logEvent('plan', `${team.name} : « ${KARST_SAY.contourner} » (${cand.map(u => u.callsign).join(', ')})`, { team: team.index, unit: cand[0].id, plan: 'contourner' });
+        } else if (cand.length === 2) {
+          let dx = T.x - C.x, dz = T.z - C.z; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
+          for (const s of [k.side, -k.side]) {
+            const W = this.orderPoint(T.x - dx * 4 - dz * s * 13, T.z - dz * 4 + dx * s * 13), F = this.orderPoint(T.x - dz * s * 5, T.z + dx * s * 5);
+            if (!W || !F || Math.hypot(W.x - T.x, W.z - T.z) < 8) continue;
+            if (this.karstOrder(team, 'contourner', { x: F.x, z: F.z, via: [W], mode: 'methodique', arrivee: 'manoeuvre' }, cand, { until: this.t + 60, afterFire: 999 })) { k.flank = true; break; }
+          }
+          if (!k.flank && this.t - k.contactAt > k.flankDelay + 10) k.flank = true;   // aucun passage : on renonce
+        }
+      }
+      // 4) embuscade : au départ, on s'installe près de chez soi, feu retenu ; on attend (temps borné)
+      if (k.plan === 'embuscade' && !k.ambush && this.t >= 1) {
+        k.ambush = true;
+        const grp = free; if (grp.length < 2) continue;
+        const a = team.spawn, b = this.map.spawns[1 - team.index], v = this.map.def.voies, f = k.ambushFrac;
+        this.karstOrder(team, 'embuscade', { x: a.x + (b.x - a.x) * f, z: v ? v.milieu : a.z + (b.z - a.z) * f, mode: 'methodique', arrivee: 'tenir', feu: 'retenu' }, grp, { until: this.t + k.ambushFor, afterFire: k.ambushAfter });
+      }
+    }
+  };
   // Dégâts hors tir direct (obus) : même comptabilité que les tirs, attribués à l'équipe
   // ---- À terre / relevé -----------------------------------------------------------------------------------------
   // Un opérateur mis hors de combat autrement que d'une balle dans la tête a 55 % de chances d'être seulement « à terre » :
@@ -18758,7 +19212,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (EFX) EFX.night = id === 'nuit';   // traçantes plus vives de nuit   // ronds de pluie au sol, impacts au sol en gerbes d'eau
     $('#app').dataset.cond = id || 'jour';
     if (OT.Parking && battle && battle.map.id === 'parking') { OT.Parking.setConditions(id || 'jour', scene); buildLamps(false); } else buildLamps(id === 'nuit' || id === 'brouillard');
-    RIM.k.value = id === 'nuit' ? RIM.nuit : 0; RIM.f.value = id === 'nuit' ? RIM.fond : 0; if (RENDU) RIM.d.value.copy(RENDU.lightDir);   // liseré de lune des soldats (côté lune)
+    RIM.k.value = id === 'nuit' ? RIM.nuit : 0; RIM.f.value = id === 'nuit' ? RIM.fond : 0; if (RENDU) RIM.d.value.copy(RENDU.lightDir);
+    // de jour aussi, un liseré léger côté soleil (chaud) et un soupçon de lumière enveloppante : la silhouette du soldat se
+    // détache du décor même à contre-jour ou à l'ombre (éclairage de personnage des jeux « AAA »)
+    if (id === 'nuit') RIM.c.value.setRGB(0.55, 0.68, 1.0); else if (id === 'jour') { RIM.c.value.setRGB(1.0, 0.82, 0.62); RIM.k.value = 0.22; RIM.f.value = 0.012; } else { RIM.c.value.setRGB(0.8, 0.86, 0.95); RIM.k.value = 0.1; RIM.f.value = 0.01; }   // liseré de lune des soldats (côté lune)
     buildSteam();
     meteoSound();   // couche sonore de la météo (pluie, vent, nuit, oiseaux)
   }
@@ -19130,6 +19587,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const f = (OT.Soldat3D && OT.Soldat3D.ready && !OT.SETTINGS_LOWMODEL && OT.Soldat3D.create({ modele: u.def.faction ? 'soldat' : 'gign', uniform: fac.uniform, weapon: u.weapon.id, attachments: u.att }))
       || Figure.build({ id: u.def.id, weapon: u.weapon.id, uniform: fac.uniform, vest: fac.vest, teamColor: t.color, headgear: u.def.headgear || (u.def.faction ? 'casque_lunettes' : 'casque'), attachments: u.att });
     rimPatch(f.group);   // liseré de lune (nuit)
+    // ombre de contact : tache douce et sombre sous les pieds (la carte d'ombre du soleil est trop grossière pour « poser » le
+    // soldat sur le sol, surtout à l'ombre et de nuit) ; s'efface quand il tombe
+    { if (!OT.blobTex) { const c = document.createElement('canvas'); c.width = c.height = 64; const q = c.getContext('2d'), gr = q.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.45, 'rgba(0,0,0,0.6)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); q.fillStyle = gr; q.fillRect(0, 0, 64, 64); OT.blobTex = new THREE.CanvasTexture(c); }
+      const bm = new THREE.MeshBasicMaterial({ map: OT.blobTex, color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, fog: false });
+      const blob = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 1.15), bm); blob.rotation.x = -Math.PI / 2; blob.position.y = 0.015; blob.renderOrder = 1; blob.userData.contact = true;
+      blob.onBeforeRender = () => { const uu = battle && battle.units.find(x => x.id === u.id); bm.opacity = uu && uu.alive ? 0.5 : Math.max(0, bm.opacity - 0.02); };
+      f.group.add(blob); }
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.41, 40), new THREE.MeshBasicMaterial({ color: t.color, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; f.group.add(ring);
     scene.add(f.group);
     const label = document.createElement('div'); label.className = 'label team' + u.team;
@@ -19523,6 +19987,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function applyQuality() {
     const dpr = window.devicePixelRatio || 1;
     renderer.setPixelRatio(SETTINGS.quality === 'haute' ? Math.min(dpr, 2) : SETTINGS.quality === 'moyenne' ? 1 : 0.7);
+    if (RENDU && RENDU.setQuality) RENDU.setQuality(SETTINGS.quality);
     if (renderer.shadowMap.enabled !== !!SETTINGS.shadows) { renderer.shadowMap.enabled = !!SETTINGS.shadows; scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.needsUpdate = true; }); }); }
     resize();
   }
@@ -20438,6 +20903,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     bouge: ['Je bouge !'], couvert: ['Couvert !'], enplace: ['En place.'], reprise: ['Je reprends ma progression.'],   // ordres de déplacement (clic droit)
     drag: ['Je le tire à couvert !'], smoke: ['Fumigène !'],   // évacuation d'un blessé
     feu: ['Feu !'], enappui: ['En appui !'], decroche: ['Je décroche !'], releve: ['Je prends sa place !'],               // feu retenu levé, appui, décrocher, relève dans les bonds
+    plan_repli: ['On décroche !', 'Repli, on se regroupe !'], plan_contourner: ['On les contourne !', 'Je passe par le flanc !'], plan_embuscade: ['Embuscade, personne ne tire.', 'On les attend.'], plan_fumee: ['Fumée ! On les attend à la sortie.'],   // plans de l'adversaire
   };
   function bark(u, kind) {
     const m = u && meshes[u.id]; if (!m || !u.alive || ended || (m.barkUntil && simTime < m.barkUntil - 1.2)) return;
@@ -20479,11 +20945,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     else if (e.kind === 'grenade' && u) bark(u, /lance une/.test(e.text) ? (e.gk === 'flash' ? 'flashbang' : 'throw') : 'grenade');
     else if (e.kind === 'flank' || e.kind === 'noammo' || e.kind === 'revive_start' || e.kind === 'revive' || e.kind === 'flash' || e.kind === 'shaken' || e.kind === 'drag' || e.kind === 'smoke') bark(u, e.kind);
     else if (e.kind === 'suppress' && Math.random() < 0.5) bark(u, 'suppress');
-    else if (e.kind === 'moveorder' || e.kind === 'bond') { bark(u, e.mode === 'decrocher' ? 'decroche' : 'bouge'); if (e.couvre) bark(unitById[e.couvre], 'couvert'); }
+    // (ordre d'un plan adverse, silencieux : sa bulle vient de l'événement « plan »)
+    else if ((e.kind === 'moveorder' && !e.silent) || e.kind === 'bond') { bark(u, e.mode === 'decrocher' ? 'decroche' : 'bouge'); if (e.couvre) bark(unitById[e.couvre], 'couvert'); }
     else if ((e.kind === 'feu' || e.kind === 'enappui' || e.kind === 'releve') && u) bark(u, e.kind);
     else if (e.kind === 'couvre') bark(u, 'couvert');
     else if (e.kind === 'enplace' && u) bark(u, 'enplace');
     else if (e.kind === 'reprise' && u) bark(u, 'reprise');
+    else if (e.kind === 'plan' && u) bark(u, 'plan_' + e.plan);
     else if (e.kind === 'down' && e.enemy && unitById[e.enemy]) {   // le coéquipier debout le plus proche du blessé
       const d = unitById[e.enemy]; let best = null, bd = 25; for (const a of battle.units) { if (!a.alive || a.team !== d.team) continue; const k = Math.hypot(a.x - d.x, a.z - d.z); if (k < bd) { bd = k; best = a; } }
       bark(best, 'down');
@@ -20570,6 +21038,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function optsFromForm() {
     const teams = Battle.defaultTeams();
     teams[0].order = $('#order0').value; teams[1].order = $('#order1').value;
+    teams[1].autoTactics = true;   // l'adversaire de la bataille libre a ses plans (vague 2), comme en mission
     const seedTxt = $('#seed').value.trim();
     const seed = seedTxt === '' ? Math.floor(Math.random() * 100000) : (parseInt(seedTxt, 10) || 1);
     return { seed, teams, mapId: $('#mapSel').value, conditions: $('#condSel').value === 'jour' ? undefined : $('#condSel').value };
