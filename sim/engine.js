@@ -135,6 +135,7 @@
     for (const team of this.teams) { let k = 0; for (const u of team.units) u.boundGroup = u.role.id === 'marksman' ? -1 : (k++ % 2); team.bound = { group: 0, since: 0, n: 0 }; }
     this.assignLanes();
     this.placeUnits();
+    for (const team of this.teams) if (team.auto) this.initKarst(team);   // plans de l'adversaire (vague 2)
     this.logEvent('start', `Début de l'engagement — ${this.map.name} — graine ${this.seed}. ${this.teams.map(t => `${t.name} (${ORDERS[t.order].name})`).join(' contre ')}.`);
   }
   Battle.defaultTeams = function () {
@@ -305,6 +306,7 @@
     this.updateTactics();
     this.updateTiroir();
     this.updateMoveGroups();   // ordres de déplacement « méthodiques » : bonds par groupe
+    if (this.tick % 10 === 5) this.updateKarst();   // plans de l'adversaire : une fois par seconde
     for (const u of this.units) if (u.alive) this.perceive(u);
     if (Math.abs((this.t % COMMS_EVERY)) < DT / 2 || (this.t % COMMS_EVERY) > COMMS_EVERY - DT / 2) this.comms();
     // ordre de traitement mélangé à chaque pas : aucune équipe n'a l'avantage d'agir toujours la première
@@ -1319,7 +1321,7 @@
       if (!dg) dg = { x: cx - Math.cos(dir) * 15, z: cz - Math.sin(dir) * 15 };
       smoke = this.coverSmoke(units, cx, cz, dg.x, dg.z, 'le repli');
     }
-    this.logEvent('moveorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — déplacement ${MOVE_MODES[mode]}${fumee ? ' avec fumée' : ''}, puis ${ARRIVALS[arrivee]}${arr !== arrivee ? (feu === 'appui' ? ` (en appui : ${ARRIVALS[arr]})` : ` (à ${units.length}, ${ARRIVALS[arr]})`) : ''}${feu !== 'volonte' ? `, ${FIRE_MODES[feu]}` : ''}.`, { team: teamIndex, unit: units[0].id, ordre: id, mode, feu });
+    this.logEvent('moveorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — déplacement ${MOVE_MODES[mode]}${fumee ? ' avec fumée' : ''}, puis ${ARRIVALS[arrivee]}${arr !== arrivee ? (feu === 'appui' ? ` (en appui : ${ARRIVALS[arr]})` : ` (à ${units.length}, ${ARRIVALS[arr]})`) : ''}${feu !== 'volonte' ? `, ${FIRE_MODES[feu]}` : ''}.`, { team: teamIndex, unit: units[0].id, ordre: id, mode, feu, silent: !!arg.plan });
     return { ok: true, id, x: p.x, z: p.z, fumee: fumee ? (mode === 'franchir' ? units.some(u => (u.grenades.smoke || 0) > 0) : !!smoke) : undefined };
   };
   // ---- Feu et orientation des ordres du clic droit (vague 1 : strategies_gign.md F1, F2, A4) ---------------------------
@@ -2533,8 +2535,103 @@
       }
     }
   };
-  // tactiques actives jouées par l'IA : aucune pour l'instant (la seule tactique, le Tiroir, est passive)
-  Battle.prototype.autoTactics = function () {};
+  // ---- Plans de l'adversaire (vague 2, strategies_gign.md §13.2) -----------------------------------------------------
+  // L'équipe de l'IA (team.auto : missions, ligue, bataille libre) reçoit au départ UN plan, tiré à la graine (générateur à
+  // part : le tirage principal n'est pas touché) et selon la situation (objectif, effectif) :
+  //  - 'repli'      : se replier sous pression (deux fois au lieu d'une, dès le premier opérateur cloué ou aveuglé) ;
+  //  - 'contourner' : au contact, les deux opérateurs les plus éloignés de la menace la contournent par un côté ;
+  //  - 'embuscade'  : au départ, on s'installe à un tiers du chemin, feu retenu, et on attend (temps borné).
+  // Réactions communes à tous les plans : décrocher sous la pression (aveuglé par une flash, cloué, un tombé tout près) en
+  // fumée, puis tenir feu retenu ; une fumée adverse à moins de 28 m → on tient en face, feu retenu, on les attend à la
+  // sortie. Les plans passent par les ordres du clic droit (moveOrder, sans être enregistrés : ils découlent de l'état de
+  // la bataille, la revue les refait à l'identique) ; chacun finit (temps, feu ouvert depuis un moment, fumée dissipée) par
+  // « reprendre la manœuvre ». Jamais pour l'escouade du joueur (règle 1 du §13.3).
+  const KARST_PLANS = ['repli', 'contourner', 'embuscade'];
+  const KARST_SAY = { repli: 'On décroche !', contourner: 'On les contourne !', embuscade: 'Embuscade, personne ne tire.', fumee: 'Fumée : on les attend à la sortie.' };
+  Battle.prototype.initKarst = function (team) {
+    const r = new RNG(((this.seed >>> 0) * 2654435761 + 7919 * (team.index + 1)) >>> 0);
+    const n = team.units.filter(u => u.role.id !== 'marksman').length, ob = this.objective;
+    const w = { repli: 1, contourner: n >= 4 ? 1 : 0, embuscade: ob.type === 'hold' && ob.team !== team.index ? 0 : ob.type === 'capture' ? 0.5 : 1 };
+    let plan = 'repli';
+    if (team.order !== 'hold') { const tot = KARST_PLANS.reduce((s, k) => s + w[k], 0); let x = r.next() * tot; for (const k of KARST_PLANS) { x -= w[k]; if (x < 0) { plan = k; break; } } }
+    team.karst = { plan, repliLeft: plan === 'repli' ? 2 : 1, smokeLeft: 2, flank: false, ambush: false, ord: [], seen: [], contactAt: null,
+      flankDelay: 4 + r.next() * 5, ambushFrac: 0.32 + r.next() * 0.1, ambushFor: ob.type === 'capture' ? 30 : 50 + r.next() * 25, side: r.next() < 0.5 ? 1 : -1, lastAt: -99 };
+  };
+  Battle.prototype.karstBusy = function (u) {
+    return !u.alive || u.role.id === 'marksman' || u.moveOrder || u.keyOrder || u.drag || u.reviving || u.throwing || u.state === 'noammo' || this.t - (u.orderAt === undefined ? -99 : u.orderAt) < ORDER_COOLDOWN;
+  };
+  Battle.prototype.karstOrder = function (team, kind, arg, units, end) {
+    const r = this.moveOrder(team.index, Object.assign({ units: units.map(u => u.id), plan: kind }, arg));
+    if (!r.ok) return null;
+    const k = team.karst, o = Object.assign({ id: r.id, kind, t: this.t }, end); k.ord.push(o); k.lastAt = this.t;
+    this.logEvent('plan', `${team.name} : « ${KARST_SAY[kind]} » (${units.map(u => u.callsign).join(', ')})`, { team: team.index, unit: units[0].id, plan: kind, ordre: r.id });
+    return o;
+  };
+  Battle.prototype.updateKarst = function () {
+    if (this.over) return;
+    for (const team of this.teams) {
+      const k = team.karst; if (!k) continue;
+      // fin des plans en cours : chacun reprend la manœuvre
+      for (const o of k.ord) {
+        if (o.done) continue;
+        const ms = this.orderMembers(team, o.id), inf = team.ordInfo[o.id];
+        const cloudGone = o.cloud && !this.map.dynamic.includes(o.cloud) && this.t > o.cloud.until + 2;
+        if (ms.length && this.t < o.until && !(inf.released && this.t - inf.releasedAt > o.afterFire) && !cloudGone) continue;
+        o.done = true;
+        for (const u of ms) { const mo = u.moveOrder && u.moveOrder.id === o.id ? u.moveOrder : { id: o.id }; u.moveOrder = null; this.resumeManoeuvre(u, mo); }
+      }
+      const alive = team.units.filter(u => u.alive); if (alive.length < 2) continue;
+      const known = [];   // ennemis connus (vus, entendus, radio) il y a moins de 6 s, encore debout
+      for (const e of this.teams[1 - team.index].units) { if (!e.alive) continue; let b = null; for (const u of alive) { const q = u.knowledge[e.id]; if (q && (!b || q.t > b.t)) b = q; } if (b && this.t - b.t < 6) known.push(b); }
+      if (known.length && k.contactAt === null) k.contactAt = this.t;
+      const free = alive.filter(u => !this.karstBusy(u));
+      const nearest = (p) => { let b = null, bd = Infinity; for (const q of known) { const d = Math.hypot(q.x - p.x, q.z - p.z); if (d < bd) { bd = d; b = q; } } return b ? { q: b, d: bd } : null; };
+      const cen = (us) => ({ x: us.reduce((s, u) => s + u.x, 0) / us.length, z: us.reduce((s, u) => s + u.z, 0) / us.length });
+      // 1) décrocher sous la pression (aveuglé, cloué, touché, un équipier tombé tout près il y a moins de 4 s)
+      if (k.repliLeft > 0 && this.t - k.lastAt > 8 && known.length) {
+        const lossNear = (u) => (team.losses || []).some(l => this.t - l.t < 4 && Math.hypot(l.x - u.x, l.z - u.z) < 12);
+        const hurt = alive.filter(u => u.role.id !== 'marksman' && (this.t < u.blindUntil || (!k.noSupp && (u.suppression > 0.6 || u.state === 'pinned')) || (this.t - u.lastHitAt < 2 && u.status !== 'ok') || lossNear(u)));
+        if (hurt.length >= (k.plan === 'repli' ? 1 : 2)) {
+          const grp = free.filter(u => hurt.some(h => Math.hypot(h.x - u.x, h.z - u.z) < 15)), C = grp.length ? cen(grp) : null, D = C && nearest(C);
+          if (grp.length >= 2 && D && D.d < 30) {
+            const sp = team.spawn; let ax = C.x - D.q.x, az = C.z - D.q.z, L = Math.hypot(ax, az) || 1; ax /= L; az /= L;
+            let bx = sp.x - C.x, bz = sp.z - C.z; const M = Math.hypot(bx, bz) || 1; bx = ax + 0.5 * bx / M; bz = az + 0.5 * bz / M; const N = Math.hypot(bx, bz) || 1;
+            if (this.karstOrder(team, 'repli', { x: C.x + bx / N * 14, z: C.z + bz / N * 14, mode: 'decrocher', arrivee: 'tenir', feu: 'retenu', fumee: true }, grp, { until: this.t + 30, afterFire: 12 })) { k.repliLeft--; continue; }
+          }
+        }
+      }
+      // 2) fumée adverse : on tient en face, feu retenu, et on les attend à la sortie
+      for (const c of this.map.dynamic) {
+        if (c.kind !== 'smoke' || c.team === team.index || k.seen.includes(c)) continue;
+        k.seen.push(c); if (k.smokeLeft <= 0) continue;
+        const Q = { x: c.x + c.w / 2, z: c.z + c.d / 2 }, grp = free.filter(u => { const d = Math.hypot(u.x - Q.x, u.z - Q.z); return d < 28 && d > c.w / 2 + 1.5; });
+        if (!grp.length) continue;
+        const C = cen(grp), L = Math.hypot(C.x - Q.x, C.z - Q.z) || 1, P = { x: C.x + (C.x - Q.x) / L * 2, z: C.z + (C.z - Q.z) / L * 2 };
+        const o = this.karstOrder(team, 'fumee', { x: P.x, z: P.z, mode: 'methodique', arrivee: 'tenir', feu: 'retenu' }, grp, { until: c.until + 4, afterFire: 10, cloud: c });
+        if (o) { k.smokeLeft--; this.orientOrder(team.index, { ordre: o.id, x: Q.x, z: Q.z }); }
+      }
+      // 3) contourner : au contact, les deux plus éloignés de la menace la prennent par un côté
+      if (k.plan === 'contourner' && !k.flank && k.contactAt !== null && this.t - k.contactAt > k.flankDelay && known.length && alive.length >= 3) {
+        const T = cen(known), C = cen(alive), cand = free.slice().sort((a, b) => Math.hypot(b.x - T.x, b.z - T.z) - Math.hypot(a.x - T.x, a.z - T.z) || (a.id < b.id ? -1 : 1)).slice(0, 2);
+        if (cand.length === 2) {
+          let dx = T.x - C.x, dz = T.z - C.z; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
+          for (const s of [k.side, -k.side]) {
+            const W = this.orderPoint(T.x - dx * 4 - dz * s * 13, T.z - dz * 4 + dx * s * 13), F = this.orderPoint(T.x - dz * s * 5, T.z + dx * s * 5);
+            if (!W || !F || Math.hypot(W.x - T.x, W.z - T.z) < 8) continue;
+            if (this.karstOrder(team, 'contourner', { x: F.x, z: F.z, via: [W], mode: k.flankMode || 'methodique', arrivee: 'manoeuvre' }, cand, { until: this.t + 60, afterFire: 999 })) { k.flank = true; break; }
+          }
+          if (!k.flank && this.t - k.contactAt > k.flankDelay + 10) k.flank = true;   // aucun passage : on renonce
+        }
+      }
+      // 4) embuscade : au départ, on s'installe à un tiers du chemin, feu retenu ; on attend (temps borné)
+      if (k.plan === 'embuscade' && !k.ambush && this.t >= 1) {
+        k.ambush = true;
+        const grp = free; if (grp.length < 2) continue;
+        const a = team.spawn, b = this.map.spawns[1 - team.index], v = this.map.def.voies, f = k.ambushFrac;
+        this.karstOrder(team, 'embuscade', { x: a.x + (b.x - a.x) * f, z: v ? v.milieu : a.z + (b.z - a.z) * f, mode: k.ambushMode || 'methodique', arrivee: 'tenir', feu: 'retenu' }, grp, { until: this.t + k.ambushFor, afterFire: 20 });
+      }
+    }
+  };
   // Dégâts hors tir direct (obus) : même comptabilité que les tirs, attribués à l'équipe
   // ---- À terre / relevé -----------------------------------------------------------------------------------------
   // Un opérateur mis hors de combat autrement que d'une balle dans la tête a 55 % de chances d'être seulement « à terre » :
