@@ -669,10 +669,75 @@
     return (texCache[key] = { map, rough, emi, tileW: 14, tileH: 26 });
   }
   const NIGHT = { on: false, mats: [] };
+  // ---- fenêtres « à intérieur » (interior mapping) : derrière chaque vitre, une vraie pièce en perspective (mur du fond,
+  // murs latéraux, sol, plafond, un meuble, rideaux ou store) calculée dans le shader à partir du rayon de vue : la façade
+  // gagne de la profondeur sous tous les angles. Le jour, pièces dans la pénombre derrière le reflet du ciel ; la nuit, les
+  // pièces allumées (mêmes que la carte d'émission) sont éclairées de l'intérieur, les autres restent sombres.
+  const FAC = { uDay: { value: 1 }, uNight: { value: 0 } };
+  function fenetresInterieures(m, seed) {
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uDay = FAC.uDay; sh.uniforms.uNight = FAC.uNight; sh.uniforms.uSeed = { value: seed };
+      sh.vertexShader = 'varying vec3 vFWPos; varying vec3 vFWN;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+        vFWPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vFWN = normalize(mat3(modelMatrix) * objectNormal);`);
+      sh.fragmentShader = 'uniform float uDay, uNight, uSeed; varying vec3 vFWPos; varying vec3 vFWN;\nfloat fH(vec2 p) { return fract(sin(dot(p, vec2(41.31, 289.17))) * 15731.743); }\n' + sh.fragmentShader
+        .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        float fGlass = 0.0; vec3 fInt = vec3(0.0);
+        #ifdef USE_ROUGHNESSMAP
+        if (abs(vFWN.y) < 0.5) {
+          vec2 cell = vec2(fract(vMapUv.x) * 4.0, (1.0 - fract(vMapUv.y)) * 8.0), fc = fract(cell);
+          vec2 cid = floor(cell) + floor(vMapUv) * vec2(4.0, 8.0);
+          // vitre : fenêtre de la grille ET rugosité très faible (pas les volets fermés ni le montant)
+          float inWin = step(0.18, fc.x) * step(fc.x, 0.82) * step(0.22, fc.y) * step(fc.y, 0.78);
+          fGlass = inWin * (1.0 - smoothstep(0.08, 0.3, texelRoughness.g));
+          if (fGlass > 0.0) {
+            vec3 N = normalize(vFWN), Tg = normalize(cross(vec3(0.0, 1.0, 0.0), N)), V = normalize(vFWPos - cameraPosition);
+            vec3 d = vec3(dot(V, Tg), V.y, max(dot(V, -N), 0.02));
+            vec3 RS = vec3(3.5, 3.25, 3.6), p = vec3(fc.x * RS.x, (1.0 - fc.y) * RS.y, 0.0);
+            float tx = d.x > 1e-4 ? (RS.x - p.x) / d.x : (d.x < -1e-4 ? -p.x / d.x : 1e5);
+            float ty = d.y > 1e-4 ? (RS.y - p.y) / d.y : (d.y < -1e-4 ? -p.y / d.y : 1e5);
+            float tz = RS.z / d.z, t = min(tz, min(tx, ty)); vec3 hp = p + d * t;
+            float r1 = fH(cid + uSeed * 7.13 + N.xz * 3.1), r2 = fract(r1 * 13.7), r3 = fract(r1 * 71.3), r4 = fract(r1 * 291.1);
+            vec3 wallC = r2 < 0.33 ? vec3(0.62, 0.56, 0.46) : r2 < 0.66 ? vec3(0.5, 0.54, 0.56) : vec3(0.6, 0.52, 0.5);
+            vec3 col; float sh = 1.0;
+            if (t == tz) { col = wallC * 0.95;
+              // cadre / étagère sur le mur du fond
+              vec2 q = hp.xy - vec2(0.8 + r3 * 1.8, 1.5); if (abs(q.x) < 0.45 && abs(q.y) < 0.32) col = mix(vec3(0.25, 0.22, 0.2), vec3(0.55, 0.35, 0.25) * (0.6 + r4), step(abs(q.x), 0.4) * step(abs(q.y), 0.27)); }
+            else if (t == tx) { col = wallC * 0.78; }
+            else if (d.y < 0.0) { col = (r3 < 0.5 ? vec3(0.32, 0.21, 0.13) : vec3(0.3, 0.3, 0.32)) * (0.85 + 0.3 * fract(hp.x * 1.7)); sh = 0.8; }
+            else { col = vec3(0.78, 0.77, 0.74); sh = 1.15; }
+            // meuble (canapé, bureau, armoire) à mi-profondeur
+            float zf = 1.1 + r4 * 1.6, tf = zf / d.z;
+            if (tf < t) { vec3 fp = p + d * tf; float fh = r3 < 0.7 ? 0.85 : 1.9, fx0 = 0.3 + r2 * 1.4;
+              if (fp.y < fh && fp.x > fx0 && fp.x < fx0 + 1.4 + r1) { col = r3 < 0.35 ? vec3(0.22, 0.24, 0.3) : r3 < 0.7 ? vec3(0.4, 0.28, 0.18) : vec3(0.5, 0.48, 0.44); t = tf; hp = fp; sh = 0.85; } }
+            sh *= 1.0 - 0.55 * smoothstep(0.0, RS.z, hp.z);   // pénombre vers le fond
+            // rideaux sur les côtés, store à demi baissé en haut
+            float wx = (fc.x - 0.18) / 0.64, wy = (fc.y - 0.22) / 0.56, cw = 0.08 + 0.22 * r4, blind = r2 < 0.3 ? 0.15 + 0.5 * r3 : 0.0;
+            vec3 rid = r1 < 0.5 ? vec3(0.7, 0.62, 0.5) : vec3(0.45, 0.5, 0.58); float curt = 0.0;
+            if (r3 > 0.35 && (wx < cw || wx > 1.0 - cw)) curt = 1.0;
+            if (wy < blind) { curt = 1.0; rid = vec3(0.78, 0.76, 0.7) * (0.85 + 0.15 * step(0.5, fract(wy * 40.0))); }
+            col = mix(col * sh, rid, curt);
+            // éclairage : pénombre le jour ; la nuit, pièces allumées selon la carte d'émission (couleur de la lampe)
+            vec3 eL = vec3(0.0);
+            #ifdef USE_EMISSIVEMAP
+            eL = texture2D(emissiveMap, (floor(cell) + 0.5) / vec2(4.0, 8.0) * vec2(1.0, -1.0) + vec2(0.0, 1.0) + floor(vMapUv)).rgb;
+            #endif
+            float lit = step(0.05, eL.r);
+            vec3 nightL = lit * eL * (2.4 + 1.6 * curt) + (1.0 - lit) * (r4 < 0.08 ? vec3(0.03, 0.05, 0.12) : vec3(0.004));
+            fInt = col * (uDay * 0.16 + uNight * nightL);
+            diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.25, fGlass);
+          }
+        }
+        #endif`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        totalEmissiveRadiance = mix(totalEmissiveRadiance, fInt, fGlass);`);
+    };
+    m.customProgramCacheKey = () => 'fenetresInt';
+    return m;
+  }
   function building(w, h, d, tone, seed) {
     const F = facadeTex(seed % 4, tone), g = new T.Group(); tone = tone || '';
     const fm = new T.MeshStandardMaterial({ map: F.map, roughnessMap: F.rough, roughness: 1, metalness: 0.1, emissiveMap: F.emi, emissive: 0xffffff, emissiveIntensity: 0 });
-    NIGHT.mats.push(fm);
+    NIGHT.mats.push(fm); fenetresInterieures(fm, seed % 97);
     const roof = mat('toitImm', () => worldMat(concrete(), { roughness: 0.95 }));
     const geo = new T.BoxGeometry(w, h, d); const uv = geo.attributes.uv;
     // UV en mètres (faces latérales) : la tuile de façade fait F.tileW × F.tileH m
@@ -1420,7 +1485,7 @@
   // nuit : fenêtres, lampadaires, enseignes allumés ; lumières ponctuelles des lampadaires ; pluie : sol mouillé
   let lightGroup = null;
   function setConditions(id, scene) {
-    const night = id === 'nuit'; NIGHT.on = night;
+    const night = id === 'nuit'; NIGHT.on = night; FAC.uNight.value = night ? 1 : 0; FAC.uDay.value = night ? 0 : id === 'brouillard' || id === 'pluie' ? 0.8 : 1;
     for (const m of NIGHT.mats) m.emissiveIntensity = night ? (m.userData.nuit !== undefined ? m.userData.nuit * 0.7 : m.map && m.emissiveMap ? 1.0 : 3) : 0;   // fenêtres, enseignes : lisibles sans halo ; ampoules : seules vraies sources (halo)
     U.wet.value = id === 'pluie' ? 1 : id === 'brouillard' ? 0.35 : 0;
     if (root.Ruelle && root.Ruelle.setConditions) try { root.Ruelle.setConditions(id); } catch (e) { console.warn('ruelle :', e); }
