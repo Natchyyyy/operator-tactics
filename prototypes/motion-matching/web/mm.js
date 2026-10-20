@@ -412,7 +412,7 @@
         }
         // retour de la bandoulière : l'arme vient du dos en 0,8 s, les mains ne la prennent que sur la seconde moitié
         // (sinon l'IK visait la poignée derrière l'épaule : bras tendu en l'air sans but)
-        const paM = pa * Math.max(0, Math.min(1, (1 - (this.poidsDos || 0) - 0.5) / 0.5));
+        const paM = this.paM = pa * Math.max(0, Math.min(1, (1 - (this.poidsDos || 0) - 0.5) / 0.5));
         cible = mainData.clone().lerp(cible, paM);
         // pôles : coudes vers le bas ; le droit rentré vers le corps (pas d'« aile de poulet »), le gauche un peu en arrière
         const pole = k === 'D' ? V3(0, -1, 0).addScaledVector(dir, -0.25).addScaledVector(droite, -0.5).normalize() : V3(0, -1, 0).addScaledVector(dir, -0.35).normalize();
@@ -428,7 +428,7 @@
         F.quaternion.multiply(part); F.updateMatrixWorld(true);
         main[2].quaternion.copy(F.getWorldQuaternion(Q()).invert().multiply(qw)); main[2].updateMatrixWorld(true);
       }
-      for (const d of this.doigts) if (d.prise) d.os.quaternion.copy(d.repos).slerp(d.prise, pa * (d.indexD ? pv : 1));   // index droit : tendu hors de la détente en low ready, sur la détente en visée
+      for (const d of this.doigts) if (d.prise) d.os.quaternion.copy(d.repos).slerp(d.prise, (this.paM ?? pa) * (d.indexD ? pv : 1));   // index droit : tendu hors de la détente en low ready, sur la détente en visée
       // épaulé : la tête se penche vers la crosse (joue sur la crosse) et baisse un peu vers le viseur
       const tete = this.os[Base.meta.os.indexOf('Head')];
       if (tete && pv > 0.001) {
@@ -676,7 +676,7 @@
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
   // « bataille » minimale pour le module ragdoll du jeu : horloge, obstacles (le bloc), journal des morts
   const BATAILLE = window.BATAILLE = { t: 0, over: false, log: [], map: { obstacles: [{ x: BLOC.x, z: BLOC.z, w: BLOC.w, d: BLOC.d, h: BLOC.h, kind: 'cover', name: 'bloc' }] } };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.8, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 0.65, flechi: 0.65, depasse: 1.0, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.2, hautMainsTraine: 0.5 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.8, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 0.65, flechi: 0.7, depasse: 1.0, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -697,7 +697,7 @@
       this.pointPrise = pt;
     }
     // point tenu dans les mains : devant le sauveteur, à hauteur de hanches basses
-    pointMains() { const S = this.R.soldat, fwd = V3(Math.sin(S.yaw), 0, Math.cos(S.yaw)); return S.pos.clone().addScaledVector(fwd, PARAMS.sauvetage.avantMains).setY(this.etat === 'traine' ? PARAMS.sauvetage.hautMainsTraine : PARAMS.sauvetage.hautMains); }
+    pointMains() { const S = this.R.soldat, fwd = V3(Math.sin(S.yaw), 0, Math.cos(S.yaw)); const tr = this.etat === 'traine'; return S.pos.clone().addScaledVector(fwd, tr ? PARAMS.sauvetage.avantMainsTraine : PARAMS.sauvetage.avantMains).setY(tr ? PARAMS.sauvetage.hautMainsTraine : PARAMS.sauvetage.hautMains); }
     attacher() {
       const V = this.V, m = V.mort.m, r = m.rag; if (!r || !r.corps) return false;
       const C = window.CANNON, torse = r.corps[2], W = torse.world; if (!W) return false;
@@ -729,13 +729,13 @@
         if (this.t > 0.15 && this.roule == null) { const r0 = V.mort.m.rag; this.roule = 0; this.rouleTotal = 0;
           if (r0 && r0.Mo) { const sk = V.mort.m.skinned.skeleton, S2 = new THREE.Matrix4().multiplyMatrices(sk.bones[r0.Mo.os[2]].matrixWorld, r0.Mo.inv[2]); const F = r0.Mo.F.clone().transformDirection(S2); if (F.y < -0.3) this.rouleTotal = Math.PI; } }
         if (this.roule != null && this.roule < this.rouleTotal) {
-          const d = Math.min(this.rouleTotal - this.roule, dt / 1.0 * Math.PI); this.roule += d;
+          const d = Math.min(this.rouleTotal - this.roule, dt / 1.2 * Math.PI); this.roule += d;
           const hips = V.soldat.hips, tete = V.soldat.os[Base.meta.os.indexOf('Head')].getWorldPosition(V3()), ph = hips.getWorldPosition(V3());
           // axe de roulé AU SOL (y = 0,12) sous le corps : les membres restent près du sol au lieu de passer en l'air
           const axe = tete.clone().sub(ph); axe.y = 0; if (axe.lengthSq() > 1e-4) { axe.normalize(); const q = Q().setFromAxisAngle(axe, d); const wq = hips.getWorldQuaternion(Q()); hips.quaternion.copy(hips.parent.getWorldQuaternion(Q()).invert().multiply(q).multiply(wq));
             const piv = V3(ph.x, 0.12, ph.z), np = ph.clone().sub(piv).applyQuaternion(q).add(piv); hips.position.copy(hips.parent.worldToLocal(np)); hips.updateMatrixWorld(true); }
         }
-        if (this.t > 1.25 && !this.cons) {
+        if (this.t > 1.45 && !this.cons) {
           const m = V.mort.m; const r0 = m.rag;
           if (r0 && r0.etat === 'physique') { if (!r0.fige) { } m.rag = null; m.update = () => {}; m.anim = { vx: 0, vz: 0 }; m.weapon = null; /* (l'arme est déjà au sol : elle ne revient pas en main) */ BATAILLE.log.push({ kind: 'down', enemy: V.mort.u.id, loc: 'traîné' }); OT.Ragdoll.mort(V.mort.u, m, BATAILLE); OT.Ragdoll.anime(V.mort.u, m, 1 / 60); }
           if (this.attacher()) { this.etat = 'traine'; this.t = 0; this.planifier(); } else this.etat = 'fin';
@@ -743,7 +743,7 @@
       } else if (this.etat === 'traine') {
         const r = V.mort.m.rag; if (r) { r.calme = 0; r.t = Math.min(r.t, 0.5); r.aFiger = false;
           // jambes qui traînent : pas de rebond vers le haut (cuisses et jambes : vitesse verticale montante coupée au-dessus de 15 cm)
-          if (r.corps) for (const i of [8, 9, 10, 11]) { const b = r.corps[i]; if (b.position.y > 0.12 && b.velocity.y > 0) b.velocity.y = 0; }
+          if (r.corps) for (const i of [8, 9, 10, 11]) { const b = r.corps[i]; if (b.position.y > 0.12 && b.velocity.y > 0) b.velocity.y = 0; if (b.position.y > 0.2) b.velocity.y = Math.min(b.velocity.y, -0.6); }   /* jambe dressée dans un virage : ramenée au sol */
           // le corps s'aligne doucement dans l'axe de traction (pendule derrière le sauveteur : il traîne droit, pas en travers)
           // cuisses et jambes ramenées vers la ligne de traction (elles partaient en travers à 70-90°)
           if (r.corps && this.kin) { const hb0 = r.corps[0], kp0 = this.kin.position; const ux = kp0.x - hb0.position.x, uz = kp0.z - hb0.position.z, un = Math.hypot(ux, uz) || 1; const dx = ux / un, dz = uz / un;
