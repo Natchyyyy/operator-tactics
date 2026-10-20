@@ -9,6 +9,18 @@
 3. Modifications ciblées (outil d'édition) ; ne jamais réécrire un fichier entier dans le chat.
 4. Réponses très courtes : plan en 2 lignes avant d'agir, résultat en 3 lignes après. Pas de politesse ni de long résumé.
 
+## Moniteur de contexte (demandé par l'utilisateur, 20/10)
+À la fin de chaque réponse, évaluer silencieusement la conversation et ajouter une alerte si besoin :
+- 🟡 Recommander `/compact` quand une mécanique modulaire vient d'être terminée, testée et validée ; quand un bug complexe
+  vient d'être définitivement résolu ; ou quand l'historique d'essais/erreurs sur le détail en cours dépasse ~10 échanges.
+  Message exact : « 🟡 [RECOMMANDATION À 90%] : La fonctionnalité est stable. Je te conseille vivement de taper `/compact`
+  maintenant pour nettoyer les brouillons de ma mémoire avant de passer à la suite. »
+- 🔴 Recommander un nouveau chat quand on change radicalement de domaine, quand on tourne en rond sur un bug depuis 4-5
+  itérations, ou quand la session a enchaîné plusieurs gros objectifs malgré les `/compact`. D'abord mettre à jour le fichier
+  de suivi (`STATE.md` ou ce `CLAUDE.md`) avec l'état du projet, puis message exact : « 🔴 [ALERTE CHANGEMENT DE CYCLE] :
+  Nous changeons de phase ou le contexte sature. Je te conseille à 100% d'ouvrir un NOUVEAU CHAT. L'état du projet est
+  sauvegardé, le prochain chat pourra reprendre immédiatement. »
+
 Lire d'abord : ce fichier, puis `conception/ETAT_DU_PROJET.md` (où on en est, choix validés, suite),
 `A_FAIRE.md`, `conception/doctrines/decisions.md`, `conception/doctrines/strategies_gign.md`, `README.md`.
 
