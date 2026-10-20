@@ -802,7 +802,7 @@
       fin.addScaledVector(loin, PARAMS.sauvetage.ecartFace);
       ch.push(fin.clone().addScaledVector(loin, PARAMS.sauvetage.depasse));
       this.pointDepose = fin;
-      C.surArrivee = () => { this.detacher(); this.etat = 'depose'; this.t = 0; const r = this.V.mort.m.rag; if (r) r.t = 0; this.V.mort.aplatir = true; };
+      C.surArrivee = () => { this.detacher(); this.etat = 'depose'; this.t = 0; const r = this.V.mort.m.rag; if (r) r.t = 0; this.V.mort.aplatir = true; this.V.mort.aplatirBras = true; };
       return ch;
     }
   }
@@ -829,7 +829,7 @@
       if (!OT.Ragdoll.mort(u, m, BATAILLE)) return false;
       const d = dir ? dir.clone() : V3(Math.sin(S.yaw), 0, Math.cos(S.yaw)).negate(); d.y = -0.05; d.normalize();
       OT.Ragdoll.impact(m, d, 0);
-      this.mort = { u, m, t: 0 }; this.ctl.touches = {}; this.ctl.chemin = null; this.ctl.couvert = null; this.ctl.enRoute = null;
+      this.mort = { u, m, t: 0, aplatir: true }; this.ctl.touches = {};   /* genou dressé après le gel : couché (toute mort, pas seulement après traînage) */ this.ctl.chemin = null; this.ctl.couvert = null; this.ctl.enRoute = null;
       return true;
     }
     ressusciter() { if (!this.mort) return; OT.Ragdoll.liberer(this.mort.m); this.mort = null; this.soldat.poseDe(this.frame, 0, this.poseQ, this.poseY); }
@@ -1153,7 +1153,7 @@
   async function videz() { for (const B of agents) { if (B.mort) B.ressusciter(); B.leve = null; B.sauvetage = null; B.finRafale = null; } while (agents.length > 1) { const B = agents.pop(); scene.remove(B.soldat.group); } CINE.etapes = null; CINE.tics = []; galerieT = null; scenarioT = null;
     const A0 = agents[0], c = A0.ctl; c.chemin = null; c.couvert = null; c.enRoute = null; c.accroupi = false; c.touches = {}; c.verrouRegard = false; c.verrouCible = null; c.tir = false; c.vitesseChemin = null; c.cheminRecul = false; c.surArrivee = null; A0.soldat.pencheExtra = 0; c.profondeurExtra = 0; for (const B of agents) B.glisse.empreintes.length = 0; for (const m of empreintesMesh) scene.remove(m); empreintesMesh.length = 0; dessinerChemin(); }
   function placer(A, x, z, yaw) { A.soldat.pos.set(x, 0, z); A.soldat.yaw = yaw; A.ctl.pos.copy(A.soldat.pos); A.ctl.yaw = yaw; A.ctl.vel.set(0, 0, 0); A.ctl.acc.set(0, 0, 0); A.ctl.yawV = 0; A.ctl.camYaw = yaw; }
-  function camAuto(cibles, opts) { cam.auto = Object.assign({ cibles, vitesse: 0.10, pitch: 0.5, marge: 3.5 }, opts || {}); }
+  function camAuto(cibles, opts) { cam.auto = Object.assign({ cibles, vitesse: 0.10, pitch: 0.5, marge: 3.5 }, opts || {}); cam.pitch = cam.auto.pitch; cam.dist = 8; cam.cible = null; }
   // Preset 1 — sauvetage et réanimation : un tireur abat un soldat qui traverse devant le bloc ; son coéquipier court le
   // chercher, le traîne derrière le bloc, le réanime, et le blessé se relève (accroupi à couvert)
   async function preset1() {
@@ -1164,9 +1164,9 @@
     const menace = { x: T.soldat.pos.x, z: T.soldat.pos.z };
     camAuto(() => [R, V], { vitesse: 0.08 });
     cine('Preset 1 — sauvetage et réanimation', [
-      [1.6, () => rafale(T, 0.3)], [2.4, () => { rafale(T, 0.35); }], [2.55, () => balle(T, V, '')],
+      [1.6, () => rafale(T, 0.6)], [2.4, () => { rafale(T, 0.6); }], [2.55, () => balle(T, V, '')],
       [3.3, () => { R.ctl.accroupi = false; sauver(0, agents.indexOf(V), menace, true); }],
-      [4.5, () => rafale(T, 0.3)], [7.0, () => rafale(T, 0.3)],
+      [4.5, () => rafale(T, 0.6)], [7.0, () => rafale(T, 0.6)],
       [9.0, () => { CINE.tics = CINE.tics.filter(f => f !== T.viseur); T.viseur = viserTic(T, V3(cx, 0, BLOC.z)); CINE.tics.push(T.viseur); }],   // il arrose le bloc
     ], [T.viseur = viserTic(T, V), rafalesTic]);
     return agents.length;
@@ -1183,10 +1183,10 @@
     camAuto(() => [B, T], { vitesse: 0.07, pitch: 0.55, marge: 3.0 });
     const viseB = viserTic(B, T);
     cine('Preset 3 — couvert sous le feu', [
-      [0.3, () => rafale(T, 0.3)], [0.8, () => { B.ctl.couvrir(BLOC, menace); B.ctl.vitesseChemin = B.ctl.vitesses.course; dessinerChemin(); }],
-      [2.0, () => rafale(T, 0.4)], [3.6, () => rafale(T, 0.3)], [5.2, () => rafale(T, 0.4)],
+      [0.3, () => rafale(T, 0.6)], [0.8, () => { B.ctl.couvrir(BLOC, menace); B.ctl.vitesseChemin = B.ctl.vitesses.course; dessinerChemin(); }],
+      [2.0, () => rafale(T, 0.6)], [3.6, () => rafale(T, 0.6)], [5.2, () => rafale(T, 0.6)],
       [8.5, () => { CINE.tics.push(viseB); }],   // à couvert : il se redresse pour viser par-dessus le bloc
-      [9.6, () => rafale(B, 0.5)], [9.9, () => balle(B, T, '')],
+      [9.6, () => rafale(B, 0.7)], [9.9, () => balle(B, T, '')],
       [11.0, () => { CINE.tics = CINE.tics.filter(f => f !== viseB); B.ctl.verrouRegard = false; B.ctl.tir = false; B.ctl.verrouCible = Math.atan2(menace.x - B.soldat.pos.x, menace.z - B.soldat.pos.z); }],
     ], [viserTic(T, B), rafalesTic]);
     return agents.length;
@@ -1220,14 +1220,14 @@
             const pF = F.getWorldPosition(V3()); const e0 = pF.clone().sub(pK).normalize().applyQuaternion(q), e1 = d1.clone(); e1.y = Math.max(-0.95, (0.10 - 0.13) / Math.max(pF.distanceTo(pK), 0.05)); { const hz2 = Math.hypot(e1.x, e1.z) || 1, hzV2 = Math.sqrt(Math.max(0, 1 - e1.y * e1.y)); e1.x *= hzV2 / hz2; e1.z *= hzV2 / hz2; e1.normalize(); } /* pied à 10 cm */ const q2 = Q().setFromUnitVectors(e0, e1); const kw0 = K.getWorldQuaternion(Q()), kw1 = q2.clone().multiply(q).multiply(kw0); A.mort.aplati.cibles.push([K, K.quaternion.clone(), w1.clone().invert().multiply(kw1)]); }
           // bras : un corps lâché par le col garde les bras repliés sur la poitrine (ils pendaient vers le sauveteur) → on les
           // couche le long du corps, un peu écartés (coude à 12 cm du sol, main à 8 cm), même fondu 0,4 s
-          { const pHi = S2.hips.getWorldPosition(V3()), pTe = S2.os[Base.meta.os.indexOf('Head')].getWorldPosition(V3()); const axe = pTe.clone().sub(pHi); axe.y = 0; if (axe.lengthSq() > 1e-4) { axe.normalize();
+          if (A.mort.aplatirBras) { const pHi = S2.hips.getWorldPosition(V3()), pTe = S2.os[Base.meta.os.indexOf('Head')].getWorldPosition(V3()); const axe = pTe.clone().sub(pHi); axe.y = 0; if (axe.lengthSq() > 1e-4) { axe.normalize();
             for (const [Ar, Fo] of [S2.mains.D, S2.mains.G]) { if (!Ar || !Fo) continue; const pA = Ar.getWorldPosition(V3()), pE = Fo.getWorldPosition(V3()); const out = pA.clone().sub(pHi); out.y = 0; out.addScaledVector(axe, -out.dot(axe)); if (out.lengthSq() < 1e-4) continue; out.normalize();
               const L1 = pE.distanceTo(pA); const d0 = pE.clone().sub(pA).normalize(); const d1 = out.clone().multiplyScalar(0.45).addScaledVector(axe, -0.85); d1.y = Math.max(-0.9, (0.12 - pA.y) / Math.max(L1, 0.05)); { const hz = Math.hypot(d1.x, d1.z) || 1, hzV = Math.sqrt(Math.max(0, 1 - d1.y * d1.y)); d1.x *= hzV / hz; d1.z *= hzV / hz; d1.normalize(); }
               const q = Q().setFromUnitVectors(d0, d1); const w0 = Ar.getWorldQuaternion(Q()), w1 = q.clone().multiply(w0); A.mort.aplati.cibles.push([Ar, Ar.quaternion.clone(), Ar.parent.getWorldQuaternion(Q()).invert().multiply(w1)]);
               const Hm = Ar === S2.mains.D[0] ? S2.mains.D[2] : S2.mains.G[2]; if (!Hm) continue; const pM = Hm.getWorldPosition(V3()); const e0 = pM.clone().sub(pE).normalize().applyQuaternion(q), e1 = d1.clone(); e1.y = Math.max(-0.9, (0.08 - 0.12) / Math.max(pM.distanceTo(pE), 0.05)); { const hz = Math.hypot(e1.x, e1.z) || 1, hzV = Math.sqrt(Math.max(0, 1 - e1.y * e1.y)); e1.x *= hzV / hz; e1.z *= hzV / hz; e1.normalize(); }
               const q2 = Q().setFromUnitVectors(e0, e1); const fw0 = Fo.getWorldQuaternion(Q()), fw1 = q2.clone().multiply(q).multiply(fw0); A.mort.aplati.cibles.push([Fo, Fo.quaternion.clone(), w1.clone().invert().multiply(fw1)]); } } } }
         if (A.mort.aplati && A.mort.aplati.t < 0.4) { const ap = A.mort.aplati; ap.t += dt; const k = Math.min(1, ap.t / 0.4); for (const [o, q0, q1] of ap.cibles) { o.quaternion.copy(q0).slerp(q1, k); o.updateMatrixWorld(true); } }
-        if (r && r.corps && !r.fige && A.mort.aplatir) { for (const i of [8, 9, 10, 11]) { const b = r.corps[i]; if (b.position.y > 0.17 && b.velocity.y > -0.4) b.velocity.y = -0.4; } if (r.t > 1.5) r.aFiger = true; } } }   // (l'arme lâchée ne vole pas à 2 m) ; déposé : se pose en 1,5 s puis figé (et jambes couchées, ci-dessus)
+        if (r && r.corps && !r.fige && A.mort.aplatirBras) { for (const i of [8, 9, 10, 11]) { const b = r.corps[i]; if (b.position.y > 0.17 && b.velocity.y > -0.4) b.velocity.y = -0.4; } if (r.t > 1.5) r.aFiger = true; } } }   // (l'arme lâchée ne vole pas à 2 m) ; déposé : se pose en 1,5 s puis figé (et jambes couchées, ci-dessus)
     tempsPas = tempsPas * 0.95 + (performance.now() - t0) * 0.05;
     const A = agents[0], S = A.soldat, Ctl = A.ctl;
     if (window.TRACE) { const g = S.orteils[0].getWorldPosition(V3()), d = S.orteils[1].getWorldPosition(V3()); window.TRACE.push([+horloge.toFixed(3), ...g.toArray().map(x => +x.toFixed(4)), ...d.toArray().map(x => +x.toFixed(4)), Base.contact[A.frame], +(S.verrous[0].delta ? S.verrous[0].delta.length() : 0).toFixed(3), +(S.verrous[1].delta ? S.verrous[1].delta.length() : 0).toFixed(3), A.frame, seuilOrteil]); }
