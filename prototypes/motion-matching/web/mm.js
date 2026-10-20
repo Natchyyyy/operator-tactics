@@ -678,7 +678,7 @@
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
   // « bataille » minimale pour le module ragdoll du jeu : horloge, obstacles (le bloc), journal des morts
   const BATAILLE = window.BATAILLE = { t: 0, over: false, log: [], map: { obstacles: [{ x: BLOC.x, z: BLOC.z, w: BLOC.w, d: BLOC.d, h: BLOC.h, kind: 'cover', name: 'bloc' }] } };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.6, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 0.65, flechi: 0.7, depasse: 1.0, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, rea: { duree: 3.0, releve: 1.6, cadence: 1.8, amplitude: 0.04, flanc: 0.5 }, graines: [28, 2, 14], capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.6, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 0.65, flechi: 0.7, depasse: 1.0, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, rea: { duree: 3.0, releve: 1.6, cadence: 1.8, amplitude: 0.04, flanc: 0.5 }, graines: [6, 2, 25], capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -1100,7 +1100,7 @@
 
   function evenements() {
     const Ctl = () => agents[0].ctl;
-    addEventListener('keydown', e => { const c = Ctl(); c.touches[e.code] = true; if (e.code === 'KeyV') { c.visee = !c.visee; } if (e.code === 'KeyC') { c.accroupi = !c.accroupi; if (!c.accroupi) { c.couvert = null; c.verrouCible = null; } } if (e.code === 'KeyB') seCouvrir(); if (e.code === 'KeyG') galerie(); if (e.code === 'KeyH') { const j = agents.findIndex(B => B.mort); if (j > 0) sauver(0, j); else scenarioSauvetage(); } if (e.code === 'KeyT' || e.code === 'KeyY' || e.code === 'KeyU') tirerSur(e.code === 'KeyY' ? 'tête' : e.code === 'KeyU' ? 'membre' : ''); if (e.code === 'KeyP') basculerChemin(); if (e.code === 'KeyR') reinit(); if (/^Digit[123]$/.test(e.code)) preset(+e.code[5]); if (e.code === 'KeyE') ajouterEscouade(); if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
+    addEventListener('keydown', e => { const c = Ctl(); c.touches[e.code] = true; if (e.code === 'KeyV') { c.visee = !c.visee; } if (e.code === 'KeyC') { c.accroupi = !c.accroupi; if (!c.accroupi) { c.couvert = null; c.verrouCible = null; } } if (e.code === 'KeyB') seCouvrir(); if (e.code === 'KeyG') galerie(); if (e.code === 'KeyH') { const j = agents.findIndex(B => B.mort); if (j > 0) sauver(0, j); else scenarioSauvetage(); } if (e.code === 'KeyT' || e.code === 'KeyY' || e.code === 'KeyU') tirerSur(e.code === 'KeyY' ? 'tête' : e.code === 'KeyU' ? 'membre' : ''); if (e.code === 'KeyP') basculerChemin(); if (e.code === 'KeyR') reinit(); if (e.code === 'KeyI') { for (const id of ['hud', 'boutons', 'credit']) { const el = document.getElementById(id); if (el) el.style.display = el.style.display === 'none' ? '' : 'none'; } } if (/^Digit[123]$/.test(e.code)) preset(+e.code[5]); if (e.code === 'KeyE') ajouterEscouade(); if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
     addEventListener('keyup', e => { Ctl().touches[e.code] = false; });
     addEventListener('blur', () => { Ctl().touches = {}; Ctl().verrouRegard = false; Ctl().tir = false; });
     let drag = null;
@@ -1243,7 +1243,12 @@
     }
     secourir(V) { const A = this.A, c = A.ctl, m = this.derniereMenace || { x: V.soldat.pos.x, z: V.soldat.pos.z - 10 };
       const ths = this.menacesSur(V); const d = dist2D(A, V); c.tir = false; c.verrouRegard = false;
-      if (!ths.length) { this.log('releve', { qui2: agents.indexOf(V) }); A.sauvetage = new Sauvetage(A, V, m).surPlace(); return; }
+      // règle demandée par l'utilisateur (20/10) : on ne réanime JAMAIS à découvert — s'il y a un couvert à portée (≤ 8 m du
+      // blessé), on le traîne derrière d'abord, même sans menace connue (il peut y avoir d'autres ennemis) ; relève sur place
+      // seulement sans couvert à portée. (Le jeu, lui, ne traîne que si un ennemi connu voit le blessé : à reporter dans sim/.)
+      const cx = BLOC.x + BLOC.w / 2, cz = BLOC.z + BLOC.d / 2, couvertProche = Math.hypot(cx - V.soldat.pos.x, cz - V.soldat.pos.z) <= REGLES.dragCover;
+      if (!ths.length && !couvertProche) { this.log('releve', { qui2: agents.indexOf(V) }); A.sauvetage = new Sauvetage(A, V, m).surPlace(); return; }
+      if (!ths.length) ths.push({ x: m.x, z: m.z, fresh: false });   // couvert à portée, aucune menace connue : on se cache de la dernière connue
       const tOpen = Math.max(0, d - 1) / c.vitesses.course + 3.0 / PARAMS.sauvetage.vitesse;   // temps à découvert : aller au blessé + le tirer (~3 m)
       if (ths.some(x => x.fresh) && tOpen > REGLES.dragMaxOpen) this.log('traine-trop-long', { tOpen: +tOpen.toFixed(1) });   // jeu : fumigène obligatoire (pas de fumigène ici : il y va quand même)
       this.log('traine', { qui2: agents.indexOf(V), menaces: ths.length }); A.sauvetage = new Sauvetage(A, V, { x: ths[0].x, z: ths[0].z }); A.sauvetage.reanimer = true; }
@@ -1285,7 +1290,7 @@
   const CINE = window.CINE = { etapes: null, tics: [], t: 0, titre: '' };
   function cine(titre, etapes, tics) { CINE.etapes = etapes.slice(); CINE.tics = tics || []; CINE.t = 0; CINE.titre = titre; }
   function cineTic(dt) {
-    if (!CINE.etapes && !CINE.tics.length) return; CINE.t += dt;
+    if (!CINE.etapes && !CINE.tics.length && !CINE.titre) return; CINE.t += dt;
     for (const f of CINE.tics) f(CINE.t);
     if (CINE.etapes) { while (CINE.etapes.length && CINE.t >= CINE.etapes[0][0]) { const e = CINE.etapes.shift(); try { e[1](); } catch (err) { console.error('cinématique', err); } } if (!CINE.etapes.length) CINE.etapes = null; }
   }
@@ -1295,8 +1300,14 @@
   function rafale(T, duree) { T.ctl.tir = true; T.finRafale = CINE.t + (duree || 0.35); }
   function rafalesTic(t) { for (const A of agents) if (A.finRafale != null && t >= A.finRafale) { A.ctl.tir = false; A.finRafale = null; } }
   function balle(T, V, loc) { if (V.mort) return; const d = V.soldat.pos.clone().sub(T.soldat.pos).setY(0).normalize(); V.tuer(loc || '', d); }
-  async function videz() { for (const B of agents) { if (B.mort) B.ressusciter(); B.leve = null; B.sauvetage = null; B.finRafale = null; B.cerveau = null; } EVENEMENTS.length = 0; viderMurs(); while (agents.length > 1) { const B = agents.pop(); scene.remove(B.soldat.group); } CINE.etapes = null; CINE.tics = []; galerieT = null; scenarioT = null;
-    const A0 = agents[0], c = A0.ctl; c.chemin = null; c.couvert = null; c.enRoute = null; c.accroupi = false; c.touches = {}; c.verrouRegard = false; c.verrouCible = null; c.tir = false; c.vitesseChemin = null; c.cheminRecul = false; c.surArrivee = null; A0.soldat.pencheExtra = 0; c.profondeurExtra = 0; for (const B of agents) B.glisse.empreintes.length = 0; for (const m of empreintesMesh) scene.remove(m); empreintesMesh.length = 0; dessinerChemin(); }
+  async function videz() {
+    // tous les soldats sont recréés (le premier aussi) : état d'animation, horloge et aléa repartent de zéro → la scène d'un
+    // preset est la même quel que soit le moment où on clique
+    for (const B of agents) { if (B.mort) B.ressusciter(); B.leve = null; B.sauvetage = null; B.finRafale = null; B.cerveau = null; } EVENEMENTS.length = 0; viderMurs();
+    while (agents.length) { const B = agents.pop(); scene.remove(B.soldat.group); }
+    CINE.etapes = null; CINE.tics = []; CINE.titre = ''; CINE.t = 0; galerieT = null; scenarioT = null; horloge = 0;
+    for (const m of empreintesMesh) scene.remove(m); empreintesMesh.length = 0;
+    await nouveauSoldat(V3(0, 0, 0), 0); dessinerChemin(); }
   function placer(A, x, z, yaw) { A.soldat.pos.set(x, 0, z); A.soldat.yaw = yaw; A.ctl.pos.copy(A.soldat.pos); A.ctl.yaw = yaw; A.ctl.vel.set(0, 0, 0); A.ctl.acc.set(0, 0, 0); A.ctl.yawV = 0; A.ctl.camYaw = yaw; }
   function camAuto(cibles, opts) { cam.auto = Object.assign({ cibles, vitesse: 0.10, pitch: 0.5, marge: 3.5 }, opts || {}); cam.pitch = cam.auto.pitch; cam.dist = 10; cam.cible = null; }
   // Preset 1 — sauvetage et réanimation. Rien n'est écrit à l'avance : placements seulement, le reste vient des règles du jeu.
@@ -1305,25 +1316,25 @@
   // ennemi loin au sud (T2, hors cadre, trop loin pour tirer) garde la vue sur le blessé → R le traîne derrière le bloc (règle
   // tryDrag), le réanime, et le blessé se relève. Graine fixe : même scène à chaque fois.
   async function preset1() {
-    await videz(); graine(PARAMS.graines[0]); const cx = BLOC.x + BLOC.w / 2;
+    graine(PARAMS.graines[0]); await videz(); const cx = BLOC.x + BLOC.w / 2;
     const R = agents[0]; placer(R, cx - 1.0, BLOC.z + BLOC.d + 5.5, Math.PI / 2); R.ctl.visee = true; R.ctl.chemin = [V3(cx + 6.0, 0, BLOC.z + BLOC.d + 5.5)]; R.ctl.cheminIdx = 0; R.cerveau = new Cerveau(R, 0);   // il longe vers l'est, dos au sud
     const V = await nouveauSoldat(V3(cx - 5.0, 0, BLOC.z - 1.6), Math.PI / 2); V.ctl.visee = true; V.ctl.chemin = [V3(cx + 5.5, 0, BLOC.z - 1.6)]; V.ctl.cheminIdx = 0; V.cerveau = new Cerveau(V, 0);
     const T1 = await nouveauSoldat(V3(cx - 2.0, 0, BLOC.z - 10.0), 0); T1.ctl.visee = true; T1.cerveau = new Cerveau(T1, 1, { tenir: true });
     // second ennemi loin à l'est (35 m), un mur le long du côté est : il voit la zone où tombe V, pas le couvert de R ni son
     // approche → règle tryDrag : le blessé doit être traîné derrière le bloc avant d'être relevé
-    ajouterMur(cx + 5.0, BLOC.z - 1.2, 0.4, 8.2, 2.4);
-    const T2 = await nouveauSoldat(V3(cx + 35.0, 0, BLOC.z - 6.0), -Math.PI / 2); T2.ctl.visee = true; T2.cerveau = new Cerveau(T2, 1, { tenir: true });
+    ajouterMur(cx + 5.0, BLOC.z - 1.1, 0.4, 8.1, 2.4);   // de 0,5 m devant le bloc jusqu'à 7 m derrière : cache tout le côté nord/ouest, pas la ligne de V
+    const T2 = await nouveauSoldat(V3(cx + 35.0, 0, BLOC.z - 1.6), -Math.PI / 2); T2.ctl.visee = true; T2.cerveau = new Cerveau(T2, 1, { tenir: true });   // dans l'axe de la traversée de V
     camAuto(() => [R, V], { vitesse: 0.08 });
     cine('Preset 1 — sauvetage et réanimation (simulé)', [], []);
     return agents.length;
   }
   // Preset 2 — galerie de morts : 5 coureurs, impacts différents au même instant (tête / torse / jambe / dos / côté)
-  async function preset2() { await videz(); await galerie(2.0); camAuto(() => agents, { vitesse: 0.12, pitch: 0.45 }); cine('Preset 2 — galerie de ragdolls', [], [rafalesTic]); return agents.length; }
+  async function preset2() { graine(PARAMS.graines[1]); await videz(); await galerie(2.0); camAuto(() => agents, { vitesse: 0.12, pitch: 0.45 }); cine('Preset 2 — galerie de ragdolls', [], [rafalesTic]); return agents.length; }
   // Preset 3 — prise de couvert sous le feu (simulé) : un soldat (B) à découvert face à un tireur (T) qui tient sa position
   // à 12 m. Attendu : ils se repèrent ; pris sous le feu, B tire 2-3 coups de suppression puis court se couvrir derrière le
   // bloc ; à couvert il se redresse pour tirer par rafales, se baisse entre deux, et abat T.
   async function preset3() {
-    await videz(); graine(PARAMS.graines[2]); const cx = BLOC.x + BLOC.w / 2;
+    graine(PARAMS.graines[2]); await videz(); const cx = BLOC.x + BLOC.w / 2;
     const B = agents[0]; placer(B, cx - 3.0, BLOC.z + BLOC.d + 4.5, Math.PI); B.ctl.visee = true; B.cerveau = new Cerveau(B, 0);
     const T = await nouveauSoldat(V3(cx + 1.5, 0, BLOC.z - 7.0), 0); T.ctl.visee = true; T.cerveau = new Cerveau(T, 1, { tenir: true });
     camAuto(() => [B, T], { vitesse: 0.07, pitch: 0.55, marge: 3.0 });
@@ -1388,7 +1399,9 @@
     const f = A.frame, s = Base.meta.sequences[Base.seq[f]];
     const vit = Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]);
     const rec = A.glisse.recentCm(), moy = A.glisse.moyenneCm();
-    HUD.etat.innerHTML = `<span style="float:right;color:#7f8794">v${VERSION}</span>${CINE.titre ? `<b style="color:#ffb347">${CINE.titre}</b> · ${CINE.t.toFixed(1)} s${CINE.etapes ? '' : ' (terminé)'}<br>` : ''}<b>${s.nom.replace('.bvh', '')}</b> image ${f - s.debut}/${s.fin - s.debut}<br>vitesse animation <b>${vit.toFixed(2)} m/s</b> · cible ${A.vGoal.length().toFixed(2)} m/s<br>sauts : ${(A.sautsFen.length / 2).toFixed(1)}/s (total ${A.sauts}) · ${agents.length} soldat${agents.length > 1 ? 's' : ''} · simulation ${tempsPas.toFixed(2)} ms/pas<br>mode : ${Ctl.chemin ? 'chemin' : 'clavier'}${Ctl.visee ? ' · <span class=on>arme</span>' : ''}${Ctl.verrouRegard ? ' · <span class=on>regard verrouillé</span>' : ''}${Ctl.accroupi ? ' · <span class=on>accroupi</span>' : ''}`;
+    // bandeau du bas pendant un preset : chrono + derniers événements du journal (lisible même interface masquée)
+    { const cr = document.getElementById('credit'); if (cr) { if (!cr.dataset.credit) cr.dataset.credit = cr.textContent; if (CINE.titre) { const noms = ['R', 'V', 'T1', 'T2', 'T3']; const lib = { voit: 'voit', perd: 'perd de vue', touche: 'touche', rate: 'rate', abat: 'abat', couvert: 'va au couvert', suppression: 'tire pour se couvrir', traine: 'traîne', releve: 'relève sur place', 'traine-trop-long': 'trop long à découvert (fumigène au jeu)' }; const ev = EVENEMENTS.filter(e => e.k !== 'rate' && e.k !== 'voit' && e.k !== 'perd').slice(-4).map(e => `${e.t.toFixed(1)} s ${noms[e.qui] || e.qui} ${lib[e.k] || e.k}${e.qui2 != null ? ' ' + (noms[e.qui2] || e.qui2) : ''}${e.loc ? ' (' + e.loc + ')' : ''}${e.hp != null ? ' pv ' + e.hp : ''}`); cr.textContent = `${CINE.titre} · ${CINE.t.toFixed(1)} s — ${ev.join(' · ') || '…'}`; cr.style.display = ''; cr.style.color = '#c6ccd6'; } else if (cr.dataset.credit) { cr.textContent = cr.dataset.credit; cr.style.color = ''; } } }
+    HUD.etat.innerHTML = `<span style="float:right;color:#7f8794">v${VERSION}</span>${CINE.titre ? `<b style="color:#ffb347">${CINE.titre}</b> · ${CINE.t.toFixed(1)} s${CINE.etapes || agents.some(A => A.cerveau) ? '' : ' (terminé)'}<br>` : ''}<b>${s.nom.replace('.bvh', '')}</b> image ${f - s.debut}/${s.fin - s.debut}<br>vitesse animation <b>${vit.toFixed(2)} m/s</b> · cible ${A.vGoal.length().toFixed(2)} m/s<br>sauts : ${(A.sautsFen.length / 2).toFixed(1)}/s (total ${A.sauts}) · ${agents.length} soldat${agents.length > 1 ? 's' : ''} · simulation ${tempsPas.toFixed(2)} ms/pas<br>mode : ${Ctl.chemin ? 'chemin' : 'clavier'}${Ctl.visee ? ' · <span class=on>arme</span>' : ''}${Ctl.verrouRegard ? ' · <span class=on>regard verrouillé</span>' : ''}${Ctl.accroupi ? ' · <span class=on>accroupi</span>' : ''}`;
     const pct = Math.min(100, rec / 30 * 100); HUD.jauge.style.width = pct + '%'; HUD.jauge.style.background = rec < 5 ? '#5ad17a' : rec < 15 ? '#ffb347' : '#ff6b6b';
     HUD.jaugeTxt.textContent = `glissement des pieds : ${rec.toFixed(1)} cm/s (2 s) · ${moy.toFixed(1)} cm/s depuis le début · instantané ${((A.inst || 0) * 100).toFixed(0)} cm/s`;
     window.__MM = { frame: f, glisseMoy: moy, glisseRecent: rec, sauts: A.sauts, soldat: S, Ctl, Base, facteurRacine: A.facteurRacine, agents, tempsPas };   // pour les outils de mesure
