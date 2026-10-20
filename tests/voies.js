@@ -139,5 +139,32 @@ const V = MAPS.parking.voies;
   check('marche : pas d\'allers-retours d\'un pas sur l\'autre (8 batailles : aucun épisode, inversions rares)', osc === 0 && inv < 40, { inv, osc });
 }
 
+{
+  // « raser un mur » (doctrine, 20/10) : en progression, les chemins longent les obstacles — moins de mètres à découvert,
+  // pour un détour léger
+  const m = new OT.GameMap(MAPS.parking), R = new OT.RNG(5), rnd = () => R.next();
+  let o0 = 0, o1 = 0, L0 = 0, L1 = 0, n = 0;
+  const len = (p, x, z) => { let L = 0, px = x, pz = z, o = 0; for (const q of p) { L += Math.hypot(q.x - px, q.z - pz); o += m.openLen(px, pz, q.x, q.z); px = q.x; pz = q.z; } return [L, o]; };
+  for (let i = 0; i < 300 && n < 120; i++) {
+    const ax = 2 + rnd() * 68, az = 2 + rnd() * 42, bx = 2 + rnd() * 68, bz = 2 + rnd() * 42;
+    if (m.insideObstacle(ax, az) || m.insideObstacle(bx, bz) || Math.hypot(bx - ax, bz - az) < 15) continue;
+    const p0 = m.findPath(ax, az, bx, bz), p1 = m.findPath(ax, az, bx, bz, null, true); if (!p0 || !p1) continue;
+    const [a, b] = len(p0, ax, az), [c, d] = len(p1, ax, az); L0 += a; o0 += b; L1 += c; o1 += d; n++;
+  }
+  check('raser un mur : chemins de progression moins à découvert (≥ 30 % de mètres en moins), détour < 12 %', n >= 80 && o1 < o0 * 0.7 && L1 < L0 * 1.12, { n, open: [o0 | 0, o1 | 0], len: [L0 | 0, L1 | 0] });
+}
+{
+  // « ralentir avant un angle » : un coin aveugle sur le chemin se prend au pas lent ; pas de freinage sans angle mort, ni en
+  // course d'urgence
+  const b = mk(3); const u = b.teams[0].units[0]; b.map.obstacles = [{ x: 10, z: 10, w: 6, d: 6, h: 3, kind: 'wall', name: 'bloc' }];
+  u.x = 14.7; u.z = 7.5; u.goalKind = 'advance'; u.dash = false; u.target = null;
+  const W = { x: 16.6, z: 9.4 }; u.path = [W, { x: 16.8, z: 16 }]; u.pathIdx = 0; u.corner = null;
+  const far = b.cornerSpeed(u, W, 5); u.corner = null;
+  const slow = b.cornerSpeed(u, W, 2.5); u.corner = null; const slowNear = b.cornerSpeed(u, W, 1.0);
+  u.path = [W, { x: 22, z: 4 }]; u.corner = null; const open = b.cornerSpeed(u, W, 1.0);
+  u.path = [W, { x: 16.8, z: 16 }]; u.corner = null; u.goalKind = 'cover'; const rush = b.cornerSpeed(u, W, 1.0);
+  check('ralentir avant un angle : on freine en approchant d\'un coin aveugle (pas lent au coin), pas devant un virage dégagé ni en course vers un abri', far === Infinity && slow < 3 && slowNear < 1.5 && open === Infinity && rush === Infinity, { far, slow, slowNear, open, rush });
+}
+
 console.log(`\n${pass}/${pass + fail} vérifications réussies${fail ? '  — ÉCHECS : ' + fail : ''}`);
 process.exit(fail ? 1 : 0);

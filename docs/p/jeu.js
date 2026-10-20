@@ -13932,6 +13932,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       for (const o of this.obstacles) if (pointInBox(x, z, o, RADIUS)) { this.blocked[r * this.cols + c] = 1; break; }
     }
     this.coverPoints = this.computeCoverPoints();
+    this.computeOpen();
     this.dynamic = [];
     this.lamps = def.lampadaires ? this.computeLamps() : [];
   }
@@ -13966,7 +13967,24 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       for (const q of this.obstacles) if (pointInBox(x, z, q, RADIUS)) { b = 1; break; }
       this.blocked[r * this.cols + c] = b;
     }
-    this.coverPoints = this.computeCoverPoints(); return true;
+    this.coverPoints = this.computeCoverPoints(); this.computeOpen(); return true;
+  };
+  // « Raser un mur » (doctrine) : open[case] = 1 si la case est à découvert, sans bord d'obstacle (≥ 0,9 m de haut) à moins
+  // de HUG_NEAR. Calculé une fois (et quand un décor cède) : les chemins « qui longent » ne coûtent qu'une lecture par case.
+  const HUG_NEAR = 1.6, HUG_COST = 0.35;
+  GameMap.prototype.computeOpen = function () {
+    const open = this.open = new Uint8Array(this.cols * this.rows), tall = this.obstacles.filter(o => o.h >= 0.9);
+    for (let r = 0; r < this.rows; r++) for (let c = 0; c < this.cols; c++) {
+      const x = (c + 0.5) * CELL, z = (r + 0.5) * CELL; let near = false;
+      for (const o of tall) if (pointInBox(x, z, o, HUG_NEAR)) { near = true; break; }
+      if (!near) open[r * this.cols + c] = 1;
+    }
+  };
+  // longueur (m) d'un segment passée à découvert (échantillons tous les 0,5 m)
+  GameMap.prototype.openLen = function (ax, az, bx, bz) {
+    const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.5)); let k = 0;
+    for (let i = 0; i < n; i++) { const { c, r } = this.cellOf(ax + (bx - ax) * (i + 0.5) / n, az + (bz - az) * (i + 0.5) / n); k += this.open[r * this.cols + c]; }
+    return k * L / n;
   };
   GameMap.prototype.cellOf = function (x, z) {
     return { c: Math.min(this.cols - 1, Math.max(0, Math.floor(x / CELL))), r: Math.min(this.rows - 1, Math.max(0, Math.floor(z / CELL))) };
@@ -14026,7 +14044,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
 
   // ---- A* sur la grille (8 voisins, pas de coupe de coin) -------------------------------
   // extra (facultatif) : coût ajouté par case (Float32Array cols × rows) — zones que l'on préfère contourner
-  GameMap.prototype.findPath = function (x0, z0, x1, z1, extra) {
+  // hug (facultatif) : le chemin longe les obstacles plutôt que le milieu d'un passage (un détour léger est accepté)
+  GameMap.prototype.findPath = function (x0, z0, x1, z1, extra, hug) {
     const start = this.nearestFreeReachable(x0, z0), goal = this.nearestFree(x1, z1);
     if (!start || !goal) return null;
     const cols = this.cols, rows = this.rows, n = cols * rows;
@@ -14054,7 +14073,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         if (dc && dr && (this.isBlocked(c + dc, r) || this.isBlocked(c, r + dr))) continue; // pas de coupe de coin
         const nk = key(nc, nr);
         if (closed[nk]) continue;
-        const cost = g[k] + ((dc && dr) ? 1.4142 : 1) + (extra ? extra[nk] : 0);
+        const cost = g[k] + ((dc && dr) ? 1.4142 : 1) + (extra ? extra[nk] : 0) + (hug && this.open[nk] ? HUG_COST : 0);
         if (cost < g[nk]) { g[nk] = cost; came[nk] = k; push([cost + h(nc, nr), nk]); }
       }
     }
@@ -14063,7 +14082,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (let k = gk; k !== -1; k = came[k]) { path.push(this.centerOf(k % cols, (k / cols) | 0)); if (k === sk) break; }
     path.reverse();
     // lissage : retirer les points intermédiaires quand la ligne droite est libre (au niveau du sol, avec le rayon)
-    return this.smoothPath(path, extra);
+    return this.smoothPath(path, extra, hug);
   };
 
   GameMap.prototype.walkableSegment = function (ax, az, bx, bz) {
@@ -14071,8 +14090,12 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (let i = 0; i <= steps; i++) { const t = i / steps; if (this.insideObstacle(ax + (bx - ax) * t, az + (bz - az) * t)) return false; }
     return true;
   };
-  GameMap.prototype.smoothPath = function (path, extra) {
+  GameMap.prototype.smoothPath = function (path, extra, hug) {
     if (path.length < 3) return path;
+    // en longeant : un raccourci ne doit pas passer plus à découvert que les cases qu'il remplace (+ 0,6 m de tolérance)
+    let pre = null;
+    if (hug) { pre = [0]; for (let i = 1; i < path.length; i++) pre.push(pre[i - 1] + this.openLen(path[i - 1].x, path[i - 1].z, path[i].x, path[i].z)); }
+    const hugOk = (i, j) => !pre || this.openLen(path[i].x, path[i].z, path[j].x, path[j].z) <= pre[j] - pre[i] + 0.6;
     // avec des zones à contourner, un raccourci ne doit pas y entrer
     const clear = (a, b) => {
       if (!extra) return true;
@@ -14083,7 +14106,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const out = [path[0]]; let i = 0;
     while (i < path.length - 1) {
       let j = path.length - 1;
-      while (j > i + 1 && !(this.walkableSegment(path[i].x, path[i].z, path[j].x, path[j].z) && clear(path[i], path[j]))) j--;
+      while (j > i + 1 && !(hugOk(i, j) && this.walkableSegment(path[i].x, path[i].z, path[j].x, path[j].z) && clear(path[i], path[j]))) j--;
       out.push(path[j]); i = j;
     }
     return out;
@@ -15059,13 +15082,16 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     return best;
   };
+  // « raser un mur » (doctrine) : en progression (avance, bonds), le chemin longe les obstacles ; les courses d'urgence
+  // (se mettre à couvert, se cacher, secourir) et la ruée de l'ordre Agressif vont au plus court
+  const RASER = { advance: 1, bound: 1 };
   Battle.prototype.setGoal = function (u, x, z, kind) {
     const req = { x, z };
     if (u.goal && u.goalReq && Math.hypot(u.goalReq.x - x, u.goalReq.z - z) < 0.6 && u.path) { u.goalKind = kind; return true; }
     if (kind === 'advance' || kind === 'search') ({ x, z } = this.spreadGoal(u, x, z));
     if (kind !== 'revive') { const c = this.nearCorpse(x, z); if (c) { const dx = x - c.x, dz = z - c.z, L = Math.hypot(dx, dz); const k = L > 1e-3 ? 0.9 / L : 0; const px = L > 1e-3 ? c.x + dx * k : x + 0.9, pz = L > 1e-3 ? c.z + dz * k : z; if (this.map.inBounds(px, pz) && !this.map.insideObstacle(px, pz)) { x = px; z = pz; } } }
     if (u.goal && Math.hypot(u.goal.x - x, u.goal.z - z) < 0.6 && u.path) { u.goalKind = kind; u.goalReq = req; return true; }
-    let path = this.map.findPath(u.x, u.z, x, z, this.dangerGrid(u));
+    let path = this.map.findPath(u.x, u.z, x, z, this.dangerGrid(u), RASER[kind]);
     if (!path) { u.path = null; u.goal = null; return false; }
     // le chemin s'arrête au centre de la dernière case : on va jusqu'au point exact (un couvert « plaqué » contre son obstacle).
     // Si ce point n'est pas joignable en ligne droite depuis cette case (un coin d'obstacle entre les deux), on passe par une
@@ -16554,6 +16580,27 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     return v;
   };
+  // « Ralentir avant un angle » (doctrine) : en progression (avance, bonds hors menace), un point du chemin où l'on tourne
+  // autour d'un obstacle sans voir ce qu'il y a derrière (angle mort) se prend au pas lent : on freine dans les 3,5 derniers
+  // mètres, on passe le coin à CORNER_V et on ne réaccélère qu'1,5 m après. Une ligne de vue par coin (mise en cache).
+  const CORNER_V = 1.3, CORNER_D = 3.5, CORNER_AFTER = 1.5;
+  Battle.prototype.cornerSpeed = function (u, wp, d) {
+    if (!RASER[u.goalKind] || u.dash || u.target) { u.corner = null; return Infinity; }
+    let v = Infinity;
+    const c = u.corner;
+    if (c && c.path === u.path && c.idx < u.pathIdx) { if (Math.hypot(u.x - c.x, u.z - c.z) < CORNER_AFTER && c.blind) v = CORNER_V; else u.corner = null; }
+    if (d < CORNER_D && u.pathIdx + 1 < u.path.length) {
+      if (!u.corner || u.corner.path !== u.path || u.corner.idx !== u.pathIdx) {
+        const nw = u.path[u.pathIdx + 1], ax = wp.x - u.x, az = wp.z - u.z, bx = nw.x - wp.x, bz = nw.z - wp.z, B = Math.hypot(bx, bz) || 1;
+        const turn = Math.acos(Math.max(-1, Math.min(1, (ax * bx + az * bz) / ((Math.hypot(ax, az) || 1) * B))));
+        const k = Math.min(3, B), px = wp.x + bx / B * k, pz = wp.z + bz / B * k;
+        const blind = turn > 0.6 && !this.map.hasLOS(u.x, EYE.stand, u.z, px, EYE.stand, pz);
+        u.corner = { path: u.path, idx: u.pathIdx, x: wp.x, z: wp.z, blind };
+      }
+      if (u.corner.blind) v = Math.min(v, CORNER_V + Math.max(0, d - 1) * 1.1);
+    }
+    return v;
+  };
   Battle.prototype.move = function (u) {
     const wp = u.path[u.pathIdx];
     if (!wp) { this.arrive(u); return; }
@@ -16615,6 +16662,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // demi-tour en pleine course (nouveau chemin dans l'autre sens, > 150°) : un pas d'appui à 1,5 m/s au plus pour
     // repartir, pas un aller-retour instantané à 2,5-3 m/s
     if (u.mvAt === Math.round((this.t - DT) * 1000) / 1000 && d > 0.05 && angDiff(mv, u.mvDir) > 2.6) stepLen = Math.min(stepLen, 1.5 * DT);
+    stepLen = Math.min(stepLen, this.cornerSpeed(u, wp, d) * DT);
     let nx, nz;
     if (d <= stepLen) { nx = wp.x; nz = wp.z; }
     else { nx = u.x + (wp.x - u.x) / d * stepLen; nz = u.z + (wp.z - u.z) / d * stepLen; }

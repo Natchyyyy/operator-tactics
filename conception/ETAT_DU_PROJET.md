@@ -70,6 +70,12 @@
 - Doctrine française de déplacement reçue : `conception/doctrines/deplacement_securisation_fr.md` (référence pour l'IA et
   le motion matching ; rien codé, les bonus/pénalités proposés attendent l'accord de l'utilisateur).
 
+### 20/10 (v48) — doctrine française : raser un mur, ralentir avant un angle
+- En progression (avance, bonds), les chemins longent les obstacles plutôt que le milieu d'un passage (moins de temps à
+  découvert : 21 % → 14 %). Un coin aveugle sur le chemin se prend au pas lent (1,3 m/s), puis on réaccélère.
+- Arme basse près des angles et délai de mise en joue : laissés au motion matching (décision de l'utilisateur).
+- Détail : `conception/doctrines/deplacement_securisation_fr.md`.
+
 ## 2. Choix validés par l'utilisateur (à respecter)
 - Stratégie = le joueur. L'IA exécute ; plans automatiques seulement pour l'ennemi.
 - Pas de nouvelle mécanique sans accord. Les agents peuvent améliorer l'existant.

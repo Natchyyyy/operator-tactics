@@ -32,11 +32,11 @@ la visée et le **motion matching**. Rien de ceci n'est encore une mécanique du
 ## Ce qui existe déjà dans le jeu (20/10)
 | Doctrine | Déjà là | Manque |
 |---|---|---|
-| Sécu B / contact | « Garde basse » quand aucun ennemi n'est connu, fusil épaulé au contact (`soldat3d.js`) | Garde basse aussi près des angles/portes même avec un ennemi connu ; délai de mise en joue (à valider) |
+| Sécu B / contact | « Garde basse » quand aucun ennemi n'est connu, fusil épaulé au contact (`soldat3d.js`) | **Décision 20/10 : laissé au motion matching** (les animations Sécu B ↔ contact donneront le délai de mise en joue) |
 | Tiroir | Tactique Tiroir, ordre Méthodique (une moitié bondit, l'autre couvre) | — |
 | Mouvement + appui | Ordre Feu « Appui » (tir de suppression) | — |
-| Allure | Sprint vers un couvert sous la menace ; Franchir (sprint à découvert un par un) | Ralentir avant un angle / une porte |
-| Raser un mur | — | Préférer un côté de la ruelle dans la recherche de chemin |
+| Allure | Sprint vers un couvert sous la menace ; Franchir (sprint à découvert un par un) ; **ralentir avant un angle aveugle (v48)** | Les portes (il faut des bâtiments) |
+| Raser un mur | **v48** : en progression (avance, bonds), le chemin longe les obstacles (`map.open`, `findPath(…, hug)`) | — |
 | Colonne, bouclier | — | « Plus tard » (vague 3, décision du 19/10) |
 | Tarte, pénétration limitée | — | Il faut des bâtiments (2e carte, vague 3) |
 
@@ -47,3 +47,11 @@ Animations/états dont l'IA aura besoin, à prévoir dans la base de mouvements 
 3. **Freinage brutal** avant un angle (de la course à la marche lente en 1-2 pas) et départ en sprint depuis l'arrêt.
 4. **Pas chassés lents** le long d'un mur, épaule côté mur (découper la tarte, raser un mur).
 5. Plus tard : marche en colonne serrée (main sur l'épaule du n° 1), porteur de bouclier.
+
+## Décisions de l'utilisateur (20/10, soir)
+- Arme basse près des angles + délai de mise en joue : c'est le motion matching qui le fera (animations), pas une règle à part.
+- Ralentir avant les angles : oui (fait, v48 : `cornerSpeed` dans `sim/engine.js` — freinage dans les 3,5 m, 1,3 m/s au
+  coin aveugle, réaccélération 1,5 m après ; jamais en course d'urgence, sous la menace ou en tirant).
+- Longer les murs et les obstacles plutôt que le milieu : oui (fait, v48 : coût +0,35 par case à découvert ; mesuré sur
+  20 batailles : 21 % → 14 % du temps de progression à découvert, ~5 % de calcul en plus par pas).
+- Bonus / pénalités : oui, à condition de rester légers en calcul (le jeu deviendra une application). À définir ensemble.

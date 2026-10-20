@@ -110,7 +110,7 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
     return th;
   };
   let claimed = 0, invalid = 0, contact = 0, contactCov = 0, shots = 0, shotsClose = 0, encounters = 0, mates = 0, matesClose = 0, battles = 0;
-  for (let sd = 101; sd <= 112; sd++) {
+  for (let sd = 101; sd <= 124; sd++) {   // (24 batailles depuis le 20/10 — « raser un mur » : sur 12 graines, 0,4 à 1,1 rencontre selon le tirage)
     const b = mk(sd); battles++;
     const orig = b.shoot.bind(b); b.shoot = function (u, e, d) { shots++; if (d < 5) shotsClose++; return orig(u, e, d); };
     const near = new Set();
@@ -372,7 +372,7 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   while (b.t < until + 0.5) { b.t = Math.round((b.t + 0.1) * 1000) / 1000; b.updateTactics(); }
   check('fumigène : bloque la ligne de vue dans les deux sens pendant ' + G.duration + ' s, puis se dissipe', before && during && ev && lasted && b.map.dynamic.length === 0 && b.canSee(u, e), { before, during, ev, lasted, left: b.map.dynamic.length });
   // bataille complète (graine où l'on évacue et où l'on lance des fumigènes) jouée deux fois : identique
-  const full = () => { const x = new Battle({ seed: 2, mapId: 'parking' }); x.run(); return x; }, F1 = full(), F2 = full();   // (graine 2 depuis la fermeture de la ruelle : la graine 1 n'a plus de fumigène)
+  const full = () => { const x = new Battle({ seed: 5, mapId: 'parking' }); x.run(); return x; }, F1 = full(), F2 = full();   // (graine 5 depuis « raser un mur » le 20/10 : la graine 2 n'a plus de fumigène)
   const nd = F1.log.filter(l => l.kind === 'drag').length, ns = F1.log.filter(l => l.kind === 'smoke').length;
   check('évacuation et fumigène en bataille : ils ont lieu, et la bataille revue est identique (journal, résultat)', nd >= 1 && ns >= 1 && JSON.stringify(F1.log) === JSON.stringify(F2.log) && JSON.stringify(F1.result) === JSON.stringify(F2.result), { nd, ns });
 }

@@ -194,6 +194,7 @@
       for (const o of this.obstacles) if (pointInBox(x, z, o, RADIUS)) { this.blocked[r * this.cols + c] = 1; break; }
     }
     this.coverPoints = this.computeCoverPoints();
+    this.computeOpen();
     this.dynamic = [];
     this.lamps = def.lampadaires ? this.computeLamps() : [];
   }
@@ -228,7 +229,24 @@
       for (const q of this.obstacles) if (pointInBox(x, z, q, RADIUS)) { b = 1; break; }
       this.blocked[r * this.cols + c] = b;
     }
-    this.coverPoints = this.computeCoverPoints(); return true;
+    this.coverPoints = this.computeCoverPoints(); this.computeOpen(); return true;
+  };
+  // « Raser un mur » (doctrine) : open[case] = 1 si la case est à découvert, sans bord d'obstacle (≥ 0,9 m de haut) à moins
+  // de HUG_NEAR. Calculé une fois (et quand un décor cède) : les chemins « qui longent » ne coûtent qu'une lecture par case.
+  const HUG_NEAR = 1.6, HUG_COST = 0.35;
+  GameMap.prototype.computeOpen = function () {
+    const open = this.open = new Uint8Array(this.cols * this.rows), tall = this.obstacles.filter(o => o.h >= 0.9);
+    for (let r = 0; r < this.rows; r++) for (let c = 0; c < this.cols; c++) {
+      const x = (c + 0.5) * CELL, z = (r + 0.5) * CELL; let near = false;
+      for (const o of tall) if (pointInBox(x, z, o, HUG_NEAR)) { near = true; break; }
+      if (!near) open[r * this.cols + c] = 1;
+    }
+  };
+  // longueur (m) d'un segment passée à découvert (échantillons tous les 0,5 m)
+  GameMap.prototype.openLen = function (ax, az, bx, bz) {
+    const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.5)); let k = 0;
+    for (let i = 0; i < n; i++) { const { c, r } = this.cellOf(ax + (bx - ax) * (i + 0.5) / n, az + (bz - az) * (i + 0.5) / n); k += this.open[r * this.cols + c]; }
+    return k * L / n;
   };
   GameMap.prototype.cellOf = function (x, z) {
     return { c: Math.min(this.cols - 1, Math.max(0, Math.floor(x / CELL))), r: Math.min(this.rows - 1, Math.max(0, Math.floor(z / CELL))) };
@@ -288,7 +306,8 @@
 
   // ---- A* sur la grille (8 voisins, pas de coupe de coin) -------------------------------
   // extra (facultatif) : coût ajouté par case (Float32Array cols × rows) — zones que l'on préfère contourner
-  GameMap.prototype.findPath = function (x0, z0, x1, z1, extra) {
+  // hug (facultatif) : le chemin longe les obstacles plutôt que le milieu d'un passage (un détour léger est accepté)
+  GameMap.prototype.findPath = function (x0, z0, x1, z1, extra, hug) {
     const start = this.nearestFreeReachable(x0, z0), goal = this.nearestFree(x1, z1);
     if (!start || !goal) return null;
     const cols = this.cols, rows = this.rows, n = cols * rows;
@@ -316,7 +335,7 @@
         if (dc && dr && (this.isBlocked(c + dc, r) || this.isBlocked(c, r + dr))) continue; // pas de coupe de coin
         const nk = key(nc, nr);
         if (closed[nk]) continue;
-        const cost = g[k] + ((dc && dr) ? 1.4142 : 1) + (extra ? extra[nk] : 0);
+        const cost = g[k] + ((dc && dr) ? 1.4142 : 1) + (extra ? extra[nk] : 0) + (hug && this.open[nk] ? HUG_COST : 0);
         if (cost < g[nk]) { g[nk] = cost; came[nk] = k; push([cost + h(nc, nr), nk]); }
       }
     }
@@ -325,7 +344,7 @@
     for (let k = gk; k !== -1; k = came[k]) { path.push(this.centerOf(k % cols, (k / cols) | 0)); if (k === sk) break; }
     path.reverse();
     // lissage : retirer les points intermédiaires quand la ligne droite est libre (au niveau du sol, avec le rayon)
-    return this.smoothPath(path, extra);
+    return this.smoothPath(path, extra, hug);
   };
 
   GameMap.prototype.walkableSegment = function (ax, az, bx, bz) {
@@ -333,8 +352,12 @@
     for (let i = 0; i <= steps; i++) { const t = i / steps; if (this.insideObstacle(ax + (bx - ax) * t, az + (bz - az) * t)) return false; }
     return true;
   };
-  GameMap.prototype.smoothPath = function (path, extra) {
+  GameMap.prototype.smoothPath = function (path, extra, hug) {
     if (path.length < 3) return path;
+    // en longeant : un raccourci ne doit pas passer plus à découvert que les cases qu'il remplace (+ 0,6 m de tolérance)
+    let pre = null;
+    if (hug) { pre = [0]; for (let i = 1; i < path.length; i++) pre.push(pre[i - 1] + this.openLen(path[i - 1].x, path[i - 1].z, path[i].x, path[i].z)); }
+    const hugOk = (i, j) => !pre || this.openLen(path[i].x, path[i].z, path[j].x, path[j].z) <= pre[j] - pre[i] + 0.6;
     // avec des zones à contourner, un raccourci ne doit pas y entrer
     const clear = (a, b) => {
       if (!extra) return true;
@@ -345,7 +368,7 @@
     const out = [path[0]]; let i = 0;
     while (i < path.length - 1) {
       let j = path.length - 1;
-      while (j > i + 1 && !(this.walkableSegment(path[i].x, path[i].z, path[j].x, path[j].z) && clear(path[i], path[j]))) j--;
+      while (j > i + 1 && !(hugOk(i, j) && this.walkableSegment(path[i].x, path[i].z, path[j].x, path[j].z) && clear(path[i], path[j]))) j--;
       out.push(path[j]); i = j;
     }
     return out;

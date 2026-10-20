@@ -901,13 +901,16 @@
     }
     return best;
   };
+  // « raser un mur » (doctrine) : en progression (avance, bonds), le chemin longe les obstacles ; les courses d'urgence
+  // (se mettre à couvert, se cacher, secourir) et la ruée de l'ordre Agressif vont au plus court
+  const RASER = { advance: 1, bound: 1 };
   Battle.prototype.setGoal = function (u, x, z, kind) {
     const req = { x, z };
     if (u.goal && u.goalReq && Math.hypot(u.goalReq.x - x, u.goalReq.z - z) < 0.6 && u.path) { u.goalKind = kind; return true; }
     if (kind === 'advance' || kind === 'search') ({ x, z } = this.spreadGoal(u, x, z));
     if (kind !== 'revive') { const c = this.nearCorpse(x, z); if (c) { const dx = x - c.x, dz = z - c.z, L = Math.hypot(dx, dz); const k = L > 1e-3 ? 0.9 / L : 0; const px = L > 1e-3 ? c.x + dx * k : x + 0.9, pz = L > 1e-3 ? c.z + dz * k : z; if (this.map.inBounds(px, pz) && !this.map.insideObstacle(px, pz)) { x = px; z = pz; } } }
     if (u.goal && Math.hypot(u.goal.x - x, u.goal.z - z) < 0.6 && u.path) { u.goalKind = kind; u.goalReq = req; return true; }
-    let path = this.map.findPath(u.x, u.z, x, z, this.dangerGrid(u));
+    let path = this.map.findPath(u.x, u.z, x, z, this.dangerGrid(u), RASER[kind]);
     if (!path) { u.path = null; u.goal = null; return false; }
     // le chemin s'arrête au centre de la dernière case : on va jusqu'au point exact (un couvert « plaqué » contre son obstacle).
     // Si ce point n'est pas joignable en ligne droite depuis cette case (un coin d'obstacle entre les deux), on passe par une
@@ -2396,6 +2399,27 @@
     }
     return v;
   };
+  // « Ralentir avant un angle » (doctrine) : en progression (avance, bonds hors menace), un point du chemin où l'on tourne
+  // autour d'un obstacle sans voir ce qu'il y a derrière (angle mort) se prend au pas lent : on freine dans les 3,5 derniers
+  // mètres, on passe le coin à CORNER_V et on ne réaccélère qu'1,5 m après. Une ligne de vue par coin (mise en cache).
+  const CORNER_V = 1.3, CORNER_D = 3.5, CORNER_AFTER = 1.5;
+  Battle.prototype.cornerSpeed = function (u, wp, d) {
+    if (!RASER[u.goalKind] || u.dash || u.target) { u.corner = null; return Infinity; }
+    let v = Infinity;
+    const c = u.corner;
+    if (c && c.path === u.path && c.idx < u.pathIdx) { if (Math.hypot(u.x - c.x, u.z - c.z) < CORNER_AFTER && c.blind) v = CORNER_V; else u.corner = null; }
+    if (d < CORNER_D && u.pathIdx + 1 < u.path.length) {
+      if (!u.corner || u.corner.path !== u.path || u.corner.idx !== u.pathIdx) {
+        const nw = u.path[u.pathIdx + 1], ax = wp.x - u.x, az = wp.z - u.z, bx = nw.x - wp.x, bz = nw.z - wp.z, B = Math.hypot(bx, bz) || 1;
+        const turn = Math.acos(Math.max(-1, Math.min(1, (ax * bx + az * bz) / ((Math.hypot(ax, az) || 1) * B))));
+        const k = Math.min(3, B), px = wp.x + bx / B * k, pz = wp.z + bz / B * k;
+        const blind = turn > 0.6 && !this.map.hasLOS(u.x, EYE.stand, u.z, px, EYE.stand, pz);
+        u.corner = { path: u.path, idx: u.pathIdx, x: wp.x, z: wp.z, blind };
+      }
+      if (u.corner.blind) v = Math.min(v, CORNER_V + Math.max(0, d - 1) * 1.1);
+    }
+    return v;
+  };
   Battle.prototype.move = function (u) {
     const wp = u.path[u.pathIdx];
     if (!wp) { this.arrive(u); return; }
@@ -2457,6 +2481,7 @@
     // demi-tour en pleine course (nouveau chemin dans l'autre sens, > 150°) : un pas d'appui à 1,5 m/s au plus pour
     // repartir, pas un aller-retour instantané à 2,5-3 m/s
     if (u.mvAt === Math.round((this.t - DT) * 1000) / 1000 && d > 0.05 && angDiff(mv, u.mvDir) > 2.6) stepLen = Math.min(stepLen, 1.5 * DT);
+    stepLen = Math.min(stepLen, this.cornerSpeed(u, wp, d) * DT);
     let nx, nz;
     if (d <= stepLen) { nx = wp.x; nz = wp.z; }
     else { nx = u.x + (wp.x - u.x) / d * stepLen; nz = u.z + (wp.z - u.z) / d * stepLen; }
