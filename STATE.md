@@ -1,9 +1,9 @@
-# STATE — 20/10/2026 (version 46)
-- Fait : couvert (trajet exposé pénalisé, `pathExposure`), portières traversables (1 balle sur 6, dégâts ×0,5, sauf bloc
-  moteur 1,3 m côté capot : `map.softCover`), mémoire du danger Karst (`noteDanger`, `dangerGrid` → A*, `dangerWatch`),
-  lampadaires (`map.lamps`, `litAt`, ordre `lampadaire`, rendu `Parking.lampOff`), alarmes de voiture (3e balle, 25 s,
-  sirène fabriquée `Son.fabriquer`, feux), vitres fendues (décalques `cracks`), Top action (file `TOPQ`, bouton TOP).
-- Fichiers : sim/engine.js, sim/map.js, web/app.js, web/effets.js, web/parking.js, web/lecteur.js, web/index.html,
-  tests (verify : tireur remis en état ; ia : relève exclue de l'écart ; voies : 16 graines ; page : 45 s de brouillard).
-- KTX2 : écarté pour l'instant (gain nul sur le PC de l'utilisateur, transcodeur à embarquer).
-- Prochaine tâche : retour de l'utilisateur sur la v46 (nuit plus lisible sous les lampadaires = équilibre à surveiller).
+# STATE — 20/10/2026 (après la version 46)
+- Fait : souris façon jeu de stratégie (`web/app.js`, partie `cameraControls` + `ordHold*` / `sel*`) : rectangle de
+  sélection au clic gauche, clic droit court = ordre direct, clic droit maintenu = liste d'ordres (lâcher = valider),
+  caméra libre au bouton du milieu. CSS `.ordhold`, `#selbox` dans `web/index.html` ; aides mises à jour.
+- Doctrine française reçue : `conception/doctrines/deplacement_securisation_fr.md` (tableau « déjà là / manque » + liste
+  d'animations pour le motion matching).
+- Tests : `tests/verif_page.py` revu (clic court, clic maintenu → Décrocher, rectangle).
+- Prochaine tâche : retour de l'utilisateur sur la souris ; accord sur les points de doctrine à coder (Sécu B près des
+  angles, ralentir avant les angles, raser un mur, délai de mise en joue).

@@ -170,26 +170,49 @@ async def main():
         # « Résultat immédiat » : même résultat que la simulation complète de la même graine
         sk = await pg.evaluate("() => { const b = window.API.battle(); const ref = new OT.Battle(b.opts).run(); document.querySelector('#skip').click(); const r = window.API.battle().result; return [!!r, r && r.winner === ref.winner && r.duration === ref.duration, !document.querySelector('#result').classList.contains('hidden')]; }")
         check("« Résultat immédiat » donne le même résultat que la simulation complète et ouvre l'écran de résultat", sk == [True, True, True], sk)
-        # ordre au clic droit : il marche, et il marche encore après une nouvelle bataille ; en revue, le refus est expliqué
+        # ordre au clic droit (20/10) : clic court = l'escouade y va avec les derniers choix ; il marche encore après une
+        # nouvelle bataille ; en revue, le refus est expliqué
+        async def scene_pt(fy=0.55, fx=0.5):
+            return await pg.evaluate(f"() => {{ const r = document.querySelector('#scene').getBoundingClientRect(); return [r.left + r.width * {fx}, r.top + r.height * {fy}]; }}")
         async def clic_droit():
-            box = await pg.evaluate("() => { const r = document.querySelector('#scene').getBoundingClientRect(); return [r.left + r.width * 0.5, r.top + r.height * 0.55]; }")
-            await pg.mouse.move(box[0], box[1]); await pg.mouse.down(button="right"); await pg.mouse.move(box[0] + 2, box[1] + 1); await pg.mouse.up(button="right"); await pg.wait_for_timeout(250)
-            if not await pg.evaluate("() => !!document.querySelector('.ordmenu')"): return [False, await pg.evaluate("() => (document.querySelector('#bflash') || {}).textContent || ''")]
-            await pg.evaluate("() => document.querySelector('.ordmenu .omgo').click()"); await pg.wait_for_timeout(150)   # (rendu logiciel lent : clic direct)
-            return [True, await pg.evaluate("() => API.battle().teams[0].units.filter(u => u.alive).every(u => u.moveOrder || u.keyOrder)")]
+            box = await scene_pt()
+            await pg.evaluate("() => { const f = document.querySelector('#bflash'); if (f) f.textContent = ''; }")
+            await pg.mouse.move(box[0], box[1]); await pg.mouse.down(button="right"); await pg.mouse.up(button="right"); await pg.wait_for_timeout(250)
+            msg = await pg.evaluate("() => (document.querySelector('#bflash') || {}).textContent || ''")
+            ok = await pg.evaluate("() => API.battle().teams[0].units.filter(u => u.alive).every(u => u.moveOrder || u.keyOrder)")
+            return [ok and "Revue" not in msg and not await pg.evaluate("() => !!document.querySelector('.ordmenu, .ordhold')"), msg]
         await pg.click("#resNew"); await pg.evaluate("() => { API.pause(true); API.stepRaw(20); }")
+        await pg.wait_for_function("() => { const r = document.querySelector('#scene').getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width * .5, r.top + r.height * .55); return e && e.id === 'scene'; }", timeout=60000)   # fondu d'ouverture fini
         o1 = await clic_droit()
         await pg.evaluate("() => { API.pause(true); API.runToEnd(); }"); await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=60000)
         await pg.click("#resNew"); await pg.evaluate("() => { API.pause(true); API.stepRaw(20); }")
         o2 = await clic_droit()
-        check("clic droit : l'ordre est donné, et encore après « Nouvelle bataille »", o1 == [True, True] and o2 == [True, True], (o1, o2))
+        check("clic droit court : l'ordre est donné tout de suite, et encore après « Nouvelle bataille »", o1[0] and o2[0], (o1, o2))
+        # clic droit maintenu : la liste s'ouvre, on descend jusqu'à « Décrocher », on lâche → ordre en Décrocher
+        await pg.evaluate("() => { API.stepRaw(40); }")
+        box = await scene_pt(0.6)
+        await pg.mouse.move(box[0], box[1]); await pg.mouse.down(button="right"); await pg.mouse.move(box[0], box[1] + 12); await pg.wait_for_selector(".ordhold .ohit.on", timeout=20000)   # glisser de 12 px ouvre la liste tout de suite
+        liste = await pg.evaluate("() => [...document.querySelectorAll('.ordhold .ohit b')].map(b => b.textContent)")
+        dy = await pg.evaluate("() => { const rows = [...document.querySelectorAll('.ordhold .ohit')], a = rows.findIndex(r => r.classList.contains('on')), b = rows.findIndex(r => /Décrocher/.test(r.textContent)); return (b - a) * rows[0].getBoundingClientRect().height * 0.85; }")   # sélecteur qui défile : autant de crans que de lignes jusqu'à Décrocher
+        await pg.mouse.move(box[0], box[1] + 12 + dy, steps=4); await pg.wait_for_timeout(100)
+        surligne = await pg.evaluate("() => { const r = document.querySelector('.ordhold .ohit.on'); return r ? r.textContent : ''; }")
+        await pg.mouse.up(button="right"); await pg.wait_for_timeout(250)
+        modes = await pg.evaluate("() => [...new Set(API.battle().teams[0].units.filter(u => u.alive && u.moveOrder).map(u => u.moveOrder.mode))]")
+        await pg.keyboard.press("Escape")
+        check("clic droit maintenu : liste d'ordres, on descend sur « Décrocher », on lâche → ordre Décrocher", len(liste) >= 8 and "Décrocher" in surligne and modes == ["decrocher"], (liste, surligne, modes))
+        # sélection : rectangle au clic gauche maintenu sur toute la scène = tous ; clic sur un opérateur = lui seul
+        a, b = await scene_pt(0.02, 0.02), await scene_pt(0.98, 0.98)
+        await pg.evaluate("() => { document.querySelector('[data-cam=\"sat\"]').click(); document.querySelector('#roster0 .card').click(); API.render(); }")   # vue satellite, un seul opérateur choisi
+        await pg.mouse.move(a[0], a[1]); await pg.mouse.down(); await pg.mouse.move(b[0], b[1], steps=5); await pg.mouse.up(); await pg.wait_for_timeout(150)
+        tous = await pg.evaluate("() => document.querySelector('#roster0 .oall').classList.contains('on')")
+        check("rectangle de sélection : un rectangle sur tout l'écran garde (ou remet) « Tous »", tous, tous)
         await pg.evaluate("() => { API.runToEnd(); }"); await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=60000)
         await pg.click("#resReview"); await pg.evaluate("() => { API.pause(true); API.stepRaw(20); }")
         o3 = await clic_droit()
         await pg.evaluate("() => { API.runToEnd(); }"); await pg.wait_for_function("() => !document.querySelector('#result').classList.contains('hidden')", timeout=60000)
         await pg.click("#resNew"); await pg.evaluate("() => { API.pause(true); API.stepRaw(20); }")
         o4 = await clic_droit()
-        check("clic droit en revue : pas d'ordre mais un message ; après la revue, une nouvelle bataille reprend les ordres", o3[0] is False and "Revue" in o3[1] and o4 == [True, True], (o3, o4))
+        check("clic droit en revue : pas d'ordre mais un message ; après la revue, une nouvelle bataille reprend les ordres", o3[0] is False and "Revue" in o3[1] and o4[0], (o3, o4))
         # de bout en bout : une bataille jouée par le jeu fait entendre des coups de feu (lecteur → play() → Son.jouer)
         tirs = await pg.evaluate("() => { const n = () => Object.entries(Son.etat().joues).filter(([k]) => /^tir/.test(k)).reduce((a, [, v]) => a + v, 0); const n0 = n(); window.OT_MUTE && window.OT_MUTE.set(false); API.start({ mapId: 'parking', seed: 3 }); for (let i = 0; i < 120 && n() === n0; i++) API.stepRaw(10); return [n() - n0, Son.etat().contexte]; }")
         check("en bataille, les coups de feu sont réellement joués", tirs[0] > 0 and tirs[1] == "running", tirs)

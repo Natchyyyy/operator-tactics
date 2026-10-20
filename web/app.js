@@ -685,14 +685,27 @@
   function setCamMode(mode) { finale = null; cam.mode = mode; cam.shot = null; cam.init = false; if (mode === 'director') DIRECTOR.battle = null; document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === mode)); if (mode === 'free') { cam.target.set(battle.map.width / 2, 0, battle.map.depth / 2); cam.dist = 60; } }
   (function cameraControls() {
     let drag = null;
-    canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, b: e.button, shift: e.shiftKey }; canvas.setPointerCapture(e.pointerId); });
+    // Souris (20/10, demande de l'utilisateur, façon jeu de stratégie) :
+    //  · gauche : clic sur un opérateur = le choisir (Maj : en ajouter / retirer), clic sur le sol = « Tous » ;
+    //    gauche maintenu + glisser = rectangle de sélection (Maj : ajoute) ;
+    //  · droit : clic court = l'escouade choisie y va avec les derniers choix (déplacement + arrivée) ;
+    //    droit maintenu = liste d'ordres, on descend pour choisir, on lâche pour valider (ordHold*) ; Maj + clic droit : point de passage ;
+    //  · milieu maintenu + glisser = tourner la vue (Maj : déplacer la vue) ; molette : zoom.
+    canvas.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });   // pas de défilement automatique du navigateur
+    canvas.addEventListener('pointerdown', (e) => {
+      if (e.button === 1) e.preventDefault();
+      drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, b: e.button, shift: e.shiftKey }; canvas.setPointerCapture(e.pointerId);
+      if (e.button === 2 && !e.shiftKey) ordHoldStart(e.clientX, e.clientY);
+    });
     canvas.addEventListener('pointermove', (e) => {
       if (!drag) return;
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
       drag.m = (drag.m || 0) + Math.abs(dx) + Math.abs(dy);
-      if ((drag.b === 2 || ordOrient) && drag.m < 5) return;   // clic droit sans glisser (< 5 px) : ordre de déplacement, pas de caméra (de même le clic gauche d'orientation)
+      if (drag.b === 2) { ordHoldMove(e.clientX, e.clientY); return; }   // clic droit : ordres, jamais la caméra
+      if (drag.b === 0) { if (drag.m >= 5) selBoxDraw(drag.x0, drag.y0, e.clientX, e.clientY); return; }   // clic gauche : sélection
+      if (drag.b !== 1) return;
       if (cam.mode !== 'free') { if (Math.abs(dx) + Math.abs(dy) > 3) { setCamMode('free'); cam.yaw = Math.atan2(camera.position.z - cam.target.z, camera.position.x - cam.target.x); cam.pitch = Math.max(0.15, Math.min(1.5, Math.atan2(camera.position.y, Math.hypot(camera.position.x - cam.target.x, camera.position.z - cam.target.z)))); cam.dist = camera.position.distanceTo(cam.target); } return; }
-      if (drag.b === 2 || drag.shift) {
+      if (drag.shift || e.shiftKey) {
         cam.follow = null;
         const right = new THREE.Vector3(Math.cos(cam.yaw + Math.PI / 2), 0, Math.sin(cam.yaw + Math.PI / 2));
         const fwd = new THREE.Vector3(-Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
@@ -700,7 +713,16 @@
       } else { cam.yaw += dx * 0.005; cam.pitch = Math.max(0.15, Math.min(1.5, cam.pitch + dy * 0.005)); }
       if (MANUAL) render();
     });
-    canvas.addEventListener('pointerup', (e) => { const d = drag; drag = null; if (d && d.b === 2 && (d.m || 0) < 5 && e.button === 2) { if (d.shift || e.shiftKey) ordAddVia(e.clientX, e.clientY); else openOrderMenu(e.clientX, e.clientY); } else if (d && d.b === 0 && (d.m || 0) < 5 && e.button === 0 && ordOrient) ordOrientClick(e.clientX, e.clientY); });
+    canvas.addEventListener('pointerup', (e) => {
+      const d = drag; drag = null; if (!d || e.button !== d.b) return;
+      if (d.b === 2) { if (d.shift) { if ((d.m || 0) < 5) ordAddVia(e.clientX, e.clientY); } else ordHoldEnd(e.clientX, e.clientY); return; }
+      if (d.b === 0) {
+        if ((d.m || 0) >= 5) { selBoxEnd(d.x0, d.y0, e.clientX, e.clientY, d.shift || e.shiftKey); return; }
+        if (ordOrient) { ordOrientClick(e.clientX, e.clientY); return; }
+        selClick(e.clientX, e.clientY, d.shift || e.shiftKey);
+      }
+    });
+    canvas.addEventListener('pointercancel', () => { if (drag && drag.b === 2) ordHoldCancel(); selBoxHide(); drag = null; });
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (cam.mode !== 'free') return; cam.dist = Math.max(8, Math.min(140, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); if (MANUAL) render(); }, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   })();
@@ -2261,7 +2283,7 @@
       ordRosterHooks.battle = battle; ordSel = null; ordSelHist = []; topClear();
       const us = battle.teams[0].units; ordGroups = [0, 1].map(k => new Set(us.filter((u, i) => (u.boundGroup === 0 || u.boundGroup === 1 ? u.boundGroup : i % 2) === k).map(u => u.id)));
     }
-    el.insertAdjacentHTML('afterbegin', '<button class="oall on" title="Les ordres de déplacement (clic droit sur le sol) vont à toute l’escouade. Clic sur une carte : un seul opérateur ; Maj+clic : plusieurs.">Tous</button>'
+    el.insertAdjacentHTML('afterbegin', '<button class="oall on" title="Les ordres (clic droit sur le sol) vont à toute l’escouade. Pour choisir : clic sur une carte ou sur un opérateur, rectangle au clic gauche maintenu ; Maj : plusieurs.">Tous</button>'
       + '<div class="ogrp">' + [0, 1].map(k => `<button data-g="${k}" title="Groupe ${k + 1} — clic : le choisir · Maj+clic : y ranger la sélection en cours">G${k + 1}</button>`).join('') + '</div>'
       + '<div class="otop"><button class="topgo" title="Top action : lance en même temps tous les ordres mis « en attente du top »">TOP <i></i></button><button class="topx" title="Annuler les ordres en attente du top">✕</button></div>');
     el.querySelector('.oall').addEventListener('click', () => ordSetSel(null));
@@ -2300,14 +2322,22 @@
   }
   function openOrderMenu(cx, cy) {
     closeOrderMenu();
-    if (!battle || $('#app').classList.contains('hidden') || !$('#result').classList.contains('hidden')) return;
+    const p = ordGate(cx, cy); if (!p) return;
+    ordMenuAt(cx, cy, p);
+  }
+  // un ordre est-il possible ici ? (point du sol, sinon null avec le refus expliqué)
+  function ordGate(cx, cy) {
+    if (!battle || $('#app').classList.contains('hidden') || !$('#result').classList.contains('hidden')) return null;
     // refus expliqués (avant : rien ne se passait — « Revoir la bataille », le gros bouton de l'écran de fin, rejoue la
     // bataille à l'identique et ressemble à une nouvelle partie où le clic droit ne marchait plus)
-    if (reviewing) { flashBattle('Revue de la bataille : elle est rejouée à l’identique, les ordres sont désactivés. Lancez une nouvelle bataille pour donner des ordres.'); return; }
-    if (briefing) { flashBattle('Ordre : lancez d’abord la mission.'); return; }
-    if (battle.over) { flashBattle('La bataille est terminée.'); return; }
-    const p = ordGround(cx, cy); if (!p) { flashBattle('Ordre : cliquez sur le sol du terrain.'); return; }
-    ordOrientEnd();
+    if (reviewing) { flashBattle('Revue de la bataille : elle est rejouée à l’identique, les ordres sont désactivés. Lancez une nouvelle bataille pour donner des ordres.'); return null; }
+    if (briefing) { flashBattle('Ordre : lancez d’abord la mission.'); return null; }
+    if (battle.over) { flashBattle('La bataille est terminée.'); return null; }
+    const p = ordGround(cx, cy); if (!p) { flashBattle('Ordre : cliquez sur le sol du terrain.'); return null; }
+    return p;
+  }
+  function ordMenuAt(cx, cy, p) {
+    closeOrderMenu(); ordOrientEnd();
     const adv = !!SETTINGS.ordAdv;   // « Ordres avancés » (réglages) : sinon seulement Déplacement et Arrivée
     const pick = Object.assign({}, ordLast, { feu: 'volonte' });   // le feu revient toujours à « À volonté »
     if (!adv && !ORD_OPTS.arrivee.choix.some(c => c.v === pick.arrivee)) pick.arrivee = 'tenir';
@@ -2403,8 +2433,8 @@
     document.querySelectorAll('#roster0 .otop').forEach(d => { d.classList.toggle('has', TOPQ.length > 0); const i = d.querySelector('.topgo i'); if (i) i.textContent = TOPQ.length || ''; });
   }
   function closeOrderMenu() { if (!ordMenu) return; ordMenu.el.remove(); ordMenu = null; ordMarkGhost(null); }
-  function ordConfirm() {
-    if (!ordMenu) return; const { p, pick } = ordMenu;
+  function ordConfirm(opt) {
+    if (!ordMenu) return; const { p, pick } = ordMenu; opt = opt || {};
     const ids = ordSel ? [...ordSel].filter(id => unitById[id] && unitById[id].alive) : null, who = ordWho();
     if (ids && !ids.length) { closeOrderMenu(); flashBattle('Ordre refusé : aucun opérateur choisi n’est en état.'); return; }
     const fum = !!SETTINGS.ordAdv && !!pick.fumee && (pick.mode === 'franchir' || pick.mode === 'decrocher');
@@ -2425,10 +2455,126 @@
     const vi = via.length ? ` par ${via.length} point${via.length > 1 ? 's' : ''} de passage` : '';
     flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}${vi}${fu}, puis ${nm('arrivee')}${fe}.`); pumpLog();
     // A4 : orienter la position — un clic gauche sur le sol montre d'où vient le danger (Échap : direction automatique)
-    if ((pick.arrivee !== 'manoeuvre' && pick.arrivee !== 'fouiller') || pick.feu === 'appui') ordOrientStart(r);
+    if (!opt.vite && ((pick.arrivee !== 'manoeuvre' && pick.arrivee !== 'fouiller') || pick.feu === 'appui')) ordOrientStart(r);
     if (MANUAL) render();
   }
-  window.addEventListener('keydown', (e) => { if (ordMenu && e.code === 'Escape') { e.preventDefault(); closeOrderMenu(); ordViaClear(); } else if (ordVia.length && e.code === 'Escape') { e.preventDefault(); ordViaClear(); flashBattle('Points de passage effacés.'); } else if (ordOrient && e.code === 'Escape') { e.preventDefault(); ordOrientEnd(); flashBattle('Ils choisiront seuls où surveiller (menace connue, sinon sens de la marche).'); } }, true);
+  // envoie un ordre « aller » sans le grand menu (clic droit court, liste du clic droit maintenu)
+  function ordSend(p, pick, vite) {
+    closeOrderMenu();
+    const el = document.createElement('div'); el.innerHTML = '<span class="omwho"></span>';   // menu fantôme : ordConfirm lit ordMenu
+    ordMenu = { el, p, pick: Object.assign({ feu: 'volonte' }, pick) }; ordConfirm({ vite });
+  }
+  function ordArrDefaut() { return !!SETTINGS.ordAdv || ORD_OPTS.arrivee.choix.some(c => c.v === ordLast.arrivee) ? ordLast.arrivee : 'tenir'; }
+  function ordNom(cat, v) { const c = ORD_OPTS[cat].choix.concat(cat === 'arrivee' ? ORD_PLUS_ARR : []).find(c => c.v === v); return c ? c.nom : v; }
+
+  // ---- Clic droit (20/10) : court = on y va avec les derniers choix ; maintenu (≥ 0,22 s ou la souris bouge) = une liste
+  // d'ordres s'ouvre au curseur, le dernier déplacement surligné ; on descend / monte pour choisir, on lâche pour valider.
+  const HOLD_MS = 220, HOLD_PX = 10; let ordHold = null;
+  function ordHoldStart(cx, cy) {
+    ordHoldCancel(); closeOrderMenu();
+    const p = ordGate(cx, cy); if (!p) return;
+    ordOrientEnd();   // un nouvel ordre remplace l'orientation en attente (ils choisiront seuls)
+    ordHold = { cx, cy, p, el: null, idx: -1 }; ordMarkGhost(p);
+    ordHold.timer = setTimeout(() => { if (ordHold && !ordHold.el) ordHoldOpen(); }, HOLD_MS);
+    if (MANUAL) render();
+  }
+  function ordHoldItems() {
+    const arr = ordArrDefaut(), mode = ordLast.mode, adv = !!SETTINGS.ordAdv;
+    const its = [{ k: 'annuler', nom: 'Annuler', aide: 'Ne rien ordonner' }, { sec: 'Déplacement' }];
+    for (const c of ORD_OPTS.mode.choix) its.push({ k: 'mode', v: c.v, nom: c.nom, aide: `puis ${ordNom('arrivee', arr).toLowerCase()}` });
+    its.push({ sec: 'Arrivée' });
+    for (const c of ORD_OPTS.arrivee.choix.concat(adv ? ORD_PLUS_ARR : [])) its.push({ k: 'arrivee', v: c.v, nom: c.nom, aide: `en ${ordNom('mode', mode).toLowerCase()}` });
+    its.push({ k: 'menu', nom: 'Plus d’options…', aide: adv ? 'Feu, fumée, grenades, top' : 'Le menu complet' });
+    return its;
+  }
+  function ordHoldOpen() {
+    const h = ordHold; if (!h || h.el) return; clearTimeout(h.timer);
+    const its = ordHoldItems(), el = document.createElement('div'); el.className = 'ordhold';
+    el.innerHTML = `<div class="ohwho">${escapeHtml(ordWho())}</div>` + its.map((it, i) => it.sec ? `<div class="ohsec">${it.sec}</div>`
+      : `<div class="ohit${it.k === 'annuler' ? ' ohx' : ''}" data-i="${i}"><span class="omico">${ORD_SVG[it.v] || ''}</span><b>${it.nom}</b><small>${it.aide}</small></div>`).join('')
+      + '<div class="ohhint">Glisser vers le bas / le haut pour défiler · lâcher pour valider</div>';
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+    $('main').appendChild(el); h.el = el; h.its = its;
+    // la ligne du dernier déplacement arrive sous le curseur : lâcher sans bouger = l'ordre habituel
+    const def = el.querySelector(`.ohit[data-i="${its.findIndex(it => it.k === 'mode' && it.v === ordLast.mode)}"]`) || el.querySelector('.ohit');
+    const mr = $('main').getBoundingClientRect(), z = parseFloat(getComputedStyle(el).zoom) || 1, br = el.getBoundingClientRect(), dr = def.getBoundingClientRect();
+    const top = Math.max(8, Math.min(mr.height - br.height - 8, h.cy - mr.top - (dr.top - br.top) - dr.height / 2));
+    el.style.left = (Math.max(8, Math.min(mr.width - br.width - 8, h.cx - mr.left + 16)) / z).toFixed(1) + 'px';
+    el.style.top = (top / z).toFixed(1) + 'px';
+    // dernier déplacement surligné d'office ; la ligne suit le curseur seulement quand il bouge (liste repoussée par un bord)
+    h.idx = +def.dataset.i; el.querySelectorAll('.ohit').forEach(r => r.classList.toggle('on', r === def));
+    h.idx0 = h.idx; h.oy = h.my !== undefined ? h.my : h.cy;
+    if (MANUAL) render();
+  }
+  // sélecteur qui défile : on part du dernier choix ; chaque cran de souris (hauteur d'une ligne) vers le bas / le haut
+  // passe à la ligne suivante / précédente, où que la liste soit à l'écran (elle peut être repoussée par un bord)
+  function ordHoldMove(cx, cy) {
+    const h = ordHold; if (!h) return; h.mx = cx; h.my = cy;
+    if (!h.el) { if (Math.hypot(cx - h.cx, cy - h.cy) >= HOLD_PX) ordHoldOpen(); return; }   // la souris bouge : la liste s'ouvre tout de suite
+    const rows = [...h.el.querySelectorAll('.ohit')], k0 = rows.findIndex(r => +r.dataset.i === h.idx0);
+    const step = (rows[0].getBoundingClientRect().height || 34) * 0.85;   // un peu moins qu'une ligne : ça défile sans grands gestes
+    const k = Math.max(0, Math.min(rows.length - 1, k0 + Math.round((cy - h.oy) / step)));
+    const i = +rows[k].dataset.i; if (i === h.idx) return; h.idx = i;
+    rows.forEach(r => r.classList.toggle('on', r === rows[k]));
+  }
+  function ordHoldCancel() { const h = ordHold; if (!h) return; clearTimeout(h.timer); if (h.el) h.el.remove(); ordHold = null; ordMarkGhost(null); }
+  function ordHoldEnd(cx, cy) {
+    const h = ordHold; if (!h) return;
+    if (!h.el) {   // clic court : on y va, derniers choix, feu à volonté, sans étape d'orientation (ils surveillent seuls)
+      ordHoldCancel(); ordSend(h.p, { mode: ordLast.mode, arrivee: ordArrDefaut() }, true); return;
+    }
+    ordHoldMove(cx, cy); const it = h.its[h.idx]; ordHoldCancel();
+    if (!it || it.k === 'annuler') { flashBattle('Ordre annulé.'); if (MANUAL) render(); return; }
+    if (it.k === 'menu') { ordMenuAt(h.cx, h.cy, h.p); return; }
+    ordSend(h.p, it.k === 'mode' ? { mode: it.v, arrivee: ordArrDefaut() } : { mode: ordLast.mode, arrivee: it.v }, false);
+  }
+
+  // ---- Sélection à la souris (20/10) : rectangle (clic gauche maintenu) ou clic sur un opérateur ; cercles au sol sous les choisis
+  let selBoxEl = null;
+  function selBoxDraw(x0, y0, x1, y1) {
+    if (!selBoxEl) { selBoxEl = document.createElement('div'); selBoxEl.id = 'selbox'; document.body.appendChild(selBoxEl); }
+    if (ordOrient) ordOrientEnd();
+    Object.assign(selBoxEl.style, { display: 'block', left: Math.min(x0, x1) + 'px', top: Math.min(y0, y1) + 'px', width: Math.abs(x1 - x0) + 'px', height: Math.abs(y1 - y0) + 'px' });
+  }
+  function selBoxHide() { if (selBoxEl) selBoxEl.style.display = 'none'; }
+  function selScreen(u) {   // position à l'écran du buste d'un opérateur (corps dessiné, sinon simulation)
+    const m = meshes[u.id], r = canvas.getBoundingClientRect(), v = m ? new THREE.Vector3(m.group.position.x, 1.0, m.group.position.z) : new THREE.Vector3(u.x, 1.0, u.z);
+    v.project(camera); if (v.z > 1) return null;
+    return { x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height };
+  }
+  function selCanUse() { return !!battle && !$('#app').classList.contains('hidden') && !reviewing; }
+  function selApply(ids, add) {
+    const alive = battle.teams[0].units.filter(u => u.alive).map(u => u.id);
+    const s = add ? new Set([...(ordSel || []), ...ids]) : new Set(ids);
+    ordSetSel(alive.every(id => s.has(id)) ? null : s);   // tout le monde = « Tous »
+    if (MANUAL) render();
+  }
+  function selBoxEnd(x0, y0, x1, y1, add) {
+    selBoxHide(); if (!selCanUse()) return;
+    const L = Math.min(x0, x1), R = Math.max(x0, x1), T = Math.min(y0, y1), B = Math.max(y0, y1);
+    const ids = battle.teams[0].units.filter(u => u.alive).filter(u => { const q = selScreen(u); return q && q.x >= L && q.x <= R && q.y >= T && q.y <= B; }).map(u => u.id);
+    if (!ids.length) { if (!add) flashBattle('Sélection : aucun opérateur dans le rectangle.'); return; }
+    selApply(ids, add); flashBattle(`Sélection : ${ordWho()}.`);
+  }
+  function selClick(cx, cy, add) {
+    if (!selCanUse()) return;
+    let best = null, bd = 42;   // 42 px autour du buste
+    for (const u of battle.teams[0].units) { if (!u.alive) continue; const q = selScreen(u); if (!q) continue; const d = Math.hypot(q.x - cx, q.y - cy); if (d < bd) { bd = d; best = u; } }
+    if (!best) { if (!add && ordSel) { ordSetSel(null); flashBattle('Sélection : tous.'); } return; }
+    if (add) { const s = ordSel ? new Set(ordSel) : new Set(); if (s.has(best.id)) s.delete(best.id); else s.add(best.id); ordSetSel(s); }
+    else ordSetSel(new Set([best.id]));
+    if (MANUAL) render();
+  }
+  const selRings = new THREE.Group(); scene.add(selRings);
+  function updateSelRings() {
+    const ids = ordSel && battle ? [...ordSel].filter(id => unitById[id] && unitById[id].alive && meshes[id]) : [];
+    while (selRings.children.length < ids.length) {
+      const m = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 32), new THREE.MeshBasicMaterial({ color: 0x4aa3ff, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false, fog: false, toneMapped: false, side: THREE.DoubleSide }));
+      m.rotation.x = -Math.PI / 2; m.renderOrder = 6; selRings.add(m);
+    }
+    selRings.children.forEach((m, i) => { const id = ids[i]; m.visible = !!id; if (id) { const g = meshes[id].group.position; m.position.set(g.x, 0.05, g.z); } });
+  }
+  window.addEventListener('keydown', (e) => { if (ordHold && e.code === 'Escape') { e.preventDefault(); ordHoldCancel(); flashBattle('Ordre annulé.'); } else if (ordMenu && e.code === 'Escape') { e.preventDefault(); closeOrderMenu(); ordViaClear(); } else if (ordVia.length && e.code === 'Escape') { e.preventDefault(); ordViaClear(); flashBattle('Points de passage effacés.'); } else if (ordOrient && e.code === 'Escape') { e.preventDefault(); ordOrientEnd(); flashBattle('Ils choisiront seuls où surveiller (menace connue, sinon sens de la marche).'); } }, true);
   // ---- Orienter la position (A4) : juste après Confirmer, une flèche part du point vers le curseur ; clic gauche = d'où vient
   // le danger (battle.command('orienter', …), rejoué en revue). Échap, clic droit ou nouvel ordre : automatique.
   let ordOrient = null; const ordArrow = new THREE.Group(); ordArrow.visible = false; scene.add(ordArrow);
@@ -2828,7 +2974,7 @@
   }
   // secousse de caméra (explosions) : décalage aléatoire qui s'amortit
   function applyShake() { if (!cam.shake || cam.shake < 0.01) return; const k = cam.shake * 0.25; camera.position.x += (Math.random() - 0.5) * k; camera.position.y += (Math.random() - 0.5) * k; camera.position.z += (Math.random() - 0.5) * k; cam.shake *= 0.86; }
-  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); updateSteam(MANUAL ? 0.2 : frameDt + 0.003); if (battle.zone) updateZone(); updateHolos(); updateOrderMarks(); ordOrientFrame(); if (OT.Parking) OT.Parking.tick(performance.now() / 1000); if (RENDU) RENDU.render(); else renderer.render(scene, camera); updateLabels(); updateRosters(); }
+  function render() { resize(); applyCamera(); applyShake(); const now = simTime + Math.min(1, acc / DT) * DT; frameDt = Math.max(0, Math.min(0.1, now - lastAnimTime)); lastAnimTime = now; syncMeshes(Math.min(1, acc / DT)); updateFx(); updateRain(paused || MANUAL ? 0 : frameDt * 1.5 + 0.004); updateSteam(MANUAL ? 0.2 : frameDt + 0.003); if (battle.zone) updateZone(); updateHolos(); updateOrderMarks(); updateSelRings(); ordOrientFrame(); if (OT.Parking) OT.Parking.tick(performance.now() / 1000); if (RENDU) RENDU.render(); else renderer.render(scene, camera); updateLabels(); updateRosters(); }
 
   // musique dynamique : plus présente quand les échanges de tirs s'intensifient, en retrait pendant la progression
   let lastMusicAdj = 0, musicLevel = 0.7;

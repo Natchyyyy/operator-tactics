@@ -60,6 +60,16 @@
 - Refusé / plus tard : bonus par pays, se jeter au sol, refonte des effets, éclairage pré-calculé, lampes et lasers
   sur les armes (plus tard), packs de soldats (plus tard), KTX2 (pas maintenant).
 
+### 20/10 (après la v46) — souris façon jeu de stratégie (demande de l'utilisateur)
+- Clic gauche sur un opérateur : le choisir (Maj : plusieurs) ; clic gauche maintenu : rectangle de sélection ; clic sur le
+  sol : « Tous ». Cercle bleu au sol sous les opérateurs choisis.
+- Clic droit court : l'escouade choisie y va tout de suite avec les derniers choix (déplacement + arrivée, feu à volonté,
+  sans étape d'orientation). Clic droit maintenu : liste d'ordres au curseur (Annuler, 4 déplacements, arrivées,
+  « Plus d'options… » = l'ancien menu complet) ; on descend pour choisir, on lâche pour valider. Maj + clic droit : point de passage.
+- Caméra libre : bouton du milieu + glisser (Maj : déplacer la vue), molette : zoom (avant : clic gauche / droit + glisser).
+- Doctrine française de déplacement reçue : `conception/doctrines/deplacement_securisation_fr.md` (référence pour l'IA et
+  le motion matching ; rien codé, les bonus/pénalités proposés attendent l'accord de l'utilisateur).
+
 ## 2. Choix validés par l'utilisateur (à respecter)
 - Stratégie = le joueur. L'IA exécute ; plans automatiques seulement pour l'ennemi.
 - Pas de nouvelle mécanique sans accord. Les agents peuvent améliorer l'existant.
