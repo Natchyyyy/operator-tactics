@@ -2,7 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
-  const VERSION = 32;
+  const VERSION = 33;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);

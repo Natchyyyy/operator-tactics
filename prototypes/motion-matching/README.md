@@ -31,7 +31,7 @@ python3 ../../outils/serveur.py ../.. 8765   →  http://127.0.0.1:8765/prototyp
 ```
 Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `API.touches({KeyW:1})`, `API.mesures()`, `PARAMS` (rattrapage, verrou, marges de saut).
 
-## État (19/10, soir)
+## État (20/10, nuit)
 - Simulation à pas fixe 1/60 s (affichage libre). Retargeting Geno → Mixamo par écart à la pose de liaison du skin, pieds et
   orteils gardant l'inclinaison du modèle, échelle hanches→orteils.
 - Motion matching : fiche 27 nombres (pieds ×2, vitesses pieds et hanches, trajectoire future 0,33/0,67/1 s), poids
@@ -77,6 +77,16 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   de 4 cm le long du canon, bouche relevée de 2° autour de la crosse, Spine2 basculé de 0,05 rad vers l'arrière, mains qui
   suivent par IK (0 mm d'écart) ; cadence soutenue du fusil d'assaut (sim/data.js : 110 coups/min) ; éclair de bouche simple
   (cœur + langue + lumière, 40 ms). Pas de douilles ni de traçantes ici (effets du jeu).
+- Accroupi (C, `PARAMS.accroupi`, style Crouched de 100STYLE ajouté à la base : 77 204 images en 3 parties) : hanches
+  visées à 0,43 m en absolu (les jambes de 0,69 m du modèle ne permettent pas la pose du clip telle quelle : genou au sol),
+  posture « squat » pieds sous les genoux (avancés 0,2 / écartés 0,21), pieds à plat d'après la pente de la pose de liaison,
+  buste penché 0,5 rad avec contre-inclinaison cou + tête, fondu 0,3 s au changement de style, marche accroupie 0,55 m/s.
+  Viser par-dessus un couvert : servo qui remonte le buste jusqu'à ce que la bouche dépasse le bloc de 8 cm — avec le bloc à
+  1,1 m cela revient à se relever (limite des données, pas d'images « accroupi haut »).
+- Couvert (B ; `Ctl.couvrir(bloc, menace, marge)`, bloc 1,6 × 0,6 × 1,1 m comme `coverAt` du jeu) : candidats le long
+  des 4 faces (glissement ±0,5 m), score = part cachée de 7 rayons sur la largeur d'épaules (0,35 m) vers la menace ;
+  contournement des coins (pénalité sur les coins exposés), arrivée précise à 8 cm puis recalage ≤ 10 cm, collision avec le
+  bloc (rayon 0,4), passage accroupi quand il reste < 3 m, puis face à la menace (`verrouCible`).
 - Morts en ragdoll (T torse / Y tête / U membre depuis la caméra ; G : galerie de 5 coureurs) : module du JEU tel quel
   (web/ragdoll.js + cannon-es, copiés, non versionnés ici), branché par un adaptateur : vitesses tirées de la pose de
   motion matching en cours (élan du coureur), impulsion sur la partie touchée, collisions sol + bloc, arme lâchée ;
@@ -89,6 +99,12 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   (le blessé finit perpendiculaire au bloc, tête près du bloc) ; un blessé tombé à plat ventre est d'abord roulé sur le dos ;
   jambes amorties (pas de coups de pied) ; à l'arrivée il lâche et reste accroupi à couvert face à la menace, arme reprise.
   Scénario complet (H) : chute → prise 0,8 s après → traînage ~8 s. Jambes qui traînent, bras ballants, tête en arrière : physique, pas d'animation.
+  v32-33 : pendant la prise et le traînage le sauveteur porte son arme en bandoulière dans le dos (fondu 0,4 s) ; roulé
+  dos 1,0 s autour d'un axe au ras du sol (plus de jambes qui se lèvent) ; cuisses et tibias ramenés vers la ligne de
+  traction ; à la dépose, le corps est figé 1,5 s après le lâcher puis les jambes sont couchées au sol de façon cinématique
+  (genoux à 13 cm, pieds à 10 cm, fondu 0,4 s) — la charnière de cannon tenait sinon le tibia en « tente » sur le pied.
+  Mesuré : hanches du blessé 0,21-0,28 m pendant le traînage, tête 0,40-0,54 ; dernier tronçon en s'éloignant du bloc
+  (2 m) dans l'axe de la menace pour que le corps soit tiré et non poussé.
 - Rythme (v31) : lecture accélérée / ralentie (×0,75-1,35, lissée 0,3 s) pour coller à la vitesse voulue — les clips
   100STYLE marchent à 0,9 m/s et reculent à 0,5 ; mesuré : marche 1,2-1,28 m/s, recul 1,0, sprint 2,6.
 - Agent critique (sous-agent indépendant, photos de référence vs captures éclairées `?clair=1`) : v22 38-64 %, v23
@@ -100,5 +116,8 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
 - Mesures (outils/tests) : main droite sur la poignée à < 0,01 mm ; 90 s d'entrées aléatoires sans NaN ; coudes ≤ 5 m/s
   (plus de coude qui saute quand la poignée est près de l'épaule) ; dérive à l'arrêt 0 ; chemin de démo : 9 points en 60 s, 0,3 s bloquées ; glissement en marche Swat
   7 cm/s (données seules 4,5), 15-19 avec changements de direction toutes les 2 s (transitions).
-- Manques : course rapide (100STYLE plafonne vers 1,9 m/s en Swat), accroupi, tête qui suit une cible, mode épaulé/tir.
-  Données StartStop_* présentes dans donnees/100style/ mais pas dans la base.
+- Manques / limites connues : course rapide (100STYLE plafonne vers 1,9 m/s en Swat, le reste est du rythme accéléré) ;
+  « accroupi haut » pour viser par-dessus un couvert de 1,1 m (il se relève) ; les jambes du blessé s'écartent parfois
+  pendant le traînage (physique) ; les réactions de la galerie se ressemblent (réglages du ragdoll du jeu, non touchés ici) ;
+  glissement sur le chemin de démo 16,7 cm/s depuis le rythme (13 avant). Données StartStop_* présentes dans
+  donnees/100style/ mais pas dans la base.
