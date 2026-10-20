@@ -19,10 +19,11 @@
       contrast: { value: 1.12 }, saturation: { value: 1.1 }, warm: { value: new T.Vector3(1.07, 1.0, 0.91) }, cool: { value: new T.Vector3(0.98, 1.0, 1.02) },
       vignette: { value: 0.32 }, grain: { value: 0.018 }, aberration: { value: 0.0005 }, exposure: { value: 1.0 },
       lift: { value: new T.Vector3(0, 0, 0) }, sharpen: { value: 0.35 },
+      sunUV: { value: new T.Vector2(0.5, 0.5) }, rays: { value: 0 }, rayCol: { value: new T.Vector3(1.0, 0.82, 0.6) },
     },
     vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `
-      uniform sampler2D tDiffuse; uniform float time, contrast, saturation, vignette, grain, aberration, exposure, sharpen; uniform vec2 resolution; uniform vec3 warm, cool, lift;
+      uniform sampler2D tDiffuse; uniform float time, contrast, saturation, vignette, grain, aberration, exposure, sharpen, rays; uniform vec2 resolution, sunUV; uniform vec3 warm, cool, lift, rayCol;
       varying vec2 vUv;
       float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       // lecture assainie : un seul pixel NaN (normale nulle, division par zéro) ne doit pas noircir tout l'écran
@@ -36,6 +37,14 @@
         vec3 nb = fetch(vUv + vec2(px, 0.0)) + fetch(vUv - vec2(px, 0.0)) + fetch(vUv + vec2(0.0, py)) + fetch(vUv - vec2(0.0, py));
         float lb = dot(base, vec3(0.2126, 0.7152, 0.0722)) + 0.01;
         c = max(c + clamp((base - nb * 0.25) * sharpen, vec3(-0.3 * lb), vec3(0.3 * lb)), vec3(0.0)) * exposure;
+        // rayons de soleil (diffusion dans l'air) : les pixels très lumineux (ciel autour du soleil, entre les immeubles et
+        // les feuillages) sont étirés depuis le soleil ; seulement quand le soleil est dans le champ ou juste à côté
+        if (rays > 0.001) {
+          vec2 dv = (sunUV - vUv) / 28.0; vec2 q = vUv + dv * hash(vUv * resolution + time) ; float acc = 0.0, w = 1.0;
+          for (int i = 0; i < 28; i++) { vec3 s = fetch(q); acc += max(dot(s, vec3(0.2126, 0.7152, 0.0722)) - 2.5, 0.0) * w; w *= 0.95; q += dv; }
+          float fall = 1.0 - smoothstep(0.0, 0.9, length((vUv - sunUV) * vec2(resolution.x / resolution.y, 1.0)));
+          c += rayCol * min(acc / 28.0, 2.0) * rays * fall;
+        }
         float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
         // contraste autour d'un gris moyen en espace logarithmique (stable en HDR)
         vec3 lc = log2(max(c, 1e-5)); lc = (lc - log2(0.18)) * contrast + log2(0.18); c = exp2(lc);
@@ -103,7 +112,7 @@
     // fin d'après-midi : soleil chaud assez haut pour éclairer franchement le sol (rapport lumière / ombre ≈ 4:1, comme une
     // vraie journée claire), ombres plus froides et plus denses, ciel moins laiteux, étalonnage « cinéma » (ombres sarcelle,
     // hautes lumières ambrées)
-    jour:       { elev: 31, azim: 238, turb: 3.2, ray: 1.25, mie: 0.005, g: 0.8, exp: 0.9, sun: [0xffcf9a, 8.2], env: 0.5, hemi: 0.16, cielTint: [2.7, 2.55, 2.3], fog: [0xc9c3b6, 0.0034], clouds: 0.5, cloudTint: 0xfff1e2, cloudDark: 0x8d8f9a, bloom: [0.26, 0.5, 0.95], grade: { c: 1.17, s: 1.12, warm: [1.1, 1.01, 0.88], cool: [0.92, 1.0, 1.07], vig: 0.3, grain: 0.012, lift: [0.0012, 0.0016, 0.0024] } },
+    jour:       { elev: 31, azim: 238, turb: 3.2, ray: 1.25, mie: 0.0028, g: 0.88, exp: 0.9, sun: [0xffcf9a, 8.2], env: 0.5, hemi: 0.16, cielTint: [2.7, 2.55, 2.3], rays: 0.25, fog: [0xc9c3b6, 0.0034], clouds: 0.5, cloudTint: 0xfff1e2, cloudDark: 0x8d8f9a, bloom: [0.26, 0.5, 0.95], grade: { c: 1.17, s: 1.12, warm: [1.1, 1.01, 0.88], cool: [0.92, 1.0, 1.07], vig: 0.3, grain: 0.012, lift: [0.0012, 0.0016, 0.0024] } },
     nuit:       { elev: -12, azim: 215, turb: 2, ray: 0.3, mie: 0.002, g: 0.7, exp: 1.1, sun: [0x7d94d6, 0.95], env: 0.22, hemi: 0.28, fog: [0x070a10, 0.016], clouds: 0.62, cloudTint: 0x2a3348, cloudDark: 0x0c1018, bloom: [0.32, 0.45, 0.95], night: true, grade: { c: 1.04, s: 0.9, warm: [1.08, 0.99, 0.86], cool: [0.88, 0.97, 1.14], vig: 0.4, grain: 0.03, lift: [0.0035, 0.005, 0.009] } },
     brouillard: { elev: 18, azim: 215, turb: 12, ray: 2.5, mie: 0.02, g: 0.9, exp: 0.8, sun: [0xe8ecf0, 1.0], env: 0.85, hemi: 0.85, fog: [0x9aa1a8, 0.03], clouds: 0.2, cloudTint: 0xdfe3e6, cloudDark: 0x9aa1a8, bloom: [0.25, 0.6, 0.95], grade: { c: 0.96, s: 0.84, warm: [1.03, 1.0, 0.96], cool: [0.97, 1.0, 1.03], vig: 0.24, grain: 0.02, lift: [0.006, 0.0065, 0.007] } },
     pluie:      { elev: 20, azim: 215, turb: 14, ray: 3, mie: 0.02, g: 0.85, exp: 0.88, sun: [0xc8d0dc, 1.25], env: 0.8, hemi: 0.85, fog: [0x47505a, 0.013], clouds: 0.15, cloudTint: 0x6c7580, cloudDark: 0x2c323a, bloom: [0.35, 0.6, 0.9], grade: { c: 1.08, s: 0.86, warm: [1.0, 1.0, 0.97], cool: [0.93, 0.99, 1.07], vig: 0.34, grain: 0.022, lift: [0.002, 0.0026, 0.0034] } },
@@ -207,13 +216,21 @@
       f.addScaledVector(SF.x, Math.round(a / texel) * texel - a).addScaledVector(SF.y, Math.round(b / texel) * texel - b);
       sun.position.copy(f).addScaledVector(R.lightDir, 120); sun.target.position.copy(f); sun.target.updateMatrixWorld();
     }
+    // position du soleil à l'écran pour les rayons (jour seulement ; nulle si le soleil est derrière la caméra)
+    const SR = { p: new T.Vector3(), f: new T.Vector3() };
+    function sunRays() {
+      const u = grade.uniforms; if (R.amb.night || !R.amb.rays) { u.rays.value = 0; return; }
+      camera.getWorldDirection(SR.f); const fac = SR.f.dot(R.lightDir); if (fac < 0.2) { u.rays.value = 0; return; }
+      SR.p.copy(camera.position).addScaledVector(R.lightDir, 500).project(camera);
+      u.sunUV.value.set(SR.p.x * 0.5 + 0.5, SR.p.y * 0.5 + 0.5); u.rays.value = R.amb.rays * T.MathUtils.smoothstep(fac, 0.2, 0.75);
+    }
     let t0 = performance.now();
     R.render = function () {
       if (!renderer.domElement.width || !renderer.domElement.height) return;   // toile pas encore dimensionnée (page masquée) : rien à dessiner
       const t = (performance.now() - t0) / 1000;
       clouds.material.uniforms.time.value = t; clouds.position.copy(camera.position); night.position.copy(camera.position); if (sky) sky.position.copy(camera.position);
       fitShadow();
-      if (composer) { grade.uniforms.time.value = t; composer.render(); } else renderer.render(scene, camera);
+      if (composer) { grade.uniforms.time.value = t; sunRays(); composer.render(); } else renderer.render(scene, camera);
     };
     R.passes = () => composer ? composer.passes : [];
     R.setConditions('jour');
