@@ -649,7 +649,7 @@
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
   // « bataille » minimale pour le module ragdoll du jeu : horloge, obstacles (le bloc), journal des morts
   const BATAILLE = window.BATAILLE = { t: 0, over: false, log: [], map: { obstacles: [{ x: BLOC.x, z: BLOC.z, w: BLOC.w, d: BLOC.d, h: BLOC.h, kind: 'cover', name: 'bloc' }] } };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.55, avantMains: 0.42, hautMains: 0.4, vitesse: 1.0, penche: 0.65, flechi: 0.5, depasse: 0.5 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.55, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.55, avantMains: 0.42, hautMains: 0.4, vitesse: 1.0, penche: 0.65, flechi: 0.5, depasse: 2.0 }, capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.05, droite: 0.09, haut: 0.09, tangage: -0.6, tangageMax: -0.8, tangageCouvert: -0.9, cant: 0.05, roulis: -0.5, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: -0.06, droite: 0.12, haut: -0.04, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.45, rouleTete: 0.35, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -682,7 +682,7 @@
       this.kin = new C.Body({ mass: 0, type: C.Body.KINEMATIC, collisionFilterGroup: 0, collisionFilterMask: 0 }); this.kin.position.set(p0.x, p0.y, p0.z); W.addBody(this.kin);
       this.cons = new C.PointToPointConstraint(torse, loc, this.kin, new C.Vec3(0, 0, 0), 300); W.addConstraint(this.cons);
       // jambes molles qui traînent (pas de coups de pied) : amortissement fort sur cuisses et jambes pendant le traînage
-      this.amortis = [8, 9, 10, 11].map(i => [r.corps[i], r.corps[i].linearDamping, r.corps[i].angularDamping]); for (const [b] of this.amortis) { b.angularDamping = 0.95; }   // (pas d'amortissement linéaire : il freinait la chute des jambes, qui « flottaient »)
+      this.amortis = [8, 9, 10, 11].map(i => [r.corps[i], r.corps[i].linearDamping, r.corps[i].angularDamping]); for (const [b] of this.amortis) { b.angularDamping = 0.98; }   // (pas d'amortissement linéaire : il freinait la chute des jambes, qui « flottaient »)
       this.W = W; return true;
     }
     detacher() { if (this.W && this.cons) { this.W.removeConstraint(this.cons); this.W.removeBody(this.kin); } this.cons = null; this.kin = null; if (this.amortis) for (const [b, l, a] of this.amortis) { b.linearDamping = l; b.angularDamping = a; } this.amortis = null; }
@@ -708,7 +708,11 @@
           if (this.attacher()) { this.etat = 'traine'; this.t = 0; this.planifier(); } else this.etat = 'fin';
         }
       } else if (this.etat === 'traine') {
-        const r = V.mort.m.rag; if (r) { r.calme = 0; r.t = Math.min(r.t, 0.5); r.aFiger = false; }   // (jamais figé pendant qu'on le traîne)
+        const r = V.mort.m.rag; if (r) { r.calme = 0; r.t = Math.min(r.t, 0.5); r.aFiger = false;
+          // jambes qui traînent : pas de rebond vers le haut (cuisses et jambes : vitesse verticale montante coupée au-dessus de 15 cm)
+          if (r.corps) for (const i of [8, 9, 10, 11]) { const b = r.corps[i]; if (b.position.y > 0.12 && b.velocity.y > 0) b.velocity.y = 0; }
+          // le corps s'aligne doucement dans l'axe de traction (pendule derrière le sauveteur : il traîne droit, pas en travers)
+          if (r.corps && this.kin) { const hb = r.corps[0], kp = this.kin.position; const ax = Math.atan2(kp.x - hb.position.x, kp.z - hb.position.z); const sk = V.mort.m.skinned.skeleton; const hp = sk.bones[r.Mo.os[0]].getWorldPosition(V3()), tp = sk.bones[r.Mo.os[3]].getWorldPosition(V3()); const ac = Math.atan2(tp.x - hp.x, tp.z - hp.z); let e = ax - ac; e = Math.atan2(Math.sin(e), Math.cos(e)); for (const i of [0, 1, 2]) r.corps[i].angularVelocity.y += Math.max(-1.5, Math.min(1.5, e * 2)) * dt * 8; } }
         C.accroupi = false; S.pencheExtra = PARAMS.sauvetage.penche; C.profondeurExtra = PARAMS.sauvetage.flechi;   // debout mais genoux fléchis et buste penché (pas le style accroupi : on recule à ~1 m/s)
         // le sauveteur regarde le blessé (ses hanches) et recule
         const hv = V.soldat.hips.getWorldPosition(V3()); C.verrouCible = Math.atan2(hv.x - S.pos.x, hv.z - S.pos.z);
@@ -734,10 +738,11 @@
       // coins contournés avec 1 m de marge (le blessé traîne ~1,2 m derrière le sauveteur et couperait l'angle) ; le sauveteur
       // dépasse le point de couvert de `depasse` m dans la direction d'arrivée pour que ce soit le BLESSÉ qui finisse dessus
       const C = this.R.ctl; const ch = C.couvrir(BLOC, this.menace, 1.0); C.enRoute = null; C.cheminRecul = true; C.vitesseChemin = PARAMS.sauvetage.vitesse; C.cheminFin = true;
-      // dernier tronçon dans l'axe de la menace, en revenant VERS le bloc : le blessé finit perpendiculaire au bloc, tête
-      // près du bloc, pieds à l'opposé de la menace (un corps de 1,8 m le long d'un bloc de 1,6 m dépasserait)
+      // dernier tronçon dans l'axe de la menace, en s'ÉLOIGNANT du bloc : on recule, le corps suit derrière ; il finit
+      // perpendiculaire au bloc, pieds vers le bloc, tête plus loin à l'abri (un corps de 1,8 m le long d'un bloc de 1,6 m
+      // dépasserait). Un tronçon « aller puis retour » pousserait le corps au lieu de le tirer.
       const n = ch.length, fin = ch[n - 1]; const loin = fin.clone().sub(V3(this.menace.x, 0, this.menace.z)); loin.y = 0; loin.normalize();
-      ch[n - 1] = fin.clone().addScaledVector(loin, PARAMS.sauvetage.depasse + 2.5); ch.push(fin.clone().addScaledVector(loin, PARAMS.sauvetage.depasse));
+      ch.push(fin.clone().addScaledVector(loin, PARAMS.sauvetage.depasse));
       this.pointDepose = fin;
       C.surArrivee = () => { this.detacher(); this.etat = 'depose'; this.t = 0; const r = this.V.mort.m.rag; if (r) r.t = 0; };
       return ch;
