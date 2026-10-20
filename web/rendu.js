@@ -103,7 +103,7 @@
     // fin d'après-midi : soleil chaud assez haut pour éclairer franchement le sol (rapport lumière / ombre ≈ 4:1, comme une
     // vraie journée claire), ombres plus froides et plus denses, ciel moins laiteux, étalonnage « cinéma » (ombres sarcelle,
     // hautes lumières ambrées)
-    jour:       { elev: 31, azim: 238, turb: 3.2, ray: 1.25, mie: 0.005, g: 0.8, exp: 0.9, sun: [0xffcf9a, 8.2], env: 0.5, hemi: 0.16, fog: [0xc9c3b6, 0.0034], clouds: 0.5, cloudTint: 0xfff1e2, cloudDark: 0x8d8f9a, bloom: [0.26, 0.5, 0.95], grade: { c: 1.17, s: 1.12, warm: [1.1, 1.01, 0.88], cool: [0.92, 1.0, 1.07], vig: 0.3, grain: 0.012, lift: [0.0012, 0.0016, 0.0024] } },
+    jour:       { elev: 31, azim: 238, turb: 3.2, ray: 1.25, mie: 0.005, g: 0.8, exp: 0.9, sun: [0xffcf9a, 8.2], env: 0.5, hemi: 0.16, cielTint: [2.7, 2.55, 2.3], fog: [0xc9c3b6, 0.0034], clouds: 0.5, cloudTint: 0xfff1e2, cloudDark: 0x8d8f9a, bloom: [0.26, 0.5, 0.95], grade: { c: 1.17, s: 1.12, warm: [1.1, 1.01, 0.88], cool: [0.92, 1.0, 1.07], vig: 0.3, grain: 0.012, lift: [0.0012, 0.0016, 0.0024] } },
     nuit:       { elev: -12, azim: 215, turb: 2, ray: 0.3, mie: 0.002, g: 0.7, exp: 1.1, sun: [0x7d94d6, 0.95], env: 0.22, hemi: 0.28, fog: [0x070a10, 0.016], clouds: 0.62, cloudTint: 0x2a3348, cloudDark: 0x0c1018, bloom: [0.32, 0.45, 0.95], night: true, grade: { c: 1.04, s: 0.9, warm: [1.08, 0.99, 0.86], cool: [0.88, 0.97, 1.14], vig: 0.4, grain: 0.03, lift: [0.0035, 0.005, 0.009] } },
     brouillard: { elev: 18, azim: 215, turb: 12, ray: 2.5, mie: 0.02, g: 0.9, exp: 0.8, sun: [0xe8ecf0, 1.0], env: 0.85, hemi: 0.85, fog: [0x9aa1a8, 0.03], clouds: 0.2, cloudTint: 0xdfe3e6, cloudDark: 0x9aa1a8, bloom: [0.25, 0.6, 0.95], grade: { c: 0.96, s: 0.84, warm: [1.03, 1.0, 0.96], cool: [0.97, 1.0, 1.03], vig: 0.24, grain: 0.02, lift: [0.006, 0.0065, 0.007] } },
     pluie:      { elev: 20, azim: 215, turb: 14, ray: 3, mie: 0.02, g: 0.85, exp: 0.88, sun: [0xc8d0dc, 1.25], env: 0.8, hemi: 0.85, fog: [0x47505a, 0.013], clouds: 0.15, cloudTint: 0x6c7580, cloudDark: 0x2c323a, bloom: [0.35, 0.6, 0.9], grade: { c: 1.08, s: 0.86, warm: [1.0, 1.0, 0.97], cool: [0.93, 0.99, 1.07], vig: 0.34, grain: 0.022, lift: [0.002, 0.0026, 0.0034] } },
@@ -125,9 +125,21 @@
     const skyScene = new T.Scene();
     function bakeEnv() {
       if (!sky) return;
-      const s2 = new X.Sky(); s2.scale.setScalar(1000); s2.material.uniforms = T.UniformsUtils.clone(sky.material.uniforms); skyScene.clear(); skyScene.add(s2);
+      skyScene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material.isShaderMaterial && o.material.uniforms.tC) o.material.dispose(); }); const s2 = new X.Sky(); s2.scale.setScalar(1000); s2.material.uniforms = T.UniformsUtils.clone(sky.material.uniforms); skyScene.clear(); skyScene.add(s2);
       // sol de l'environnement : un disque gris chaud sous l'horizon (renvoi de lumière du bitume)
       const g = new T.Mesh(new T.CircleGeometry(900, 32), new T.MeshBasicMaterial({ color: new T.Color(0x4a4640).multiplyScalar(R.amb.night ? 0.1 : 0.9) })); g.rotation.x = -Math.PI / 2; g.position.y = -5; skyScene.add(g);
+      // panorama de ville scanné (pbr.js) : les immeubles, le sol et les arbres du panorama se reflètent dans les carrosseries
+      // et les vitres ; là où le panorama montre le ciel (blanc couvert), c'est notre ciel physique qui reste visible
+      if (R.cielTex && !R.amb.night) {
+        const t = R.amb.cielTint || [2.2, 2.2, 2.2];
+        const pm = new T.ShaderMaterial({ uniforms: { tC: { value: R.cielTex }, tint: { value: new T.Vector3().fromArray(t) } }, side: T.BackSide, depthWrite: false, transparent: true,
+          vertexShader: 'varying vec3 vD; void main() { vD = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+          fragmentShader: `uniform sampler2D tC; uniform vec3 tint; varying vec3 vD;
+            void main() { vec3 d = normalize(vD); vec2 uv = vec2(atan(d.z, d.x) * 0.15915494 + 0.5, asin(clamp(d.y, -1.0, 1.0)) * 0.31830989 + 0.5);
+              vec3 c = texture2D(tC, uv).rgb; float sky = smoothstep(0.82, 0.96, min(c.r, min(c.g, c.b))) * smoothstep(-0.02, 0.08, d.y);
+              gl_FragColor = vec4(c * tint, 1.0 - sky); }` });
+        const sp = new T.Mesh(new T.SphereGeometry(500, 48, 24), pm); sp.rotation.y = 1.2; skyScene.add(sp);
+      }
       if (envRT) envRT.dispose(); envRT = pmrem.fromScene(skyScene, 0.02, 1, 1000); scene.environment = envRT.texture;
     }
     // intensité de l'environnement : appliquée à tous les matériaux physiques (three r159 n'a pas de réglage global)
@@ -153,6 +165,7 @@
       if (R.bloom) { R.bloom.strength = A.bloom[0]; R.bloom.radius = A.bloom[1]; R.bloom.threshold = A.bloom[2]; }
     };
     R.setCenter = function (x, z) { R.center = new T.Vector3(x, 0, z); };
+    if (root.PBR) root.PBR.ciel((t) => { R.cielTex = t; bakeEnv(); R.applyEnv(); });
     // ---- chaîne de post-traitement ----
     let composer = null, hbao = null, grade = null, smaa = null;
     if (!SIMPLE && X.EffectComposer) {

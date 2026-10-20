@@ -105,22 +105,27 @@
   // ---------------------------------------------------------------------------------------------
   // Matériau à détail en coordonnées du monde (anti-tuilage), pour les surfaces verticales et le trottoir
   // ---------------------------------------------------------------------------------------------
+  // uniformes d'un « détail » : ceux de pbr.js (textures scannées chargées à chaud) ou, à défaut, des textures procédurales
+  function detU(det) { return det.u || (det.u = { tDet: { value: det.map }, tDetN: { value: det.normal }, tDetR: { value: det.normal }, uM: { value: det.meters }, gain: { value: 1 }, hasR: { value: 0 }, mix: { value: 0.35 } }); }
+  const PBRdet = (cle, proc) => root.PBR ? root.PBR.det(cle, proc) : proc;
   function worldMat(det, opts) {
     opts = opts || {};
     const m = new T.MeshStandardMaterial({ color: opts.color || 0xffffff, roughness: opts.roughness === undefined ? 0.9 : opts.roughness, metalness: 0 });
     m.onBeforeCompile = (sh) => {
-      sh.uniforms.tDet = { value: det.map }; sh.uniforms.tDetN = { value: det.normal }; sh.uniforms.uM = { value: det.meters }; sh.uniforms.uBump = { value: opts.bump === undefined ? 1 : opts.bump };
+      const du = detU(det); Object.assign(sh.uniforms, { tDet: du.tDet, tDetN: du.tDetN, tDetR: du.tDetR, uM: du.uM, uGain: du.gain, uHasR: du.hasR, uMix: du.mix }); sh.uniforms.uBump = { value: opts.bump === undefined ? 1 : opts.bump };
       sh.uniforms.uStreak = { value: opts.streak || 0 };
       sh.vertexShader = 'varying vec3 vWP; varying vec3 vWN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWP = (modelMatrix * vec4(position, 1.0)).xyz; vWN = normalize(mat3(modelMatrix) * normal);');
-      sh.fragmentShader = 'uniform sampler2D tDet, tDetN; uniform float uM, uBump, uStreak; varying vec3 vWP; varying vec3 vWN;\n' +
+      sh.fragmentShader = 'uniform sampler2D tDet, tDetN, tDetR; uniform float uM, uBump, uStreak, uGain, uHasR, uMix; varying vec3 vWP; varying vec3 vWN;\n' +
         'vec3 triS(sampler2D t, vec3 p, vec3 w) { return texture2D(t, p.zy).rgb * w.x + texture2D(t, p.xz).rgb * w.y + texture2D(t, p.xy).rgb * w.z; }\n' +
         sh.fragmentShader.replace('#include <map_fragment>', `
           vec3 tw = pow(abs(vWN), vec3(4.0)); tw /= (tw.x + tw.y + tw.z);
           vec3 pw = vWP / uM;
-          vec3 dcol = mix(triS(tDet, pw, tw), triS(tDet, pw * 0.37 + 0.31, tw), 0.35);
+          vec3 dcol = mix(triS(tDet, pw, tw), triS(tDet, pw * 0.37 + 0.31, tw), uMix) * uGain;
           // coulures sous les arêtes (murs) : traînées verticales plus sombres
           float sx = (vWP.x + vWP.z) * 1.3; float st = uStreak * smoothstep(0.55, 1.0, fract(sin(floor(sx) * 12.9898) * 43758.5453) * (0.6 + 0.4 * sin(fract(sx) * 3.1416))) * (1.0 - tw.y) * smoothstep(0.0, 2.5, vWP.y);
           diffuseColor.rgb *= dcol * (1.0 - st * 0.22);`)
+          .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+          if (uHasR > 0.5) { vec3 twr = pow(abs(vWN), vec3(4.0)); twr /= (twr.x + twr.y + twr.z); roughnessFactor = clamp(roughnessFactor * (0.45 + 0.6 * triS(tDetR, vWP / uM, twr).g), 0.05, 1.0); }`)
           .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
           { vec3 nt; vec3 nw;
             if (tw.y > 0.5) { nt = texture2D(tDetN, pw.xz).xyz * 2.0 - 1.0; nw = vec3(nt.x * uBump, sign(vWN.y), nt.y * uBump); }
@@ -128,7 +133,7 @@
             else { nt = texture2D(tDetN, pw.xy).xyz * 2.0 - 1.0; nw = vec3(nt.x * uBump, nt.y * uBump, sign(vWN.z)); }
             normal = normalize((viewMatrix * vec4(normalize(nw), 0.0)).xyz); }`);
     };
-    m.customProgramCacheKey = () => 'worldMat' + (opts.streak ? 's' : '');
+    m.customProgramCacheKey = () => 'worldMatP' + (opts.streak ? 's' : '');
     return m;
   }
   // ---------------------------------------------------------------------------------------------
@@ -279,15 +284,15 @@
   // Sol du parking
   // ---------------------------------------------------------------------------------------------
   function groundMesh(map, maps, U) {
-    const W = map.width, D = map.depth, A = asphalt();
+    const W = map.width, D = map.depth, A = PBRdet('asphalte', asphalt()), du = detU(A);
     const m = new T.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, metalness: 0 });
     m.onBeforeCompile = (sh) => {
-      Object.assign(sh.uniforms, { tDet: { value: A.map }, tDetN: { value: A.normal }, tPaint: { value: maps.paint }, tData: { value: maps.data }, uSize: { value: new T.Vector2(W, D) }, uM: { value: A.meters }, uWet: U.wet });
+      Object.assign(sh.uniforms, { tDet: du.tDet, tDetN: du.tDetN, tDetR: du.tDetR, uGain: du.gain, uHasR: du.hasR, uMix: du.mix, tPaint: { value: maps.paint }, tData: { value: maps.data }, uSize: { value: new T.Vector2(W, D) }, uM: du.uM, uWet: U.wet });
       sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWP = (modelMatrix * vec4(position, 1.0)).xyz;');
-      sh.fragmentShader = 'uniform sampler2D tDet, tDetN, tPaint, tData; uniform vec2 uSize; uniform float uM, uWet; varying vec3 vWP;\n' + sh.fragmentShader
+      sh.fragmentShader = 'uniform sampler2D tDet, tDetN, tDetR, tPaint, tData; uniform vec2 uSize; uniform float uM, uWet, uGain, uHasR, uMix; varying vec3 vWP;\n' + sh.fragmentShader
         .replace('#include <map_fragment>', `
           vec2 duv = vWP.xz / uM;
-          vec3 det = mix(texture2D(tDet, duv).rgb, texture2D(tDet, duv * 0.29 + vec2(0.13, 0.71)).rgb, 0.4);
+          vec3 det = mix(texture2D(tDet, duv).rgb, texture2D(tDet, duv * 0.29 + vec2(0.13, 0.71)).rgb, uMix) * uGain;
           vec2 muv = clamp(vWP.xz / uSize, 0.0, 1.0);
           vec4 gdat = texture2D(tData, muv); vec4 gp = texture2D(tPaint, muv);
           float grime = gdat.r, oil = gdat.b, wet = max(gdat.g, uWet * (0.35 + 0.65 * gdat.g));
@@ -297,14 +302,15 @@
           col *= mix(1.0, 0.5, smoothstep(0.05, 0.6, wet));
           diffuseColor.rgb = col;`)
         .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-          roughnessFactor = mix(mix(0.93, 0.8, gp.a), 0.55, smoothstep(0.05, 0.55, wet));
+          float rDry = uHasR > 0.5 ? clamp(0.25 + 0.85 * mix(texture2D(tDetR, duv).g, texture2D(tDetR, duv * 0.29 + vec2(0.13, 0.71)).g, uMix), 0.3, 1.0) : 0.93;
+          roughnessFactor = mix(mix(rDry, 0.8, gp.a), 0.55, smoothstep(0.05, 0.55, wet));
           roughnessFactor = mix(roughnessFactor, 0.12, pool); roughnessFactor = mix(roughnessFactor, 0.35, oil * 0.6);`)
         .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
           { vec3 nt = texture2D(tDetN, duv).xyz * 2.0 - 1.0; float bump = (1.0 - pool) * (1.0 - gp.a * 0.5);
             vec3 nw = normalize(vec3(nt.x * bump, 1.0, nt.y * bump));
             normal = normalize((viewMatrix * vec4(nw, 0.0)).xyz); }`);
     };
-    m.customProgramCacheKey = () => 'solParking';
+    m.customProgramCacheKey = () => 'solParkingP';
     const ge = new T.PlaneGeometry(W, D, 1, 1); const mesh = new T.Mesh(ge, m);
     mesh.rotation.x = -Math.PI / 2; mesh.position.set(W / 2, 0, D / 2); mesh.receiveShadow = true; mesh.userData.keep = true;
     return mesh;
@@ -358,8 +364,8 @@
   const MATS = {};
   const mat = (k, f) => MATS[k] || (MATS[k] = f());
   const M3 = () => ({
-    beton: mat('beton', () => worldMat(concrete(), { roughness: 0.92, streak: 1 })),
-    betonClair: mat('betonClair', () => worldMat(concrete('clair'), { roughness: 0.88, streak: 0.6 })),
+    beton: mat('beton', () => worldMat(PBRdet('beton', concrete()), { roughness: 0.92, streak: 1 })),
+    betonClair: mat('betonClair', () => worldMat(PBRdet('betonClair', concrete('clair')), { roughness: 0.88, streak: 0.6 })),
     joint: mat('joint', () => new T.MeshStandardMaterial({ color: 0x23211e, roughness: 1 })),
     metal: mat('metal', () => new T.MeshStandardMaterial({ color: 0x6d7276, roughness: 0.42, metalness: 0.85 })),
     metalSombre: mat('metalSombre', () => new T.MeshStandardMaterial({ color: 0x2b2e31, roughness: 0.5, metalness: 0.7 })),
@@ -723,7 +729,7 @@
             #endif
             float lit = step(0.05, eL.r);
             vec3 nightL = lit * eL * (2.4 + 1.6 * curt) + (1.0 - lit) * (r4 < 0.08 ? vec3(0.03, 0.05, 0.12) : vec3(0.004));
-            fInt = col * (uDay * 0.16 + uNight * nightL);
+            fInt = col * (uDay * 0.09 + uNight * nightL);
             diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.25, fGlass);
           }
         }
@@ -815,7 +821,7 @@
     for (const [x, z, n, dx, dz] of MK.murs) for (let k = 0; k < n; k++) { if (dx) stop(x + dx * (k + 0.5), z > D / 2 ? z + 4.3 : z + 0.7, 0); else stop(x < W / 2 ? x + 0.7 : x + 4.3, z + dz * (k + 0.5), Math.PI / 2); }
     // trottoirs et rues à l'ouest, au sud et à l'est (au nord : les immeubles de la ruelle) : trottoir (4 m), rue (10 m),
     // trottoir d'en face (4 m)
-    const side = mat('trottoir', () => worldMat(concrete('clair'), { roughness: 0.9 }));
+    const side = mat('trottoir', () => worldMat(PBRdet('trottoir', concrete('clair')), { roughness: 0.9 }));
     const road = mat('rue', () => { const A = asphalt(); const m = worldMat(A, { roughness: 0.9, bump: 0.8 }); m.color.setHex(0xd8d8d8); return m; });
     const ring = (inner, width, m, y) => {
       const x0 = -inner, x1 = W + inner, z1 = D + inner, t = width, zt = -1;   // les côtés s'arrêtent au pied des immeubles
@@ -1391,7 +1397,7 @@
   }
   // ---- local à poubelles : murets en briques sur trois côtés (ouvert au nord, vers la ruelle), conteneurs dedans
   function localPoubelles(o) {
-    const g = new T.Group(), H = o.h, bm = mat('briqueMur', () => worldMat(brickDet(), { roughness: 0.9, streak: 0.8 })), K = M3(), th = 0.25;
+    const g = new T.Group(), H = o.h, bm = mat('briqueMur', () => worldMat(PBRdet('brique', brickDet()), { roughness: 0.9, streak: 0.8 })), K = M3(), th = 0.25;
     bx(g, th, H, o.d, bm, -o.w / 2 + th / 2, 0, 0); bx(g, th, H, o.d, bm, o.w / 2 - th / 2, 0, 0); bx(g, o.w, H, th, bm, 0, 0, o.d / 2 - th / 2);
     for (const x of [-o.w / 2 + th / 2, o.w / 2 - th / 2]) bx(g, th + 0.06, 0.08, o.d + 0.04, K.betonClair, x, H / 2 + 0.04, 0);
     bx(g, o.w + 0.04, 0.08, th + 0.06, K.betonClair, 0, H / 2 + 0.04, o.d / 2 - th / 2);
@@ -1402,13 +1408,13 @@
   }
   // ---- replis de la ruelle (si ruelle.js n'est pas là) : murs du fond, annexe en briques, muret grillagé, clim au sol
   function annexeP(o) {
-    const g = new T.Group(), bm = mat('briqueSombre', () => worldMat(brickDet('sombre'), { roughness: 0.9, streak: 1 })), K = M3();
+    const g = new T.Group(), bm = mat('briqueSombre', () => worldMat(PBRdet('briqueSombre', brickDet('sombre')), { roughness: 0.9, streak: 1 })), K = M3();
     bx(g, o.w, o.h, o.d, bm, 0, 0, 0); bx(g, o.w + 0.2, 0.25, o.d + 0.2, K.betonClair, 0, o.h / 2 - 0.12, 0);
     bx(g, 2.6, 2.8, 0.06, std('rideauMetal', 0x8d9296, 0.45, 0.7), -0.8, -o.h / 2 + 1.4, o.d / 2 + 0.03);
     bx(g, 1.0, 2.1, 0.06, std('porteService', 0x5a3d2e, 0.6, 0.4), o.w / 2 - 1.2, -o.h / 2 + 1.05, o.d / 2 + 0.03);
     return g;
   }
-  function murRuelle(o) { const g = new T.Group(); bx(g, o.w, o.h, o.d, mat('briqueSombre', () => worldMat(brickDet('sombre'), { roughness: 0.9, streak: 1 })), 0, 0, 0); return g; }
+  function murRuelle(o) { const g = new T.Group(); bx(g, o.w, o.h, o.d, mat('briqueSombre', () => worldMat(PBRdet('briqueSombre', brickDet('sombre')), { roughness: 0.9, streak: 1 })), 0, 0, 0); return g; }
   function cloGrillage(o) {
     const K = M3(), g = new T.Group(), along = o.w >= o.d, L = along ? o.w : o.d, H = o.h, top = 2.4;
     bx(g, along ? L : o.w, H, along ? o.d : L, K.betonClair, 0, 0, 0);
