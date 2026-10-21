@@ -17790,6 +17790,76 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (here.length) this.logEvent('reprise', `${team.name} : ${here.join(', ')} ${here.length > 1 ? 'sont arrivés et reprennent' : 'est arrivé et reprend'} la manœuvre.`, { team: u.team, ordre: o.id });
     }
   };
+  // Épauler : un équipier proche échange des tirs (il tire ou on lui tire dessus) et je ne vois personne. Il me crie la
+  // position (connue tout de suite, pas au prochain échange radio) ; si je vois l'endroit d'où je suis, je me tourne vers
+  // lui, arme prête ; sinon je me décale de quelques mètres vers un point d'où je peux tirer (de préférence à couvert).
+  // En « tenir » : on bouge peu (4 m au plus).
+  const SUPPORT_R = 22, SUPPORT_MOVE = 9;
+  Battle.prototype.supportAlly = function (u, order) {
+    let E = null, best = Infinity, from = null;
+    for (const a of this.alliesOf(u)) {
+      if (a === u || !a.alive || Math.hypot(a.x - u.x, a.z - u.z) > SUPPORT_R) continue;
+      const cands = [];
+      if (this.t - a.lastShotByAt < 4 && a.lastShotBy && a.lastShotBy.alive) cands.push(a.lastShotBy);
+      if (this.t - a.lastShotAt < 3 && a.target && a.target.alive) cands.push(a.target);
+      for (const e of cands) {
+        const d = Math.hypot(e.x - u.x, e.z - u.z); if (d >= best || d >= 70) continue;
+        // deux en appui sur le même ennemi au plus : les autres gardent leur secteur
+        if (!(u.support && u.support.id === e.id) && this.alliesOf(u).filter(b => b !== u && b.alive && b.support && b.support.id === e.id && this.t < b.support.until).length >= 2) continue;
+        best = d; E = e; from = a;
+      }
+    }
+    if (!E) { u.support = null; return false; }
+    // l'appel « contact ! » : la position que l'équipier connaît (il le voit, ou il voit d'où partent les coups)
+    const ka = from.knowledge[E.id], k0 = u.knowledge[E.id];
+    const src = from.visible.has(E.id) ? { x: E.x, z: E.z } : ka ? { x: ka.x, z: ka.z } : { x: E.x + (this.rng.next() - 0.5) * 4, z: E.z + (this.rng.next() - 0.5) * 4 };
+    if (!k0 || this.t - k0.t > 0.3) u.knowledge[E.id] = { x: src.x, z: src.z, t: this.t, seen: false, source: 'radio' };
+    const k = u.knowledge[E.id];
+    if (u.target !== E) this.aimAt(u, E);
+    // déjà en route vers sa position d'appui contre ce même ennemi : on continue
+    if (u.support && u.support.id === E.id && u.goal && this.t < u.support.until) return true;
+    const losFrom = (x, z) => this.map.hasLOS(x, EYE.stand, z, k.x, CHEST.stand, k.z);
+    if (losFrom(u.x, u.z)) {
+      this.stop(u); u.state = 'overwatch';
+      u.stance = this.coverAt(u.x, u.z, k.x, k.z, false) && this.map.hasLOS(u.x, EYE.crouch, u.z, k.x, CHEST.stand, k.z) ? 'crouch' : 'stand';
+      u.facing = Math.atan2(k.z - u.z, k.x - u.x);
+      u.support = { id: E.id, until: this.t + 4 };
+      return true;
+    }
+    const R = order === 'hold' ? 4 : SUPPORT_MOVE;
+    let open = null;
+    let p = this.findCover(u, k, R, { requireShoot: true, minRange: 5 });
+    if (!p) {   // pas de couvert d'où tirer : le point dégagé le plus proche (anneaux de 2 à R m)
+      // (un point à couvert d'abord ; sinon le premier dégagé, gardé pour la fin)
+      for (let r = 2; r <= R && !p; r += 1.5) for (let i = 0; i < 12; i++) {
+        const a = i / 12 * Math.PI * 2, x = u.x + Math.cos(a) * r, z = u.z + Math.sin(a) * r;
+        if (!this.map.inBounds(x, z) || this.map.insideObstacle(x, z) || Math.hypot(x - k.x, z - k.z) < 6 || !losFrom(x, z)) continue;
+        if (!this.map.walkableSegment(u.x, u.z, x, z)) continue;
+        if (this.coverAt(x, z, k.x, k.z, false)) { p = { x, z }; break; }
+        if (!open) open = { x, z };
+      }
+    }
+    // sinon : venir à hauteur de l'équipier (lui voit l'ennemi), à côté de lui et pas dans sa ligne de tir
+    const dA = Math.hypot(from.x - u.x, from.z - u.z);
+    if (!p && order !== 'hold' && dA > 3) {
+      p = this.findCover(u, k, Math.min(SUPPORT_R, dA + 5), { requireShoot: true, minRange: 5, towards: from });
+      if (p && Math.hypot(p.x - from.x, p.z - from.z) > 7) p = null;
+      if (!p) {
+        const ax = k.x - from.x, az = k.z - from.z, L = Math.hypot(ax, az) || 1, nx = -az / L, nz = ax / L;
+        const side = (u.x - from.x) * nx + (u.z - from.z) * nz >= 0 ? 1 : -1;   // du côté d'où l'on arrive
+        for (const [off, back] of [[2.5, 0.5], [-2.5, 0.5], [4, 1], [-4, 1], [3, 2.5], [-3, 2.5]]) {
+          const x = from.x + nx * off * side - ax / L * back, z = from.z + nz * off * side - az / L * back;
+          if (!this.map.inBounds(x, z) || this.map.insideObstacle(x, z) || !losFrom(x, z)) continue;
+          if (this.coverAt(x, z, k.x, k.z, false)) { p = { x, z }; break; }
+          if (!open) open = { x, z };
+        }
+      }
+    }
+    if (!p) p = open;
+    if (!p || !this.setGoal(u, p.x, p.z, 'close')) { u.support = null; return false; }
+    u.state = 'tocover'; u.stance = 'stand'; u.support = { id: E.id, until: this.t + 5 };
+    return true;
+  };
   Battle.prototype.decide = function (u) {
     if (!u.alive) return;
     let order = this.teams[u.team].order;
@@ -17883,6 +17953,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const underFire = beingShot && u.lastShotByAt > u.commitAt && (u.goalKind === 'bound' || u.goalKind === 'advance' || u.goalKind === 'close') && u.goal && Math.hypot(u.goal.x - u.x, u.goal.z - u.z) > 3 && u.state !== 'sidestep';
     // (un ennemi qui surgit pendant une marche d'approche ou un bond : on réagit tout de suite — une course vers un abri continue)
     const surprise = freshContact && (u.goalKind === 'advance' || u.goalKind === 'search' || ((u.goalKind === 'bound' || u.goalKind === 'close') && Math.hypot(u.goal.x - u.x, u.goal.z - u.z) > 3));
+    // épauler un équipier accroché (voir supportAlly) : passe avant la fin d'une marche d'approche ou d'un bond
+    const supportable = !threats.length && !beingShot && !u.holdFire && !(u.goal && /^(cover|hide|revive|drag|fallback)$/.test(u.goalKind || ''));
+    if (supportable && this.supportAlly(u, order)) return;
     if (this.t < u.commitUntil && u.goal && u.lastHitAt <= u.commitAt && !underFire && !surprise && !this.goalTooClose(u, threats)) return;
 
     // 1) une cible est visible : engager
