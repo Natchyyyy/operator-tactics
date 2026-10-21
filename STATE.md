@@ -10,4 +10,5 @@
 - Limites connues : rechargement / lancer de grenade sans geste propre (pose MM gardée) ; la prise au col (~3 s) est plus
   lente que la simulation qui tire tout de suite (le module rattrape puis pose) → proposer à l'utilisateur de faire attendre
   la simulation ~3 s avant de tirer (changement de règle, pas fait) ; relevé parfois décalé de ≤ 1,5 m (rattrapage).
+- v52 (ordres, autre conversation) : déplacement « Discret » (bonds accroupis, feu retenu jusqu'au repérage — `stealthy()`), arrivée « Freinage » (tenir puis décrocher sur la 2e ligne = point de départ, une fois — `updateFreinage()`), « Embuscade » et « Appui » dans la roue. Reste de la doctrine : colonne, bouclier, combat en pièces (il faut des bâtiments). À définir avec l'utilisateur : bonus/pénalités de doctrine (légers).
 - Prochaine tâche : retour de l'utilisateur sur la v53 (bugs visuels) ; captures zoomées + agent QA sur tir, couvert, réa.
