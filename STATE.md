@@ -1,21 +1,13 @@
-# STATE — 20/10/2026 (version 49 publiée)
-- Fait : souris façon jeu de stratégie (`web/app.js`, partie `cameraControls` + `ordHold*` / `sel*`) : rectangle de
-  sélection au clic gauche, clic droit court = ordre direct, clic droit maintenu = liste d'ordres (lâcher = valider),
-  caméra libre au bouton du milieu. CSS `.ordhold`, `#selbox` dans `web/index.html` ; aides mises à jour.
-- Doctrine française reçue : `conception/doctrines/deplacement_securisation_fr.md` (tableau « déjà là / manque » + liste
-  d'animations pour le motion matching).
-- Tests : `tests/verif_page.py` revu (clic court, clic maintenu → Décrocher, rectangle).
-- v48 (doctrine, accord de l'utilisateur) : « raser un mur » (chemins de progression qui longent les obstacles :
-  `GameMap.open/openLen`, `findPath(…, extra, hug)`, `RASER` dans `sim/engine.js`) et « ralentir avant un angle aveugle »
-  (`Battle.cornerSpeed`). Tests ajoutés dans `tests/voies.js` ; `tests/ia.js` : rencontres mesurées sur 24 batailles,
-  graine 5 pour le fumigène. Arme basse près des angles = laissé au motion matching (décision).
-- v52 (l'utilisateur m'a laissé choisir dans la doctrine) : déplacement « Discret » (D5 : bonds méthodiques accroupis, feu retenu imposé jusqu'au repérage, pas inaudibles pour Vigie — `stealthy()`), arrivée « Freinage » (T5 : tenir, puis décrocher par bonds sur la 2e ligne = point de départ, une fois, quand un équipier est touché/à terre ou un ennemi à < 15 m — `updateFreinage()`), et dans la roue « Embuscade » (tenir + feu retenu) et « Appui » (tenir + feu d'appui). Tests `tests/ia.js` : 81/81. Reste de la doctrine : colonne, bouclier, tarte, pénétration limitée (il faut des bâtiments).
-- v51 : clic droit maintenu = roue d'ordres à deux anneaux (idée B choisie par l'utilisateur) : centre = déplacement, autour = arrivée, un seul geste ; centre de la roue = annuler ; « Plus d'options… » sous la roue = menu complet. Clic droit court inchangé. Idée D (ordres favoris) peut-être plus tard, l'utilisateur décidera après essai.
-- v50 : légère brume au loin (jour : densité 0,0036 → 0,0055) ; caméra libre jusqu'à hauteur d'homme (zoom au plus près 2,2 m ; sous 14 m la vue se redresse vers l'horizon, point visé à 1,6 m). Prochaine étape : remplacer le clic droit maintenu (idées proposées à l'utilisateur, il choisit).
-- v49 : caméra libre au clavier Z Q S D (positions physiques, W A S D en QWERTY ; Maj plus vite ; depuis une autre caméra,
-  passe en libre en gardant le cadrage) — `camKeyDown/camKeysMove` dans `web/app.js` ; tactiques déplacées sur 4 5 6 (Z était
-  la tactique 2) ; vue satellite rapprochée (hauteur 78 → 56 m).
-- Question ouverte : l'utilisateur trouve que « tout paraît petit » (maquette) alors que l'échelle est juste (soldat 1,79 m,
-  voiture 4,4 m) : cause = point de vue haut et plongeant, pas de brume de distance, surfaces très propres. Proposer des pistes.
-- Prochaine tâche : retour de l'utilisateur sur la souris, v48 et v49 ; définir avec lui les bonus / pénalités de doctrine
-  (légers en calcul).
+# STATE — 21/10/2026 (motion matching intégré, version 53 publiée)
+- Fait : motion matching dans le jeu. `web/mm.js` = module GÉNÉRÉ par `node outils/mm_extraire.js` depuis
+  `prototypes/motion-matching/web/mm.js` (ne pas éditer à la main) ; `web/mm_jeu.js` = liaison : la simulation décide
+  (position/chemin, vitesse, visée, accroupi, couvert, traînage, réa), le module joue les gestes par pas de 1/60 s et suit la
+  position simulée (avance 0,25 s, rattrapage doux, replacement > 1,5 m). Morts : `Agent.tuer` → ragdoll du jeu ;
+  sauvetage : `Sauvetage` du module piloté par les états du jeu (todrag/dragging/reviving/revive, `finRea`).
+- Données : `web/hd/mm_base.json` + `mm_base.{0,1,2}.wasm` (23 Mo, servies une fois ; `?mm=0` = anciens clips).
+- `app.js` : makeOperator (MM d'abord), syncMeshes (`OT.MMJeu.image`), événements shot/down/revive, clearOperators.
+- Tests Node verts (game 83, verify 79, ia 81, voies 22). Coût mesuré : ~0,45-0,9 ms/soldat/pas (machine lente).
+- Limites connues : rechargement / lancer de grenade sans geste propre (pose MM gardée) ; la prise au col (~3 s) est plus
+  lente que la simulation qui tire tout de suite (le module rattrape puis pose) → proposer à l'utilisateur de faire attendre
+  la simulation ~3 s avant de tirer (changement de règle, pas fait) ; relevé parfois décalé de ≤ 1,5 m (rattrapage).
+- Prochaine tâche : retour de l'utilisateur sur la v53 (bugs visuels) ; captures zoomées + agent QA sur tir, couvert, réa.

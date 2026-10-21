@@ -49,6 +49,7 @@ des `<script src>` de `web/index.html` (ajouter un script là-bas suffit, `build
 | `sim/game.js` | boucle de jeu : profil, collection, équipement, voies, missions, récompenses, blessures graves, synergies, défis, paquets de cartes, perks, rang, tactiques équipées, personnalisation, sauvegarde locale |
 | `sim/league.js` | ligue solo : saison de 8 matchs contre 9 équipes IA, matchs IA réellement simulés, classement, prix |
 | `web/app.js` | rendu three.js, animations, effets, interface de bataille, résultat |
+| `web/mm.js`, `web/mm_jeu.js` | motion matching des soldats : `mm.js` est GÉNÉRÉ depuis `prototypes/motion-matching/web/mm.js` par `node outils/mm_extraire.js` (ne pas le modifier à la main) ; `mm_jeu.js` relie la simulation (qui décide : chemin, vitesse, visée, accroupi, couvert, traînage, réa) au module (qui joue les gestes). Données `web/hd/mm_base.json` + `mm_base.{0,1,2}.wasm` (23 Mo, 100STYLE CC BY 4.0), chargées une fois ; `?mm=0` : anciens clips |
 | `web/hq.js` | quartier général à onglets (accueil, équipe, cartes, jouer, ligue, carrière), écran VS avec astuces, écran de récompenses en panneaux, ouverture des paquets |
 | `tests/verify.js` | 95 vérifications du moteur (`node tests/verify.js 40`) |
 | `tests/league.js` | 10 vérifications de la ligue |

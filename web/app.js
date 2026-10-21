@@ -1232,7 +1232,9 @@
     let fac = DATA.FACTIONS[u.def.faction || 'allied'] || DATA.FACTIONS.allied;   // uniforme selon la faction, marqueurs selon l'équipe
     const teamDef = battle.teams[u.team]; if (!u.def.faction && teamDef.uniform) { const uni = DATA.UNIFORMS.find(x => x.id === teamDef.uniform); if (uni) fac = uni; }
     // soldat Meshy (modèle 3D animé) s'il est chargé, sinon personnage dessiné par programme
-    const f = (OT.Soldat3D && OT.Soldat3D.ready && !OT.SETTINGS_LOWMODEL && OT.Soldat3D.create({ modele: u.def.faction ? 'soldat' : 'gign', uniform: fac.uniform, weapon: u.weapon.id, attachments: u.att }))
+    // motion matching (web/mm_jeu.js : la simulation décide, le module joue les mouvements) s'il est prêt ; sinon soldat Meshy animé par clips
+    const f = (OT.MMJeu && OT.MMJeu.pret && OT.MMJeu.actif && !OT.SETTINGS_LOWMODEL && OT.MMJeu.creer(u, { modele: u.def.faction ? 'soldat' : 'gign', uniform: fac.uniform }))
+      || (OT.Soldat3D && OT.Soldat3D.ready && !OT.SETTINGS_LOWMODEL && OT.Soldat3D.create({ modele: u.def.faction ? 'soldat' : 'gign', uniform: fac.uniform, weapon: u.weapon.id, attachments: u.att }))
       || Figure.build({ id: u.def.id, weapon: u.weapon.id, uniform: fac.uniform, vest: fac.vest, teamColor: t.color, headgear: u.def.headgear || (u.def.faction ? 'casque_lunettes' : 'casque'), attachments: u.att });
     rimPatch(f.group);   // liseré de lune (nuit)
     // ombre de contact : tache douce et sombre sous les pieds (la carte d'ombre du soleil est trop grossière pour « poser » le
@@ -1253,6 +1255,7 @@
   // le modèle 3D arrive après le début d'une bataille : on remplace les personnages sans toucher à la simulation
   // les objets Meshy arrivent après le début d'une bataille : on redessine le décor (la simulation n'en dépend pas)
   if (OT.Modeles3D) OT.Modeles3D.whenReady(() => { if (battle && mapGroup) { buildMap(battle.map); render(); } });
+  if (OT.MMJeu) OT.MMJeu.whenReady(() => { if (!battle || !OT.MMJeu.actif) return; for (const u of battle.units) { const old = meshes[u.id]; if (!old || old.mm || !u.alive) continue; scene.remove(old.group); old.label.remove(); makeOperator(u); Object.assign(meshes[u.id], { prev: old.prev, cur: old.cur, fogA: old.fogA }); } render(); });
   if (OT.Soldat3D) OT.Soldat3D.whenReady(() => { if (!battle) return; for (const u of battle.units) { const old = meshes[u.id]; if (!old || old.isSkinned) continue; scene.remove(old.group); old.label.remove(); makeOperator(u); Object.assign(meshes[u.id], { prev: old.prev, cur: old.cur }); } render(); });
   // Chute : on choisit l'animation de chute et une légère rotation du corps pour que le corps allongé (tête, bassin, pieds)
   // ne traverse ni un obstacle ni le bord du terrain. Positions finales de la tête et des pieds mesurées sur les animations
@@ -1271,7 +1274,7 @@
     }
     m.anim.fallClip = best.clip; m.anim.fallYaw = best.yaw;
   }
-  function clearOperators() { for (const id in meshes) { const m = meshes[id]; scene.remove(m.group); m.label.remove(); if (m._fog) for (const f of m._fog) for (const c of [].concat(f.clone)) if (c && c.userData.base !== undefined) c.dispose(); delete meshes[id]; } }
+  function clearOperators() { if (OT.MMJeu) OT.MMJeu.vider(); for (const id in meshes) { const m = meshes[id]; scene.remove(m.group); m.label.remove(); if (m._fog) for (const f of m._fog) for (const c of [].concat(f.clone)) if (c && c.userData.base !== undefined) c.dispose(); delete meshes[id]; } }
 
   // Pose d'un opérateur selon son état (appelée à chaque image) — toutes les valeurs sont lissées.
   const lerp = (a, b, k) => a + (b - a) * k;
@@ -1445,6 +1448,7 @@
     mag.position.copy(p.worldToLocal(origin));
   }
   function animateOperator(u, m, dt) {
+    if (m.mm) return;   // motion matching : pose tenue par MMJeu.image (syncMeshes)
     if (m.isSkinned) return animateSkinned(u, m, dt);
     const a = m.anim;
     a.crouch = lerp(a.crouch, u.alive && u.stance === 'crouch' ? 1 : 0, Math.min(1, dt * 8));
@@ -1501,7 +1505,7 @@
     if (m) { m.anim.recoil = 1; const mz = m.weapon.localToWorld(m.weapon.muzzle.clone()); from.copy(mz); }
     const dir = to.clone().sub(from), len = dir.length(); dir.normalize();
     const delay = len / BULLET;
-    if (ev.hit && OT.Ragdoll && meshes[ev.target]) OT.Ragdoll.impact(meshes[ev.target], dir, delay);   // balle mortelle → ragdoll
+    if (ev.hit && OT.Ragdoll && meshes[ev.target]) { const mt = meshes[ev.target]; if (mt.mm) OT.MMJeu.touche(mt, dir); else OT.Ragdoll.impact(mt, dir, delay); }   // balle mortelle → ragdoll
     if (cache) {
       if (EFX && !ev.hit) { const n = surfaceNormal(to); EFX.impact(to, n, to.y < 0.15 ? 'impact_sol' : impactSound(to), delay); }
       else if (EFX && ev.hit && fogShown(unitById[ev.target])) EFX.bloodHit(to, dir, delay);
@@ -1923,14 +1927,15 @@
         if (window.Son && Son.fabriquer && Son.fabriquer('alarme_auto', Math.max(1, ev.until - simTime), genAlarm)) pendingSounds.push({ at: simTime + 0.2, name: 'alarme_auto', pos: { x: ev.x, y: 0.8, z: ev.z }, vol: 0.45 });
       }
       if (ev.type === 'shot' && ev.hit && Math.random() < 0.25) { const t = unitById[ev.target]; if (t && fogShown(t)) addBlood(t.x, t.z, 0.22); }
-      if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); delete FOG.deadSeen[ev.unit]; const u = unitById[ev.unit]; if (u) directorEvent('revive', u.x, u.z); }
+      if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); if (m && m.mm) OT.MMJeu.relever(unitById[ev.unit], m); delete FOG.deadSeen[ev.unit]; const u = unitById[ev.unit]; if (u) directorEvent('revive', u.x, u.z); }
       if (ev.type === 'down') {
         // mort en ragdoll (ragdoll.js) : la flaque de sang apparaît sous le bassin quand le corps s'est posé
         // (ennemi non repéré à cet instant : la chute est simulée mais ni montrée, ni entendue, ni filmée ; seul le fil des neutralisations l'annonce)
         const u = unitById[ev.unit], m = meshes[ev.unit]; fogDown(u); const vu = fogShown(u);
-        const rag = !!(u && m && m.isSkinned && OT.Ragdoll && OT.Ragdoll.mort(u, m, battle, (x, z) => { if (fogShown(u)) addBlood(x, z, 0.6); }));
+        const flaque = (x, z) => { if (fogShown(u)) addBlood(x, z, 0.6); };
+        const rag = !!(u && m && m.isSkinned && OT.Ragdoll && (m.mm ? OT.MMJeu.tuer(u, m, battle, flaque) : OT.Ragdoll.mort(u, m, battle, flaque)));
         if (u && vu) { if (!rag) addBlood(u.x, u.z, 0.6); pendingSounds.push({ at: simTime + 0.5, name: 'chute', pos: { x: u.x, y: 0.3, z: u.z }, vol: 1 }); }
-        if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; if (m.isSkinned && !rag) chooseFall(u, m); }
+        if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; if (m.isSkinned && !rag && !m.mm) chooseFall(u, m); }
         if (u && vu) directorEvent('down', u.x, u.z); }
       if (ev.type === 'smoke') addSmoke(ev);
       if (ev.type === 'shell') { addShell(ev); addScorch(ev.x, ev.z, 1.8); play('explosion_lourde', { x: ev.x, y: 1, z: ev.z }, { vol: 1.1, espace: true }); cam.shake = Math.max(cam.shake || 0, 0.35); }
@@ -2048,8 +2053,11 @@
 
   function syncMeshes(alpha) {
     if (OT.Ragdoll) OT.Ragdoll.etape(frameDt, battle);   // physique des morts (une fois par image)
+    // motion matching : position simulée interpolée (comme ci-dessous) et vitesse → ordres, pas fixes de 1/60 s
+    if (OT.MMJeu && OT.MMJeu.agents.size) OT.MMJeu.image(frameDt, (u) => { const m = meshes[u.id]; if (!m) return null; const an = m.anim || {}; return { x: m.prev.x + (m.cur.x - m.prev.x) * alpha, z: m.prev.z + (m.cur.z - m.prev.z) * alpha, vx: an.vx || 0, vz: an.vz || 0 }; }, battle);
     for (const u of battle.units) {
       const m = meshes[u.id];
+      if (m.mm) { const an = m.anim, vdx = (m.cur.x - m.prev.x) / DT, vdz = (m.cur.z - m.prev.z) / DT, kv = Math.hypot(vdx, vdz) > 7 ? 0 : Math.min(1, frameDt * 9); an.vx = (an.vx || 0) + (vdx - (an.vx || 0)) * kv; an.vz = (an.vz || 0) + (vdz - (an.vz || 0)) * kv; continue; }
       const x = m.prev.x + (m.cur.x - m.prev.x) * alpha, z = m.prev.z + (m.cur.z - m.prev.z) * alpha;
       m.group.position.set(x, 0, z);
       // orientation : interpolation angulaire courte
@@ -2096,7 +2104,7 @@
   const yawOf = (o) => { const d = new THREE.Vector3(0, 0, 1).applyQuaternion(o.getWorldQuaternion(new THREE.Quaternion())); return Math.atan2(d.x, d.z); };
   const wrapA = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
   function spinWatch(u, m) {
-    if (!m.isSkinned || !m.bones.hips) return;
+    if (!m.isSkinned || m.mm || !m.bones.hips) return;
     const h = SPIN.hist[u.id] || (SPIN.hist[u.id] = []), t = simTime + Math.min(1, acc / DT) * DT;
     const rec = { t: +t.toFixed(2), bassin: yawOf(m.bones.hips), torse: m.bones.spine ? yawOf(m.bones.spine) : 0, yaw: m.yaw, facing: m.cur.facing, corr: m.body.rotation.y, jambes: m.jambes, clip: m.clip, alive: u.alive, state: u.state, v: +(Math.hypot(m.cur.x - m.prev.x, m.cur.z - m.prev.z) / DT).toFixed(2) };
     h.push(rec); while (h.length > 2 && h[0].t < t - 1.0) h.shift();
@@ -3104,6 +3112,7 @@
     useTactic: (id) => battle.command('tactic', 0, id),
     review: () => { review(); return battle.replayQueue.length; },
     meshes: () => meshes, scene: () => scene,
+    mm: () => OT.MMJeu,   // motion matching (web/mm_jeu.js) : agents, réglages de liaison, coût par pas
     // ennemis non repérés : ce que voit l'escouade (simulation) et ce qui est dessiné (modèles, étiquettes, repères « ? »)
     fogForce: (v) => { FOG.force = v; },   // (outils : true / false impose, undefined rend la main au réglage)
     fog: () => { const E = battle.teams[1].units, vis = (u) => !!(meshes[u.id] && meshes[u.id].group.visible); return { on: fogOn(), spotted: [...FOG.spotted], alive: E.filter(u => u.alive).map(u => u.id), drawn: E.filter(u => u.alive && vis(u)).map(u => u.id), fading: E.filter(u => meshes[u.id] && meshes[u.id].fogA > 0 && meshes[u.id].fogA < 1).map(u => u.id), labels: E.filter(u => u.alive && meshes[u.id] && meshes[u.id].label.style.display !== 'none').map(u => u.id), deadDrawn: E.filter(u => !u.alive && vis(u)).map(u => u.id), deadSeen: Object.assign({}, FOG.deadSeen), ghosts: Object.keys(FOG.ghosts).filter(id => FOG.ghosts[id].visible) }; },
@@ -3113,7 +3122,7 @@
     setSpeed: (k) => { speed = k; }, play: () => { paused = false; updatePlayButton(); },
     // diagnostic d'animation : pour chaque soldat, vitesse réelle, direction du déplacement par rapport au corps affiché,
     // animation jouée et sa vitesse de lecture (pour mesurer glissements et incohérences d'orientation)
-    diag: () => battle.units.map(u => { const m = meshes[u.id]; if (!m || !m.isSkinned) return null;
+    diag: () => battle.units.map(u => { const m = meshes[u.id]; if (!m || !m.isSkinned || m.mm) return null;
       const dx = m.cur.x - m.prev.x, dz = m.cur.z - m.prev.z, v = Math.hypot(dx, dz) / DT, moveYaw = v > 0.05 ? -Math.atan2(dz, dx) + Math.PI / 2 : null;
       let d = moveYaw === null ? null : moveYaw - m.yaw; if (d !== null) { while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; }
       const act = m.clip && m.mixer.existingAction(m.clips[m.clip]);

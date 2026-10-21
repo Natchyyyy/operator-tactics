@@ -91,7 +91,7 @@ const hdart = (f) => f.replace(/\.glb$/, '.json');
 
 // ---- 4. manifeste de publication (artifact claude.ai) : chemin publié → fichier source, contrôles de taille et de type
 const TYPES = { js: 'text/javascript', json: 'application/json', txt: 'text/plain', css: 'text/css', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
-  ogg: 'audio/ogg', mp3: 'audio/mpeg', wav: 'audio/wav', woff2: 'font/woff2' };
+  ogg: 'audio/ogg', mp3: 'audio/mpeg', wav: 'audio/wav', woff2: 'font/woff2', wasm: 'application/wasm' };   // (wasm : données de motion matching, mêmes octets que les .bin)
 const TEXTE = /^(js|json|txt|css)$/, MAX_TEXTE = 16e6, MAX_BIN = 15e6, MAX_PAGE = 16e6, MAX_VERSION = 256e6, MAX_FICHIERS = 511, LOT_FICHIERS = 250, LOT_OCTETS = 60e6;
 const fichiersPub = [...parties, ...annexes].map(p => ({ publie: p.f, source: 'dist/' + p.f }))
   .concat(hdFichiers.map(f => ({ publie: 'hd/' + hdart(f), source: 'dist/hdart/' + hdart(f) })));

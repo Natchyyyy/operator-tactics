@@ -2420,7 +2420,7 @@
     f.play(clip || 'Walk_Fight_Forward', { time: t !== undefined ? t : 0.15 }); f.update(0); f.body.rotation.y = f.yawFix[f.clip] || 0; f.body.updateMatrixWorld(true);
     f.placeWeapon(true, 0); return f;
   }
-  S.load = load; S.create = create; S.posed = posed; S.whenReady = (fn) => { if (S.ready) fn(); else S.onReady.push(fn); };
+  S.load = load; S.create = create; S.posed = posed; S.cloneSkinned = cloneSkinned; S.tintedMaterial = tintedMaterial; S.charnieres = charnieres; /* (motion matching, web/mm_jeu.js) */ S.whenReady = (fn) => { if (S.ready) fn(); else S.onReady.push(fn); };
   root.Soldat3D = S;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load); else setTimeout(load, 0);
 })(window.OT = window.OT || {});
