@@ -1,0 +1,526 @@
+{
+ "page": "/home/claude/operator-tactics/dist/artifact.html",
+ "octets_page": 384973,
+ "version": "ff94974bc8",
+ "total_octets": 171543099,
+ "fichiers": 63,
+ "problemes": [],
+ "lots": [
+  {
+   "n": 22,
+   "octets": 58992618,
+   "files": {
+    "p/three.min.js": "/home/claude/operator-tactics/dist/p/three.min.js",
+    "p/three-addons.js": "/home/claude/operator-tactics/dist/p/three-addons.js",
+    "p/cannon-es.js": "/home/claude/operator-tactics/dist/p/cannon-es.js",
+    "p/modeles-soldat.js": "/home/claude/operator-tactics/dist/p/modeles-soldat.js",
+    "p/modeles-gign.js": "/home/claude/operator-tactics/dist/p/modeles-gign.js",
+    "p/modeles-decor.js": "/home/claude/operator-tactics/dist/p/modeles-decor.js",
+    "p/sons.js": "/home/claude/operator-tactics/dist/p/sons.js",
+    "p/jeu.js": "/home/claude/operator-tactics/dist/p/jeu.js",
+    "p/cannon-es.LICENSE.txt": "/home/claude/operator-tactics/dist/p/cannon-es.LICENSE.txt",
+    "hd/abribus.json": "/home/claude/operator-tactics/dist/hdart/abribus.json",
+    "hd/arbre.json": "/home/claude/operator-tactics/dist/hdart/arbre.json",
+    "hd/armoire.json": "/home/claude/operator-tactics/dist/hdart/armoire.json",
+    "hd/aspirateur.json": "/home/claude/operator-tactics/dist/hdart/aspirateur.json",
+    "hd/barriere.json": "/home/claude/operator-tactics/dist/hdart/barriere.json",
+    "hd/benne.json": "/home/claude/operator-tactics/dist/hdart/benne.json",
+    "hd/berline.json": "/home/claude/operator-tactics/dist/hdart/berline.json",
+    "hd/borne.json": "/home/claude/operator-tactics/dist/hdart/borne.json",
+    "hd/bus.json": "/home/claude/operator-tactics/dist/hdart/bus.json",
+    "hd/caisse.json": "/home/claude/operator-tactics/dist/hdart/caisse.json",
+    "hd/caisses.json": "/home/claude/operator-tactics/dist/hdart/caisses.json",
+    "hd/clim.json": "/home/claude/operator-tactics/dist/hdart/clim.json",
+    "hd/conteneur.json": "/home/claude/operator-tactics/dist/hdart/conteneur.json"
+   }
+  },
+  {
+   "n": 13,
+   "octets": 59283449,
+   "files": {
+    "hd/escalier.json": "/home/claude/operator-tactics/dist/hdart/escalier.json",
+    "hd/fourgon.json": "/home/claude/operator-tactics/dist/hdart/fourgon.json",
+    "hd/fusil.json": "/home/claude/operator-tactics/dist/hdart/fusil.json",
+    "hd/fut.json": "/home/claude/operator-tactics/dist/hdart/fut.json",
+    "hd/gign_couleur.jpg": "/home/claude/operator-tactics/dist/hdart/gign_couleur.jpg",
+    "hd/gign_hd.json": "/home/claude/operator-tactics/dist/hdart/gign_hd.json",
+    "hd/gign_lod.json": "/home/claude/operator-tactics/dist/hdart/gign_lod.json",
+    "hd/gign_mr.jpg": "/home/claude/operator-tactics/dist/hdart/gign_mr.jpg",
+    "hd/gign_relief.jpg": "/home/claude/operator-tactics/dist/hdart/gign_relief.jpg",
+    "hd/guerite.json": "/home/claude/operator-tactics/dist/hdart/guerite.json",
+    "hd/kiosque.json": "/home/claude/operator-tactics/dist/hdart/kiosque.json",
+    "hd/mm_base.0.wasm": "/home/claude/operator-tactics/dist/hdart/mm_base.0.wasm",
+    "hd/mm_base.1.wasm": "/home/claude/operator-tactics/dist/hdart/mm_base.1.wasm"
+   }
+  },
+  {
+   "n": 27,
+   "octets": 52882059,
+   "files": {
+    "hd/mm_base.2.wasm": "/home/claude/operator-tactics/dist/hdart/mm_base.2.wasm",
+    "hd/mm_base.json": "/home/claude/operator-tactics/dist/hdart/mm_base.json",
+    "hd/palettes.json": "/home/claude/operator-tactics/dist/hdart/palettes.json",
+    "hd/pbr_asphalte_couleur.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_asphalte_couleur.jpg",
+    "hd/pbr_asphalte_relief.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_asphalte_relief.jpg",
+    "hd/pbr_asphalte_rugosite.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_asphalte_rugosite.jpg",
+    "hd/pbr_beton_couleur.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_beton_couleur.jpg",
+    "hd/pbr_beton_relief.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_beton_relief.jpg",
+    "hd/pbr_beton_rugosite.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_beton_rugosite.jpg",
+    "hd/pbr_brique_couleur.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_brique_couleur.jpg",
+    "hd/pbr_brique_relief.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_brique_relief.jpg",
+    "hd/pbr_brique_rugosite.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_brique_rugosite.jpg",
+    "hd/pbr_ciel_ville.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_ciel_ville.jpg",
+    "hd/pbr_dalles_couleur.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_dalles_couleur.jpg",
+    "hd/pbr_dalles_relief.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_dalles_relief.jpg",
+    "hd/pbr_dalles_rugosite.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_dalles_rugosite.jpg",
+    "hd/pbr_ecorce_couleur.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_ecorce_couleur.jpg",
+    "hd/pbr_ecorce_relief.jpg": "/home/claude/operator-tactics/dist/hdart/pbr_ecorce_relief.jpg",
+    "hd/pickup.json": "/home/claude/operator-tactics/dist/hdart/pickup.json",
+    "hd/porte.json": "/home/claude/operator-tactics/dist/hdart/porte.json",
+    "hd/sacs.json": "/home/claude/operator-tactics/dist/hdart/sacs.json",
+    "hd/soldat_couleur.jpg": "/home/claude/operator-tactics/dist/hdart/soldat_couleur.jpg",
+    "hd/soldat_hd.json": "/home/claude/operator-tactics/dist/hdart/soldat_hd.json",
+    "hd/soldat_lod.json": "/home/claude/operator-tactics/dist/hdart/soldat_lod.json",
+    "hd/soldat_mr.jpg": "/home/claude/operator-tactics/dist/hdart/soldat_mr.jpg",
+    "hd/soldat_relief.jpg": "/home/claude/operator-tactics/dist/hdart/soldat_relief.jpg",
+    "hd/sons_hd.json": "/home/claude/operator-tactics/dist/hdart/sons_hd.json"
+   }
+  }
+ ],
+ "liste": [
+  {
+   "publie": "p/three.min.js",
+   "source": "dist/p/three.min.js",
+   "octets": 668024,
+   "type": "text/javascript",
+   "sha": "766f937d9d4c"
+  },
+  {
+   "publie": "p/three-addons.js",
+   "source": "dist/p/three-addons.js",
+   "octets": 159571,
+   "type": "text/javascript",
+   "sha": "c2bee8f63dc6"
+  },
+  {
+   "publie": "p/cannon-es.js",
+   "source": "dist/p/cannon-es.js",
+   "octets": 346660,
+   "type": "text/javascript",
+   "sha": "8392b7fe618b"
+  },
+  {
+   "publie": "p/modeles-soldat.js",
+   "source": "dist/p/modeles-soldat.js",
+   "octets": 3073712,
+   "type": "text/javascript",
+   "sha": "9d54f77c33c9"
+  },
+  {
+   "publie": "p/modeles-gign.js",
+   "source": "dist/p/modeles-gign.js",
+   "octets": 2752068,
+   "type": "text/javascript",
+   "sha": "7fb79b4fb494"
+  },
+  {
+   "publie": "p/modeles-decor.js",
+   "source": "dist/p/modeles-decor.js",
+   "octets": 4727266,
+   "type": "text/javascript",
+   "sha": "1fab80ab4f8e"
+  },
+  {
+   "publie": "p/sons.js",
+   "source": "dist/p/sons.js",
+   "octets": 1552112,
+   "type": "text/javascript",
+   "sha": "32dd8038abef"
+  },
+  {
+   "publie": "p/jeu.js",
+   "source": "dist/p/jeu.js",
+   "octets": 2106394,
+   "type": "text/javascript",
+   "sha": "e6408c480d70"
+  },
+  {
+   "publie": "p/cannon-es.LICENSE.txt",
+   "source": "dist/p/cannon-es.LICENSE.txt",
+   "octets": 1125,
+   "type": "text/plain",
+   "sha": "1e48abdab6ca"
+  },
+  {
+   "publie": "hd/abribus.json",
+   "source": "dist/hdart/abribus.json",
+   "octets": 3075122,
+   "type": "application/json",
+   "sha": "b2a0206e4a9e"
+  },
+  {
+   "publie": "hd/arbre.json",
+   "source": "dist/hdart/arbre.json",
+   "octets": 4192386,
+   "type": "application/json",
+   "sha": "644c34ebdd6d"
+  },
+  {
+   "publie": "hd/armoire.json",
+   "source": "dist/hdart/armoire.json",
+   "octets": 954874,
+   "type": "application/json",
+   "sha": "f2472a171816"
+  },
+  {
+   "publie": "hd/aspirateur.json",
+   "source": "dist/hdart/aspirateur.json",
+   "octets": 2536546,
+   "type": "application/json",
+   "sha": "1bb1fb8c5938"
+  },
+  {
+   "publie": "hd/barriere.json",
+   "source": "dist/hdart/barriere.json",
+   "octets": 3210946,
+   "type": "application/json",
+   "sha": "b4babbc2e5af"
+  },
+  {
+   "publie": "hd/benne.json",
+   "source": "dist/hdart/benne.json",
+   "octets": 2512374,
+   "type": "application/json",
+   "sha": "a10ab462792c"
+  },
+  {
+   "publie": "hd/berline.json",
+   "source": "dist/hdart/berline.json",
+   "octets": 3900410,
+   "type": "application/json",
+   "sha": "0da27ae5da6c"
+  },
+  {
+   "publie": "hd/borne.json",
+   "source": "dist/hdart/borne.json",
+   "octets": 2519458,
+   "type": "application/json",
+   "sha": "fd0854867ad9"
+  },
+  {
+   "publie": "hd/bus.json",
+   "source": "dist/hdart/bus.json",
+   "octets": 4682474,
+   "type": "application/json",
+   "sha": "bfef29d8cd54"
+  },
+  {
+   "publie": "hd/caisse.json",
+   "source": "dist/hdart/caisse.json",
+   "octets": 1991378,
+   "type": "application/json",
+   "sha": "5e6a0c7cfdbb"
+  },
+  {
+   "publie": "hd/caisses.json",
+   "source": "dist/hdart/caisses.json",
+   "octets": 4643954,
+   "type": "application/json",
+   "sha": "c042356fb902"
+  },
+  {
+   "publie": "hd/clim.json",
+   "source": "dist/hdart/clim.json",
+   "octets": 5385586,
+   "type": "application/json",
+   "sha": "1d76d2280be2"
+  },
+  {
+   "publie": "hd/conteneur.json",
+   "source": "dist/hdart/conteneur.json",
+   "octets": 4000178,
+   "type": "application/json",
+   "sha": "95d18d8b0c66"
+  },
+  {
+   "publie": "hd/escalier.json",
+   "source": "dist/hdart/escalier.json",
+   "octets": 7977414,
+   "type": "application/json",
+   "sha": "cc59cd5e2ed9"
+  },
+  {
+   "publie": "hd/fourgon.json",
+   "source": "dist/hdart/fourgon.json",
+   "octets": 3325766,
+   "type": "application/json",
+   "sha": "5fdef55c60de"
+  },
+  {
+   "publie": "hd/fusil.json",
+   "source": "dist/hdart/fusil.json",
+   "octets": 3408922,
+   "type": "application/json",
+   "sha": "56264ca9bf07"
+  },
+  {
+   "publie": "hd/fut.json",
+   "source": "dist/hdart/fut.json",
+   "octets": 1734138,
+   "type": "application/json",
+   "sha": "7b04505c53ca"
+  },
+  {
+   "publie": "hd/gign_couleur.jpg",
+   "source": "dist/hdart/gign_couleur.jpg",
+   "octets": 3556309,
+   "type": "image/jpeg",
+   "sha": "681728476a5c"
+  },
+  {
+   "publie": "hd/gign_hd.json",
+   "source": "dist/hdart/gign_hd.json",
+   "octets": 6837722,
+   "type": "application/json",
+   "sha": "460760161638"
+  },
+  {
+   "publie": "hd/gign_lod.json",
+   "source": "dist/hdart/gign_lod.json",
+   "octets": 2771174,
+   "type": "application/json",
+   "sha": "81bf52e54b83"
+  },
+  {
+   "publie": "hd/gign_mr.jpg",
+   "source": "dist/hdart/gign_mr.jpg",
+   "octets": 462941,
+   "type": "image/jpeg",
+   "sha": "b36e3ce8b21e"
+  },
+  {
+   "publie": "hd/gign_relief.jpg",
+   "source": "dist/hdart/gign_relief.jpg",
+   "octets": 4708023,
+   "type": "image/jpeg",
+   "sha": "bff9f81b5864"
+  },
+  {
+   "publie": "hd/guerite.json",
+   "source": "dist/hdart/guerite.json",
+   "octets": 3799290,
+   "type": "application/json",
+   "sha": "6d8612ce4005"
+  },
+  {
+   "publie": "hd/kiosque.json",
+   "source": "dist/hdart/kiosque.json",
+   "octets": 5055478,
+   "type": "application/json",
+   "sha": "2574eb0c96c6"
+  },
+  {
+   "publie": "hd/mm_base.0.wasm",
+   "source": "dist/hdart/mm_base.0.wasm",
+   "octets": 7823136,
+   "type": "application/wasm",
+   "sha": "2ecfafda04f2"
+  },
+  {
+   "publie": "hd/mm_base.1.wasm",
+   "source": "dist/hdart/mm_base.1.wasm",
+   "octets": 7823136,
+   "type": "application/wasm",
+   "sha": "2592b1dfed5b"
+  },
+  {
+   "publie": "hd/mm_base.2.wasm",
+   "source": "dist/hdart/mm_base.2.wasm",
+   "octets": 7823744,
+   "type": "application/wasm",
+   "sha": "90e4a4647b3f"
+  },
+  {
+   "publie": "hd/mm_base.json",
+   "source": "dist/hdart/mm_base.json",
+   "octets": 84913,
+   "type": "application/json",
+   "sha": "b733cc594da2"
+  },
+  {
+   "publie": "hd/palettes.json",
+   "source": "dist/hdart/palettes.json",
+   "octets": 4554006,
+   "type": "application/json",
+   "sha": "4edc4d6669ae"
+  },
+  {
+   "publie": "hd/pbr_asphalte_couleur.jpg",
+   "source": "dist/hdart/pbr_asphalte_couleur.jpg",
+   "octets": 1697448,
+   "type": "image/jpeg",
+   "sha": "8c3755aea24c"
+  },
+  {
+   "publie": "hd/pbr_asphalte_relief.jpg",
+   "source": "dist/hdart/pbr_asphalte_relief.jpg",
+   "octets": 1564686,
+   "type": "image/jpeg",
+   "sha": "bf262896a8a8"
+  },
+  {
+   "publie": "hd/pbr_asphalte_rugosite.jpg",
+   "source": "dist/hdart/pbr_asphalte_rugosite.jpg",
+   "octets": 369165,
+   "type": "image/jpeg",
+   "sha": "569dfd0db5ff"
+  },
+  {
+   "publie": "hd/pbr_beton_couleur.jpg",
+   "source": "dist/hdart/pbr_beton_couleur.jpg",
+   "octets": 156247,
+   "type": "image/jpeg",
+   "sha": "2615e21dc67f"
+  },
+  {
+   "publie": "hd/pbr_beton_relief.jpg",
+   "source": "dist/hdart/pbr_beton_relief.jpg",
+   "octets": 71582,
+   "type": "image/jpeg",
+   "sha": "5cbaadd45d14"
+  },
+  {
+   "publie": "hd/pbr_beton_rugosite.jpg",
+   "source": "dist/hdart/pbr_beton_rugosite.jpg",
+   "octets": 6077,
+   "type": "image/jpeg",
+   "sha": "d74fc7bc3fd0"
+  },
+  {
+   "publie": "hd/pbr_brique_couleur.jpg",
+   "source": "dist/hdart/pbr_brique_couleur.jpg",
+   "octets": 330657,
+   "type": "image/jpeg",
+   "sha": "3c8d630f0309"
+  },
+  {
+   "publie": "hd/pbr_brique_relief.jpg",
+   "source": "dist/hdart/pbr_brique_relief.jpg",
+   "octets": 291459,
+   "type": "image/jpeg",
+   "sha": "a97dc3025c82"
+  },
+  {
+   "publie": "hd/pbr_brique_rugosite.jpg",
+   "source": "dist/hdart/pbr_brique_rugosite.jpg",
+   "octets": 36213,
+   "type": "image/jpeg",
+   "sha": "8f103730a963"
+  },
+  {
+   "publie": "hd/pbr_ciel_ville.jpg",
+   "source": "dist/hdart/pbr_ciel_ville.jpg",
+   "octets": 112022,
+   "type": "image/jpeg",
+   "sha": "f51d14d3313a"
+  },
+  {
+   "publie": "hd/pbr_dalles_couleur.jpg",
+   "source": "dist/hdart/pbr_dalles_couleur.jpg",
+   "octets": 283722,
+   "type": "image/jpeg",
+   "sha": "3a3e128f73fd"
+  },
+  {
+   "publie": "hd/pbr_dalles_relief.jpg",
+   "source": "dist/hdart/pbr_dalles_relief.jpg",
+   "octets": 399178,
+   "type": "image/jpeg",
+   "sha": "f3a73be6c665"
+  },
+  {
+   "publie": "hd/pbr_dalles_rugosite.jpg",
+   "source": "dist/hdart/pbr_dalles_rugosite.jpg",
+   "octets": 15200,
+   "type": "image/jpeg",
+   "sha": "e02e05994157"
+  },
+  {
+   "publie": "hd/pbr_ecorce_couleur.jpg",
+   "source": "dist/hdart/pbr_ecorce_couleur.jpg",
+   "octets": 71563,
+   "type": "image/jpeg",
+   "sha": "937e16b9b8b8"
+  },
+  {
+   "publie": "hd/pbr_ecorce_relief.jpg",
+   "source": "dist/hdart/pbr_ecorce_relief.jpg",
+   "octets": 112805,
+   "type": "image/jpeg",
+   "sha": "0322a832a4fc"
+  },
+  {
+   "publie": "hd/pickup.json",
+   "source": "dist/hdart/pickup.json",
+   "octets": 4015878,
+   "type": "application/json",
+   "sha": "1a805b3a79bf"
+  },
+  {
+   "publie": "hd/porte.json",
+   "source": "dist/hdart/porte.json",
+   "octets": 3474758,
+   "type": "application/json",
+   "sha": "c02f2786554b"
+  },
+  {
+   "publie": "hd/sacs.json",
+   "source": "dist/hdart/sacs.json",
+   "octets": 2383574,
+   "type": "application/json",
+   "sha": "16a5c6418a1e"
+  },
+  {
+   "publie": "hd/soldat_couleur.jpg",
+   "source": "dist/hdart/soldat_couleur.jpg",
+   "octets": 5280651,
+   "type": "image/jpeg",
+   "sha": "5ebfde0a77c0"
+  },
+  {
+   "publie": "hd/soldat_hd.json",
+   "source": "dist/hdart/soldat_hd.json",
+   "octets": 7322450,
+   "type": "application/json",
+   "sha": "da528c079d12"
+  },
+  {
+   "publie": "hd/soldat_lod.json",
+   "source": "dist/hdart/soldat_lod.json",
+   "octets": 3794758,
+   "type": "application/json",
+   "sha": "085988a362b5"
+  },
+  {
+   "publie": "hd/soldat_mr.jpg",
+   "source": "dist/hdart/soldat_mr.jpg",
+   "octets": 457564,
+   "type": "image/jpeg",
+   "sha": "2f0b0752a251"
+  },
+  {
+   "publie": "hd/soldat_relief.jpg",
+   "source": "dist/hdart/soldat_relief.jpg",
+   "octets": 6621201,
+   "type": "image/jpeg",
+   "sha": "ec83c828c260"
+  },
+  {
+   "publie": "hd/sons_hd.json",
+   "source": "dist/hdart/sons_hd.json",
+   "octets": 1550538,
+   "type": "application/json",
+   "sha": "2df072940a0c"
+  }
+ ]
+}
