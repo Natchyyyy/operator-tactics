@@ -28,4 +28,9 @@
   10 m ; décrocher : les bondisseurs courent toujours ; point de passage frôlé 3 pas de suite = atteint (`wpStall`).
   Idée proposée à l'utilisateur (en attente) : petite vue de dessus des replays (2D, ~1 s/image) pour déboguer le cerveau.
   À faire (demandé) : « cerveau de groupe » qui se déplace selon la doctrine (l'utilisateur veut un mouvement d'escouade logique).
-- Prochaine tâche : retour de l'utilisateur sur la v53 (bugs visuels) ; captures zoomées + agent QA sur tir, couvert, réa.
+- PLAN VALIDÉ PAR L'UTILISATEUR (21/10, dans cet ordre, publier après chaque étape) :
+  1. Outil « vue de dessus des replays » (2D, ~1 s/image, ne touche pas au jeu) : obstacles (gris foncé = hauts, clair = bas),
+     soldats (points bleu/rouge + trait du regard), chemin prévu, positions ennemies connues, coins de tir ; pour déboguer l'IA.
+  2. Sons : l'alarme de voiture est trop fréquente, horrible (« alarme de pompier »), trop forte → plus rare, plus réaliste, moins fort.
+  3. Grenades (en dernier) : explosion et effets nuls, on ne voit pas qu'une grenade est lancée → meilleur son, effet, signal du lancer.
+- Prochaine tâche (ancienne) : retour de l'utilisateur sur la v53 (bugs visuels) ; captures zoomées + agent QA sur tir, couvert, réa.
