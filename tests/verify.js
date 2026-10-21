@@ -313,7 +313,8 @@ function duel(opts) {
   const GR = DATA.GRENADES;
   // dotation par rôle
   const b0 = new Battle({ seed: 1 }); const byRole = (r) => b0.units.find(u => u.role.id === r);
-  check('grenades : dotation par rôle (assaut 1 frag, pointe 1 incapacitante, brèche 1+1, appui et tireur aucune)', byRole('assault').grenades.frag === 1 && byRole('pointman').grenades.flash === 1 && byRole('breacher').grenades.frag === 1 && byRole('breacher').grenades.flash === 1 && !byRole('support').grenades.frag && !byRole('marksman').grenades.frag);
+  const tot = (t) => t.units.reduce((n, u) => n + Object.values(u.grenades).reduce((a, c) => a + c, 0), 0), nb = (t, k) => t.units.reduce((n, u) => n + (u.grenades[k] || 0), 0);
+  check('grenades : deux au plus par équipe — un fumigène et une frag (22/10, demande de l\'utilisateur)', b0.teams.every(t => tot(t) <= 2 && nb(t, 'smoke') === 1 && nb(t, 'frag') + nb(t, 'flash') <= 1), b0.teams.map(t => t.units.map(u => u.grenades)));
   // explosion : dégâts selon la distance, un mur protège, crédit au lanceur
   const mapE = new GameMap(MAPS.entrepot);
   const wall = mapE.obstacles.find(o => o.h >= 2.5 && o.w >= 2 && o.d >= 2);
@@ -375,8 +376,8 @@ function duel(opts) {
 {
   // ---- traits de la quatrième vague : Grenadier, Vigie, Secouriste ----
   const duo = (a, b, map) => new Battle({ seed: 7, mapId: map || 'place', teams: [{ operators: [a], tactics: [] }, { operators: [b], tactics: [] }] });
-  let b = duo('op_corbeau', 'k_molosse'); const g0 = b.teams[0].units[0].grenades.frag; const g1 = duo('op_vautour', 'k_molosse').teams[0].units[0].grenades.frag;
-  check('Grenadier : une grenade à fragmentation de plus que le même rôle sans le trait', g0 === g1 + 1, { g0, g1 });
+  let b = duo('op_corbeau', 'k_molosse'); const bg = new Battle({ seed: 7, mapId: 'place', teams: [{ operators: ['op_vautour', 'op_corbeau'], tactics: [] }, { operators: ['k_molosse'], tactics: [] }] }); const g0 = bg.teams[0].units[1].grenades.frag, g1 = bg.teams[0].units[0].grenades.frag || 0;
+  check('Grenadier : la frag de l\'équipe lui revient', g0 === 1 && g1 === 0, { g0, g1 });
   // Vigie : un ennemi qui marche à 9 m derrière un mur est entendu par la Vigie, pas par un autre éclaireur
   const mp = new GameMap(MAPS.place);
   let spot = null; for (let x = 6; x < 60 && !spot; x += 0.5) for (let z = 3; z < 42 && !spot; z += 0.5) if (!mp.insideObstacle(x, z) && !mp.insideObstacle(x + 9, z) && !mp.hasLOS(x, 1.6, z, x + 9, 1.6, z)) spot = { x, z };

@@ -498,7 +498,8 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   const mkV = (seed, bo, ao) => new Battle({ seed, mapId: 'parking', teams: [{ name: 'Alpha', order: ao || 'hold', operators: GIGN, tactics: ['tiroir'] }, { name: 'Bravo', order: bo || 'hold', operators: KARST, tactics: ['tiroir'] }] });
   // E1 / E2 : dotation et grenade sur ordre
   { const b = mkV(7); while (b.t < 1) b.step();
-    check('grenades : chaque opérateur du joueur a 1 frag, 1 incapacitante et 1 fumigène ; l\'adversaire n\'a pas d\'incapacitante', b.teams[0].units.every(u => u.grenades.frag === 1 && u.grenades.flash === 1 && u.grenades.smoke === 1) && b.teams[1].units.every(u => !u.grenades.flash), b.teams[0].units.map(u => u.grenades));
+    check('grenades : deux au plus par équipe, dont un fumigène', b.teams.every(t => t.units.reduce((n, u) => n + Object.values(u.grenades).reduce((a, c) => a + c, 0), 0) <= 2 && t.units.filter(u => u.grenades.smoke === 1).length === 1), b.teams.map(t => t.units.map(u => u.grenades)));
+    b.teams[0].units.forEach(u => { u.grenades = { frag: 1, flash: 1, smoke: 1 }; });   // la suite teste l'ordre de grenade, pas la dotation
     const near = (k, x, z) => b.teams[0].units.filter(u => (u.grenades[k] || 0) > 0 && !u.throwing).map(u => ({ u, d: Math.hypot(u.x - x, u.z - z) })).filter(o => o.d >= 8 && o.d <= 24 && b.map.hasLOS(o.u.x, 2.3, o.u.z, x, 1.4, z)).sort((a, c) => a.d - c.d)[0];
     const exp = near('flash', 18, 23), r = b.command('grenade', 0, { x: 18, z: 23, kind: 'flash', units: null });
     const far = b.command('grenade', 0, { x: 66, z: 23, kind: 'frag', units: null }), bad = b.command('grenade', 0, { x: 18, z: 23, kind: 'mortier', units: null });
@@ -551,6 +552,7 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   // rejouabilité : grenades sur ordre, avec fumée, points de passage, fouiller → bataille revue identique, pas à pas
   { const play = (o) => {
       const b = new Battle(Object.assign({ seed: 11, mapId: 'parking', teams: [{ name: 'Alpha', order: 'assault', operators: GIGN, tactics: ['tiroir'] }, { name: 'Bravo', order: 'assault', operators: KARST, tactics: ['tiroir'] }] }, o || {}));
+      b.teams[0].units.forEach(u => { u.grenades = { frag: 1, flash: 1, smoke: 1 }; });   // (la revue, pas la dotation)
       const trace = [];
       while (!b.over && b.t < 160) {
         if (!b.replayQueue) {
@@ -689,4 +691,22 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   check('coin d\'un mur : des opérateurs tirent au coin (sortie ≤ 1,4 m de la cachette), et cachés derrière le mur personne ne les voit', peekT > 20 && far === 0 && hideT > 20 && hideSeen / (hideT * 10) < 0.02, { peekT, far, hideT, hideSeen });
   check('rafales courtes : 2 à 5 coups en moyenne, puis souvent une vraie pause à l\'abri (≥ 0,8 s)', avgB >= 2 && avgB <= 5.2 && longPause > pauses * 0.3, { avgB, longPause, pauses });
 }
+// ---- Secours sur ordre (22/10, idée de l'utilisateur) : clic droit sur un équipier à terre ----
+{ const run = (o) => {
+    const b = new Battle(Object.assign({ seed: 1, mapId: 'parking', teams: [{ name: 'Alpha', order: 'careful', operators: GIGN, tactics: [] }, { name: 'Bravo', order: 'assault', operators: KARST, tactics: [] }] }, o || {}));
+    let a = null, r = null, alive = null;
+    while (!b.over && b.t < 120) { b.step();
+      if (!a) { const d = b.teams[0].units.find(u => !u.alive && u.bleedUntil > b.t + 12); if (d && b.t > d.downAt + 0.5) { a = d;
+        if (!b.replayQueue) { alive = b.command('secourir', 0, { id: b.teams[0].units.find(u => u.alive).id, units: null }); for (const u of b.teams[0].units) u.orderAt = -99;
+          const us = b.teams[0].units.filter(u => u.alive).sort((p, q) => Math.hypot(p.x - d.x, p.z - d.z) - Math.hypot(q.x - d.x, q.z - d.z)).slice(0, 2).map(u => u.id);
+          r = b.command('secourir', 0, { id: d.id, units: us }); } } }
+      if (a && b.t > a.downAt + 25) break;
+    }
+    return { b, a, r, alive };
+  };
+  const A = run(), P = A.b.unitById(A.r && A.r.unit), roles = A.r ? A.r.units.map(id => A.b.unitById(id)) : [];
+  const rv = A.b.log.find(l => l.kind === 'revive' && A.a && l.text.includes(A.a.callsign));
+  check('secours sur ordre : refusé sur un équipier debout ; accepté, le plus proche le récupère (il reçoit le fumigène de l\'équipe), le blessé est relevé', A.alive && !A.alive.ok && A.r && A.r.ok && A.r.fumee === true && roles.length === 2 && !!rv && A.b.log.some(l => l.kind === 'rescueorder') && P && A.b.teams[0].units.filter(u => (u.grenades.smoke || 0) > 0).every(u => u === P), { r: A.r, rv: rv && rv.text });
+  const B = run({ replayInputs: A.b.inputs });
+  check('secours sur ordre : la bataille revue est identique', JSON.stringify(A.b.log) === JSON.stringify(B.b.log), { n: A.b.log.length, m: B.b.log.length }); }
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

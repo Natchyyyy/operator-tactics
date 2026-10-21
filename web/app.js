@@ -2553,8 +2553,29 @@
   // ---- Clic droit (20/10) : court = on y va avec les derniers choix ; maintenu (≥ 0,22 s ou la souris bouge) = la roue
   // d'ordres (plus bas) s'ouvre au curseur.
   const HOLD_MS = 220, HOLD_PX = 10; let ordHold = null;
+  // clic droit sur un équipier à terre (22/10) : les opérateurs choisis vont le chercher (battle.command('secourir', …))
+  function ordDownedAt(cx, cy) {
+    if (!battle || battle.over || reviewing || briefing) return null;
+    const r = canvas.getBoundingClientRect(); let best = null, bd = 40;
+    for (const u of battle.teams[0].units) {
+      if (u.alive || !(u.bleedUntil > battle.t)) continue;
+      const v = new THREE.Vector3(u.x, 0.3, u.z); v.project(camera); if (v.z > 1) continue;
+      const d = Math.hypot(r.left + (v.x + 1) / 2 * r.width - cx, r.top + (1 - v.y) / 2 * r.height - cy); if (d < bd) { bd = d; best = u; }
+    }
+    return best;
+  }
+  function rescueSend(a) {
+    const ids = ordSel ? [...ordSel].filter(id => unitById[id] && unitById[id].alive) : null;
+    if (ids && !ids.length) { flashBattle('Secours refusé : aucun opérateur choisi n’est en état.'); return; }
+    const r = battle.command('secourir', 0, { id: a.id, units: ids });
+    if (!r || !r.ok) { flashBattle(`Secours refusé : ${r ? r.reason : 'impossible'}.`); return; }
+    const nm = (id) => unitById[id] ? unitById[id].callsign : id, rest = r.units.slice(1).map(nm);
+    flashBattle(`Secours : ${nm(r.unit)} va chercher ${a.callsign}${r.fumee ? ' (avec le fumigène)' : ''}${rest.length ? ` — ${rest.join(', ')} ${rest.length > 1 ? 'le couvrent' : 'le couvre'}` : ''}.`);
+    pumpLog(); if (MANUAL) render();
+  }
   function ordHoldStart(cx, cy) {
     ordHoldCancel(); closeOrderMenu();
+    const dn = ordDownedAt(cx, cy); if (dn) { ordHold = { rescue: dn }; return; }
     const p = ordGate(cx, cy); if (!p) return;
     ordOrientEnd();   // un nouvel ordre remplace l'orientation en attente (ils choisiront seuls)
     ordHold = { cx, cy, p, el: null, idx: -1 }; ordMarkGhost(p);
@@ -2606,7 +2627,7 @@
     if (MANUAL) render();
   }
   function ordHoldMove(cx, cy) {
-    const h = ordHold; if (!h) return; h.mx = cx; h.my = cy;
+    const h = ordHold; if (!h || h.rescue) return; h.mx = cx; h.my = cy;
     if (!h.el) { if (Math.hypot(cx - h.cx, cy - h.cy) >= HOLD_PX) ordHoldOpen(); return; }   // la souris bouge : la roue s'ouvre tout de suite
     const dx = cx - h.wx, dy = cy - h.wy, r = Math.hypot(dx, dy), a = whAng(dx, dy);
     const mb = h.el.querySelector('.whmore').getBoundingClientRect();
@@ -2629,6 +2650,7 @@
   function ordHoldCancel() { const h = ordHold; if (!h) return; clearTimeout(h.timer); if (h.el) h.el.remove(); ordHold = null; ordMarkGhost(null); }
   function ordHoldEnd(cx, cy) {
     const h = ordHold; if (!h) return;
+    if (h.rescue) { ordHold = null; rescueSend(h.rescue); return; }
     if (!h.el) {   // clic court : on y va, derniers choix, feu à volonté, sans étape d'orientation (ils surveillent seuls)
       ordHoldCancel(); ordSend(h.p, { mode: ordLast.mode, arrivee: ordArrDefaut() }, true); return;
     }
@@ -2833,6 +2855,7 @@
     flash: ['Je ne vois plus rien !', 'Aveuglé !'], shaken: ['Repli !', 'Je décroche !', 'Ça chauffe trop !'], suppress: ['Feu de suppression !', 'Je les cloue !'], down: ['Homme à terre !', 'On a un blessé !', 'Il est touché !'],
     bouge: ['Je bouge !'], couvert: ['Couvert !'], enplace: ['En place.'], reprise: ['Je reprends ma progression.'],   // ordres de déplacement (clic droit)
     drag: ['Je le tire à couvert !'], smoke: ['Fumigène !'],   // évacuation d'un blessé
+    secours: ['J’y vais, couvrez-moi !', 'Je vais le chercher !'], replie: ['Trop chaud, je me replie !'], retour: ['J’y retourne !'], relais: ['Je prends le relais !'],   // secours sur ordre (clic droit sur un blessé)
     feu: ['Feu !'], enappui: ['En appui !'], decroche: ['Je décroche !'], releve: ['Je prends sa place !'], freinage: ['On décroche, deuxième ligne !'],               // feu retenu levé, appui, décrocher, relève dans les bonds
     eclaireur: ['Je passe devant.'],   // carte « Éclaireur »
     fixer: ['On les fixe !'], deborde_nord: ['On déborde par le nord !'], deborde_sud: ['On déborde par le sud !'],   // carte « Fixer et déborder »
@@ -2876,6 +2899,9 @@
     if (e.kind === 'spot' && /contact/.test(e.text)) bark(u, 'spot');
     else if (e.kind === 'reload' && Math.random() < 0.35) bark(u, 'reload');
     else if (e.kind === 'grenade' && u) bark(u, /lance une/.test(e.text) ? (e.gk === 'flash' ? 'flashbang' : 'throw') : 'grenade');
+    else if (e.kind === 'rescueorder') bark(u, 'secours');
+    else if (e.kind === 'rescue') bark(u, /replie/.test(e.text) ? 'replie' : 'relais');
+    else if (e.kind === 'drag' && /retourne/.test(e.text)) bark(u, 'retour');
     else if (e.kind === 'flank' || e.kind === 'noammo' || e.kind === 'revive_start' || e.kind === 'revive' || e.kind === 'flash' || e.kind === 'shaken' || e.kind === 'drag' || e.kind === 'smoke') bark(u, e.kind);
     else if (e.kind === 'suppress' && Math.random() < 0.5) bark(u, 'suppress');
     // (ordre d'un plan adverse, silencieux : sa bulle vient de l'événement « plan »)

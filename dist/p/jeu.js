@@ -15715,6 +15715,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       this.teams.push({ index: ti, name: td.name || (ti === 0 ? 'Alpha' : 'Bravo'), order, units, camo: (() => { const u = DATA.UNIFORMS.find(x => x.id === td.uniform); const c = u && u.camo; return c && ((c.maps || []).includes(this.map.id) || (c.conditions || []).includes(opts.conditions || 'jour')) ? 0.9 : 1; })(), spawn: this.map.spawns[ti], lastSeen: {}, tactics, tacticIds: (td.tactics || []).filter(id => TACTICS[id]), auto: !!td.autoTactics, capture: 0 });
     });
     this.units = this.teams.flatMap(t => t.units);
+    for (const team of this.teams) this.capGrenades(team);   // deux grenades au plus par équipe, dont un fumigène
     // Tiroir : deux moitiés d'escouade en alternance (le tireur d'élite reste en appui, hors des bonds)
     for (const team of this.teams) { let k = 0; for (const u of team.units) u.boundGroup = u.role.id === 'marksman' ? -1 : (k++ % 2); team.bound = { group: 0, since: 0, n: 0 }; }
     for (const team of this.teams) { if (this.hasTactic(team, 'tiroir_lent')) this.lentHalves(team, team.units); this.initScout(team); }
@@ -15880,7 +15881,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     return r;
   };
   Battle.prototype.applyCommand = function (type, team, arg) {
-    return type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : type === 'tenir' ? this.holdKeyPosition(team, arg && arg.pos, arg && arg.units) : type === 'aller' ? this.moveOrder(team, arg) : type === 'orienter' ? this.orientOrder(team, arg) : type === 'feu' ? this.releaseFire(team, arg) : type === 'grenade' ? this.grenadeOrder(team, arg) : type === 'lampadaire' ? this.lampOrder(team, arg) : { ok: false };
+    return type === 'tactic' ? this.useTactic(team, arg) : type === 'order' ? { ok: this.setOrder(team, arg) } : type === 'rotate' ? this.rotate(team, arg) : type === 'tenir' ? this.holdKeyPosition(team, arg && arg.pos, arg && arg.units) : type === 'aller' ? this.moveOrder(team, arg) : type === 'orienter' ? this.orientOrder(team, arg) : type === 'feu' ? this.releaseFire(team, arg) : type === 'grenade' ? this.grenadeOrder(team, arg) : type === 'lampadaire' ? this.lampOrder(team, arg) : type === 'secourir' ? this.rescueOrder(team, arg) : { ok: false };
   };
   Battle.prototype.step = function () {
     if (this.over) return;
@@ -17916,6 +17917,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (threats.length || beingShot) { u.reviving = null; u.state = 'idle'; }
       else { const a = this.unitById(u.reviving.id); if (a) a.rescue = { by: u, t: this.t }; return; }
     }
+    // secours sur ordre du joueur (clic droit sur un équipier à terre) ; un ordre plus récent l'annule
+    if (u.rescueOrder && (u.moveOrder || u.keyOrder)) { const R = this.teams[u.team].rescues && this.teams[u.team].rescues[u.rescueOrder.id]; if (R) R.members = R.members.filter(m => m !== u.id); if (R && R.puller === u.id) R.puller = null; u.rescueOrder = null; }
+    if (u.rescueOrder && this.followRescue(u, threats, beingShot)) return;
     // évacuation d'un blessé à découvert : en cours, ou à décider (le plus proche des équipiers disponibles)
     if (u.drag) { if (this.continueDrag(u, threats)) return; }
     else if (this.tryDrag(u, threats)) return;
@@ -18968,12 +18972,12 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     return out;
   };
   // le couvert le plus proche du blessé (≤ 8 m, joignable en ligne droite) où un sauveteur accroupi est caché de toutes ces menaces
-  Battle.prototype.dragCover = function (u, a, ths) {
-    let best = null, bs = Infinity;
+  Battle.prototype.dragCover = function (u, a, ths, maxD) {
+    let best = null, bs = Infinity; const M = maxD || DRAG.cover;
     for (const c0 of this.map.coverPoints) {
-      if (Math.abs(c0.x - a.x) > DRAG.cover + 1 || Math.abs(c0.z - a.z) > DRAG.cover + 1) continue;
+      if (Math.abs(c0.x - a.x) > M + 1 || Math.abs(c0.z - a.z) > M + 1) continue;
       const h = this.hug(c0), cx = h.hx, cz = h.hz, d = Math.hypot(cx - a.x, cz - a.z);
-      if (d > DRAG.cover || d < 1) continue;
+      if (d > M || d < 1) continue;
       const s = d + Math.hypot(cx - u.x, cz - u.z) * 0.3; if (s >= bs) continue;
       if (u.keyOrder && u.keyOrder.cx !== undefined && Math.hypot(cx - u.keyOrder.cx, cz - u.keyOrder.cz) > HOLD_ZONE + 1.5) continue;
       if (this.alliesOf(u).some(o => o !== u && o.alive && Math.hypot(o.x - cx, o.z - cz) < 1.2)) continue;
@@ -19003,7 +19007,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const v = u.speed(), tOpen = Math.max(0, pick.d - 1) / (v * 1.2) + Math.hypot(c.x - a.x, c.z - a.z) / (v * DRAG.speed);
     const fresh = ths.filter(t => t.fresh);
     let smoke = null;
-    if (fresh.length && (u.grenades.smoke || 0) > 0) {
+    if (fresh.length && this.smokeHolder(u)) {
       let T = fresh[0], td = Infinity; for (const t of fresh) { const dd = Math.hypot(t.x - a.x, t.z - a.z); if (dd < td) { td = dd; T = t; } }
       const mx = (a.x + c.x) / 2, mz = (a.z + c.z) / 2, L = Math.hypot(T.x - mx, T.z - mz) || 1, k = Math.min(GRENADES.smoke.radius, L * 0.4);
       const sx = mx + (T.x - mx) / L * k, sz = mz + (T.z - mz) / L * k, sd = Math.hypot(sx - u.x, sz - u.z);
@@ -19015,6 +19019,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     u.stats.drags = (u.stats.drags || 0) + 1;
     this.logEvent('drag', `${u.callsign} : « Je le tire à couvert ! »`, { unit: u.id, team: u.team });
     if (smoke) {
+      this.takeSmoke(u);   // le fumigène de l'équipe passe à celui qui va chercher le blessé
       this.stop(u); u.state = 'throw'; u.stance = 'stand'; u.facing = Math.atan2(smoke.z - u.z, smoke.x - u.x);
       u.throwing = { at: this.t + 0.5 + (1 - u.def.reflexes / 100) * 0.3, x: smoke.x, z: smoke.z, d: smoke.d, kind: 'smoke', target: 'la menace' };
       return true;
@@ -19086,6 +19091,259 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const k = Math.min(1, step / L), nx = a.x + dx * k, nz = a.z + dz * k;
     if (this.map.inBounds(nx, nz) && !this.map.insideObstacle(nx, nz)) { a.x = nx; a.z = nz; }
     else if (g.phase === 'settle') g.spot = null;
+  };
+  // ---- Fumigène d'équipe (22/10, demande de l'utilisateur) : un seul par équipe ; il passe à celui qui va chercher un blessé
+  Battle.prototype.smokeHolder = function (u) {
+    if ((u.grenades.smoke || 0) > 0) return u;
+    return this.teams[u.team].units.find(o => o !== u && o.alive && (o.grenades.smoke || 0) > 0 && !o.throwing) || null;
+  };
+  Battle.prototype.takeSmoke = function (u) {
+    const h = this.smokeHolder(u); if (!h) return false;
+    if (h !== u) { h.grenades.smoke--; u.grenades.smoke = (u.grenades.smoke || 0) + 1; }
+    return true;
+  };
+  // Dotation (22/10, demande de l'utilisateur) : deux grenades au plus par équipe — un fumigène et une frag (à défaut une
+  // incapacitante) ; la frag au Grenadier s'il y en a un
+  Battle.prototype.capGrenades = function (team) {
+    const us = team.units, frag = us.find(u => has(u, 'grenadier') && u.grenades.frag > 0) || us.find(u => u.grenades.frag > 0);
+    const flash = frag ? null : us.find(u => u.grenades.flash > 0), smoke = us.find(u => has(u, 'medic')) || us[0];
+    for (const u of us) u.grenades = {};
+    if (smoke) smoke.grenades.smoke = 1;
+    if (frag) frag.grenades.frag = 1; else if (flash) flash.grenades.flash = 1;
+  };
+  // ---- Secours sur ordre (22/10, idée de l'utilisateur) ------------------------------------------------------------------
+  // Clic droit sur un équipier à terre avec des opérateurs choisis : battle.command('secourir', équipe, { id, units }).
+  // Le plus proche du blessé va le chercher (il reçoit le fumigène de l'équipe). Tant que le blessé est sous les yeux de
+  // l'ennemi, il gagne du terrain d'abri en abri, puis fonce quand c'est jouable (nuage en place, peu de découvert, ou
+  // après avoir attendu) ; pris sous le feu avant de l'avoir attrapé : il se replie à couvert et réessaie. Le 2e l'accompagne
+  // et tire pour le couvrir, collé à lui pendant qu'il tire le blessé ; les suivants se postent à couvert, en protection,
+  // face à la menace. Tous quittent leur poste. Sans choix (« Tous ») : le plus proche seul.
+  const RESCUE_WAIT = 4, RESCUE_RETRY = 3;
+  Battle.prototype.rescueOrder = function (teamIndex, arg) {
+    const team = this.teams[teamIndex]; if (!team || this.over) return { ok: false, reason: 'bataille terminée' };
+    arg = arg || {};
+    const a = team.units.find(x => x.id === arg.id || x.def.id === arg.id);
+    if (!a) return { ok: false, reason: 'blessé inconnu' };
+    if (a.alive) return { ok: false, reason: `${a.callsign} n’est pas à terre` };
+    if (!(a.bleedUntil > this.t + 1)) return { ok: false, reason: `trop tard pour ${a.callsign}` };
+    const ids = Array.isArray(arg.units) && arg.units.length ? arg.units : null;
+    let units = team.units.filter(u => u.alive && u !== a && (!ids || ids.includes(u.id) || ids.includes(u.def.id)));
+    if (!units.length) return { ok: false, reason: 'aucun opérateur' };
+    const wait = Math.max(...units.map(u => (u.orderAt === undefined ? -99 : u.orderAt) + ORDER_COOLDOWN - this.t));
+    if (wait > 1e-6) return { ok: false, reason: `un ordre toutes les ${ORDER_COOLDOWN} s (encore ${Math.ceil(wait)} s)` };
+    units.sort((p, q) => dist2(p, a) - dist2(q, a) || p.idx - q.idx);
+    if (!ids) units = units.slice(0, 1);
+    const id = this.orderSeq = (this.orderSeq || 0) + 1;
+    const other = this.draggedBy(a); if (other && !units.includes(other)) { a.dragBy = null; other.drag = null; this.stop(other); other.state = 'idle'; }
+    team.rescues = team.rescues || {};
+    for (const k in team.rescues) if (team.rescues[k].downed === a.id) this.endRescue(team, k, true);   // un nouvel ordre pour le même blessé remplace l'ancien
+    team.rescues[id] = { id, downed: a.id, members: units.map(u => u.id), puller: units[0].id, retryAt: 0, waitSince: null, tries: 0, smokeReady: 0, smokeUntil: 0, spots: {} };
+    units.forEach((u, k) => {
+      if (u.rescueOrder) { const R0 = team.rescues[u.rescueOrder.id]; if (R0) R0.members = R0.members.filter(m => m !== u.id); }
+      if (u.drag && u.drag.id !== a.id) { const b = this.unitById(u.drag.id); if (b && b.dragBy === u) b.dragBy = null; u.drag = null; }
+      u.moveOrder = null; u.keyOrder = null; u.post = null; u.orderAt = this.t; u.reviving = null; u.support = null;
+      u.rescueOrder = { id, downed: a.id, role: k === 0 ? 'puller' : k === 1 ? 'escort' : 'guard' };
+      this.stop(u); u.commitUntil = 0; u.pauseUntil = 0;
+    });
+    this.takeSmoke(units[0]);
+    this.logEvent('rescueorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — ordre : aller chercher ${a.callsign}${units.length > 1 ? ` (${units[0].callsign} le récupère)` : ''}.`, { team: teamIndex, unit: units[0].id, ordre: id });
+    return { ok: true, id, unit: units[0].id, units: units.map(u => u.id), fumee: (units[0].grenades.smoke || 0) > 0 };
+  };
+  Battle.prototype.endRescue = function (team, id, silent) {
+    const R = team.rescues && team.rescues[id]; if (!R) return;
+    delete team.rescues[id];
+    for (const u of team.units) if (u.rescueOrder && u.rescueOrder.id === R.id) { u.rescueOrder = null; if (u.alive && u.goalKind !== 'drag') u.state = 'idle'; }
+    const a = this.unitById(R.downed);
+    if (!silent && a && !a.alive && !(a.bleedUntil > this.t)) this.logEvent('rescue_fail', `${a.callsign} n’a pas pu être récupéré à temps.`, { team: team.index, unit: a.id });
+  };
+  // l'ennemi connu (vu, ou su depuis moins de 6 s) le plus proche qui voit le blessé : { e, k } (k = sa position connue)
+  Battle.prototype.rescueThreat = function (u, a) {
+    let best = null, bd = Infinity;
+    for (const e of this.enemiesOf(u)) {
+      if (!e.alive) continue;
+      const seen = u.visible.has(e.id), k = seen ? { x: e.x, z: e.z, t: this.t } : u.knowledge[e.id];
+      if (!k || this.t - k.t > 6 || !this.map.hasLOS(k.x, EYE.stand, k.z, a.x, 0.9, a.z)) continue;
+      const d = Math.hypot(k.x - a.x, k.z - a.z); if (d < bd) { bd = d; best = { e, k }; }
+    }
+    return best;
+  };
+  // menaces pour un secours : les ennemis que l'équipe connaît (vus, ou sus depuis moins de 15 s) d'où l'on voit le blessé ;
+  // fresh = vu depuis moins de 3 s
+  Battle.prototype.rescueThreats = function (u, a) {
+    const out = [], team = this.teams[u.team];
+    for (const e of this.enemiesOf(u)) {
+      if (!e.alive) continue;
+      let k = null;
+      for (const m of team.units) { if (!m.alive) continue; const q = m.visible.has(e.id) ? { x: e.x, z: e.z, t: this.t } : m.knowledge[e.id]; if (q && (!k || q.t > k.t)) k = q; }
+      if (!k || this.t - k.t > 15) continue;
+      if (this.map.hasLOS(k.x, EYE.stand, k.z, a.x, 0.9, a.z)) out.push({ x: k.x, z: k.z, fresh: this.t - k.t < 3 });
+    }
+    return out;
+  };
+  // un abri plus près du blessé (d'au moins 2 m), caché de toutes les menaces, à moins de 12 m de soi
+  Battle.prototype.rescueStep = function (u, a, ths) {
+    const d0 = dist2(u, a); let best = null, bs = Infinity;
+    for (const c0 of this.map.coverPoints) {
+      if (Math.abs(c0.x - u.x) > 13 || Math.abs(c0.z - u.z) > 13) continue;
+      const h = this.hug(c0), cx = h.hx, cz = h.hz, du = Math.hypot(cx - u.x, cz - u.z), da = Math.hypot(cx - a.x, cz - a.z);
+      if (du > 12 || du < 1 || da > d0 - 2) continue;
+      const s = da + du * 0.4; if (s >= bs) continue;
+      if (this.alliesOf(u).some(o => o !== u && o.alive && Math.hypot(o.x - cx, o.z - cz) < 1.2)) continue;
+      if (ths.some(t => this.map.hasLOS(t.x, EYE.stand, t.z, cx, 0.9, cz))) continue;
+      bs = s; best = { x: cx, z: cz };
+    }
+    return best;
+  };
+  Battle.prototype.followRescue = function (u, threats, beingShot) {
+    const o = u.rescueOrder, team = this.teams[u.team], R = team.rescues && team.rescues[o.id], a = this.unitById(o.downed);
+    if (!R || !a || a.alive || !(a.bleedUntil > this.t)) { if (R) this.endRescue(team, o.id); else u.rescueOrder = null; return false; }
+    if (u.evade && this.t < u.evade.until) return true;
+    if (u.throwing) return true;
+    if (u.status === 'critical' && o.role === 'puller') { R.puller = null; o.role = 'guard'; if (u.drag) { if (a.dragBy === u) a.dragBy = null; u.drag = null; this.stop(u); } }
+    // le récupérateur est tombé (ou blessé) : l'accompagnateur, sinon un garde, prend sa place
+    let P = R.puller && this.unitById(R.puller);
+    if (!P || !P.alive || !P.rescueOrder || P.rescueOrder.id !== R.id) {
+      const ms = R.members.map(id => this.unitById(id)).filter(m => m && m.alive && m.rescueOrder && m.rescueOrder.id === R.id && m.status !== 'critical');
+      P = ms.find(m => m.rescueOrder.role === 'escort') || ms.sort((p, q) => dist2(p, a) - dist2(q, a))[0];
+      if (!P) { this.endRescue(team, R.id); return false; }
+      R.puller = P.id; P.rescueOrder.role = 'puller'; R.waitSince = null; this.takeSmoke(P);
+      this.logEvent('rescue', `${P.callsign} : « Je prends le relais pour ${a.callsign} ! »`, { unit: P.id, team: u.team });
+    }
+    const close = threats.some(e => dist2(e, u) < DRAG.close);
+    if (o.role === 'puller') return this.rescuePull(u, a, R, threats, beingShot, close);
+    if (close) return false;   // ennemi tout près : on se bat
+    const T = this.rescueThreat(u, a);
+    if (T && !threats.length && !(u.target && u.target.alive && u.target.id === T.e.id)) this.aimAt(u, T.e);   // tir de couverture sur la menace connue
+    const Tk = T ? T.k : (threats[0] || null);
+    if (o.role === 'escort') {
+      const pulling = P.drag && P.drag.id === a.id && P.drag.phase !== 'go';
+      let spot = null;
+      if (pulling || (P.drag && P.drag.id === a.id)) {
+        // collé au récupérateur, sur le côté, un peu en avant (vers l'abri) : on recule ensemble
+        const dest = P.drag.c, dir = Math.atan2(dest.z - P.z, dest.x - P.x), side = Tk ? Math.sign(Math.sin(Math.atan2(Tk.z - P.z, Tk.x - P.x) - dir)) || 1 : 1;
+        for (const sd of [side, -side]) {
+          const q = { x: P.x + Math.cos(dir + sd * Math.PI / 2) * 1.5 + Math.cos(dir) * 0.6, z: P.z + Math.sin(dir + sd * Math.PI / 2) * 1.5 + Math.sin(dir) * 0.6 };
+          if (this.map.inBounds(q.x, q.z) && !this.map.insideObstacle(q.x, q.z)) { spot = q; break; }
+        }
+      } else {
+        // en approche, ou le blessé relevé à l'abri : un couvert près du récupérateur d'où l'on voit la menace, sinon à côté de lui
+        if (Tk) {
+          const c = this.findCover(u, Tk, 9, { requireShoot: true, towards: P });
+          if (c && Math.hypot(c.x - P.x, c.z - P.z) < 3.5) spot = c;
+        }
+        if (!spot) { const ang = Tk ? Math.atan2(Tk.z - P.z, Tk.x - P.x) + Math.PI / 2 : P.facing + Math.PI / 2;
+          for (const k of [1, -1, 2, -2]) { const q = { x: P.x + Math.cos(ang) * 1.8 * Math.sign(k) * Math.abs(k) * 0.75, z: P.z + Math.sin(ang) * 1.8 * Math.sign(k) * Math.abs(k) * 0.75 }; if (this.map.inBounds(q.x, q.z) && !this.map.insideObstacle(q.x, q.z)) { spot = q; break; } } }
+      }
+      const r = this.rescueHoldSpot(u, spot, Tk, pulling ? 0.9 : 1.3);
+      if (u.state === 'tocover' && spot && Math.hypot(spot.x - u.x, spot.z - u.z) > 3) u.state = 'closing';   // il presse le pas pour rester avec lui
+      return r;
+    }
+    // garde : à couvert près de l'abri où l'on ramène le blessé (sinon près du blessé), en protection face à la menace
+    const dest = P.drag && P.drag.id === a.id ? P.drag.c : a;
+    let sp = R.spots[u.id];
+    if (sp && this.t - sp.t > 4) sp = null;   // menace qui a bougé : on revoit sa place de temps en temps
+    if (!sp) {
+      let c = null;
+      // déjà à couvert d'où l'on voit la menace : on protège d'ici ; sinon un abri proche avec une vue sur elle
+      if (Tk && this.coverAt(u.x, u.z, Tk.x, Tk.z, false) && this.map.hasLOS(u.x, EYE.stand, u.z, Tk.x, CHEST.stand, Tk.z)) c = { x: u.x, z: u.z };
+      if (!c && Tk) c = this.findCover(u, Tk, 9, { requireShoot: true, towards: dest, minRange: 5 });
+      if (c && c.x !== u.x && Math.hypot(c.x - dest.x, c.z - dest.z) > 14) c = null;
+      if (!c && Tk) c = this.findCover(u, Tk, 9, { towards: dest });
+      sp = R.spots[u.id] = c ? { x: c.x, z: c.z, t: this.t } : { none: true, t: this.t };
+    }
+    if (sp.none) return false;   // pas d'abri pour protéger : il se bat d'où il est
+    return this.rescueHoldSpot(u, sp, Tk || this.map.spawns[1 - u.team], 1.0);
+  };
+  // aller à sa place ; arrivé : posté, face à la menace (accroupi seulement derrière un abri face à elle)
+  Battle.prototype.rescueHoldSpot = function (u, spot, Tk, tol) {
+    if (spot && Math.hypot(spot.x - u.x, spot.z - u.z) > tol) {
+      if (!(u.goal && Math.hypot(u.goal.x - spot.x, u.goal.z - spot.z) < 0.8) && !this.setGoal(u, spot.x, spot.z, 'close')) { this.stop(u); u.state = 'overwatch'; return true; }
+      u.state = 'tocover'; u.stance = 'stand'; return true;
+    }
+    this.stop(u); u.state = 'overwatch';
+    if (Tk) { u.facing = Math.atan2(Tk.z - u.z, Tk.x - u.x); u.stance = this.coverAt(u.x, u.z, Tk.x, Tk.z, false) ? 'crouch' : 'stand'; }
+    return true;
+  };
+  Battle.prototype.rescuePull = function (u, a, R, threats, beingShot, close) {
+    const rescuers = R.members.map(id => this.unitById(id)).filter(m => m && m.alive);
+    if (u.drag && u.drag.id === a.id) {
+      // foncé vers lui mais pris sous le feu avant de l'avoir attrapé (sans nuage) : on se replie et on réessaie
+      if (u.drag.phase === 'go' && u.lastShotByAt > u.drag.t0 + 0.3 && dist2(u, a) > 2.5 && !(this.t < R.smokeUntil)) {
+        a.dragBy = null; u.drag = null; this.stop(u);
+        R.retryAt = this.t + RESCUE_RETRY; R.waitSince = null; R.tries++;
+        this.logEvent('rescue', `${u.callsign} : « Trop chaud, je me replie ! »`, { unit: u.id, team: u.team });
+        const th = (u.lastShotBy && u.lastShotBy.alive ? u.lastShotBy : null) || threats[0];
+        const c = th && this.findCover(u, th, 8, { wantShoot: false });
+        if (c && this.setGoal(u, c.x, c.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return true; }
+        return false;
+      }
+      if (this.continueDrag(u, threats)) return true;
+    }
+    if (u.reviving) return true;
+    if (close) return false;   // ennemi tout près : on se bat d'abord
+    a.rescue = { by: u, t: this.t };
+    const d = dist2(u, a);
+    const ths = this.rescueThreats(u, a);
+    if (!ths.length && d > 2.5 && (beingShot || threats.length)) {
+      // le blessé est à l'abri des vues, mais pas le chemin : pris à partie en route, on avance d'abri en abri (caché des
+      // ennemis connus) ; pas d'abri plus près : on se bat d'ici, puis on retente au bout d'un moment
+      const dz = []; for (const e of this.enemiesOf(u)) { if (!e.alive) continue; const k = u.visible.has(e.id) ? e : u.knowledge[e.id]; if (k && (u.visible.has(e.id) || this.t - k.t < 15)) dz.push({ x: k.x, z: k.z }); }
+      if (u.goal && u.goalKind === 'cover' && u.state === 'tocover' && Math.hypot(u.goal.x - u.x, u.goal.z - u.z) > 0.6) return true;
+      const st = this.rescueStep(u, a, dz);
+      if (st && this.setGoal(u, st.x, st.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; R.waitSince = null; return true; }
+      if (R.waitSince === null) R.waitSince = this.t;
+      if (this.t - R.waitSince < RESCUE_WAIT) {
+        const th = threats[0] || (u.lastShotBy && u.lastShotBy.alive ? u.lastShotBy : null);
+        if (th && !this.coverAt(u.x, u.z, th.x, th.z, false)) { const c2 = this.findCover(u, th, 8, { towards: a }); if (c2 && Math.hypot(c2.x - u.x, c2.z - u.z) > 0.8 && this.setGoal(u, c2.x, c2.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return true; } }
+        return false;   // à couvert : on riposte, puis on retente
+      }
+    }
+    if (!ths.length) {   // personne ne le voit : on y va (au pas de course) et on le relève sur place
+      if (d <= 1.1) { if (threats.length || beingShot) return false; this.stop(u); u.stance = 'crouch'; u.state = 'reviving'; u.target = null; u.reviving = { id: a.id, until: this.t + (has(u, 'medic') ? 2 : 4) }; this.logEvent('revive_start', `${u.callsign} se porte au secours de ${a.callsign}.`, { unit: u.id, team: u.team }); return true; }
+      const L = d || 1, gx = a.x + (u.x - a.x) / L * 0.85, gz = a.z + (u.z - a.z) / L * 0.85, ok = this.map.inBounds(gx, gz) && !this.map.insideObstacle(gx, gz);
+      if (!(u.goal && u.goalKind === 'revive') && !this.setGoal(u, ok ? gx : a.x, ok ? gz : a.z, 'revive')) return false;
+      u.state = 'todrag'; u.stance = 'stand'; return true;
+    }
+    let c = this.dragCover(u, a, ths) || this.dragCover(u, a, ths, 13);
+    if (!c && R.base && this.map.walkableSegment(a.x, a.z, R.base.x, R.base.z)) c = R.base;   // aucun abri près de lui : on le ramène là où l'on s'abritait
+    const fresh = ths.filter(t => t.fresh), smokeOn = this.t < R.smokeUntil && this.t >= R.smokeReady;
+    if (R.smokeReady && this.t < R.smokeReady) { this.stop(u); u.state = 'todrag'; u.stance = 'crouch'; return true; }   // le nuage se forme : on attend
+    // le fumigène de l'équipe : entre le trajet et la menace la plus proche, une fois par secours
+    const v = u.speed(), tOpen = Math.max(0, d - 1) / (v * 1.2) + (c ? Math.hypot(c.x - a.x, c.z - a.z) : 6) / (v * DRAG.speed);
+    if (c && (fresh.length || tOpen > DRAG.maxOpen) && !R.smokeReady && (u.grenades.smoke || 0) > 0 && d < 20) {
+      let T = ths[0], td = Infinity; for (const t of ths) { const dd = Math.hypot(t.x - a.x, t.z - a.z); if (dd < td) { td = dd; T = t; } }
+      const mx = (a.x + c.x) / 2, mz = (a.z + c.z) / 2, L = Math.hypot(T.x - mx, T.z - mz) || 1, k = Math.min(GRENADES.smoke.radius, L * 0.4);
+      const sx = mx + (T.x - mx) / L * k, sz = mz + (T.z - mz) / L * k, sd = Math.hypot(sx - u.x, sz - u.z);
+      if (sd <= 24 && sd >= 2 && this.map.hasLOS(u.x, 2.3, u.z, sx, 1.4, sz)) {
+        this.stop(u); u.state = 'throw'; u.stance = 'stand'; u.target = null; u.facing = Math.atan2(sz - u.z, sx - u.x);
+        u.throwing = { at: this.t + 0.5 + (1 - u.def.reflexes / 100) * 0.3, x: sx, z: sz, d: sd, kind: 'smoke', target: `couvrir ${a.callsign}` };
+        R.smokeReady = u.throwing.at + 0.45 + sd / 22 + GRENADES.smoke.fuse; R.smokeUntil = R.smokeReady + GRENADES.smoke.duration * 0.8;
+        return true;
+      }
+    }
+    const waited = R.waitSince !== null && this.t - R.waitSince > Math.max(1.5, RESCUE_WAIT - (rescuers.length - 1) * 1.2);   // plus on est nombreux à couvrir, moins on attend
+    const go = c && this.t >= R.retryAt && (smokeOn || tOpen <= DRAG.maxOpen * (fresh.length ? 1 : 1.5) || waited || d < 2.5);
+    if (go) {
+      u.drag = { id: a.id, c, phase: 'go', t0: this.t, ths: ths.map(t => ({ x: t.x, z: t.z })) };
+      a.dragBy = u; u.target = null; u.reviving = null; R.waitSince = null;
+      u.stats.drags = (u.stats.drags || 0) + 1;
+      this.logEvent('drag', `${u.callsign} : « ${R.tries ? 'J’y retourne' : 'Je vais le chercher'} ! »`, { unit: u.id, team: u.team });
+      if (this.continueDrag(u, threats)) return true;
+      return false;
+    }
+    // gagner du terrain : d'abri en abri vers le blessé ; au plus près, attendre l'ouverture (on se bat d'ici en attendant)
+    if (u.goal && u.goalKind === 'cover' && u.state === 'tocover' && Math.hypot(u.goal.x - u.x, u.goal.z - u.z) > 0.6) return true;
+    const st = this.t >= R.retryAt || !this.coverAt(u.x, u.z, (ths[0] || a).x, (ths[0] || a).z, false) ? this.rescueStep(u, a, ths) : null;
+    if (st && this.setGoal(u, st.x, st.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; R.waitSince = null; return true; }
+    if (R.waitSince === null) R.waitSince = this.t;
+    if (this.coverAt(u.x, u.z, (ths[0] || a).x, (ths[0] || a).z, false)) R.base = { x: u.x, z: u.z };
+    if (!this.coverAt(u.x, u.z, (ths[0] || a).x, (ths[0] || a).z, false)) {
+      const c2 = this.findCover(u, ths[0] || a, 8, { towards: a });
+      if (c2 && Math.hypot(c2.x - u.x, c2.z - u.z) > 0.8 && this.setGoal(u, c2.x, c2.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return true; }
+    }
+    this.stop(u); u.state = 'overwatch'; u.stance = 'crouch';
+    if (ths[0]) u.facing = Math.atan2(ths[0].z - u.z, ths[0].x - u.x);
+    return true;
   };
   Battle.prototype.updateRevives = function () {
     // un blessé à terre ne bouge plus : c'est aux alliés de venir le relever
@@ -23351,8 +23609,29 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // ---- Clic droit (20/10) : court = on y va avec les derniers choix ; maintenu (≥ 0,22 s ou la souris bouge) = la roue
   // d'ordres (plus bas) s'ouvre au curseur.
   const HOLD_MS = 220, HOLD_PX = 10; let ordHold = null;
+  // clic droit sur un équipier à terre (22/10) : les opérateurs choisis vont le chercher (battle.command('secourir', …))
+  function ordDownedAt(cx, cy) {
+    if (!battle || battle.over || reviewing || briefing) return null;
+    const r = canvas.getBoundingClientRect(); let best = null, bd = 40;
+    for (const u of battle.teams[0].units) {
+      if (u.alive || !(u.bleedUntil > battle.t)) continue;
+      const v = new THREE.Vector3(u.x, 0.3, u.z); v.project(camera); if (v.z > 1) continue;
+      const d = Math.hypot(r.left + (v.x + 1) / 2 * r.width - cx, r.top + (1 - v.y) / 2 * r.height - cy); if (d < bd) { bd = d; best = u; }
+    }
+    return best;
+  }
+  function rescueSend(a) {
+    const ids = ordSel ? [...ordSel].filter(id => unitById[id] && unitById[id].alive) : null;
+    if (ids && !ids.length) { flashBattle('Secours refusé : aucun opérateur choisi n’est en état.'); return; }
+    const r = battle.command('secourir', 0, { id: a.id, units: ids });
+    if (!r || !r.ok) { flashBattle(`Secours refusé : ${r ? r.reason : 'impossible'}.`); return; }
+    const nm = (id) => unitById[id] ? unitById[id].callsign : id, rest = r.units.slice(1).map(nm);
+    flashBattle(`Secours : ${nm(r.unit)} va chercher ${a.callsign}${r.fumee ? ' (avec le fumigène)' : ''}${rest.length ? ` — ${rest.join(', ')} ${rest.length > 1 ? 'le couvrent' : 'le couvre'}` : ''}.`);
+    pumpLog(); if (MANUAL) render();
+  }
   function ordHoldStart(cx, cy) {
     ordHoldCancel(); closeOrderMenu();
+    const dn = ordDownedAt(cx, cy); if (dn) { ordHold = { rescue: dn }; return; }
     const p = ordGate(cx, cy); if (!p) return;
     ordOrientEnd();   // un nouvel ordre remplace l'orientation en attente (ils choisiront seuls)
     ordHold = { cx, cy, p, el: null, idx: -1 }; ordMarkGhost(p);
@@ -23404,7 +23683,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (MANUAL) render();
   }
   function ordHoldMove(cx, cy) {
-    const h = ordHold; if (!h) return; h.mx = cx; h.my = cy;
+    const h = ordHold; if (!h || h.rescue) return; h.mx = cx; h.my = cy;
     if (!h.el) { if (Math.hypot(cx - h.cx, cy - h.cy) >= HOLD_PX) ordHoldOpen(); return; }   // la souris bouge : la roue s'ouvre tout de suite
     const dx = cx - h.wx, dy = cy - h.wy, r = Math.hypot(dx, dy), a = whAng(dx, dy);
     const mb = h.el.querySelector('.whmore').getBoundingClientRect();
@@ -23427,6 +23706,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function ordHoldCancel() { const h = ordHold; if (!h) return; clearTimeout(h.timer); if (h.el) h.el.remove(); ordHold = null; ordMarkGhost(null); }
   function ordHoldEnd(cx, cy) {
     const h = ordHold; if (!h) return;
+    if (h.rescue) { ordHold = null; rescueSend(h.rescue); return; }
     if (!h.el) {   // clic court : on y va, derniers choix, feu à volonté, sans étape d'orientation (ils surveillent seuls)
       ordHoldCancel(); ordSend(h.p, { mode: ordLast.mode, arrivee: ordArrDefaut() }, true); return;
     }
@@ -23631,6 +23911,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     flash: ['Je ne vois plus rien !', 'Aveuglé !'], shaken: ['Repli !', 'Je décroche !', 'Ça chauffe trop !'], suppress: ['Feu de suppression !', 'Je les cloue !'], down: ['Homme à terre !', 'On a un blessé !', 'Il est touché !'],
     bouge: ['Je bouge !'], couvert: ['Couvert !'], enplace: ['En place.'], reprise: ['Je reprends ma progression.'],   // ordres de déplacement (clic droit)
     drag: ['Je le tire à couvert !'], smoke: ['Fumigène !'],   // évacuation d'un blessé
+    secours: ['J’y vais, couvrez-moi !', 'Je vais le chercher !'], replie: ['Trop chaud, je me replie !'], retour: ['J’y retourne !'], relais: ['Je prends le relais !'],   // secours sur ordre (clic droit sur un blessé)
     feu: ['Feu !'], enappui: ['En appui !'], decroche: ['Je décroche !'], releve: ['Je prends sa place !'], freinage: ['On décroche, deuxième ligne !'],               // feu retenu levé, appui, décrocher, relève dans les bonds
     eclaireur: ['Je passe devant.'],   // carte « Éclaireur »
     fixer: ['On les fixe !'], deborde_nord: ['On déborde par le nord !'], deborde_sud: ['On déborde par le sud !'],   // carte « Fixer et déborder »
@@ -23674,6 +23955,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (e.kind === 'spot' && /contact/.test(e.text)) bark(u, 'spot');
     else if (e.kind === 'reload' && Math.random() < 0.35) bark(u, 'reload');
     else if (e.kind === 'grenade' && u) bark(u, /lance une/.test(e.text) ? (e.gk === 'flash' ? 'flashbang' : 'throw') : 'grenade');
+    else if (e.kind === 'rescueorder') bark(u, 'secours');
+    else if (e.kind === 'rescue') bark(u, /replie/.test(e.text) ? 'replie' : 'relais');
+    else if (e.kind === 'drag' && /retourne/.test(e.text)) bark(u, 'retour');
     else if (e.kind === 'flank' || e.kind === 'noammo' || e.kind === 'revive_start' || e.kind === 'revive' || e.kind === 'flash' || e.kind === 'shaken' || e.kind === 'drag' || e.kind === 'smoke') bark(u, e.kind);
     else if (e.kind === 'suppress' && Math.random() < 0.5) bark(u, 'suppress');
     // (ordre d'un plan adverse, silencieux : sa bulle vient de l'événement « plan »)
