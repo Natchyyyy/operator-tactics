@@ -12152,15 +12152,15 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     };
     E.explosion = function (p) {
       const g = V(p.x, 0.25, p.z);
-      add.add({ p: g.clone().add(V(0, 0.5, 0)), life: 0.12, size: 2.6, frame: 1, col: [12, 8, 4], a0: 1 });
-      for (let k = 0; k < 26; k++) { const v = V(rnd(-1, 1), rnd(0.2, 1.2), rnd(-1, 1)).normalize().multiplyScalar(rnd(2, 7)); add.add({ p: g.clone(), v, life: rnd(0.4, 0.8), size: rnd(0.7, 1.2), grow: 2.2, frame: 8 + Math.floor(Math.random() * 4), col: [9, 4.2, 1.2], col2: [1.2, 0.3, 0.05], a0: 0.9, drag: 4, rot: Math.random() * 6, spin: rnd(-2, 2), fadePow: 1.5 }); }
+      add.add({ p: g.clone().add(V(0, 0.5, 0)), life: 0.16, size: 3.6, frame: 1, col: [14, 9, 4.5], a0: 1 });   // éclair plus gros (21/10 : explosions trop discrètes)
+      for (let k = 0; k < 40; k++) { const v = V(rnd(-1, 1), rnd(0.2, 1.2), rnd(-1, 1)).normalize().multiplyScalar(rnd(2.5, 8.5)); add.add({ p: g.clone(), v, life: rnd(0.4, 0.8), size: rnd(0.7, 1.2), grow: 2.2, frame: 8 + Math.floor(Math.random() * 4), col: [9, 4.2, 1.2], col2: [1.2, 0.3, 0.05], a0: 0.9, drag: 4, rot: Math.random() * 6, spin: rnd(-2, 2), fadePow: 1.5 }); }
       for (let k = 0; k < 28; k++) { const v = V(rnd(-1, 1), rnd(0.3, 1.4), rnd(-1, 1)).normalize().multiplyScalar(rnd(6, 18)); add.add({ p: g.clone(), v, life: rnd(0.3, 0.9), size: 0.02, stretch: 0.03, frame: 3, col: [10, 6, 2.5], grav: 9.8, floor: 0.01 }); }
       for (let k = 0; k < 36; k++) { const v = V(rnd(-1, 1), rnd(0.1, 1.0), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.8, 3.6)), b = rnd(0.65, 1.15); alpha.add({ p: g.clone().add(V(rnd(-0.4, 0.4), rnd(0, 0.6), rnd(-0.4, 0.4))), v: v.add(V(0, rnd(0.6, 1.9), 0)), life: rnd(4, 8), size: rnd(0.6, 1.15), grow: rnd(2.5, 4.5), frame: 4 + Math.floor(Math.random() * 4), col: [0.09 * b, 0.085 * b, 0.08 * b], col2: [0.3 * b, 0.29 * b, 0.28 * b], a0: rnd(0.75, 0.95), fadePow: 0.7, drag: 1.4, fadeIn: 0.15, rot: Math.random() * 6, spin: rnd(-0.4, 0.4), delay: rnd(0, 0.15) }); }
       for (let k = 0; k < 10; k++) alpha.add({ p: g.clone(), v: V(rnd(-1, 1), 0, rnd(-1, 1)).normalize().multiplyScalar(rnd(6, 9)), life: rnd(0.8, 1.4), size: rnd(0.5, 0.8), grow: 3, frame: 4 + Math.floor(Math.random() * 4), col: [0.5, 0.46, 0.4], a0: 0.45, drag: 3.5, rot: Math.random() * 6 });
       alpha.add({ p: V(p.x, 0.05, p.z), life: 0.45, size: 0.6, grow: 14, frame: 14, col: [0.75, 0.72, 0.68], a0: 0.55 });
       for (let k = 0; k < 16; k++) debris.add({ p: g.clone(), v: V(rnd(-1, 1), rnd(0.4, 1.6), rnd(-1, 1)).normalize().multiplyScalar(rnd(4, 11)), r: 0.03, s: rnd(0.6, 1.6), wx: rnd(-20, 20), wy: rnd(-20, 20), wz: rnd(-20, 20), life: 20 });
       scorch.add(V(p.x, 0.003, p.z), V(0, 1, 0), rnd(3.2, 4.2));
-      light(g.clone().add(V(0, 1, 0)), 0xff9a4a, 260, 18, 0.35);
+      light(g.clone().add(V(0, 1, 0)), 0xff9a4a, 420, 24, 0.45);
     };
     E.flashbang = function (p) {
       const g = V(p.x, 0.5, p.z);
@@ -16030,11 +16030,15 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     this.emit({ type: 'lamp', id: l.id, on: false, x: l.x, z: l.z });
     this.logEvent('lampout', `${u.callsign} éteint un lampadaire : la zone est plongée dans le noir.`, { unit: u.id, team: u.team });
   };
-  // Alarme de voiture : des balles dans la carrosserie la déclenchent (une fois par voiture) ; 25 s de sirène et de feux qui
-  // clignotent ; tant qu'elle hurle, on n'entend plus les pas à moins de 14 m.
+  // Alarme de voiture : des balles dans la carrosserie la déclenchent (une fois par voiture) ; 15 s de klaxon et de feux qui
+  // clignotent ; tant qu'elle sonne, on n'entend plus les pas à moins de 14 m. Plus rare (demande de l'utilisateur, 21/10) :
+  // une voiture sur trois seulement a une alarme (tirage fixe par graine et par voiture, sans toucher au hasard de la bataille),
+  // et une seule sonne à la fois.
   Battle.prototype.carAlarm = function (o) {
-    if (!o || !/^voiture/.test(o.name || '') || (this.alarms && this.alarms.some(a => a.o === o))) return;
-    const x = o.x + o.w / 2, z = o.z + o.d / 2, until = this.t + 25;
+    if (!o || !/^voiture/.test(o.name || '') || (this.alarms && this.alarms.some(a => a.o === o || this.t < a.until))) return;
+    const idx = this.map.obstacles.indexOf(o);
+    if (((idx * 7 + this.seed * 13) >>> 0) % 3 !== 0) return;
+    const x = o.x + o.w / 2, z = o.z + o.d / 2, until = this.t + 15;
     (this.alarms || (this.alarms = [])).push({ o, x, z, until });
     this.emit({ type: 'alarm', x, z, until });
     this.logEvent('alarm', 'Une alarme de voiture se déclenche.', { silent: true });
@@ -22248,16 +22252,39 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   let fxLast = 0;
   // grenade : petit objet sombre en cloche jusqu'au point de chute, puis posée au sol jusqu'à l'explosion
   const grenadeGeo = new THREE.SphereGeometry(0.07, 8, 6), grenadeMat = new THREE.MeshStandardMaterial({ color: 0x2c3326, roughness: .7, metalness: .3 });
+  // signal du lancer (demande de l'utilisateur, 21/10 : « on a du mal à savoir qu'une grenade a été lancée ») :
+  // traînée lumineuse derrière la grenade en vol, puis cercle de danger au sol (rayon de la grenade) qui clignote jusqu'à l'explosion
+  const GREN_COUL = { frag: 0xff5a2a, flash: 0xf4f6ff, smoke: 0xb8bcc2 };
   function addGrenade(ev, cache) {   // cache : lanceur non repéré → la grenade n'apparaît qu'en fin de course (on ne voit pas d'où elle part)
     const g = new THREE.Mesh(grenadeGeo, ev.kind === 'flash' ? new THREE.MeshStandardMaterial({ color: 0x5b6067, roughness: .5, metalness: .5 }) : grenadeMat);
-    scene.add(g); fx.push({ obj: g, kind: 'grenade', start: simTime, flight: ev.flight, from: ev.from, to: ev.to, until: ev.explodeAt, bounced: false, cache });
+    g.scale.setScalar(1.3);
+    const N = 18, pos = new Float32Array(N * 3), geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setDrawRange(0, 0);
+    const trail = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: GREN_COUL[ev.kind] || 0xffffff, transparent: true, opacity: 0.85, depthWrite: false }));
+    trail.frustumCulled = false; scene.add(trail);
+    scene.add(g); fx.push({ obj: g, kind: 'grenade', gk: ev.kind, start: simTime, flight: ev.flight, from: ev.from, to: ev.to, until: ev.explodeAt, bounced: false, cache, trail, pts: [] });
+  }
+  function addDangerRing(f) {
+    const G = OT.DATA && OT.DATA.GRENADES && OT.DATA.GRENADES[f.gk], r = f.gk === 'smoke' ? 1.2 : (G ? G.radius : 6) * (f.gk === 'frag' ? 0.75 : 0.6);
+    const col = GREN_COUL[f.gk] || 0xffffff, grp = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.RingGeometry(r - 0.18, r, 48), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(r, 48), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false }));
+    for (const m of [ring, disc]) { m.rotation.x = -Math.PI / 2; grp.add(m); }
+    grp.position.set(f.to.x, 0.06, f.to.z); scene.add(grp);
+    fx.push({ obj: grp, kind: 'danger', until: f.until, ring, disc });
+  }
+  // onde de choc : anneau clair qui s'élargit vite au ras du sol, puis s'efface
+  function addShock(x, z, r, col) {
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 48), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.position.set(x, 0.08, z); scene.add(m);
+    fx.push({ obj: m, kind: 'shock', start: simTime, until: simTime + 0.45, r });
   }
   function addBlast(ev) {
     if (ev.kind === 'flash' && EFX) {
-      EFX.flashbang({ x: ev.x, z: ev.z }); play('flashbang', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2, espace: true });
+      EFX.flashbang({ x: ev.x, z: ev.z }); play('flashbang', { x: ev.x, y: 1, z: ev.z }, { vol: 1.2, espace: true }); addShock(ev.x, ev.z, 6, 0xffffff);
       const p = new THREE.Vector3(ev.x, 0.8, ev.z).project(camera); if (p.z < 1 && Math.abs(p.x) < 1 && Math.abs(p.y) < 1) { const wv = $('#whiteout'); wv.classList.remove('on'); wv.offsetWidth; wv.classList.add('on'); }
     } else if (EFX) {
-      EFX.explosion({ x: ev.x, z: ev.z }); play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.3, espace: true }); cam.shake = Math.max(cam.shake || 0, 0.5);
+      EFX.explosion({ x: ev.x, z: ev.z }); play('explosion', { x: ev.x, y: 1, z: ev.z }, { vol: 1.3, espace: true }); cam.shake = Math.max(cam.shake || 0, 0.8);
+      addShock(ev.x, ev.z, 7, 0xffe2b0);
     } else if (ev.kind === 'flash') {
       const light = new THREE.PointLight(0xffffff, 60, 18); light.position.set(ev.x, 1.2, ev.z); scene.add(light); fx.push({ obj: light, kind: 'flashlight', start: simTime, until: simTime + 0.35 });
       const s = new THREE.Mesh(new THREE.SphereGeometry(0.8, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 })); s.position.set(ev.x, 0.6, ev.z); scene.add(s); fx.push({ obj: s, until: simTime + 0.18, grow: 6, start: simTime });
@@ -22318,9 +22345,21 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const k = Math.min(1, (simTime - f.start) / f.flight);
         if (f.cache) f.obj.visible = k > 0.6 || !fogOn();
         if (k < 1) { f.obj.position.set(f.from.x + (f.to.x - f.from.x) * k, f.from.y + (f.to.y - f.from.y) * k + Math.sin(Math.PI * k) * (1.2 + f.flight * 1.5), f.from.z + (f.to.z - f.from.z) * k); f.obj.rotation.x += dt * 12; }
-        else { f.obj.position.set(f.to.x, 0.07, f.to.z); if (!f.bounced) { f.bounced = true; play('grenade_rebond', { x: f.to.x, y: 0.2, z: f.to.z }, { vol: 1 }); } }
+        else { f.obj.position.set(f.to.x, 0.07, f.to.z); if (!f.bounced) { f.bounced = true; play('grenade_rebond', { x: f.to.x, y: 0.2, z: f.to.z }, { vol: 1 }); addDangerRing(f); } }
+        if (f.trail) {   // traînée : les dernières positions en vol, qui s'efface une fois la grenade posée
+          if (k < 1 && f.obj.visible !== false) {
+            f.pts.push(f.obj.position.clone()); if (f.pts.length > 18) f.pts.shift();
+            // étincelles lumineuses le long du vol (un trait d'un pixel ne se voit pas de loin)
+            if (EFX && EFX.pools) { const c = f.gk === 'frag' ? [4, 1.6, 0.5] : f.gk === 'flash' ? [3, 3, 3.3] : [1.4, 1.4, 1.5]; EFX.pools.add.add({ p: f.obj.position.clone(), life: 0.45, size: 0.32, grow: -0.8, frame: 0, col: c, a0: 0.9 }); }
+          }
+          else if (f.pts.length) f.pts.shift();
+          const a = f.trail.geometry.attributes.position; f.pts.forEach((p, j) => a.setXYZ(j, p.x, p.y, p.z)); a.needsUpdate = true; f.trail.geometry.setDrawRange(0, f.pts.length);
+          if (simTime > f.until) { scene.remove(f.trail); f.trail.geometry.dispose(); f.trail = null; }
+        }
       }
       else if (f.kind === 'plane') { const k = (simTime - f.start) / 2.2; f.obj.position.set(f.ax + (f.bx - f.ax) * k, 18 - Math.sin(Math.PI * k) * 8, f.az + (f.bz - f.az) * k); }
+      else if (f.kind === 'danger') { const b = 0.5 + 0.5 * Math.sin(simTime * 16); f.ring.material.opacity = 0.45 + 0.5 * b; f.disc.material.opacity = 0.06 + 0.12 * b; }
+      else if (f.kind === 'shock') { const k = Math.min(1, (simTime - f.start) / 0.45); f.obj.scale.setScalar(0.5 + f.r * Math.sqrt(k)); f.obj.material.opacity = 0.7 * (1 - k); }
       else if (f.kind === 'flashlight') { f.obj.intensity *= Math.max(0, 1 - dt * 12); }
       else if (f.kind === 'marker') { f.obj.material.opacity = 0.5 + 0.5 * Math.sin(simTime * 8); }
       else if (f.kind === 'heal') { f.obj.rotation.z = simTime * 2; f.obj.material.opacity = 0.5 + 0.4 * Math.sin(simTime * 6); }
@@ -22526,7 +22565,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   const unitById = {};
 
   function newBattle(opts) {
-    clearOperators(); for (const f of fx) scene.remove(f.obj); fx.length = 0; decals.clear(); if (EFX) EFX.clear(); finale = null; postEnd = 0;
+    clearOperators(); for (const f of fx) { scene.remove(f.obj); if (f.trail) scene.remove(f.trail); } fx.length = 0; decals.clear(); if (EFX) EFX.clear(); finale = null; postEnd = 0;
     if (!opts.replayInputs) { reviewing = false; $('#app').classList.remove('reviewing'); }
     battle = new Battle(opts); simTime = 0; acc = 0; logIndex = 0; ended = false; fxLast = 0; lastAnimTime = 0; contactPlayed = false; pendingSounds.length = 0; ALARMS.length = 0;
     for (const k in unitById) delete unitById[k];
@@ -22583,25 +22622,27 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (best && /^voiture/.test(best.name || '')) return p.y > best.h * 0.62 ? 'impact_verre' : 'impact_carrosserie';
     return best ? MAT_OF(best.name || '') : 'impact_sol';
   }
-  // alarme de voiture : sirène fabriquée une fois (montées-descentes, deux tons, gazouillis), feux qui clignotent
+  // alarme de voiture : le klaxon de la voiture qui sonne par coups réguliers (comme une vraie alarme de série), au lieu d'une
+  // sirène aiguë ; deux notes graves de klaxon (≈ 400 et 500 Hz), timbre adouci, coups de 0,45 s toutes les 0,8 s ; feux qui clignotent
   const ALARMS = [];
   function genAlarm(d, sr) {
-    let ph = 0;
+    let p1 = 0, p2 = 0, lp = 0, lp2 = 0;
+    const a = 1 - Math.exp(-2 * Math.PI * 1800 / sr);          // filtre passe-bas (le klaxon est sourd, pas strident)
     for (let i = 0; i < d.length; i++) {
-      const t = i / sr, c = t % 9; let f;
-      if (c < 3) f = 650 + 650 * ((c % 0.5) / 0.5);                 // montées rapides
-      else if (c < 6) f = ((c * 4) | 0) % 2 ? 1150 : 820;              // deux tons
-      else f = 1400 - 700 * ((c % 0.15) / 0.15);                       // gazouillis
-      ph += 2 * Math.PI * f / sr;
-      const sq = Math.tanh(Math.sin(ph) * 3) * 0.6 + Math.sin(ph * 2) * 0.15;
-      const env = Math.min(1, t * 20) * Math.min(1, (d.length / sr - t) * 4);
-      d[i] = sq * env * 0.5;
+      const t = i / sr, c = t % 0.8;
+      const on = c < 0.45 ? Math.min(1, c / 0.012) * Math.min(1, (0.45 - c) / 0.02) : 0;
+      p1 += 2 * Math.PI * 405 / sr; p2 += 2 * Math.PI * 507 / sr;
+      const saw = (ph) => ((ph / (2 * Math.PI)) % 1) * 2 - 1;
+      let x = Math.tanh((saw(p1) + saw(p2)) * 0.9) * on;
+      lp += a * (x - lp); lp2 += a * (lp - lp2);               // deux passes : moins de sifflement
+      const env = Math.min(1, (d.length / sr - t) * 4);
+      d[i] = lp2 * env * 0.55;
     }
   }
   function alarmFx() {
     for (let i = ALARMS.length - 1; i >= 0; i--) {
       const a = ALARMS[i]; if (simTime > a.until) { ALARMS.splice(i, 1); continue; }
-      const k = Math.floor((simTime - a.t0) / 0.5); if (k === a.k) continue; a.k = k;
+      const k = Math.floor((simTime - a.t0 - 0.2) / 0.4); if (k === a.k) continue; a.k = k;   // feux en phase avec les coups de klaxon (0,8 s)
       if (k % 2 === 0 && EFX && EFX.light) EFX.light(new THREE.Vector3(a.x, 0.75, a.z), 0xffa030, 40, 7, 0.28);
     }
   }
@@ -22623,7 +22664,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (ev.type === 'lamp' && OT.Parking && OT.Parking.lampOff) OT.Parking.lampOff(ev.x, ev.z);
       if (ev.type === 'alarm') {
         ALARMS.push({ x: ev.x, z: ev.z, until: ev.until, t0: simTime, k: -1 });
-        if (window.Son && Son.fabriquer && Son.fabriquer('alarme_auto', Math.max(1, ev.until - simTime), genAlarm)) pendingSounds.push({ at: simTime + 0.2, name: 'alarme_auto', pos: { x: ev.x, y: 0.8, z: ev.z }, vol: 0.45 });
+        if (window.Son && Son.fabriquer && Son.fabriquer('alarme_auto', Math.max(1, ev.until - simTime), genAlarm)) pendingSounds.push({ at: simTime + 0.2, name: 'alarme_auto', pos: { x: ev.x, y: 0.8, z: ev.z }, vol: 0.22 });
       }
       if (ev.type === 'shot' && ev.hit && Math.random() < 0.25) { const t = unitById[ev.target]; if (t && fogShown(t)) addBlood(t.x, t.z, 0.22); }
       if (ev.type === 'revive') { const m = meshes[ev.unit]; if (m) m.label.classList.remove('down'); if (m && m.mm) OT.MMJeu.relever(unitById[ev.unit], m); delete FOG.deadSeen[ev.unit]; const u = unitById[ev.unit]; if (u) directorEvent('revive', u.x, u.z); }
@@ -23646,7 +23687,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (!battle || battle.over || reviewing) return;
     while (!battle.over) battle.step();
     battle.drainEvents(); pendingSounds.length = 0;
-    for (const f of fx) scene.remove(f.obj); fx.length = 0;
+    for (const f of fx) { scene.remove(f.obj); if (f.trail) scene.remove(f.trail); } fx.length = 0;
     for (const u of battle.units) { const m = meshes[u.id]; m.prev = m.cur = { x: u.x, z: u.z, facing: u.facing }; m.yaw = undefined; m.label.classList.toggle('down', !u.alive); }
     instantResult = true; stepSim(); instantResult = false; acc = DT; render();
   }

@@ -1,14 +1,14 @@
 {
  "page": "/root/operator-tactics/dist/artifact.html",
  "octets_page": 384973,
- "version": "99bdbc857a",
- "total_octets": 171565622,
+ "version": "b6e03dcfd2",
+ "total_octets": 171615728,
  "fichiers": 63,
  "problemes": [],
  "lots": [
   {
    "n": 22,
-   "octets": 59015141,
+   "octets": 59037791,
    "files": {
     "p/three.min.js": "/root/operator-tactics/dist/p/three.min.js",
     "p/three-addons.js": "/root/operator-tactics/dist/p/three-addons.js",
@@ -55,7 +55,7 @@
   },
   {
    "n": 27,
-   "octets": 52882059,
+   "octets": 52909515,
    "files": {
     "hd/mm_base.2.wasm": "/root/operator-tactics/dist/hdart/mm_base.2.wasm",
     "hd/mm_base.json": "/root/operator-tactics/dist/hdart/mm_base.json",
@@ -133,16 +133,16 @@
   {
    "publie": "p/sons.js",
    "source": "dist/p/sons.js",
-   "octets": 1552112,
+   "octets": 1570460,
    "type": "text/javascript",
-   "sha": "32dd8038abef"
+   "sha": "c99260869dd1"
   },
   {
    "publie": "p/jeu.js",
    "source": "dist/p/jeu.js",
-   "octets": 2128917,
+   "octets": 2133219,
    "type": "text/javascript",
-   "sha": "1f6a3e546dd6"
+   "sha": "93fa856b6a52"
   },
   {
    "publie": "p/cannon-es.LICENSE.txt",
@@ -518,9 +518,9 @@
   {
    "publie": "hd/sons_hd.json",
    "source": "dist/hdart/sons_hd.json",
-   "octets": 1550538,
+   "octets": 1577994,
    "type": "application/json",
-   "sha": "2df072940a0c"
+   "sha": "690f58f72add"
   }
  ]
 }

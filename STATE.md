@@ -35,6 +35,11 @@
      https://claude.ai/artifact/VCh6JSiTvctXtMqHF1JSbm . Piste vue avec : graine 8, t 36-38 s, Bélier et Molosse à 3 m sans tirer.
      (ancien libellé) Outil « vue de dessus des replays » (2D, ~1 s/image, ne touche pas au jeu) : obstacles (gris foncé = hauts, clair = bas),
      soldats (points bleu/rouge + trait du regard), chemin prévu, positions ennemies connues, coins de tir ; pour déboguer l'IA.
-  2. Sons : l'alarme de voiture est trop fréquente, horrible (« alarme de pompier »), trop forte → plus rare, plus réaliste, moins fort.
+  2-3. FAIT v56 (21/10, publié) : alarme de voiture 1 voiture sur 3 (tirage fixe graine/voiture), une seule à la fois, 15 s,
+     klaxon par coups (405+507 Hz adouci) au lieu de la sirène, volume 0,45 → 0,22 : 0,43 → 0,1 alarme/bataille. Explosion de
+     grenade refaite (sons/vrais.py : claquement, médiums, échos des façades, 3,6 s, +5 dB) ; grenade en vol : étincelles
+     orange + trait, cercle de danger clignotant au sol jusqu'à l'explosion (app.js addDangerRing), onde de choc (addShock),
+     boule de feu plus grosse (effets.js). À faire écouter / regarder par l'utilisateur.
+     (ancien libellé) 2. Sons : l'alarme de voiture est trop fréquente, horrible (« alarme de pompier »), trop forte → plus rare, plus réaliste, moins fort.
   3. Grenades (en dernier) : explosion et effets nuls, on ne voit pas qu'une grenade est lancée → meilleur son, effet, signal du lancer.
 - Prochaine tâche (ancienne) : retour de l'utilisateur sur la v53 (bugs visuels) ; captures zoomées + agent QA sur tir, couvert, réa.

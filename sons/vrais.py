@@ -172,12 +172,25 @@ def pas_mouille(i):
     x = hp(lire(f"cdda/walk_t_water_sh_{i + 1}.ogg"), 150); return couper(x, .24, .08)
 
 # ---------------------------------------------------------------- explosions (grenade : CC0 j1987 / CC BY 3.0 bmlake ; lourde : CC0 unfa)
-@snd("explosion", 3, -11)
+@snd("explosion", 3, -6, debit=64)
 def explosion(i):
-    g = hp(lire(f"ffsl/grenade_{i}.ogg"), 30); g = couper(g, .9, .2)
-    seed(610 + i); boom = lp(dsp.resonator(noise(1.2), rng.uniform(38, 48), 1.6)*env_ad(int(1.2*SR), .002, .7), 160)*2.0
-    out = mixe(2.2, (g, 0, 1.6), (boom, 0, .5))
-    for k in range(7): place(out, debris(k + i, .18), rng.uniform(.3, 1.4))   # gravillons qui retombent
+    # refait le 21/10 (« explosions nulles ») : avant, un coup très grave (60 % de l'énergie sous 200 Hz, inaudible sur un
+    # portable) à peine plus fort qu'un tir. Maintenant : claquement sec de l'onde de choc, corps dans les médiums (le
+    # « boum » qu'on entend même sur de petits haut-parleurs, harmoniques du grave), queue plus longue de l'enregistrement,
+    # échos sur les façades autour du parking, gravillons qui retombent ; +5 dB par rapport à avant.
+    g = hp(lire(f"ffsl/grenade_{i}.ogg"), 30); g = couper(g, 1.6, .5)
+    seed(610 + i)
+    crack = hp(noise(.02), 900)*env_ad(int(.02*SR), .0003, .012, 3)
+    boom = lp(dsp.resonator(noise(1.4), rng.uniform(42, 55), 1.6)*env_ad(int(1.4*SR), .002, .8), 180)
+    boom = boom/np.abs(boom).max()
+    harm = bp(soft_clip(boom*3.0, 2.5), 110, 700)          # harmoniques du grave : le boum devient audible sur un portable
+    corps = bp(g, 140, 1100)                                # médiums de l'enregistrement, renforcés
+    sec = mixe(1.8, (crack, 0, .9), (g, 0, 1.5), (corps, 0, .9), (boom, 0, .7), (harm, .004, .45))
+    out = silence(3.6); place(out, sec, 0)
+    for d, a in [(.11, .32), (.19, .26), (.34, .2), (.55, .13), (.8, .08)]:   # échos des façades (le son revient, plus sourd)
+        place(out, lp(sec, 2200 - d*1500), d + rng.uniform(-.015, .015), a)
+    out = reverb(out, "outdoor", .55).mean(0)[:len(out)]
+    for k in range(9): place(out, debris(k + i, .2), rng.uniform(.25, 1.6))   # gravillons qui retombent
     return out
 @snd("explosion_lourde", 2, -10)  # obus, frappe aérienne
 def explosion_lourde(i):

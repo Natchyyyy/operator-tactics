@@ -446,11 +446,15 @@
     this.emit({ type: 'lamp', id: l.id, on: false, x: l.x, z: l.z });
     this.logEvent('lampout', `${u.callsign} éteint un lampadaire : la zone est plongée dans le noir.`, { unit: u.id, team: u.team });
   };
-  // Alarme de voiture : des balles dans la carrosserie la déclenchent (une fois par voiture) ; 25 s de sirène et de feux qui
-  // clignotent ; tant qu'elle hurle, on n'entend plus les pas à moins de 14 m.
+  // Alarme de voiture : des balles dans la carrosserie la déclenchent (une fois par voiture) ; 15 s de klaxon et de feux qui
+  // clignotent ; tant qu'elle sonne, on n'entend plus les pas à moins de 14 m. Plus rare (demande de l'utilisateur, 21/10) :
+  // une voiture sur trois seulement a une alarme (tirage fixe par graine et par voiture, sans toucher au hasard de la bataille),
+  // et une seule sonne à la fois.
   Battle.prototype.carAlarm = function (o) {
-    if (!o || !/^voiture/.test(o.name || '') || (this.alarms && this.alarms.some(a => a.o === o))) return;
-    const x = o.x + o.w / 2, z = o.z + o.d / 2, until = this.t + 25;
+    if (!o || !/^voiture/.test(o.name || '') || (this.alarms && this.alarms.some(a => a.o === o || this.t < a.until))) return;
+    const idx = this.map.obstacles.indexOf(o);
+    if (((idx * 7 + this.seed * 13) >>> 0) % 3 !== 0) return;
+    const x = o.x + o.w / 2, z = o.z + o.d / 2, until = this.t + 15;
     (this.alarms || (this.alarms = [])).push({ o, x, z, until });
     this.emit({ type: 'alarm', x, z, until });
     this.logEvent('alarm', 'Une alarme de voiture se déclenche.', { silent: true });
