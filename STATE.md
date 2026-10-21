@@ -22,5 +22,10 @@
   on reste à couvert 5 s après des tirs / 3 s après un contact ; cible suivie gardée (`focusId`) ; fouille menée à son point ;
   1er point de chemin derrière soi remplacé. Mesure `node outils/mesure_ia.js 60` : exposition 33,7 → 24 %, demi-tours
   (> 2,5 m) ~32 → 15 par bataille, réaction médiane 1,2 → 0,9 s, durée moyenne 127 → 100 s. Tests : ia 83, verify 79, voies 22.
+  v55 : visée sur la DERNIÈRE POSITION CONNUE quand la cible n'est plus vue (`aimPoint`, plus de suivi à travers les murs) ;
+  caché derrière un mur : regard vers le coin, arme basse (`hide`, `u.blindWall` → `estVise` faux dans mm_jeu.js/app.js) ;
+  au milieu d'un long obstacle haut (bus) : longer jusqu'à un coin d'où tirer (`toCorner`, ≤ 7 m) ; `coverUp` cherche jusqu'à
+  10 m ; décrocher : les bondisseurs courent toujours ; point de passage frôlé 3 pas de suite = atteint (`wpStall`).
+  Idée proposée à l'utilisateur (en attente) : petite vue de dessus des replays (2D, ~1 s/image) pour déboguer le cerveau.
   À faire (demandé) : « cerveau de groupe » qui se déplace selon la doctrine (l'utilisateur veut un mouvement d'escouade logique).
 - Prochaine tâche : retour de l'utilisateur sur la v53 (bugs visuels) ; captures zoomées + agent QA sur tir, couvert, réa.

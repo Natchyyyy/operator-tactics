@@ -1285,7 +1285,7 @@
     // mort en ragdoll physique (ragdoll.js) : le corps n'est plus animé
     if (m.rag && OT.Ragdoll && OT.Ragdoll.anime(u, m, dt)) { m.ring.material.opacity = Math.max(0.15, m.ring.material.opacity - dt); chargeur(u, m, a); return; }
     a.recoil = Math.max(0, a.recoil - dt * 10); a.flinch = Math.max(0, a.flinch - dt * 4);
-    const crouch = u.alive && u.stance === 'crouch', aiming = u.alive && (u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture');
+    const crouch = u.alive && u.stance === 'crouch', aiming = u.alive && u.state !== 'hide' && !u.blindWall && (u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture');
     const dx = m.cur.x - m.prev.x, dz = m.cur.z - m.prev.z, v = Math.hypot(dx, dz) / DT;
     // direction du déplacement par rapport au corps affiché : les jambes marchent dans cette direction, le torse reste vers la
     // cible. Au-delà de ~100°, on recule : jambes vers l'arrière et cycle lu à l'envers (hystérésis pour ne pas osciller).

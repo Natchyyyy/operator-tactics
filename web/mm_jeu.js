@@ -79,7 +79,7 @@
   J.vider = function () { for (const A of J.agents.values()) if (A.mort && OT.Ragdoll) try { OT.Ragdoll.liberer(A.mort.m); } catch (e) { } J.agents.clear(); OT.MM.ctx.agents = []; J.reste = 0; };
 
   // ---- ordres : état simulé → contrôleur -----------------------------------------------------------------------------
-  const estVise = (u) => !!(u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture' || u.state === 'appui' || u.state === 'holdkey' || u.state === 'hold' || u.state === 'pinned' || u.preaim);
+  const estVise = (u) => u.state !== 'hide' && !u.blindWall && !!(u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture' || u.state === 'appui' || u.state === 'holdkey' || u.state === 'hold' || u.state === 'pinned' || u.preaim);
   function ordres(A, u, battle, cible) {
     const C = A.ctl, S = A.soldat, MM = OT.MM;
     if (A.leve) return;   // relevé en cours : le module garde la main
