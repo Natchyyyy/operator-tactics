@@ -1286,6 +1286,7 @@
     if (m.rag && OT.Ragdoll && OT.Ragdoll.anime(u, m, dt)) { m.ring.material.opacity = Math.max(0.15, m.ring.material.opacity - dt); chargeur(u, m, a); return; }
     a.recoil = Math.max(0, a.recoil - dt * 10); a.flinch = Math.max(0, a.flinch - dt * 4);
     const crouch = u.alive && u.stance === 'crouch', aiming = u.alive && u.state !== 'hide' && !u.blindWall && (u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture');
+    const preaim = !!u.preaim && !u.blindWall;   // canon contre le décor : arme basse même en marchant
     const dx = m.cur.x - m.prev.x, dz = m.cur.z - m.prev.z, v = Math.hypot(dx, dz) / DT;
     // direction du déplacement par rapport au corps affiché : les jambes marchent dans cette direction, le torse reste vers la
     // cible. Au-delà de ~100°, on recule : jambes vers l'arrière et cycle lu à l'envers (hystérésis pour ne pas osciller).
@@ -1318,7 +1319,7 @@
     // les vitesses ; en visant aussi, à toutes les vitesses quand le modèle a la course refaite (Pas_Run) : au-delà de 3,2 m/s,
     // l'ancienne course épaulée « Run_and_Shoot », bornée à 2,2 × sa vitesse propre (3,7 m/s), patinait de 3 m/s au sprint
     // vers un couvert sous le feu, genoux à 50-68° à la pose
-    const patrouille = u.alive && !(aiming || u.preaim) && !!m.clips.Pas_Trot && !!m.clips.Walk_Low_Haut;
+    const patrouille = u.alive && !(aiming || preaim) && !!m.clips.Pas_Trot && !!m.clips.Walk_Low_Haut;
     a.vLis = v > 0.15 ? (a.vLis > 0.15 ? a.vLis + (v - a.vLis) * Math.min(1, dt * 4) : v) : 0;
     const dirMarche = u.alive && m.marche && m.clips.Pas_Gauche && !crouch && u.moving && v > 0.15 && (v <= 3.2 || patrouille || (OT.SPRINT_VISE_TEST !== false && !!m.clips.Pas_Run && !!m.clips.Pas_Glisse)) && !(u.reloading > 0) && !u.throwing && !battle.over;
     // (la simulation plafonne la vitesse de côté / en reculant : si la vitesse réelle reste sous 1,45 m/s plus de 0,25 s alors
@@ -1328,7 +1329,7 @@
     // arrêt : la démarche continue ~0,3 s en ralentissant (le pied en l'air finit son pas et se pose, les pieds d'appui restent
     // cloués) au lieu de couper net ; si le soldat repart entre-temps (arrêts d'un pas de simulation en fin de bond, écartement
     // d'un allié), aucune transition du tout. Pas si l'état de visée change (le haut du corps doit réagir tout de suite).
-    const viseNow = !!(aiming || u.preaim);
+    const viseNow = !!(aiming || preaim);
     const grace = !dirMarche && a.marcheVu && u.alive && m.marche && !crouch && !(u.reloading > 0) && !u.throwing && !battle.over && viseNow === a.viseVu && (a.graceT = (a.graceT || 0) + dt) < 0.3;
     if (dirMarche) { a.graceT = 0; a.vGr = v; a.viseVu = viseNow; } else if (grace) a.vGr *= Math.exp(-dt * 7);
     a.marcheVu = dirMarche || grace;
@@ -1363,7 +1364,7 @@
       } else { const n = crouch ? 'Kneeling_Reload' : 'Standing_Reload'; m.play(n, { speed: rs }); }
     }
     else if (dirMarche || grace) {
-      const vise = aiming || u.preaim || !m.clips.Walk_Low_Haut;
+      const vise = aiming || preaim || !m.clips.Walk_Low_Haut;
       // (marche attend la direction par rapport au groupe, c.-à-d. à la visée : on rajoute la correction du corps retirée plus haut)
       let haut = course ? (vise ? 'Run_and_Shoot_Haut' : 'Run_Low_Haut') : (vise ? 'Walk_Aim_Haut' : 'Walk_Low_Haut'), avant = course ? 'Pas_Avant_Course' : vise ? 'Pas_Avant_Aim' : 'Pas_Avant_Low', mix = null;
       if (vise && m.clips.Pas_Glisse) {
@@ -1392,8 +1393,8 @@
       a.phase = ph * 2 * Math.PI;
     }
     else if (u.moving && v > 0.15) {
-      if (crouch) loco(m.clips.Accroupi_Marche_Vise ? (aiming || u.preaim ? 'Accroupi_Marche_Vise' : 'Accroupi_Marche_Bas') : 'Cautious_Crouch_Walk_Forward');   // (haut du corps en visée ou garde basse, voir Soldat3D.compositeAccroupi)
-      else if (aiming || u.preaim) loco(v > 1.4 ? 'Run_and_Shoot' : 'Walk_Aim');          // ennemi connu : fusil épaulé
+      if (crouch) loco(m.clips.Accroupi_Marche_Vise ? (aiming || preaim ? 'Accroupi_Marche_Vise' : 'Accroupi_Marche_Bas') : 'Cautious_Crouch_Walk_Forward');   // (haut du corps en visée ou garde basse, voir Soldat3D.compositeAccroupi)
+      else if (aiming || preaim) loco(v > 1.4 ? 'Run_and_Shoot' : 'Walk_Aim');          // ennemi connu : fusil épaulé
       else loco(v > 1.4 ? (m.clips.Run_Low ? 'Run_Low' : 'Run_and_Shoot') : (m.clips.Walk_Low ? 'Walk_Low' : 'Walk_Aim'));   // sinon garde basse
     }
     else if (crouch) { if (m.clips.Accroupi_Vise) m.play(aiming ? 'Accroupi_Vise' : 'Accroupi_Bas', { time: 0, fade: fCr(0.25) }); else m.play('Kneeling_Reload', { time: 0.06, fade: fCr(0.25) }); }

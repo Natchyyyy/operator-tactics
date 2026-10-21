@@ -1118,6 +1118,7 @@
   // seule une moitié du corps dépasse (cible plus petite, voir hitChance).
   // Cycle : caché (le temps de souffler, plus long sous le feu ; on y recharge) → sortie au coin → rafale de 3 à 5 coups
   // (ou rien à tirer au bout de 2,5 s, ou balles qui claquent trop près) → retour à l'abri.
+  const MUZZLE = 1.1;   // longueur bras + canon devant les yeux (m)
   const PEEK_H = EYE.stand, PEEK_MIN = 0.4, PEEK_MAX = 1.4, PEEK_SPEED = 2.2;
   // point de tir au coin depuis une cachette (hx, hz) contre l'obstacle o face à la menace, ou null : le plus petit pas de
   // côté (0,4 à 1,4 m, le long de l'obstacle) d'où l'on voit la menace, debout
@@ -2677,7 +2678,23 @@
         if (u.post) u.post = { x: u.goal.x, z: u.goal.z };   // le poste suit (sinon on y retournerait aussitôt)
         u.blindWall = false;
       }
-    } else if (u.moving) u.blindWall = false;
+    }
+    // canon contre un obstacle (accroupi derrière une voiture, face à un mur, en gardant en joue un ennemi qu'on ne voit
+    // plus) : on ne vise pas dans le décor. Derrière un obstacle bas avec l'ennemi visible debout, on se lève pour tirer
+    // par-dessus ; sinon arme basse (u.blindWall) jusqu'à ce que la ligne du canon se dégage.
+    if (u.muzzleLow) { u.blindWall = false; u.muzzleLow = false; }
+    if (!u.moving) u.preaim = false;   // « arme pointée en marchant » ne survit pas à l'arrêt (sinon fusil levé dans le décor)
+    if (u.moving && !u.muzzleLow) u.blindWall = false;
+    if (!u.peek && !u.blindWall) {
+      const c = Math.cos(u.facing), s = Math.sin(u.facing), y = u.eyeY() - 0.12;
+      const o = this.map.blocker(u.x, y, u.z, u.x + c * MUZZLE, y, u.z + s * MUZZLE);
+      if (o) {
+        const T = u.target && u.target.alive ? u.target : null, yS = EYE.stand - 0.12;
+        const overIt = !u.moving && u.stance === 'crouch' && o.h < EYE.stand - 0.1 && this.map.hasLOS(u.x, yS, u.z, u.x + c * MUZZLE, yS, u.z + s * MUZZLE);
+        if (overIt && T && this.map.hasLOS(u.x, EYE.stand, u.z, T.x, T.chestY(), T.z)) u.stance = 'stand';
+        else { u.blindWall = true; u.muzzleLow = true; }
+      }
+    }
     // caché derrière un mur haut, en attendant de ressortir : regard (et arme basse) vers le coin d'où l'on va tirer,
     // pas droit dans le mur
     if (u.peek && u.peek.phase !== 'out' && !u.moving) { const P = u.peek, th = this.mainThreat(u); if (th) { const a = Math.atan2(th.z - P.hz, th.x - P.hx), b = Math.atan2(P.pz - P.hz, P.px - P.hx); let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; u.facing = a + d * 0.6; } }
