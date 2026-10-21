@@ -1,0 +1,237 @@
+<title>Operator Tactics vu de dessus</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Mise en page : barre de réglages en haut, la carte vue de dessus en grand, la frise du temps dessous, la fiche du soldat suivi à droite (dessous sur téléphone). */
+:root {
+  --bg: #eef0ea; --panel: #ffffff; --fg: #1d2420; --muted: #5f6a62; --line: #d3d8cf; --accent: #2f6b4f; --accent-fg: #ffffff;
+  --blue: #2563eb; --red: #dc2626; --warn: #b45309;
+  --f-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif; --f-num: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #151a17; --panel: #1e2521; --fg: #e5ebe6; --muted: #9aa69e; --line: #333d37; --accent: #6fbf95; --accent-fg: #0e1411; --blue: #7aa7ff; --red: #ff8a80; --warn: #f0b35a; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #151a17; --panel: #1e2521; --fg: #e5ebe6; --muted: #9aa69e; --line: #333d37; --accent: #6fbf95; --accent-fg: #0e1411; --blue: #7aa7ff; --red: #ff8a80; --warn: #f0b35a; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-ui); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px 24px; }
+h1 { font-size: 1.15rem; margin: 0; letter-spacing: 0.02em; text-wrap: balance; }
+.sub { color: var(--muted); font-size: 0.85rem; margin: 2px 0 0; }
+header { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: end; justify-content: space-between; margin-bottom: 10px; }
+.reglages { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: end; }
+label { display: grid; gap: 3px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+select, input[type=number] { font: inherit; font-size: 0.9rem; text-transform: none; letter-spacing: 0; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); }
+input[type=number] { width: 5.5em; font-family: var(--f-num); }
+button { font: inherit; font-size: 0.9rem; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+button.primaire { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.grille { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 14px; align-items: start; }
+@media (max-width: 860px) { .grille { grid-template-columns: minmax(0, 1fr); } }
+.vue { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+#carte { display: block; width: 100%; height: auto; cursor: crosshair; touch-action: manipulation; }
+#carte svg { display: block; width: 100%; height: auto; }
+.frise { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--line); }
+.frise input[type=range] { flex: 1 1 220px; min-width: 0; accent-color: var(--accent); }
+.temps { font-family: var(--f-num); font-variant-numeric: tabular-nums; font-size: 0.9rem; min-width: 8.5em; }
+.cases { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.82rem; color: var(--muted); }
+.cases label { display: flex; align-items: center; gap: 4px; text-transform: none; letter-spacing: 0; font-size: 0.82rem; }
+aside { display: grid; gap: 12px; min-width: 0; }
+.bloc { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
+.bloc h2 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+.soldats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.soldats button { text-align: left; padding: 4px 8px; font-size: 0.85rem; display: flex; gap: 6px; align-items: center; }
+.soldats button.on { outline: 2px solid var(--accent); }
+.soldats button.mort { opacity: 0.45; text-decoration: line-through; }
+.pastille { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 10px; margin: 0; font-size: 0.86rem; }
+dt { color: var(--muted); }
+dd { margin: 0; font-family: var(--f-num); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.alerte { color: var(--warn); }
+.legende { display: grid; gap: 4px; font-size: 0.82rem; color: var(--muted); margin: 0; padding: 0; list-style: none; }
+.legende b { color: var(--fg); font-weight: 600; }
+.etat { font-size: 0.82rem; color: var(--muted); }
+kbd { font-family: var(--f-num); font-size: 0.78rem; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
+
+<header>
+  <div>
+    <h1>Vue de dessus — Operator Tactics</h1>
+    <p class="sub">Une bataille simulée vue du ciel, pour voir ce que pense chaque soldat. Clique sur un soldat pour le suivre.</p>
+  </div>
+  <form class="reglages" id="reglages">
+    <label>Graine <input type="number" id="graine" value="8" min="1" step="1"></label>
+    <label>Ordre bleus <select id="ordreA"></select></label>
+    <label>Tactique bleus <select id="tacA"></select></label>
+    <label>Ordre rouges <select id="ordreB"></select></label>
+    <label>Tactique rouges <select id="tacB"></select></label>
+    <button class="primaire" id="lancer" type="submit">Lancer la bataille</button>
+  </form>
+</header>
+
+<div class="grille">
+  <section class="vue">
+    <div id="carte" aria-label="Carte vue de dessus"></div>
+    <div class="frise">
+      <button id="lire" type="button">⏸ Pause</button>
+      <select id="vitesse" aria-label="Vitesse"><option value="0.5">×0,5</option><option value="1" selected>×1</option><option value="2">×2</option><option value="4">×4</option></select>
+      <input type="range" id="curseur" min="0" max="0" value="0" step="1" aria-label="Instant">
+      <span class="temps" id="temps">0,0 s</span>
+    </div>
+    <div class="frise cases">
+      <label><input type="checkbox" id="c-chemins" checked> chemins</label>
+      <label><input type="checkbox" id="c-connu" checked> ennemis connus</label>
+      <label><input type="checkbox" id="c-coins" checked> coins de tir</label>
+      <label><input type="checkbox" id="c-tirs" checked> tirs</label>
+      <label><input type="checkbox" id="c-noms" checked> noms</label>
+      <label><input type="checkbox" id="c-etats" checked> états</label>
+      <label><input type="checkbox" id="c-zoom"> suivre de près</label>
+      <span class="etat" id="etat"></span>
+    </div>
+  </section>
+
+  <aside>
+    <div class="bloc">
+      <h2>Soldats</h2>
+      <div class="soldats" id="soldats"></div>
+    </div>
+    <div class="bloc">
+      <h2 id="ficheTitre">Soldat suivi</h2>
+      <dl id="fiche"><dt>—</dt><dd>Clique sur un soldat</dd></dl>
+    </div>
+    <div class="bloc">
+      <h2>Légende</h2>
+      <ul class="legende">
+        <li><b>Gris foncé</b> : obstacle haut (cache un homme debout)</li>
+        <li><b>Gris clair</b> : obstacle bas (cache un homme accroupi)</li>
+        <li><b>Trait du soldat</b> : son regard, plein s'il vise, pointillé sinon</li>
+        <li><b>Petit point</b> : accroupi · <b>anneau blanc</b> : il dépasse du coin d'un mur pour tirer</li>
+        <li><b>Halo orange</b> : il se fait tirer dessus (suppression)</li>
+        <li><b>Pointillés</b> : chemin prévu · <b>losange</b> : coin d'où il va tirer</li>
+        <li><b>Croix</b> : où il croit que sont les ennemis (pâle = ancien)</li>
+        <li><b>Traits jaunes</b> : tirs · <b>rouges</b> : touchés · <b>cercles gris</b> : fumée</li>
+      </ul>
+      <p class="etat"><kbd>Espace</kbd> lecture · <kbd>←</kbd> <kbd>→</kbd> pas à pas</p>
+    </div>
+  </aside>
+</div>
+
+<script src="../../sim/rng.js"></script>
+<script src="../../sim/data.js"></script>
+<script src="../../sim/map.js"></script>
+<script src="../../sim/engine.js"></script>
+<script src="rendu.js"></script>
+<script>
+(function () {
+  const V = OT.Vue2D, $ = (id) => document.getElementById(id);
+  const A = ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'], K = ['k_molosse', 'k_vipere', 'k_rapace', 'k_hyene', 'k_chacal'];
+  const ORD = OT.DATA.ORDERS, TAC = OT.DATA.TACTICS;
+  for (const s of ['ordreA', 'ordreB']) for (const o of Object.values(ORD)) $(s).add(new Option(o.name, o.id));
+  $('ordreA').value = 'careful'; $('ordreB').value = 'assault';
+  for (const s of ['tacA', 'tacB']) { $(s).add(new Option('aucune', '')); for (const id of ['tiroir', 'tiroir_lent', 'eclaireur']) if (TAC[id]) $(s).add(new Option(TAC[id].name, id)); }
+  try { const m = JSON.parse(localStorage.getItem('vue2d') || 'null'); if (m) { for (const k of ['graine', 'ordreA', 'ordreB', 'tacA', 'tacB']) if (m[k] !== undefined) $(k).value = m[k]; } } catch (e) { }
+
+  let C = null, frames = [], i = 0, jeu = true, choisi = null, gen = 0, fini = false, dernier = 0, acc = 0;
+
+  function lancer() {
+    const g = ++gen;
+    try { localStorage.setItem('vue2d', JSON.stringify({ graine: $('graine').value, ordreA: $('ordreA').value, ordreB: $('ordreB').value, tacA: $('tacA').value, tacB: $('tacB').value })); } catch (e) { }
+    const b = new OT.Battle({ seed: +$('graine').value || 1, mapId: 'parking', teams: [
+      { name: 'Bleus', order: $('ordreA').value, operators: A, tactics: $('tacA').value ? [$('tacA').value] : [] },
+      { name: 'Rouges', order: $('ordreB').value, operators: K, tactics: $('tacB').value ? [$('tacB').value] : [] }] });
+    C = V.carte(b.map); frames = [V.snap(b, 0)]; i = 0; fini = false; jeu = true; $('lire').textContent = '⏸ Pause';
+    if (choisi && !b.units.some(u => u.id === choisi)) choisi = null;
+    let ev0 = 0;
+    // la bataille se calcule par morceaux (la lecture commence tout de suite)
+    (function morceau() {
+      if (g !== gen) return;
+      const t0 = performance.now();
+      while (!b.over && b.t < 300 && performance.now() - t0 < 25) {
+        b.step();
+        while (ev0 < b.events.length && b.events[ev0].t < b.t - 0.3) ev0++;
+        frames.push(V.snap(b, ev0));
+      }
+      $('curseur').max = frames.length - 1;
+      if (b.over || b.t >= 300) {
+        fini = true;
+        const w = b.result && b.result.winner;
+        $('etat').textContent = `bataille finie à ${b.t.toFixed(1)} s — ${w === 0 ? 'victoire des bleus' : w === 1 ? 'victoire des rouges' : 'match nul'}`;
+      } else { $('etat').textContent = `calcul… ${b.t.toFixed(0)} s`; setTimeout(morceau, 0); }
+    })();
+    listeSoldats(); dessiner();
+  }
+
+  function listeSoldats() {
+    const S = frames[i]; if (!S) return;
+    const box = $('soldats');
+    if (box.childElementCount !== S.units.length) {
+      box.innerHTML = '';
+      for (const u of S.units) {
+        const bt = document.createElement('button'); bt.type = 'button'; bt.dataset.id = u.id;
+        bt.innerHTML = `<span class="pastille" style="background:${V.COUL[u.team].f}"></span>${u.cs}`;
+        bt.onclick = () => { choisi = choisi === u.id ? null : u.id; dessiner(); };
+        box.appendChild(bt);
+      }
+    }
+    for (const bt of box.children) { const u = S.units.find(x => x.id === bt.dataset.id); bt.classList.toggle('on', bt.dataset.id === choisi); bt.classList.toggle('mort', !!u && !u.alive); }
+  }
+
+  const ETATS = { engage: 'combat', hide: 'caché', overwatch: 'surveille', hold: 'tient', advancing: 'avance', bounding: 'bond', tocover: 'va à couvert', fallback: 'se replie', throw: 'lance', search: 'fouille', closing: 's\'approche', pause: 'pause', wait: 'attend', idle: 'repos', evade: 'esquive', reload: 'recharge', torevive: 'va soigner', reviving: 'soigne', todrag: 'va tirer un blessé', dragging: 'tire un blessé', capture: 'prend la zone', appui: 'appui' };
+  function fiche(S) {
+    const u = choisi && S.units.find(x => x.id === choisi);
+    if (!u) { $('ficheTitre').textContent = 'Soldat suivi'; $('fiche').innerHTML = '<dt>—</dt><dd>Clique sur un soldat</dd>'; return; }
+    $('ficheTitre').textContent = `${u.cs} (${u.team ? 'rouges' : 'bleus'})`;
+    const byId = {}; for (const x of S.units) byId[x.id] = x;
+    const nom = (id) => (byId[id] || {}).cs || id;
+    const lignes = [
+      ['État', u.alive ? `${ETATS[u.state] || u.state} (${u.state}${u.gk ? ' / ' + u.gk : ''})` : (u.status === 'down' ? 'à terre' : 'mort')],
+      ['Posture', u.stance === 'crouch' ? 'accroupi' : 'debout'],
+      ['Santé', `${u.hp} / ${u.maxHp}`],
+      ['Munitions', u.reload ? 'recharge…' : String(u.ammo)],
+      ['Suppression', `<span class="${u.sup > 0.5 ? 'alerte' : ''}">${u.sup.toFixed(2)}</span>`],
+      ['Coin de tir', u.peek ? ({ hide: 'caché derrière', out: 'dehors, tire', back: 'revient' }[u.peek.ph] || u.peek.ph) : '—'],
+      ['Vise', u.target ? nom(u.target) : '—'],
+      ['Voit', u.vis.length ? u.vis.map(nom).join(', ') : 'personne'],
+      ['Croit savoir', u.kn.length ? u.kn.map(k => `${nom(k.id)} (${k.seen ? 'vu' : 'entendu'} il y a ${k.age.toFixed(1)} s)`).join('<br>') : 'rien'],
+      ['Ordre', u.order || '—'],
+    ];
+    $('fiche').innerHTML = lignes.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('');
+  }
+
+  function dessiner() {
+    const S = frames[i]; if (!S || !C) return;
+    const couches = {}; for (const k of ['chemins', 'connu', 'coins', 'tirs', 'noms', 'etats']) couches[k] = $('c-' + k).checked;
+    let cadre = null; const u = choisi && S.units.find(x => x.id === choisi);
+    if ($('c-zoom').checked && u) { const R = 14; cadre = { x0: u.x - R, z0: u.z - R * 0.62, x1: u.x + R, z1: u.z + R * 0.62 }; }
+    $('carte').innerHTML = V.svg(C, S, { echelle: cadre ? 36 : 14, cadre, choisi, couches, titre: `graine ${$('graine').value}` });
+    $('carte').dataset.cadre = JSON.stringify(cadre || { x0: 0, z0: 0, x1: C.w, z1: C.d });
+    $('curseur').value = i; $('temps').textContent = `${S.t.toFixed(1).replace('.', ',')} s${fini ? '' : ' …'}`;
+    fiche(S); listeSoldats();
+  }
+
+  // clic sur la carte : le soldat vivant le plus proche (à moins de 2 m)
+  $('carte').addEventListener('click', (e) => {
+    const svg = $('carte').querySelector('svg'); if (!svg) return;
+    const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal, fr = JSON.parse($('carte').dataset.cadre);
+    const px = (e.clientX - r.left) / r.width * vb.width, py = (e.clientY - r.top) / r.height * vb.height - 22;
+    const sc = vb.width / (fr.x1 - fr.x0), x = fr.x0 + px / sc, z = fr.z0 + py / sc;
+    let best = null, bd = 2;
+    for (const u of frames[i].units) { const d = Math.hypot(u.x - x, u.z - z); if (d < bd) { bd = d; best = u; } }
+    choisi = best ? best.id : null; dessiner();
+  });
+  $('reglages').addEventListener('submit', (e) => { e.preventDefault(); lancer(); });
+  $('lire').onclick = () => { jeu = !jeu; $('lire').textContent = jeu ? '⏸ Pause' : '▶ Lecture'; if (jeu && i >= frames.length - 1 && fini) i = 0; };
+  $('curseur').oninput = () => { i = +$('curseur').value; jeu = false; $('lire').textContent = '▶ Lecture'; dessiner(); };
+  for (const k of ['chemins', 'connu', 'coins', 'tirs', 'noms', 'etats', 'zoom']) $('c-' + k).onchange = dessiner;
+  document.addEventListener('keydown', (e) => {
+    if (e.target.closest('input[type=number], select')) return;
+    if (e.key === ' ') { e.preventDefault(); $('lire').click(); }
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); jeu = false; $('lire').textContent = '▶ Lecture'; i = Math.max(0, Math.min(frames.length - 1, i + (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 10 : 1))); dessiner(); }
+  });
+  function boucle(ts) {
+    const dt = Math.min(0.25, (ts - (dernier || ts)) / 1000); dernier = ts;
+    if (jeu && frames.length) {
+      acc += dt * +$('vitesse').value;
+      let n = 0; while (acc >= 0.1) { acc -= 0.1; n++; }
+      if (n) { const j = Math.min(frames.length - 1, i + n); if (j !== i) { i = j; dessiner(); } else if (fini) { jeu = false; $('lire').textContent = '▶ Lecture'; } }
+    }
+    requestAnimationFrame(boucle);
+  }
+  lancer(); requestAnimationFrame(boucle);
+})();
+</script>

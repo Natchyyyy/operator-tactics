@@ -29,7 +29,11 @@
   Idée proposée à l'utilisateur (en attente) : petite vue de dessus des replays (2D, ~1 s/image) pour déboguer le cerveau.
   À faire (demandé) : « cerveau de groupe » qui se déplace selon la doctrine (l'utilisateur veut un mouvement d'escouade logique).
 - PLAN VALIDÉ PAR L'UTILISATEUR (21/10, dans cet ordre, publier après chaque étape) :
-  1. Outil « vue de dessus des replays » (2D, ~1 s/image, ne touche pas au jeu) : obstacles (gris foncé = hauts, clair = bas),
+  1. FAIT (21/10) — outil « vue de dessus » : `node outils/vue2d.js --graine 8 --t 30,40 [--suivre Bélier] [--autour Bélier:12]
+     [--pas 5] [--planche] --out dossier` → PNG (~0,3 s/vue ; dessin `outils/vue2d/rendu.js`, PNG par @resvg/resvg-js installé
+     dans /root/.outils-node) ; page interactive `outils/vue2d/page.html` (`--page` → dist/vue2d.html) publiée :
+     https://claude.ai/artifact/VCh6JSiTvctXtMqHF1JSbm . Piste vue avec : graine 8, t 36-38 s, Bélier et Molosse à 3 m sans tirer.
+     (ancien libellé) Outil « vue de dessus des replays » (2D, ~1 s/image, ne touche pas au jeu) : obstacles (gris foncé = hauts, clair = bas),
      soldats (points bleu/rouge + trait du regard), chemin prévu, positions ennemies connues, coins de tir ; pour déboguer l'IA.
   2. Sons : l'alarme de voiture est trop fréquente, horrible (« alarme de pompier »), trop forte → plus rare, plus réaliste, moins fort.
   3. Grenades (en dernier) : explosion et effets nuls, on ne voit pas qu'une grenade est lancée → meilleur son, effet, signal du lancer.
