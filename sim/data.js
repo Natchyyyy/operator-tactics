@@ -5,7 +5,8 @@
   // damage    : dégâts moyens d'une balle au torse sans protection (PV sur 100)
   // range     : portée efficace (m). Au-delà, la précision chute fortement.
   // minRange  : en dessous, l'arme est pénalisée (encombrement, fusil de précision)
-  // rpm       : cadence soutenue (coups / minute) — rafales ou coup par coup
+  // rpm       : cadence pendant une rafale (coups / minute) ; les rafales sont courtes (3 à 5 coups) et séparées
+  // soutenue  : cadence moyenne sur un échange (coups / minute) : tir de suppression, note de l'arme
   // mag       : balles par chargeur
   // reload    : temps de rechargement (s)
   // aim       : temps de mise en joue sur une nouvelle cible (s)
@@ -14,7 +15,7 @@
   // kit       : nombre de chargeurs emportés (en plus de celui dans l'arme)
   const WEAPONS = {
     // une seule arme pour l'instant (on retravaille le contenu un élément après l'autre) : le fusil d'assaut 5,56
-    carbine:  { id: 'carbine',  name: 'Fusil d\'assaut 5,56', cls: 'fusil',    accuracy: 0.60, damage: 42, range: 45, minRange: 0,  rpm: 110, mag: 30,  reload: 2.6, aim: 0.55, falloff: 0.8,  suppress: 0.14, kit: 6 },
+    carbine:  { id: 'carbine',  name: 'Fusil d\'assaut 5,56', cls: 'fusil',    accuracy: 0.60, damage: 42, range: 45, minRange: 0,  rpm: 300, soutenue: 110, mag: 30,  reload: 2.6, aim: 0.55, falloff: 0.8,  suppress: 0.14, kit: 6 },
   };
   // ---- ACCESSOIRES D'ARME : un par emplacement (optique, bouche, poignée, chargeur), achetés une fois, montés sur un opérateur.
   // Effets réels dans engine.js (recherche « accessoire ») ; not : classes d'arme qui ne l'acceptent pas.

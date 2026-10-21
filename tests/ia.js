@@ -120,7 +120,7 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
         if (!u.alive) continue;
         const th = threatOf(b, u);
         if (u.stance === 'crouch' && !u.moving && u.state !== 'reviving' && th) { claimed++; if (!realCover(b, u.x, u.z, th.x, th.z)) invalid++; }
-        if (th && (u.visible.size || b.t - u.lastShotByAt < 1.5)) { contact++; if (realCover(b, u.x, u.z, th.x, th.z)) contactCov++; }
+        if (th && (u.visible.size || b.t - u.lastShotByAt < 1.5)) { contact++; if (realCover(b, u.x, u.z, th.x, th.z) || u.peeking) contactCov++; }   // (au coin d'un mur : à moitié à couvert)
         let m = 99; for (const a of b.teams[u.team].units) if (a !== u && a.alive) m = Math.min(m, Math.hypot(a.x - u.x, a.z - u.z));
         if (m < 99) { mates++; if (m < 1) matesClose++; }
         if (u.team === 0) for (const e of b.teams[1].units) if (e.alive) { const d = Math.hypot(u.x - e.x, u.z - e.z), k = u.id + e.id; if (d < 2 && !near.has(k)) { near.add(k); encounters++; } else if (d > 4) near.delete(k); }
@@ -195,7 +195,7 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   const r = b.command('tenir', 0, { pos: 'essai', units: ['0:op_lynx', '0:op_granit'] });
   const P = b.keyPosition('essai'), [ly, gr] = ['0:op_lynx', '0:op_granit'].map(id => b.unitById(id));
   let reached = null; let stayed = true;
-  while (b.t < 45 && !b.over) { b.step(); const ok = [ly, gr].every(u => !u.alive || Math.hypot(u.x - u.keyOrder.x, u.z - u.keyOrder.z) < 0.7); if (ok && reached === null) reached = b.t; if (reached !== null && b.t > reached + 1) for (const u of [ly, gr]) if (u.alive && Math.hypot(u.x - P.x, u.z - P.z) > P.r + 2.6) stayed = false; }
+  while (b.t < 45 && !b.over) { b.step(); const ok = [ly, gr].every(u => !u.alive || Math.hypot(u.x - u.keyOrder.x, u.z - u.keyOrder.z) < 0.7); if (ok && reached === null) reached = b.t; if (reached !== null && b.t > reached + 1) for (const u of [ly, gr]) { if (/^(todrag|drag|dragging|torevive|reviving|tokey)$/.test(u.state)) u._sauve = b.t; if (u.alive && !(b.t - (u._sauve || -9) < 1) && Math.hypot(u.x - P.x, u.z - P.z) > P.r + 2.6) stayed = false; } }   // (sauf pour relever ou évacuer un blessé, et le temps de repartir)
   check('position clé : ordre refusé pour une position inconnue, accepté et journalisé sinon', !bad.ok && r.ok && b.log.some(l => /Lynx, Granit vont tenir la position clé « Essai »/.test(l.text)), { bad, r });
   check('position clé : les opérateurs désignés la rejoignent, l\'un sur le point, l\'autre à côté (jamais l\'un sur l\'autre), et y restent', reached !== null && stayed && (!ly.alive || !gr.alive || Math.hypot(ly.x - gr.x, ly.z - gr.z) > 1.5), { reached, stayed });
   check('position clé : « X tient la position clé « Essai » » au journal ; les autres opérateurs ne sont pas concernés', b.log.some(l => l.kind === 'keypos' && /tient la position clé « Essai »/.test(l.text)) && b.teams[0].units.filter(u => u.keyOrder).length === 2);
@@ -235,12 +235,12 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
       for (let i = 0; i < ow.length; i++) for (let j = i + 1; j < ow.length; j++) { let d = Math.abs(ow[i].facing - ow[j].facing) % (2 * Math.PI); if (d > Math.PI) d = 2 * Math.PI - d; if (d > 0.45) { spread++; } }
       if (all === null && !ord.length) all = b.t;
       // (tenir à 360° : un opérateur peut se décaler dans la position pour appuyer un équipier — à ≤ 8 m de sa place — ou
-      // s'écarter d'une grenade ; il ne la quitte pas)
-      if (all !== null && b.t > all + 1) for (const u of b.teams[0].units) if (u.alive && u.state !== 'evade' && (!u.keyOrder || (Math.hypot(u.x - u.keyOrder.x, u.z - u.keyOrder.z) > 3 && !(u.keyOrder.hx !== undefined && Math.hypot(u.x - u.keyOrder.hx, u.z - u.keyOrder.hz) <= 8)))) held = false;
+      // s'écarter d'une grenade ; il ne la quitte pas — sauf pour relever ou évacuer un blessé, puis il y retourne)
+      if (all !== null && b.t > all + 1) for (const u of b.teams[0].units) if (u.alive && u.state !== 'evade' && !/^(todrag|drag|dragging|torevive|reviving|tokey)$/.test(u.state) && (!u.keyOrder || (Math.hypot(u.x - u.keyOrder.x, u.z - u.keyOrder.z) > 3 && !(u.keyOrder.hx !== undefined && Math.hypot(u.x - u.keyOrder.hx, u.z - u.keyOrder.hz) <= 8)))) held = false;
       if (all !== null && b.t > all + 12) break;
     }
     // (sauf qui va relever ou évacuer un blessé : il le rejoint, c'est voulu)
-    const us = b.teams[0].units.filter(u => u.alive && !/^(todrag|drag|dragging|torevive|reviving)$/.test(u.state)); let gap = Infinity;
+    const us = b.teams[0].units.filter(u => u.alive && !/^(todrag|drag|dragging|torevive|reviving|tokey)$/.test(u.state)); let gap = Infinity;
     for (let i = 0; i < us.length; i++) for (let j = i + 1; j < us.length; j++) gap = Math.min(gap, Math.hypot(us[i].x - us[j].x, us[i].z - us[j].z));
     return { b, r, spam, all, mixed: samples ? mixed / samples : 0, overwatch, spread, held, gap };
   };
@@ -658,5 +658,28 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
       return { b, r, f, back, tr: tr.join('|') }; };
     const P = play(), Q = play({ replayInputs: P.b.inputs }), inf2 = P.back && P.b.teams[0].ordInfo[P.back];
     check('freinage : 2e ligne = point de départ, décrochage déclenché une fois (ordre « décrocher » vers la 2e ligne), rejoué à l\'identique', P.r.ok && P.f && Math.hypot(P.f.x - 6, P.f.z - 23) < 6 && P.back && inf2 && Math.hypot(inf2.px - P.f.x, inf2.pz - P.f.z) < 1 && P.b.log.filter(l => l.kind === 'freinage').length === 1 && P.tr === Q.tr, { f: P.f, back: P.back }); }
+}
+{
+  // ---- Combat à couvert (21/10) : tir au coin d'un mur haut, rafales courtes puis retour à l'abri ----
+  let peekT = 0, far = 0, hideSeen = 0, hideT = 0, bursts = [], longPause = 0, pauses = 0;
+  for (const seed of [3, 5, 8, 13]) {
+    const b = mk(seed, { teams: [{ order: 'careful', operators: GIGN, tactics: [] }, { order: 'assault', operators: KARST, tactics: [] }] });
+    const cur = {}, sh = b.shoot.bind(b);
+    b.shoot = function (u, e, d) { if (u.burst === 0 && cur[u.id]) { bursts.push(cur[u.id]); cur[u.id] = 0; } cur[u.id] = (cur[u.id] || 0) + 1; return sh(u, e, d); };
+    while (!b.over && b.t < 120) {
+      b.step();
+      for (const u of b.units) {
+        if (!u.alive) continue;
+        if (u.burstPauseUntil > b.t && u.burstPauseUntil - b.t > 0.75 && u.burstPauseUntil - b.t < 0.85) longPause++;
+        if (u.burstPauseUntil > b.t && u.burstPauseUntil - b.t > 0.25 && u.burstPauseUntil - b.t < 0.35) pauses++;
+        if (!u.peek) continue;
+        if (u.peeking) { peekT += 0.1; if (Math.hypot(u.x - u.peek.hx, u.z - u.peek.hz) > 1.45) far++; }
+        if (u.state === 'hide' && !u.moving) { hideT += 0.1; if (b.enemiesOf(u).some(e => e.alive && e.visible.has(u.id))) hideSeen++; }
+      }
+    }
+  }
+  const avgB = bursts.reduce((s, x) => s + x, 0) / bursts.length;
+  check('coin d\'un mur : des opérateurs tirent au coin (sortie ≤ 1,4 m de la cachette), et cachés derrière le mur personne ne les voit', peekT > 20 && far === 0 && hideT > 20 && hideSeen / (hideT * 10) < 0.02, { peekT, far, hideT, hideSeen });
+  check('rafales courtes : 2 à 5 coups en moyenne, puis souvent une vraie pause à l\'abri (≥ 0,8 s)', avgB >= 2 && avgB <= 5.2 && longPause > pauses * 0.3, { avgB, longPause, pauses });
 }
 console.log(`\n${pass}/${pass + fail} vérifications réussies` + (skip ? ` (${skip} mises de côté : fonctions désactivées)` : '')); process.exit(fail ? 1 : 0);

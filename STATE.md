@@ -11,4 +11,16 @@
   lente que la simulation qui tire tout de suite (le module rattrape puis pose) → proposer à l'utilisateur de faire attendre
   la simulation ~3 s avant de tirer (changement de règle, pas fait) ; relevé parfois décalé de ≤ 1,5 m (rattrapage).
 - v52 (ordres, autre conversation) : déplacement « Discret » (bonds accroupis, feu retenu jusqu'au repérage — `stealthy()`), arrivée « Freinage » (tenir puis décrocher sur la 2e ligne = point de départ, une fois — `updateFreinage()`), « Embuscade » et « Appui » dans la roue. Reste de la doctrine : colonne, bouclier, combat en pièces (il faut des bâtiments). À définir avec l'utilisateur : bonus/pénalités de doctrine (légers).
+- v54 (IA de combat, cette conversation, demande de l'utilisateur 21/10 : « trop lente, trop à découvert, demi-tours absurdes,
+  cadence trop lente ; se cacher derrière un mur et ne dépasser du coin que pour tirer ») :
+  `peekCycle/peekSpot/peekBack/peekSlide` (tir au coin d'un obstacle ≥ 1,6 m : caché → pas de côté 0,4-1,4 m → rafale → retour ;
+  `u.peeking` = demi-silhouette ×0,4 au tir, ×0,7 au repérage) ; rafales 3-5 coups à 300 c/min (`rpm`), pause à l'abri
+  0,9-1,8 s + suppression×2,5 (`soutenue: 110` = cadence moyenne : suppression, note) ; seuil « cloué » `pinThreshold` (0,6 au
+  lieu de 0,8) ; réaction immédiate (décision hors cadence au 1er ennemi vu / aux 1res balles ; un bond ou une marche
+  s'interrompt sur un ennemi surgi) ; réapparition d'un ennemi connu repérée vite ; chemins défilés (`exposureGrid`/`pathCost` :
+  cases vues des ennemis connus +0,7, détour plafonné ×1,5) ; pas de couvert derrière soi en marche (`heading`, `notBehind`) ;
+  on reste à couvert 5 s après des tirs / 3 s après un contact ; cible suivie gardée (`focusId`) ; fouille menée à son point ;
+  1er point de chemin derrière soi remplacé. Mesure `node outils/mesure_ia.js 60` : exposition 33,7 → 24 %, demi-tours
+  (> 2,5 m) ~32 → 15 par bataille, réaction médiane 1,2 → 0,9 s, durée moyenne 127 → 100 s. Tests : ia 83, verify 79, voies 22.
+  À faire (demandé) : « cerveau de groupe » qui se déplace selon la doctrine (l'utilisateur veut un mouvement d'escouade logique).
 - Prochaine tâche : retour de l'utilisateur sur la v53 (bugs visuels) ; captures zoomées + agent QA sur tir, couvert, réa.

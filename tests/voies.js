@@ -46,7 +46,7 @@ const V = MAPS.parking.voies;
   for (let s = 1; s <= 16; s++) {
     const b = mk(s, { objective: { type: 'capture' } });
     while (!b.over && b.t < 60) b.step();
-    for (const u of b.units) if (u.voie) { n++; if (u.flankDone) rab++; }
+    for (const u of b.units) if (u.voie && (u.alive || u.flankDone)) { n++; if (u.flankDone) rab++; }   // (un flanqueur tué en route ne compte pas : le combat est plus rapide depuis le 21/10)
   }
   check('voies (capture) : les flanqueurs arrivent par le flanc puis se rabattent sur la zone', rab >= n * 0.6, { n, rab });
 }

@@ -318,7 +318,16 @@
     for (const u of order) {
       if (!u.alive) continue;
       const phase = (this.t + u.decideOffset) % DECIDE_EVERY;
-      if (phase < DT - 1e-6) { this.decide(u); this.contactWatch(u); }
+      // réaction immédiate (sans attendre la prochaine décision) : un ennemi qu'on ne voyait pas vient d'apparaître, ou les
+      // premières balles claquent autour de soi
+      let urgent = false;
+      if (phase >= DT - 1e-6) {
+        for (const id of u.visible) if (!u.seenPrev || !u.seenPrev.has(id)) { urgent = true; break; }
+        if (u.firstShotAt !== undefined && u.firstShotAt > (u.urgentDone === undefined ? -99 : u.urgentDone)) urgent = true;
+      }
+      if (u.firstShotAt !== undefined) u.urgentDone = u.firstShotAt;
+      u.seenPrev = u.visible;
+      if (phase < DT - 1e-6 || urgent) { this.decide(u); this.contactWatch(u); }
       this.act(u);
     }
     this.updateGrenades();
@@ -657,6 +666,10 @@
             if (e.moving) p *= 1.6;
             if (this.t - e.lastShotAt < 1.5) p *= e.weapon.silenced ? 1.6 : 3;   // éclair de bouche, bruit
             if (e.stance === 'crouch') p *= 0.6;
+            if (e.peeking) p *= 0.7;                              // au coin d'un mur : on ne dépasse qu'à moitié
+            // il réapparaît là où on l'a vu il y a peu (il se relève derrière sa voiture, ressort au coin) : on l'attendait
+            const kn = u.knowledge[e.id];
+            if (kn && kn.seen && this.t - kn.t < 6 && Math.hypot(kn.x - e.x, kn.z - e.z) < 3) p = Math.max(p * 3, 0.5);
             if (has(u, 'eagle')) p *= 1.3;                      // Œil de lynx
             if (has(e, 'ghost')) p *= 0.6;                      // Fantôme
             p *= this.teams[e.team].camo;                        // tenue adaptée au terrain : −10 %
@@ -840,6 +853,10 @@
       let s = 10 - d * 0.6;
       if (opts.towards) s -= Math.hypot(cx - opts.towards.x, cz - opts.towards.z) * 0.25;
       if (opts.preferDist) s -= Math.abs(dt - opts.preferDist) * 0.08;
+      // pas de demi-tour : en route vers un point (ordre), on ne recule pas vers un couvert qui en éloigne ; en marche,
+      // un couvert derrière soi coûte plus cher qu'un couvert devant ou sur le côté (on ne revient pas sur ses pas)
+      if (opts.notBehind && Math.hypot(cx - opts.notBehind.x, cz - opts.notBehind.z) > Math.hypot(u.x - opts.notBehind.x, u.z - opts.notBehind.z) + 1) continue;
+      if (opts.heading !== undefined && d > 1) { const back = -Math.cos(Math.atan2(cz - u.z, cx - u.x) - opts.heading); if (back > 0) s -= back * d * 0.5; }
       // ne pas prendre un couvert occupé, visé ou réservé par un allié ; garder ses distances (une grenade, une rafale) ;
       // ne pas se placer derrière un allié (on ne pourrait pas tirer sans le toucher)
       let occupied = false;
@@ -855,7 +872,10 @@
       const cv = this.coverAt(cx, cz, threat.x, threat.z, true);
       if (!cv) continue;
       // depuis ce point debout, puis-je voir la menace ? (sinon c'est une cachette, pas une position de tir)
-      const canShoot = this.map.hasLOS(cx, EYE.stand, cz, threat.x, CHEST.stand, threat.z);
+      // (derrière un obstacle plus haut que soi, on tire au coin : c'est aussi une position de tir, et la meilleure)
+      const corner = cv.level === 'full' && !this.map.hasLOS(cx, EYE.stand, cz, threat.x, CHEST.stand, threat.z) && this.cornerOf(c0, cx, cz, threat, cv.obstacle, u);
+      const canShoot = !!corner || this.map.hasLOS(cx, EYE.stand, cz, threat.x, CHEST.stand, threat.z);
+      if (corner) s += 1;
       if (opts.requireShoot && !canShoot) continue;
       if (opts.flank && this.map.coverFrom(opts.flank.x, opts.flank.z, cx, cz, opts.flank.stance === 'stand')) continue; // la cible y serait encore couverte
       if (cv.level === 'partial') s += 3; else s += 1.5;
@@ -905,13 +925,60 @@
   // « raser un mur » (doctrine) : en progression (avance, bonds), le chemin longe les obstacles ; les courses d'urgence
   // (se mettre à couvert, se cacher, secourir) et la ruée de l'ordre Agressif vont au plus court
   const RASER = { advance: 1, bound: 1 };
+  // Cheminer à l'abri des vues (doctrine : « progresser défilé ») : les marches d'approche, bonds et fouilles évitent les
+  // cases vues depuis les positions ennemies connues de l'équipe (un détour derrière une rangée de voitures plutôt que
+  // l'allée en plein milieu). Les courses vers un abri tout proche vont au plus court.
+  const EXPO_KINDS = { advance: 1, bound: 1, close: 1, search: 1 }, SEEN_COST = 0.7, EXPO_STEP = 2, EXPO_RANGE = 50, EXPO_AGE = 15;
+  Battle.prototype.exposureGrid = function (team) {
+    const tm = this.teams[team], ks = this.teamKnownEnemies(tm).filter(k => this.t - k.t < EXPO_AGE);
+    if (!ks.length) return null;
+    const key = ks.map(k => Math.round(k.x / 4) + ',' + Math.round(k.z / 4)).sort().join(';');
+    const E = tm.expo;
+    if (E && (E.key === key || this.t - E.at < 2)) return E.g;   // (recalcul au plus toutes les 2 s, et si une position a bougé de ~4 m)
+    const m = this.map, g = new Float32Array(m.cols * m.rows), S = EXPO_STEP, nx = Math.ceil(m.width / S), nz = Math.ceil(m.depth / S);
+    // vue depuis une position (arrondie à 1 m) : calculée une fois, gardée (les positions ennemies reviennent souvent)
+    if (this.viewCacheN !== m.obstacles.length) { this.viewCache = new Map(); this.viewCacheN = m.obstacles.length; }   // (un décor détruit : tout est à revoir)
+    const vc = this.viewCache, masks = [];
+    for (const k of ks) {
+      const kx = Math.round(k.x), kz = Math.round(k.z), vk = kx * 1000 + kz;
+      let mk = vc.get(vk);
+      if (!mk) {
+        mk = new Uint8Array(nx * nz);
+        for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const cx = i * S + S / 2, cz = j * S + S / 2, d = Math.hypot(kx - cx, kz - cz); if (d > 3 && d < EXPO_RANGE && m.hasLOS(kx, EYE.stand, kz, cx, CHEST.stand, cz)) mk[j * nx + i] = 1; }
+        if (vc.size > 300) vc.clear();
+        vc.set(vk, mk);
+      }
+      masks.push(mk);
+    }
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      if (!masks.some(mk => mk[j * nx + i])) continue;
+      for (let z = j * S; z < j * S + S; z++) for (let x = i * S; x < i * S + S; x++) { const c = m.cellOf(x + 0.5, z + 0.5); if (c.c >= 0 && c.r >= 0 && c.c < m.cols && c.r < m.rows) g[c.r * m.cols + c.c] = SEEN_COST; }
+    }
+    tm.expo = { key, at: this.t, g };
+    return g;
+  };
+  // coût de chemin : zones dangereuses (Karst) + cases vues de l'ennemi (selon le genre de déplacement)
+  Battle.prototype.pathCost = function (u, kind) {
+    const dg = this.dangerGrid(u), eg = EXPO_KINDS[kind] ? this.exposureGrid(u.team) : null;
+    if (!dg || !eg) return dg || eg;
+    const tm = this.teams[u.team];
+    if (tm.pathCostMix && tm.pathCostMix.dg === dg && tm.pathCostMix.eg === eg) return tm.pathCostMix.g;
+    const g = new Float32Array(eg.length); for (let i = 0; i < g.length; i++) g[i] = dg[i] + eg[i];
+    tm.pathCostMix = { dg, eg, g }; return g;
+  };
   Battle.prototype.setGoal = function (u, x, z, kind) {
     const req = { x, z };
     if (u.goal && u.goalReq && Math.hypot(u.goalReq.x - x, u.goalReq.z - z) < 0.6 && u.path) { u.goalKind = kind; return true; }
     if (kind === 'advance' || kind === 'search') ({ x, z } = this.spreadGoal(u, x, z));
     if (kind !== 'revive') { const c = this.nearCorpse(x, z); if (c) { const dx = x - c.x, dz = z - c.z, L = Math.hypot(dx, dz); const k = L > 1e-3 ? 0.9 / L : 0; const px = L > 1e-3 ? c.x + dx * k : x + 0.9, pz = L > 1e-3 ? c.z + dz * k : z; if (this.map.inBounds(px, pz) && !this.map.insideObstacle(px, pz)) { x = px; z = pz; } } }
     if (u.goal && Math.hypot(u.goal.x - x, u.goal.z - z) < 0.6 && u.path) { u.goalKind = kind; u.goalReq = req; return true; }
-    let path = this.map.findPath(u.x, u.z, x, z, this.dangerGrid(u), RASER[kind]);
+    const cost = this.pathCost(u, kind);
+    let path = this.map.findPath(u.x, u.z, x, z, cost, RASER[kind]);
+    // le chemin défilé fait un trop grand détour (repartir loin dans l'autre sens pour rester caché) : chemin normal
+    if (path && cost && cost !== this.dangerGrid(u)) {
+      let L = Math.hypot(path[0].x - u.x, path[0].z - u.z); for (let j = 1; j < path.length; j++) L += Math.hypot(path[j].x - path[j - 1].x, path[j].z - path[j - 1].z);
+      if (L > Math.hypot(x - u.x, z - u.z) * 1.5 + 5) path = this.map.findPath(u.x, u.z, x, z, this.dangerGrid(u), RASER[kind]);
+    }
     if (!path) { u.path = null; u.goal = null; return false; }
     // le chemin s'arrête au centre de la dernière case : on va jusqu'au point exact (un couvert « plaqué » contre son obstacle).
     // Si ce point n'est pas joignable en ligne droite depuis cette case (un coin d'obstacle entre les deux), on passe par une
@@ -934,7 +1001,18 @@
     // on le saute (sinon un demi-pas en arrière, puis demi-tour — le corps « tournait sur lui-même » à chaque nouveau chemin)
     let i0 = 0; while (i0 < path.length - 1 && ((Math.hypot(path[i0].x - u.x, path[i0].z - u.z) < 0.9 && this.map.walkableSegment(u.x, u.z, path[i0 + 1].x, path[i0 + 1].z))   // (point suivant joignable en ligne droite : sinon, plaqué contre un obstacle, on restait bloqué dessus)
       || ((path[i0].x - u.x) * (path[i0 + 1].x - path[i0].x) + (path[i0].z - u.z) * (path[i0 + 1].z - path[i0].z) < 0 && this.map.walkableSegment(u.x, u.z, path[i0 + 1].x, path[i0 + 1].z)))) i0++;
-    u.path = path; u.pathIdx = i0; u.goal = { x, z }; u.goalReq = req; u.goalKind = kind; u.repathAt = this.t;
+    // premier point proche et derrière soi, mais le suivant pas joignable en ligne droite (un coin entre les deux) : au lieu
+    // de revenir au centre de la case (pas en arrière puis demi-tour), on rejoint directement le segment vers le point suivant,
+    // le plus loin possible en ligne droite
+    if (i0 < path.length - 1 && Math.hypot(path[i0].x - u.x, path[i0].z - u.z) < 0.9
+      && (path[i0].x - u.x) * (path[i0 + 1].x - path[i0].x) + (path[i0].z - u.z) * (path[i0 + 1].z - path[i0].z) < 0) {
+      const a = path[i0], b = path[i0 + 1];
+      for (let f = 0.9; f >= 0.1; f -= 0.2) {
+        const px = a.x + (b.x - a.x) * f, pz = a.z + (b.z - a.z) * f;
+        if (this.map.walkableSegment(u.x, u.z, px, pz)) { path = path.slice(); path[i0] = { x: px, z: pz }; break; }
+      }
+    }
+    u.path = path; u.pathIdx = i0; u.goal = { x, z }; u.goalReq = req; u.goalKind = kind; u.repathAt = this.t; u.peek = null; u.peeking = false;
     u.commitAt = this.t; u.commitUntil = this.t + (COMMIT[kind] || 2);
     return true;
   };
@@ -1021,6 +1099,117 @@
     const cp = this.findCover(u, p, 6, { requireShoot: true, minRange: MIN_CLOSE, preferDist: this.standoff(u) }) || this.findCover(u, p, 6, { minRange: MIN_CLOSE });
     if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.4 && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return true; }
     return false;
+  };
+
+  // ---- Tir au coin d'un couvert haut (mur, fourgon, local) ----------------------------------------------------------
+  // Derrière un obstacle plus haut que les yeux, on est caché debout mais on ne voit rien. On tire en se décalant juste
+  // assez sur le côté pour dépasser du coin (« passer l'arme »), une courte rafale, puis on revient à l'abri. Au coin,
+  // seule une moitié du corps dépasse (cible plus petite, voir hitChance).
+  // Cycle : caché (le temps de souffler, plus long sous le feu ; on y recharge) → sortie au coin → rafale de 3 à 5 coups
+  // (ou rien à tirer au bout de 2,5 s, ou balles qui claquent trop près) → retour à l'abri.
+  const PEEK_H = EYE.stand, PEEK_MIN = 0.4, PEEK_MAX = 1.4, PEEK_SPEED = 2.2;
+  // point de tir au coin depuis une cachette (hx, hz) contre l'obstacle o face à la menace, ou null : le plus petit pas de
+  // côté (0,4 à 1,4 m, le long de l'obstacle) d'où l'on voit la menace, debout
+  Battle.prototype.peekSpot = function (hx, hz, threat, o, u) {
+    if (!o || o.h < PEEK_H) return null;
+    const dx = threat.x - hx, dz = threat.z - hz, L = Math.hypot(dx, dz); if (L < 2) return null;
+    const qx = -dz / L, qz = dx / L; let best = null;
+    for (const sd of [1, -1]) {
+      for (let off = PEEK_MIN; off <= PEEK_MAX + 1e-6 && (!best || off < best.off); off += 0.2) {
+        const px = hx + qx * off * sd, pz = hz + qz * off * sd;
+        if (!this.map.inBounds(px, pz) || this.map.insideObstacle(px, pz) || edgeDist(px, pz, o) > COVER_NEAR) break;
+        let clear = true; for (let f = 0.1; f < 1; f += 0.1) if (this.map.insideObstacle(hx + (px - hx) * f, hz + (pz - hz) * f)) { clear = false; break; }   // (pas de 10 cm : on frôle un coin)
+        if (!clear) break;
+        if (u && this.alliesOf(u).some(a => a.alive && (Math.hypot(a.x - px, a.z - pz) < 1.3 || (a.peek && Math.hypot(a.peek.px - px, a.peek.pz - pz) < 1.3)))) break;   // le coin est pris
+        if (this.map.hasLOS(px, EYE.stand, pz, threat.x, CHEST.stand, threat.z)) { best = { x: px, z: pz, off }; break; }
+      }
+    }
+    return best;
+  };
+  // (pour le choix d'un couvert : le coin d'un point de couverture face à une menace, gardé 2 s — la recherche essaie
+  // beaucoup de points ; les équipiers déjà au coin sont revérifiés à l'arrivée par peekCycle)
+  Battle.prototype.cornerOf = function (c0, cx, cz, threat, o, u) {
+    const key = Math.round(threat.x) + ',' + Math.round(threat.z), c = c0.corner;
+    if (c && c.key === key && c.t <= this.t && this.t - c.t < 2) return c.v;
+    const v = this.peekSpot(cx, cz, threat, o, null);
+    c0.corner = { key, t: this.t, v };
+    if (v && u && this.alliesOf(u).some(a => a.alive && (Math.hypot(a.x - v.x, a.z - v.z) < 1.3 || (a.peek && Math.hypot(a.peek.px - v.x, a.peek.pz - v.z) < 1.3)))) return null;
+    return v;
+  };
+  // Le cycle ; vrai s'il occupe l'opérateur ce tour-ci (les autres décisions attendent).
+  Battle.prototype.peekCycle = function (u, threats, beingShot) {
+    const drop = () => { if (u.peek) { u.peek = null; u.peeking = false; } return false; };
+    if (u.holdFire || u.state === 'noammo' || this.t < (u.peekOffUntil || 0)) return drop();
+    if (u.goal && u.path) return drop();                                  // un vrai déplacement est en cours
+    const th = this.mainThreat(u); if (!th) return drop();
+    const k = th.id !== undefined ? u.knowledge[th.id] : th;              // (mainThreat rend un ennemi ou une position connue)
+    if (!k || this.t - k.t > 10) return drop();                           // plus d'information récente : on laisse le reste décider
+    let P = u.peek;
+    if (P) {
+      // toujours valable ? la menace est toujours de l'autre côté de l'obstacle, et l'on est à la cachette ou au coin
+      const atH = Math.hypot(u.x - P.hx, u.z - P.hz) < 0.3, atP = Math.hypot(u.x - P.px, u.z - P.pz) < 0.3;
+      if ((!atH && !atP && !P.slide) || !this.coverAt(P.hx, P.hz, th.x, th.z, true) || this.map.hasLOS(P.hx, EYE.stand, P.hz, th.x, CHEST.stand, th.z)) return drop();
+      const sp = this.peekSpot(P.hx, P.hz, th, P.o, u); if (!sp) return drop();   // la menace a bougé : nouveau coin
+      P.px = sp.x; P.pz = sp.z;
+    } else {
+      if (u.moving) return false;
+      if (u.keyOrder && Math.hypot(u.x - u.keyOrder.x, u.z - u.keyOrder.z) > 1) return false;   // tenir : seulement depuis son poste
+      const cv = this.coverAt(u.x, u.z, th.x, th.z, true);
+      if (!cv || cv.level !== 'full' || this.map.hasLOS(u.x, EYE.stand, u.z, th.x, CHEST.stand, th.z)) return false;
+      const sp = this.peekSpot(u.x, u.z, th, cv.obstacle, u); if (!sp) return false;
+      P = u.peek = { hx: u.x, hz: u.z, px: sp.x, pz: sp.z, o: cv.obstacle, phase: 'hide', until: this.t + 0.2 + this.rng.next() * 0.3, empty: 0 };
+    }
+    this.stop(u);
+    u.facing = Math.atan2(th.z - u.z, th.x - u.x);
+    const pinned = u.suppression > this.pinThreshold(u);
+    if (P.phase === 'hide') {
+      u.state = 'hide'; u.peeking = false; P.slide = null;
+      u.stance = pinned || u.reloading > 0 || u.suppression > 0.3 ? 'crouch' : 'stand';
+      if (u.reloading <= 0 && u.mags > 0 && u.ammo < u.weapon.mag * 0.5) this.startReload(u);   // recharger à l'abri
+      if (this.t >= P.until && u.reloading <= 0 && !pinned) { P.phase = 'out'; P.slide = { x: P.px, z: P.pz }; P.outAt = this.t; P.sup = u.suppression; P.hitAt = u.lastHitAt; P.shots = u.stats.shots; u.stance = 'stand'; }
+      return true;
+    }
+    if (P.phase === 'out') {
+      u.state = 'engage'; u.stance = 'stand';
+      if (!this.peekBack(u) && Math.hypot(u.x - P.px, u.z - P.pz) > 0.05) P.slide = { x: P.px, z: P.pz };
+      return true;
+    }
+    // retour
+    u.state = 'hide'; u.peeking = false; P.slide = { x: P.hx, z: P.hz };
+    return true;
+  };
+  // fin de la sortie au coin (appelé à chaque pas, voir act) : rafale finie, rien vu en 2,5 s, balles trop près, touché
+  Battle.prototype.peekBack = function (u) {
+    const P = u.peek; if (!P || P.phase !== 'out') return false;
+    const fired = u.stats.shots > P.shots, burstDone = fired && this.t < (u.burstPauseUntil || 0);
+    const nothing = this.t - P.outAt > 2.5 && !fired;
+    const hot = u.suppression - P.sup > 0.15 || u.lastHitAt > P.hitAt;
+    if (!burstDone && !nothing && !hot) return false;
+    P.phase = 'back'; P.slide = { x: P.hx, z: P.hz }; u.peeking = false; u.burstPauseUntil = 0;
+    // à l'abri : souffler 0,9 à 1,8 s, bien plus sous le feu (la priorité est de rester caché)
+    P.until = this.t + 0.9 + this.rng.next() * 0.9 + Math.min(3, u.suppression * 3) + (hot ? 0.8 : 0);
+    if (nothing) { P.empty++; if (P.empty >= 2) { u.peekOffUntil = this.t + 6; } } else P.empty = 0;
+    return true;
+  };
+  // seuil « cloué » : au-delà, on reste caché (sang-froid, position calée, Sang-froid, Meneur le repoussent)
+  Battle.prototype.pinThreshold = function (u) {
+    return 0.6 - u.def.composure / 400 + (this.isBraced(u) ? 0.15 : 0) + (has(u, 'steady') ? 0.15 : 0) + (this.nearLeader(u) ? 0.1 : 0);
+  };
+  // déplacement du pas de côté (cachette ↔ coin), sans chemin : à chaque pas de simulation
+  Battle.prototype.peekSlide = function (u) {
+    const P = u.peek; if (!P || !P.slide) return;
+    if (P.phase === 'out') this.peekBack(u);
+    const s = P.slide, d = Math.hypot(s.x - u.x, s.z - u.z), stp = PEEK_SPEED * DT;
+    if (d <= stp) {
+      u.x = s.x; u.z = s.z; P.slide = null;
+      if (P.phase === 'out') u.peeking = true;
+      else if (P.phase === 'back') { P.phase = 'hide'; u.state = 'hide'; u.stance = u.suppression > 0.3 ? 'crouch' : 'stand'; }
+      if (d > 0.02) u.moving = true;
+      return;
+    }
+    const nx = u.x + (s.x - u.x) / d * stp, nz = u.z + (s.z - u.z) / d * stp;
+    if (this.map.insideObstacle(nx, nz)) { u.peek = null; u.peeking = false; return; }   // (ne doit pas arriver : on ne traverse jamais un obstacle)
+    u.x = nx; u.z = nz; u.moving = true; u.peeking = false;
   };
   // Le déplacement en cours mène-t-il droit sur un ennemi en vue (point d'arrivée à moins de ~8 m de lui, plus près
   // qu'on ne l'est) ? Les mises à couvert, esquives et relèves ne sont pas concernées ; l'assaut sur un adversaire cloué
@@ -1902,7 +2091,7 @@
       // en appui : arrêté ; une cible en vue → on tire (d'un vrai couvert proche si l'on est à découvert) ; sinon son secteur
       this.stop(u);
       if (threats.length) {
-        if (!cover) { const cp = this.findCover(u, tp, 5, { requireShoot: true, towards: o }); if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.6 && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; } }
+        if (!cover) { const cp = this.findCover(u, tp, 5, { requireShoot: true, towards: o, notBehind: o }); if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.6 && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; } }
         u.state = 'engage'; u.stance = ((u.reloading > 0 || this.t < (u.burstPauseUntil || 0)) && cover) ? 'crouch' : 'stand'; return;
       }
       const cov = g ? g.members.map(id => this.unitById(id)).filter(a => a && a.alive && a.moveOrder && a.moveOrder.id === g.id && !boundingNow(a, b)) : [u];
@@ -2037,6 +2226,7 @@
     // évacuation d'un blessé à découvert : en cours, ou à décider (le plus proche des équipiers disponibles)
     if (u.drag) { if (this.continueDrag(u, threats)) return; }
     else if (this.tryDrag(u, threats)) return;
+    const freshContact = threats.length > 0 && this.t - (u.sawEnemyAt === undefined ? -99 : u.sawEnemyAt) > 2;   // ennemi vu à l'instant (personne en vue juste avant)
     if (threats.length) u.sawEnemyAt = this.t;
     if (!threats.length && !beingShot && u.suppression < 0.4 && !u.throwing && u.state !== 'noammo' && !u.moveOrder && (!u.keyOrder || (u.keyOrder.grp !== undefined && this.holdCalm(u)))) {   // en route sur ordre : il obéit ; en poste « tenir » : seulement au calme (R2)
       let a = this.downedToRevive(u);
@@ -2063,6 +2253,8 @@
     // grenade : en train de lancer, ou d'esquiver une grenade adverse → rien d'autre
     if (u.throwing || u.lampShot || (u.evade && this.t < u.evade.until)) return;
     if (!u.holdFire && this.tryGrenade(u)) return;
+    // derrière un couvert haut face à une menace connue : tirer au coin, par courtes rafales (voir peekCycle)
+    if (!u.moveOrder && this.peekCycle(u, threats, beingShot)) return;
     // ordre « tenir la position clé » : passe avant tout le reste (l'IA fait ce qu'on lui dit)
     if (u.keyOrder) { this.followKeyOrder(u, threats); this.afterOrder(u, threats); return; }
     if (u.moveOrder) { this.followMoveOrder(u, threats, beingShot); this.afterOrder(u, threats); return; }   // ordre de déplacement du joueur (clic droit)
@@ -2071,7 +2263,9 @@
     // Sous le feu (des balles claquent autour de soi depuis le départ), une marche d'approche ou un bond encore long
     // s'interrompt aussi : on se met à couvert là où l'on est plutôt que de finir sa course à découvert.
     const underFire = beingShot && u.lastShotByAt > u.commitAt && (u.goalKind === 'bound' || u.goalKind === 'advance' || u.goalKind === 'close') && u.goal && Math.hypot(u.goal.x - u.x, u.goal.z - u.z) > 3 && u.state !== 'sidestep';
-    if (this.t < u.commitUntil && u.goal && u.lastHitAt <= u.commitAt && !underFire && !this.goalTooClose(u, threats)) return;
+    // (un ennemi qui surgit pendant une marche d'approche ou un bond : on réagit tout de suite — une course vers un abri continue)
+    const surprise = freshContact && (u.goalKind === 'advance' || u.goalKind === 'search' || ((u.goalKind === 'bound' || u.goalKind === 'close') && Math.hypot(u.goal.x - u.x, u.goal.z - u.z) > 3));
+    if (this.t < u.commitUntil && u.goal && u.lastHitAt <= u.commitAt && !underFire && !surprise && !this.goalTooClose(u, threats)) return;
 
     // 1) une cible est visible : engager
     if (threats.length > 0) {
@@ -2081,7 +2275,7 @@
       const threat = (beingShot && u.lastShotBy && u.lastShotBy.alive) ? u.lastShotBy : target;
       const cover = this.coverAt(u.x, u.z, threat.x, threat.z, true);     // un VRAI couvert, contre soi, face à la menace
       const stand = this.standoff(u);
-      const pinned = u.suppression > 0.8 - u.def.composure / 400 + (this.isBraced(u) ? 0.15 : 0) + (has(u, 'steady') ? 0.15 : 0) + (this.nearLeader(u) ? 0.1 : 0); // composure 80 → 0,6 ; calé / Sang-froid / Meneur
+      const pinned = u.suppression > this.pinThreshold(u); // composure 80 → 0,4 ; calé / Sang-froid / Meneur
       const effective = this.hitChance(u, target, d, true).p >= this.fireThreshold(u);
 
       if (pinned && cover) { u.stance = 'crouch'; u.state = 'pinned'; this.stop(u); return; }
@@ -2159,7 +2353,8 @@
         const minR = Math.max(u.weapon.minRange, Math.min(MIN_CLOSE, d - 2));
         // sous le feu : d'abord un couvert tout proche (≤ 4 m) d'où l'on tire — chaque mètre à découvert se paie ; courir 8 m
         // vers un « meilleur » couvert était la première cause de mort en mouvement
-        const cp = (beingShot && this.findCover(u, threat, 4, { minRange: minR, requireShoot: true, preferDist: stand })) || this.findCover(u, threat, 9, { minRange: minR, requireShoot: true, preferDist: stand }) || this.findCover(u, threat, 9, { minRange: minR, preferDist: stand });
+        const hd = u.mvAt !== undefined && this.t - u.mvAt < 0.5 ? u.mvDir : undefined;   // en marche : pas de demi-tour sans raison
+        const cp = (beingShot && this.findCover(u, threat, 4, { minRange: minR, requireShoot: true, preferDist: stand, heading: hd })) || this.findCover(u, threat, 9, { minRange: minR, requireShoot: true, preferDist: stand, heading: hd }) || this.findCover(u, threat, 9, { minRange: minR, preferDist: stand, heading: hd });
         if (cp && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return; }
         if (d < MIN_CLOSE && order !== 'hold') {
           const cp2 = this.findCover(u, threat, 16, { minRange: MIN_CLOSE, towards: home });
@@ -2185,7 +2380,18 @@
     if (known.length > 0) {
       let nearest = known[0], nd = Infinity;
       for (const k of known) { const dd = Math.hypot(k.k.x - u.x, k.k.z - u.z); if (dd < nd) { nd = dd; nearest = k; } }
+      // on garde la menace qu'on suivait tant qu'elle n'est pas nettement plus loin que la plus proche (sinon chaque nouvelle
+      // position apprise par radio réoriente la marche : zigzags)
+      const prev = u.focusId !== undefined && known.find(k => k.unit.id === u.focusId);
+      if (prev && prev !== nearest) { const dp = Math.hypot(prev.k.x - u.x, prev.k.z - u.z); if (dp < nd + 6) { nearest = prev; nd = dp; } }
+      u.focusId = nearest.unit.id;
       const threatPos = nearest.k;
+      // pris pour cible il y a peu et à l'abri face au tireur : on reste à couvert, face à lui, le temps de le situer et de
+      // riposter (on ne ressort pas aussitôt marcher à découvert vers lui)
+      if ((this.t - u.lastShotByAt < 5 || this.t - (u.sawEnemyAt === undefined ? -99 : u.sawEnemyAt) < 3) && order !== 'hold' && !this.zone) {
+        const sk = u.lastShotBy && u.lastShotBy.alive && u.knowledge[u.lastShotBy.id], sp = sk || threatPos;
+        if (this.coverAt(u.x, u.z, sp.x, sp.z, true)) { this.stop(u); u.state = 'overwatch'; u.stance = this.waitStance(u, sp); u.facing = Math.atan2(sp.z - u.z, sp.x - u.x); return; }
+      }
       // capture : on n'abandonne pas la zone pour courir après une position connue lointaine ; on s'y installe face à la menace
       // … sauf si l'adversaire est lui-même dans la zone : il faut aller l'en déloger
       if (this.zone && u.role.id !== 'marksman' && !(this.zone.contested && this.inZone(threatPos, 1.5)) && (nd > 10 || this.inZone(u))) {
@@ -2322,7 +2528,7 @@
     // arrivé près de l'objectif sans avoir trouvé personne : ratisser la zone (points aléatoires autour de la zone ennemie)
     // (au plus deux adversaires debout et une dernière position connue pas encore vue : on y va tout de suite, d'où qu'on soit)
     const endMemo = () => { const m = this.teams[u.team].memo; return m && this.teams[1 - u.team].units.filter(e => e.alive).length <= 2 && this.teams[1 - u.team].units.some(e => e.alive && m[e.id] && !m[e.id].visited); };
-    if (progress >= span - 8 || (u.role.id !== 'marksman' && endMemo())) {
+    if (progress >= span - 8 || (u.role.id !== 'marksman' && endMemo()) || (u.searchGoal && this.t < u.searchUntil)) {   // (une fouille commencée va jusqu'à son point)
       if (u.searchSince === undefined) u.searchSince = this.t;
       // ratissage prolongé sans contact (> 15 s) : on élargit à toute la carte (deux survivants ne tournent pas indéfiniment chacun chez l'autre)
       const wide = this.t - u.searchSince > 15;
@@ -2349,13 +2555,20 @@
             if (best) { u.searchGoal = best; u.searchUntil = this.t + 10; }
           }
         }
-        for (let k = 0; k < 10 && !u.searchGoal; k++) {
+        // ratissage : quelques points tirés au hasard, on garde celui qui ne fait pas revenir sur ses pas (devant soi ou
+        // sur le côté plutôt que derrière, et pas trop loin)
+        let sBest = null, sScore = -Infinity;
+        for (let k = 0; k < 6 && !u.searchGoal; k++) {
           const a = this.rng.range(0, Math.PI * 2), r = this.rng.range(2, objective.r + 9);
           let sx = objective.x + Math.cos(a) * r, sz = clamp(objective.z + Math.sin(a) * r, 2, this.map.depth - 2);
           if (wide) { sx = this.rng.range(4, this.map.width - 4); sz = this.rng.range(3, this.map.depth - 3); }
           const f = this.map.nearestFree(sx, sz); if (!f) continue;
-          const c = this.map.centerOf(f.c, f.r); u.searchGoal = c; u.searchUntil = this.t + 8; break;
+          const c = this.map.centerOf(f.c, f.r), dc = Math.hypot(c.x - u.x, c.z - u.z);
+          const back = u.mvAt !== undefined && this.t - u.mvAt < 1 && dc > 1 ? -Math.cos(Math.atan2(c.z - u.z, c.x - u.x) - u.mvDir) : 0;
+          const sc = -Math.max(0, back) * 6 - dc * 0.05;
+          if (sc > sScore) { sScore = sc; sBest = c; }
         }
+        if (!u.searchGoal && sBest) { u.searchGoal = sBest; u.searchUntil = this.t + 8; }
       }
       if (u.searchGoal && this.setGoal(u, u.searchGoal.x, u.searchGoal.z, 'advance')) { u.state = 'search'; u.stance = 'stand'; return; }
     }
@@ -2407,6 +2620,8 @@
     // course vers un couvert sous la menace : au sprint (une course retournée va jusqu'au bout, même si la menace s'efface)
     u.dash = !!(u.path && u.goal && DASH[u.goalKind] && (u.dashTurned || this.underThreat(u)));
     if (u.path && u.goal) this.move(u);
+    else if (u.peek && u.peek.slide) this.peekSlide(u);   // pas de côté vers le coin (ou retour à l'abri)
+    else if (u.peek && u.peek.phase === 'out') this.peekBack(u);
     if (u.drag && u.drag.phase !== 'go') this.towBody(u);   // évacuation : le blessé suit, au sol
     if (!u.moving) { u.dashTurned = false; u.walkTurned = false; u.dash = false; }
     if (u.moving) u.stillSince = undefined; else if (wasMoving || u.stillSince === undefined) u.stillSince = this.t;
@@ -3162,7 +3377,7 @@
     const friendly = !!shooter && shooter.team === e.team;      // tir ami (éclats) : ni crédit ni neutralisation comptée
     if (shooter && !friendly) { shooter.stats.damageDealt += dmg; e.hitBy[shooter.id] = this.t; }
     if (e.hp <= 0) {
-      e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
+      e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set(); e.peek = null; e.peeking = false;
       const bleeding = this.maybeBleed(e, cause); this.noteLoss(e);
       this.logEvent('down', `${e.callsign} est ${bleeding ? 'à terre' : 'hors de combat'} (${cause}${shooter ? ' — ' + shooter.callsign : ''}).`, { team: teamIndex, enemy: e.id, dmg, loc: cause, unit: shooter && !friendly ? shooter.id : null });
       this.emit({ type: 'down', unit: e.id });
@@ -3196,9 +3411,10 @@
   };
   Battle.prototype.suppressAt = function (u, e) {
     if (u.aimTimer > 0) { u.aimTimer -= DT; return; }
-    u.fireAcc += DT * u.weapon.rpm / 60 * (u.role.id === 'support' ? 0.6 : 1); // rafales courtes (fusil d'assaut en appui : sa cadence de coups ajustés, ~1,8 coup/s)
+    u.fireAcc += DT * (u.weapon.soutenue || u.weapon.rpm) / 60 * (u.role.id === 'support' ? 0.6 : 1); // rafales courtes (fusil d'assaut en appui : sa cadence de coups ajustés, ~1,8 coup/s)
     while (u.fireAcc >= 1 && u.ammo > 0) {
       u.fireAcc -= 1; u.ammo--; u.stats.shots++; u.stats.suppressShots = (u.stats.suppressShots || 0) + 1; u.lastShotAt = this.t; this.lastShotTime = this.t;
+      if (this.t - e.lastShotByAt > 1.5) e.firstShotAt = this.t;
       e.lastShotBy = u; e.lastShotByAt = this.t;
       e.suppression = clamp(e.suppression + u.weapon.suppress * (u.role.id === 'support' ? 0.8 : 1.1), 0, 1);   // (fusil en appui : moins de coups, chacun bien placé)
       const to = { x: e.x + this.rng.gauss() * 0.6, y: 0.9 + this.rng.gauss() * 0.3, z: e.z + this.rng.gauss() * 0.6 };
@@ -3273,6 +3489,7 @@
     const cv = this.map.coverFrom(e.x, e.z, u.x, u.z, e.stance === 'stand');
     // derrière un couvert, seuls la tête et les épaules dépassent quand il se lève pour tirer : cible bien plus petite
     if (cv) p *= cv.level === 'partial' ? 0.28 : 0.12;
+    else if (e.peeking) p *= 0.4;                                                     // au coin d'un mur : une moitié du corps dépasse
     return { p: clamp(p, 0.03, 0.95), cover: cv, soft: !!cv && this.map.softCover(cv.obstacle, u.x, u.z, e.x, e.z) };
   };
   Battle.prototype.fireAt = function (u, e) {
@@ -3290,14 +3507,26 @@
     u.fireAcc += DT * u.weapon.rpm / 60;
     while (u.fireAcc >= 1 && u.ammo > 0) {
       u.fireAcc -= 1;
+      if (u.burst === 0) u.burstSup = u.suppression;
       this.shoot(u, e, d);
     }
-    // rafales contrôlées : 4 à 8 coups puis une courte pause, le recul retombe (armes automatiques)
-    if (u.weapon.rpm > 100 && u.burst >= (u.burstLen || 6) && u.ammo > 0) { u.burstPauseUntil = this.t + 0.3 + this.rng.next() * 0.35; u.burst = 0; u.burstLen = 4 + Math.floor(this.rng.next() * 5); u.fireAcc = 0; }
+    // rafales courtes : 3 à 5 coups vite, puis on se remet à l'abri (on se baisse derrière un couvert bas, on revient
+    // derrière le mur après un tir au coin) le temps de souffler — plus longtemps si les balles claquent autour ; sans
+    // couvert, juste une courte pause pour reprendre la visée. Les balles qui claquent trop près coupent la rafale.
+    if (u.weapon.rpm > 100 && u.ammo > 0 && u.burst > 0) {
+      const duck = !!u.peek || !!this.coverAt(u.x, u.z, e.x, e.z, false);
+      const hot = u.suppression - (u.burstSup || 0) > 0.15;
+      if (u.burst >= (u.burstLen || 4) || (hot && duck)) {
+        u.burstPauseUntil = this.t + (duck ? 0.9 + this.rng.next() * 0.9 + Math.min(2.5, u.suppression * 2.5) : 0.3 + this.rng.next() * 0.3);
+        u.burst = 0; u.burstLen = 3 + Math.floor(this.rng.next() * 3); u.fireAcc = 0;
+        if (duck && !u.peek) u.stance = 'crouch';
+      }
+    }
     if (u.ammo === 0 && u.mags > 0) this.startReload(u);
   };
   Battle.prototype.shoot = function (u, e, d) {
     u.ammo--; u.stats.shots++; u.lastShotAt = this.t; this.lastShotTime = this.t; u.burst++; u.aimHistory[e.id] = this.t;
+    if (this.t - e.lastShotByAt > 1.5) e.firstShotAt = this.t;   // premières balles depuis un moment : réaction immédiate (voir step)
     e.lastShotBy = u; e.lastShotByAt = this.t;
     const { p, cover, soft } = this.hitChance(u, e, d);
     const hit = this.rng.chance(p);
@@ -3375,7 +3604,7 @@
     if (absorbed > 0) text += ` (${absorbed} absorbés : ${e.armor.name})`;
     const prevStatus = e.status;
     if (e.hp <= 0) {
-      e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set();
+      e.alive = false; e.status = 'down'; e.downAt = this.t; e.target = null; this.stop(e); e.stance = 'crouch'; e.visible = new Set(); e.peek = null; e.peeking = false;
       const bleeding = this.maybeBleed(e, loc); this.noteLoss(e);
       u.stats.kills++;
       // « spéciaux » : série (deux neutralisations à moins de 10 s), revanche (celui qui a mis un allié hors de combat), vétéran (niveau supérieur)

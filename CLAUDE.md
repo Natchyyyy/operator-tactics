@@ -62,7 +62,7 @@ le Groupe Karst). L'utilisateur parle français, préfère des explications simp
 - Captures : `outils/capture.py` (WebGL logiciel, lent) ; API du jeu `window.API` (start, stepRaw, look, camShot…),
   `?manual=1` pour piloter pas à pas. Le dossier `captures/` n'est pas versionné.
 - **Publication jouable** : artifact claude.ai `https://claude.ai/code/artifact/HMXhuguP85cpBoDChL2kRU`
-  (version 53 au 21/10, motion matching). Après un build propre : copier `dist/artifact.html` et les fichiers changés dans un dossier
+  (version 54 au 21/10, IA de combat : tir au coin, rafales courtes, chemins défilés). Après un build propre : copier `dist/artifact.html` et les fichiers changés dans un dossier
   temporaire, puis publier avec `file_path` = artifact.html, `url` = celle ci-dessus et `files` = { "p/jeu.js": …,
   et tout fichier nouveau/modifié de `dist/publier.json` (ex. `hd/pbr_*.jpg`) }. Les fichiers non renvoyés restent.
 - **Deux conversations publient le même jeu** (celle du motion matching et celle des ordres) : toujours `git pull --rebase`

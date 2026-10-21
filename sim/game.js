@@ -86,7 +86,7 @@
   function defRating(d) {
     const stats = STATS.reduce((s, k) => s + d[k], 0) / STATS.length;
     const w = WEAPONS[d.weaponId || ROLES[d.role].weapon], a = ARMORS[d.armor];
-    const wv = (w.damage * w.rpm / 60) * Math.min(1, w.range / 40) / 8 + w.accuracy * 10;
+    const wv = (w.damage * (w.soutenue || w.rpm) / 60) * Math.min(1, w.range / 40) / 8 + w.accuracy * 10;
     const acc = Object.values(d.attachments || {}).filter(id => ATTACHMENTS[id] && !ATTACHMENTS[id].not.includes(w.cls)).length * 1.5;   // accessoires montés
     return Math.max(1, (stats - 50) * 1.2 + wv + a.torso * 20 + acc);
   }
