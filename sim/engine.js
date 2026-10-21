@@ -2235,6 +2235,11 @@
     // déjà en route vers sa position d'appui contre ce même ennemi : on continue
     if (u.support && u.support.id === E.id && u.goal && this.t < u.support.until) return true;
     const losFrom = (x, z) => this.map.hasLOS(x, EYE.stand, z, k.x, CHEST.stand, k.z);
+    // il voit l'endroit d'ici, mais à découvert : un couvert proche d'où l'on tire aussi, sinon on reste
+    if (losFrom(u.x, u.z) && !this.coverAt(u.x, u.z, k.x, k.z, true)) {
+      const c = this.findCover(u, k, order === 'hold' ? 4 : SUPPORT_MOVE, { requireShoot: true, minRange: 5 });
+      if (c && Math.hypot(c.x - u.x, c.z - u.z) > 0.6 && this.setGoal(u, c.x, c.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; u.support = { id: E.id, until: this.t + 4 }; return true; }
+    }
     if (losFrom(u.x, u.z)) {
       this.stop(u); u.state = 'overwatch';
       u.stance = this.coverAt(u.x, u.z, k.x, k.z, false) && this.map.hasLOS(u.x, EYE.crouch, u.z, k.x, CHEST.stand, k.z) ? 'crouch' : 'stand';
