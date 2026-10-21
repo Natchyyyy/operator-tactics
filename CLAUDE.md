@@ -65,6 +65,9 @@ le Groupe Karst). L'utilisateur parle français, préfère des explications simp
   (version 53 au 21/10, motion matching). Après un build propre : copier `dist/artifact.html` et les fichiers changés dans un dossier
   temporaire, puis publier avec `file_path` = artifact.html, `url` = celle ci-dessus et `files` = { "p/jeu.js": …,
   et tout fichier nouveau/modifié de `dist/publier.json` (ex. `hd/pbr_*.jpg`) }. Les fichiers non renvoyés restent.
+- **Deux conversations publient le même jeu** (celle du motion matching et celle des ordres) : toujours `git pull --rebase`
+  PUIS rebuild PUIS publier, jamais un build fait avant le pull — sinon on efface le travail de l'autre en ligne. Après
+  publication : commit + push tout de suite (avec `dist/`), et noter la version ici.
 - Rapports du PC de l'utilisateur (RTX 5070 Ti, une session Claude Code y teste `main` toutes les heures environ) :
   `git fetch -q origin pc-resultats && git show origin/pc-resultats:resultats/DERNIER.md`.
 
