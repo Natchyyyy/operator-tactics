@@ -1,14 +1,14 @@
 {
  "page": "/root/operator-tactics/dist/artifact.html",
  "octets_page": 384973,
- "version": "04b270f912",
- "total_octets": 171561123,
+ "version": "99bdbc857a",
+ "total_octets": 171565622,
  "fichiers": 63,
  "problemes": [],
  "lots": [
   {
    "n": 22,
-   "octets": 59010642,
+   "octets": 59015141,
    "files": {
     "p/three.min.js": "/root/operator-tactics/dist/p/three.min.js",
     "p/three-addons.js": "/root/operator-tactics/dist/p/three-addons.js",
@@ -140,9 +140,9 @@
   {
    "publie": "p/jeu.js",
    "source": "dist/p/jeu.js",
-   "octets": 2124418,
+   "octets": 2128917,
    "type": "text/javascript",
-   "sha": "40ffb968bf37"
+   "sha": "1f6a3e546dd6"
   },
   {
    "publie": "p/cannon-es.LICENSE.txt",

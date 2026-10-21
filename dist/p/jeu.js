@@ -11071,7 +11071,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   J.vider = function () { for (const A of J.agents.values()) if (A.mort && OT.Ragdoll) try { OT.Ragdoll.liberer(A.mort.m); } catch (e) { } J.agents.clear(); OT.MM.ctx.agents = []; J.reste = 0; };
 
   // ---- ordres : état simulé → contrôleur -----------------------------------------------------------------------------
-  const estVise = (u) => !!(u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture' || u.state === 'appui' || u.state === 'holdkey' || u.state === 'hold' || u.state === 'pinned' || u.preaim);
+  const estVise = (u) => u.state !== 'hide' && !u.blindWall && !!(u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture' || u.state === 'appui' || u.state === 'holdkey' || u.state === 'hold' || u.state === 'pinned' || u.preaim);
   function ordres(A, u, battle, cible) {
     const C = A.ctl, S = A.soldat, MM = OT.MM;
     if (A.leve) return;   // relevé en cours : le module garde la main
@@ -16512,7 +16512,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // Cheminer à l'abri des vues (doctrine : « progresser défilé ») : les marches d'approche, bonds et fouilles évitent les
   // cases vues depuis les positions ennemies connues de l'équipe (un détour derrière une rangée de voitures plutôt que
   // l'allée en plein milieu). Les courses vers un abri tout proche vont au plus court.
-  const EXPO_KINDS = { advance: 1, bound: 1, close: 1, search: 1 }, SEEN_COST = 0.7, EXPO_STEP = 2, EXPO_RANGE = 50, EXPO_AGE = 15;
+  const EXPO_KINDS = { advance: 1, bound: 1, close: 1, search: 1 }, SEEN_COST = 0.7, EXPO_STEP = 3, EXPO_RANGE = 50, EXPO_AGE = 15;
   Battle.prototype.exposureGrid = function (team) {
     const tm = this.teams[team], ks = this.teamKnownEnemies(tm).filter(k => this.t - k.t < EXPO_AGE);
     if (!ks.length) return null;
@@ -16676,7 +16676,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   Battle.prototype.coverUp = function (u, p) {
     if (this.coverAt(u.x, u.z, p.x, p.z, true)) {
       if (this.map.hasLOS(u.x, EYE.stand, u.z, p.x, CHEST.stand, p.z) || u.moving || this.t - (u.stillSince === undefined ? this.t : u.stillSince) < 3) return false;
-      const cp = this.findCover(u, p, 6, { requireShoot: true, minRange: MIN_CLOSE, preferDist: this.standoff(u) });
+      // (rien à moins de 6 m : jusqu'à 10 m — on ne reste pas des minutes derrière un bus sans rien voir)
+      const cp = this.findCover(u, p, 6, { requireShoot: true, minRange: MIN_CLOSE, preferDist: this.standoff(u) }) || (this.t - (u.wideTry || -99) > 3 && (u.wideTry = this.t) && this.findCover(u, p, 10, { requireShoot: true, minRange: MIN_CLOSE, preferDist: this.standoff(u) }));
       if (cp && Math.hypot(cp.x - u.x, cp.z - u.z) > 0.6 && this.setGoal(u, cp.x, cp.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return true; }
       return false;
     }
@@ -16685,6 +16686,12 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     return false;
   };
 
+  // Où pointer l'arme vers sa cible : sur elle si on la voit ; sinon sur sa DERNIÈRE POSITION CONNUE (on ne suit pas à
+  // travers un mur quelqu'un qu'on ne voit plus)
+  Battle.prototype.aimPoint = function (u, e) {
+    if (u.visible.has(e.id)) return e;
+    const k = u.knowledge[e.id]; return k || e;
+  };
   // ---- Tir au coin d'un couvert haut (mur, fourgon, local) ----------------------------------------------------------
   // Derrière un obstacle plus haut que les yeux, on est caché debout mais on ne voit rien. On tire en se décalant juste
   // assez sur le côté pour dépasser du coin (« passer l'arme »), une courte rafale, puis on revient à l'abri. Au coin,
@@ -16703,7 +16710,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
         const px = hx + qx * off * sd, pz = hz + qz * off * sd;
         if (!this.map.inBounds(px, pz) || this.map.insideObstacle(px, pz) || edgeDist(px, pz, o) > COVER_NEAR) break;
         let clear = true; for (let f = 0.1; f < 1; f += 0.1) if (this.map.insideObstacle(hx + (px - hx) * f, hz + (pz - hz) * f)) { clear = false; break; }   // (pas de 10 cm : on frôle un coin)
-        if (!clear) break;
+        if (!clear || this.nearCorpse(px, pz)) break;
         if (u && this.alliesOf(u).some(a => a.alive && (Math.hypot(a.x - px, a.z - pz) < 1.3 || (a.peek && Math.hypot(a.peek.px - px, a.peek.pz - pz) < 1.3)))) break;   // le coin est pris
         if (this.map.hasLOS(px, EYE.stand, pz, threat.x, CHEST.stand, threat.z)) { best = { x: px, z: pz, off }; break; }
       }
@@ -16713,7 +16720,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // (pour le choix d'un couvert : le coin d'un point de couverture face à une menace, gardé 2 s — la recherche essaie
   // beaucoup de points ; les équipiers déjà au coin sont revérifiés à l'arrivée par peekCycle)
   Battle.prototype.cornerOf = function (c0, cx, cz, threat, o, u) {
-    const key = Math.round(threat.x) + ',' + Math.round(threat.z), c = c0.corner;
+    const key = Math.round(threat.x / 2) + ',' + Math.round(threat.z / 2), c = c0.corner;
     if (c && c.key === key && c.t <= this.t && this.t - c.t < 2) return c.v;
     const v = this.peekSpot(cx, cz, threat, o, null);
     c0.corner = { key, t: this.t, v };
@@ -16740,7 +16747,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (u.keyOrder && Math.hypot(u.x - u.keyOrder.x, u.z - u.keyOrder.z) > 1) return false;   // tenir : seulement depuis son poste
       const cv = this.coverAt(u.x, u.z, th.x, th.z, true);
       if (!cv || cv.level !== 'full' || this.map.hasLOS(u.x, EYE.stand, u.z, th.x, CHEST.stand, th.z)) return false;
-      const sp = this.peekSpot(u.x, u.z, th, cv.obstacle, u); if (!sp) return false;
+      const sp = this.peekSpot(u.x, u.z, th, cv.obstacle, u);
+      if (!sp) return this.toCorner(u, th, cv.obstacle);   // au milieu d'un long obstacle (bus, fourgon) : aller vers son bout
       P = u.peek = { hx: u.x, hz: u.z, px: sp.x, pz: sp.z, o: cv.obstacle, phase: 'hide', until: this.t + 0.2 + this.rng.next() * 0.3, empty: 0 };
     }
     this.stop(u);
@@ -16761,6 +16769,27 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // retour
     u.state = 'hide'; u.peeking = false; P.slide = { x: P.hx, z: P.hz };
     return true;
+  };
+  // Caché au milieu d'un long obstacle haut (un bus) : on n'y voit rien et viser « à travers » n'a pas de sens. On longe
+  // l'obstacle, toujours caché, jusqu'à un point près de son bout d'où l'on peut tirer au coin (au plus 7 m, essai toutes
+  // les 2 s). Vrai si l'on y va.
+  Battle.prototype.toCorner = function (u, th, o) {
+    if (this.t - (u.cornerTry || -99) < 2) return false;
+    u.cornerTry = this.t;
+    const dx = th.x - u.x, dz = th.z - u.z, L = Math.hypot(dx, dz); if (L < 2) return false;
+    const qx = -dz / L, qz = dx / L; let best = null;
+    for (let off = 1.2; off <= 7 + 1e-6 && !best; off += 0.6) for (const sd of [1, -1]) {
+      const px = u.x + qx * off * sd, pz = u.z + qz * off * sd;
+      if (!this.map.inBounds(px, pz) || this.map.insideObstacle(px, pz) || edgeDist(px, pz, o) > COVER_NEAR || this.nearCorpse(px, pz)) continue;
+      if (u.keyOrder && Math.hypot(px - u.keyOrder.x, pz - u.keyOrder.z) > 3) continue;   // tenir : on reste dans la position
+      if (!this.map.walkableSegment(u.x, u.z, px, pz)) continue;
+      const cv = this.coverAt(px, pz, th.x, th.z, true);
+      if (!cv || cv.level !== 'full' || this.map.hasLOS(px, EYE.stand, pz, th.x, CHEST.stand, th.z)) continue;
+      if (this.alliesOf(u).some(a => a.alive && Math.hypot(a.x - px, a.z - pz) < 1.3)) continue;
+      if (this.peekSpot(px, pz, th, cv.obstacle, u)) { best = { x: px, z: pz }; break; }
+    }
+    if (best && this.setGoal(u, best.x, best.z, 'cover')) { u.state = 'tocover'; u.stance = 'stand'; return true; }
+    return false;
   };
   // fin de la sortie au coin (appelé à chaque pas, voir act) : rafale finie, rien vu en 2,5 s, balles trop près, touché
   Battle.prototype.peekBack = function (u) {
@@ -18202,7 +18231,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const wasMoving = u.moving;
     u.moving = false;
     // course vers un couvert sous la menace : au sprint (une course retournée va jusqu'au bout, même si la menace s'efface)
-    u.dash = !!(u.path && u.goal && DASH[u.goalKind] && (u.dashTurned || this.underThreat(u)));
+    // (décrocher : ceux qui bondissent courent, retournés, sans tirer — les autres les couvrent)
+    u.dash = !!(u.path && u.goal && DASH[u.goalKind] && (u.dashTurned || this.underThreat(u) || (u.moveOrder && u.moveOrder.mode === 'decrocher' && u.goalKind === 'bound')));
     if (u.path && u.goal) this.move(u);
     else if (u.peek && u.peek.slide) this.peekSlide(u);   // pas de côté vers le coin (ou retour à l'abri)
     else if (u.peek && u.peek.phase === 'out') this.peekBack(u);
@@ -18217,7 +18247,20 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (th ? !this.coverAt(u.x, u.z, th.x, th.z, false) : !this.besideObstacle(u.x, u.z)) u.stance = 'stand';
     }
     // orientation : vers la cible si on en a une, sinon vers la marche (course retournée vers un couvert : vers la course)
-    if (u.target && u.target.alive && !u.dashTurned) u.facing = Math.atan2(u.target.z - u.z, u.target.x - u.x);
+    if (u.target && u.target.alive && !u.dashTurned) { const ap = this.aimPoint(u, u.target); u.facing = Math.atan2(ap.z - u.z, ap.x - u.x); }
+    // arrêté en surveillance derrière un obstacle haut sans aucune vue sur la menace (au milieu d'un bus) : on longe
+    // l'obstacle jusqu'à un point près de son bout d'où l'on peut tirer au coin ; en attendant, arme basse (u.blindWall)
+    if (!u.moving && !u.goal && !u.peek && this.tick % 5 === u.idx % 5) {
+      const th = this.mainThreat(u), cv = th && this.coverAt(u.x, u.z, th.x, th.z, true);
+      u.blindWall = !!(cv && cv.level === 'full' && cv.obstacle.h >= PEEK_H && !this.map.hasLOS(u.x, EYE.stand, u.z, th.x, CHEST.stand, th.z));
+      if (u.blindWall && !u.moveOrder && !u.keyOrder && !u.holdFire && /^(overwatch|hold|pause|wait)$/.test(u.state) && !this.peekSpot(u.x, u.z, th, cv.obstacle, u) && this.toCorner(u, th, cv.obstacle)) {
+        if (u.post) u.post = { x: u.goal.x, z: u.goal.z };   // le poste suit (sinon on y retournerait aussitôt)
+        u.blindWall = false;
+      }
+    } else if (u.moving) u.blindWall = false;
+    // caché derrière un mur haut, en attendant de ressortir : regard (et arme basse) vers le coin d'où l'on va tirer,
+    // pas droit dans le mur
+    if (u.peek && u.peek.phase !== 'out' && !u.moving) { const P = u.peek, th = this.mainThreat(u); if (th) { const a = Math.atan2(th.z - P.hz, th.x - P.hx), b = Math.atan2(P.pz - P.hz, P.px - P.hx); let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; u.facing = a + d * 0.6; } }
     // tir
     if (u.throwing || u.lampShot) { u.fireAcc = 0; return; }   // on ne tire pas en lançant (ni pendant le tir sur une lampe)
     if (u.dashTurned) u.fireAcc = Math.min(u.fireAcc, 1);   // on ne tire pas dans son dos en courant vers l'abri
@@ -18267,6 +18310,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const wp = u.path[u.pathIdx];
     if (!wp) { this.arrive(u); return; }
     const d = Math.hypot(wp.x - u.x, wp.z - u.z);
+    // tout près du point (< 0,45 m) trois pas de suite sans le toucher (une poussée le renvoie d'un côté puis de l'autre) :
+    // atteint — on passe au suivant (ou on s'arrête là)
+    if (d < 0.45 && u.wpStall && u.wpStall.p === wp) { if (++u.wpStall.n >= 3) { u.wpStall = null; if (u.pathIdx + 1 < u.path.length) { u.pathIdx++; return this.move(u); } this.arrive(u); return; } }
+    else u.wpStall = d < 0.45 ? { p: wp, n: 1 } : null;
     // point de passage occupé (camarade debout dessus ou presque, ou un corps) : la séparation empêche d'y poser le pied, et
     // l'opérateur tournait autour en changeant de côté à chaque pas (allers-retours à 3-4 m/s, « moonwalk » à l'écran). À moins
     // de 1,2 m, on le tient pour atteint : point intermédiaire, si le suivant est en ligne directe ; point final (couvert, bond…
@@ -18298,7 +18345,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const mv = Math.atan2(wp.z - u.z, wp.x - u.x); let aim = null;
     if (!u.target && d > 0.05) { let best = 99; for (const { k } of this.knownEnemies(u)) { if (this.t - k.t > 5) continue; const dd = Math.hypot(k.x - u.x, k.z - u.z); const a = Math.atan2(k.z - u.z, k.x - u.x); if (dd < best && angDiff(a, mv) < 1.9) { best = dd; aim = a; } } }
     if (!u.target && aim === null && d > 0.05) { const z0 = this.dangerWatch(u); if (z0) { const a = Math.atan2(z0.z - u.z, z0.x - u.x); if (angDiff(a, mv) < 1.9) aim = a; } }   // Karst : l'arme vers l'endroit où un des siens est tombé
-    let look = u.target && u.target.alive ? Math.atan2(u.target.z - u.z, u.target.x - u.x) : aim;
+    let look = u.target && u.target.alive ? (() => { const ap = this.aimPoint(u, u.target); return Math.atan2(ap.z - u.z, ap.x - u.x); })() : aim;
     if (u.state === 'evade') { look = null; aim = null; }   // une grenade : on court, on ne recule pas en visant
     const dragging = u.goalKind === 'drag' && !!u.drag;   // évacuation : allure fixe (DRAG.speed), regard sur le blessé
     if (dragging) { look = null; aim = null; }
@@ -21937,7 +21984,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // mort en ragdoll physique (ragdoll.js) : le corps n'est plus animé
     if (m.rag && OT.Ragdoll && OT.Ragdoll.anime(u, m, dt)) { m.ring.material.opacity = Math.max(0.15, m.ring.material.opacity - dt); chargeur(u, m, a); return; }
     a.recoil = Math.max(0, a.recoil - dt * 10); a.flinch = Math.max(0, a.flinch - dt * 4);
-    const crouch = u.alive && u.stance === 'crouch', aiming = u.alive && (u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture');
+    const crouch = u.alive && u.stance === 'crouch', aiming = u.alive && u.state !== 'hide' && !u.blindWall && (u.target || u.state === 'engage' || u.state === 'overwatch' || u.state === 'capture');
     const dx = m.cur.x - m.prev.x, dz = m.cur.z - m.prev.z, v = Math.hypot(dx, dz) / DT;
     // direction du déplacement par rapport au corps affiché : les jambes marchent dans cette direction, le torse reste vers la
     // cible. Au-delà de ~100°, on recule : jambes vers l'arrière et cycle lu à l'envers (hystérésis pour ne pas osciller).
