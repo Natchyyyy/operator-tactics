@@ -2,7 +2,7 @@
 // Données : web/base.json + web/base.bin (fabriqués par outils/preparer.py à partir de 100STYLE, CC BY 4.0).
 // Rien ici ne touche au jeu : fichiers copiés, pas importés.
 (function () {
-  const VERSION = 36;
+  const VERSION = 37;
   const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
   const Q = () => new THREE.Quaternion();
   const UP = V3(0, 1, 0), FWD = V3(0, 0, 1);
@@ -736,7 +736,7 @@
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
   // « bataille » minimale pour le module ragdoll du jeu : horloge, obstacles (le bloc), journal des morts
   const BATAILLE = window.BATAILLE = { t: 0, over: false, log: [], map: { obstacles: [{ x: BLOC.x, z: BLOC.z, w: BLOC.w, d: BLOC.d, h: BLOC.h, kind: 'cover', name: 'bloc' }] } };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.7, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.45, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 1.0, flechi: 0.7, depasse: 2.2, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, rea: { duree: 3.0, releve: 2.2, cadence: 1.8, amplitude: 0.04, flanc: 0.5 }, graines: [1, 2, 25], capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, fusil: { longueur: 0.74, avant: -0.1, droite: 0.25, haut: -0.25, tangage: 0.2, tangageMax: -0.45, tangageCouvert: -0.9, cant: 0.3, roulis: -0.35, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: 0.06, droite: 0.055, haut: 0.005, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.22, rouleTete: 0.38, pencheCou: 0.12, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.7, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.45, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 1.0, flechi: 0.7, depasse: 2.2, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, rea: { duree: 3.0, releve: 2.2, cadence: 1.8, amplitude: 0.04, flanc: 0.5 }, graines: [1, 2, 25], capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, racineTenue: 'vecteur', tenueMax: 0.6, tenueFondu: true, fusil: { longueur: 0.74, avant: -0.1, droite: 0.25, haut: -0.25, tangage: 0.2, tangageMax: -0.45, tangageCouvert: -0.9, cant: 0.3, roulis: -0.35, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: 0.06, droite: 0.055, haut: 0.005, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.22, rouleTete: 0.38, pencheCou: 0.12, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -1010,13 +1010,25 @@
       // restent posées sur l'arme par l'IK
       // (20/10, photo de référence « course en visant ») : arme épaulée en déplacement rapide = glissade tactique : clips
       // Swat/Rushed (jambes qui se lèvent peu), genoux fléchis, buste penché, vitesse plafonnée à 2 m/s (Ctl.vitesseCible)
-      const viseeCourse = !!Ctl.verrouRegard && !Ctl.accroupi && vGoal.lengthSq() > 1.6 * 1.6;
-      const courseRapide = !Ctl.verrouRegard && vGoal.lengthSq() > 2.1 * 2.1; S.attenueBob = (courseRapide || viseeCourse) ? 0.15 : 1;
+      // (v37) seuils à hystérésis (±0,2 m/s autour de 1,6 et 2,1) : une vitesse voulue qui oscille autour du seuil (chemin
+      // suivi point par point, freinage à l'approche) faisait changer de STYLE à chaque pas — 2 sauts de séquence par pas
+      // de 1/60 s, les pieds glissaient à la vitesse de marche
+      // (la vitesse LISSÉE du contrôleur, Ctl.vel, pas la consigne instantanée : un ordre qui s'allume et s'éteint d'un pas à
+      // l'autre — chemin atteint / repoussé — ne doit pas changer de style ; coût : le style de course arrive ~0,15 s après)
+      const vG = Math.max(Ctl.vel.length(), Math.min(Math.sqrt(vGoal.lengthSq()), this.vGPrec ?? 0)); this.vGPrec = Math.sqrt(vGoal.lengthSq());
+      const viseeCourse = !!Ctl.verrouRegard && !Ctl.accroupi && vG > (this.viseeCourseEtat ? 1.4 : 1.8); this.viseeCourseEtat = viseeCourse;
+      const courseRapide = !Ctl.verrouRegard && vG > (this.courseRapideEtat ? 1.9 : 2.3); this.courseRapideEtat = courseRapide; S.attenueBob = (courseRapide || viseeCourse) ? 0.15 : 1;
       if (!this.sauvetage) S.pencheExtra = viseeCourse ? 0.1 : 0;
       const styleVoulu = (Ctl.accroupi || viseeCourse) ? 1 : (Ctl.visee && !mainsLibres && !courseRapide) ? 2 : 0;      // 1 = accroupi (Crouched : jambes écartées, genoux pliés — aussi pour la glissade en visée), 2 = Swat (arme), 0 = neutre
       this.derniereRecherche += dt;
       // recherche immédiate dès que l'intention change (touche pressée / relâchée, direction) : réactivité au clavier
-      const intention = vGoal.x.toFixed(1) + ',' + vGoal.z.toFixed(1) + ',' + (Ctl.verrouRegard ? 1 : 0);
+      // (v37) intention = classe de vitesse (arrêt / marche / course) et secteur de direction (45°) : un chemin qui ondule ou
+      // une vitesse qui fluctue de 0,1 m/s ne relançaient pas seulement la recherche, ils autorisaient un saut toutes les 0,08 s
+      // (v37) un arrêt n'est cru qu'après 0,1 s de consigne nulle (un ordre qui s'éteint un pas sur deux n'arrête pas le soldat) ;
+      // un départ est cru tout de suite
+      this.tNul = vGoal.lengthSq() < 0.01 ? (this.tNul || 0) + dt : 0; const arretCru = this.tNul >= 0.1;
+      const vInt = Math.sqrt(vGoal.lengthSq()), classeV = vInt < 0.3 ? (arretCru ? 0 : (this.classePrec || 0)) : vInt < 1.7 ? 1 : 2; this.classePrec = classeV;
+      const intention = classeV + ',' + (classeV ? Math.round(Math.atan2(vGoal.x, vGoal.z) / (Math.PI / 4)) : 0) + ',' + (Ctl.verrouRegard ? 1 : 0);
       const changement = intention !== this.intentionPrec; this.intentionPrec = intention;
       // fin de clip (les 36 dernières images ne sont jamais jouées : la lecture s'y figerait) → recherche et saut forcés
       const finClip = !Base.ok[this.frame + 1] || Base.seq[this.frame + 1] !== Base.seq[this.frame];
@@ -1026,7 +1038,7 @@
         // à l'arrêt voulu et presque atteint : on ne cherche que dans les séquences de repos (sinon ping-pong entre des
         // instants d'arrêt situés juste avant des départs, et piétinement)
         const f = this.frame, vitAnimCour = Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]);
-        const arretVoulu = vGoal.lengthSq() < 0.01;
+        const arretVoulu = arretCru;
         const auRepos = arretVoulu && vitAnimCour < 0.35;
         const modeV = Ctl.modeVisee(vGoal), recule = modeV === 'recul' || !!Ctl.cheminRecul;
         const seulFrontal = !recule;                                                          // il marche vers là où il va (même en visée)
@@ -1042,11 +1054,15 @@
         // (départ, ou arrêt forcé à un virage), on prend la meilleure image sans marge : sinon un repos « atypique » peut
         // retenir le soldat indéfiniment (pose trop éloignée de tous les départs)
         const veutPartir = vGoal.lengthSq() > 0.25 && vitAnimCour < 0.2;
-        const veutArreter = vGoal.lengthSq() < 0.01 && vitAnimCour > 0.3;                 // arrêt demandé : même traitement
-        const vitGoal = Math.sqrt(vGoal.lengthSq()), ecartVit = Math.abs(vitGoal - vitAnimCour);
-        const sansMarge = veutPartir || veutArreter || ecartVit > 0.6;                     // (ou grand changement de vitesse)
+        const veutArreter = arretCru && vitAnimCour > 0.3;                 // arrêt demandé : même traitement
+        // (v37, glissement) : l'écart de vitesse est mesuré par rapport à ce que le RYTHME peut rattraper (×0,75 à ×1,35) ; sinon,
+        // quand aucun clip ne colle à la vitesse demandée (1,6 m/s : entre marche et course), on sautait « sans marge » à
+        // chaque recherche — 15 sauts par seconde, chaque fondu faisant glisser les pieds à la vitesse de marche
+        const vitGoal = Math.sqrt(vGoal.lengthSq()), ecartVit = Math.abs(vitGoal - Math.max(vitAnimCour * PARAMS.rythmeMin, Math.min(vitAnimCour * PARAMS.rythmeMax, vitGoal)));
+        const sansMarge = veutPartir || veutArreter || (ecartVit > 0.6 && horloge - this.dernierSaut >= 0.5);   // (ou grand changement de vitesse, au plus 2 fois par seconde)
         const seuil = sansMarge ? cc : auRepos ? cc * 0.6 - PARAMS.margeSaut : cc * PARAMS.margeRel - PARAMS.margeSaut;   // au repos : très peu de sauts (pas de tressautement)
         if (best >= 0 && bc < seuil && Math.abs(best - f) > 2 && (horloge - this.dernierSaut >= (auRepos ? 1.0 : sansMarge ? 0.1 : PARAMS.minSaut) || styleVoulu !== this.styleCourant || finClip || (changement && horloge - this.dernierSaut >= 0.08))) {
+          this.causes = this.causes || {}; { const c = styleVoulu !== this.styleCourant ? 's' + this.styleCourant + '>' + styleVoulu + (Ctl.accroupi ? 'a' : '') + (viseeCourse ? 'v' : '') + (courseRapide ? 'r' : '') + (mainsLibres ? 'm' : '') : finClip ? 'fin' : sansMarge ? (veutPartir ? 'partir' : veutArreter ? 'arreter' : 'vitesse') : changement ? 'intention' : 'periode'; this.causes[c] = (this.causes[c] || 0) + 1; }   // (diagnostic : pourquoi on saute)
           this.dernierSaut = horloge; S.hLife = styleVoulu !== this.styleCourant ? 0.3 : PARAMS.hLife;   // changement de style (debout ↔ accroupi) : fondu plus long
           // transition : écart entre la pose courante (telle qu'affichée) et la nouvelle
           for (let k = 0; k < Base.J; k++) this.ancQ[k].copy(this.poseQ[k]); this.ancY[0] = this.poseY[0];
@@ -1058,7 +1074,7 @@
       // avance dans la séquence
       // rythme : la lecture est accélérée / ralentie (×0,75 à ×1,35, lissé 0,3 s) pour que la vitesse du clip colle à la
       // vitesse voulue — les clips 100STYLE marchent à 0,9 m/s et reculent à 0,5 m/s, le jeu demande 1,25 et 1,0
-      { const vc = Math.hypot(Base.v[this.frame * 3], Base.v[this.frame * 3 + 2]), vg = Math.sqrt(vGoal.lengthSq()); const voulu = vc > 0.3 && vg > 0.3 ? Math.max(PARAMS.rythmeMin, Math.min(PARAMS.rythmeMax, vg / vc)) : 1;
+      { const vc = Math.hypot(Base.v[this.frame * 3], Base.v[this.frame * 3 + 2]) * (this.ratioRacine ?? 1), vg = Math.sqrt(vGoal.lengthSq()); const voulu = vc > 0.3 && vg > 0.3 ? Math.max(PARAMS.rythmeMin, Math.min(PARAMS.rythmeMax, vg / vc)) : 1;
         this.rythme = (this.rythme ?? 1) + (voulu - (this.rythme ?? 1)) * (1 - Math.exp(-dt / 0.3)); }
       const dtR = dt * this.rythme;
       this.frameT += dtR * Base.meta.fps;
@@ -1068,7 +1084,10 @@
       // personnage : elle ne garde que sa vitesse (l'intention), jamais un écart de position — sinon la requête demande en
       // permanence « reviens de 30 cm » et le soldat marche tout seul, souvent à reculons.
       const { v, w } = Base; const i = this.frame;
-      const vl = V3(v[i * 3], 0, v[i * 3 + 2]).applyAxisAngle(UP, S.yaw);
+      // (v37) ÉCHELLE : le modèle du jeu a les jambes 6 % plus longues que le squelette capturé (hanches→orteils), la hauteur des
+      // hanches est déjà mise à l'échelle ; le déplacement de la racine doit l'être aussi, sinon les pas sont 6 % plus longs
+      // que le chemin parcouru et les pieds glissent (12 cm/s en course, mesuré sur un clip lu sans rien d'autre)
+      const vl = V3(v[i * 3], 0, v[i * 3 + 2]).applyAxisAngle(UP, S.yaw).multiplyScalar(this.ratioRacine ?? 1);
       // à l'arrêt voulu, la racine ne se déplace plus (les « repos » capturés contiennent de lents piétinements : 10 cm/s qui
       // feraient dériver le soldat de 50 cm en quelques secondes) ; le verrou des pieds garde les appuis en place
       const vGoalNul = vGoal.lengthSq() < 0.01 && Ctl.vel.lengthSq() < 0.04 && Math.hypot(v[i * 3], v[i * 3 + 2]) < 0.35;
@@ -1091,7 +1110,13 @@
         let err = yGoal - (recule ? S.yaw : S.yaw + this.biaisVit); err = Math.atan2(Math.sin(err), Math.cos(err));
         if (pivote) err = errCapR;
         const corr = Math.max(-PARAMS.capMax * dt, Math.min(PARAMS.capMax * dt, err * (1 - Math.exp(-dt / (pivote ? 0.3 : PARAMS.capLife)))));
-        S.yaw += corr * (pivote ? 1 : this.facteurRacine);
+        const dYaw = corr * (pivote ? 1 : this.facteurRacine); S.yaw += dYaw;
+        // (v37) la correction de cap fait PIVOTER le corps autour du pied d'appui, pas autour des hanches : tourner le corps autour
+        // de la racine faisait balayer le pied posé (vitesse angulaire × 40 cm de levier = le gros du glissement en marche)
+        if (PARAMS.pivotPied !== false && !pivote && Math.abs(dYaw) > 1e-6 && this.contactsPrec && this.relPrec) {
+          let px = 0, pz = 0, n = 0; for (let k = 0; k < 2; k++) if (this.contactsPrec[k]) { px += this.relPrec[k].x; pz += this.relPrec[k].z; n++; }
+          if (n) { px /= n; pz /= n; const c = Math.cos(dYaw), sn = Math.sin(dYaw);   // pivot = point d'appui (moyenne des pieds posés), relatif à la racine
+            S.pos.x += px - (c * px + sn * pz); S.pos.z += pz - (-sn * px + c * pz); } }
       }
       // résidu : le déplacement de l'image est tourné vers la direction voulue (≤ 12°, les clips serpentent) ; le verrou des
       // pieds absorbe ce petit écart
@@ -1124,6 +1149,24 @@
       // encore un mélange : un pied en l'air ne doit ni être verrouillé ni compter comme glissement)
       const cf = Base.contact[this.frame];
       const contacts = S.orteils.map((o, k) => !!(cf & (k ? 1 : 2)) && o.getWorldPosition(V3()).y < seuilOrteil);
+      // (v37) RACINE TENUE PAR LE PIED D'APPUI : sur ce modèle les foulées re-ciblées sont plus courtes que le déplacement de la
+      // racine capturée (−12 % en marche, −6 % en course : la racine « roulait » sous les pieds). On mesure, pied en appui et
+      // hors fondu, le mouvement de l'orteil par rapport à la racine : la racine devrait avancer exactement de l'opposé.
+      // Le rapport foulée / racine est appris en continu (demi-vie 0,5 s, borné 0,7-1,2) et multiplie le déplacement du clip.
+      { const rel = S.orteils.map(o => { const p = o.getWorldPosition(V3()); return V3(p.x - S.pos.x, 0, p.z - S.pos.z); });
+        const dRoot = this.vMonde ? this.vMonde.length() * dt : 0, horsFondu = horloge - this.dernierSaut > 0.3;
+        if (PARAMS.racineTenue !== false && this.relPrec && dRoot > 0.004 && horsFondu && this.facteurRacine > 0.5 && !pivote) {
+          let num = 0, den = 0; const dir = this.vMonde.clone().normalize();
+          for (let k = 0; k < 2; k++) if (contacts[k] && this.contactsPrec && this.contactsPrec[k]) { const d = rel[k].clone().sub(this.relPrec[k]); num += -d.dot(dir); den += 1; }
+          if (den) { const foulee = num / den / dt, vRoot = dRoot / dt, r0 = this.ratioRacine ?? 1;   // foulee = vitesse de la foulée dans le monde si la racine ne bougeait pas
+            const mesure = Math.max(0.7, Math.min(1.2, r0 * foulee / Math.max(0.05, vRoot))); this.ratioRacine = r0 + (mesure - r0) * (1 - Math.exp(-dt / 0.5)); } }
+        // mode « vecteur » : la racine est replacée pour que l'orteil posé reste exactement où il était (hors fondu ; écart
+        // par pas borné à 60 % du déplacement + 1 cm) — les orteils, puis les hanches, sont re-posés
+        if (PARAMS.racineTenue === 'vecteur' && this.relPrec && this.toePrec && dRoot > 0.004 && (horsFondu || PARAMS.tenueFondu) && this.facteurRacine > 0.5 && !pivote) {
+          let cx = 0, cz = 0, n = 0; for (let k = 0; k < 2; k++) if (contacts[k] && this.contactsPrec[k]) { cx += this.toePrec[k].x - (S.pos.x + rel[k].x); cz += this.toePrec[k].z - (S.pos.z + rel[k].z); n++; }
+          if (n) { cx /= n; cz /= n; const l = Math.hypot(cx, cz), max = (PARAMS.tenueMax ?? 0.6) * dRoot + 0.01; this.diagHold = this.diagHold || [0, 0, 0]; this.diagHold[0] += l / dt; this.diagHold[1] += Math.max(0, l - max) / dt; this.diagHold[2]++; if (l > max) { cx *= max / l; cz *= max / l; }
+            S.pos.x += cx; S.pos.z += cz; Ctl.pos.copy(S.pos); S.appliquer(this.poseQ, this.poseY, 0); } }
+        this.relPrec = rel; this.contactsPrec = contacts; this.toePrec = S.orteils.map(o => o.getWorldPosition(V3())); }
       S.reposTotal = vGoalNul && this.facteurRacine < 0.05; S.pivot = pivote && Math.abs(errCapR) > 0.15;
       S.pencheLisse = (S.pencheLisse ?? 0) + ((S.pencheExtra || 0) - (S.pencheLisse ?? 0)) * (1 - Math.exp(-dt / 0.3));   /* penché extra lissé (prise 0,65 → traînage −0,2 sans à-coup) */
         S.pencher((S.profondeur || 0) * PARAMS.accroupi.penche * (1 - 0.7 * (S.poidsVisee || 0)) + S.pencheLisse);   // en visée le buste se redresse (joue sur la crosse)

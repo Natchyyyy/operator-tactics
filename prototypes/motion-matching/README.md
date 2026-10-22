@@ -31,6 +31,15 @@ python3 ../../outils/serveur.py ../.. 8765   →  http://127.0.0.1:8765/prototyp
 ```
 Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `API.touches({KeyW:1})`, `API.mesures()`, `PARAMS` (rattrapage, verrou, marges de saut).
 
+## v37 (22/10) — glissement des pieds
+- Mesuré sur le chemin de démo (60 s) : 16,7 → 5,3 cm/s (données brutes : 6 en marche). Trois causes trouvées et corrigées :
+  1) racine « roulant » sous les pieds : les foulées re-ciblées sont ~10 % plus courtes que la racine capturée → la racine est
+  désormais TENUE PAR LE PIED D'APPUI (`racineTenue: 'vecteur'`, aussi pendant les fondus, écart par pas ≤ 60 % du déplacement) ;
+  2) correction de cap : le corps pivote autour du pied posé, plus autour des hanches (`pivotPied`) ;
+  3) sauts en boucle quand la consigne n'est atteignable par aucun clip ou oscille d'un pas à l'autre (le jeu : 15 sauts/s,
+  pieds à 100-180 cm/s) : style décidé sur la vitesse lissée avec hystérésis, arrêt cru après 0,1 s, écart de vitesse mesuré
+  par rapport à ce que le rythme peut rattraper, saut forcé ≤ 2/s. `A.causes` compte les sauts par cause (diagnostic).
+
 ## État (20/10, nuit)
 - Simulation à pas fixe 1/60 s (affichage libre). Retargeting Geno → Mixamo par écart à la pose de liaison du skin, pieds et
   orteils gardant l'inclinaison du modèle, échelle hanches→orteils.

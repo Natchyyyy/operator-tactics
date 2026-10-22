@@ -48,7 +48,7 @@ remplacer(/BATAILLE\.log\.push\(\{ kind: 'down', enemy: V\.mort\.u\.id, loc: 'tr
 remplacer(/\bMURS\b/g, 'ctx.MURS', 3);
 remplacer(/\bBATAILLE\b/g, 'ctx.BATAILLE', 7);
 remplacer(/\bEVENEMENTS\b/g, 'ctx.EVENEMENTS', 5);
-remplacer(/\bhorloge\b/g, 'ctx.horloge', 13);
+remplacer(/\bhorloge\b/g, 'ctx.horloge', 15);
 remplacer(/\bagents\b/g, 'ctx.agents', 11);
 remplacer(/\bseuilOrteil\b/g, 'ctx.seuilOrteil', 1);
 remplacer(/(?<!ctx\.)\bBLOC\b/g, 'ctx.BLOC', 17);   // (bloc de couvert courant : le jeu le règle avant chaque pas d'agent)
