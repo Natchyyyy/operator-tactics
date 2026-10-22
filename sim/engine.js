@@ -101,7 +101,7 @@
     this.replayQueue = opts.replayInputs ? opts.replayInputs.slice() : null;
     this.rng = new RNG(this.seed);
     this.map = new GameMap(MAPS[opts.mapId] || MAPS.parking);   // une seule carte pour l'instant ; un ancien identifiant retombe sur le parking
-    this.timeLimit = opts.timeLimit || 240;
+    this.timeLimit = opts.timeLimit || 420;
     // objectif : { type: 'eliminate' } (défaut) ou { type: 'hold', team, duration } : l'équipe team gagne si elle tient jusqu'à duration
     this.objective = opts.objective || { type: 'eliminate' };
     this.cond = CONDITIONS[opts.conditions] || CONDITIONS.jour;     // heure / météo (vue, ouïe, précision)
@@ -328,9 +328,10 @@
       }
       if (u.firstShotAt !== undefined) u.urgentDone = u.firstShotAt;
       u.seenPrev = u.visible;
-      if (phase < DT - 1e-6 || urgent) { this.decide(u); this.contactWatch(u); }
+      if (phase < DT - 1e-6 || urgent) { this.decide(u); this.contactWatch(u); this.hintWatch(u); }
       this.act(u);
     }
+    this.updateHints();
     this.updateGrenades();
     this.updateRevives();
     this.updateCapture();
@@ -1812,6 +1813,58 @@
     if (Math.hypot(c.x - u.x, c.z - u.z) > 80) return;
     u.facing = Math.atan2(c.z - u.z, c.x - u.x);
   };
+  // ---- « Deuxième cerveau » (comme le directeur d'Alien) ------------------------------------------------------------------
+  // Un chef invisible sait À PEU PRÈS où sont les ennemis que l'équipe ne voit pas : toutes les HINT_EVERY s, il regroupe
+  // les adversaires non repérés et souffle une zone floue (± HINT_NOISE m, jamais la position exacte). Cet indice ne sert
+  // qu'au REGARD (on surveille la bonne direction) : il n'entre pas dans la connaissance, on ne peut ni tirer ni arroser
+  // sur lui. Pareil pour les deux camps.
+  const HINT_EVERY = 5, HINT_NOISE = 6, HINT_GROUP = 12, HINT_RANGE = 90;
+  Battle.prototype.updateHints = function () {
+    if (this.tick % Math.round(HINT_EVERY / DT) !== 0) return;
+    for (const team of this.teams) {
+      const us = team.units.filter(u => u.alive);
+      const foes = this.teams[1 - team.index].units.filter(e => e.alive && !us.some(u => { const k = u.knowledge[e.id]; return k && this.t - k.t < 5; }));
+      const groups = [];
+      for (const e of foes) {
+        let g = groups.find(q => Math.hypot(q.x - e.x, q.z - e.z) < HINT_GROUP);
+        if (!g) groups.push(g = { x: e.x, z: e.z, n: 0, sx: 0, sz: 0 });
+        g.n++; g.sx += e.x; g.sz += e.z; g.x = g.sx / g.n; g.z = g.sz / g.n;
+      }
+      team.hints = groups.map(g => ({ x: g.x + this.rng.gauss() * HINT_NOISE, z: g.z + this.rng.gauss() * HINT_NOISE, n: g.n, t: this.t }));
+      // le plus gros groupe : annoncé par l'équipier le plus proche quand sa direction change nettement
+      const main = team.hints.slice().sort((p, q) => q.n - p.n)[0];
+      if (!main || !us.length) continue;
+      const cx = us.reduce((s, a) => s + a.x, 0) / us.length, cz = us.reduce((s, a) => s + a.z, 0) / us.length;
+      const b = Math.atan2(main.z - cz, main.x - cx);
+      if (team.hintSaid !== undefined && angDiff(b, team.hintSaid) < 0.8) continue;
+      team.hintSaid = b;
+      const es = this.map.spawns[1 - team.index], fwd = Math.atan2(es.z - cz, es.x - cx);
+      let d = b - fwd; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+      const dir = Math.abs(d) < 0.6 ? 'devant' : Math.abs(d) > 2.4 ? 'derriere' : d > 0 ? 'droite' : 'gauche';
+      const by = us.slice().sort((p, q) => Math.hypot(p.x - main.x, p.z - main.z) - Math.hypot(q.x - main.x, q.z - main.z))[0];
+      const mots = { devant: 'devant nous', derriere: 'derrière nous', droite: 'sur notre droite', gauche: 'sur notre gauche' };
+      this.logEvent('indice', `${by.callsign} : « Ils doivent être ${mots[dir]}. »`, { unit: by.id, team: team.index, dir, silent: true });
+    }
+  };
+  // l'indice le plus proche à portée (ou null)
+  Battle.prototype.hintFor = function (u) {
+    const hs = this.teams[u.team].hints; if (!hs || !hs.length) return null;
+    let best = null, bd = HINT_RANGE;
+    for (const h of hs) { const d = Math.hypot(h.x - u.x, h.z - u.z); if (d < bd) { bd = d; best = h; } }
+    return best;
+  };
+  // regard à l'arrêt : sans cible ni ennemi repéré récemment, on surveille la direction soufflée par l'indice
+  // (un poste « tenir » garde son secteur : il ne s'y tourne que si l'indice y est déjà à peu près)
+  Battle.prototype.hintWatch = function (u) {
+    if (u.moving || (u.target && u.target.alive) || this.t - (u.rearWatch || -99) < 0.5) return;
+    if (!LOOK_STATES[u.state] && u.state !== 'holdkey') return;
+    const c = this.teams[u.team].contactCall; if (c && this.t - c.t <= CONTACT_LOOK) return;
+    if (this.knownEnemies(u).some(({ k }) => this.t - k.t < 5)) return;
+    const h = this.hintFor(u); if (!h) return;
+    const a = Math.atan2(h.z - u.z, h.x - u.x);
+    if (u.state === 'holdkey' && angDiff(a, u.facing) > 1.2) return;
+    u.facing = a + 0.25 * Math.sin(this.t * 0.7 + u.idx * 1.9);
+  };
   // R3 — relève dans les bonds : quand des équipiers tombent, les deux moitiés sont rééquilibrées (écart d'au plus un) ;
   // celui qui change de moitié le dit (« Je prends sa place ! »). get / set : lecture et écriture de sa moitié.
   Battle.prototype.rebalanceHalves = function (team, us, get, set) {
@@ -2864,6 +2917,7 @@
     const mv = Math.atan2(wp.z - u.z, wp.x - u.x); let aim = null;
     if (!u.target && d > 0.05) { let best = 99; for (const { k } of this.knownEnemies(u)) { if (this.t - k.t > 5) continue; const dd = Math.hypot(k.x - u.x, k.z - u.z); const a = Math.atan2(k.z - u.z, k.x - u.x); if (dd < best && angDiff(a, mv) < 1.9) { best = dd; aim = a; } } }
     if (!u.target && aim === null && d > 0.05) { const z0 = this.dangerWatch(u); if (z0) { const a = Math.atan2(z0.z - u.z, z0.x - u.x); if (angDiff(a, mv) < 1.9) aim = a; } }   // Karst : l'arme vers l'endroit où un des siens est tombé
+    if (!u.target && aim === null && d > 0.05) { const h = this.hintFor(u); if (h) { const a = Math.atan2(h.z - u.z, h.x - u.x); if (angDiff(a, mv) < 1.9) aim = a; } }   // deuxième cerveau : l'arme vers la zone soufflée
     let look = u.target && u.target.alive ? (() => { const ap = this.aimPoint(u, u.target); return Math.atan2(ap.z - u.z, ap.x - u.x); })() : aim;
     if (u.state === 'evade') { look = null; aim = null; }   // une grenade : on court, on ne recule pas en visant
     const dragging = u.goalKind === 'drag' && !!u.drag;   // évacuation : allure fixe (DRAG.speed), regard sur le blessé
@@ -3928,12 +3982,18 @@
     }
     if (u.ammo === 0 && u.mags > 0) this.startReload(u);
   };
+  // Rythme des fusillades : dans un vrai échange de tirs, la plupart des balles ratent. Au-delà de quelques mètres, chaque
+  // balle a TEMPO_HIT fois la chance calculée (l'IA décide toujours avec la chance « normale » : elle ne joue pas plus
+  // prudemment, elle touche simplement moins). De près (sous TEMPO_NEAR m) rien ne change : on ne rate pas à bout portant ; entre 3 et 10 m, on passe progressivement de l'un à l'autre. Réglé pour des batailles de ~3 min 20 (contre ~1 min 30 avant).
+  // Les balles manquées continuent de clouer l'adversaire : les échanges durent, le joueur a le temps de réfléchir.
+  const TEMPO_HIT = 0.2, TEMPO_NEAR = 3, TEMPO_FULL = 10;
+  const tempoHit = (d) => d <= TEMPO_NEAR ? 1 : d >= TEMPO_FULL ? TEMPO_HIT : 1 - (1 - TEMPO_HIT) * (d - TEMPO_NEAR) / (TEMPO_FULL - TEMPO_NEAR);
   Battle.prototype.shoot = function (u, e, d) {
     u.ammo--; u.stats.shots++; u.lastShotAt = this.t; this.lastShotTime = this.t; u.burst++; u.aimHistory[e.id] = this.t;
     if (this.t - e.lastShotByAt > 1.5) e.firstShotAt = this.t;   // premières balles depuis un moment : réaction immédiate (voir step)
     e.lastShotBy = u; e.lastShotByAt = this.t;
     const { p, cover, soft } = this.hitChance(u, e, d);
-    const hit = this.rng.chance(p);
+    const hit = this.rng.chance(p * tempoHit(d));
     const from = { x: u.x, y: u.eyeY() - 0.15, z: u.z };
     let to;
     if (hit) {

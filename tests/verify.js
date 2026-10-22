@@ -50,7 +50,7 @@ for (let seed = 1; seed <= N; seed++) {
 check(`${N} batailles se terminent avec un résultat`, results.every(x => x.r && x.b.over));
 check('aucune règle de tir / déplacement violée pendant ces batailles', violations.length === 0, violations.slice(0, 5));
 check('le tir de suppression existe et ne fait jamais de dégâts (compté dans les tirs, jamais dans les touchés)', suppressShots > 0 && results.every(x => x.b.units.every(u => u.stats.hits <= u.stats.shots - (u.stats.suppressShots || 0))), suppressShots);
-check('temps de calcul raisonnable (< 3 s par bataille)', maxMs < 3000, maxMs);
+check('temps de calcul raisonnable (< 8 s par bataille, qui dure jusqu’à 7 min)', maxMs < 8000, maxMs);
 const durations = results.map(x => x.r.duration);
 console.log(`   durées : min ${Math.min(...durations).toFixed(0)} s, moyenne ${(durations.reduce((a, b) => a + b, 0) / N).toFixed(0)} s, max ${Math.max(...durations).toFixed(0)} s`);
 const wins = [0, 0, 0]; for (const x of results) wins[x.r.winner === -1 ? 2 : x.r.winner]++;
@@ -362,12 +362,12 @@ function duel(opts) {
   // ---- revoir une bataille : mêmes options + mêmes commandes au même pas → bataille identique ----
   const mk = (extra) => new Battle(Object.assign({ seed: 11, mapId: 'place', teams: [{ name: 'A', order: 'careful', operators: ['op_vautour', 'op_lynx', 'op_granit', 'op_bastion', 'op_belier'], tactics: ['tiroir'] }, { name: 'B', order: 'assault', operators: ['k_molosse', 'k_vipere', 'k_hyene', 'k_chacal', 'k_fauve'], tactics: ['tiroir'], autoTactics: true }] }, extra || {}));
   const a = mk(); let used = 0;
-  while (!a.over && a.t < 250) {
+  while (!a.over && a.t < 500) {
     if (a.tick === 60) a.command('order', 0, 'assault');
     if (a.tick === 300 && a.command('order', 0, 'careful').ok) used++;
     a.step();
   }
-  const b = mk({ replayInputs: a.inputs }); b.run(300);
+  const b = mk({ replayInputs: a.inputs }); b.run(500);
   const sig = (x) => JSON.stringify([x.result.winner, x.t, x.log.length, x.units.map(u => [Math.round(u.hp * 10), u.stats.shots, u.stats.kills, Math.round(u.x * 100)])]);
   check('revoir : la bataille rejouée est identique (vainqueur, durée, journal, chaque opérateur), commandes du joueur comprises', a.inputs.length >= 2 && used >= 1 && sig(a) === sig(b), { inputs: a.inputs.length, used, a: sig(a).slice(0, 120), b: sig(b).slice(0, 120) });
   check('revoir : les commandes sont refusées pendant la revue', !b.command('order', 0, 'hold').ok);

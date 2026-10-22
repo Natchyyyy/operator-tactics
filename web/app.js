@@ -2849,6 +2849,7 @@
   function flashBattle(msg) { let el = $('#bflash'); if (!el) { el = document.createElement('div'); el.id = 'bflash'; el.style.cssText = 'position:absolute;left:50%;top:14px;transform:translateX(-50%);background:rgba(15,20,26,.9);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:12px;z-index:6;pointer-events:none'; $('main').appendChild(el); } el.textContent = msg; el.style.display = 'block'; clearTimeout(bflashTimer); bflashTimer = setTimeout(() => { el.style.display = 'none'; }, 2200); }
   // ---- Répliques radio (bulles au-dessus des soldats), tirées des événements réels de la simulation ----
   const BARKS = {
+    indice_devant: ['Ils doivent être devant.', 'Je les sens devant nous.'], indice_gauche: ['Ils doivent être sur la gauche.', 'Attention à gauche.'], indice_droite: ['Ils doivent être sur la droite.', 'Attention à droite.'], indice_derriere: ['Ils sont peut-être derrière nous !', 'Surveillez nos arrières !'],
     spot: ['Contact !', 'Contact, droit devant !', 'Ennemi en vue !'], reload: ['Je recharge !', 'Rechargement !', 'Couvrez-moi, je recharge !'],
     grenade: ['Grenade !'], throw: ['Grenade, à couvert !', 'Je lance !'], flashbang: ['Flash !', 'Incapacitante !'], flank: ['Je contourne !', 'Je le prends par le flanc !'],
     noammo: ['Plus de munitions !'], revive_start: ['Je m\u2019occupe de lui !', 'J\u2019arrive, tiens bon !'], revive: ['Debout, on y retourne !', 'Je te tiens !'],
@@ -2908,6 +2909,7 @@
     else if ((e.kind === 'moveorder' && !e.silent) || e.kind === 'bond') { bark(u, e.mode === 'decrocher' ? 'decroche' : 'bouge'); if (e.couvre) bark(unitById[e.couvre], 'couvert'); }
     else if ((e.kind === 'feu' || e.kind === 'enappui' || e.kind === 'releve' || e.kind === 'freinage') && u) bark(u, e.kind);
     else if (e.kind === 'couvre') bark(u, 'couvert');
+    else if (e.kind === 'indice' && u) bark(u, 'indice_' + e.dir);
     else if (e.kind === 'enplace' && u) bark(u, 'enplace');
     else if (e.kind === 'reprise' && u) bark(u, 'reprise');
     else if (e.kind === 'plan' && u) bark(u, 'plan_' + e.plan);
