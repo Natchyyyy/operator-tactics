@@ -271,6 +271,8 @@
     return null;
   };
   GameMap.prototype.hasLOS = function (ax, ay, az, bx, by, bz) { return this.blocker(ax, ay, az, bx, by, bz) === null; };
+  // ligne de vue à travers les seuls obstacles solides (un fumigène cache, il ne protège pas des balles)
+  GameMap.prototype.hasSolidLOS = function (ax, ay, az, bx, by, bz) { for (const o of this.obstacles) if (segmentHitsBox(ax, ay, az, bx, by, bz, o)) return false; return true; };
 
   // La case la plus proche qui soit libre (pour se sortir d'un coin bloqué ou viser une case valide).
   GameMap.prototype.nearestFree = function (x, z) {

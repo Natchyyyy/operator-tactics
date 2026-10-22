@@ -2347,6 +2347,7 @@
     const home = this.teams[u.team].spawn, objective = this.map.spawns[1 - u.team];
     const beingShot = this.t - u.lastShotByAt < 1.5;
     u.holdFire = this.fireHeld(u);   // ordre du clic droit en « feu retenu » : ni tir ni grenade (voir act)
+    if (this.t < (u.getupUntil || 0)) { this.stop(u); u.state = 'getup'; u.stance = 'crouch'; u.target = null; u.holdFire = true; return; }   // il se relève (ou retire ses mains) : ni marche ni tir
 
     // 0) munitions
     if (u.ammo === 0 && u.reloading <= 0) {
@@ -2383,7 +2384,9 @@
 
     // relever un allié à terre : en cours (interrompu si un ennemi est en vue ou si l'on est pris pour cible), ou y aller
     if (u.reviving) {
-      if (threats.length || beingShot) { u.reviving = null; u.state = 'idle'; }
+      // (à l'abri d'un obstacle, un ennemi aperçu au loin ne l'interrompt pas : seulement les balles ou un ennemi tout près)
+      const exposed = threats.some(e => dist2(e, u) < DRAG.close || !this.coverAt(u.x, u.z, e.x, e.z, false));
+      if (exposed || beingShot) { u.reviving = null; u.state = 'idle'; }
       else { const a = this.unitById(u.reviving.id); if (a) a.rescue = { by: u, t: this.t }; return; }
     }
     // secours sur ordre du joueur (clic droit sur un équipier à terre) ; un ordre plus récent l'annule
@@ -3421,6 +3424,7 @@
   // jusqu'au couvert le plus proche (≤ 8 m, en ligne droite), à 60 % de son allure, sans tirer, puis le relève là (relève
   // habituelle). Un ennemi tout près : on se bat d'abord. Trop longtemps à découvert sous les yeux de l'ennemi : seulement
   // avec un fumigène, lancé entre le trajet et la menace (un par opérateur).
+  const REVIVE_PREP = 2, GETUP = 3.2, GETUP_RESCUER = 0.6;   // poser le blessé traîné ; se relever (relevé / sauveteur) — durées des gestes affichés
   const DRAG = { reach: 12, cover: 8, speed: 0.6, close: 7, drop: 5, maxOpen: 4, rope: 1.0, settle: 1.5, minLeft: 8 };
   Battle.prototype.draggedBy = function (a) { const b = a.dragBy; return b && b.alive && b.drag && b.drag.id === a.id ? b : null; };
   Battle.prototype.canDrag = function (u) {
@@ -3437,7 +3441,7 @@
       if (!e.alive) continue;
       const seen = u.visible.has(e.id), k = seen ? e : u.knowledge[e.id];
       if (!k || (!seen && this.t - k.t > 6)) continue;
-      if (this.map.hasLOS(k.x, EYE.stand, k.z, a.x, 0.9, a.z)) out.push({ x: k.x, z: k.z, fresh: seen || this.t - k.t < 3 });
+      if (this.map.hasSolidLOS(k.x, EYE.stand, k.z, a.x, 0.9, a.z)) out.push({ x: k.x, z: k.z, fresh: seen || this.t - k.t < 3 });   // (à travers la fumée aussi : elle cache, elle n'abrite pas — on le met derrière un vrai obstacle)
     }
     return out;
   };
@@ -3451,7 +3455,7 @@
       const s = d + Math.hypot(cx - u.x, cz - u.z) * 0.3; if (s >= bs) continue;
       if (u.keyOrder && u.keyOrder.cx !== undefined && Math.hypot(cx - u.keyOrder.cx, cz - u.keyOrder.cz) > HOLD_ZONE + 1.5) continue;
       if (this.alliesOf(u).some(o => o !== u && o.alive && Math.hypot(o.x - cx, o.z - cz) < 1.2)) continue;
-      if (ths.some(t => this.map.hasLOS(t.x, EYE.stand, t.z, cx, 0.9, cz))) continue;
+      if (ths.some(t => this.map.hasSolidLOS(t.x, EYE.stand, t.z, cx, 0.9, cz))) continue;
       if (!this.map.walkableSegment(a.x, a.z, cx, cz)) continue;
       bs = s; best = { x: cx, z: cz };
     }
@@ -3473,6 +3477,7 @@
     for (const e of threats) if (dist2(e, u) < DRAG.close || dist2(e, a) < DRAG.close) return false;   // ennemi tout près : on se bat
     const ths = this.dragThreats(u, a); if (!ths.length) return false;   // à l'abri des vues : la relève habituelle suffit
     const c = this.dragCover(u, a, ths); if (!c) return false;
+    if (Math.hypot(c.x - a.x, c.z - a.z) < 1.5 && dist2(u, a) < 1.6) return false;   // déjà posé à cet abri : on ne le retraîne pas (on se bat, puis on le relève)
     // temps à découvert (aller au blessé au pas de course, puis le tirer) ; sous les yeux de l'ennemi, au-delà de 4 s : fumigène
     const v = u.speed(), tOpen = Math.max(0, pick.d - 1) / (v * 1.2) + Math.hypot(c.x - a.x, c.z - a.z) / (v * DRAG.speed);
     const fresh = ths.filter(t => t.fresh);
@@ -3533,7 +3538,7 @@
     this.stop(u); u.state = 'dragging'; u.stance = 'crouch';
     if (!g.spot || Math.hypot(g.spot.x - a.x, g.spot.z - a.z) < 0.03) {
       a.dragBy = null; u.drag = null; a.rescue = { by: u, t: this.t };
-      u.state = 'reviving'; u.reviving = { id: a.id, until: this.t + (has(u, 'medic') ? 2 : 4) };
+      u.state = 'reviving'; u.reviving = { id: a.id, until: this.t + REVIVE_PREP + (has(u, 'medic') ? 2 : 4) };   // (+ REVIVE_PREP : poser le corps, se placer à son flanc)
       this.logEvent('revive_start', `${u.callsign} a mis ${a.callsign} à l'abri et le relève.`, { unit: u.id, team: u.team });
     }
     return true;
@@ -3541,7 +3546,7 @@
   // où poser le blessé, arrivé au couvert : à ~1 m de soi, caché (au sol) des menaces connues, au plus près de là où il est
   Battle.prototype.dragSettle = function (u, a, g) {
     const ths = g.ths.slice(); for (const e of this.enemiesOf(u)) if (e.alive && u.visible.has(e.id)) ths.push({ x: e.x, z: e.z });
-    const hidden = (x, z) => !ths.some(t => this.map.hasLOS(t.x, EYE.stand, t.z, x, 0.5, z));
+    const hidden = (x, z) => !ths.some(t => this.map.hasSolidLOS(t.x, EYE.stand, t.z, x, 0.5, z));
     if (hidden(a.x, a.z) && dist2(u, a) <= 1.4) return null;
     let best = null, bd = Infinity;
     for (let i = 0; i < 12; i++) {
@@ -3646,7 +3651,7 @@
       let k = null;
       for (const m of team.units) { if (!m.alive) continue; const q = m.visible.has(e.id) ? { x: e.x, z: e.z, t: this.t } : m.knowledge[e.id]; if (q && (!k || q.t > k.t)) k = q; }
       if (!k || this.t - k.t > 15) continue;
-      if (this.map.hasLOS(k.x, EYE.stand, k.z, a.x, 0.9, a.z)) out.push({ x: k.x, z: k.z, fresh: this.t - k.t < 3 });
+      if (this.map.hasSolidLOS(k.x, EYE.stand, k.z, a.x, 0.9, a.z)) out.push({ x: k.x, z: k.z, fresh: this.t - k.t < 3 });
     }
     return out;
   };
@@ -3822,9 +3827,9 @@
       const a = this.unitById(u.reviving.id);
       if (!u.alive || !a || a.alive || this.t > a.bleedUntil || dist2(u, a) > 1.6) { u.reviving = null; if (u.alive) u.state = 'idle'; continue; }
       if (this.t < u.reviving.until) continue;
-      u.reviving = null; u.state = 'idle'; u.stats.revives++;
+      u.reviving = null; u.state = 'idle'; u.stats.revives++; u.getupUntil = this.t + GETUP_RESCUER;
       a.alive = true; a.revived = true; a.bleedUntil = 0; a.rescue = null; a.hp = Math.round(a.maxHp * 0.3); a.status = 'critical';
-      a.stance = 'crouch'; a.suppression = 0.5; a.state = 'idle'; a.target = null; a.visible = new Set(); a.lastHitAt = this.t;
+      a.stance = 'crouch'; a.suppression = 0.5; a.state = 'getup'; a.target = null; a.visible = new Set(); a.lastHitAt = this.t; a.getupUntil = this.t + GETUP; this.stop(a);
       this.logEvent('revive', `${u.callsign} relève ${a.callsign} (${Math.round(a.hp)} PV).`, { unit: u.id, team: u.team });
       this.emit({ type: 'revive', unit: a.id, by: u.id });
     }

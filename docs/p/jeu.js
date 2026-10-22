@@ -11167,7 +11167,14 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       J.reste -= PAS; n++; MM.ctx.horloge += PAS;   // (horloge propre du module : monotone, par pas fixes)
       for (const A of J.agents.values()) {
         const u = A.uJeu, c = cibles(u); if (!c) continue;
-        if (A.mort) continue;
+        if (A.mort) {
+          // garde-fou : relevé dans la simulation mais toujours couché à l'écran depuis plus d'une seconde (sauveteur du module
+          // pas en réa) → relevé direct
+          if (u.alive) { A.vivantDepuis = A.vivantDepuis ?? MM.ctx.horloge; const enRea = [...J.agents.values()].some(R => R.sauvetage && R.sauvetage.V === A && R.sauvetage.etat === 'rea');
+            if (!enRea && MM.ctx.horloge - A.vivantDepuis > 1) { A.vivantDepuis = null; leverDirect(A, u); } }
+          else A.vivantDepuis = null;
+          continue;
+        }
         if (A.m.anim && A.m.anim.recoil > (A.recul || 0)) A.recul = A.m.anim.recoil;
         if (battle && battle.unitById) sauvetageDebut(A, u, battle);
         ordres(A, u, battle, c);
@@ -11211,10 +11218,17 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     if (ok && flaque) A.mort.m.rag.flaque = flaque;
     return ok;
   };
+  // relevé direct : le sauveteur du module (s'il en a un) lâche tout, le blessé se relève tout de suite
+  function leverDirect(A, u) {
+    for (const R of J.agents.values()) { const sv = R.sauvetage; if (!sv || sv.V !== A) continue; if (sv.cons) sv.detacher(); sv.finir(); R.sauvetage = null; }
+    return A.relever(yawDe(u.facing));
+  }
   J.relever = function (u, m) { const A = m.mm; if (!A || !A.mort) return false;
+    // sauveteur du module déjà en réa : il retire ses mains (~0,4 s) puis le relève. Encore en train de traîner, de poser ou
+    // de se placer : il ne rattrapera pas la simulation (le blessé restait couché pour toujours, « figé ») → relevé direct
     for (const R of J.agents.values()) { const sv = R.sauvetage; if (!sv || sv.V !== A) continue;
-      sv.finRea = true; return true; }   // le sauveteur du module finit ses gestes (traînage, dépose, réa) puis le relève ; garde-fou dans sauvetageTic
-    return A.relever(yawDe(u.facing)); };
+      if (sv.etat === 'rea') { sv.finRea = true; return true; } break; }
+    return leverDirect(A, u); };
   J.ressusciter = function (m) { const A = m.mm; if (A && A.mort) A.ressusciter(); };
 
   if (/[?&]manual=1/.test(location.search)) J.maxPas = 6;
@@ -15412,6 +15426,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     return null;
   };
   GameMap.prototype.hasLOS = function (ax, ay, az, bx, by, bz) { return this.blocker(ax, ay, az, bx, by, bz) === null; };
+  // ligne de vue à travers les seuls obstacles solides (un fumigène cache, il ne protège pas des balles)
+  GameMap.prototype.hasSolidLOS = function (ax, ay, az, bx, by, bz) { for (const o of this.obstacles) if (segmentHitsBox(ax, ay, az, bx, by, bz, o)) return false; return true; };
 
   // La case la plus proche qui soit libre (pour se sortir d'un coin bloqué ou viser une case valide).
   GameMap.prototype.nearestFree = function (x, z) {
@@ -17931,6 +17947,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const home = this.teams[u.team].spawn, objective = this.map.spawns[1 - u.team];
     const beingShot = this.t - u.lastShotByAt < 1.5;
     u.holdFire = this.fireHeld(u);   // ordre du clic droit en « feu retenu » : ni tir ni grenade (voir act)
+    if (this.t < (u.getupUntil || 0)) { this.stop(u); u.state = 'getup'; u.stance = 'crouch'; u.target = null; u.holdFire = true; return; }   // il se relève (ou retire ses mains) : ni marche ni tir
 
     // 0) munitions
     if (u.ammo === 0 && u.reloading <= 0) {
@@ -17967,7 +17984,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
 
     // relever un allié à terre : en cours (interrompu si un ennemi est en vue ou si l'on est pris pour cible), ou y aller
     if (u.reviving) {
-      if (threats.length || beingShot) { u.reviving = null; u.state = 'idle'; }
+      // (à l'abri d'un obstacle, un ennemi aperçu au loin ne l'interrompt pas : seulement les balles ou un ennemi tout près)
+      const exposed = threats.some(e => dist2(e, u) < DRAG.close || !this.coverAt(u.x, u.z, e.x, e.z, false));
+      if (exposed || beingShot) { u.reviving = null; u.state = 'idle'; }
       else { const a = this.unitById(u.reviving.id); if (a) a.rescue = { by: u, t: this.t }; return; }
     }
     // secours sur ordre du joueur (clic droit sur un équipier à terre) ; un ordre plus récent l'annule
@@ -19005,6 +19024,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // jusqu'au couvert le plus proche (≤ 8 m, en ligne droite), à 60 % de son allure, sans tirer, puis le relève là (relève
   // habituelle). Un ennemi tout près : on se bat d'abord. Trop longtemps à découvert sous les yeux de l'ennemi : seulement
   // avec un fumigène, lancé entre le trajet et la menace (un par opérateur).
+  const REVIVE_PREP = 2, GETUP = 3.2, GETUP_RESCUER = 0.6;   // poser le blessé traîné ; se relever (relevé / sauveteur) — durées des gestes affichés
   const DRAG = { reach: 12, cover: 8, speed: 0.6, close: 7, drop: 5, maxOpen: 4, rope: 1.0, settle: 1.5, minLeft: 8 };
   Battle.prototype.draggedBy = function (a) { const b = a.dragBy; return b && b.alive && b.drag && b.drag.id === a.id ? b : null; };
   Battle.prototype.canDrag = function (u) {
@@ -19021,7 +19041,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (!e.alive) continue;
       const seen = u.visible.has(e.id), k = seen ? e : u.knowledge[e.id];
       if (!k || (!seen && this.t - k.t > 6)) continue;
-      if (this.map.hasLOS(k.x, EYE.stand, k.z, a.x, 0.9, a.z)) out.push({ x: k.x, z: k.z, fresh: seen || this.t - k.t < 3 });
+      if (this.map.hasSolidLOS(k.x, EYE.stand, k.z, a.x, 0.9, a.z)) out.push({ x: k.x, z: k.z, fresh: seen || this.t - k.t < 3 });   // (à travers la fumée aussi : elle cache, elle n'abrite pas — on le met derrière un vrai obstacle)
     }
     return out;
   };
@@ -19035,7 +19055,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const s = d + Math.hypot(cx - u.x, cz - u.z) * 0.3; if (s >= bs) continue;
       if (u.keyOrder && u.keyOrder.cx !== undefined && Math.hypot(cx - u.keyOrder.cx, cz - u.keyOrder.cz) > HOLD_ZONE + 1.5) continue;
       if (this.alliesOf(u).some(o => o !== u && o.alive && Math.hypot(o.x - cx, o.z - cz) < 1.2)) continue;
-      if (ths.some(t => this.map.hasLOS(t.x, EYE.stand, t.z, cx, 0.9, cz))) continue;
+      if (ths.some(t => this.map.hasSolidLOS(t.x, EYE.stand, t.z, cx, 0.9, cz))) continue;
       if (!this.map.walkableSegment(a.x, a.z, cx, cz)) continue;
       bs = s; best = { x: cx, z: cz };
     }
@@ -19057,6 +19077,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (const e of threats) if (dist2(e, u) < DRAG.close || dist2(e, a) < DRAG.close) return false;   // ennemi tout près : on se bat
     const ths = this.dragThreats(u, a); if (!ths.length) return false;   // à l'abri des vues : la relève habituelle suffit
     const c = this.dragCover(u, a, ths); if (!c) return false;
+    if (Math.hypot(c.x - a.x, c.z - a.z) < 1.5 && dist2(u, a) < 1.6) return false;   // déjà posé à cet abri : on ne le retraîne pas (on se bat, puis on le relève)
     // temps à découvert (aller au blessé au pas de course, puis le tirer) ; sous les yeux de l'ennemi, au-delà de 4 s : fumigène
     const v = u.speed(), tOpen = Math.max(0, pick.d - 1) / (v * 1.2) + Math.hypot(c.x - a.x, c.z - a.z) / (v * DRAG.speed);
     const fresh = ths.filter(t => t.fresh);
@@ -19117,7 +19138,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     this.stop(u); u.state = 'dragging'; u.stance = 'crouch';
     if (!g.spot || Math.hypot(g.spot.x - a.x, g.spot.z - a.z) < 0.03) {
       a.dragBy = null; u.drag = null; a.rescue = { by: u, t: this.t };
-      u.state = 'reviving'; u.reviving = { id: a.id, until: this.t + (has(u, 'medic') ? 2 : 4) };
+      u.state = 'reviving'; u.reviving = { id: a.id, until: this.t + REVIVE_PREP + (has(u, 'medic') ? 2 : 4) };   // (+ REVIVE_PREP : poser le corps, se placer à son flanc)
       this.logEvent('revive_start', `${u.callsign} a mis ${a.callsign} à l'abri et le relève.`, { unit: u.id, team: u.team });
     }
     return true;
@@ -19125,7 +19146,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // où poser le blessé, arrivé au couvert : à ~1 m de soi, caché (au sol) des menaces connues, au plus près de là où il est
   Battle.prototype.dragSettle = function (u, a, g) {
     const ths = g.ths.slice(); for (const e of this.enemiesOf(u)) if (e.alive && u.visible.has(e.id)) ths.push({ x: e.x, z: e.z });
-    const hidden = (x, z) => !ths.some(t => this.map.hasLOS(t.x, EYE.stand, t.z, x, 0.5, z));
+    const hidden = (x, z) => !ths.some(t => this.map.hasSolidLOS(t.x, EYE.stand, t.z, x, 0.5, z));
     if (hidden(a.x, a.z) && dist2(u, a) <= 1.4) return null;
     let best = null, bd = Infinity;
     for (let i = 0; i < 12; i++) {
@@ -19230,7 +19251,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       let k = null;
       for (const m of team.units) { if (!m.alive) continue; const q = m.visible.has(e.id) ? { x: e.x, z: e.z, t: this.t } : m.knowledge[e.id]; if (q && (!k || q.t > k.t)) k = q; }
       if (!k || this.t - k.t > 15) continue;
-      if (this.map.hasLOS(k.x, EYE.stand, k.z, a.x, 0.9, a.z)) out.push({ x: k.x, z: k.z, fresh: this.t - k.t < 3 });
+      if (this.map.hasSolidLOS(k.x, EYE.stand, k.z, a.x, 0.9, a.z)) out.push({ x: k.x, z: k.z, fresh: this.t - k.t < 3 });
     }
     return out;
   };
@@ -19406,9 +19427,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const a = this.unitById(u.reviving.id);
       if (!u.alive || !a || a.alive || this.t > a.bleedUntil || dist2(u, a) > 1.6) { u.reviving = null; if (u.alive) u.state = 'idle'; continue; }
       if (this.t < u.reviving.until) continue;
-      u.reviving = null; u.state = 'idle'; u.stats.revives++;
+      u.reviving = null; u.state = 'idle'; u.stats.revives++; u.getupUntil = this.t + GETUP_RESCUER;
       a.alive = true; a.revived = true; a.bleedUntil = 0; a.rescue = null; a.hp = Math.round(a.maxHp * 0.3); a.status = 'critical';
-      a.stance = 'crouch'; a.suppression = 0.5; a.state = 'idle'; a.target = null; a.visible = new Set(); a.lastHitAt = this.t;
+      a.stance = 'crouch'; a.suppression = 0.5; a.state = 'getup'; a.target = null; a.visible = new Set(); a.lastHitAt = this.t; a.getupUntil = this.t + GETUP; this.stop(a);
       this.logEvent('revive', `${u.callsign} relève ${a.callsign} (${Math.round(a.hp)} PV).`, { unit: u.id, team: u.team });
       this.emit({ type: 'revive', unit: a.id, by: u.id });
     }
@@ -21124,7 +21145,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   const SHOW_ROTATION = false;   // D8 Rotation : cachée depuis les points de passage (D7) ; le moteur la garde (battle.rotate)
   if (MANUAL) document.documentElement.classList.add('manual');   // captures reproductibles : pas de transitions CSS (aucune image n'est dessinée entre deux étapes)
 
-  const STATE_FR = { rush: 'Fonce (ordre)', crossing: 'Traverse le découvert', tokey: 'Rejoint son poste', holdkey: 'Tient la position', throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié', shaken: 'Ébranlé', appui: 'Tir d’appui' };
+  const STATE_FR = { rush: 'Fonce (ordre)', crossing: 'Traverse le découvert', tokey: 'Rejoint son poste', holdkey: 'Tient la position', throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié', getup: 'Se relève', shaken: 'Ébranlé', appui: 'Tir d’appui' };
   const STATUS_FR = { ok: 'Indemne', wounded: 'Blessé', critical: 'Grave', down: 'Neutralisé' };
   const TEAM = [
     { name: 'Alpha', color: 0x4f9cf0, css: '#4f9cf0', uniform: 0x3a4a3c, vest: 0x2b352d },

@@ -175,7 +175,14 @@
       J.reste -= PAS; n++; MM.ctx.horloge += PAS;   // (horloge propre du module : monotone, par pas fixes)
       for (const A of J.agents.values()) {
         const u = A.uJeu, c = cibles(u); if (!c) continue;
-        if (A.mort) continue;
+        if (A.mort) {
+          // garde-fou : relevé dans la simulation mais toujours couché à l'écran depuis plus d'une seconde (sauveteur du module
+          // pas en réa) → relevé direct
+          if (u.alive) { A.vivantDepuis = A.vivantDepuis ?? MM.ctx.horloge; const enRea = [...J.agents.values()].some(R => R.sauvetage && R.sauvetage.V === A && R.sauvetage.etat === 'rea');
+            if (!enRea && MM.ctx.horloge - A.vivantDepuis > 1) { A.vivantDepuis = null; leverDirect(A, u); } }
+          else A.vivantDepuis = null;
+          continue;
+        }
         if (A.m.anim && A.m.anim.recoil > (A.recul || 0)) A.recul = A.m.anim.recoil;
         if (battle && battle.unitById) sauvetageDebut(A, u, battle);
         ordres(A, u, battle, c);
@@ -219,10 +226,17 @@
     if (ok && flaque) A.mort.m.rag.flaque = flaque;
     return ok;
   };
+  // relevé direct : le sauveteur du module (s'il en a un) lâche tout, le blessé se relève tout de suite
+  function leverDirect(A, u) {
+    for (const R of J.agents.values()) { const sv = R.sauvetage; if (!sv || sv.V !== A) continue; if (sv.cons) sv.detacher(); sv.finir(); R.sauvetage = null; }
+    return A.relever(yawDe(u.facing));
+  }
   J.relever = function (u, m) { const A = m.mm; if (!A || !A.mort) return false;
+    // sauveteur du module déjà en réa : il retire ses mains (~0,4 s) puis le relève. Encore en train de traîner, de poser ou
+    // de se placer : il ne rattrapera pas la simulation (le blessé restait couché pour toujours, « figé ») → relevé direct
     for (const R of J.agents.values()) { const sv = R.sauvetage; if (!sv || sv.V !== A) continue;
-      sv.finRea = true; return true; }   // le sauveteur du module finit ses gestes (traînage, dépose, réa) puis le relève ; garde-fou dans sauvetageTic
-    return A.relever(yawDe(u.facing)); };
+      if (sv.etat === 'rea') { sv.finRea = true; return true; } break; }
+    return leverDirect(A, u); };
   J.ressusciter = function (m) { const A = m.mm; if (A && A.mort) A.ressusciter(); };
 
   if (/[?&]manual=1/.test(location.search)) J.maxPas = 6;
