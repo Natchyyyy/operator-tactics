@@ -20,7 +20,7 @@ principes français : binôme, « un appuie / l'autre progresse », secteurs de 
 ## Ordre de travail proposé
 1. ✅ fait (v64) — Analyseur de trajet (`analyzePath`) + affichage des tags sur la carte (sans effet sur le combat).
 2. ✅ fait (v65) — Hérisson à l'arrêt (secteurs 360° déjà en place ; collage à un obstacle à moins de 2 m, genou à terre au calme).
-3. Rôles en marche (pointe / flancs / appui / serre-file) — le regard cède dès qu'il y a un contact.
+3. ✅ fait (v66) — Rôles en marche (pointe et appui devant, flancs ±40° vers leur côté, serre-file coup d'œil arrière toutes les 7 s) — le regard cède dès qu'il y a un contact.
 4. Traversée de découvert (appuyer / franchir).
 5. Tiroir sur zone ouverte (parking).
 6. Réflexes : embuscade, homme à terre (fumigène + tir d'appui + traînage, en gardant le sauvetage v62).
@@ -31,6 +31,6 @@ principes français : binôme, « un appuie / l'autre progresse », secteurs de 
 11. Trace de sang suivie par l'ennemi.
 
 ## Questions ouvertes
-- Comment une bataille se termine si on meurt beaucoup moins (objectif ? temps ?).
+- ~~Comment une bataille se termine~~ → décidé (22/10) : on garde la règle actuelle, une équipe doit gagner en restant en vie (on en reparlera plus tard).
 - Délai d'hémorragie avant de tomber (45 s ? 60-90 s ?).
 - Plaques : choix avant mission (3A / 3 / 4) et effet sur la vitesse.

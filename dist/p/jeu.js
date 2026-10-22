@@ -18551,6 +18551,40 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // pur, ~1,35 × sa cadence naturelle de 1,0 m/s) ; 1,8 de 135° à 180° (marche arrière, ~1,55 × sa cadence naturelle de
   // 1,15 m/s). Mesuré sur les animations (pied d'appui qui glisse au-delà) : outils/vues/marche.html.
   const GAIT = [[Math.PI / 6, Infinity], [Math.PI / 4, 2.0], [Math.PI / 2, 1.4], [3 * Math.PI / 4, 1.8], [Math.PI, 1.8]];
+  // Plan Commandant, étape 3 — rôles en marche. Sur un ordre de déplacement du joueur (méthodique, discret, franchissement),
+  // tant qu'il n'y a pas de contact, chacun surveille sa part du terrain en marchant, arme prête : la pointe (le plus avancé
+  // vers le point) et l'appui (le 2e, à 5) devant ; les flancs vers leur côté de l'axe de marche (±40°, avec le champ visuel
+  // ~112° : jusqu'au travers) ; le serre-file (le dernier) devant aussi, avec un coup d'œil vers l'arrière toutes les 7 s.
+  // 2 soldats : pointe + serre-file ; 3-4 : pointe, flanc(s), serre-file. Rôles revus toutes les 3 s (pas de va-et-vient).
+  // Le regard cède dès qu'il y a contact : ennemi connu depuis moins de 8 s, pris pour cible, sous le feu (suppression).
+  const MARCHE_FLANC = 0.7, MARCHE_SIX = 7, MARCHE_SIX_T = 1.4, MARCHE_ROLES_DT = 3;
+  Battle.prototype.marchRoles = function (team, o) {
+    const inf = (team.marchRoles || (team.marchRoles = {}));
+    let R = inf[o.id]; if (R && this.t - R.t < MARCHE_ROLES_DT) return R.r;
+    const ms = team.units.filter(a => a.alive && a.moveOrder && a.moveOrder.id === o.id), r = {};
+    if (ms.length >= 2) {
+      const P = { x: o.enc ? o.enc.x : o.px, z: o.enc ? o.enc.z : o.pz }, cx = ms.reduce((s, a) => s + a.x, 0) / ms.length, cz = ms.reduce((s, a) => s + a.z, 0) / ms.length;
+      let ax = P.x - cx, az = P.z - cz; const L = Math.hypot(ax, az) || 1; ax /= L; az /= L;
+      const by = ms.slice().sort((a, b) => Math.hypot(a.x - P.x, a.z - P.z) - Math.hypot(b.x - P.x, b.z - P.z) || a.idx - b.idx);
+      const lat = (a) => ax * (a.z - cz) - az * (a.x - cx);   // > 0 : du côté des angles positifs de l'axe
+      r[by[0].id] = { kind: 'pointe' }; r[by[by.length - 1].id] = { kind: 'serre' };
+      let mid = by.slice(1, -1);
+      if (mid.length >= 3) { r[mid[0].id] = { kind: 'appui' }; mid = mid.slice(1); }
+      mid.sort((a, b) => lat(a) - lat(b) || a.idx - b.idx);
+      // (un flanc garde son côté tant que c'est possible : pas de coup de tête de 80° quand deux flancs se croisent)
+      const old = R ? R.r : {}, keep = mid.length && mid.every(a => old[a.id] && old[a.id].kind === 'flanc') && (mid.length === 1 || old[mid[0].id].side !== old[mid[1].id].side);
+      mid.forEach((a, k) => { r[a.id] = { kind: 'flanc', side: keep ? old[a.id].side : mid.length === 1 ? (lat(a) < 0 ? -1 : 1) : k < mid.length / 2 ? -1 : 1 }; });
+    }
+    inf[o.id] = { t: this.t, r }; return r;
+  };
+  Battle.prototype.marchLook = function (u, mv) {
+    const o = u.moveOrder; if (!o || (o.mode !== 'methodique' && o.mode !== 'discret' && o.mode !== 'franchir')) return null;
+    if (u.suppression > 0.2 || this.t - (u.lastShotByAt === undefined ? -99 : u.lastShotByAt) < 4) return null;
+    for (const { k } of this.knownEnemies(u)) if (this.t - k.t < 8) return null;
+    const r = this.marchRoles(this.teams[u.team], o)[u.id]; if (!r) return null;
+    if (r.kind === 'serre' && (this.t + u.idx * 1.3) % MARCHE_SIX < MARCHE_SIX_T) return mv + Math.PI;
+    return r.kind === 'flanc' ? mv + r.side * MARCHE_FLANC : mv;
+  };
   Battle.prototype.gaitSpeed = function (v, ang) {
     if (ang <= GAIT[0][0]) return v;
     for (let i = 1; i < GAIT.length; i++) {
@@ -18644,7 +18678,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const walkTurned = !turned && !u.target && aim !== null && angDiff(aim, mv) > Math.PI / 3 && (u.walkTurned || far());
     u.walkTurned = walkTurned;
     if (walkTurned) { look = null; aim = null; }
-    let stepLen = (look === null || d <= 0.05 ? u.speed() : this.gaitSpeed(u.speed(), angDiff(look, mv))) * DT;
+    // Plan Commandant, étape 3 — rôles en marche (ordre du joueur, au calme) : voir marchLook ; le regard de côté (±40°) ne
+    // ralentit pas (le buste tourne, les pieds suivent la route) ; le coup d'œil du serre-file vers l'arrière, oui (il recule)
+    const scan = look === null && aim === null && !u.target && !turned && !walkTurned && !dragging && u.state !== 'evade' && d > 0.05 ? this.marchLook(u, mv) : null;
+    let stepLen = (look === null || d <= 0.05 ? (scan !== null && angDiff(scan, mv) > 1 ? this.gaitSpeed(u.speed(), angDiff(scan, mv)) : u.speed()) : this.gaitSpeed(u.speed(), angDiff(look, mv))) * DT;
     // demi-tour en pleine course (nouveau chemin dans l'autre sens, > 150°) : un pas d'appui à 1,5 m/s au plus pour
     // repartir, pas un aller-retour instantané à 2,5-3 m/s
     if (u.mvAt === Math.round((this.t - DT) * 1000) / 1000 && d > 0.05 && angDiff(mv, u.mvDir) > 2.6) stepLen = Math.min(stepLen, 1.5 * DT);
@@ -18700,7 +18737,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (sl > stepLen && sl > 1e-6) { const cx = bx + sx / sl * stepLen, cz = bz + sz / sl * stepLen; if (!this.map.insideObstacle(cx, cz) && this.map.inBounds(cx, cz)) { nx = cx; nz = cz; } } }
     u.stats.distance += Math.hypot(nx - u.x, nz - u.z);
     // regard : vers le point de passage visé (pas vers le petit pas de côté de la séparation entre alliés)
-    if ((!u.target || turned) && d > 0.05) { u.facing = aim === null ? mv : aim; u.preaim = aim !== null; }
+    if ((!u.target || turned) && d > 0.05) { u.facing = aim !== null ? aim : scan !== null ? scan : mv; u.preaim = aim !== null || scan !== null; }
     if (dragging) { const a = this.unitById(u.drag.id); if (a) u.facing = Math.atan2(a.z - u.z, a.x - u.x); u.preaim = false; }   // face au blessé : il recule
     if (Math.hypot(nx - u.x, nz - u.z) > 0.05) { u.mvDir = Math.atan2(nz - u.z, nx - u.x); u.mvAt = this.t; }
     u.x = nx; u.z = nz; u.moving = true;
