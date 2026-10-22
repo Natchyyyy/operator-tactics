@@ -18,7 +18,7 @@ principes français : binôme, « un appuie / l'autre progresse », secteurs de 
 - Animations : faites par le motion matching (pas à prévoir dans la simulation).
 
 ## Ordre de travail proposé
-1. Analyseur de trajet (`analyzePath`) + affichage des tags sur la carte (sans effet sur le combat).
+1. ✅ fait (v64) — Analyseur de trajet (`analyzePath`) + affichage des tags sur la carte (sans effet sur le combat).
 2. Hérisson à l'arrêt (secteurs 360°, collage aux obstacles).
 3. Rôles en marche (pointe / flancs / appui / serre-file) — le regard cède dès qu'il y a un contact.
 4. Traversée de découvert (appuyer / franchir).
