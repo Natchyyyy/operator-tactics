@@ -1,3 +1,13 @@
+# STATE — 22/10/2026 (v69 publiée : monde vivant sous le feu)
+- Fait v69 : impacts au vrai point touché (app.js bulletEnd/resolveImpact, formes réelles RAYP), vitres qui fendent puis
+  éclatent sur la vraie forme (carDamage/breakPane + dmgShader), plaque/casque (sim : ev.zone/ev.stop), trous dans la tôle,
+  pneus, ricochets, claquements autour du point regardé ; sons refaits (agent : sons/vrais.py, mesure_sons.py, CREDITS.md).
+- Essais d'effets : API.fxShot(ev avec fx:true) + API.fxRun(n, dt) (?manual=1, attendre ~25 s les modèles Meshy).
+- Tests : game 83, verify 79, ia 85, voies 22 ; page 52 PASS (bannière + menu d'ordres en échec aussi sur v68 : lenteur).
+- Réglages saignement 75/45 s, relève 1 min, plaques 10/80/95 % : gardés par l'utilisateur (« pour l'instant »).
+- À faire : captures sur le PC de l'utilisateur (navigateur de l'appli visible requis) ; retour de l'utilisateur sur sons et
+  effets ; fourgons : vitres pas sombres dans leur texture → ne cassent pas (à voir).
+
 # STATE — 21/10/2026 (motion matching intégré, version 53 publiée)
 - Fait : motion matching dans le jeu. `web/mm.js` = module GÉNÉRÉ par `node outils/mm_extraire.js` depuis
   `prototypes/motion-matching/web/mm.js` (ne pas éditer à la main) ; `web/mm_jeu.js` = liaison : la simulation décide
