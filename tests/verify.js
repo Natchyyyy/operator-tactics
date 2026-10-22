@@ -22,10 +22,13 @@ const origSuppress = Battle.prototype.suppressAt;
 let suppressShots = 0;
 Battle.prototype.suppressAt = function (u, e) {
   const k = u.knowledge[e.id];
-  if (!k || this.t - k.t > 2) violations.push(`${u.callsign} tire de suppression sans position récente de ${e.callsign}`);
+  // tir d'appui (ordre « Appui », ou couvrir un équipier qui traîne un blessé — étape 6) : tout le monde, sur une position
+  // connue depuis 8 s au plus, balles aux abords de son abri
+  const appui = this.t - (u.appuiAt === undefined ? -99 : u.appuiAt) < 0.35;
+  if (!k || this.t - k.t > (appui ? 8 : 2)) violations.push(`${u.callsign} tire de suppression sans position récente de ${e.callsign}`);
   const blk = this.map.blocker(u.x, u.eyeY(), u.z, e.x, e.chestY(), e.z);
-  if (!blk || blk.kind !== 'cover') violations.push(`${u.callsign} tir de suppression sans couvert bas entre lui et ${e.callsign}`);
-  if (u.role.id !== 'support') violations.push(`${u.callsign} (${u.role.id}) fait du tir de suppression`);
+  if (!appui && (!blk || blk.kind !== 'cover')) violations.push(`${u.callsign} tir de suppression sans couvert bas entre lui et ${e.callsign}`);
+  if (!appui && u.role.id !== 'support') violations.push(`${u.callsign} (${u.role.id}) fait du tir de suppression`);
   const before = u.stats.shots; const r = origSuppress.call(this, u, e); suppressShots += u.stats.shots - before; return r;
 };
 const origStep = Battle.prototype.step;
@@ -187,7 +190,7 @@ function duel(opts) {
 {
   // sans munitions : une équipe à 0 balle ne tire plus, se cache, et la bataille se termine
   const t = Battle.defaultTeams(); const b = new Battle({ seed: 4, teams: t });
-  for (const u of b.teams[1].units) { u.ammo = 0; u.mags = 0; }
+  for (const u of b.teams[1].units) { u.ammo = 0; u.mags = 0; u.magList = []; }
   b.run();
   check('équipe sans munitions : zéro tir, et la bataille se conclut', b.teams[1].units.every(u => u.stats.shots === 0) && b.over, { reason: b.result && b.result.reason, shots: b.teams[1].units.map(u => u.stats.shots) });
   check('… le journal signale la pénurie', b.log.some(e => e.kind === 'noammo'));
@@ -196,7 +199,7 @@ function duel(opts) {
   // suppression : un opérateur sous le feu voit sa précision baisser
   const b = results[0].b; const u = b.units[0], e = b.teams[1].units[0];
   u.x = 2; u.z = 2; e.x = 22; e.z = 2; u.moving = false; e.moving = false; u.stance = 'stand'; e.stance = 'stand';
-  u.status = 'ok'; u.burst = 0;   // tireur remis en état (la bataille est terminée : il a pu finir blessé, la comparaison serait faussée)
+  u.status = 'ok'; u.burst = 0; u.wounds = []; u.stunUntil = 0;   // tireur remis en état (la bataille est terminée : il a pu finir blessé, la comparaison serait faussée)
   u.suppression = 0; const p0 = b.hitChance(u, e, 20).p; u.suppression = 0.9; const p1 = b.hitChance(u, e, 20).p; u.suppression = 0;
   check('la suppression réduit la chance de toucher', p1 < p0 * 0.8, { p0, p1 });
   u.status = 'critical'; const p2 = b.hitChance(u, e, 20).p; u.status = 'ok';
@@ -244,7 +247,7 @@ function duel(opts) {
   // compétences : chaque trait a un effet mesurable dans le moteur
   const mk = (id, opts) => { const t = Battle.defaultTeams(); t[0].operators = [id]; t[1].operators = ['op_cobra']; if (opts) t[0].overrides = [opts]; const b = new Battle({ seed: 1, teams: t }); return [b, b.teams[0].units[0], b.teams[1].units[0]]; };
   const withTrait = (id, trait) => mk(id, { trait });
-  let [b, u, e] = withTrait('op_vautour', 'fasthands'); b.startReload(u); const r1 = u.reloading; [b, u, e] = withTrait('op_vautour', null); b.startReload(u);
+  let [b, u, e] = withTrait('op_vautour', 'fasthands'); u.ammo = 0; b.startReload(u); const r1 = u.reloading; [b, u, e] = withTrait('op_vautour', null); u.ammo = 0; b.startReload(u);   // (chargeur vide : étape 7, on ne recharge pas une arme pleine)
   check('Mains sûres : rechargement 35 % plus court', Math.abs(r1 / u.reloading - 0.65) < 0.01, [r1, u.reloading]);
   [b, u] = withTrait('op_furet', 'runner'); const v1 = u.speed(); [b, u] = withTrait('op_furet', null);
   check('Sprinteur : 15 % plus rapide', Math.abs(v1 / u.speed() - 1.15) < 0.01);
@@ -303,8 +306,10 @@ function duel(opts) {
   // neutralisation de groupe : comptée seulement si un autre allié a touché la cible dans les 5 s
   const b = new Battle({ seed: 1 }); const [a1, a2] = b.teams[0].units, e = b.teams[1].units[0];
   e.armor = { torso: 0, head: 0, name: 'aucune' }; a1.weapon = Object.assign({}, a1.weapon, { damage: 500 });
+  // (étape 9 : deux blessures déjà là — la troisième balle met à terre, où qu'elle touche, sans plaque ni casque)
+  e.wounds = [{ zone: 'bras', t: 0, bleed: true, tq: true }, { zone: 'jambe', t: 0, bleed: true, tq: true }];
   e.hitBy[a2.id] = b.t - 2; b.applyHit(a1, e, 5);
-  const e2 = b.teams[1].units[1]; e2.armor = e.armor; e2.hitBy[a2.id] = b.t - 9; b.applyHit(a1, e2, 5);
+  const e2 = b.teams[1].units[1]; e2.armor = e.armor; e2.wounds = e.wounds.map(w => Object.assign({}, w)); e2.hitBy[a2.id] = b.t - 9; b.applyHit(a1, e2, 5);
   check('neutralisation de groupe : comptée avec un allié qui a touché la cible il y a 2 s, pas 9 s', !e.alive && !e2.alive && a1.stats.group === 1, a1.stats);
 }
 
@@ -401,10 +406,12 @@ function duel(opts) {
   };
   const r0 = rescueTime('op_vautour'), r1 = rescueTime('op_toubib'), r2 = rescueTime('op_vautour', true);
   check('à terre : un allié rejoint le blessé et le relève avec 30 % de sa vie ; Secouriste plus rapide ; pas de relève sans saignement', !!r0 && !!r1 && r1.t < r0.t && Math.abs(r0.hp - 0.3) < 0.02 && r0.revived && r0.revives === 1 && r2 === null, { r0, r1, r2 });
-  // une balle dans la tête ne laisse jamais à terre ; sinon environ une fois sur deux
-  const bb = new Battle({ seed: 1 }); let k = 0; for (let i = 0; i < 400; i++) { const e = bb.units[i % 10]; e.revived = false; if (bb.maybeBleed(e, 'torse')) k++; }
+  // une balle dans la tête ne laisse jamais à terre ; sinon toujours relevable la première fois (1 minute), jamais la deuxième
+  // (PLAN_DOCTRINE.md, « Décidé », 22/10)
+  const bb = new Battle({ seed: 1 }); let k = 0; for (let i = 0; i < 400; i++) { const e = bb.units[i % 10]; e.revived = false; if (bb.maybeBleed(e, 'torse') && Math.abs(e.bleedUntil - bb.t - 60) < 1e-6) k++; }
   let hk = 0; for (let i = 0; i < 100; i++) if (bb.maybeBleed(bb.units[0], 'tête')) hk++;
-  check('à terre : jamais après une balle dans la tête, environ une fois sur deux sinon', hk === 0 && k > 170 && k < 270, { k, hk });
+  let rk = 0; for (let i = 0; i < 50; i++) { const e = bb.units[i % 10]; e.revived = true; if (bb.maybeBleed(e, 'torse')) rk++; e.revived = false; }
+  check('à terre : jamais après une balle dans la tête, ni une deuxième fois ; sinon toujours relevable pendant 1 minute', hk === 0 && rk === 0 && k === 400, { k, hk, rk });
 }
 
 {

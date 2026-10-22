@@ -8,7 +8,7 @@
   const SHOW_ROTATION = false;   // D8 Rotation : cachée depuis les points de passage (D7) ; le moteur la garde (battle.rotate)
   if (MANUAL) document.documentElement.classList.add('manual');   // captures reproductibles : pas de transitions CSS (aucune image n'est dessinée entre deux étapes)
 
-  const STATE_FR = { rush: 'Fonce (ordre)', crossing: 'Traverse le découvert', tokey: 'Rejoint son poste', holdkey: 'Tient la position', throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié', getup: 'Se relève', shaken: 'Ébranlé', appui: 'Tir d’appui' };
+  const STATE_FR = { tourniquet: 'Se pose un garrot', panic: 'Panique — ordre « Ralliement »', rush: 'Fonce (ordre)', crossing: 'Traverse le découvert', tokey: 'Rejoint son poste', holdkey: 'Tient la position', throw: 'Lance une grenade', evade: 'Esquive une grenade', capture: 'Tient la zone', tozone: 'Vers la zone', idle: 'En attente', advancing: 'Progresse', bounding: 'Bond', pause: 'Observe', tocover: 'Vers un couvert', engage: 'Au contact', closing: 'Se rapproche', pinned: 'Cloué au sol', hold: 'Tient', wait: 'Attend', fallback: 'Recule', reposition: 'Change de poste', overwatch: 'Surveille', retreat: 'Se replie', search: 'Ratisse', noammo: 'Sans munitions', hide: 'Se cache', torevive: 'Va relever un allié', reviving: 'Relève un allié', getup: 'Se relève', shaken: 'Ébranlé', appui: 'Tir d’appui' };
   const STATUS_FR = { ok: 'Indemne', wounded: 'Blessé', critical: 'Grave', down: 'Neutralisé' };
   const TEAM = [
     { name: 'Alpha', color: 0x4f9cf0, css: '#4f9cf0', uniform: 0x3a4a3c, vest: 0x2b352d },
@@ -1976,6 +1976,7 @@
         if (m) { m.label.classList.add('down'); m.anim.fallDir = Math.random() < 0.5 ? -1 : 1; if (m.isSkinned && !rag && !m.mm) chooseFall(u, m); }
         if (u && vu) directorEvent('down', u.x, u.z); }
       if (ev.type === 'smoke') addSmoke(ev);
+      if (ev.type === 'blood' && unitById[ev.unit] && fogShown(unitById[ev.unit])) addBlood(ev.x + (Math.random() - 0.5) * 0.3, ev.z + (Math.random() - 0.5) * 0.3, 0.14);   // étape 11 : trace de sang
       if (ev.type === 'shell') { addShell(ev); addScorch(ev.x, ev.z, 1.8); play('explosion_lourde', { x: ev.x, y: 1, z: ev.z }, { vol: 1.1, espace: true }); cam.shake = Math.max(cam.shake || 0, 0.35); }
       if (ev.type === 'heal') addHeal(ev);
       if (ev.type === 'reco' && !(ev.team === 1 && fogOn())) addReco(ev);   // (le drone adverse tourne au-dessus de son équipe : il la trahirait)
@@ -2230,7 +2231,7 @@
       c.querySelector('.sup i').style.width = (100 * u.suppression).toFixed(0) + '%';
       c.querySelector('.st').textContent = u.alive ? (u.reloading > 0 ? 'Recharge' : STATE_FR[u.state] || u.state) : (u.bleedUntil > battle.t ? 'À terre' : 'Hors de combat');
       c.querySelector('.ammo').innerHTML = u.alive ? `<b>${u.ammo}</b><small><u></u>${u.mags}</small>` : '';
-      c.querySelector('.status').textContent = `${Math.round(u.hp)} PV · ${STATUS_FR[u.status]}`;
+      c.querySelector('.status').textContent = u.alive && u.wounds && u.wounds.length ? `${u.wounds.map(w => w.zone).join(', ')}${u.wounds.some(w => w.bleed && !w.tq) ? ' · saigne' : u.wounds.some(w => w.tq) ? ' · garrot' : ''}` : `${Math.round(u.hp)} PV · ${STATUS_FR[u.status]}`;
       { const ln = c.querySelector('.lane'), key = u.alive && u.voie !== undefined && u.voie !== null ? u.voie + (u.flankDone ? 'r' : '') : '';   // voie : N / M / S (↘ : se rabat)
         if (ln && ln.dataset.k !== key) { ln.dataset.k = key; ln.className = 'lane' + (key ? ' l' + (u.voie + 1) : ''); ln.textContent = key ? LANE_LETTER[u.voie] + (u.flankDone && u.voie ? '↘' : '') : ''; ln.title = key ? `Voie : ${LANE_NAMES[u.voie]}${u.flankDone && u.voie ? ' — arrivé par le flanc, se rabat' : ''}` : ''; } }
     }
@@ -2336,11 +2337,11 @@
     { v: 'smoke', nom: 'Fumée', desc: 'Fumigène au point cliqué (3 à 24 m) : bloque la vue des deux côtés pendant 14 s.' }];
   const ORD_OPTS = {
     mode: { titre: 'Déplacement', choix: [
-      { v: 'methodique', nom: 'Méthodique', aide: 'Bonds, appui mutuel', desc: 'Doctrine française : une moitié bondit de couvert en couvert pendant que l’autre couvre, chacun son secteur ; pauses à chaque couvert.' },
+      { v: 'methodique', nom: 'Méthodique', aide: 'Bonds, appui mutuel', desc: 'Doctrine française : une moitié bondit de couvert en couvert pendant que l’autre couvre, chacun son secteur ; pauses à chaque couvert. Un espace découvert de plus de 5 m (rien pour se cacher à moins de 2 m) se traverse un par un (deux par deux à 4 ou 5), au sprint, pendant que les autres couvrent.' },
       { v: 'agressif', nom: 'Agressif', aide: 'Vite, tire en avançant', desc: 'Droit au point au pas de course, en tirant sur ce qu’on voit ; courte halte à couvert seulement sous le feu.' },
       { v: 'franchir', nom: 'Franchir', aide: 'Un par un sous appui', desc: 'Comme Méthodique, mais un espace découvert sur le trajet se traverse un par un (deux par deux à 4 ou 5), au sprint, pendant que les autres couvrent le côté dangereux depuis le bord ; le premier passé couvre l’autre côté.' },
       { v: 'decrocher', nom: 'Décrocher', aide: 'Repli par bonds, sous appui', desc: 'Pour quitter un combat qui tourne mal : clic droit en arrière. Une moitié tire pour couvrir pendant que l’autre court jusqu’au couvert suivant vers le point, puis on inverse, sans halte pour engager. Arrivée : face au danger.' },
-      { v: 'discret', nom: 'Discret', aide: 'Accroupis, sans tirer', desc: 'Approche silencieuse : les bonds de Méthodique, mais accroupis (plus lents, bien plus durs à repérer, pas qu’on entend), et personne ne tire tant que le groupe n’est pas repéré, pris à partie ou qu’un ennemi n’arrive tout près — alors tout le monde ouvre le feu (« Feu ! ») et l’on finit en Méthodique.' }] },
+      { v: 'discret', nom: 'Discret', aide: 'Accroupis, sans tirer', desc: 'Approche silencieuse : les bonds de Méthodique, mais accroupis (plus lents, bien plus durs à repérer, pas qu’on entend), et personne ne tire tant que le groupe n’est pas repéré, pris à partie ou qu’un ennemi n’arrive tout près — alors tout le monde ouvre le feu (« Feu ! ») et l’on finit en Méthodique. Un espace découvert se traverse aussi un par un, accroupi, sous la couverture des autres.' }] },
     arrivee: { titre: 'Arrivée', choix: [
       { v: 'tenir', nom: 'Tenir la position', aide: 'À couvert, face à la menace', desc: 'Sur place : un couvert tout proche, face à la menace (ou dans le sens de la marche), et on y reste.' },
       { v: 'encercler', nom: 'Encercler', aide: 'Prendre la position par deux côtés', desc: 'L’escouade se partage en deux : chaque moitié prend position d’un côté du point (à 8–14 m, à angle d’environ 100°, sans se faire face), à couvert, et le tient. À moins de trois : tenir la position.' },
@@ -2429,7 +2430,7 @@
     el.innerHTML = `<div class="omhead"><b>Ordre</b><span class="omwho"></span></div>` + Object.entries(ORD_OPTS).map(([cat, o]) =>
       `<div class="omsec">${o.titre}${cat === 'mode' ? `<button class="omfum" title="Franchir, Décrocher : le premier qui a un fumigène le lance côté danger pour masquer le passage ou le repli (un fumigène par opérateur)."${nSmoke ? '' : ' disabled'}><span class="omico">${ORD_SVG.smoke}</span>Avec fumée <i>${nSmoke}</i></button>` : ''}</div><div class="omrow">${o.choix.map(c => `<button class="omopt" data-cat="${cat}" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v] || ''}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>`).join('')
       + `<div class="omsec omsecfeu">Feu</div><div class="omfeu">${ORD_FEU.map(c => `<button class="omopt omf" data-cat="feu" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b></button>`).join('')}</div>`
-      + `<button class="omplus">Plus…</button><div class="ommore"><div class="omsec">Autre arrivée</div><div class="omrow">${ORD_PLUS_ARR.map(c => `<button class="omopt" data-cat="arrivee" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>${battle.map.lamps && battle.map.lamps.length ? `<div class="omsec">Décor</div><div class="omrow"><button class="omopt omlamp" title="Le plus proche des opérateurs choisis qui voit la lampe (45 m au plus) tire dessus : la zone autour (≈ 9 m) retombe dans le noir. Le coup de feu s’entend."${ordLampNear(p) ? '' : ' disabled'}><span class="omico">${ORD_SVG.lampe}</span><b>Éteindre le lampadaire</b><small>${ordLampNear(p) ? 'La zone retombe dans le noir' : 'Clic droit au pied d’un lampadaire allumé'}</small></button></div>` : ''}<div class="omsec">Lancer ici</div><div class="omfeu omgren">${ORD_GREN.map(c => { const n = ordGrenCount(c.v); return `<button class="omopt omf omg" data-g="${c.v}" title="${escapeHtml(c.desc)}"${n ? '' : ' disabled'}><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><i>${n}</i></button>`; }).join('')}</div></div>`
+      + `<button class="omplus">Plus…</button><div class="ommore"><div class="omsec">Autre arrivée</div><div class="omrow">${ORD_PLUS_ARR.map(c => `<button class="omopt" data-cat="arrivee" data-v="${c.v}" title="${escapeHtml(c.desc)}"><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><small>${c.aide}</small></button>`).join('')}</div>${battle.map.lamps && battle.map.lamps.length ? `<div class="omsec">Décor</div><div class="omrow"><button class="omopt omlamp" title="Le plus proche des opérateurs choisis qui voit la lampe (45 m au plus) tire dessus : la zone autour (≈ 9 m) retombe dans le noir. Le coup de feu s’entend."${ordLampNear(p) ? '' : ' disabled'}><span class="omico">${ORD_SVG.lampe}</span><b>Éteindre le lampadaire</b><small>${ordLampNear(p) ? 'La zone retombe dans le noir' : 'Clic droit au pied d’un lampadaire allumé'}</small></button></div>` : ''}<div class="omsec">Ralliement</div><div class="omrow"><button class="omopt omral" title="Les soldats choisis (sinon toute l’escouade) se reprennent tout de suite : la panique cesse, la peur retombe. Puis ils rejoignent ce point au pas de course en tirant, et le tiennent."><span class="omico">${ORD_SVG.agressif}</span><b>Ralliement</b><small>Fin de la panique, tous ici</small></button></div><div class="omsec">Lancer ici</div><div class="omfeu omgren">${ORD_GREN.map(c => { const n = ordGrenCount(c.v); return `<button class="omopt omf omg" data-g="${c.v}" title="${escapeHtml(c.desc)}"${n ? '' : ' disabled'}><span class="omico">${ORD_SVG[c.v]}</span><b>${c.nom}</b><i>${n}</i></button>`; }).join('')}</div></div>`
       + `<button class="omtop" title="Top action : l’ordre (déplacement, grenade, lampadaire) attend le signal ; bouton TOP en bas pour tout lancer d’un coup">Attendre le top</button><button class="omgo">Confirmer</button><div class="omhint">${ordVia.length ? `<b class="omvia">Par ${ordVia.length} point${ordVia.length > 1 ? 's' : ''} de passage</b> · ` : ''}Clic sur un choix surligné ou Confirmer · Échap : annuler</div>`;
     $('main').appendChild(el);
     const show = () => { el.querySelectorAll('.omopt[data-cat]').forEach(b => b.classList.toggle('on', pick[b.dataset.cat] === b.dataset.v)); el.classList.toggle('fumok', pick.mode === 'franchir' || pick.mode === 'decrocher'); el.querySelector('.omfum').classList.toggle('on', !!pick.fumee); };
@@ -2440,6 +2441,7 @@
     el.querySelector('.omplus').addEventListener('click', () => { ordPlusOpen = !ordPlusOpen; el.classList.toggle('plus', ordPlusOpen); ordPlace(el, cx, cy); });
     el.querySelectorAll('.omg').forEach(b => b.addEventListener('click', () => ordGrenade(b.dataset.g)));
     const lb = el.querySelector('.omlamp'); if (lb) lb.addEventListener('click', () => ordLamp());
+    el.querySelector('.omral').addEventListener('click', () => ordRally());
     el.querySelector('.omtop').addEventListener('click', () => { pick.top = !pick.top; el.querySelector('.omtop').classList.toggle('on', !!pick.top); el.querySelector('.omgo').textContent = pick.top ? 'Mettre en attente' : 'Confirmer'; });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     ordPlace(el, cx, cy);
@@ -2477,6 +2479,16 @@
     const r = battle.command('grenade', 0, garg);
     const nom = ORD_GREN.find(c => c.v === kind).nom.toLowerCase();
     flashBattle(r.ok ? `${r.callsign} lance : ${nom}.` : `${ORD_GREN.find(c => c.v === kind).nom} impossible : ${r.reason}.`); pumpLog();
+    if (MANUAL) render();
+  }
+  // étape 8 — « Ralliement » : fin de la panique des soldats choisis, puis tous au point (battle.command('ralliement', …))
+  function ordRally() {
+    if (!ordMenu) return; const { p } = ordMenu;
+    const ids = ordSel ? [...ordSel].filter(id => unitById[id] && unitById[id].alive) : null;
+    closeOrderMenu();
+    if (ids && !ids.length) { flashBattle('Ralliement : aucun opérateur choisi n’est en état.'); return; }
+    const r = battle.command('ralliement', 0, { x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, units: ids });
+    flashBattle(r.ok ? '« Ralliement ! »' : `Ralliement impossible : ${r.reason}.`); pumpLog();
     if (MANUAL) render();
   }
   // lampadaire allumé à moins de 6 m du point (comme le moteur)
@@ -2891,6 +2903,8 @@
     noammo: ['Plus de munitions !'], revive_start: ['Je m\u2019occupe de lui !', 'J\u2019arrive, tiens bon !'], revive: ['Debout, on y retourne !', 'Je te tiens !'],
     flash: ['Je ne vois plus rien !', 'Aveuglé !'], shaken: ['Repli !', 'Je décroche !', 'Ça chauffe trop !'], suppress: ['Feu de suppression !', 'Je les cloue !'], down: ['Homme à terre !', 'On a un blessé !', 'Il est touché !'],
     bouge: ['Je bouge !'], couvert: ['Couvert !'], enplace: ['En place.'], reprise: ['Je reprends ma progression.'],   // ordres de déplacement (clic droit)
+    garrot: ['Garrot !'], sonne: ['Touché, ça va !', 'Dans la plaque !'],
+    embuscade: ['Contact ! On est fixés !'], panic: ['Je suis cloué !', 'Je peux pas sortir !'], lastmag: ['Dernier chargeur !'], courtmun: ['Je suis court en munitions !'], ralliement: ['Ralliement !'], tecouvre: ['Je te couvre !'],   // plan Commandant (étapes 6 à 8)
     drag: ['Je le tire à couvert !'], smoke: ['Fumigène !'],   // évacuation d'un blessé
     secours: ['J’y vais, couvrez-moi !', 'Je vais le chercher !'], replie: ['Trop chaud, je me replie !'], retour: ['J’y retourne !'], relais: ['Je prends le relais !'],   // secours sur ordre (clic droit sur un blessé)
     feu: ['Feu !'], enappui: ['En appui !'], decroche: ['Je décroche !'], releve: ['Je prends sa place !'], freinage: ['On décroche, deuxième ligne !'],               // feu retenu levé, appui, décrocher, relève dans les bonds
@@ -2941,6 +2955,10 @@
     else if (e.kind === 'drag' && /retourne/.test(e.text)) bark(u, 'retour');
     else if (e.kind === 'flank' || e.kind === 'noammo' || e.kind === 'revive_start' || e.kind === 'revive' || e.kind === 'flash' || e.kind === 'shaken' || e.kind === 'drag' || e.kind === 'smoke') bark(u, e.kind);
     else if (e.kind === 'suppress' && Math.random() < 0.5) bark(u, 'suppress');
+    else if (e.kind === 'embuscade' || e.kind === 'panic' || e.kind === 'lastmag' || e.kind === 'sonne' || (e.kind === 'garrot' && !e.silent)) bark(u, e.kind);
+    else if (e.kind === 'ammo' && /court/.test(e.text)) bark(u, 'courtmun');
+    else if (e.kind === 'rally' && /Ralliement/.test(e.text)) bark(u, 'ralliement');
+    else if (e.kind === 'appui' && /couvre/.test(e.text)) bark(u, 'tecouvre');
     // (ordre d'un plan adverse, silencieux : sa bulle vient de l'événement « plan »)
     else if ((e.kind === 'moveorder' && !e.silent) || e.kind === 'bond') { bark(u, e.mode === 'decrocher' ? 'decroche' : 'bouge'); if (e.couvre) bark(unitById[e.couvre], 'couvert'); }
     else if ((e.kind === 'feu' || e.kind === 'enappui' || e.kind === 'releve' || e.kind === 'freinage') && u) bark(u, e.kind);

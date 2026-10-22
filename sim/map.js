@@ -465,7 +465,10 @@
   // Tôle d'une voiture : une balle qui traverse l'habitacle (portières, vitres, coffre) peut passer ; seul le bloc moteur
   // (1,3 m côté capot, o.dir) arrête vraiment. true si le trajet tireur (sx,sz) → cible (tx,tz) coupe la voiture hors du
   // bloc moteur. Véhicule sans sens connu : couvert dur.
-  GameMap.prototype.softCover = function (o, sx, sz, tx, tz) {
+  // Étape 10 (plan Commandant) : une voiture n'arrête une balle de fusil qu'au bloc moteur (1,3 m à l'avant) ou, pour un
+  // soldat accroupi, aux roues (0,8 m à chaque bout) ; ailleurs la tôle des portières cache sans protéger (balle traversante
+  // possible, plus souvent à mesure que la voiture est criblée — voir Battle.penChance).
+  GameMap.prototype.softCover = function (o, sx, sz, tx, tz, low) {
     if (!o || !o.dir || !/^voiture/.test(o.name || '')) return false;
     const dx = tx - sx, dz = tz - sz; let t0 = 0, t1 = 1;
     for (const [p, dp, lo, hi] of [[sx, dx, o.x, o.x + o.w], [sz, dz, o.z, o.z + o.d]]) {
@@ -476,6 +479,7 @@
     const tm = (t0 + t1) / 2, alongX = o.w >= o.d;
     const c = alongX ? sx + dx * tm : sz + dz * tm, lo = alongX ? o.x : o.z, L = alongX ? o.w : o.d;
     const fromHood = o.dir > 0 ? lo + L - c : c - lo;
+    if (low && (c - lo < 0.8 || lo + L - c < 0.8)) return false;   // accroupi derrière une roue
     return fromHood > 1.3;
   };
 

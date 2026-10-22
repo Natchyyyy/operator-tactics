@@ -161,7 +161,8 @@ const mk = (seed, o) => new Battle(Object.assign({ seed, mapId: 'parking', teams
   const [s1] = c.teams[0].units, [t1, t2] = c.teams[1].units;
   s1.x = 8; s1.z = 20; t1.x = 20; t1.z = 20; t2.x = 22; t2.z = 20.2; for (const v of c.units) if (v !== s1 && v !== t1 && v !== t2) { v.x = 60; v.z = v.team ? 5 : 40; }
   t2.maxHp = t2.hp = 1e6; t1.maxHp = t1.hp = 1e6;
-  for (let k = 0; k < 300; k++) c.shoot(s1, t1, 12);
+  // (étape 9 : blessures localisées — on soigne les deux cibles avant chaque tir, sinon elles tombent au bout de trois)
+  for (let k = 0; k < 300; k++) { for (const v of [t1, t2]) { v.wounds = []; v.alive = true; v.status = 'ok'; v.hp = v.maxHp; v.bleedOutAt = Infinity; v.stunUntil = 0; } c.shoot(s1, t1, 12); }
   const sl = c.log.filter(l => l.stray);
   // et en vraies batailles, chaque balle perdue (s'il y en a : elles sont rares quand l'escouade est bien espacée) est journalisée
   let st = 0, lg = 0; for (let sd = 201; sd <= 206; sd++) { const x = mk(sd); x.run(); st += x.units.reduce((a, v) => a + (v.stats.strays || 0), 0); lg += x.log.filter(l => l.stray && /^Balle perdue/.test(l.text)).length; }
