@@ -552,7 +552,7 @@
         if ((this.profondeur || 0) > 0.01 || gn > 0.01) {   // squat (ou genou à terre) : pied à plat (talon au sol), pas sur la pointe
           const pA2 = A.getWorldPosition(V3()), pT2 = T.getWorldPosition(V3()), dirP = pT2.clone().sub(pA2); const plat = dirP.clone(); plat.y = (this.ratioPied ?? -0.8) * Math.hypot(dirP.x, dirP.z);   // pied à plat = même pente cheville → orteils que debout
           // genou à terre, pied arrière : cou-de-pied au sol, pointe vers l'arrière (orteils dans l'axe du tibia, légèrement vers le sol)
-          if (k === 1 && gn > 0.01) { const fwd = V3(0, 0, 1).applyQuaternion(this.worldQ[0]); const arr = fwd.clone().multiplyScalar(-Math.hypot(dirP.x, dirP.z)); arr.y = -0.25 * Math.hypot(dirP.x, dirP.z); plat.lerp(arr, gn); }
+          if (k === 1 && gn > 0.01) { const fwd = V3(0, 0, 1).applyQuaternion(this.worldQ[0]), L = Math.hypot(dirP.x, dirP.z), hA = pA2.y - this.solY; const arr = fwd.clone().multiplyScalar(-L); arr.y = -Math.min(0.25 * L, Math.max(0, hA - 0.015)); plat.lerp(arr, gn); }   // (QA 22/10) la pointe ne passe jamais sous le sol pendant le relevé (cheville qui remonte)
           if (dirP.lengthSq() > 1e-6 && plat.lengthSq() > 1e-6) { const qc = Q().setFromUnitVectors(dirP.normalize(), plat.normalize()); const qp = Q().identity().slerp(qc, Math.min(1, Math.max(this.profondeur * 2, gn))); const wq = A.getWorldQuaternion(Q()); A.quaternion.copy(A.parent.getWorldQuaternion(Q()).invert().multiply(qp).multiply(wq)); A.updateMatrixWorld(true); }
         }
       }
@@ -1560,7 +1560,7 @@
     graine(PARAMS.graines[0]); await videz();
     const Y = { est: Math.PI / 2, ouest: -Math.PI / 2, nord: Math.PI, sud: 0 };   // (yaw = atan2(x, z) : +x = est)
     ajouterMur(-10, -2.6, 19.5, 0.4, 1.3); ajouterMur(-10, 2.2, 19.5, 0.4, 1.3);   // couloir bas (z −2,2 … 2,2, murets de 1,3 m : on voit les soldats), sortie à x = 9,5
-    ajouterMur(15.2, -4.8, 2.2, 0.5, 1.0); ajouterMur(15.2, 2.6, 2.2, 0.5, 1.0);   // murets de la zone ouverte
+    ajouterMur(15.2, -5.2, 0.5, 2.6, 1.0); ajouterMur(15.2, 2.6, 0.5, 2.6, 1.0);   // murets de la zone ouverte, perpendiculaires à l'axe de progression (z −5,2…−2,6 et 2,6…5,2 : les deux soldats du binôme sont couverts — QA 22/10)
     const E = []; for (let i = 0; i < 4; i++) { const A = i === 0 ? agents[0] : await nouveauSoldat(V3(0, 0, 0), Y.est); placer(A, -7.5 - 2.5 * i, 0, Y.est); A.ctl.visee = true; A.ctl.touches = {}; A.ctl.verrouRegard = false; E.push(A); }
     const C = (A) => A.ctl, ESP = 2.5;
     const aller = (A, x, z, vit, apres) => { const c = C(A); c.genou = false; c.verrouCible = null; c.verrouRegard = false; c.couvert = null; c.chemin = [V3(x, 0, z)]; c.cheminIdx = 0; c.cheminFin = true; c.vitesseChemin = vit; c.surArrivee = () => { c.vitesseChemin = null; c.chemin = null; A.arrive = true; if (apres) apres(); }; A.arrive = false; };
@@ -1575,8 +1575,8 @@
     const tic = (t) => { const dt = t - (tic.t || 0); tic.t = t; tEtat += dt;
       if (etat === 'colonne1') { colonneTic(); if (tous(A => A.arrive)) { etat = 'halte'; tEtat = 0; [Y.est, Y.sud, Y.nord, Y.ouest].forEach((y, i) => guet(E[i], y, false)); } }
       else if (etat === 'halte') { if (tEtat > 5) { etat = 'colonne2'; tEtat = 0; E.forEach((A, i) => aller(A, 9.5 - ESP * i, 0, 1.25)); } }
-      else if (etat === 'colonne2') { colonneTic(); if (tous(A => A.arrive)) { etat = 'bondA'; tEtat = 0; guet(E[2], Y.est, true); guet(E[3], Y.est, true); aller(E[0], 14.4, -4.3, C(E[0]).vitesses.course, () => guet(E[0], Y.est, true)); aller(E[1], 14.4, -2.9, C(E[1]).vitesses.course, () => guet(E[1], Y.est, true)); } }
-      else if (etat === 'bondA') { if (E[0].arrive && E[1].arrive && tEtat > 1.0) { etat = 'bondB'; tEtat = 0; aller(E[2], 14.4, 2.9, C(E[2]).vitesses.course, () => guet(E[2], Y.est, true)); aller(E[3], 14.4, 4.3, C(E[3]).vitesses.course, () => guet(E[3], Y.est, true)); } }
+      else if (etat === 'colonne2') { colonneTic(); if (tous(A => A.arrive)) { etat = 'bondA'; tEtat = 0; guet(E[2], Y.est, true); guet(E[3], Y.est, true); aller(E[0], 14.4, -4.5, C(E[0]).vitesses.course, () => guet(E[0], Y.est, true)); aller(E[1], 14.4, -3.2, C(E[1]).vitesses.course, () => guet(E[1], Y.est, true)); } }
+      else if (etat === 'bondA') { if (E[0].arrive && E[1].arrive && tEtat > 1.0) { etat = 'bondB'; tEtat = 0; aller(E[2], 14.4, 3.2, C(E[2]).vitesses.course, () => guet(E[2], Y.est, true)); aller(E[3], 14.4, 4.5, C(E[3]).vitesses.course, () => guet(E[3], Y.est, true)); } }
       else if (etat === 'bondB') { if (E[2].arrive && E[3].arrive && tEtat > 3.0) { etat = 'ligne'; tEtat = 0; E.forEach((A, i) => aller(A, 22, -3 + 2 * i, 1.25, () => guet(A, Y.est, true))); } }
       else if (etat === 'ligne') { if (tous(A => A.arrive) && tEtat > 4) { etat = 'fin'; } }
       CINE.etat = etat; };

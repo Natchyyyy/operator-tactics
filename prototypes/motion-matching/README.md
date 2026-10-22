@@ -47,6 +47,10 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   asservie à l'écart) → halte en sûreté 360° (secteurs avant / droite / gauche / arrière, un genou à terre, 5 s) → sortie du
   couloir → franchissement par bonds de binômes (A court derrière un muret pendant que B tient la zone en joue, puis B) →
   ligne à la lisière, genou à terre, arme en joue. Glissement moyen sur toute la scène : 7-9 cm/s par soldat.
+- QA (agent, 22/10) : corrigé — murets perpendiculaires à l'axe et assez longs (les deux soldats du binôme sont couverts : vu
+  de l'ennemi, casque et canon seulement) ; pointe du pied arrière jamais sous le sol au relevé du genou. Restent (mineurs) :
+  un soldat de la halte vrille le buste vers son secteur au lieu de pivoter les hanches ; tête un peu baissée en garde basse à
+  genou ; arrivée en ligne avec jusqu'à 0,6 m de dépassement.
 - La page utilise les fichiers versionnés du jeu (`web/hd/mm_base.*`, `gign_hd.glb`, `fusil.glb`, three/gltf/cannon) : un clone
   du dépôt suffit (`python3 outils/serveur.py . 8765` à la racine). Branche `mm-doctrine`, rien d'intégré au jeu.
 
