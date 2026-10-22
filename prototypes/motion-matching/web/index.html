@@ -41,6 +41,7 @@
   <button id="btnPreset1">Preset 1 : sauvetage + réa</button>
   <button id="btnPreset2">Preset 2 : galerie ragdoll</button>
   <button id="btnPreset3">Preset 3 : couvert sous le feu</button>
+  <button id="btnPreset4">Preset 4 : colonne, halte 360°, bonds</button>
   <button id="btnVisee">Arme (V)</button>
   <button id="btnAccroupi">Accroupi (C)</button>
   <button id="btnCouvert">Va te couvrir (B)</button>
@@ -51,10 +52,13 @@
 </div>
 <div id="msg"></div>
 <div id="credit">Mouvements : 100STYLE (Ian Mason, CC BY 4.0), re-ciblés par Daniel Holden · modèle : GIGN (Meshy) · three.js r159</div>
-<script src="three.min.js"></script>
-<script src="gltf.js"></script>
-<script src="cannon-es.js"></script>
-<script src="ragdoll.js"></script>
+<!-- (22/10) les gros fichiers viennent du jeu (versionnés dans web/) : la page s'ouvre depuis un simple clone du dépôt,
+     servi à la racine : python3 outils/serveur.py . 8765 → http://127.0.0.1:8765/prototypes/motion-matching/web/ -->
+<script>window.FICHIERS = { baseMeta: '../../../web/hd/mm_base.json', base: '../../../web/hd/mm_base.wasm', modele: '../../../web/hd/gign_hd.glb', fusil: '../../../web/hd/fusil.glb' };</script>
+<script src="../../../web/three.min.js"></script>
+<script src="../../../web/gltf.js"></script>
+<script src="../../../web/vendor/cannon-es.js"></script>
+<script src="../../../web/ragdoll.js"></script>
 <script src="mm.js"></script>
 </body>
 </html>

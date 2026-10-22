@@ -40,6 +40,16 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   pieds à 100-180 cm/s) : style décidé sur la vitesse lissée avec hystérésis, arrêt cru après 0,1 s, écart de vitesse mesuré
   par rapport à ce que le rythme peut rattraper, saut forcé ≤ 2/s. `A.causes` compte les sauts par cause (diagnostic).
 
+## v37 — doctrine (TTA 150), 22/10
+- Nouvelle pose « GENOU À TERRE » (`ctl.genou`, à l'arrêt) : hanches à 0,55 m, genou droit au sol, tibia à plat, pied gauche à plat
+  devant ; arme en garde basse ou en joue sur le secteur (`verrouCible` / `verrouRegard`). Descente / relevé lissés (0,3 / 0,25 s).
+- Preset 4 (touche 4) — mise en scène scriptée, PAS une IA : colonne par un dans un couloir (2,5 m entre chaque, vitesse
+  asservie à l'écart) → halte en sûreté 360° (secteurs avant / droite / gauche / arrière, un genou à terre, 5 s) → sortie du
+  couloir → franchissement par bonds de binômes (A court derrière un muret pendant que B tient la zone en joue, puis B) →
+  ligne à la lisière, genou à terre, arme en joue. Glissement moyen sur toute la scène : 7-9 cm/s par soldat.
+- La page utilise les fichiers versionnés du jeu (`web/hd/mm_base.*`, `gign_hd.glb`, `fusil.glb`, three/gltf/cannon) : un clone
+  du dépôt suffit (`python3 outils/serveur.py . 8765` à la racine). Branche `mm-doctrine`, rien d'intégré au jeu.
+
 ## État (20/10, nuit)
 - Simulation à pas fixe 1/60 s (affichage libre). Retargeting Geno → Mixamo par écart à la pose de liaison du skin, pieds et
   orteils gardant l'inclinaison du modèle, échelle hanches→orteils.

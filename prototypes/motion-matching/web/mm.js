@@ -532,16 +532,28 @@
         // squat de combat (à l'arrêt, accroupi profond) : les pieds viennent sous les genoux — en avant et écartés des hanches
         // (jambes de 0,69 m sur ce modèle : avec les pieds du clip, décalés en arrière, un genou se posait au sol)
         let cibleA = pA.clone().add(vr.delta).add(V3(0, desc, 0));
-        const sq = this.squat || 0;
+        const sq = this.squat || 0, gn = this.genou || 0;
+        // (v37) GENOU À TERRE (TTA 150, position du guetteur à l'arrêt) : jambe droite pliée sous le corps, genou au sol, tibia à
+        // plat vers l'arrière ; pied gauche à plat devant, sous le genou gauche. Cibles de cheville dans le repère des hanches.
+        if (gn > 0.001) {
+          const G = PARAMS.genou, hp = this.hips.getWorldPosition(V3()), fwd = V3(0, 0, 1).applyQuaternion(this.worldQ[0]), lat = V3(1, 0, 0).applyQuaternion(this.worldQ[0]);
+          const base = V3(hp.x, this.solY, hp.z);
+          const cible = k === 1 ? base.clone().addScaledVector(fwd, -G.arriere).addScaledVector(lat, -G.ecartArriere).add(V3(0, G.chevilleArriere, 0))
+                               : base.clone().addScaledVector(fwd, G.avant).addScaledVector(lat, G.ecartAvant).add(V3(0, (this.chevilleY ?? 0.14) + 0.02, 0));
+          cibleA.lerp(cible, gn);
+          if (k === 1) pole.lerp(V3(0, -1, 0).addScaledVector(fwd, -0.3).normalize(), gn).normalize();   // genou droit vers le sol (et un peu en arrière)
+        }
         if (sq > 0.001) {
           const hp = this.hips.getWorldPosition(V3()), fwd = V3(0, 0, 1).applyQuaternion(this.worldQ[0]), lat = V3(1, 0, 0).applyQuaternion(this.worldQ[0]);
           const stance = V3(hp.x, (this.chevilleY ?? 0.14) + 0.02, hp.z).addScaledVector(fwd, PARAMS.accroupi.avantPieds).addScaledVector(lat, (k ? -1 : 1) * PARAMS.accroupi.ecartPieds);
           cibleA.lerp(stance, sq);
         }
         ikDeuxOs(H, K, A, cibleA, pole);
-        if ((this.profondeur || 0) > 0.01) {   // squat : pied à plat (talon au sol), pas sur la pointe
+        if ((this.profondeur || 0) > 0.01 || gn > 0.01) {   // squat (ou genou à terre) : pied à plat (talon au sol), pas sur la pointe
           const pA2 = A.getWorldPosition(V3()), pT2 = T.getWorldPosition(V3()), dirP = pT2.clone().sub(pA2); const plat = dirP.clone(); plat.y = (this.ratioPied ?? -0.8) * Math.hypot(dirP.x, dirP.z);   // pied à plat = même pente cheville → orteils que debout
-          if (dirP.lengthSq() > 1e-6 && plat.lengthSq() > 1e-6) { const qc = Q().setFromUnitVectors(dirP.normalize(), plat.normalize()); const qp = Q().identity().slerp(qc, Math.min(1, this.profondeur * 2)); const wq = A.getWorldQuaternion(Q()); A.quaternion.copy(A.parent.getWorldQuaternion(Q()).invert().multiply(qp).multiply(wq)); A.updateMatrixWorld(true); }
+          // genou à terre, pied arrière : cou-de-pied au sol, pointe vers l'arrière (orteils dans l'axe du tibia, légèrement vers le sol)
+          if (k === 1 && gn > 0.01) { const fwd = V3(0, 0, 1).applyQuaternion(this.worldQ[0]); const arr = fwd.clone().multiplyScalar(-Math.hypot(dirP.x, dirP.z)); arr.y = -0.25 * Math.hypot(dirP.x, dirP.z); plat.lerp(arr, gn); }
+          if (dirP.lengthSq() > 1e-6 && plat.lengthSq() > 1e-6) { const qc = Q().setFromUnitVectors(dirP.normalize(), plat.normalize()); const qp = Q().identity().slerp(qc, Math.min(1, Math.max(this.profondeur * 2, gn))); const wq = A.getWorldQuaternion(Q()); A.quaternion.copy(A.parent.getWorldQuaternion(Q()).invert().multiply(qp).multiply(wq)); A.updateMatrixWorld(true); }
         }
       }
     }
@@ -585,7 +597,7 @@
       // atténué autour d'une moyenne lente quand l'agent le demande (course rapide : facteur 0,35)
       this.hMoy = this.hMoy == null ? h0 : this.hMoy + (h0 - this.hMoy) * (1 - Math.exp(-dt / 0.4));
       h0 = this.hMoy + (h0 - this.hMoy) * (this.attenueBob ?? 1);
-      const desc = this.descActuelle = Math.max(0, h0 - PARAMS.accroupi.hanches) * (this.profondeur || 0);
+      const desc = this.descActuelle = Math.max(Math.max(0, h0 - PARAMS.accroupi.hanches) * (this.profondeur || 0), Math.max(0, h0 - PARAMS.genou.hanches) * (this.genou || 0));   // (v37) genou à terre : hanches à PARAMS.genou.hanches
       const h = h0 - desc;
       const monde = this.tmpV.set(this.pos.x, h, this.pos.z);
       this.hips.parent.updateWorldMatrix(true, false);
@@ -597,7 +609,7 @@
   // -------------------------------------------------------------------------------------------- contrôleur
   const nouveauControleur = () => ({
     pos: V3(), vel: V3(), acc: V3(), yaw: 0, yawV: 0, hPos: 0.15, hFrein: 0.3, hYaw: 0.12,
-    touches: {}, visee: true, accroupi: false, chemin: null, cheminIdx: 0, camYaw: 0.6,
+    touches: {}, visee: true, accroupi: false, genou: false, chemin: null, cheminIdx: 0, camYaw: 0.6,   // genou : à l'arrêt, un genou à terre (guet, sûreté 360°)
     vitesses: { marche: 1.25, course: 2.6, lat: 1.0 },
     direction() {
       const t = this.touches; let x = 0, z = 0;
@@ -736,7 +748,7 @@
   const BLOC = window.BLOC = { x: 2.2, z: 3.0, w: 1.6, d: 0.6, h: 1.1 };
   // « bataille » minimale pour le module ragdoll du jeu : horloge, obstacles (le bloc), journal des morts
   const BATAILLE = window.BATAILLE = { t: 0, over: false, log: [], map: { obstacles: [{ x: BLOC.x, z: BLOC.z, w: BLOC.w, d: BLOC.d, h: BLOC.h, kind: 'cover', name: 'bloc' }] } };
-  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.7, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.45, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 1.0, flechi: 0.7, depasse: 2.2, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, rea: { duree: 3.0, releve: 2.2, cadence: 1.8, amplitude: 0.04, flanc: 0.5 }, graines: [1, 2, 25], capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, racineTenue: 'vecteur', tenueMax: 0.6, tenueFondu: true, fusil: { longueur: 0.74, avant: -0.1, droite: 0.25, haut: -0.25, tangage: 0.2, tangageMax: -0.45, tangageCouvert: -0.9, cant: 0.3, roulis: -0.35, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: 0.06, droite: 0.055, haut: 0.005, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.22, rouleTete: 0.38, pencheCou: 0.12, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
+  const JOURNAL = window.JOURNAL = []; const PARAMS = window.PARAMS = { rythmeMin: 0.75, rythmeMax: 1.35, accroupi: { hanches: 0.43, marche: 0.55, penche: 0.5, tau: 0.3, avantPieds: 0.2, ecartPieds: 0.21, parDessus: 0.4, approche: 3.0 }, couvert: { recul: 0.7, rayon: 0.4, epaules: 0.35 }, sauvetage: { recul: 0.45, avantMains: 0.6, hautMains: 0.35, vitesse: 1.0, penche: 1.0, flechi: 0.7, depasse: 2.2, margeCoin: 1.4, ecartFace: 0.45, pencheTraine: -0.3, hautMainsTraine: 0.42, avantMainsTraine: 0.4 }, rea: { duree: 3.0, releve: 2.2, cadence: 1.8, amplitude: 0.04, flanc: 0.5 }, graines: [1, 2, 25], capLife: 0.2, capMax: 3.0, warpMax: 0.21, warpMaxVisee: 0.8, rattrapage: 0, margeSaut: 0.5, minSaut: 0.25, periode: 0.1, hLife: 0.15, verrou: true, margeRel: 0.8, verrouMax: 0.08, genou: { hanches: 0.55, arriere: 0.42, ecartArriere: 0.08, chevilleArriere: 0.1, avant: 0.22, ecartAvant: 0.16, tau: 0.3, tauLeve: 0.25 }, racineTenue: 'vecteur', tenueMax: 0.6, tenueFondu: true, fusil: { longueur: 0.74, avant: -0.1, droite: 0.25, haut: -0.25, tangage: 0.2, tangageMax: -0.45, tangageCouvert: -0.9, cant: 0.3, roulis: -0.35, buste: 0.3, lissage: 0.08, appuiZ: 0.1, torsion: 0.6, vrille: 0.4 }, epaule: { avant: 0.06, droite: 0.055, haut: 0.005, tangage: 0.0, tangageMax: 0.0, cant: 0.08, roulis: 0.0, vrille: 0.55, joue: 0.22, rouleTete: 0.38, pencheCou: 0.12, poussee: 0.08 }, poids: { pieds: 2.0, vPieds: 1.5, vHanches: 1.0, traj: 1.0, dir: 1.5 } };
 
   // Un agent = un soldat animé + son contrôleur + son état de lecture dans la base. Le premier est piloté au clavier (ou par
   // son chemin), les autres suivent chacun un chemin : c'est la situation du jeu (IA).
@@ -1140,6 +1152,9 @@
       if (parDessus && S.fusil && S.fusilQAff) { const by = S.fusil.position.clone().add(S.fusil.bouchePt.clone().applyQuaternion(S.fusilQAff)).y; this.profVisee = Math.max(0, Math.min(1, (this.profVisee ?? PARAMS.accroupi.parDessus) + (by - (BLOC.h + 0.08)) * 1.5 * dt)); } else this.profVisee = PARAMS.accroupi.parDessus;
       const profVoulue = Math.max(Ctl.profondeurExtra || 0, viseeCourse ? 0.0 : 0, Ctl.accroupi ? (parDessus ? this.profVisee : vGoal.lengthSq() < 0.01 ? 1 : PARAMS.accroupi.marche) : 0);
       S.profondeur = (S.profondeur || 0) + (profVoulue - (S.profondeur || 0)) * (1 - Math.exp(-dt / PARAMS.accroupi.tau));
+      const genouVoulu = Ctl.genou && !Ctl.accroupi && !Ctl.couvert && arretCru && Ctl.vel.lengthSq() < 0.04 && !this.sauvetage && !this.leve ? 1 : 0;
+      S.genou = (S.genou || 0) + (genouVoulu - (S.genou || 0)) * (1 - Math.exp(-dt / (genouVoulu ? PARAMS.genou.tau : PARAMS.genou.tauLeve)));
+      if (S.genou < 0.002) S.genou = 0;
       const squatVoulu = Ctl.accroupi && vGoal.lengthSq() < 0.01 && !parDessus ? 1 : 0;
       S.squat = (S.squat || 0) + (squatVoulu - (S.squat || 0)) * (1 - Math.exp(-dt / 0.35));
       S.aCouvert = !!Ctl.couvert;
@@ -1277,7 +1292,7 @@
     // (20/10) après un preset, le cerveau du soldat joué gardait la main (il annulait visée et tir) : la première commande du
     // joueur (touche de déplacement, V, C, ou clic droit) lui rend le contrôle ; les ennemis gardent leur cerveau
     const reprendreMain = () => { const A = agents[0]; if (!A || !A.cerveau || A.sauvetage || A.leve) return; A.cerveau = null; const c = A.ctl; c.couvert = null; c.enRoute = null; c.chemin = null; c.verrouCible = null; c.verrouRegard = false; c.tir = false; c.tirEnMarchant = false; c.sprint = false; c.vitesseChemin = null; };
-    addEventListener('keydown', e => { if (/^(Key[WZQSDVC]|Arrow|Shift)/.test(e.code)) reprendreMain(); const c = Ctl(); c.touches[e.code] = true; if (e.code === 'KeyV') { c.visee = !c.visee; } if (e.code === 'KeyC') { c.accroupi = !c.accroupi; if (!c.accroupi) { c.couvert = null; c.verrouCible = null; } } if (e.code === 'KeyB') seCouvrir(); if (e.code === 'KeyG') galerie(); if (e.code === 'KeyH') { const j = agents.findIndex(B => B.mort); if (j > 0) sauver(0, j); else scenarioSauvetage(); } if (e.code === 'KeyT' || e.code === 'KeyY' || e.code === 'KeyU') tirerSur(e.code === 'KeyY' ? 'tête' : e.code === 'KeyU' ? 'membre' : ''); if (e.code === 'KeyP') basculerChemin(); if (e.code === 'KeyR') reinit(); if (e.code === 'KeyI') { for (const id of ['hud', 'boutons', 'credit']) { const el = document.getElementById(id); if (el) el.style.display = el.style.display === 'none' ? '' : 'none'; } } if (/^Digit[123]$/.test(e.code)) preset(+e.code[5]); if (e.code === 'KeyE') ajouterEscouade(); if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
+    addEventListener('keydown', e => { if (/^(Key[WZQSDVC]|Arrow|Shift)/.test(e.code)) reprendreMain(); const c = Ctl(); c.touches[e.code] = true; if (e.code === 'KeyV') { c.visee = !c.visee; } if (e.code === 'KeyC') { c.accroupi = !c.accroupi; if (!c.accroupi) { c.couvert = null; c.verrouCible = null; } } if (e.code === 'KeyB') seCouvrir(); if (e.code === 'KeyG') galerie(); if (e.code === 'KeyH') { const j = agents.findIndex(B => B.mort); if (j > 0) sauver(0, j); else scenarioSauvetage(); } if (e.code === 'KeyT' || e.code === 'KeyY' || e.code === 'KeyU') tirerSur(e.code === 'KeyY' ? 'tête' : e.code === 'KeyU' ? 'membre' : ''); if (e.code === 'KeyP') basculerChemin(); if (e.code === 'KeyR') reinit(); if (e.code === 'KeyI') { for (const id of ['hud', 'boutons', 'credit']) { const el = document.getElementById(id); if (el) el.style.display = el.style.display === 'none' ? '' : 'none'; } } if (/^Digit[1234]$/.test(e.code)) preset(+e.code[5]); if (e.code === 'KeyE') ajouterEscouade(); if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
     addEventListener('keyup', e => { Ctl().touches[e.code] = false; });
     addEventListener('blur', () => { Ctl().touches = {}; Ctl().verrouRegard = false; Ctl().tir = false; });
     let drag = null;
@@ -1292,7 +1307,7 @@
     document.getElementById('btnDemo').onclick = cheminDemo;
     const ba = document.getElementById('btnAccroupi'); if (ba) ba.hidden = false; const bc = document.getElementById('btnCouvert'); if (bc) bc.onclick = seCouvrir;
     const be = document.getElementById('btnEscouade'); if (be) be.onclick = ajouterEscouade;
-    for (const n of [1, 2, 3]) { const b = document.getElementById('btnPreset' + n); if (b) b.onclick = () => preset(n); }
+    for (const n of [1, 2, 3, 4]) { const b = document.getElementById('btnPreset' + n); if (b) b.onclick = () => preset(n); }
   }
   function ajouterPoint(e) {
     const r = new THREE.Raycaster(); r.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
@@ -1536,7 +1551,40 @@
     cine('Preset 3 — couvert sous le feu (simulé)', [], []); CINE.noms = ['B', 'T'];
     return agents.length;
   }
-  const PRESETS = [preset1, preset2, preset3];
+  // Preset 4 — DOCTRINE (TTA 150, actes élémentaires) : une équipe de 4 progresse en COLONNE PAR UN dans un couloir (arme en
+  // garde basse, 2,5 m entre chaque), fait une HALTE en sûreté 360° (chacun son secteur : avant / droite / gauche / arrière,
+  // un genou à terre), reprend, puis franchit une zone ouverte PAR BONDS de binômes (A court se couvrir derrière un muret
+  // pendant que B, un genou à terre, tient la zone en joue ; puis B bondit) et finit EN LIGNE à la lisière, genou à terre,
+  // arme en joue. Scripté (c'est l'animation qu'on regarde) ; rien de nouveau dans le module : chemin, genou, secteur, couvert.
+  async function preset4() {
+    graine(PARAMS.graines[0]); await videz();
+    const Y = { est: Math.PI / 2, ouest: -Math.PI / 2, nord: Math.PI, sud: 0 };   // (yaw = atan2(x, z) : +x = est)
+    ajouterMur(-10, -2.6, 19.5, 0.4, 1.3); ajouterMur(-10, 2.2, 19.5, 0.4, 1.3);   // couloir bas (z −2,2 … 2,2, murets de 1,3 m : on voit les soldats), sortie à x = 9,5
+    ajouterMur(15.2, -4.8, 2.2, 0.5, 1.0); ajouterMur(15.2, 2.6, 2.2, 0.5, 1.0);   // murets de la zone ouverte
+    const E = []; for (let i = 0; i < 4; i++) { const A = i === 0 ? agents[0] : await nouveauSoldat(V3(0, 0, 0), Y.est); placer(A, -7.5 - 2.5 * i, 0, Y.est); A.ctl.visee = true; A.ctl.touches = {}; A.ctl.verrouRegard = false; E.push(A); }
+    const C = (A) => A.ctl, ESP = 2.5;
+    const aller = (A, x, z, vit, apres) => { const c = C(A); c.genou = false; c.verrouCible = null; c.verrouRegard = false; c.couvert = null; c.chemin = [V3(x, 0, z)]; c.cheminIdx = 0; c.cheminFin = true; c.vitesseChemin = vit; c.surArrivee = () => { c.vitesseChemin = null; c.chemin = null; A.arrive = true; if (apres) apres(); }; A.arrive = false; };
+    const guet = (A, yaw, enJoue) => { const c = C(A); c.chemin = null; c.verrouCible = yaw; c.verrouRegard = !!enJoue; c.genou = true; };
+    const tous = (f) => E.every(f);
+    let etat = 'colonne1', tEtat = 0, attente = {};
+    // colonne : chacun suit son prédécesseur à ESP m (vitesse corrigée par l'écart ; arrêt complet à moins de 1,2 m)
+    const colonneTic = () => { for (let i = 1; i < 4; i++) { const A = E[i], c = C(A); if (A.arrive) continue; const P = E[i - 1].soldat.pos, d = P.distanceTo(A.soldat.pos);
+      if (d < 1.2 && c.chemin) { attente[i] = c.chemin; c.chemin = null; } else if (d >= 1.6 && !c.chemin && attente[i]) { c.chemin = attente[i]; c.cheminIdx = 0; attente[i] = null; }
+      if (c.chemin) c.vitesseChemin = Math.max(0.5, Math.min(2.0, 1.25 + (d - ESP) * 0.9)); } };
+    E.forEach((A, i) => aller(A, 1.0 - ESP * i, 0, 1.25));
+    const tic = (t) => { const dt = t - (tic.t || 0); tic.t = t; tEtat += dt;
+      if (etat === 'colonne1') { colonneTic(); if (tous(A => A.arrive)) { etat = 'halte'; tEtat = 0; [Y.est, Y.sud, Y.nord, Y.ouest].forEach((y, i) => guet(E[i], y, false)); } }
+      else if (etat === 'halte') { if (tEtat > 5) { etat = 'colonne2'; tEtat = 0; E.forEach((A, i) => aller(A, 9.5 - ESP * i, 0, 1.25)); } }
+      else if (etat === 'colonne2') { colonneTic(); if (tous(A => A.arrive)) { etat = 'bondA'; tEtat = 0; guet(E[2], Y.est, true); guet(E[3], Y.est, true); aller(E[0], 14.4, -4.3, C(E[0]).vitesses.course, () => guet(E[0], Y.est, true)); aller(E[1], 14.4, -2.9, C(E[1]).vitesses.course, () => guet(E[1], Y.est, true)); } }
+      else if (etat === 'bondA') { if (E[0].arrive && E[1].arrive && tEtat > 1.0) { etat = 'bondB'; tEtat = 0; aller(E[2], 14.4, 2.9, C(E[2]).vitesses.course, () => guet(E[2], Y.est, true)); aller(E[3], 14.4, 4.3, C(E[3]).vitesses.course, () => guet(E[3], Y.est, true)); } }
+      else if (etat === 'bondB') { if (E[2].arrive && E[3].arrive && tEtat > 3.0) { etat = 'ligne'; tEtat = 0; E.forEach((A, i) => aller(A, 22, -3 + 2 * i, 1.25, () => guet(A, Y.est, true))); } }
+      else if (etat === 'ligne') { if (tous(A => A.arrive) && tEtat > 4) { etat = 'fin'; } }
+      CINE.etat = etat; };
+    camAuto(() => E, { vitesse: 0.08, pitch: 0.5, marge: 3.5 });
+    cine('Preset 4 — colonne, halte 360°, bonds, ligne (doctrine)', [], [tic]); CINE.noms = ['1', '2', '3', '4'];
+    return agents.length;
+  }
+  const PRESETS = [preset1, preset2, preset3, preset4];
   async function preset(n) { const f = PRESETS[n - 1]; if (!f) return 0; return f(); }
   // une balle depuis la caméra (T : torse, Y : tête, U : membre) sur le soldat joué
   function tirerSur(loc) { const A = agents[0]; if (A.mort) { A.ressusciter(); return; } const d = A.soldat.pos.clone().setY(1).sub(camera.position).normalize(); A.tuer(loc, d); }
