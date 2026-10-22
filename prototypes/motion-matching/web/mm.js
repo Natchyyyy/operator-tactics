@@ -1251,6 +1251,7 @@
       mesures() { const A = agents[0], f = A.frame; return { frame: f, seq: Base.meta.sequences[Base.seq[f]].nom, glisseMoy: A.glisse.moyenneCm(), glisseRecent: A.glisse.recentCm(), sauts: A.sauts, pos: A.soldat.pos.toArray(), yaw: A.soldat.yaw, simPos: A.ctl.pos.toArray(), vitAnim: Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]), tirs: A.tirs || 0, recul: A.recul || 0 }; },
       os(n) { const o = agents[0].soldat.os[Base.meta.os.indexOf(n)]; return o ? o.getWorldPosition(V3()).toArray() : null; },
       camAuto(idx, opts) { camAuto(() => (idx == null ? agents : idx.map(i => agents[i])), opts); },   // outils : cadrer un ou plusieurs soldats
+      camLibre() { return cam.libre; },
       camera(yaw, pitch, dist, cibleY) { agents[0].ctl.camYaw = yaw; cam.pitch = pitch; cam.dist = dist; cam.cibleY = cibleY; cam.cible = null; },
       escouade: ajouterEscouade, galerie, agents, preset, relever: (i, yaw) => agents[i || 0].relever(yaw || 0), sauver: (i, j, menace) => sauver(i, j, menace), scenarioSauvetage, tuer: (i, loc, dir) => agents[i || 0].tuer(loc, dir ? V3(...dir) : null), ragdoll: () => (window.OT && OT.Ragdoll ? { stats: OT.Ragdoll.stats, diag: agents.map(A => A.mort ? OT.Ragdoll.diag(A.mort.m) : null) } : null), couvrir: (menace) => { const c = agents[0].ctl; const ch = c.couvrir(BLOC, menace || { x: camera.position.x, z: camera.position.z }); return ch.map(p => p.toArray()); },
       diag(i) { const A = agents[i]; const c = A.ctl; const vg = c.vitesseCible(), yg = c.yawCible(vg); const req = A.requete(vg, yg); const f = A.frame; const vit = Math.hypot(Base.v[f * 3], Base.v[f * 3 + 2]); const auRepos = vg.lengthSq() < 0.01 && vit < 0.35 && c.vel.lengthSq() < 0.04; const [best, bc] = chercher(req, c.visee ? 2 : 0, auRepos); return { frame: f, auRepos, best, bc, cc: cout(f, req), seqBest: Base.meta.sequences[Base.seq[best]].nom, req: Array.from(req).map(x => +x.toFixed(2)), fnCour: Array.from(Base.fn.slice(f * Base.nF, (f + 1) * Base.nF)).map(x => +x.toFixed(2)), fnBest: Array.from(Base.fn.slice(best * Base.nF, (best + 1) * Base.nF)).map(x => +x.toFixed(2)) }; }
@@ -1292,22 +1293,23 @@
     // (20/10) après un preset, le cerveau du soldat joué gardait la main (il annulait visée et tir) : la première commande du
     // joueur (touche de déplacement, V, C, ou clic droit) lui rend le contrôle ; les ennemis gardent leur cerveau
     const reprendreMain = () => { const A = agents[0]; if (!A || !A.cerveau || A.sauvetage || A.leve) return; A.cerveau = null; const c = A.ctl; c.couvert = null; c.enRoute = null; c.chemin = null; c.verrouCible = null; c.verrouRegard = false; c.tir = false; c.tirEnMarchant = false; c.sprint = false; c.vitesseChemin = null; };
-    addEventListener('keydown', e => { if (/^(Key[WZQSDVC]|Arrow|Shift)/.test(e.code)) reprendreMain(); const c = Ctl(); c.touches[e.code] = true; if (e.code === 'KeyV') { c.visee = !c.visee; } if (e.code === 'KeyC') { c.accroupi = !c.accroupi; if (!c.accroupi) { c.couvert = null; c.verrouCible = null; } } if (e.code === 'KeyB') seCouvrir(); if (e.code === 'KeyG') galerie(); if (e.code === 'KeyH') { const j = agents.findIndex(B => B.mort); if (j > 0) sauver(0, j); else scenarioSauvetage(); } if (e.code === 'KeyT' || e.code === 'KeyY' || e.code === 'KeyU') tirerSur(e.code === 'KeyY' ? 'tête' : e.code === 'KeyU' ? 'membre' : ''); if (e.code === 'KeyP') basculerChemin(); if (e.code === 'KeyR') reinit(); if (e.code === 'KeyI') { for (const id of ['hud', 'boutons', 'credit']) { const el = document.getElementById(id); if (el) el.style.display = el.style.display === 'none' ? '' : 'none'; } } if (/^Digit[1234]$/.test(e.code)) preset(+e.code[5]); if (e.code === 'KeyE') ajouterEscouade(); if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
-    addEventListener('keyup', e => { Ctl().touches[e.code] = false; });
+    addEventListener('keydown', e => { if (cam.libre && /^(Key[WZQSDAE]|Arrow|Shift|Space)/.test(e.code)) { cam.libre.touches[e.code] = true; e.preventDefault(); return; }   // caméra libre (preset 5) : ZQSD/flèches déplacent la caméra, pas le soldat
+      if (/^(Key[WZQSDVC]|Arrow|Shift)/.test(e.code)) reprendreMain(); const c = Ctl(); c.touches[e.code] = true; if (e.code === 'KeyV') { c.visee = !c.visee; } if (e.code === 'KeyC') { c.accroupi = !c.accroupi; if (!c.accroupi) { c.couvert = null; c.verrouCible = null; } } if (e.code === 'KeyB') seCouvrir(); if (e.code === 'KeyG') galerie(); if (e.code === 'KeyH') { const j = agents.findIndex(B => B.mort); if (j > 0) sauver(0, j); else scenarioSauvetage(); } if (e.code === 'KeyT' || e.code === 'KeyY' || e.code === 'KeyU') tirerSur(e.code === 'KeyY' ? 'tête' : e.code === 'KeyU' ? 'membre' : ''); if (e.code === 'KeyP') basculerChemin(); if (e.code === 'KeyR') reinit(); if (e.code === 'KeyI') { for (const id of ['hud', 'boutons', 'credit']) { const el = document.getElementById(id); if (el) el.style.display = el.style.display === 'none' ? '' : 'none'; } } if (/^Digit[12345]$/.test(e.code)) preset(+e.code[5]); if (e.code === 'KeyE') ajouterEscouade(); if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
+    addEventListener('keyup', e => { if (cam.libre) cam.libre.touches[e.code] = false; Ctl().touches[e.code] = false; });
     addEventListener('blur', () => { Ctl().touches = {}; Ctl().verrouRegard = false; Ctl().tir = false; });
     let drag = null;
     renderer.domElement.addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, b: e.button, moved: false }; cam.auto = null; if (e.button === 2) { reprendreMain(); Ctl().verrouRegard = true; } if (e.button === 0 && Ctl().verrouRegard) Ctl().tir = true; });
-    addEventListener('mousemove', e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; Ctl().camYaw -= dx * 0.006; cam.pitch = Math.max(0.08, Math.min(1.3, cam.pitch + dy * 0.004)); drag.x = e.clientX; drag.y = e.clientY; });
-    addEventListener('mouseup', e => { if (drag && !drag.moved && Ctl().chemin && e.button === 0) ajouterPoint(e); drag = null; if (e.button === 2) { Ctl().verrouRegard = false; Ctl().tir = false; } if (e.button === 0) Ctl().tir = false; });
+    addEventListener('mousemove', e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; if (cam.libre) { cam.libre.yaw -= dx * 0.004; cam.libre.pitch = Math.max(-1.4, Math.min(1.4, cam.libre.pitch - dy * 0.004)); drag.x = e.clientX; drag.y = e.clientY; return; } Ctl().camYaw -= dx * 0.006; cam.pitch = Math.max(0.08, Math.min(1.3, cam.pitch + dy * 0.004)); drag.x = e.clientX; drag.y = e.clientY; });
+    addEventListener('mouseup', e => { if (drag && !drag.moved && Ctl().chemin && e.button === 0 && !cam.libre) ajouterPoint(e); drag = null; if (e.button === 2) { Ctl().verrouRegard = false; Ctl().tir = false; } if (e.button === 0) Ctl().tir = false; });
     renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
-    addEventListener('wheel', e => { cam.dist = Math.max(1.5, Math.min(14, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); });
+    addEventListener('wheel', e => { if (cam.libre) { cam.libre.vitesse = Math.max(1, Math.min(12, cam.libre.vitesse * (1 - Math.sign(e.deltaY) * 0.15))); return; } cam.dist = Math.max(1.5, Math.min(14, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); });
     addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
     document.getElementById('btnChemin').onclick = basculerChemin; document.getElementById('btnReinit').onclick = reinit;
     document.getElementById('btnVisee').onclick = () => { Ctl().visee = !Ctl().visee; }; document.getElementById('btnAccroupi').onclick = () => { Ctl().accroupi = !Ctl().accroupi; };
     document.getElementById('btnDemo').onclick = cheminDemo;
     const ba = document.getElementById('btnAccroupi'); if (ba) ba.hidden = false; const bc = document.getElementById('btnCouvert'); if (bc) bc.onclick = seCouvrir;
     const be = document.getElementById('btnEscouade'); if (be) be.onclick = ajouterEscouade;
-    for (const n of [1, 2, 3, 4]) { const b = document.getElementById('btnPreset' + n); if (b) b.onclick = () => preset(n); }
+    for (const n of [1, 2, 3, 4, 5]) { const b = document.getElementById('btnPreset' + n); if (b) b.onclick = () => preset(n); }
   }
   function ajouterPoint(e) {
     const r = new THREE.Raycaster(); r.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
@@ -1517,6 +1519,7 @@
     while (agents.length) { const B = agents.pop(); scene.remove(B.soldat.group); }
     CINE.etapes = null; CINE.tics = []; CINE.titre = ''; CINE.t = 0; CINE.noms = null; galerieT = null; scenarioT = null; horloge = 0;
     for (const m of empreintesMesh) scene.remove(m); empreintesMesh.length = 0;
+    cam.libre = null; for (const e of ETIQUETTES) scene.remove(e.sprite); ETIQUETTES.length = 0;
     await nouveauSoldat(V3(0, 0, 0), 0); dessinerChemin(); }
   function placer(A, x, z, yaw) { A.soldat.pos.set(x, 0, z); A.soldat.yaw = yaw; A.ctl.pos.copy(A.soldat.pos); A.ctl.yaw = yaw; A.ctl.vel.set(0, 0, 0); A.ctl.acc.set(0, 0, 0); A.ctl.yawV = 0; A.ctl.camYaw = yaw; }
   function camAuto(cibles, opts) { cam.auto = Object.assign({ cibles, vitesse: 0.10, pitch: 0.5, marge: 3.5 }, opts || {}); cam.pitch = cam.auto.pitch; cam.dist = 10; cam.cible = null; }
@@ -1584,7 +1587,59 @@
     cine('Preset 4 — colonne, halte 360°, bonds, ligne (doctrine)', [], [tic]); CINE.noms = ['1', '2', '3', '4'];
     return agents.length;
   }
-  const PRESETS = [preset1, preset2, preset3, preset4];
+  // étiquettes 3D (galerie) : texte sur un sprite au-dessus du soldat
+  const ETIQUETTES = [];
+  function etiquette(texte, A) {
+    const c = document.createElement('canvas'); c.width = 768; c.height = 120; const g = c.getContext('2d');
+    g.fillStyle = 'rgba(20,23,30,0.75)'; g.beginPath(); g.roundRect(4, 4, 760, 112, 24); g.fill(); g.fillStyle = '#fff'; g.font = '600 44px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(texte, 384, 60);
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false })); sp.scale.set(2.4, 0.375, 1); sp.renderOrder = 10; scene.add(sp);
+    ETIQUETTES.push({ sprite: sp, A }); return sp;
+  }
+  // Preset 5 — GALERIE : un soldat par animation, en boucle, chacun sous son étiquette ; caméra LIBRE (ZQSD / flèches, A-E ou
+  // Espace-Maj pour monter / descendre, souris pour regarder, molette = vitesse) pour aller voir soi-même. Rien de nouveau ici :
+  // ce sont toutes les animations du motion matching, posées côte à côte.
+  async function preset5() {
+    graine(PARAMS.graines[0]); await videz(); cam.auto = null;
+    const yN = Math.PI, yS = 0, yE = Math.PI / 2;
+    const sold = async (x, z, yaw) => { const B = (agents.length === 1 && !agents[0].etiq) ? agents[0] : await nouveauSoldat(V3(x, 0, z), yaw); /* (videz recrée le premier soldat : il prend la première place) */ placer(B, x, z, yaw); B.etiq = true; const c = B.ctl; c.touches = {}; c.chemin = null; c.visee = true; c.verrouRegard = false; c.verrouCible = null; c.accroupi = false; c.genou = false; c.couvert = null; c.tir = false; c.tirEnMarchant = false; c.cheminFin = false; return B; };
+    const vaEtVient = (B, x, z, vit) => { const c = B.ctl; c.chemin = [V3(x, 0, z - 2.5), V3(x, 0, z + 2.5)]; c.cheminIdx = 0; c.cheminFin = false; c.vitesseChemin = vit; };
+    const tics = [];
+    // rangée sud (z = −6) : debout
+    let x = -16; const dx = 4.5;
+    let B = await sold(x, -6, yN); B.ctl.visee = false; etiquette('Repos, sans arme', B);
+    B = await sold(x += dx, -6, yN); B.ctl.visee = false; vaEtVient(B, x, -6, B.ctl.vitesses.marche); etiquette('Marche, sans arme', B);
+    B = await sold(x += dx, -6, yN); B.ctl.visee = false; vaEtVient(B, x, -6, B.ctl.vitesses.course); etiquette('Course, sans arme', B);
+    B = await sold(x += dx, -6, yN); etiquette('Repos, arme en garde basse', B);
+    B = await sold(x += dx, -6, yN); vaEtVient(B, x, -6, B.ctl.vitesses.marche); etiquette('Marche tactique, garde basse', B);
+    B = await sold(x += dx, -6, yN); vaEtVient(B, x, -6, B.ctl.vitesses.course); etiquette('Course, arme en main', B);
+    B = await sold(x += dx, -6, yN); vaEtVient(B, x, -6, 1.4); B.ctl.verrouRegard = true; B.ctl.tirEnMarchant = true; B.ctl.verrouCible = yE; etiquette('Glissade en joue (cible sur le côté)', B);
+    B = await sold(x += dx, -6, yN); vaEtVient(B, x, -6, 1.0); B.ctl.verrouRegard = true; B.ctl.tirEnMarchant = true; B.ctl.verrouCible = yN; etiquette('En joue : avance, puis recul', B);
+    B = await sold(x += dx, -6, yN); B.ctl.verrouRegard = true; B.ctl.verrouCible = yN; { const T = B; tics.push(t => { T.ctl.tir = (t % 2.5) < 0.45; }); } etiquette('Visée debout, rafales', B);
+    B = await sold(x += dx, -6, yN); B.ctl.verrouRegard = true; { const T = B; tics.push(t => { T.ctl.verrouCible = yN + Math.sin(t * 0.45) * 1.4; }); } etiquette('Pivot sur place, en joue', B);
+    // rangée nord (z = 10) : accroupi, genou, couvert, blessés
+    x = -16;
+    B = await sold(x, 10, yN); B.ctl.accroupi = true; vaEtVient(B, x, 10, B.ctl.vitesses.marche); etiquette('Marche accroupie', B);
+    B = await sold(x += dx, 10, yN); B.ctl.accroupi = true; etiquette('Accroupi (squat de combat)', B);
+    B = await sold(x += dx, 10, yN); B.ctl.genou = true; etiquette('Genou à terre, garde basse', B);
+    B = await sold(x += dx, 10, yN); B.ctl.genou = true; B.ctl.verrouRegard = true; B.ctl.verrouCible = yN; { const T = B; tics.push(t => { T.ctl.tir = (t % 3) < 0.4; }); } etiquette('Genou à terre, en joue, rafales', B);
+    B = await sold(x += dx, 10, yN); B.ctl.genou = true; { const T = B; tics.push(t => { T.ctl.genou = (t % 8) < 4.5; }); } etiquette('Descente / relevé du genou', B);
+    // couvert : un muret, menace au nord ; il s\'y accroupit, se redresse pour tirer par-dessus, se baisse
+    { const mx = x += dx; const bloc = { x: mx - 0.8, z: 12.0, w: 1.6, d: 0.5, h: 1.1 }; ajouterMur(bloc.x, bloc.z, bloc.w, bloc.d, bloc.h);
+      B = await sold(mx, 9.5, yN); const menace = { x: mx, z: 20 }; B.ctl.couvrir(bloc, menace); const T = B;
+      tics.push(t => { const ph = t % 7; T.ctl.verrouRegard = ph > 2.5 && ph < 5.5; T.ctl.tir = ph > 3.2 && ph < 3.7 || ph > 4.3 && ph < 4.8; }); etiquette('À couvert : se redresse, tire, se baisse', B); }
+    // mort (ragdoll) : rechute toutes les 12 s
+    B = await sold(x += dx, 10, yS); { const T = B, dir = V3(0, 0, 1); let tm = -99; tics.push(t => { if (!T.mort && t - tm > 1.5) { T.tuer('', dir); tm = t; } else if (T.mort && t - tm > 12) { T.ressusciter(); tm = t; } }); } etiquette('Touché : chute (ragdoll)', B);
+    // relevé seul : tombe, se relève après 4 s
+    B = await sold(x += dx, 10, yS); { const T = B; let tm = -99, ph = 0; tics.push(t => { if (ph === 0 && t - tm > 2) { T.tuer('', V3(0, 0, 1)); tm = t; ph = 1; } else if (ph === 1 && t - tm > 4) { T.relever(yS); tm = t; ph = 2; } else if (ph === 2 && !T.leve && t - tm > 6) { ph = 0; tm = t; } }); } etiquette('Au sol → se relève', B);
+    // sauvetage : V tombe devant le bloc, R le traîne derrière, le réanime, V se relève ; rejoue toutes les ~40 s
+    { const cx = BLOC.x + BLOC.w / 2, menace = { x: cx, z: BLOC.z - 9 };
+      const V = await sold(cx + 0.3, BLOC.z - 2.0, yE), R = await sold(cx + 4.5, BLOC.z - 3.0, yN);   /* du même côté que le blessé : l'approche va tout droit (pas de contournement du bloc à l'approche) */ etiquette('Sauvetage : traîné à couvert, réanimé', R); etiquette('Blessé', V);
+      let ph = 0, tm = 0; tics.push(t => { if (ph === 0 && t - tm > 1.5) { V.tuer('', V3(0, 0, 1)); tm = t; ph = 1; } else if (ph === 1 && t - tm > 0.8) { sauver(agents.indexOf(R), agents.indexOf(V), menace, true); tm = t; ph = 2; }
+        else if (ph === 2 && !R.sauvetage && !V.mort && !V.leve && t - tm > 3) { tm = t; ph = 3; } else if (ph === 3 && t - tm > 6) { placer(V, cx + 0.3, BLOC.z - 2.0, yE); placer(R, cx + 4.5, BLOC.z - 3.0, yN); R.ctl.accroupi = false; R.ctl.couvert = null; R.ctl.verrouCible = null; V.ctl.accroupi = false; V.ctl.couvert = null; V.ctl.verrouCible = null; tm = t; ph = 0; } }); }
+    cam.libre = { pos: V3(-2, 4.5, -16), yaw: 0, pitch: -0.22, vitesse: 5, touches: {} };
+    cine('Preset 5 — galerie des animations (caméra libre : ZQSD, souris, molette = vitesse, A/E = haut/bas)', [], tics); return agents.length;
+  }
+  const PRESETS = [preset1, preset2, preset3, preset4, preset5];
   async function preset(n) { const f = PRESETS[n - 1]; if (!f) return 0; return f(); }
   // une balle depuis la caméra (T : torse, Y : tête, U : membre) sur le soldat joué
   function tirerSur(loc) { const A = agents[0]; if (A.mort) { A.ressusciter(); return; } const d = A.soldat.pos.clone().setY(1).sub(camera.position).normalize(); A.tuer(loc, d); }
@@ -1636,7 +1691,14 @@
     if (!cam.cible) cam.cible = voulu.clone(); cam.cible.lerp(voulu, 1 - Math.exp(-dt / 0.12));
     const cible = cam.cible;
     camera.position.set(cible.x + Math.sin(Ctl.camYaw + Math.PI) * cam.dist * Math.cos(cam.pitch), cible.y + cam.dist * Math.sin(cam.pitch), cible.z + Math.cos(Ctl.camYaw + Math.PI) * cam.dist * Math.cos(cam.pitch));
-    camera.lookAt(cible);
+    if (cam.libre) {   // caméra libre (preset 5) : ZQSD / flèches avancent-tournent, A/E ou Espace/Maj montent-descendent, souris (clic gauche) oriente, molette = vitesse
+      const L = cam.libre, T = L.touches, v = L.vitesse * dt, av = V3(Math.sin(L.yaw), 0, Math.cos(L.yaw)), dr = V3(Math.cos(L.yaw), 0, -Math.sin(L.yaw));
+      if (T.KeyW || T.KeyZ || T.ArrowUp) L.pos.addScaledVector(av, v); if (T.KeyS || T.ArrowDown) L.pos.addScaledVector(av, -v);
+      if (T.KeyD || T.ArrowRight) L.pos.addScaledVector(dr, v); if (T.KeyA || T.KeyQ || T.ArrowLeft) L.pos.addScaledVector(dr, -v);
+      if (T.KeyE || T.Space) L.pos.y += v; if (T.ShiftLeft || T.ShiftRight) L.pos.y -= v; L.pos.y = Math.max(0.3, Math.min(25, L.pos.y));
+      camera.position.copy(L.pos); camera.lookAt(L.pos.clone().add(V3(Math.sin(L.yaw) * Math.cos(L.pitch), Math.sin(L.pitch), Math.cos(L.yaw) * Math.cos(L.pitch))));
+      for (const e of ETIQUETTES) if (e.A) { const P = e.A.mort ? e.A.soldat.hips.getWorldPosition(V3()) : e.A.soldat.pos; e.sprite.position.set(P.x, 2.15, P.z); }
+    } else camera.lookAt(cible);
     rendre();
     // HUD
     const f = A.frame, s = Base.meta.sequences[Base.seq[f]];

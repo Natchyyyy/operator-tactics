@@ -40,6 +40,24 @@ Mode test sans boucle automatique : `index.html?manual=1` puis `API.step(n)`, `A
   pieds à 100-180 cm/s) : style décidé sur la vitesse lissée avec hystérésis, arrêt cru après 0,1 s, écart de vitesse mesuré
   par rapport à ce que le rythme peut rattraper, saut forcé ≤ 2/s. `A.causes` compte les sauts par cause (diagnostic).
 
+## Bilan des animations disponibles (motion matching v37, 22/10) — preset 5 = galerie, caméra libre
+Toutes viennent des captures 100STYLE (Neutral / Swat / Rushed / Crouched : repos, marche, course, pas chassés, marche
+arrière, demi-tours) choisies image par image, plus des gestes ajoutés par-dessus (IK) :
+1. Debout : repos sans arme ; marche et course sans arme (bras qui balancent) ; repos arme en garde basse ; marche tactique
+   garde basse (Swat) ; course arme en main (Rushed) ; glissade en joue (marche tactique, buste vrillé vers la cible, pas chassé
+   si la cible est sur le côté) ; recul en joue (cible derrière) ; visée debout épaulée + tir (recul 110 coups/min) ; pivot sur
+   place en joue (pieds libérés, arme qui suit la cible) ; virages et demi-tours (correction de cap qui pivote sur le pied posé).
+2. Bas : marche accroupie (Crouched) ; squat de combat à l'arrêt ; genou à terre garde basse ; genou à terre en joue + tir ;
+   descente / relevé du genou ; à couvert derrière un muret (accroupi profond, se redresse juste assez pour tirer par-dessus,
+   se rebaisse) ; approche d'un couvert (s'abaisse à 3 m).
+3. Blessés : touché → chute ragdoll (tête / torse / jambe / dos, galerie du preset 2) ; au sol → se relève (fondu vers la pose
+   accroupie, main d'appui, reprend l'arme) ; sauvetage : course vers le blessé, prise au col à deux mains, traînage à reculons
+   derrière le couvert (corps en physique), dépose, réanimation à genou (mains sur la poitrine), relevé du blessé.
+4. Doctrine (preset 4) : colonne par un avec espacement tenu, halte sûreté 360° (secteurs, genou à terre), bonds de binômes,
+   ligne en joue.
+Pas encore de geste dédié : rechargement, lancer de grenade, montée / descente d'obstacle, position couchée (pas dans les
+données), ouverture de porte. Détail connu : après un sauvetage, le fusil tombé reste au sol (le relevé en reprend un en main).
+
 ## v37 — doctrine (TTA 150), 22/10
 - Nouvelle pose « GENOU À TERRE » (`ctl.genou`, à l'arrêt) : hanches à 0,55 m, genou droit au sol, tibia à plat, pied gauche à plat
   devant ; arme en garde basse ou en joue sur le secteur (`verrouCible` / `verrouRegard`). Descente / relevé lissés (0,3 / 0,25 s).
