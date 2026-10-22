@@ -1287,7 +1287,7 @@
   // derrière l'obstacle de la position ; on combat de là (debout pour tirer, baissé pour recharger) et on n'en bouge plus.
   Battle.prototype.followKeyOrder = function (u, threats) {
     const o = u.keyOrder;
-    if (Math.hypot(o.x - u.x, o.z - u.z) > 0.6) {
+    if (Math.hypot(o.x - u.x, o.z - u.z) > (o.hug && Math.hypot(o.x - o.hx, o.z - o.hz) < 0.1 ? 0.25 : 0.6)) {
       if (this.setGoal(u, o.x, o.z, 'cover')) { u.state = 'tokey'; u.stance = 'stand'; return; }
     }
     this.stop(u);
@@ -1498,7 +1498,9 @@
     // si l'on voit déjà par-dessus en restant baissé, on reste baissé. Sans couvert : debout.
     const sx = u.x + Math.cos(dir) * 12, sz = u.z + Math.sin(dir) * 12;
     const cov = this.coverAt(u.x, u.z, sx, sz, true), peek = ((this.t * 0.25 + u.idx * 0.37 + u.team * 0.19) % 1) < (watch ? 0.3 : 0.4);
-    u.state = 'holdkey'; u.stance = cov && (!peek || this.map.hasLOS(u.x, EYE.crouch, u.z, sx, CHEST.stand, sz)) ? 'crouch' : 'stand';
+    // (hérisson, étape 2 : au calme — aucune menace connue — on reste genou à terre même sans couvert devant soi)
+    const calm = !watch && !reinf && !known.length && !beingShot;
+    u.state = 'holdkey'; u.stance = cov ? (!peek || this.map.hasLOS(u.x, EYE.crouch, u.z, sx, CHEST.stand, sz) ? 'crouch' : 'stand') : calm ? 'crouch' : 'stand';
   };
   // ---- Ordre de déplacement du joueur (clic droit sur le sol) ----------------------------------------------------------
   // battle.command('aller', équipe, { x, z, units: [ids] | null (tous), mode: 'methodique' | 'agressif', arrivee: 'tenir' }) :
@@ -2225,6 +2227,21 @@
     if (this.setGoal(u, gx, gz, 'bound') || this.setGoal(u, fx, fz, 'cover')) { o.goalN = b.n; u.boundGoalN = undefined; u.state = 'bounding'; u.stance = 'stand'; return; }
     o.doneN = b.n; this.stop(u); u.state = 'overwatch';
   };
+  // point plaqué (à HUG du bord) contre l'obstacle d'au moins COVER_MIN_H le plus proche, à moins de r m de (x, z) ; ok(x, z)
+  // filtre les places (libres, dans la position…). null si aucun.
+  const HERISSON_R = 2;
+  Battle.prototype.hugSpot = function (x, z, r, ok) {
+    let best = null, bd = Infinity;
+    for (const o of this.map.obstacles) {
+      if (o.h < COVER_MIN_H || x < o.x - r || x > o.x + o.w + r || z < o.z - r || z > o.z + o.d + r) continue;
+      const nx = clamp(x, o.x, o.x + o.w), nz = clamp(z, o.z, o.z + o.d), d = Math.hypot(x - nx, z - nz);
+      if (d > r || d >= bd || d < 1e-3) continue;
+      const hx = nx + (x - nx) / d * HUG, hz = nz + (z - nz) / d * HUG;
+      if (this.map.insideObstacle(hx, hz) || !this.map.inBounds(hx, hz) || !this.map.walkableSegment(x, z, hx, hz) || !ok(hx, hz)) continue;
+      bd = d; best = { x: hx, z: hz };
+    }
+    return best;
+  };
   // arrivée « tenir » : poste sur un vrai couvert tout proche face à la menace (ou au sens de la marche) → ordre de poste
   Battle.prototype.arriveOrder = function (u) {
     const o = u.moveOrder; u.moveOrder = null;
@@ -2248,10 +2265,19 @@
         const sc = -d + (this.map.hasLOS(h.hx, EYE.stand, h.hz, tp.x, CHEST.stand, tp.z) ? 2 : 0) + this.rng.next() * 0.01;
         if (sc > bs) { bs = sc; best = { x: h.hx, z: h.hz }; }
       }
-      if (best && this.map.findPath(u.x, u.z, best.x, best.z)) post = best;
+      if (best && this.map.findPath(u.x, u.z, best.x, best.z)) { post = best; post.hug = true; }
+    }
+    // hérisson (plan Commandant, étape 2) : aucun couvert face à son secteur, mais un obstacle à moins de 2 m → on se
+    // plaque contre lui (accroupi, cf. holdPerimeter) plutôt que de rester planté à découvert
+    // (un petit décalage ne doit rapprocher ni d'un équipier, ni éloigner du point au-delà de la position)
+    if (!this.besideObstacle(post.x, post.z)) {
+      const gap = (x, z) => taken.reduce((m, q) => Math.min(m, Math.hypot(q.x - x, q.z - z)), Infinity), g0 = gap(post.x, post.z);
+      const q = this.hugSpot(post.x, post.z, HERISSON_R, (x, z) => (free(x, z) || gap(x, z) >= g0 - 0.3) && !this.nearCorpse(x, z) && (!ring || Math.hypot(x - o.px, z - o.pz) <= Math.max(HOLD_ZONE, Math.hypot(post.x - o.px, post.z - o.pz) + 1)));
+      if (q && this.map.findPath(u.x, u.z, q.x, q.z)) { post = q; post.hug = true; }
     }
     u.keyOrder = { id: 'ordre' + o.id, nom: 'point ordonné', x: post.x, z: post.z, r: 2.5, menace: face, held: true, ordre: o.hid !== undefined ? o.hid : o.id, grp: o.id };
     if (ring) Object.assign(u.keyOrder, { cx: o.px, cz: o.pz, face0: o.face, sect: o.sect, hx: post.x, hz: post.z });
+    if (post.hug) u.keyOrder.hug = true;   // place collée : on va jusqu'au bout (cf. followKeyOrder)
     if (o.enc) u.keyOrder.enc = o.enc;
     this.stop(u); u.commitUntil = 0;
     this.logEvent('enplace', `${u.callsign} : « En place. »`, { unit: u.id, team: u.team, ordre: o.id, silent: true });
