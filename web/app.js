@@ -2536,7 +2536,7 @@
     const fe = pick.feu === 'volonte' ? (pick.mode === 'discret' ? ', feu retenu jusqu’au contact' : '') : `, feu ${ORD_FEU.find(c => c.v === pick.feu).nom.toLowerCase()}`;
     const fu = fum ? (r.fumee ? ', avec fumée' : ' (fumée impossible : pas de fumigène ou pas de trajectoire)') : '';
     const vi = via.length ? ` par ${via.length} point${via.length > 1 ? 's' : ''} de passage` : '';
-    flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}${vi}${fu}, puis ${nm('arrivee')}${fe}.`); pumpLog();
+    flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}${vi}${fu}, puis ${nm('arrivee')}${fe}.` + terrResume((battle.teams[0].ordInfo || {})[r.id] && battle.teams[0].ordInfo[r.id].terrain)); pumpLog();
     // A4 : orienter la position — un clic gauche sur le sol montre d'où vient le danger (Échap : direction automatique)
     if (!opt.vite && ((pick.arrivee !== 'manoeuvre' && pick.arrivee !== 'fouiller') || pick.feu === 'appui')) ordOrientStart(r);
     if (MANUAL) render();
@@ -2813,6 +2813,42 @@
       ordShown[k].userData.sp.position.y = 3.8 + bob;
     }
     ordFireMarks();
+    ordTerrainDraw(live);
+  }
+  // Plan Commandant, étape 1 : ce que l'escouade « lit » du trajet (moteur : routeTerrain / map.analyzePath), affiché tant
+  // que l'ordre est en cours — trajet en blanc léger, couloir confiné en jaune, découvert en rouge, points vus par
+  // l'ennemi (connu ou supposé) en orange.
+  const ordTerr = {}, TERR_COUL = { confine: 0xffc83a, decouvert: 0xff3b30, danger: 0xff8a2a };
+  function terrRibbon(pts, w, color, alpha, y) {
+    const pos = [];
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i], L = Math.hypot(b.x - a.x, b.z - a.z); if (L < 1e-6) continue;
+      const nx = -(b.z - a.z) / L * w / 2, nz = (b.x - a.x) / L * w / 2;
+      pos.push(a.x + nx, y, a.z + nz, a.x - nx, y, a.z - nz, b.x + nx, y, b.z + nz, a.x - nx, y, a.z - nz, b.x - nx, y, b.z - nz, b.x + nx, y, b.z + nz);
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: alpha, depthTest: false, depthWrite: false, fog: false, toneMapped: false, side: THREE.DoubleSide }));
+    m.renderOrder = 5; return m;
+  }
+  function ordTerrainDraw(live) {
+    const oi = battle.teams[0].ordInfo || {};
+    for (const k in ordTerr) if (!live[k]) { ordFree(ordTerr[k]); delete ordTerr[k]; }
+    for (const k in live) {
+      const T = oi[k] && oi[k].terrain; if (!T || ordTerr[k]) continue;
+      const g = new THREE.Group();
+      g.add(terrRibbon(T.samples, 0.35, 0xffffff, 0.22, 0.05));
+      for (const tag of ['confine', 'decouvert', 'danger']) for (const r of T[tag]) if (r.pts.length > 1) g.add(terrRibbon(r.pts, tag === 'danger' ? 0.5 : 0.9, TERR_COUL[tag], 0.6, tag === 'danger' ? 0.09 : 0.07));
+      for (const d of T.dangerAngles) { const h = groundHolo(0.7, { color: TERR_COUL.danger, alpha: 0.9, fill: 0.35 }); h.position.set(d.x, 0.1, d.z); g.add(h); }
+      ordMarks.add(g); ordTerr[k] = g;
+    }
+  }
+  function terrResume(T) {   // pour le message de l'ordre
+    if (!T) return '';
+    const bits = [];
+    if (T.confineLen) bits.push(`couloir ${Math.round(T.confineLen)} m`);
+    if (T.decouvertLen) bits.push(`découvert ${Math.round(T.decouvertLen)} m`);
+    if (T.dangerAngles.length) bits.push(`${T.dangerAngles.length} angle${T.dangerAngles.length > 1 ? 's' : ''} dangereux`);
+    return ` Terrain : ${bits.length ? bits.join(', ') : 'abrité'}.`;
   }
   // Feu (vague 1) : flèche d'orientation des ordres en route, zone arrosée par un groupe en appui (anneau orange), main
   // levée sur les cartes des opérateurs en feu retenu (clic : « Feu ! »)

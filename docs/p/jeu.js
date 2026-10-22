@@ -15403,6 +15403,58 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (let i = 0; i < n; i++) { const { c, r } = this.cellOf(ax + (bx - ax) * (i + 0.5) / n, az + (bz - az) * (i + 0.5) / n); k += this.open[r * this.cols + c]; }
     return k * L / n;
   };
+  // ---- Lecture du terrain le long d'un trajet (plan Commandant, étape 1 — PLAN_DOCTRINE.md) -----------------------------
+  // On sonde le trajet tous les mètres et on le découpe en tronçons :
+  //  - « confiné » : passage de moins de 4 m de large entre deux obstacles hauts (≥ 1,6 m : murs, haies, camions), sur 3 m
+  //    au moins (une simple porte ne compte pas) ;
+  //  - « découvert » : plus de 5 m sans aucun obstacle (≥ 0,9 m : de quoi se cacher accroupi) à moins de 2 m de l'axe ;
+  //  - « danger » : un point d'où l'ennemi (connu ou supposé) peut voir le trajet — fourni par danger(x, z) (moteur).
+  // Rien ne change dans le combat : le profil sert aux formations (étapes suivantes) et à l'affichage.
+  const ANA_STEP = 1, CHOKE_W = 4, CHOKE_H = 1.6, CHOKE_MIN = 3, OPEN_R = 2, OPEN_LEN = 5, OPEN_H = 0.9;
+  GameMap.prototype.analyzePath = function (path, danger) {
+    const P = [];   // échantillons { x, z, dir }
+    for (let i = 1; i < (path ? path.length : 0); i++) {
+      const a = path[i - 1], b = path[i], L = Math.hypot(b.x - a.x, b.z - a.z); if (L < 1e-6) continue;
+      const dir = Math.atan2(b.z - a.z, b.x - a.x), n = Math.ceil(L / ANA_STEP);
+      for (let j = 0; j < n; j++) P.push({ x: a.x + (b.x - a.x) * j / n, z: a.z + (b.z - a.z) * j / n, dir });
+      if (i === path.length - 1) P.push({ x: b.x, z: b.z, dir });
+    }
+    const tall = this.obstacles.filter(o => o.h >= CHOKE_H), low = this.obstacles.filter(o => o.h >= OPEN_H);
+    const side = (x, z, a) => {   // distance à l'obstacle haut le plus proche sur le côté (le bord de la carte compte), sinon Infinity
+      const ca = Math.cos(a), sa = Math.sin(a);
+      for (let s = 0.25; s <= CHOKE_W; s += 0.25) {
+        const px = x + ca * s, pz = z + sa * s;
+        if (px <= 0 || pz <= 0 || px >= this.width || pz >= this.depth) return s;
+        for (const o of tall) if (pointInBox(px, pz, o)) return s;
+      }
+      return Infinity;
+    };
+    for (const q of P) {
+      q.w = side(q.x, q.z, q.dir + Math.PI / 2) + side(q.x, q.z, q.dir - Math.PI / 2);
+      q.confine = q.w <= CHOKE_W + 0.25;   // ≤ 4 m (+ le pas de la sonde)
+      q.decouvert = !low.some(o => pointInBox(q.x, q.z, o, OPEN_R));
+      q.danger = !!(danger && danger(q.x, q.z));
+    }
+    // tronçons continus d'un même tag ; longueur minimale (confiné 3 m, découvert 5 m), le danger compte dès 1 point
+    const runs = (tag, min) => {
+      const out = []; let cur = null;
+      P.forEach((q, i) => {
+        if (q[tag]) { if (!cur) cur = { i0: i, pts: [] }; cur.pts.push({ x: q.x, z: q.z }); cur.i1 = i; }
+        if ((!q[tag] || i === P.length - 1) && cur) { const len = (cur.i1 - cur.i0) * ANA_STEP; if (len >= min) out.push({ tag, len, pts: cur.pts, from: cur.i0 * ANA_STEP, to: cur.i1 * ANA_STEP }); cur = null; }
+      });
+      return out;
+    };
+    const confine = runs('confine', CHOKE_MIN), decouvert = runs('decouvert', OPEN_LEN + 1e-6), dangers = runs('danger', 0);
+    const length = Math.max(0, P.length - 1) * ANA_STEP, sum = (L) => L.reduce((s, r) => s + r.len, 0);
+    return {
+      length, confine, decouvert, danger: dangers,
+      confineLen: sum(confine), decouvertLen: sum(decouvert),
+      isChoke: length > 0 && sum(confine) >= length * 0.5,   // « majoritairement confiné » → colonne
+      isOpen: decouvert.length > 0,                           // au moins un découvert à franchir
+      dangerAngles: dangers.map(r => ({ x: r.pts[0].x, z: r.pts[0].z, at: r.from })),
+      samples: P,
+    };
+  };
   GameMap.prototype.cellOf = function (x, z) {
     return { c: Math.min(this.cols - 1, Math.max(0, Math.floor(x / CELL))), r: Math.min(this.rows - 1, Math.max(0, Math.floor(z / CELL))) };
   };
@@ -17196,7 +17248,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     // réglage de feu de l'ordre (pour tout le groupe, jusqu'au prochain ordre de chacun)
     team.ordInfo = team.ordInfo || {};
     const fumee = !!arg.fumee && (mode === 'franchir' || mode === 'decrocher');
-    team.ordInfo[id] = { feu, px: p.x, pz: p.z, dir, arr, released: feu !== 'retenu', orient: null, zone: null, appuiSaid: false, fumee, via: via.map(q => ({ x: q.x, z: q.z })), viaDone: 0 };
+    team.ordInfo[id] = { feu, px: p.x, pz: p.z, dir, arr, released: feu !== 'retenu', orient: null, zone: null, appuiSaid: false, fumee, via: via.map(q => ({ x: q.x, z: q.z })), viaDone: 0, terrain: this.routeTerrain(team, cx, cz, via, p) };
     if (arr === 'freinage') {   // T5 : la 2e ligne = d'où l'on vient (le centre du groupe au départ ; trop près du point : 25 m derrière la marche)
       let L2 = Math.hypot(cx - p.x, cz - p.z) >= FREIN_MIN ? { x: cx, z: cz } : this.orderPoint(p.x - Math.cos(dir) * 25, p.z - Math.sin(dir) * 25);
       if (L2 && !this.map.findPath(p.x, p.z, L2.x, L2.z)) L2 = null;
@@ -17224,6 +17276,29 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     this.logEvent('moveorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — déplacement ${MOVE_MODES[mode]}${fumee ? ' avec fumée' : ''}, puis ${ARRIVALS[arrivee]}${arr !== arrivee ? (feu === 'appui' ? ` (en appui : ${ARRIVALS[arr]})` : ` (à ${units.length}, ${ARRIVALS[arr]})`) : ''}${feu !== 'volonte' ? `, ${FIRE_MODES[feu]}` : ''}.`, { team: teamIndex, unit: units[0].id, ordre: id, mode, feu, silent: !!arg.plan });
     return { ok: true, id, x: p.x, z: p.z, fumee: fumee ? (mode === 'franchir' ? units.some(u => (u.grenades.smoke || 0) > 0) : !!smoke) : undefined };
+  };
+  // ---- Plan Commandant, étape 1 : lecture du terrain du trajet (PLAN_DOCTRINE.md) -------------------------------------
+  // Le chemin que prendra le groupe (depuis son centre, par les points de passage) est sondé par map.analyzePath :
+  // tronçons confinés, découverts, et points vus par l'ennemi connu ou supposé (le « deuxième cerveau »). Pour
+  // l'instant, le profil est seulement gardé avec l'ordre (et affiché) : il ne change rien au combat.
+  const ROUTE_SEEN = 20, ROUTE_R = 40;
+  Battle.prototype.routeDanger = function (team) {
+    const src = [], add = (x, z) => { if (!src.some(q => Math.hypot(q.x - x, q.z - z) < 3)) src.push({ x, z }); };
+    for (const a of team.units) if (a.alive) for (const eid in a.knowledge) { const k = a.knowledge[eid], e = this.unitById(eid); if (e && e.alive && this.t - k.t <= ROUTE_SEEN) add(k.x, k.z); }
+    for (const h of team.hints || []) add(h.x, h.z);
+    for (const d of team.danger || []) add(d.x, d.z);
+    if (!src.length) return null;
+    const m = this.map;
+    return (x, z) => src.some(q => Math.hypot(q.x - x, q.z - z) <= ROUTE_R && m.hasSolidLOS(q.x, 1.5, q.z, x, 1.2, z));
+  };
+  Battle.prototype.routeTerrain = function (team, x0, z0, via, p) {
+    const pts = []; let a = { x: x0, z: z0 };
+    for (const q of via.concat([p])) {
+      const leg = this.map.findPath(a.x, a.z, q.x, q.z); if (!leg) return null;
+      for (const c of leg) if (!pts.length || Math.hypot(c.x - pts[pts.length - 1].x, c.z - pts[pts.length - 1].z) > 1e-6) pts.push({ x: c.x, z: c.z });
+      a = q;
+    }
+    return pts.length > 1 ? this.map.analyzePath(pts, this.routeDanger(team)) : null;
   };
   // ---- Feu et orientation des ordres du clic droit (vague 1 : strategies_gign.md F1, F2, A4) ---------------------------
   // l'ordre en cours d'un opérateur (en route, ou à son poste) : { id, inf } (inf = team.ordInfo[id]), sinon null
@@ -23673,7 +23748,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const fe = pick.feu === 'volonte' ? (pick.mode === 'discret' ? ', feu retenu jusqu’au contact' : '') : `, feu ${ORD_FEU.find(c => c.v === pick.feu).nom.toLowerCase()}`;
     const fu = fum ? (r.fumee ? ', avec fumée' : ' (fumée impossible : pas de fumigène ou pas de trajectoire)') : '';
     const vi = via.length ? ` par ${via.length} point${via.length > 1 ? 's' : ''} de passage` : '';
-    flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}${vi}${fu}, puis ${nm('arrivee')}${fe}.`); pumpLog();
+    flashBattle(`Ordre : ${who} — déplacement ${nm('mode')}${vi}${fu}, puis ${nm('arrivee')}${fe}.` + terrResume((battle.teams[0].ordInfo || {})[r.id] && battle.teams[0].ordInfo[r.id].terrain)); pumpLog();
     // A4 : orienter la position — un clic gauche sur le sol montre d'où vient le danger (Échap : direction automatique)
     if (!opt.vite && ((pick.arrivee !== 'manoeuvre' && pick.arrivee !== 'fouiller') || pick.feu === 'appui')) ordOrientStart(r);
     if (MANUAL) render();
@@ -23950,6 +24025,42 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       ordShown[k].userData.sp.position.y = 3.8 + bob;
     }
     ordFireMarks();
+    ordTerrainDraw(live);
+  }
+  // Plan Commandant, étape 1 : ce que l'escouade « lit » du trajet (moteur : routeTerrain / map.analyzePath), affiché tant
+  // que l'ordre est en cours — trajet en blanc léger, couloir confiné en jaune, découvert en rouge, points vus par
+  // l'ennemi (connu ou supposé) en orange.
+  const ordTerr = {}, TERR_COUL = { confine: 0xffc83a, decouvert: 0xff3b30, danger: 0xff8a2a };
+  function terrRibbon(pts, w, color, alpha, y) {
+    const pos = [];
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i], L = Math.hypot(b.x - a.x, b.z - a.z); if (L < 1e-6) continue;
+      const nx = -(b.z - a.z) / L * w / 2, nz = (b.x - a.x) / L * w / 2;
+      pos.push(a.x + nx, y, a.z + nz, a.x - nx, y, a.z - nz, b.x + nx, y, b.z + nz, a.x - nx, y, a.z - nz, b.x - nx, y, b.z - nz, b.x + nx, y, b.z + nz);
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: alpha, depthTest: false, depthWrite: false, fog: false, toneMapped: false, side: THREE.DoubleSide }));
+    m.renderOrder = 5; return m;
+  }
+  function ordTerrainDraw(live) {
+    const oi = battle.teams[0].ordInfo || {};
+    for (const k in ordTerr) if (!live[k]) { ordFree(ordTerr[k]); delete ordTerr[k]; }
+    for (const k in live) {
+      const T = oi[k] && oi[k].terrain; if (!T || ordTerr[k]) continue;
+      const g = new THREE.Group();
+      g.add(terrRibbon(T.samples, 0.35, 0xffffff, 0.22, 0.05));
+      for (const tag of ['confine', 'decouvert', 'danger']) for (const r of T[tag]) if (r.pts.length > 1) g.add(terrRibbon(r.pts, tag === 'danger' ? 0.5 : 0.9, TERR_COUL[tag], 0.6, tag === 'danger' ? 0.09 : 0.07));
+      for (const d of T.dangerAngles) { const h = groundHolo(0.7, { color: TERR_COUL.danger, alpha: 0.9, fill: 0.35 }); h.position.set(d.x, 0.1, d.z); g.add(h); }
+      ordMarks.add(g); ordTerr[k] = g;
+    }
+  }
+  function terrResume(T) {   // pour le message de l'ordre
+    if (!T) return '';
+    const bits = [];
+    if (T.confineLen) bits.push(`couloir ${Math.round(T.confineLen)} m`);
+    if (T.decouvertLen) bits.push(`découvert ${Math.round(T.decouvertLen)} m`);
+    if (T.dangerAngles.length) bits.push(`${T.dangerAngles.length} angle${T.dangerAngles.length > 1 ? 's' : ''} dangereux`);
+    return ` Terrain : ${bits.length ? bits.join(', ') : 'abrité'}.`;
   }
   // Feu (vague 1) : flèche d'orientation des ordres en route, zone arrosée par un groupe en appui (anneau orange), main
   // levée sur les cartes des opérateurs en feu retenu (clic : « Feu ! »)

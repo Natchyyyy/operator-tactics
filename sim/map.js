@@ -248,6 +248,58 @@
     for (let i = 0; i < n; i++) { const { c, r } = this.cellOf(ax + (bx - ax) * (i + 0.5) / n, az + (bz - az) * (i + 0.5) / n); k += this.open[r * this.cols + c]; }
     return k * L / n;
   };
+  // ---- Lecture du terrain le long d'un trajet (plan Commandant, étape 1 — PLAN_DOCTRINE.md) -----------------------------
+  // On sonde le trajet tous les mètres et on le découpe en tronçons :
+  //  - « confiné » : passage de moins de 4 m de large entre deux obstacles hauts (≥ 1,6 m : murs, haies, camions), sur 3 m
+  //    au moins (une simple porte ne compte pas) ;
+  //  - « découvert » : plus de 5 m sans aucun obstacle (≥ 0,9 m : de quoi se cacher accroupi) à moins de 2 m de l'axe ;
+  //  - « danger » : un point d'où l'ennemi (connu ou supposé) peut voir le trajet — fourni par danger(x, z) (moteur).
+  // Rien ne change dans le combat : le profil sert aux formations (étapes suivantes) et à l'affichage.
+  const ANA_STEP = 1, CHOKE_W = 4, CHOKE_H = 1.6, CHOKE_MIN = 3, OPEN_R = 2, OPEN_LEN = 5, OPEN_H = 0.9;
+  GameMap.prototype.analyzePath = function (path, danger) {
+    const P = [];   // échantillons { x, z, dir }
+    for (let i = 1; i < (path ? path.length : 0); i++) {
+      const a = path[i - 1], b = path[i], L = Math.hypot(b.x - a.x, b.z - a.z); if (L < 1e-6) continue;
+      const dir = Math.atan2(b.z - a.z, b.x - a.x), n = Math.ceil(L / ANA_STEP);
+      for (let j = 0; j < n; j++) P.push({ x: a.x + (b.x - a.x) * j / n, z: a.z + (b.z - a.z) * j / n, dir });
+      if (i === path.length - 1) P.push({ x: b.x, z: b.z, dir });
+    }
+    const tall = this.obstacles.filter(o => o.h >= CHOKE_H), low = this.obstacles.filter(o => o.h >= OPEN_H);
+    const side = (x, z, a) => {   // distance à l'obstacle haut le plus proche sur le côté (le bord de la carte compte), sinon Infinity
+      const ca = Math.cos(a), sa = Math.sin(a);
+      for (let s = 0.25; s <= CHOKE_W; s += 0.25) {
+        const px = x + ca * s, pz = z + sa * s;
+        if (px <= 0 || pz <= 0 || px >= this.width || pz >= this.depth) return s;
+        for (const o of tall) if (pointInBox(px, pz, o)) return s;
+      }
+      return Infinity;
+    };
+    for (const q of P) {
+      q.w = side(q.x, q.z, q.dir + Math.PI / 2) + side(q.x, q.z, q.dir - Math.PI / 2);
+      q.confine = q.w <= CHOKE_W + 0.25;   // ≤ 4 m (+ le pas de la sonde)
+      q.decouvert = !low.some(o => pointInBox(q.x, q.z, o, OPEN_R));
+      q.danger = !!(danger && danger(q.x, q.z));
+    }
+    // tronçons continus d'un même tag ; longueur minimale (confiné 3 m, découvert 5 m), le danger compte dès 1 point
+    const runs = (tag, min) => {
+      const out = []; let cur = null;
+      P.forEach((q, i) => {
+        if (q[tag]) { if (!cur) cur = { i0: i, pts: [] }; cur.pts.push({ x: q.x, z: q.z }); cur.i1 = i; }
+        if ((!q[tag] || i === P.length - 1) && cur) { const len = (cur.i1 - cur.i0) * ANA_STEP; if (len >= min) out.push({ tag, len, pts: cur.pts, from: cur.i0 * ANA_STEP, to: cur.i1 * ANA_STEP }); cur = null; }
+      });
+      return out;
+    };
+    const confine = runs('confine', CHOKE_MIN), decouvert = runs('decouvert', OPEN_LEN + 1e-6), dangers = runs('danger', 0);
+    const length = Math.max(0, P.length - 1) * ANA_STEP, sum = (L) => L.reduce((s, r) => s + r.len, 0);
+    return {
+      length, confine, decouvert, danger: dangers,
+      confineLen: sum(confine), decouvertLen: sum(decouvert),
+      isChoke: length > 0 && sum(confine) >= length * 0.5,   // « majoritairement confiné » → colonne
+      isOpen: decouvert.length > 0,                           // au moins un découvert à franchir
+      dangerAngles: dangers.map(r => ({ x: r.pts[0].x, z: r.pts[0].z, at: r.from })),
+      samples: P,
+    };
+  };
   GameMap.prototype.cellOf = function (x, z) {
     return { c: Math.min(this.cols - 1, Math.max(0, Math.floor(x / CELL))), r: Math.min(this.rows - 1, Math.max(0, Math.floor(z / CELL))) };
   };

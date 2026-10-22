@@ -1596,7 +1596,7 @@
     // réglage de feu de l'ordre (pour tout le groupe, jusqu'au prochain ordre de chacun)
     team.ordInfo = team.ordInfo || {};
     const fumee = !!arg.fumee && (mode === 'franchir' || mode === 'decrocher');
-    team.ordInfo[id] = { feu, px: p.x, pz: p.z, dir, arr, released: feu !== 'retenu', orient: null, zone: null, appuiSaid: false, fumee, via: via.map(q => ({ x: q.x, z: q.z })), viaDone: 0 };
+    team.ordInfo[id] = { feu, px: p.x, pz: p.z, dir, arr, released: feu !== 'retenu', orient: null, zone: null, appuiSaid: false, fumee, via: via.map(q => ({ x: q.x, z: q.z })), viaDone: 0, terrain: this.routeTerrain(team, cx, cz, via, p) };
     if (arr === 'freinage') {   // T5 : la 2e ligne = d'où l'on vient (le centre du groupe au départ ; trop près du point : 25 m derrière la marche)
       let L2 = Math.hypot(cx - p.x, cz - p.z) >= FREIN_MIN ? { x: cx, z: cz } : this.orderPoint(p.x - Math.cos(dir) * 25, p.z - Math.sin(dir) * 25);
       if (L2 && !this.map.findPath(p.x, p.z, L2.x, L2.z)) L2 = null;
@@ -1624,6 +1624,29 @@
     }
     this.logEvent('moveorder', `${team.name} : ${units.map(u => u.callsign).join(', ')} — déplacement ${MOVE_MODES[mode]}${fumee ? ' avec fumée' : ''}, puis ${ARRIVALS[arrivee]}${arr !== arrivee ? (feu === 'appui' ? ` (en appui : ${ARRIVALS[arr]})` : ` (à ${units.length}, ${ARRIVALS[arr]})`) : ''}${feu !== 'volonte' ? `, ${FIRE_MODES[feu]}` : ''}.`, { team: teamIndex, unit: units[0].id, ordre: id, mode, feu, silent: !!arg.plan });
     return { ok: true, id, x: p.x, z: p.z, fumee: fumee ? (mode === 'franchir' ? units.some(u => (u.grenades.smoke || 0) > 0) : !!smoke) : undefined };
+  };
+  // ---- Plan Commandant, étape 1 : lecture du terrain du trajet (PLAN_DOCTRINE.md) -------------------------------------
+  // Le chemin que prendra le groupe (depuis son centre, par les points de passage) est sondé par map.analyzePath :
+  // tronçons confinés, découverts, et points vus par l'ennemi connu ou supposé (le « deuxième cerveau »). Pour
+  // l'instant, le profil est seulement gardé avec l'ordre (et affiché) : il ne change rien au combat.
+  const ROUTE_SEEN = 20, ROUTE_R = 40;
+  Battle.prototype.routeDanger = function (team) {
+    const src = [], add = (x, z) => { if (!src.some(q => Math.hypot(q.x - x, q.z - z) < 3)) src.push({ x, z }); };
+    for (const a of team.units) if (a.alive) for (const eid in a.knowledge) { const k = a.knowledge[eid], e = this.unitById(eid); if (e && e.alive && this.t - k.t <= ROUTE_SEEN) add(k.x, k.z); }
+    for (const h of team.hints || []) add(h.x, h.z);
+    for (const d of team.danger || []) add(d.x, d.z);
+    if (!src.length) return null;
+    const m = this.map;
+    return (x, z) => src.some(q => Math.hypot(q.x - x, q.z - z) <= ROUTE_R && m.hasSolidLOS(q.x, 1.5, q.z, x, 1.2, z));
+  };
+  Battle.prototype.routeTerrain = function (team, x0, z0, via, p) {
+    const pts = []; let a = { x: x0, z: z0 };
+    for (const q of via.concat([p])) {
+      const leg = this.map.findPath(a.x, a.z, q.x, q.z); if (!leg) return null;
+      for (const c of leg) if (!pts.length || Math.hypot(c.x - pts[pts.length - 1].x, c.z - pts[pts.length - 1].z) > 1e-6) pts.push({ x: c.x, z: c.z });
+      a = q;
+    }
+    return pts.length > 1 ? this.map.analyzePath(pts, this.routeDanger(team)) : null;
   };
   // ---- Feu et orientation des ordres du clic droit (vague 1 : strategies_gign.md F1, F2, A4) ---------------------------
   // l'ordre en cours d'un opérateur (en route, ou à son poste) : { id, inf } (inf = team.ordInfo[id]), sinon null
