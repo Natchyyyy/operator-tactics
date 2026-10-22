@@ -20017,7 +20017,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     return c;
   };
   const PEN_CHANCE = 0.16, PEN_DMG = 0.5;
-  const PLATE_COVER = 0.7, TORSO_DOWN = 0.5, BLEED_TORSO = 45, BLEED_LIMB = 75, STUN_HEAD = 2, STUN_PLATE = 1, TQ_SELF = 8, TQ_ARM = 1.5;
+  const PLATE_COVER = 0.7, TORSO_DOWN = 0.5, BLEED_TORSO = 45, BLEED_LIMB = 75, STUN_HEAD = 2, STUN_PLATE = 1, TQ_SELF = 6, TQ_ARM = 1.5;
   const ZONE_FR = { 'tête': 'tête', torse: 'torse', bras: 'bras', jambe: 'jambe' };
   // chance qu'une plaque arrête une balle de fusil : selon son niveau, moins 15 % par balle déjà reçue (elle s'use)
   const PLATE_STOP = { light: 0.1, assaultv: 0.25, medium: 0.8, heavy: 0.95 };
@@ -20045,10 +20045,12 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   };
   // hémorragie et garrot (Sauvetage au Combat : « garrot en premier » pour un membre qui saigne). Un bras ou une jambe qui
   // saigne : dès qu'il est à l'abri (personne en vue, ou un vrai couvert contre la menace), le blessé se pose son garrot
-  // (8 s, ×1,5 si c'est un bras : une seule main), sans tirer. Le saignement du torse ne s'arrête pas : la relève.
+  // (6 s, ×1,5 si c'est un bras : une seule main), sans tirer. Un ordre du joueur passe avant : en route
+  // sur ordre, pas de garrot (il le posera à l'arrivée) ; un nouvel ordre interrompt un garrot en cours. Le saignement du torse ne s'arrête pas : la relève.
   Battle.prototype.woundStep = function (u, threats) {
     if (!u.wounds.length) return false;
     if (this.t >= u.bleedOutAt) { this.bleedOut(u); return true; }
+    if (u.tq && (u.orderAt || -99) > u.tq.t0) { u.tq = null; this.logEvent('garrot', `${u.callsign} interrompt son garrot (nouvel ordre).`, { unit: u.id, team: u.team, silent: true }); }   // un ordre du joueur passe avant
     if (u.tq) {
       if (this.t < u.tq.until) { this.stop(u); u.state = 'tourniquet'; u.stance = this.lowStance(u); u.target = null; u.holdFire = true; return true; }
       const wd = u.wounds.find(x => x === u.tq.w); if (wd) wd.tq = true; u.tq = null;
@@ -20058,10 +20060,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       return false;
     }
     const wd = u.wounds.find(x => x.bleed && !x.tq && x.zone !== 'torse'); if (!wd || u.drag || u.reviving) return false;
+    if (u.moveOrder && !u.moveOrder.fixe) return false;   // en route sur ordre du joueur : le garrot attendra l'arrivée (il saigne en attendant)
     const th = threats[0] || (u.lastShotBy && u.lastShotBy.alive && this.t - u.lastShotByAt < 3 ? u.lastShotBy : null);
     if (th && !this.coverAt(u.x, u.z, th.x, th.z, true)) return false;   // d'abord se mettre à l'abri (la suite de la décision s'en charge)
     if (u.goal && (u.goalKind === 'cover' || u.goalKind === 'hide')) return false;
-    u.tq = { w: wd, until: this.t + TQ_SELF * (wd.zone === 'bras' ? TQ_ARM : 1) };
+    u.tq = { w: wd, t0: this.t, until: this.t + TQ_SELF * (wd.zone === 'bras' ? TQ_ARM : 1) };
     this.logEvent('garrot', `${u.callsign} se pose un garrot (${wd.zone === 'bras' ? 'bras' : 'jambe'}).`, { unit: u.id, team: u.team });
     this.stop(u); u.state = 'tourniquet'; u.stance = this.lowStance(u); u.target = null; u.holdFire = true;
     return true;
