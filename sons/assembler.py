@@ -13,7 +13,8 @@ RETIRES = {'tir_fusil', 'tir_pm', 'tir_precision', 'tir_mitrailleuse', 'tir_pomp
 # dans la page : nom → nombre de variantes (None = toutes)
 PAGE = {
   'tir_556_proche': 3, 'tir_556_moyen': 2, 'tir_556_loin': 2, 'tir_silencieux': 2, 'claquement': 2, 'sifflement': 2, 'ricochet': 2,
-  'impact_beton': 3, 'impact_metal': 3, 'impact_carrosserie': 2, 'impact_verre': 1, 'impact_bois': 2, 'impact_corps': 3, 'impact_sol': None,
+  'impact_beton': 3, 'impact_metal': 3, 'impact_carrosserie': 3, 'impact_verre': 2, 'impact_bois': 2, 'impact_corps': 3, 'impact_sol': 3,
+  'impact_plaque': 2, 'impact_casque': 2, 'impact_pneu': 1, 'impact_proche': 2, 'vitre_eclat': 1, 'cliquetis_verre': 1,
   'douilles': 3, 'recharge': 2, 'chute': 2, 'equipement': 2, 'pas': None, 'pas_mouille': 3,
   'explosion': 2, 'explosion_lourde': 1, 'flashbang': None, 'grenade_rebond': None,
   'pluie_courte': None, 'vent_court': None, 'ambiance_port': None, 'ambiance_ville': None,

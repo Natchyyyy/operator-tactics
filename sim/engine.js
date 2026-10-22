@@ -4307,6 +4307,19 @@
   // prudemment, elle touche simplement moins). De près (sous TEMPO_NEAR m) rien ne change : on ne rate pas à bout portant ; entre 3 et 10 m, on passe progressivement de l'un à l'autre. Réglé pour des batailles de ~3 min 20 (contre ~1 min 30 avant).
   // Les balles manquées continuent de clouer l'adversaire : les échanges durent, le joueur a le temps de réfléchir.
   const TEMPO_HIT = 0.2, TEMPO_NEAR = 3, TEMPO_FULL = 10;
+  // point (affichage) où le trajet from → to entre dans la boîte de l'obstacle o ; null si la balle passe au-dessus.
+  // force : toujours un point (balle qui traverse la tôle : trou dans la portière à hauteur de la cible)
+  function coverPoint(from, to, o, force) {
+    const dx = to.x - from.x, dz = to.z - from.z; let t0 = 0, t1 = 1;
+    for (const [p, dp, lo, hi] of [[from.x, dx, o.x, o.x + o.w], [from.z, dz, o.z, o.z + o.d]]) {
+      if (Math.abs(dp) < 1e-9) { if (p < lo || p > hi) return null; continue; }
+      let a = (lo - p) / dp, b = (hi - p) / dp; if (a > b) [a, b] = [b, a]; t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+    }
+    if (t0 > t1) return null;
+    const y = from.y + (to.y - from.y) * t0;
+    if (!force && y > o.h + 0.15) return null;
+    return { x: from.x + dx * t0, y: clamp(y, 0.12, o.h - 0.04), z: from.z + dz * t0 };
+  }
   const tempoHit = (d) => d <= TEMPO_NEAR ? 1 : d >= TEMPO_FULL ? TEMPO_HIT : 1 - (1 - TEMPO_HIT) * (d - TEMPO_NEAR) / (TEMPO_FULL - TEMPO_NEAR);
   Battle.prototype.shoot = function (u, e, d) {
     u.ammo--; u.stats.shots++; u.lastShotAt = this.t; this.lastShotTime = this.t; u.burst++; u.aimHistory[e.id] = this.t;
@@ -4318,7 +4331,8 @@
     let to;
     if (hit) {
       to = { x: e.x, y: e.chestY(), z: e.z };
-      this.applyHit(u, e, d);
+      const r = this.applyHit(u, e, d);
+      this.emit({ type: 'shot', shooter: u.id, target: e.id, from, to, hit, zone: r.zone, stop: r.stopped }); return;
     } else {
       // la balle passe près : suppression (moindre si la cible est à couvert ou si le tir est lointain)
       const far = d > u.weapon.range ? 0.5 : 1;
@@ -4327,14 +4341,17 @@
       // la tête), la tôle protège encore un peu
       if (cover && /^voiture/.test(cover.obstacle.name || '')) this.carHit(cover.obstacle);
       if (soft && this.rng.chance(this.penChance(cover.obstacle))) {
-        this.emit({ type: 'shot', shooter: u.id, target: e.id, from, to: { x: e.x, y: e.chestY() - 0.2, z: e.z }, hit: true, through: true });
-        this.applyHit(u, e, d, false, true); return;
+        const r = this.applyHit(u, e, d, false, true), to2 = { x: e.x, y: e.chestY() - 0.2, z: e.z };
+        this.emit({ type: 'shot', shooter: u.id, target: e.id, from, to: to2, hit: true, through: true, zone: r.zone, stop: r.stopped, cp: coverPoint(from, to2, cover.obstacle, true), co: this.map.obstacles.indexOf(cover.obstacle) }); return;
       }
       const spread = 0.4 + d * 0.03;
       to = { x: e.x + this.rng.gauss() * spread, y: e.chestY() + this.rng.gauss() * 0.5, z: e.z + this.rng.gauss() * spread };
       // balle perdue : un autre adversaire collé à la ligne de tir (à côté de la cible ou derrière elle) peut la prendre
       const v = this.strayVictim(u, e, d);
-      if (v) { this.emit({ type: 'shot', shooter: u.id, target: v.id, from, to: { x: v.x, y: v.chestY(), z: v.z }, hit: true, stray: true }); this.applyHit(u, v, dist2(u, v), true); return; }
+      if (v) { const r = this.applyHit(u, v, dist2(u, v), true); this.emit({ type: 'shot', shooter: u.id, target: v.id, from, to: { x: v.x, y: v.chestY(), z: v.z }, hit: true, stray: true, zone: r.zone, stop: r.stopped }); return; }
+      // (affichage seulement) la balle arrêtée par le couvert frappe vraiment l'obstacle, au point où elle y entre
+      const cp = cover ? coverPoint(from, to, cover.obstacle) : null;
+      if (cp) { this.emit({ type: 'shot', shooter: u.id, target: e.id, from, to: cp, hit: false, co: this.map.obstacles.indexOf(cover.obstacle) }); return; }
     }
     this.emit({ type: 'shot', shooter: u.id, target: e.id, from, to, hit });
   };
@@ -4500,12 +4517,13 @@
       text += bleeding ? ` — ${e.callsign} est à terre (un allié peut le relever).` : ` — ${e.callsign} est hors de combat.`;
       this.logEvent('down', text, { unit: u.id, enemy: e.id, team: u.team, dmg, loc, stray: !!stray });
       this.emit({ type: 'down', unit: e.id });
-      return;
+      return { zone, stopped };
     }
     e.status = this.woundStatus(e);
     if (e.status !== prevStatus && !stopped) text += e.status === 'critical' ? ` ${e.callsign} est gravement blessé.` : '';
     if (stopped) this.logEvent('sonne', `${e.callsign} : « Touché, ça va ! »`, { unit: e.id, team: e.team, silent: true });
     this.logEvent('hit', text, { unit: u.id, enemy: e.id, team: u.team, dmg, loc, hpBefore: before, hpAfter: e.hp, stray: !!stray });
+    return { zone, stopped };
   };
 
   // ---- Fin de bataille -----------------------------------------------------------------

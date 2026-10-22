@@ -159,21 +159,21 @@
     const list = [], m4 = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), sc = new T.Vector3(1, 1, 1);
     return {
       mesh, list,
-      add(o) { if (list.length >= N) list.shift(); list.push(Object.assign({ age: 0, life: 12, rest: false, rx: 0, ry: 0, rz: 0, wx: 0, wy: 0, wz: 0, s: 1 }, o)); },
+      add(o) { if (list.length >= N) list.shift(); list.push(Object.assign({ age: 0, life: 12, rest: false, rx: 0, ry: 0, rz: 0, wx: 0, wy: 0, wz: 0, s: 1, delay: 0 }, o)); },
       update(dt, onBounce) {
         for (let i = list.length - 1; i >= 0; i--) {
-          const b = list[i]; b.age += dt; if (b.age > b.life) { list.splice(i, 1); continue; }
+          const b = list[i]; if (b.delay > 0) { b.delay -= dt; continue; } b.age += dt; if (b.age > b.life) { list.splice(i, 1); continue; }
           if (!b.rest) {
             b.v.y -= 9.8 * dt; b.p.addScaledVector(b.v, dt); b.rx += b.wx * dt; b.ry += b.wy * dt; b.rz += b.wz * dt;
             if (b.p.y < b.r) {
               b.p.y = b.r; if (Math.abs(b.v.y) > 0.6 && onBounce) onBounce(b);
               b.v.y = -b.v.y * 0.32; b.v.x *= 0.55; b.v.z *= 0.55; b.wx *= 0.5; b.wz *= 0.5; b.wy *= 0.7;
-              if (Math.abs(b.v.y) < 0.25 && Math.hypot(b.v.x, b.v.z) < 0.15) { b.rest = true; b.rx = Math.PI / 2; b.rz = 0; }   // couchée au sol
+              if (Math.abs(b.v.y) < 0.25 && Math.hypot(b.v.x, b.v.z) < 0.15) { b.rest = true; b.rx = b.flat ? 0 : Math.PI / 2; b.rz = 0; }   // couchée au sol (éclat de verre : à plat)
             }
           }
         }
         let n = 0;
-        for (const b of list) { e.set(b.rx, b.ry, b.rz); q.setFromEuler(e); const sink = b.age > b.life - 1 ? (b.age - (b.life - 1)) * b.r * 2 : 0; sc.setScalar(b.s); m4.compose(b.p.clone().setY(b.p.y - sink), q, sc); mesh.setMatrixAt(n++, m4); }
+        for (const b of list) { if (b.delay > 0) continue; e.set(b.rx, b.ry, b.rz); q.setFromEuler(e); const sink = b.age > b.life - 1 ? (b.age - (b.life - 1)) * b.r * 2 : 0; sc.setScalar(b.s); m4.compose(b.p.clone().setY(b.p.y - sink), q, sc); mesh.setMatrixAt(n++, m4); }
         mesh.count = n; mesh.instanceMatrix.needsUpdate = true;
       },
     };
@@ -183,12 +183,26 @@
     const mat = new T.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, roughness: opts.rough || 0.9, color: opts.color || 0xffffff, metalness: 0 });
     const mesh = new T.InstancedMesh(new T.PlaneGeometry(1, 1), mat, N); mesh.count = 0; mesh.receiveShadow = true; mesh.frustumCulled = false; mesh.renderOrder = 2;
     let k = 0; const m4 = new T.Matrix4(), q = new T.Quaternion(), Z = new T.Vector3(0, 0, 1);
-    return { mesh, add(p, n, size, rot) { q.setFromUnitVectors(Z, n); q.multiply(new T.Quaternion().setFromAxisAngle(Z, rot || Math.random() * 6.28)); m4.compose(p.clone().addScaledVector(n, 0.004), q, new T.Vector3(size, size, size)); mesh.setMatrixAt(k, m4); k = (k + 1) % N; mesh.count = Math.min(N, mesh.count + 1); mesh.instanceMatrix.needsUpdate = true; }, clear() { mesh.count = 0; k = 0; } };
+    const X = new T.Vector3(), Y = new T.Vector3(), UP = new T.Vector3(0, 1, 0);
+    return { mesh, addRect(p, n, sx, sy) {   // rectangle sx × sy (m), côté x à l'horizontale (vitre brisée)
+        X.crossVectors(UP, n); if (X.lengthSq() < 1e-6) X.set(1, 0, 0); X.normalize(); Y.crossVectors(n, X).normalize();
+        m4.makeBasis(X.clone().multiplyScalar(sx), Y.clone().multiplyScalar(sy), n.clone()); m4.setPosition(p.clone().addScaledVector(n, 0.006));
+        mesh.setMatrixAt(k, m4); k = (k + 1) % N; mesh.count = Math.min(N, mesh.count + 1); mesh.instanceMatrix.needsUpdate = true; },
+      add(p, n, size, rot) { q.setFromUnitVectors(Z, n); q.multiply(new T.Quaternion().setFromAxisAngle(Z, rot || Math.random() * 6.28)); m4.compose(p.clone().addScaledVector(n, 0.004), q, new T.Vector3(size, size, size)); mesh.setMatrixAt(k, m4); k = (k + 1) % N; mesh.count = Math.min(N, mesh.count + 1); mesh.instanceMatrix.needsUpdate = true; }, clear() { mesh.count = 0; k = 0; } };
   }
   const holeTex = (() => { const t = canvasTex(128, (g, S) => {
     const R = rng(9); g.clearRect(0, 0, S, S);
     const gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); gr.addColorStop(0, 'rgba(10,9,8,1)'); gr.addColorStop(0.18, 'rgba(25,22,20,0.95)'); gr.addColorStop(0.32, 'rgba(70,64,58,0.55)'); gr.addColorStop(0.6, 'rgba(90,84,76,0.18)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, S, S);
     g.strokeStyle = 'rgba(20,18,16,0.6)'; g.lineWidth = 1.2; for (let k = 0; k < 7; k++) { const a = R() * 6.28, L = S * (0.15 + R() * 0.25); g.beginPath(); g.moveTo(S / 2 + Math.cos(a) * S * 0.08, S / 2 + Math.sin(a) * S * 0.08); g.lineTo(S / 2 + Math.cos(a + 0.2) * L, S / 2 + Math.sin(a + 0.2) * L); g.stroke(); }
+  }); t.colorSpace = T.SRGBColorSpace; return t; })();
+  // trou dans la tôle peinte : trou noir net, collerette de métal nu (claire) arrachée à la peinture, éclats de peinture autour
+  const metalHoleTex = (() => { const t = canvasTex(128, (g, S) => {
+    const R = rng(11), c = S / 2; g.clearRect(0, 0, S, S);
+    g.fillStyle = 'rgba(40,38,36,0.35)'; g.beginPath(); for (let k = 0; k <= 24; k++) { const a = k / 24 * 6.28, r = S * (0.2 + R() * 0.12); k ? g.lineTo(c + Math.cos(a) * r, c + Math.sin(a) * r) : g.moveTo(c + Math.cos(a) * r, c + Math.sin(a) * r); } g.fill();   // auréole de suie
+    g.fillStyle = 'rgba(196,198,200,0.95)'; g.beginPath(); for (let k = 0; k <= 20; k++) { const a = k / 20 * 6.28, r = S * (0.13 + R() * 0.07); k ? g.lineTo(c + Math.cos(a) * r, c + Math.sin(a) * r) : g.moveTo(c + Math.cos(a) * r, c + Math.sin(a) * r); } g.fill();   // métal nu
+    g.fillStyle = 'rgba(120,122,124,1)'; g.beginPath(); g.arc(c, c, S * 0.1, 0, 6.28); g.fill();
+    g.fillStyle = 'rgba(4,4,5,1)'; g.beginPath(); g.arc(c, c, S * 0.075, 0, 6.28); g.fill();   // le trou
+    for (let k = 0; k < 6; k++) { const a = R() * 6.28, r = S * (0.22 + R() * 0.12); g.fillStyle = 'rgba(200,202,204,0.8)'; g.fillRect(c + Math.cos(a) * r, c + Math.sin(a) * r, 2 + R() * 3, 2 + R() * 2); }
   }); t.colorSpace = T.SRGBColorSpace; return t; })();
   const bloodTex = (() => { const t = canvasTex(256, (g, S) => { const R = rng(13); for (let k = 0; k < 30; k++) { const x = S / 2 + (R() - 0.5) * S * 0.5, y = S / 2 + (R() - 0.5) * S * 0.5, r = S * (0.04 + R() * 0.16); const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(70,6,6,0.95)'); gr.addColorStop(0.7, 'rgba(60,4,4,0.8)'); gr.addColorStop(1, 'rgba(50,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } }); t.colorSpace = T.SRGBColorSpace; return t; })();
   const scorchTex = (() => { const t = canvasTex(256, (g, S) => { const R = rng(17); const gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); gr.addColorStop(0, 'rgba(8,7,6,0.95)'); gr.addColorStop(0.45, 'rgba(15,13,11,0.75)'); gr.addColorStop(1, 'rgba(20,18,15,0)'); g.fillStyle = gr; g.fillRect(0, 0, S, S); g.strokeStyle = 'rgba(5,5,5,0.5)'; for (let k = 0; k < 24; k++) { const a = R() * 6.28, L = S * (0.25 + R() * 0.25); g.lineWidth = 1 + R() * 3; g.beginPath(); g.moveTo(S / 2, S / 2); g.lineTo(S / 2 + Math.cos(a) * L, S / 2 + Math.sin(a) * L); g.stroke(); } }); t.colorSpace = T.SRGBColorSpace; return t; })();
@@ -207,6 +221,32 @@
     }
     g.lineWidth = 1; for (const r of [0.07, 0.13, 0.21]) { for (let k = 0; k < rays; k++) { if (R() < 0.35) continue; const a0 = k / rays * 6.28 + R() * 0.3, a1 = a0 + 6.28 / rays * (0.7 + R() * 0.3), rr = S * r * (0.85 + R() * 0.3); g.beginPath(); g.moveTo(c + Math.cos(a0) * rr, c + Math.sin(a0) * rr); g.lineTo(c + Math.cos(a1) * rr * (0.9 + R() * 0.2), c + Math.sin(a1) * rr * (0.9 + R() * 0.2)); g.stroke(); } }
   }); t.colorSpace = T.SRGBColorSpace; return t; })();
+  // vitre latérale brisée (verre trempé) : le cadre se vide (intérieur sombre de l'habitacle) ; il reste une frange de petits
+  // cubes de verre accrochés au bord, découpée en dents irrégulières
+  const shatterSideTex = (() => { const t = canvasTex(256, (g, S) => {
+    const R = rng(31); g.clearRect(0, 0, S, S);
+    const inset = (k) => { const pts = []; for (let i = 0; i < 64; i++) { const a = i / 64, side = Math.floor(a * 4), f = (a * 4) % 1, d = S * (0.08 + R() * 0.12) * k;
+      pts.push(side === 0 ? [f * S, d] : side === 1 ? [S - d, f * S] : side === 2 ? [S - f * S, S - d] : [d, S - f * S]); } return pts; };
+    const band = (pts, col) => { g.fillStyle = col; g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); g.fill(); };
+    // frange de verre : grains clairs (bord du cadre), puis le vide sombre dentelé
+    for (let k = 0; k < 2600; k++) { const x = R() * S, y = R() * S, e = Math.min(x, y, S - x, S - y); if (e > S * (0.12 + R() * 0.12)) continue;
+      const c = 170 + R() * 70; g.fillStyle = `rgba(${c},${c + 8},${c + 14},${0.35 + R() * 0.5})`; g.fillRect(x, y, 2 + R() * 3, 2 + R() * 3); }
+    band(inset(1), 'rgba(14,15,18,0.92)');
+    band(inset(1.35).map(([x, y]) => [S / 2 + (x - S / 2) * 0.9, S / 2 + (y - S / 2) * 0.9]), 'rgba(6,7,9,0.96)');
+  }); t.colorSpace = T.SRGBColorSpace; return t; })();
+  // pare-brise (verre feuilleté) : il ne tombe pas, il blanchit en toile d'araignée serrée autour de plusieurs impacts
+  const shatterWindTex = (() => { const t = canvasTex(256, (g, S) => {
+    const R = rng(37); g.clearRect(0, 0, S, S); g.lineCap = 'round';
+    for (let c = 0; c < 4; c++) { const cx = S * (0.2 + R() * 0.6), cy = S * (0.25 + R() * 0.5);
+      const gr = g.createRadialGradient(cx, cy, 0, cx, cy, S * 0.3); gr.addColorStop(0, 'rgba(230,236,242,0.6)'); gr.addColorStop(1, 'rgba(230,236,242,0)'); g.fillStyle = gr; g.fillRect(0, 0, S, S);
+      const rays = 14 + Math.floor(R() * 6);
+      for (let k = 0; k < rays; k++) { let a = k / rays * 6.28 + R() * 0.3, x = cx, y = cy; g.strokeStyle = `rgba(240,245,250,${0.5 + R() * 0.4})`; g.lineWidth = 1.3; g.beginPath(); g.moveTo(x, y);
+        for (let st = 0; st < 8; st++) { a += (R() - 0.5) * 0.3; x += Math.cos(a) * S * 0.06; y += Math.sin(a) * S * 0.06; g.lineTo(x, y); } g.stroke(); }
+      g.lineWidth = 0.9; for (const r of [0.04, 0.08, 0.13, 0.19, 0.26]) { g.strokeStyle = `rgba(235,240,246,${0.55 - r})`; g.beginPath(); for (let k = 0; k <= rays; k++) { const a = k / rays * 6.28, rr = S * r * (0.85 + R() * 0.3); k ? g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr) : g.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } g.stroke(); }
+      g.fillStyle = 'rgba(10,10,12,0.9)'; g.beginPath(); g.arc(cx, cy, S * 0.015, 0, 6.28); g.fill(); }
+    // bord : le feuilleté reste pris dans le joint (on estompe vers les bords pour ne pas voir le carré)
+    const m = g.getImageData(0, 0, S, S); for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) { const e = Math.min(x, y, S - 1 - x, S - 1 - y) / (S * 0.06); if (e < 1) m.data[(y * S + x) * 4 + 3] *= Math.max(0, e); } g.putImageData(m, 0, 0);
+  }); t.colorSpace = T.SRGBColorSpace; return t; })();
   // ---- assemblage
   function create(scene) {
     const add = new Pool(2400, T.AdditiveBlending, false), alpha = new Pool(1600, T.NormalBlending, true);
@@ -214,17 +254,20 @@
     const brass = new T.MeshStandardMaterial({ color: 0xc9a24a, metalness: 1, roughness: 0.28 });
     const casings = Bodies(400, new T.CylinderGeometry(0.0048, 0.0048, 0.045, 7), brass); scene.add(casings.mesh);
     const debris = Bodies(300, new T.DodecahedronGeometry(0.04, 0), new T.MeshStandardMaterial({ color: 0x6b6660, roughness: 0.95 })); scene.add(debris.mesh);
-    const holes = Decals(500, holeTex, {}), blood = Decals(120, bloodTex, { rough: 0.3 }), scorch = Decals(40, scorchTex, {});
+    const holes = Decals(500, holeTex, {}), metalHoles = Decals(300, metalHoleTex, { rough: 0.5 }), blood = Decals(120, bloodTex, { rough: 0.3 }), scorch = Decals(40, scorchTex, {});
     const cracks = Decals(160, glassTex, { rough: 0.05 });
-    scene.add(holes.mesh); scene.add(blood.mesh); scene.add(scorch.mesh); scene.add(cracks.mesh);
+    const brokenSide = Decals(60, shatterSideTex, { rough: 0.3 }), brokenWind = Decals(40, shatterWindTex, { rough: 0.08 });
+    scene.add(holes.mesh); scene.add(metalHoles.mesh); scene.add(blood.mesh); scene.add(scorch.mesh); scene.add(cracks.mesh); scene.add(brokenSide.mesh); scene.add(brokenWind.mesh);
+    // éclats de verre trempé : petits cubes qui tombent, rebondissent et restent au sol (scintillent au soleil)
+    const shards = Bodies(900, new T.BoxGeometry(0.014, 0.004, 0.011), new T.MeshStandardMaterial({ color: 0x8fa3a8, roughness: 0.05, metalness: 0.6, transparent: true, opacity: 0.8 })); shards.mesh.castShadow = false; scene.add(shards.mesh);
     const ripples = Ripples(700); scene.add(ripples.mesh);
     // réserve de lumières : toujours dans la scène, éteintes
     const lights = []; for (let i = 0; i < 6; i++) { const l = new T.PointLight(0xffb469, 0, 9, 2); l.position.set(0, -50, 0); scene.add(l); lights.push({ l, until: 0, i0: 0, dur: 0.05 }); }
-    let li = 0, now = 0;
+    let li = 0, now = 0; const laters = [];   // actions différées (vitre qui éclate quand la balle arrive)
     const light = (p, color, inten, dist, dur) => { const L = lights[li]; li = (li + 1) % lights.length; L.l.position.copy(p); L.l.color.setHex(color); L.l.distance = dist; L.i0 = inten; L.l.intensity = inten; L.until = now + dur; L.dur = dur; L.fresh = true; };
     const V = (x, y, z) => new T.Vector3(x, y, z), rnd = (a, b) => a + Math.random() * (b - a);
     const basis = (d) => { const u = new T.Vector3().crossVectors(d, Math.abs(d.y) < 0.9 ? V(0, 1, 0) : V(1, 0, 0)).normalize(); return [u, new T.Vector3().crossVectors(d, u)]; };
-    const E = { casings, holes, blood, scorch, debris, pools: { add, alpha }, sound: null };
+    const E = { casings, holes, blood, scorch, debris, shards, cracks, pools: { add, alpha }, sound: null, glassSound: null };
     E.light = light;
     // éclair de bouche : origine p, direction d (unitaire)
     E.muzzle = function (p, d, silenced) {
@@ -269,31 +312,92 @@
       const puff = (N, col, a0, sz, life, sp) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.05), v: n.clone().multiplyScalar(rnd(0.3, 1) * sp).add(V(rnd(-0.3, 0.3), rnd(0, 0.35), rnd(-0.3, 0.3))), life: rnd(life * 0.6, life), size: rnd(sz * 0.7, sz), grow: rnd(3, 5), frame: 4 + Math.floor(Math.random() * 4), col, a0, drag: 3, delay, fadeIn: 0.03, fadePow: 1.5, rot: Math.random() * 6, spin: rnd(-0.6, 0.6) }); };
       let hole = up ? rnd(0.07, 0.11) : rnd(0.06, 0.09);
       if (matter === 'impact_metal') {
-        flash(0.07, [5, 3.4, 1.8]); sparks(10, 6, 0.4, [10, 6, 2]); puff(1, [0.45, 0.44, 0.42], 0.25, 0.07, 0.8, 0.6); hole = rnd(0.04, 0.06);
+        flash(0.07, [5, 3.4, 1.8]); sparks(10, 6, 0.4, [10, 6, 2]); puff(1, [0.45, 0.44, 0.42], 0.25, 0.07, 0.8, 0.6); hole = rnd(0.055, 0.075);
       } else if (matter === 'impact_carrosserie') {   // tôle peinte : quelques étincelles, éclats de peinture, peu de poussière
-        flash(0.055, [4, 3, 1.6]); sparks(5, 4.5, 0.28, [9, 5.5, 2]); chips(4, [0.3, 0.3, 0.32], 2.5); puff(2, [0.5, 0.5, 0.5], 0.26, 0.06, 0.9, 0.6); hole = rnd(0.035, 0.05);
+        flash(0.055, [4, 3, 1.6]); sparks(5, 4.5, 0.28, [9, 5.5, 2]); chips(5, [0.3, 0.3, 0.32], 2.5); puff(2, [0.5, 0.5, 0.5], 0.26, 0.06, 0.9, 0.6); hole = rnd(0.06, 0.085);
       } else if (matter === 'impact_verre') {   // vitre : pluie d'éclats clairs qui scintillent, pas d'étincelle
         flash(0.04, [2.4, 2.6, 2.8]); chips(12, [1.15, 1.25, 1.35], 2.4, 0.85);
         for (let k = 0; k < 6; k++) add.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-1, 1), rnd(0, 1.2), rnd(-1, 1))), life: rnd(0.25, 0.55), size: 0.008, stretch: 0.01, frame: 3, col: [2.2, 2.4, 2.6], grav: 9.8, delay, floor: 0.01 });
         puff(1, [0.75, 0.78, 0.8], 0.2, 0.06, 0.6, 0.5); hole = 0; cracks.add(P, n, rnd(0.28, 0.45));
+      } else if (matter === 'impact_pneu') {   // pneu : bouffée sombre de caoutchouc, pas d'étincelle ni de poussière claire
+        chips(6, [0.06, 0.06, 0.06], 2.2); puff(2, [0.22, 0.21, 0.2], 0.4, 0.07, 0.7, 0.8); hole = rnd(0.03, 0.045);
+      } else if (matter === 'impact_feuilles') {   // haie, arbre : feuilles hachées qui voltigent, pas de trou
+        for (let k = 0; k < 10; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.05), v: n.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-1, 1), rnd(0, 1.5), rnd(-1, 1))), life: rnd(0.8, 1.6), size: rnd(0.018, 0.032), frame: 12, col: [0.16, 0.26, 0.1], a0: 1, grav: 3, drag: 2.5, delay, floor: 0.01, rot: Math.random() * 6, spin: rnd(-8, 8) });
+        puff(1, [0.3, 0.32, 0.25], 0.25, 0.08, 0.6, 0.4); hole = 0;
       } else if (matter === 'impact_sol' && E.wet) {   // sol détrempé : gerbe d'eau, pas de poussière
         for (let k = 0; k < 10; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.02), v: V(rnd(-0.8, 0.8), rnd(1.5, 3.5), rnd(-0.8, 0.8)), life: rnd(0.3, 0.55), size: rnd(0.012, 0.022), stretch: 0.012, frame: 13, col: [0.72, 0.77, 0.82], a0: 0.8, grav: 9.8, delay, floor: 0.01 });
         puff(2, [0.68, 0.72, 0.76], 0.22, 0.08, 0.6, 0.6); chips(3, [0.12, 0.12, 0.12], 2.5);
       } else {
         const dusty = matter === 'impact_sol', wood = matter === 'impact_bois';
-        const c = wood ? [0.45, 0.33, 0.2] : dusty ? [0.48, 0.44, 0.38] : [0.6, 0.58, 0.54];
+        const c = wood ? [0.45, 0.33, 0.2] : dusty ? [0.4, 0.37, 0.32] : [0.62, 0.6, 0.56];
         if (!dusty) flash(0.045, [2.4, 1.9, 1.3]);
-        jet(3, c, dusty ? 0.7 : 0.65, dusty ? 4.5 : 5);
-        puff(3, c, dusty ? 0.6 : 0.55, dusty ? 0.17 : 0.15, dusty ? 1.8 : 2.1, dusty ? 0.7 : 1);
+        // (k : grossi quand la caméra est loin, pour qu'on voie toujours où tombent les balles)
+        const k = E.fxScale || 1;
+        jet(5, c, dusty ? 0.8 : 0.75, dusty ? 4.5 : 5);
+        puff(4, c, dusty ? 0.75 : 0.7, (dusty ? 0.24 : 0.2) * k, dusty ? 1.9 : 2.2, dusty ? 0.7 : 1);
         chips(dusty ? 6 : 7, wood ? [0.4, 0.3, 0.18] : dusty ? [0.16, 0.15, 0.14] : [0.36, 0.35, 0.33], 3);
         if (!dusty && !wood && Math.random() < 0.35) sparks(2, 4, 0.18, [8, 5, 2]);
+        // béton : quelques vrais morceaux arrachés qui tombent au pied du mur (et y restent un moment)
+        if (!dusty && !wood) for (let k = 0; k < 3; k++) debris.add({ p: P.clone().addScaledVector(n, 0.04), v: n.clone().multiplyScalar(rnd(0.8, 2.5)).add(V(rnd(-0.8, 0.8), rnd(0, 1.2), rnd(-0.8, 0.8))), r: 0.008, s: rnd(0.15, 0.35), wx: rnd(-20, 20), wy: rnd(-20, 20), wz: rnd(-20, 20), life: 25, delay });
+        // au sol : la terre gicle haut (on voit de loin où tombent les balles)
+        if (dusty) jet(3, c, 0.55, 6.5);
       }
-      if (hole) E.hole(p, n, hole);
+      if (hole) { if (matter === 'impact_carrosserie' || matter === 'impact_metal') metalHoles.add(p, n, hole * 1.15); else E.hole(p, n, hole); }
     };
     E.hole = function (p, n, s) { holes.add(p, n, s); };
+    // ---- vitre qui éclate (centre p, normale n vers l'extérieur, taille sx × sy) : 'cote' = verre trempé qui tombe en
+    // grains (le cadre se vide), 'pare' = pare-brise feuilleté qui blanchit sur place et ne lâche que quelques morceaux
+    E.shatter = function (p, n, sx, sy, kind, delay) {
+      delay = delay || 0; const X = new T.Vector3().crossVectors(V(0, 1, 0), n); if (X.lengthSq() < 1e-6) X.set(1, 0, 0); X.normalize(); const Y = new T.Vector3().crossVectors(n, X).normalize();
+      const at = (fx, fy) => p.clone().addScaledVector(X, fx * sx / 2).addScaledVector(Y, fy * sy / 2);
+      const later = () => { if (kind === 'pare') brokenWind.addRect(p, n, sx, sy); else brokenSide.addRect(p, n, sx, sy); };
+      if (delay > 0) laters.push({ at: now + delay, fn: later }); else later();
+      const N = kind === 'pare' ? 18 : 110;
+      for (let k = 0; k < N; k++) { const out = Math.random() < 0.55 ? 1 : -0.6;
+        shards.add({ p: at(rnd(-1, 1), rnd(-1, 1)), v: n.clone().multiplyScalar(out * rnd(0.3, 2.2)).add(V(rnd(-0.6, 0.6), rnd(-0.3, 0.9), rnd(-0.6, 0.6))), r: 0.002, s: rnd(0.45, 1.3), flat: true, wx: rnd(-30, 30), wy: rnd(-30, 30), wz: rnd(-30, 30), life: rnd(90, 140), delay }); }
+      for (let k = 0; k < (kind === 'pare' ? 10 : 40); k++) add.add({ p: at(rnd(-1, 1), rnd(-1, 1)), v: n.clone().multiplyScalar(rnd(0.2, 2)).add(V(rnd(-0.8, 0.8), rnd(0, 1.4), rnd(-0.8, 0.8))), life: rnd(0.3, 0.8), size: 0.007, stretch: 0.008, frame: 3, col: [2.2, 2.5, 2.7], grav: 9.8, floor: 0.01, delay });
+      for (let k = 0; k < 4; k++) alpha.add({ p: at(rnd(-0.8, 0.8), rnd(-0.8, 0.8)).addScaledVector(n, 0.05), v: n.clone().multiplyScalar(rnd(0.2, 0.6)).add(V(0, rnd(0, 0.2), 0)), life: rnd(0.6, 1.1), size: 0.14, grow: 2.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.82, 0.85, 0.88], a0: 0.28, drag: 3, delay, rot: Math.random() * 6 });
+      add.add({ p: p.clone().addScaledVector(n, 0.03), life: 0.05, size: 0.12, frame: 1, col: [2.6, 2.8, 3], a0: 1, delay });
+    };
+    // vitre brisée sur la vraie forme du véhicule (pts : centres des triangles de la vitre) : grains qui tombent des deux
+    // côtés, scintillement, petit nuage clair ; le pare-brise feuilleté lâche peu de morceaux
+    E.shatterPts = function (pts, n, kind, delay) {
+      delay = delay || 0; const N = kind === 'pare' ? 16 : 120, pick = () => pts[Math.floor(Math.random() * pts.length)].clone().add(V(rnd(-0.03, 0.03), rnd(-0.03, 0.03), rnd(-0.03, 0.03)));
+      for (let k = 0; k < N; k++) { const out = Math.random() < 0.55 ? 1 : -0.6;
+        shards.add({ p: pick(), v: n.clone().multiplyScalar(out * rnd(0.3, 2.2)).add(V(rnd(-0.6, 0.6), rnd(-0.3, 0.9), rnd(-0.6, 0.6))), r: 0.002, s: rnd(0.45, 1.3), flat: true, wx: rnd(-30, 30), wy: rnd(-30, 30), wz: rnd(-30, 30), life: rnd(90, 140), delay }); }
+      for (let k = 0; k < (kind === 'pare' ? 10 : 45); k++) add.add({ p: pick(), v: n.clone().multiplyScalar(rnd(0.2, 2)).add(V(rnd(-0.8, 0.8), rnd(0, 1.4), rnd(-0.8, 0.8))), life: rnd(0.3, 0.8), size: 0.007, stretch: 0.008, frame: 3, col: [2.2, 2.5, 2.7], grav: 9.8, floor: 0.01, delay });
+      for (let k = 0; k < 4; k++) alpha.add({ p: pick().addScaledVector(n, 0.05), v: n.clone().multiplyScalar(rnd(0.2, 0.6)).add(V(0, rnd(0, 0.2), 0)), life: rnd(0.6, 1.1), size: 0.14, grow: 2.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.82, 0.85, 0.88], a0: 0.28, drag: 3, delay, rot: Math.random() * 6 });
+    };
+    // vitre déjà brisée : la balle passe, quelques grains restés au cadre tombent
+    E.glassChips = function (p, n, delay) {
+      for (let k = 0; k < 8; k++) shards.add({ p: p.clone(), v: n.clone().multiplyScalar(rnd(-0.6, 1.2)).add(V(rnd(-0.4, 0.4), rnd(0, 0.6), rnd(-0.4, 0.4))), r: 0.002, s: rnd(0.6, 1.4), flat: true, wx: rnd(-30, 30), wy: rnd(-30, 30), wz: rnd(-30, 30), life: 90, delay: delay || 0 });
+      for (let k = 0; k < 6; k++) add.add({ p: p.clone(), v: V(rnd(-0.8, 0.8), rnd(0, 1.2), rnd(-0.8, 0.8)), life: rnd(0.2, 0.5), size: 0.007, stretch: 0.008, frame: 3, col: [2.2, 2.5, 2.7], grav: 9.8, floor: 0.01, delay: delay || 0 });
+    };
+    // balle arrêtée par la plaque d'un gilet : pas de sang ; bouffée de tissu et de céramique pulvérisée rejetée vers le
+    // tireur, fibres sombres, parfois une étincelle (plaque d'acier) ; dir : sens de la balle
+    E.plateHit = function (p, dir, delay) {
+      delay = delay || 0; const back = dir.clone().multiplyScalar(-1);
+      add.add({ p: p.clone().addScaledVector(back, 0.12), life: 0.035, size: 0.09, rot: Math.random() * 6.28, frame: 1, col: [3, 2.6, 1.8], a0: 1, delay });
+      for (let k = 0; k < 6; k++) alpha.add({ p: p.clone().addScaledVector(back, 0.14), v: back.clone().multiplyScalar(rnd(0.6, 1.8)).add(V(rnd(-0.7, 0.7), rnd(-0.1, 0.7), rnd(-0.7, 0.7))), life: rnd(0.6, 1.2), size: rnd(0.07, 0.11), grow: 3.2, frame: 4 + Math.floor(Math.random() * 4), col: [0.62, 0.6, 0.55], a0: 0.6, drag: 4, delay, fadeIn: 0.02, fadePow: 1.4, rot: Math.random() * 6 });
+      for (let k = 0; k < 9; k++) alpha.add({ p: p.clone().addScaledVector(back, 0.12), v: back.clone().multiplyScalar(rnd(1, 3)).add(V(rnd(-1.2, 1.2), rnd(0, 1.4), rnd(-1.2, 1.2))), life: rnd(0.3, 0.7), size: rnd(0.01, 0.02), frame: 12, col: [0.18, 0.18, 0.16], a0: 1, grav: 9.8, delay, floor: 0.01, rot: Math.random() * 6, spin: rnd(-14, 14) });
+      if (Math.random() < 0.45) for (let k = 0; k < 4; k++) add.add({ p: p.clone().addScaledVector(back, 0.12), v: back.clone().multiplyScalar(rnd(1.5, 4)).add(V(rnd(-2, 2), rnd(0, 2.5), rnd(-2, 2))), life: rnd(0.1, 0.25), size: 0.009, stretch: 0.02, frame: 3, col: [9, 6, 2.5], grav: 9.8, delay, floor: 0.01 });
+    };
+    // balle déviée par le casque : gerbe d'étincelles qui file vers le haut et vers l'arrière, petit éclair
+    E.helmetHit = function (p, dir, delay) {
+      delay = delay || 0; const r = dir.clone(); r.y = Math.abs(r.y) + 0.9; r.normalize();
+      add.add({ p: p.clone(), life: 0.03, size: 0.08, rot: Math.random() * 6.28, frame: 1, col: [6, 4.5, 2.5], a0: 1, delay });
+      for (let k = 0; k < 12; k++) add.add({ p: p.clone(), v: r.clone().multiplyScalar(rnd(3, 8)).add(V(rnd(-2, 2), rnd(-0.5, 2), rnd(-2, 2))), life: rnd(0.12, 0.35), size: 0.009, stretch: 0.025, frame: 3, col: [10, 6.5, 2.5], grav: 9.8, delay, floor: 0.01 });
+      alpha.add({ p: p.clone(), v: r.clone().multiplyScalar(0.5), life: 0.6, size: 0.08, grow: 2.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.5, 0.5, 0.5], a0: 0.35, drag: 3, delay });
+    };
+    // ricochet : la balle repart (trait lumineux bref le long de rdir) et quelques étincelles
+    E.ricochet = function (p, rdir, delay) {
+      delay = delay || 0;
+      add.add({ p: p.clone().addScaledVector(rdir, 0.6), v: rdir.clone().multiplyScalar(70), axis: rdir.clone().multiplyScalar(0.9), life: 0.06, size: 0.02, frame: 3, col: [6, 4, 1.8], a0: 1, fadePow: 0.4, delay: delay + 0.005 });
+      for (let k = 0; k < 4; k++) add.add({ p: p.clone(), v: rdir.clone().multiplyScalar(rnd(3, 7)).add(V(rnd(-1.5, 1.5), rnd(0, 1.5), rnd(-1.5, 1.5))), life: rnd(0.1, 0.25), size: 0.009, stretch: 0.02, frame: 3, col: [9, 6, 2.5], grav: 9.8, delay, floor: 0.01 });
+    };
     E.bloodHit = function (p, dir, delay) {
-      for (let k = 0; k < 4; k++) alpha.add({ p: p.clone(), v: dir.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-0.6, 0.6), rnd(-0.2, 0.8), rnd(-0.6, 0.6))), life: rnd(0.3, 0.6), size: rnd(0.05, 0.1), grow: 2.2, frame: 4 + Math.floor(Math.random() * 4), col: [0.16, 0.02, 0.018], a0: 0.5, drag: 3.5, delay, fadePow: 1.6 });   // brume brève et sombre (pas de « peinture » rose)
-      for (let k = 0; k < 8; k++) alpha.add({ p: p.clone(), v: dir.clone().multiplyScalar(rnd(1, 3)).add(V(rnd(-1, 1), rnd(0, 1.5), rnd(-1, 1))), life: rnd(0.3, 0.6), size: rnd(0.012, 0.02), frame: 13, col: [0.25, 0.01, 0.01], a0: 1, grav: 9.8, delay, floor: 0.01 });
+      for (let k = 0; k < 6; k++) alpha.add({ p: p.clone(), v: dir.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-0.6, 0.6), rnd(-0.2, 0.8), rnd(-0.6, 0.6))), life: rnd(0.35, 0.7), size: rnd(0.07, 0.13), grow: 2.2, frame: 4 + Math.floor(Math.random() * 4), col: [0.22, 0.025, 0.02], a0: 0.65, drag: 3.5, delay, fadePow: 1.6 });   // brume brève et sombre (pas de « peinture » rose)
+      for (let k = 0; k < 12; k++) alpha.add({ p: p.clone(), v: dir.clone().multiplyScalar(rnd(1, 3)).add(V(rnd(-1, 1), rnd(0, 1.5), rnd(-1, 1))), life: rnd(0.3, 0.6), size: rnd(0.012, 0.022), frame: 13, col: [0.3, 0.012, 0.01], a0: 1, grav: 9.8, delay, floor: 0.01 });
     };
     E.bloodPool = function (x, z, s) { blood.add(V(x, 0.003, z), V(0, 1, 0), s); };
     E.casing = function (p, right, up, fwd) {
@@ -334,17 +438,18 @@
     E.dustPuff = function (x, z, s) { for (let k = 0; k < 9; k++) { const a = Math.random() * 6.28, sp = rnd(0.6, 1.6); alpha.add({ p: V(x + Math.cos(a) * 0.25, 0.06, z + Math.sin(a) * 0.25), v: V(Math.cos(a) * sp, rnd(0.05, 0.35), Math.sin(a) * sp), life: rnd(0.9, 1.6), size: 0.12 * s, grow: 3.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.62, 0.58, 0.52], a0: 0.5, drag: 2.5, fadeIn: 0.05, fadePow: 1.3, rot: Math.random() * 6 }); } };
     E.update = function (dt, cam, sunCol, fog) {
       now += dt;
+      for (let i = laters.length - 1; i >= 0; i--) if (now >= laters[i].at) { laters[i].fn(); laters.splice(i, 1); }
       add.update(dt); alpha.update(dt);
       if (sunCol) alpha.mat.uniforms.uLight.value.copy(sunCol);
       if (fog && fog.isFogExp2) { for (const P of [add, alpha, ripples]) { P.mat.uniforms.fogColor.value.copy(fog.color); P.mat.uniforms.fogDensity.value = fog.density; } }
       ripples.update(dt, cam);
-      casings.update(dt, (b) => { if (E.sound && Math.random() < 0.35) E.sound(b.p); }); debris.update(dt);
+      casings.update(dt, (b) => { if (E.sound && Math.random() < 0.35) E.sound(b.p); }); debris.update(dt); shards.update(dt, (b) => { if (E.glassSound && Math.random() < 0.04) E.glassSound(b.p); });
       for (const L of lights) { if (L.fresh) { L.fresh = false; L.until = now + L.dur; continue; } if (now >= L.until) { L.l.intensity = 0; continue; } const k = (L.until - now) / L.dur; L.l.intensity = L.i0 * k * (0.7 + Math.random() * 0.3); }
     };
     // pluie : ronds au sol et impacts au sol en gerbes d'eau
     E.ripples = ripples;
     E.setRain = function (on) { ripples.mesh.visible = !!on; E.wet = !!on; };
-    E.clear = function () { add.parts.length = 0; alpha.parts.length = 0; casings.list.length = 0; debris.list.length = 0; holes.clear(); blood.clear(); scorch.clear(); cracks.clear(); for (const L of lights) L.l.intensity = 0; add.update(0); alpha.update(0); casings.update(0); debris.update(0); };
+    E.clear = function () { add.parts.length = 0; alpha.parts.length = 0; casings.list.length = 0; debris.list.length = 0; shards.list.length = 0; laters.length = 0; holes.clear(); metalHoles.clear(); blood.clear(); scorch.clear(); cracks.clear(); brokenSide.clear(); brokenWind.clear(); for (const L of lights) L.l.intensity = 0; add.update(0); alpha.update(0); casings.update(0); debris.update(0); shards.update(0); };
     return E;
   }
   root.Effets = { create };

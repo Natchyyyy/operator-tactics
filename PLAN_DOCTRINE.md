@@ -13,7 +13,7 @@ principes français : binôme, « un appuie / l'autre progresse », secteurs de 
 - Chef automatique pour l'équipe adverse (il donne les mêmes ordres qu'un joueur).
 - Moins de 5 soldats : ils font comme ils peuvent (2 = binôme : un couvre, l'autre avance ; 3-4 = pointe, serre-file,
   flancs).
-- Première mise à terre sans balle dans la tête : réanimable — choisi en ton absence (22/10) : 1 minute (REVIVE_WINDOW). À confirmer.
+- Première mise à terre sans balle dans la tête : réanimable — 1 minute (REVIVE_WINDOW). Gardé par l'utilisateur (22/10, « pour l'instant, on verra plus tard »).
 - Chargeurs « comme dans la vraie vie » : 30 coups, 1 dans l'arme + 6 sur le gilet (déjà le cas : `kit: 6`).
 - Animations : faites par le motion matching (pas à prévoir dans la simulation).
 
@@ -32,5 +32,5 @@ principes français : binôme, « un appuie / l'autre progresse », secteurs de 
 
 ## Questions ouvertes
 - ~~Comment une bataille se termine~~ → décidé (22/10) : on garde la règle actuelle, une équipe doit gagner en restant en vie (on en reparlera plus tard).
-- Délai d'hémorragie avant de tomber → choisi en ton absence (22/10) : 75 s pour un bras ou une jambe, 45 s pour le torse (constantes BLEED_LIMB / BLEED_TORSO dans sim/engine.js). À confirmer.
-- Plaques : choix avant mission (3A / 3 / 4) et effet sur la vitesse → pas encore d'écran de choix ; les niveaux existants servent (léger IIIA, moyen III, lourd IV, vitesse ×1 / ×0,9 / ×0,78) avec des chances d'arrêt 10 % / 80 % / 95 %. À confirmer.
+- Délai d'hémorragie avant de tomber → choisi en ton absence (22/10) : 75 s pour un bras ou une jambe, 45 s pour le torse (constantes BLEED_LIMB / BLEED_TORSO dans sim/engine.js). Gardé par l'utilisateur (22/10, pour l'instant).
+- Plaques : choix avant mission (3A / 3 / 4) et effet sur la vitesse → pas encore d'écran de choix ; les niveaux existants servent (léger IIIA, moyen III, lourd IV, vitesse ×1 / ×0,9 / ×0,78) avec des chances d'arrêt 10 % / 80 % / 95 %. Gardé par l'utilisateur (22/10, pour l'instant).

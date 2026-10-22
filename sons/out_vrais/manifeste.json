@@ -28,19 +28,23 @@
   "claquement_0.ogg",
   "claquement_1.ogg",
   "claquement_2.ogg",
-  "claquement_3.ogg"
+  "claquement_3.ogg",
+  "claquement_4.ogg",
+  "claquement_5.ogg"
  ],
  "sifflement": [
   "sifflement_0.ogg",
   "sifflement_1.ogg",
   "sifflement_2.ogg",
-  "sifflement_3.ogg"
+  "sifflement_3.ogg",
+  "sifflement_4.ogg"
  ],
  "ricochet": [
   "ricochet_0.ogg",
   "ricochet_1.ogg",
   "ricochet_2.ogg",
-  "ricochet_3.ogg"
+  "ricochet_3.ogg",
+  "ricochet_4.ogg"
  ],
  "impact_beton": [
   "impact_beton_0.ogg",
@@ -61,12 +65,15 @@
   "impact_carrosserie_0.ogg",
   "impact_carrosserie_1.ogg",
   "impact_carrosserie_2.ogg",
-  "impact_carrosserie_3.ogg"
+  "impact_carrosserie_3.ogg",
+  "impact_carrosserie_4.ogg"
  ],
  "impact_verre": [
   "impact_verre_0.ogg",
   "impact_verre_1.ogg",
-  "impact_verre_2.ogg"
+  "impact_verre_2.ogg",
+  "impact_verre_3.ogg",
+  "impact_verre_4.ogg"
  ],
  "impact_bois": [
   "impact_bois_0.ogg",
@@ -79,7 +86,8 @@
   "impact_corps_1.ogg",
   "impact_corps_2.ogg",
   "impact_corps_3.ogg",
-  "impact_corps_4.ogg"
+  "impact_corps_4.ogg",
+  "impact_corps_5.ogg"
  ],
  "douilles": [
   "douilles_0.ogg",
@@ -156,5 +164,49 @@
   "pas_3.ogg",
   "pas_4.ogg",
   "pas_5.ogg"
+ ],
+ "impact_sol": [
+  "impact_sol_0.ogg",
+  "impact_sol_1.ogg",
+  "impact_sol_2.ogg",
+  "impact_sol_3.ogg",
+  "impact_sol_4.ogg"
+ ],
+ "impact_pneu": [
+  "impact_pneu_0.ogg",
+  "impact_pneu_1.ogg",
+  "impact_pneu_2.ogg"
+ ],
+ "impact_plaque": [
+  "impact_plaque_0.ogg",
+  "impact_plaque_1.ogg",
+  "impact_plaque_2.ogg",
+  "impact_plaque_3.ogg",
+  "impact_plaque_4.ogg"
+ ],
+ "impact_casque": [
+  "impact_casque_0.ogg",
+  "impact_casque_1.ogg",
+  "impact_casque_2.ogg",
+  "impact_casque_3.ogg",
+  "impact_casque_4.ogg"
+ ],
+ "vitre_eclat": [
+  "vitre_eclat_0.ogg",
+  "vitre_eclat_1.ogg",
+  "vitre_eclat_2.ogg"
+ ],
+ "cliquetis_verre": [
+  "cliquetis_verre_0.ogg",
+  "cliquetis_verre_1.ogg",
+  "cliquetis_verre_2.ogg",
+  "cliquetis_verre_3.ogg"
+ ],
+ "impact_proche": [
+  "impact_proche_0.ogg",
+  "impact_proche_1.ogg",
+  "impact_proche_2.ogg",
+  "impact_proche_3.ogg",
+  "impact_proche_4.ogg"
  ]
 }
