@@ -12023,21 +12023,21 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const list = [], m4 = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), sc = new T.Vector3(1, 1, 1);
     return {
       mesh, list,
-      add(o) { if (list.length >= N) list.shift(); list.push(Object.assign({ age: 0, life: 12, rest: false, rx: 0, ry: 0, rz: 0, wx: 0, wy: 0, wz: 0, s: 1 }, o)); },
+      add(o) { if (list.length >= N) list.shift(); list.push(Object.assign({ age: 0, life: 12, rest: false, rx: 0, ry: 0, rz: 0, wx: 0, wy: 0, wz: 0, s: 1, delay: 0 }, o)); },
       update(dt, onBounce) {
         for (let i = list.length - 1; i >= 0; i--) {
-          const b = list[i]; b.age += dt; if (b.age > b.life) { list.splice(i, 1); continue; }
+          const b = list[i]; if (b.delay > 0) { b.delay -= dt; continue; } b.age += dt; if (b.age > b.life) { list.splice(i, 1); continue; }
           if (!b.rest) {
             b.v.y -= 9.8 * dt; b.p.addScaledVector(b.v, dt); b.rx += b.wx * dt; b.ry += b.wy * dt; b.rz += b.wz * dt;
             if (b.p.y < b.r) {
               b.p.y = b.r; if (Math.abs(b.v.y) > 0.6 && onBounce) onBounce(b);
               b.v.y = -b.v.y * 0.32; b.v.x *= 0.55; b.v.z *= 0.55; b.wx *= 0.5; b.wz *= 0.5; b.wy *= 0.7;
-              if (Math.abs(b.v.y) < 0.25 && Math.hypot(b.v.x, b.v.z) < 0.15) { b.rest = true; b.rx = Math.PI / 2; b.rz = 0; }   // couchée au sol
+              if (Math.abs(b.v.y) < 0.25 && Math.hypot(b.v.x, b.v.z) < 0.15) { b.rest = true; b.rx = b.flat ? 0 : Math.PI / 2; b.rz = 0; }   // couchée au sol (éclat de verre : à plat)
             }
           }
         }
         let n = 0;
-        for (const b of list) { e.set(b.rx, b.ry, b.rz); q.setFromEuler(e); const sink = b.age > b.life - 1 ? (b.age - (b.life - 1)) * b.r * 2 : 0; sc.setScalar(b.s); m4.compose(b.p.clone().setY(b.p.y - sink), q, sc); mesh.setMatrixAt(n++, m4); }
+        for (const b of list) { if (b.delay > 0) continue; e.set(b.rx, b.ry, b.rz); q.setFromEuler(e); const sink = b.age > b.life - 1 ? (b.age - (b.life - 1)) * b.r * 2 : 0; sc.setScalar(b.s); m4.compose(b.p.clone().setY(b.p.y - sink), q, sc); mesh.setMatrixAt(n++, m4); }
         mesh.count = n; mesh.instanceMatrix.needsUpdate = true;
       },
     };
@@ -12047,12 +12047,26 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const mat = new T.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, roughness: opts.rough || 0.9, color: opts.color || 0xffffff, metalness: 0 });
     const mesh = new T.InstancedMesh(new T.PlaneGeometry(1, 1), mat, N); mesh.count = 0; mesh.receiveShadow = true; mesh.frustumCulled = false; mesh.renderOrder = 2;
     let k = 0; const m4 = new T.Matrix4(), q = new T.Quaternion(), Z = new T.Vector3(0, 0, 1);
-    return { mesh, add(p, n, size, rot) { q.setFromUnitVectors(Z, n); q.multiply(new T.Quaternion().setFromAxisAngle(Z, rot || Math.random() * 6.28)); m4.compose(p.clone().addScaledVector(n, 0.004), q, new T.Vector3(size, size, size)); mesh.setMatrixAt(k, m4); k = (k + 1) % N; mesh.count = Math.min(N, mesh.count + 1); mesh.instanceMatrix.needsUpdate = true; }, clear() { mesh.count = 0; k = 0; } };
+    const X = new T.Vector3(), Y = new T.Vector3(), UP = new T.Vector3(0, 1, 0);
+    return { mesh, addRect(p, n, sx, sy) {   // rectangle sx × sy (m), côté x à l'horizontale (vitre brisée)
+        X.crossVectors(UP, n); if (X.lengthSq() < 1e-6) X.set(1, 0, 0); X.normalize(); Y.crossVectors(n, X).normalize();
+        m4.makeBasis(X.clone().multiplyScalar(sx), Y.clone().multiplyScalar(sy), n.clone()); m4.setPosition(p.clone().addScaledVector(n, 0.006));
+        mesh.setMatrixAt(k, m4); k = (k + 1) % N; mesh.count = Math.min(N, mesh.count + 1); mesh.instanceMatrix.needsUpdate = true; },
+      add(p, n, size, rot) { q.setFromUnitVectors(Z, n); q.multiply(new T.Quaternion().setFromAxisAngle(Z, rot || Math.random() * 6.28)); m4.compose(p.clone().addScaledVector(n, 0.004), q, new T.Vector3(size, size, size)); mesh.setMatrixAt(k, m4); k = (k + 1) % N; mesh.count = Math.min(N, mesh.count + 1); mesh.instanceMatrix.needsUpdate = true; }, clear() { mesh.count = 0; k = 0; } };
   }
   const holeTex = (() => { const t = canvasTex(128, (g, S) => {
     const R = rng(9); g.clearRect(0, 0, S, S);
     const gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); gr.addColorStop(0, 'rgba(10,9,8,1)'); gr.addColorStop(0.18, 'rgba(25,22,20,0.95)'); gr.addColorStop(0.32, 'rgba(70,64,58,0.55)'); gr.addColorStop(0.6, 'rgba(90,84,76,0.18)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, S, S);
     g.strokeStyle = 'rgba(20,18,16,0.6)'; g.lineWidth = 1.2; for (let k = 0; k < 7; k++) { const a = R() * 6.28, L = S * (0.15 + R() * 0.25); g.beginPath(); g.moveTo(S / 2 + Math.cos(a) * S * 0.08, S / 2 + Math.sin(a) * S * 0.08); g.lineTo(S / 2 + Math.cos(a + 0.2) * L, S / 2 + Math.sin(a + 0.2) * L); g.stroke(); }
+  }); t.colorSpace = T.SRGBColorSpace; return t; })();
+  // trou dans la tôle peinte : trou noir net, collerette de métal nu (claire) arrachée à la peinture, éclats de peinture autour
+  const metalHoleTex = (() => { const t = canvasTex(128, (g, S) => {
+    const R = rng(11), c = S / 2; g.clearRect(0, 0, S, S);
+    g.fillStyle = 'rgba(40,38,36,0.35)'; g.beginPath(); for (let k = 0; k <= 24; k++) { const a = k / 24 * 6.28, r = S * (0.2 + R() * 0.12); k ? g.lineTo(c + Math.cos(a) * r, c + Math.sin(a) * r) : g.moveTo(c + Math.cos(a) * r, c + Math.sin(a) * r); } g.fill();   // auréole de suie
+    g.fillStyle = 'rgba(196,198,200,0.95)'; g.beginPath(); for (let k = 0; k <= 20; k++) { const a = k / 20 * 6.28, r = S * (0.13 + R() * 0.07); k ? g.lineTo(c + Math.cos(a) * r, c + Math.sin(a) * r) : g.moveTo(c + Math.cos(a) * r, c + Math.sin(a) * r); } g.fill();   // métal nu
+    g.fillStyle = 'rgba(120,122,124,1)'; g.beginPath(); g.arc(c, c, S * 0.1, 0, 6.28); g.fill();
+    g.fillStyle = 'rgba(4,4,5,1)'; g.beginPath(); g.arc(c, c, S * 0.075, 0, 6.28); g.fill();   // le trou
+    for (let k = 0; k < 6; k++) { const a = R() * 6.28, r = S * (0.22 + R() * 0.12); g.fillStyle = 'rgba(200,202,204,0.8)'; g.fillRect(c + Math.cos(a) * r, c + Math.sin(a) * r, 2 + R() * 3, 2 + R() * 2); }
   }); t.colorSpace = T.SRGBColorSpace; return t; })();
   const bloodTex = (() => { const t = canvasTex(256, (g, S) => { const R = rng(13); for (let k = 0; k < 30; k++) { const x = S / 2 + (R() - 0.5) * S * 0.5, y = S / 2 + (R() - 0.5) * S * 0.5, r = S * (0.04 + R() * 0.16); const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(70,6,6,0.95)'); gr.addColorStop(0.7, 'rgba(60,4,4,0.8)'); gr.addColorStop(1, 'rgba(50,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } }); t.colorSpace = T.SRGBColorSpace; return t; })();
   const scorchTex = (() => { const t = canvasTex(256, (g, S) => { const R = rng(17); const gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); gr.addColorStop(0, 'rgba(8,7,6,0.95)'); gr.addColorStop(0.45, 'rgba(15,13,11,0.75)'); gr.addColorStop(1, 'rgba(20,18,15,0)'); g.fillStyle = gr; g.fillRect(0, 0, S, S); g.strokeStyle = 'rgba(5,5,5,0.5)'; for (let k = 0; k < 24; k++) { const a = R() * 6.28, L = S * (0.25 + R() * 0.25); g.lineWidth = 1 + R() * 3; g.beginPath(); g.moveTo(S / 2, S / 2); g.lineTo(S / 2 + Math.cos(a) * L, S / 2 + Math.sin(a) * L); g.stroke(); } }); t.colorSpace = T.SRGBColorSpace; return t; })();
@@ -12071,6 +12085,32 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     }
     g.lineWidth = 1; for (const r of [0.07, 0.13, 0.21]) { for (let k = 0; k < rays; k++) { if (R() < 0.35) continue; const a0 = k / rays * 6.28 + R() * 0.3, a1 = a0 + 6.28 / rays * (0.7 + R() * 0.3), rr = S * r * (0.85 + R() * 0.3); g.beginPath(); g.moveTo(c + Math.cos(a0) * rr, c + Math.sin(a0) * rr); g.lineTo(c + Math.cos(a1) * rr * (0.9 + R() * 0.2), c + Math.sin(a1) * rr * (0.9 + R() * 0.2)); g.stroke(); } }
   }); t.colorSpace = T.SRGBColorSpace; return t; })();
+  // vitre latérale brisée (verre trempé) : le cadre se vide (intérieur sombre de l'habitacle) ; il reste une frange de petits
+  // cubes de verre accrochés au bord, découpée en dents irrégulières
+  const shatterSideTex = (() => { const t = canvasTex(256, (g, S) => {
+    const R = rng(31); g.clearRect(0, 0, S, S);
+    const inset = (k) => { const pts = []; for (let i = 0; i < 64; i++) { const a = i / 64, side = Math.floor(a * 4), f = (a * 4) % 1, d = S * (0.08 + R() * 0.12) * k;
+      pts.push(side === 0 ? [f * S, d] : side === 1 ? [S - d, f * S] : side === 2 ? [S - f * S, S - d] : [d, S - f * S]); } return pts; };
+    const band = (pts, col) => { g.fillStyle = col; g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); g.fill(); };
+    // frange de verre : grains clairs (bord du cadre), puis le vide sombre dentelé
+    for (let k = 0; k < 2600; k++) { const x = R() * S, y = R() * S, e = Math.min(x, y, S - x, S - y); if (e > S * (0.12 + R() * 0.12)) continue;
+      const c = 170 + R() * 70; g.fillStyle = `rgba(${c},${c + 8},${c + 14},${0.35 + R() * 0.5})`; g.fillRect(x, y, 2 + R() * 3, 2 + R() * 3); }
+    band(inset(1), 'rgba(14,15,18,0.92)');
+    band(inset(1.35).map(([x, y]) => [S / 2 + (x - S / 2) * 0.9, S / 2 + (y - S / 2) * 0.9]), 'rgba(6,7,9,0.96)');
+  }); t.colorSpace = T.SRGBColorSpace; return t; })();
+  // pare-brise (verre feuilleté) : il ne tombe pas, il blanchit en toile d'araignée serrée autour de plusieurs impacts
+  const shatterWindTex = (() => { const t = canvasTex(256, (g, S) => {
+    const R = rng(37); g.clearRect(0, 0, S, S); g.lineCap = 'round';
+    for (let c = 0; c < 4; c++) { const cx = S * (0.2 + R() * 0.6), cy = S * (0.25 + R() * 0.5);
+      const gr = g.createRadialGradient(cx, cy, 0, cx, cy, S * 0.3); gr.addColorStop(0, 'rgba(230,236,242,0.6)'); gr.addColorStop(1, 'rgba(230,236,242,0)'); g.fillStyle = gr; g.fillRect(0, 0, S, S);
+      const rays = 14 + Math.floor(R() * 6);
+      for (let k = 0; k < rays; k++) { let a = k / rays * 6.28 + R() * 0.3, x = cx, y = cy; g.strokeStyle = `rgba(240,245,250,${0.5 + R() * 0.4})`; g.lineWidth = 1.3; g.beginPath(); g.moveTo(x, y);
+        for (let st = 0; st < 8; st++) { a += (R() - 0.5) * 0.3; x += Math.cos(a) * S * 0.06; y += Math.sin(a) * S * 0.06; g.lineTo(x, y); } g.stroke(); }
+      g.lineWidth = 0.9; for (const r of [0.04, 0.08, 0.13, 0.19, 0.26]) { g.strokeStyle = `rgba(235,240,246,${0.55 - r})`; g.beginPath(); for (let k = 0; k <= rays; k++) { const a = k / rays * 6.28, rr = S * r * (0.85 + R() * 0.3); k ? g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr) : g.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } g.stroke(); }
+      g.fillStyle = 'rgba(10,10,12,0.9)'; g.beginPath(); g.arc(cx, cy, S * 0.015, 0, 6.28); g.fill(); }
+    // bord : le feuilleté reste pris dans le joint (on estompe vers les bords pour ne pas voir le carré)
+    const m = g.getImageData(0, 0, S, S); for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) { const e = Math.min(x, y, S - 1 - x, S - 1 - y) / (S * 0.06); if (e < 1) m.data[(y * S + x) * 4 + 3] *= Math.max(0, e); } g.putImageData(m, 0, 0);
+  }); t.colorSpace = T.SRGBColorSpace; return t; })();
   // ---- assemblage
   function create(scene) {
     const add = new Pool(2400, T.AdditiveBlending, false), alpha = new Pool(1600, T.NormalBlending, true);
@@ -12078,17 +12118,20 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const brass = new T.MeshStandardMaterial({ color: 0xc9a24a, metalness: 1, roughness: 0.28 });
     const casings = Bodies(400, new T.CylinderGeometry(0.0048, 0.0048, 0.045, 7), brass); scene.add(casings.mesh);
     const debris = Bodies(300, new T.DodecahedronGeometry(0.04, 0), new T.MeshStandardMaterial({ color: 0x6b6660, roughness: 0.95 })); scene.add(debris.mesh);
-    const holes = Decals(500, holeTex, {}), blood = Decals(120, bloodTex, { rough: 0.3 }), scorch = Decals(40, scorchTex, {});
+    const holes = Decals(500, holeTex, {}), metalHoles = Decals(300, metalHoleTex, { rough: 0.5 }), blood = Decals(120, bloodTex, { rough: 0.3 }), scorch = Decals(40, scorchTex, {});
     const cracks = Decals(160, glassTex, { rough: 0.05 });
-    scene.add(holes.mesh); scene.add(blood.mesh); scene.add(scorch.mesh); scene.add(cracks.mesh);
+    const brokenSide = Decals(60, shatterSideTex, { rough: 0.3 }), brokenWind = Decals(40, shatterWindTex, { rough: 0.08 });
+    scene.add(holes.mesh); scene.add(metalHoles.mesh); scene.add(blood.mesh); scene.add(scorch.mesh); scene.add(cracks.mesh); scene.add(brokenSide.mesh); scene.add(brokenWind.mesh);
+    // éclats de verre trempé : petits cubes qui tombent, rebondissent et restent au sol (scintillent au soleil)
+    const shards = Bodies(900, new T.BoxGeometry(0.014, 0.004, 0.011), new T.MeshStandardMaterial({ color: 0x8fa3a8, roughness: 0.05, metalness: 0.6, transparent: true, opacity: 0.8 })); shards.mesh.castShadow = false; scene.add(shards.mesh);
     const ripples = Ripples(700); scene.add(ripples.mesh);
     // réserve de lumières : toujours dans la scène, éteintes
     const lights = []; for (let i = 0; i < 6; i++) { const l = new T.PointLight(0xffb469, 0, 9, 2); l.position.set(0, -50, 0); scene.add(l); lights.push({ l, until: 0, i0: 0, dur: 0.05 }); }
-    let li = 0, now = 0;
+    let li = 0, now = 0; const laters = [];   // actions différées (vitre qui éclate quand la balle arrive)
     const light = (p, color, inten, dist, dur) => { const L = lights[li]; li = (li + 1) % lights.length; L.l.position.copy(p); L.l.color.setHex(color); L.l.distance = dist; L.i0 = inten; L.l.intensity = inten; L.until = now + dur; L.dur = dur; L.fresh = true; };
     const V = (x, y, z) => new T.Vector3(x, y, z), rnd = (a, b) => a + Math.random() * (b - a);
     const basis = (d) => { const u = new T.Vector3().crossVectors(d, Math.abs(d.y) < 0.9 ? V(0, 1, 0) : V(1, 0, 0)).normalize(); return [u, new T.Vector3().crossVectors(d, u)]; };
-    const E = { casings, holes, blood, scorch, debris, pools: { add, alpha }, sound: null };
+    const E = { casings, holes, blood, scorch, debris, shards, cracks, pools: { add, alpha }, sound: null, glassSound: null };
     E.light = light;
     // éclair de bouche : origine p, direction d (unitaire)
     E.muzzle = function (p, d, silenced) {
@@ -12133,31 +12176,92 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       const puff = (N, col, a0, sz, life, sp) => { for (let k = 0; k < N; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.05), v: n.clone().multiplyScalar(rnd(0.3, 1) * sp).add(V(rnd(-0.3, 0.3), rnd(0, 0.35), rnd(-0.3, 0.3))), life: rnd(life * 0.6, life), size: rnd(sz * 0.7, sz), grow: rnd(3, 5), frame: 4 + Math.floor(Math.random() * 4), col, a0, drag: 3, delay, fadeIn: 0.03, fadePow: 1.5, rot: Math.random() * 6, spin: rnd(-0.6, 0.6) }); };
       let hole = up ? rnd(0.07, 0.11) : rnd(0.06, 0.09);
       if (matter === 'impact_metal') {
-        flash(0.07, [5, 3.4, 1.8]); sparks(10, 6, 0.4, [10, 6, 2]); puff(1, [0.45, 0.44, 0.42], 0.25, 0.07, 0.8, 0.6); hole = rnd(0.04, 0.06);
+        flash(0.07, [5, 3.4, 1.8]); sparks(10, 6, 0.4, [10, 6, 2]); puff(1, [0.45, 0.44, 0.42], 0.25, 0.07, 0.8, 0.6); hole = rnd(0.055, 0.075);
       } else if (matter === 'impact_carrosserie') {   // tôle peinte : quelques étincelles, éclats de peinture, peu de poussière
-        flash(0.055, [4, 3, 1.6]); sparks(5, 4.5, 0.28, [9, 5.5, 2]); chips(4, [0.3, 0.3, 0.32], 2.5); puff(2, [0.5, 0.5, 0.5], 0.26, 0.06, 0.9, 0.6); hole = rnd(0.035, 0.05);
+        flash(0.055, [4, 3, 1.6]); sparks(5, 4.5, 0.28, [9, 5.5, 2]); chips(5, [0.3, 0.3, 0.32], 2.5); puff(2, [0.5, 0.5, 0.5], 0.26, 0.06, 0.9, 0.6); hole = rnd(0.06, 0.085);
       } else if (matter === 'impact_verre') {   // vitre : pluie d'éclats clairs qui scintillent, pas d'étincelle
         flash(0.04, [2.4, 2.6, 2.8]); chips(12, [1.15, 1.25, 1.35], 2.4, 0.85);
         for (let k = 0; k < 6; k++) add.add({ p: P.clone(), v: n.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-1, 1), rnd(0, 1.2), rnd(-1, 1))), life: rnd(0.25, 0.55), size: 0.008, stretch: 0.01, frame: 3, col: [2.2, 2.4, 2.6], grav: 9.8, delay, floor: 0.01 });
         puff(1, [0.75, 0.78, 0.8], 0.2, 0.06, 0.6, 0.5); hole = 0; cracks.add(P, n, rnd(0.28, 0.45));
+      } else if (matter === 'impact_pneu') {   // pneu : bouffée sombre de caoutchouc, pas d'étincelle ni de poussière claire
+        chips(6, [0.06, 0.06, 0.06], 2.2); puff(2, [0.22, 0.21, 0.2], 0.4, 0.07, 0.7, 0.8); hole = rnd(0.03, 0.045);
+      } else if (matter === 'impact_feuilles') {   // haie, arbre : feuilles hachées qui voltigent, pas de trou
+        for (let k = 0; k < 10; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.05), v: n.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-1, 1), rnd(0, 1.5), rnd(-1, 1))), life: rnd(0.8, 1.6), size: rnd(0.018, 0.032), frame: 12, col: [0.16, 0.26, 0.1], a0: 1, grav: 3, drag: 2.5, delay, floor: 0.01, rot: Math.random() * 6, spin: rnd(-8, 8) });
+        puff(1, [0.3, 0.32, 0.25], 0.25, 0.08, 0.6, 0.4); hole = 0;
       } else if (matter === 'impact_sol' && E.wet) {   // sol détrempé : gerbe d'eau, pas de poussière
         for (let k = 0; k < 10; k++) alpha.add({ p: P.clone().addScaledVector(n, 0.02), v: V(rnd(-0.8, 0.8), rnd(1.5, 3.5), rnd(-0.8, 0.8)), life: rnd(0.3, 0.55), size: rnd(0.012, 0.022), stretch: 0.012, frame: 13, col: [0.72, 0.77, 0.82], a0: 0.8, grav: 9.8, delay, floor: 0.01 });
         puff(2, [0.68, 0.72, 0.76], 0.22, 0.08, 0.6, 0.6); chips(3, [0.12, 0.12, 0.12], 2.5);
       } else {
         const dusty = matter === 'impact_sol', wood = matter === 'impact_bois';
-        const c = wood ? [0.45, 0.33, 0.2] : dusty ? [0.48, 0.44, 0.38] : [0.6, 0.58, 0.54];
+        const c = wood ? [0.45, 0.33, 0.2] : dusty ? [0.4, 0.37, 0.32] : [0.62, 0.6, 0.56];
         if (!dusty) flash(0.045, [2.4, 1.9, 1.3]);
-        jet(3, c, dusty ? 0.7 : 0.65, dusty ? 4.5 : 5);
-        puff(3, c, dusty ? 0.6 : 0.55, dusty ? 0.17 : 0.15, dusty ? 1.8 : 2.1, dusty ? 0.7 : 1);
+        // (k : grossi quand la caméra est loin, pour qu'on voie toujours où tombent les balles)
+        const k = E.fxScale || 1;
+        jet(5, c, dusty ? 0.8 : 0.75, dusty ? 4.5 : 5);
+        puff(4, c, dusty ? 0.75 : 0.7, (dusty ? 0.24 : 0.2) * k, dusty ? 1.9 : 2.2, dusty ? 0.7 : 1);
         chips(dusty ? 6 : 7, wood ? [0.4, 0.3, 0.18] : dusty ? [0.16, 0.15, 0.14] : [0.36, 0.35, 0.33], 3);
         if (!dusty && !wood && Math.random() < 0.35) sparks(2, 4, 0.18, [8, 5, 2]);
+        // béton : quelques vrais morceaux arrachés qui tombent au pied du mur (et y restent un moment)
+        if (!dusty && !wood) for (let k = 0; k < 3; k++) debris.add({ p: P.clone().addScaledVector(n, 0.04), v: n.clone().multiplyScalar(rnd(0.8, 2.5)).add(V(rnd(-0.8, 0.8), rnd(0, 1.2), rnd(-0.8, 0.8))), r: 0.008, s: rnd(0.15, 0.35), wx: rnd(-20, 20), wy: rnd(-20, 20), wz: rnd(-20, 20), life: 25, delay });
+        // au sol : la terre gicle haut (on voit de loin où tombent les balles)
+        if (dusty) jet(3, c, 0.55, 6.5);
       }
-      if (hole) E.hole(p, n, hole);
+      if (hole) { if (matter === 'impact_carrosserie' || matter === 'impact_metal') metalHoles.add(p, n, hole * 1.15); else E.hole(p, n, hole); }
     };
     E.hole = function (p, n, s) { holes.add(p, n, s); };
+    // ---- vitre qui éclate (centre p, normale n vers l'extérieur, taille sx × sy) : 'cote' = verre trempé qui tombe en
+    // grains (le cadre se vide), 'pare' = pare-brise feuilleté qui blanchit sur place et ne lâche que quelques morceaux
+    E.shatter = function (p, n, sx, sy, kind, delay) {
+      delay = delay || 0; const X = new T.Vector3().crossVectors(V(0, 1, 0), n); if (X.lengthSq() < 1e-6) X.set(1, 0, 0); X.normalize(); const Y = new T.Vector3().crossVectors(n, X).normalize();
+      const at = (fx, fy) => p.clone().addScaledVector(X, fx * sx / 2).addScaledVector(Y, fy * sy / 2);
+      const later = () => { if (kind === 'pare') brokenWind.addRect(p, n, sx, sy); else brokenSide.addRect(p, n, sx, sy); };
+      if (delay > 0) laters.push({ at: now + delay, fn: later }); else later();
+      const N = kind === 'pare' ? 18 : 110;
+      for (let k = 0; k < N; k++) { const out = Math.random() < 0.55 ? 1 : -0.6;
+        shards.add({ p: at(rnd(-1, 1), rnd(-1, 1)), v: n.clone().multiplyScalar(out * rnd(0.3, 2.2)).add(V(rnd(-0.6, 0.6), rnd(-0.3, 0.9), rnd(-0.6, 0.6))), r: 0.002, s: rnd(0.45, 1.3), flat: true, wx: rnd(-30, 30), wy: rnd(-30, 30), wz: rnd(-30, 30), life: rnd(90, 140), delay }); }
+      for (let k = 0; k < (kind === 'pare' ? 10 : 40); k++) add.add({ p: at(rnd(-1, 1), rnd(-1, 1)), v: n.clone().multiplyScalar(rnd(0.2, 2)).add(V(rnd(-0.8, 0.8), rnd(0, 1.4), rnd(-0.8, 0.8))), life: rnd(0.3, 0.8), size: 0.007, stretch: 0.008, frame: 3, col: [2.2, 2.5, 2.7], grav: 9.8, floor: 0.01, delay });
+      for (let k = 0; k < 4; k++) alpha.add({ p: at(rnd(-0.8, 0.8), rnd(-0.8, 0.8)).addScaledVector(n, 0.05), v: n.clone().multiplyScalar(rnd(0.2, 0.6)).add(V(0, rnd(0, 0.2), 0)), life: rnd(0.6, 1.1), size: 0.14, grow: 2.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.82, 0.85, 0.88], a0: 0.28, drag: 3, delay, rot: Math.random() * 6 });
+      add.add({ p: p.clone().addScaledVector(n, 0.03), life: 0.05, size: 0.12, frame: 1, col: [2.6, 2.8, 3], a0: 1, delay });
+    };
+    // vitre brisée sur la vraie forme du véhicule (pts : centres des triangles de la vitre) : grains qui tombent des deux
+    // côtés, scintillement, petit nuage clair ; le pare-brise feuilleté lâche peu de morceaux
+    E.shatterPts = function (pts, n, kind, delay) {
+      delay = delay || 0; const N = kind === 'pare' ? 16 : 120, pick = () => pts[Math.floor(Math.random() * pts.length)].clone().add(V(rnd(-0.03, 0.03), rnd(-0.03, 0.03), rnd(-0.03, 0.03)));
+      for (let k = 0; k < N; k++) { const out = Math.random() < 0.55 ? 1 : -0.6;
+        shards.add({ p: pick(), v: n.clone().multiplyScalar(out * rnd(0.3, 2.2)).add(V(rnd(-0.6, 0.6), rnd(-0.3, 0.9), rnd(-0.6, 0.6))), r: 0.002, s: rnd(0.45, 1.3), flat: true, wx: rnd(-30, 30), wy: rnd(-30, 30), wz: rnd(-30, 30), life: rnd(90, 140), delay }); }
+      for (let k = 0; k < (kind === 'pare' ? 10 : 45); k++) add.add({ p: pick(), v: n.clone().multiplyScalar(rnd(0.2, 2)).add(V(rnd(-0.8, 0.8), rnd(0, 1.4), rnd(-0.8, 0.8))), life: rnd(0.3, 0.8), size: 0.007, stretch: 0.008, frame: 3, col: [2.2, 2.5, 2.7], grav: 9.8, floor: 0.01, delay });
+      for (let k = 0; k < 4; k++) alpha.add({ p: pick().addScaledVector(n, 0.05), v: n.clone().multiplyScalar(rnd(0.2, 0.6)).add(V(0, rnd(0, 0.2), 0)), life: rnd(0.6, 1.1), size: 0.14, grow: 2.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.82, 0.85, 0.88], a0: 0.28, drag: 3, delay, rot: Math.random() * 6 });
+    };
+    // vitre déjà brisée : la balle passe, quelques grains restés au cadre tombent
+    E.glassChips = function (p, n, delay) {
+      for (let k = 0; k < 8; k++) shards.add({ p: p.clone(), v: n.clone().multiplyScalar(rnd(-0.6, 1.2)).add(V(rnd(-0.4, 0.4), rnd(0, 0.6), rnd(-0.4, 0.4))), r: 0.002, s: rnd(0.6, 1.4), flat: true, wx: rnd(-30, 30), wy: rnd(-30, 30), wz: rnd(-30, 30), life: 90, delay: delay || 0 });
+      for (let k = 0; k < 6; k++) add.add({ p: p.clone(), v: V(rnd(-0.8, 0.8), rnd(0, 1.2), rnd(-0.8, 0.8)), life: rnd(0.2, 0.5), size: 0.007, stretch: 0.008, frame: 3, col: [2.2, 2.5, 2.7], grav: 9.8, floor: 0.01, delay: delay || 0 });
+    };
+    // balle arrêtée par la plaque d'un gilet : pas de sang ; bouffée de tissu et de céramique pulvérisée rejetée vers le
+    // tireur, fibres sombres, parfois une étincelle (plaque d'acier) ; dir : sens de la balle
+    E.plateHit = function (p, dir, delay) {
+      delay = delay || 0; const back = dir.clone().multiplyScalar(-1);
+      add.add({ p: p.clone().addScaledVector(back, 0.12), life: 0.035, size: 0.09, rot: Math.random() * 6.28, frame: 1, col: [3, 2.6, 1.8], a0: 1, delay });
+      for (let k = 0; k < 6; k++) alpha.add({ p: p.clone().addScaledVector(back, 0.14), v: back.clone().multiplyScalar(rnd(0.6, 1.8)).add(V(rnd(-0.7, 0.7), rnd(-0.1, 0.7), rnd(-0.7, 0.7))), life: rnd(0.6, 1.2), size: rnd(0.07, 0.11), grow: 3.2, frame: 4 + Math.floor(Math.random() * 4), col: [0.62, 0.6, 0.55], a0: 0.6, drag: 4, delay, fadeIn: 0.02, fadePow: 1.4, rot: Math.random() * 6 });
+      for (let k = 0; k < 9; k++) alpha.add({ p: p.clone().addScaledVector(back, 0.12), v: back.clone().multiplyScalar(rnd(1, 3)).add(V(rnd(-1.2, 1.2), rnd(0, 1.4), rnd(-1.2, 1.2))), life: rnd(0.3, 0.7), size: rnd(0.01, 0.02), frame: 12, col: [0.18, 0.18, 0.16], a0: 1, grav: 9.8, delay, floor: 0.01, rot: Math.random() * 6, spin: rnd(-14, 14) });
+      if (Math.random() < 0.45) for (let k = 0; k < 4; k++) add.add({ p: p.clone().addScaledVector(back, 0.12), v: back.clone().multiplyScalar(rnd(1.5, 4)).add(V(rnd(-2, 2), rnd(0, 2.5), rnd(-2, 2))), life: rnd(0.1, 0.25), size: 0.009, stretch: 0.02, frame: 3, col: [9, 6, 2.5], grav: 9.8, delay, floor: 0.01 });
+    };
+    // balle déviée par le casque : gerbe d'étincelles qui file vers le haut et vers l'arrière, petit éclair
+    E.helmetHit = function (p, dir, delay) {
+      delay = delay || 0; const r = dir.clone(); r.y = Math.abs(r.y) + 0.9; r.normalize();
+      add.add({ p: p.clone(), life: 0.03, size: 0.08, rot: Math.random() * 6.28, frame: 1, col: [6, 4.5, 2.5], a0: 1, delay });
+      for (let k = 0; k < 12; k++) add.add({ p: p.clone(), v: r.clone().multiplyScalar(rnd(3, 8)).add(V(rnd(-2, 2), rnd(-0.5, 2), rnd(-2, 2))), life: rnd(0.12, 0.35), size: 0.009, stretch: 0.025, frame: 3, col: [10, 6.5, 2.5], grav: 9.8, delay, floor: 0.01 });
+      alpha.add({ p: p.clone(), v: r.clone().multiplyScalar(0.5), life: 0.6, size: 0.08, grow: 2.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.5, 0.5, 0.5], a0: 0.35, drag: 3, delay });
+    };
+    // ricochet : la balle repart (trait lumineux bref le long de rdir) et quelques étincelles
+    E.ricochet = function (p, rdir, delay) {
+      delay = delay || 0;
+      add.add({ p: p.clone().addScaledVector(rdir, 0.6), v: rdir.clone().multiplyScalar(70), axis: rdir.clone().multiplyScalar(0.9), life: 0.06, size: 0.02, frame: 3, col: [6, 4, 1.8], a0: 1, fadePow: 0.4, delay: delay + 0.005 });
+      for (let k = 0; k < 4; k++) add.add({ p: p.clone(), v: rdir.clone().multiplyScalar(rnd(3, 7)).add(V(rnd(-1.5, 1.5), rnd(0, 1.5), rnd(-1.5, 1.5))), life: rnd(0.1, 0.25), size: 0.009, stretch: 0.02, frame: 3, col: [9, 6, 2.5], grav: 9.8, delay, floor: 0.01 });
+    };
     E.bloodHit = function (p, dir, delay) {
-      for (let k = 0; k < 4; k++) alpha.add({ p: p.clone(), v: dir.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-0.6, 0.6), rnd(-0.2, 0.8), rnd(-0.6, 0.6))), life: rnd(0.3, 0.6), size: rnd(0.05, 0.1), grow: 2.2, frame: 4 + Math.floor(Math.random() * 4), col: [0.16, 0.02, 0.018], a0: 0.5, drag: 3.5, delay, fadePow: 1.6 });   // brume brève et sombre (pas de « peinture » rose)
-      for (let k = 0; k < 8; k++) alpha.add({ p: p.clone(), v: dir.clone().multiplyScalar(rnd(1, 3)).add(V(rnd(-1, 1), rnd(0, 1.5), rnd(-1, 1))), life: rnd(0.3, 0.6), size: rnd(0.012, 0.02), frame: 13, col: [0.25, 0.01, 0.01], a0: 1, grav: 9.8, delay, floor: 0.01 });
+      for (let k = 0; k < 6; k++) alpha.add({ p: p.clone(), v: dir.clone().multiplyScalar(rnd(0.5, 2)).add(V(rnd(-0.6, 0.6), rnd(-0.2, 0.8), rnd(-0.6, 0.6))), life: rnd(0.35, 0.7), size: rnd(0.07, 0.13), grow: 2.2, frame: 4 + Math.floor(Math.random() * 4), col: [0.22, 0.025, 0.02], a0: 0.65, drag: 3.5, delay, fadePow: 1.6 });   // brume brève et sombre (pas de « peinture » rose)
+      for (let k = 0; k < 12; k++) alpha.add({ p: p.clone(), v: dir.clone().multiplyScalar(rnd(1, 3)).add(V(rnd(-1, 1), rnd(0, 1.5), rnd(-1, 1))), life: rnd(0.3, 0.6), size: rnd(0.012, 0.022), frame: 13, col: [0.3, 0.012, 0.01], a0: 1, grav: 9.8, delay, floor: 0.01 });
     };
     E.bloodPool = function (x, z, s) { blood.add(V(x, 0.003, z), V(0, 1, 0), s); };
     E.casing = function (p, right, up, fwd) {
@@ -12198,17 +12302,18 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     E.dustPuff = function (x, z, s) { for (let k = 0; k < 9; k++) { const a = Math.random() * 6.28, sp = rnd(0.6, 1.6); alpha.add({ p: V(x + Math.cos(a) * 0.25, 0.06, z + Math.sin(a) * 0.25), v: V(Math.cos(a) * sp, rnd(0.05, 0.35), Math.sin(a) * sp), life: rnd(0.9, 1.6), size: 0.12 * s, grow: 3.5, frame: 4 + Math.floor(Math.random() * 4), col: [0.62, 0.58, 0.52], a0: 0.5, drag: 2.5, fadeIn: 0.05, fadePow: 1.3, rot: Math.random() * 6 }); } };
     E.update = function (dt, cam, sunCol, fog) {
       now += dt;
+      for (let i = laters.length - 1; i >= 0; i--) if (now >= laters[i].at) { laters[i].fn(); laters.splice(i, 1); }
       add.update(dt); alpha.update(dt);
       if (sunCol) alpha.mat.uniforms.uLight.value.copy(sunCol);
       if (fog && fog.isFogExp2) { for (const P of [add, alpha, ripples]) { P.mat.uniforms.fogColor.value.copy(fog.color); P.mat.uniforms.fogDensity.value = fog.density; } }
       ripples.update(dt, cam);
-      casings.update(dt, (b) => { if (E.sound && Math.random() < 0.35) E.sound(b.p); }); debris.update(dt);
+      casings.update(dt, (b) => { if (E.sound && Math.random() < 0.35) E.sound(b.p); }); debris.update(dt); shards.update(dt, (b) => { if (E.glassSound && Math.random() < 0.04) E.glassSound(b.p); });
       for (const L of lights) { if (L.fresh) { L.fresh = false; L.until = now + L.dur; continue; } if (now >= L.until) { L.l.intensity = 0; continue; } const k = (L.until - now) / L.dur; L.l.intensity = L.i0 * k * (0.7 + Math.random() * 0.3); }
     };
     // pluie : ronds au sol et impacts au sol en gerbes d'eau
     E.ripples = ripples;
     E.setRain = function (on) { ripples.mesh.visible = !!on; E.wet = !!on; };
-    E.clear = function () { add.parts.length = 0; alpha.parts.length = 0; casings.list.length = 0; debris.list.length = 0; holes.clear(); blood.clear(); scorch.clear(); cracks.clear(); for (const L of lights) L.l.intensity = 0; add.update(0); alpha.update(0); casings.update(0); debris.update(0); };
+    E.clear = function () { add.parts.length = 0; alpha.parts.length = 0; casings.list.length = 0; debris.list.length = 0; shards.list.length = 0; laters.length = 0; holes.clear(); metalHoles.clear(); blood.clear(); scorch.clear(); cracks.clear(); brokenSide.clear(); brokenWind.clear(); for (const L of lights) L.l.intensity = 0; add.update(0); alpha.update(0); casings.update(0); debris.update(0); shards.update(0); };
     return E;
   }
   root.Effets = { create };
@@ -19963,6 +20068,19 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // prudemment, elle touche simplement moins). De près (sous TEMPO_NEAR m) rien ne change : on ne rate pas à bout portant ; entre 3 et 10 m, on passe progressivement de l'un à l'autre. Réglé pour des batailles de ~3 min 20 (contre ~1 min 30 avant).
   // Les balles manquées continuent de clouer l'adversaire : les échanges durent, le joueur a le temps de réfléchir.
   const TEMPO_HIT = 0.2, TEMPO_NEAR = 3, TEMPO_FULL = 10;
+  // point (affichage) où le trajet from → to entre dans la boîte de l'obstacle o ; null si la balle passe au-dessus.
+  // force : toujours un point (balle qui traverse la tôle : trou dans la portière à hauteur de la cible)
+  function coverPoint(from, to, o, force) {
+    const dx = to.x - from.x, dz = to.z - from.z; let t0 = 0, t1 = 1;
+    for (const [p, dp, lo, hi] of [[from.x, dx, o.x, o.x + o.w], [from.z, dz, o.z, o.z + o.d]]) {
+      if (Math.abs(dp) < 1e-9) { if (p < lo || p > hi) return null; continue; }
+      let a = (lo - p) / dp, b = (hi - p) / dp; if (a > b) [a, b] = [b, a]; t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+    }
+    if (t0 > t1) return null;
+    const y = from.y + (to.y - from.y) * t0;
+    if (!force && y > o.h + 0.15) return null;
+    return { x: from.x + dx * t0, y: clamp(y, 0.12, o.h - 0.04), z: from.z + dz * t0 };
+  }
   const tempoHit = (d) => d <= TEMPO_NEAR ? 1 : d >= TEMPO_FULL ? TEMPO_HIT : 1 - (1 - TEMPO_HIT) * (d - TEMPO_NEAR) / (TEMPO_FULL - TEMPO_NEAR);
   Battle.prototype.shoot = function (u, e, d) {
     u.ammo--; u.stats.shots++; u.lastShotAt = this.t; this.lastShotTime = this.t; u.burst++; u.aimHistory[e.id] = this.t;
@@ -19974,7 +20092,8 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     let to;
     if (hit) {
       to = { x: e.x, y: e.chestY(), z: e.z };
-      this.applyHit(u, e, d);
+      const r = this.applyHit(u, e, d);
+      this.emit({ type: 'shot', shooter: u.id, target: e.id, from, to, hit, zone: r.zone, stop: r.stopped }); return;
     } else {
       // la balle passe près : suppression (moindre si la cible est à couvert ou si le tir est lointain)
       const far = d > u.weapon.range ? 0.5 : 1;
@@ -19983,14 +20102,17 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       // la tête), la tôle protège encore un peu
       if (cover && /^voiture/.test(cover.obstacle.name || '')) this.carHit(cover.obstacle);
       if (soft && this.rng.chance(this.penChance(cover.obstacle))) {
-        this.emit({ type: 'shot', shooter: u.id, target: e.id, from, to: { x: e.x, y: e.chestY() - 0.2, z: e.z }, hit: true, through: true });
-        this.applyHit(u, e, d, false, true); return;
+        const r = this.applyHit(u, e, d, false, true), to2 = { x: e.x, y: e.chestY() - 0.2, z: e.z };
+        this.emit({ type: 'shot', shooter: u.id, target: e.id, from, to: to2, hit: true, through: true, zone: r.zone, stop: r.stopped, cp: coverPoint(from, to2, cover.obstacle, true), co: this.map.obstacles.indexOf(cover.obstacle) }); return;
       }
       const spread = 0.4 + d * 0.03;
       to = { x: e.x + this.rng.gauss() * spread, y: e.chestY() + this.rng.gauss() * 0.5, z: e.z + this.rng.gauss() * spread };
       // balle perdue : un autre adversaire collé à la ligne de tir (à côté de la cible ou derrière elle) peut la prendre
       const v = this.strayVictim(u, e, d);
-      if (v) { this.emit({ type: 'shot', shooter: u.id, target: v.id, from, to: { x: v.x, y: v.chestY(), z: v.z }, hit: true, stray: true }); this.applyHit(u, v, dist2(u, v), true); return; }
+      if (v) { const r = this.applyHit(u, v, dist2(u, v), true); this.emit({ type: 'shot', shooter: u.id, target: v.id, from, to: { x: v.x, y: v.chestY(), z: v.z }, hit: true, stray: true, zone: r.zone, stop: r.stopped }); return; }
+      // (affichage seulement) la balle arrêtée par le couvert frappe vraiment l'obstacle, au point où elle y entre
+      const cp = cover ? coverPoint(from, to, cover.obstacle) : null;
+      if (cp) { this.emit({ type: 'shot', shooter: u.id, target: e.id, from, to: cp, hit: false, co: this.map.obstacles.indexOf(cover.obstacle) }); return; }
     }
     this.emit({ type: 'shot', shooter: u.id, target: e.id, from, to, hit });
   };
@@ -20156,12 +20278,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       text += bleeding ? ` — ${e.callsign} est à terre (un allié peut le relever).` : ` — ${e.callsign} est hors de combat.`;
       this.logEvent('down', text, { unit: u.id, enemy: e.id, team: u.team, dmg, loc, stray: !!stray });
       this.emit({ type: 'down', unit: e.id });
-      return;
+      return { zone, stopped };
     }
     e.status = this.woundStatus(e);
     if (e.status !== prevStatus && !stopped) text += e.status === 'critical' ? ` ${e.callsign} est gravement blessé.` : '';
     if (stopped) this.logEvent('sonne', `${e.callsign} : « Touché, ça va ! »`, { unit: e.id, team: e.team, silent: true });
     this.logEvent('hit', text, { unit: u.id, enemy: e.id, team: u.team, dmg, loc, hpBefore: before, hpAfter: e.hp, stray: !!stray });
+    return { zone, stopped };
   };
 
   // ---- Fin de bataille -----------------------------------------------------------------
@@ -22404,6 +22527,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   // rendu haut de gamme (rendu.js) : ciel physique, environnement, ombres serrées, post-traitement
   const RENDU = OT.Rendu ? OT.Rendu.create(renderer, scene, camera, sun, hemi) : null;
   const EFX = OT.Effets ? OT.Effets.create(scene) : null;   // effets de combat (effets.js)
+  if (EFX) EFX.glassSound = (p) => play('cliquetis_verre', { x: p.x, y: p.y, z: p.z }, { vol: 0.25 });   // éclats de verre qui retombent
 
   // ---- Conditions (jour, nuit, brouillard, pluie) : lumière, brouillard de distance, pluie ; effets de jeu dans engine.js ----
   const LOOK = {
@@ -22640,7 +22764,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       mapGroup.traverse(o => { if (o.isMesh && !o.userData.keep) { o.geometry.dispose(); if (o.material && o.material.map && o.material.map.isCanvasTexture && o.material.map.__ground) { o.material.map.dispose(); o.material.dispose(); } } });
       scene.remove(mapGroup);
     }
-    mapGroup = new THREE.Group(); obstacleMesh.clear();
+    mapGroup = new THREE.Group(); obstacleMesh.clear(); rayRoots.clear(); GLASS.hits.clear(); GLASS.broken.clear();
     const D3 = OT.Decor, style = { parking: 'parking', place: 'place', raffinerie: 'raffinerie', gare: 'gare' }[map.id] || 'entrepot';
     const PK = map.id === 'parking' && OT.Parking ? OT.Parking : null;   // parking haut de gamme (parking.js)
     if (PK) { /* sol, monde autour : plus bas, une fois les modèles Meshy connus */ }
@@ -22770,6 +22894,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       mesh.position.set(o.x + o.w / 2, o.h / 2, o.z + o.d / 2);
       mesh.castShadow = true; mesh.receiveShadow = true;
       if (map.isDestructible(o)) { mesh.userData.keep = true; obstacleMesh.set(o, mesh); }   // destructible : gardé à part (pas fusionné)
+      if (RAY_KEEP.test(nm)) rayRoots.set(i, mesh);   // forme réelle gardée pour les impacts de balles (voir bulletEnd)
       if (mesh.isGroup) mesh.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
       mapGroup.add(mesh);
       // arêtes pour la lisibilité des couverts hauts
@@ -22789,6 +22914,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       for (const dz of [-0.72, 0.72]) { const r = new THREE.Mesh(new THREE.BoxGeometry(map.width - 2, 0.12, 0.08), MATERIALS.rail); r.position.set(map.width / 2, 0.08, zc + dz); r.receiveShadow = true; mapGroup.add(r); }
       for (let x = 1.5; x < map.width - 1; x += 1.2) { const sl = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.06, 2.2), MATERIALS.sleeper); sl.position.set(x, 0.03, zc); sl.receiveShadow = true; mapGroup.add(sl); }
     }
+    recordRayProxies(map);
     mergeStatic(mapGroup);
     scene.add(mapGroup);
   }
@@ -23106,30 +23232,241 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     let f = faces[0]; for (const c of faces) if (Math.abs(c[0]) < Math.abs(f[0])) f = c;
     return f.length === 4 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(f[1], 0, f[2]);
   }
+  // ---- Balles : où elles s'arrêtent VRAIMENT (affichage seulement : la simulation a déjà décidé qui est touché) -----------
+  // Une balle manquée file jusqu'au premier obstacle ou jusqu'au sol (lancer de rayon). Pour les objets à forme réelle
+  // (voitures, fourgons, abribus, fûts…) on vise leur vraie surface (copie légère de leurs maillages, gardée avant la
+  // fusion du décor) : l'impact tombe sur la portière, la vitre, le pneu, et pas sur la boîte de collision.
+  const rayRoots = new Map(), RAYP = new Map(), rayMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), RAYC = new THREE.Raycaster();
+  const RAY_KEEP = /^(voiture|fourgon|bus|abribus|guérite|fût|cuve|kiosque|barrière|sacs|conteneur|palettes|benne|borne|aspirateur|totem|clim)/;
+  const GLASS = { hits: new Map(), broken: new Set() };   // vitres : nombre de balles reçues, vitres brisées (clé obstacle:côté)
+  function recordRayProxies(map) {
+    RAYP.clear(); mapGroup.updateMatrixWorld(true);
+    for (const [i, root] of rayRoots) {
+      const list = [];
+      root.traverse(c => { if (!c.isMesh || c.isInstancedMesh || c.isSkinnedMesh || !c.geometry || !c.geometry.attributes.position) return;
+        if (!c.geometry.boundingSphere) c.geometry.computeBoundingSphere();
+        const px = new THREE.Mesh(c.geometry, rayMat); px.matrixAutoUpdate = false; px.matrix.copy(c.matrixWorld); px.matrixWorld.copy(c.matrixWorld); px.userData.src = c; list.push(px); });
+      if (list.length) RAYP.set(i, list);
+    }
+    rayRoots.clear();
+  }
+  // entrée d'un rayon (origine f, direction unitaire d) dans la boîte d'un obstacle : t d'entrée / sortie, axe et sens de la face
+  function slab(o, f, d) {
+    let t0 = -Infinity, t1 = Infinity, ax = 0, sg = 0;
+    const L = [[f.x, d.x, o.x, o.x + o.w, 0], [f.y, d.y, 0, o.h, 1], [f.z, d.z, o.z, o.z + o.d, 2]];
+    for (const [p, dp, lo, hi, a] of L) {
+      if (Math.abs(dp) < 1e-9) { if (p < lo || p > hi) return null; continue; }
+      let a0 = (lo - p) / dp, a1 = (hi - p) / dp, sgn = -1; if (a0 > a1) { const t = a0; a0 = a1; a1 = t; sgn = 1; }
+      if (a0 > t0) { t0 = a0; ax = a; sg = sgn; } t1 = Math.min(t1, a1);
+    }
+    if (t0 > t1 || t1 < 0) return null; return { t0, t1, ax, sg };
+  }
+  // premier point touché par la balle : { p, n (normale vers le tireur), o (obstacle ou null = sol), i, t (distance) }
+  function bulletEnd(from, dir, maxD) {
+    const obs = battle.map.obstacles, cands = [];
+    for (let i = 0; i < obs.length; i++) { const r = slab(obs[i], from, dir); if (!r || r.t0 < 0.05 || r.t0 > maxD) continue; r.o = obs[i]; r.i = i; cands.push(r); }
+    cands.sort((a, b) => a.t0 - b.t0);
+    const tg = dir.y < -1e-4 ? -from.y / dir.y : Infinity;
+    for (const c of cands) {
+      if (c.t0 > tg) break;
+      const px = RAYP.get(c.i);
+      if (px) {
+        RAYC.set(from, dir); RAYC.near = Math.max(0, c.t0 - 0.4); RAYC.far = c.t1 + 0.4;
+        const h = RAYC.intersectObjects(px, false)[0]; if (!h) continue;   // passe à côté de la vraie forme (au-dessus du capot…)
+        if (h.distance > tg) break;
+        const n = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : new THREE.Vector3(0, 1, 0); if (n.dot(dir) > 0) n.negate();
+        return { p: h.point.clone(), n, o: c.o, i: c.i, t: h.distance, hit: h };
+      }
+      const n = new THREE.Vector3(); n.setComponent(c.ax, c.sg);
+      return { p: from.clone().addScaledVector(dir, c.t0), n, o: c.o, i: c.i, t: c.t0 };
+    }
+    if (tg <= maxD) { const p = from.clone().addScaledVector(dir, tg); p.y = 0.005; return { p, n: new THREE.Vector3(0, 1, 0), o: null, i: -1, t: tg }; }
+    return null;
+  }
+  // matière touchée : vitres en haut des véhicules (et de l'abribus, de la guérite), pneus en bas aux quatre coins
+  // luminosité de la texture d'un modèle au point touché (vitres des véhicules : sombres) — lue une fois par texture (256²)
+  const ALB = new Map();
+  function albedoAt(mat, uv) {
+    const t = mat && mat.map; if (!t || !t.image || !uv) return null;
+    let A = ALB.get(t.uuid);
+    if (A === undefined) { try { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(t.image, 0, 0, 256, 256); A = g.getImageData(0, 0, 256, 256).data; } catch (e) { A = null; } ALB.set(t.uuid, A); }
+    if (!A) return null;
+    const x = Math.min(255, Math.max(0, Math.floor(uv.x * 256))), y = Math.min(255, Math.max(0, Math.floor((t.flipY ? 1 - uv.y : uv.y) * 256))), k = (y * 256 + x) * 4;
+    return (A[k] * 0.299 + A[k + 1] * 0.587 + A[k + 2] * 0.114) / 255;
+  }
+  const GLASS_LUM = 0.3;
+  function matterAt(o, p, n, hit) {
+    if (!o) return 'impact_sol';
+    if (hit && hit.uv && /^(voiture|fourgon|bus)/.test(o.name || '')) {   // forme réelle : la texture dit si c'est une vitre
+      const lum = albedoAt(hit.object.userData.src && hit.object.userData.src.material, hit.uv);
+      if (lum !== null) { if (p.y > o.h * 0.5 && n.y < 0.85 && lum < GLASS_LUM) return 'impact_verre'; if (p.y > o.h * 0.5) return 'impact_carrosserie'; }
+    }
+    const nm = o.name || '', along = o.w >= o.d, L = along ? o.w : o.d, a = along ? p.x - (o.x + o.w / 2) : p.z - (o.z + o.d / 2);
+    const side = along ? Math.abs(n.z) > 0.5 : Math.abs(n.x) > 0.5, wheel = (r) => p.y < r * 1.9 && side && Math.abs(Math.abs(a) - L * 0.33) < r * 1.1;
+    if (/^voiture/.test(nm)) return p.y > o.h * 0.58 && n.y < 0.8 ? 'impact_verre' : wheel(0.32) ? 'impact_pneu' : 'impact_carrosserie';
+    if (/^(fourgon|bus)/.test(nm)) return p.y > o.h * 0.55 && p.y < o.h * 0.9 && n.y < 0.8 ? 'impact_verre' : wheel(0.45) ? 'impact_pneu' : 'impact_carrosserie';
+    if (/^abribus/.test(nm)) return p.y > 0.25 && p.y < 2.1 ? 'impact_verre' : 'impact_metal';
+    if (/^guérite/.test(nm)) return p.y > 1.0 && p.y < 2.0 ? 'impact_verre' : 'impact_beton';
+    return MAT_OF(nm);
+  }
+  // vitre touchée : 1re balle = fêlure ; puis elle éclate (verre trempé des côtés : 2e balle une fois sur deux, sinon la 3e ;
+  // pare-brise feuilleté : il blanchit à la 3e) ; une vitre brisée laisse passer les balles. Renvoie la vitre (taille, centre).
+  function glassState(imp) {
+    const o = imp.o, nm = o.name || '', along = o.w >= o.d, L = along ? o.w : o.d, W = along ? o.d : o.w;
+    const nx = imp.n.x, nz = imp.n.z, sideFace = along ? Math.abs(nz) >= Math.abs(nx) : Math.abs(nx) > Math.abs(nz);
+    const a = along ? imp.p.x - (o.x + o.w / 2) : imp.p.z - (o.z + o.d / 2), car = /^voiture/.test(nm), big = /^(bus|fourgon)/.test(nm), panel = big ? 2.2 : car ? 99 : 1.3;
+    const pane = sideFace && !car ? Math.round(a / panel) : 0;
+    const key = imp.i + ':' + (Math.abs(nx) > Math.abs(nz) ? (nx > 0 ? 'E' : 'O') : (nz > 0 ? 'S' : 'N')) + pane;
+    const kind = (car || big) && !sideFace ? 'pare' : 'cote';
+    const real = imp.hit && imp.hit.object.userData.src && imp.hit.object.userData.src.material && imp.hit.object.userData.src.material.map ? imp.hit : null;
+    if (real) { const D = real.object.userData.src.userData.dmg; if (D && D.attr.array[real.faceIndex * 3] > 0) return { state: 'through' }; }
+    else if (GLASS.broken.has(key)) return { state: 'through' };
+    const n = (GLASS.hits.get(key) || 0) + 1; GLASS.hits.set(key, n);
+    const breaks = kind === 'pare' ? n >= 3 : n >= 3 || (n === 2 && Math.random() < 0.5);
+    if (!breaks) return { state: 'crack' };
+    if (real) { const pane = breakPane(real, imp, kind, car ? (kind === 'pare' ? 0.95 : 0.6) : big ? (kind === 'pare' ? 1.2 : 1.1) : 0.75); if (pane) return pane; }
+    GLASS.broken.add(key);
+    // centre et taille de la vitre ; on retrouve sa vraie surface par un rayon tiré de l'extérieur, à l'horizontale
+    let sx, sy, ca, cy;
+    if (car) { if (sideFace) { sx = L * 0.42; sy = o.h * 0.3; ca = Math.max(-L * 0.1, Math.min(L * 0.1, a)); } else { sx = W * 0.74; sy = o.h * 0.3; ca = 0; } cy = o.h * 0.77; }
+    else if (big) { if (sideFace) { sx = panel * 0.9; sy = o.h * 0.27; ca = pane * panel; } else { sx = W * 0.8; sy = o.h * 0.28; ca = 0; } cy = o.h * 0.72; }
+    else { sx = 1.15; sy = /^guérite/.test(nm) ? 0.9 : 1.6; ca = pane * panel; cy = /^guérite/.test(nm) ? 1.5 : 1.2; }
+    const fn = new THREE.Vector3(Math.abs(nx) > Math.abs(nz) ? Math.sign(nx) : 0, 0, Math.abs(nx) > Math.abs(nz) ? 0 : Math.sign(nz));
+    const cx = along ? o.x + o.w / 2 + (sideFace ? ca : 0) : o.x + o.w / 2, cz = along ? o.z + o.d / 2 : o.z + o.d / 2 + (sideFace ? ca : 0);
+    const c0 = new THREE.Vector3(cx, cy, cz), half = Math.abs(fn.x) ? o.w / 2 : o.d / 2;
+    c0.addScaledVector(fn, half + 1.5);
+    let p = imp.p.clone(), nn = imp.n.clone();
+    const px = RAYP.get(imp.i);
+    if (px) { RAYC.set(c0, fn.clone().negate()); RAYC.near = 0; RAYC.far = half * 2 + 3; const h = RAYC.intersectObjects(px, false)[0];
+      if (h) { p = h.point.clone(); nn = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : fn.clone(); if (nn.dot(fn) < 0) nn.negate(); } else { p = c0.addScaledVector(fn, -1.5); nn = fn; } }
+    return { state: 'shatter', kind, p, n: nn, sx, sy };
+  }
+  // Vitre brisée sur la VRAIE forme du véhicule : la première fois, le véhicule touché reçoit sa propre copie de maillage
+  // (triangles séparés) avec un repère « dégât » par sommet et sa propre copie de matériau (shader : 1 = verre trempé
+  // tombé — le cadre se vide, il reste des grains ; 2 = pare-brise feuilleté qui blanchit en toile serrée). La vitre, ce sont
+  // les triangles sombres de la texture, du même côté, autour du point touché : ils épousent la forme exacte de la fenêtre.
+  function carDamage(src, h) {
+    if (src.userData.dmg) return src.userData.dmg;
+    const g = src.geometry.index ? src.geometry.toNonIndexed() : src.geometry.clone(), n = g.attributes.position.count;
+    const attr = new THREE.BufferAttribute(new Float32Array(n), 1); g.setAttribute('aDmg', attr); g.computeBoundingSphere();
+    const old = src.geometry; src.geometry = g;
+    for (const list of RAYP.values()) for (const px of list) if (px.userData.src === src) px.geometry = g;
+    const m = src.material.clone(), prev = src.material.onBeforeCompile, key = (src.material.customProgramCacheKey ? src.material.customProgramCacheKey() : '') + '|degats1';
+    m.onBeforeCompile = (sh, r) => { if (prev) prev.call(m, sh, r); dmgShader(sh); }; m.customProgramCacheKey = () => key; src.material = m;
+    // triangles : centre (monde), normale (monde), vitre ? (sombre dans la texture)
+    const P = g.attributes.position, UV = g.attributes.uv, T = n / 3, cen = new Float32Array(T * 3), nor = new Float32Array(T * 3), dark = new Uint8Array(T);
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), uv = new THREE.Vector2(), mw = src.matrixWorld;
+    for (let t = 0; t < T; t++) {
+      a.fromBufferAttribute(P, t * 3).applyMatrix4(mw); b.fromBufferAttribute(P, t * 3 + 1).applyMatrix4(mw); c.fromBufferAttribute(P, t * 3 + 2).applyMatrix4(mw);
+      cen[t * 3] = (a.x + b.x + c.x) / 3; cen[t * 3 + 1] = (a.y + b.y + c.y) / 3; cen[t * 3 + 2] = (a.z + b.z + c.z) / 3;
+      b.sub(a); c.sub(a); b.cross(c).normalize(); nor[t * 3] = b.x; nor[t * 3 + 1] = b.y; nor[t * 3 + 2] = b.z;
+      if (UV) { uv.set((UV.getX(t * 3) + UV.getX(t * 3 + 1) + UV.getX(t * 3 + 2)) / 3, (UV.getY(t * 3) + UV.getY(t * 3 + 1) + UV.getY(t * 3 + 2)) / 3); const l = albedoAt(m, uv); dark[t] = l !== null && l < GLASS_LUM ? 1 : 0; }
+    }
+    return (src.userData.dmg = { attr, cen, nor, dark, T, old });
+  }
+  function breakPane(h, imp, kind, R) {
+    const src = h.object.userData.src, D = carDamage(src, h), o = imp.o, nIn = imp.n, code = kind === 'pare' ? 2 : 1, pts = [];
+    const yMin = o.h * 0.48, R2 = R * R;
+    for (let t = 0; t < D.T; t++) {
+      if (!D.dark[t] || D.attr.array[t * 3] > 0) continue;
+      const x = D.cen[t * 3], y = D.cen[t * 3 + 1], z = D.cen[t * 3 + 2];
+      if (y < yMin || Math.abs(D.nor[t * 3 + 1]) > 0.9) continue;
+      const dx = x - imp.p.x, dy = (y - imp.p.y) * 1.6, dz = z - imp.p.z; if (dx * dx + dy * dy + dz * dz > R2) continue;
+      const dn = D.nor[t * 3] * nIn.x + D.nor[t * 3 + 1] * nIn.y + D.nor[t * 3 + 2] * nIn.z; if (Math.abs(dn) < 0.55) continue;   // même côté (normales du modèle parfois inversées)
+      D.attr.array[t * 3] = D.attr.array[t * 3 + 1] = D.attr.array[t * 3 + 2] = code; pts.push(new THREE.Vector3(x, y, z));
+    }
+    if (pts.length < 3) return null;
+    D.attr.needsUpdate = true;
+    return { state: 'shatter', kind, pts, n: nIn.clone(), real: true };
+  }
+  // shader des dégâts (injecté dans le matériau copié du véhicule touché)
+  function dmgShader(sh) {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aDmg; varying float vDmg; varying vec3 vDmgP;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvDmg = aDmg; vDmgP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      varying float vDmg; varying vec3 vDmgP;
+      vec3 dmgH(vec3 p) { return fract(sin(vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)))) * 43758.5453); }
+      float dmgCrack(vec3 p) { vec3 i = floor(p), f = fract(p); float d1 = 8.0, d2 = 8.0;
+        for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) for (int z = -1; z <= 1; z++) { vec3 gg = vec3(float(x), float(y), float(z)); float d = length(gg + dmgH(i + gg) - f); if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d; }
+        return d2 - d1; }`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+      float dmgK = 0.0;
+      if (vDmg > 0.5) {
+        if (vDmg < 1.5) {   // verre trempé tombé : vide sombre de l'habitacle, grains de verre restés pris, arêtes claires
+          float clump = smoothstep(0.55, 0.85, dmgH(floor(vDmgP * 7.0)).y);                  // quelques plaques de grains restées accrochées
+          float grain = step(0.86 - clump * 0.3, dmgH(floor(vDmgP * 95.0)).x), cr = dmgCrack(vDmgP * 95.0);
+          diffuseColor.rgb = mix(vec3(0.028, 0.026, 0.024), vec3(0.5, 0.55, 0.57), grain * (1.0 - smoothstep(0.0, 0.25, cr) * 0.5) * 0.7); dmgK = 1.0;
+        } else {            // pare-brise feuilleté : blanchi, fissures serrées en toile
+          float cr = dmgCrack(vDmgP * 18.0), cr2 = dmgCrack(vDmgP * 55.0), line = max(1.0 - smoothstep(0.0, 0.06, cr), (1.0 - smoothstep(0.0, 0.05, cr2)) * 0.6);
+          diffuseColor.rgb = mix(diffuseColor.rgb * 1.25 + 0.05, vec3(0.8, 0.83, 0.86), line * 0.65); dmgK = 0.55;
+        }
+      }`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.92, dmgK);')
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.0, dmgK);')
+      .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\nmaterial.clearcoat *= 1.0 - dmgK;\n#endif');
+  }
+  // tout ce que la balle fait au bout de sa course (résolu une fois : l'image et le son s'en servent)
+  function muzzleOf(ev) {
+    if (ev.fx) return new THREE.Vector3(ev.from.x, ev.from.y, ev.from.z);   // (essai API.fxShot : départ imposé)
+    const m = meshes[ev.shooter];
+    if (m && m.weapon && m.weapon.muzzle) { m.weapon.updateMatrixWorld(true); return m.weapon.localToWorld(m.weapon.muzzle.clone()); }
+    return new THREE.Vector3(ev.from.x, ev.from.y, ev.from.z);
+  }
+  function resolveImpact(ev) {
+    const from = muzzleOf(ev), to = new THREE.Vector3(ev.to.x, ev.to.y, ev.to.z), dir = to.clone().sub(from), len = dir.length() || 1; dir.multiplyScalar(1 / len);
+    if (ev.lamp !== undefined) return { from, dir, t: len, p: to, n: dir.clone().negate(), o: null, matter: 'impact_verre' };
+    if (ev.hit) {   // balle au but ; à travers une portière : on cherche le trou d'entrée dans la tôle
+      const r = { from, dir, t: len, p: to, n: dir.clone().negate(), o: null, matter: null };
+      if (ev.through) { const e = bulletEnd(from, dir, len); if (e && e.o) { r.car = e; e.matter = matterAt(e.o, e.p, e.n, e.hit); if (e.matter === 'impact_verre') e.glass = glassState(e); } }
+      return r;
+    }
+    const e = bulletEnd(from, dir, 80); if (!e) return { from, dir, t: len, p: null };
+    e.from = from; e.dir = dir; e.matter = matterAt(e.o, e.p, e.n, e.hit);
+    if (e.matter === 'impact_verre' && e.o) e.glass = glassState(e);
+    // ricochet : balle rasante sur du métal, du béton, de la tôle ou l'asphalte
+    const graze = Math.abs(dir.dot(e.n));
+    if (/^impact_(metal|beton|carrosserie|sol)$/.test(e.matter) && graze < 0.35 && Math.random() < (e.matter === 'impact_sol' ? 0.25 : 0.5)) e.rico = dir.clone().addScaledVector(e.n, -2 * dir.dot(e.n)).normalize();
+    return e;
+  }
+  // dessin de l'impact sur une surface (trou, éclats, vitre qui fend ou éclate, pneu, ricochet)
+  function surfaceImpact(e, delay) {
+    if (!EFX || !e || !e.p) return;
+    const g = e.glass;
+    if (g && g.state === 'through') { EFX.glassChips(e.p, e.n, delay); return; }
+    if (g && g.state === 'shatter') { EFX.impact(e.p, e.n, 'impact_verre', delay); if (g.real) EFX.shatterPts(g.pts, g.n, g.kind, delay); else EFX.shatter(g.p, g.n, g.sx, g.sy, g.kind, delay); return; }
+    EFX.impact(e.p, e.n, e.matter, delay);
+    if (e.rico) EFX.ricochet(e.p, e.rico, delay);
+  }
   const BULLET = 140;   // vitesse apparente des traçantes (m/s)
-  function addShot(ev, team, cache) {   // cache : tireur non repéré (ni éclair, ni traçante, ni douille ; l'impact reste)
-    const from = new THREE.Vector3(ev.from.x, ev.from.y, ev.from.z), to = new THREE.Vector3(ev.to.x, ev.to.y, ev.to.z);
+  function addShot(ev, team, cache, imp) {   // cache : tireur non repéré (ni éclair, ni traçante, ni douille ; l'impact reste)
+    const from = imp ? imp.from.clone() : new THREE.Vector3(ev.from.x, ev.from.y, ev.from.z), to = new THREE.Vector3(ev.to.x, ev.to.y, ev.to.z);
     const m = meshes[ev.shooter], sh = unitById[ev.shooter];
-    if (m) { m.anim.recoil = 1; const mz = m.weapon.localToWorld(m.weapon.muzzle.clone()); from.copy(mz); }
-    const dir = to.clone().sub(from), len = dir.length(); dir.normalize();
+    if (m) m.anim.recoil = 1;
+    const end = imp && imp.p ? imp.p : to, dir = to.clone().sub(from), len = end.distanceTo(from); dir.normalize();
     const delay = len / BULLET;
     if (ev.hit && OT.Ragdoll && meshes[ev.target]) { const mt = meshes[ev.target]; if (mt.mm) OT.MMJeu.touche(mt, dir); else OT.Ragdoll.impact(mt, dir, delay); }   // balle mortelle → ragdoll
-    if (cache) {
-      if (EFX && !ev.hit) { const n = surfaceNormal(to); EFX.impact(to, n, to.y < 0.15 ? 'impact_sol' : impactSound(to), delay); }
-      else if (EFX && ev.hit && fogShown(unitById[ev.target])) EFX.bloodHit(to, dir, delay);
-      return;
-    }
+    const hitFx = () => {
+      if (!EFX) return;
+      if (!ev.hit) { if (imp && imp.p) surfaceImpact(imp, delay); return; }
+      if (imp && imp.car) surfaceImpact(imp.car, imp.car.t / BULLET);   // trou dans la portière traversée
+      if (!fogShown(unitById[ev.target])) return;
+      const P = to.clone(), tm = meshes[ev.target]; if (tm && tm.group) { P.x = tm.group.position.x; P.z = tm.group.position.z; }   // sur le soldat affiché
+      if (ev.stop === 'plaque') EFX.plateHit(P, dir, delay);
+      else if (ev.stop === 'casque') EFX.helmetHit(P.setY(P.y + 0.4), dir, delay);
+      else { if (ev.zone === 'tête') P.y += 0.4; else if (ev.zone === 'jambe') P.y -= 0.6; EFX.bloodHit(P, dir, delay); }
+    };
+    if (cache) { hitFx(); return; }
     if (EFX) {
       EFX.muzzle(from, dir, !!(sh && sh.weapon.silenced));
-      EFX.tracer(from, to, BULLET, team);
+      EFX.tracer(from, end, BULLET, team);
       if (m && m.weapon.gripPt) {   // douille éjectée à droite de l'arme (fenêtre d'éjection au-dessus de la poignée)
         const w = m.weapon; w.updateMatrixWorld(true);
         const port = w.localToWorld(w.gripPt.clone().add(new THREE.Vector3(-0.025, 0.075, 0.1)));
         const q = w.getWorldQuaternion(new THREE.Quaternion()), right = new THREE.Vector3(-1, 0, 0).applyQuaternion(q), up = new THREE.Vector3(0, 1, 0).applyQuaternion(q), fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
         EFX.casing(port, right, up, fwd);
       }
-      if (ev.hit) { const tm = meshes[ev.target]; if (tm) { tm.anim.flinch = 1; tm.anim.hitDir = { x: dir.x, z: dir.z }; } if (fogShown(unitById[ev.target])) EFX.bloodHit(to, dir, delay); }
-      else { const n = surfaceNormal(to); EFX.impact(to, n, to.y < 0.15 ? 'impact_sol' : impactSound(to), delay); }
+      if (ev.hit) { const tm = meshes[ev.target]; if (tm) { tm.anim.flinch = 1; tm.anim.hitDir = { x: dir.x, z: dir.z }; } }
+      hitFx();
       return;
     }
     // (sans effets.js) traçante simple
@@ -23234,6 +23571,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   function updateFx() {
     fallDust();
     const dt = Math.max(0, simTime - fxLast); fxLast = simTime;
+    if (EFX) EFX.fxScale = Math.max(1, Math.min(2.6, camera.position.distanceTo(cam.target) / 14));   // impacts lisibles de loin
     if (EFX) { const k = condNow === 'nuit' ? 0.2 : 1; EFX.update(Math.min(0.1, frameDt), camera, sun.color.clone().multiplyScalar(0.55 * k).add(new THREE.Color(0.25, 0.27, 0.3).multiplyScalar(0.35 + 0.65 * k)), scene.fog); }   // fumée et poussière sombres de nuit (la lune éclaire peu)
     for (let i = fx.length - 1; i >= 0; i--) {
       const f = fx[i];
@@ -23308,11 +23646,13 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const proj = p.project(camera);
     return { d, occl, vol, pan: Math.max(-0.8, Math.min(0.8, proj.x * 0.8)), filtre: Math.min(20000, 22000 * Math.exp(-d / 70)) * (occl ? 0.22 : 1) };
   }
+  const SON_REPLI = { impact_plaque: 'impact_corps', impact_casque: 'impact_metal', vitre_eclat: 'impact_verre', cliquetis_verre: 'impact_verre', impact_pneu: 'impact_carrosserie', impact_proche: 'impact_sol' };
   function play(name, pos, o) {
     if (muted || !window.Son) return;
     Son.volume(SETTINGS.vol);
     const now = performance.now();
-    const minGap = { pas: 60, pas_mouille: 60, tir_556_proche: 30, tir_556_moyen: 30, tir_556_loin: 30, tir_silencieux: 30, impact_beton: 50, impact_corps: 50, impact_metal: 50, impact_bois: 50, impact_sol: 50, impact_carrosserie: 50, douilles: 120, claquement: 60, sifflement: 60 }[name] || 0;
+    const minGap = { pas: 60, pas_mouille: 60, tir_556_proche: 30, tir_556_moyen: 30, tir_556_loin: 30, tir_silencieux: 30, impact_beton: 50, impact_corps: 50, impact_metal: 50, impact_bois: 50, impact_sol: 50, impact_carrosserie: 50, impact_pneu: 50, impact_plaque: 40, impact_casque: 40, impact_proche: 80, cliquetis_verre: 90, vitre_eclat: 60, douilles: 120, claquement: 60, sifflement: 60 }[name] || 0;
+    if (!Son.a(name) && SON_REPLI[name]) name = SON_REPLI[name];
     if (minGap && recent[name] && now - recent[name] < minGap / Math.min(2, speed)) return;
     recent[name] = now;
     const opt = Object.assign({ varie: 0.04 }, o || {}), espace = opt.espace; delete opt.espace;
@@ -23321,7 +23661,7 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
       if (espace) {
         const e = battle ? ECHO[battle.map.id] || 0.8 : 0.8;
         opt.ext = Math.min(0.6, 0.12 + sp.d / 110) * (sp.occl ? 1.4 : 1);
-        opt.echo = { t: 0.07 + Math.random() * 0.14, g: 0.22 * e * (sp.d > 60 ? 0.6 : 1), f: 2200 };
+        opt.echo = { t: 0.07 + Math.random() * 0.14, g: 0.22 * e * (sp.d > 60 ? 0.6 : 1) * (name === 'tir_556_loin' ? 0.5 : 1), f: 2200 };   // (le son « loin » contient déjà l'écho de ville)
         if (sp.d > 40) opt.delai = (opt.delai || 0) + (sp.d - 40) / 343;
       }
     }
@@ -23329,15 +23669,46 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
   }
   // Coup de feu : vrai enregistrement du 5,56 choisi selon la distance d'écoute (près / mi-distance / loin), silencieux à
   // part ; étuis qui tintent près de la caméra ; claquement ou sifflement quand la balle passe tout près de la caméra.
-  function shotSound(sh, ev, cache) {   // (tireur non repéré : le coup de feu s'entend toujours, mais pas les douilles)
+  function shotSound(sh, ev, cache, imp) {   // (tireur non repéré : le coup de feu s'entend toujours, mais pas les douilles)
     const f = ev.from, sp = spatial(f.x, f.y || 1.4, f.z), v = ev.suppressive ? 0.85 : 1;
     if (sh.weapon.silenced) play('tir_silencieux', f, { vol: v, espace: true });
-    else play('tir_556_' + (sp.d < 28 ? 'proche' : sp.d < 70 ? 'moyen' : 'loin'), f, { vol: v * 1.3, espace: true, varie: 0.03 });
+    else { const far = sp.d >= 70; play('tir_556_' + (sp.d < 28 ? 'proche' : far ? 'loin' : 'moyen'), f, { vol: v * 2.4, espace: true, varie: 0.03 }); }
     if (sp.d < 16 && !cache && Math.random() < 0.3) pendingSounds.push({ at: simTime + 0.45 + Math.random() * 0.4, name: 'douilles', pos: { x: f.x, y: 0.1, z: f.z }, vol: 0.9 });
-    const c = camera.position, t = ev.to, dx = t.x - f.x, dy = (t.y || 1) - (f.y || 1.4), dz = t.z - f.z, L2 = dx * dx + dy * dy + dz * dz || 1;
-    const k = ((c.x - f.x) * dx + (c.y - (f.y || 1.4)) * dy + (c.z - f.z) * dz) / L2;
-    if (k > 0.05 && k < 0.98) { const m = Math.hypot(f.x + dx * k - c.x, (f.y || 1.4) + dy * k - c.y, f.z + dz * k - c.z);
-      if (m < 4) pendingSounds.push({ at: simTime + Math.sqrt(L2) * k / 900, name: m < 1.8 ? 'claquement' : 'sifflement', pos: null, vol: m < 1.8 ? 0.9 : 0.8 - m * 0.1 }); }
+    // la balle passe près de l'oreille (le point regardé, à hauteur d'homme) : claquement supersonique jusqu'à ~8 m de la
+    // trajectoire, sifflement en plus sous 2,5 m — c'est ce qui fait sentir qu'on est sous le feu
+    const ear = new THREE.Vector3(cam.target.x, 1.5, cam.target.z), a = imp ? imp.from : new THREE.Vector3(f.x, f.y || 1.4, f.z);
+    const b = imp && imp.p ? imp.p : new THREE.Vector3(ev.to.x, ev.to.y || 1, ev.to.z), ab = b.clone().sub(a), L2 = ab.lengthSq() || 1;
+    const k = ear.clone().sub(a).dot(ab) / L2;
+    if (k > 0.08 && k < 1.05) {
+      const q = a.clone().addScaledVector(ab, Math.min(1, k)), m = q.distanceTo(ear), at = simTime + Math.sqrt(L2) * Math.min(1, k) / 900;
+      if (m < 8) pendingSounds.push({ at, name: 'claquement', pos: { x: q.x, y: q.y, z: q.z }, vol: 1.3 * Math.pow(1 - m / 8, 0.8) });
+      if (m < 2.5) pendingSounds.push({ at: at + 0.01, name: 'sifflement', pos: { x: q.x, y: q.y, z: q.z }, vol: 0.9 - m * 0.2 });
+    }
+  }
+  // sons au bout de la course de la balle (même instant que l'image : vitesse apparente BULLET)
+  const IMP_VOL = { impact_sol: 0.7, impact_feuilles: 0.35, impact_beton: 0.9, impact_metal: 0.9, impact_carrosserie: 0.9, impact_verre: 0.9, impact_pneu: 1, impact_bois: 0.9 };
+  function impactSounds(ev, e) {
+    const at = simTime + (e && e.t ? e.t : 20) / BULLET, P = (v) => ({ x: v.x, y: v.y, z: v.z });
+    if (ev.hit) {
+      const name = ev.stop === 'plaque' ? 'impact_plaque' : ev.stop === 'casque' ? 'impact_casque' : 'impact_corps';
+      pendingSounds.push({ at, name, pos: ev.to, vol: ev.stop === 'plaque' ? 1.1 : 1 });
+      if (ev.stop === 'casque' && Math.random() < 0.5) pendingSounds.push({ at: at + 0.02, name: 'ricochet', pos: ev.to, vol: 0.7 });
+      if (e && e.car) carSounds(e.car, simTime + e.car.t / BULLET);
+      return;
+    }
+    if (!e || !e.p) return;
+    if (ev.lamp !== undefined) { pendingSounds.push({ at, name: 'vitre_eclat', pos: P(e.p), vol: 0.7 }); return; }
+    carSounds(e, at);
+    if (e.rico) pendingSounds.push({ at: at + 0.01, name: 'ricochet', pos: P(e.p), vol: 0.8 });
+    // balle qui frappe tout près de l'oreille (point regardé) : le « thwip » sec de la terre qui gicle
+    const ear = cam.target; if (Math.hypot(e.p.x - ear.x, e.p.z - ear.z) < 3.5) pendingSounds.push({ at: at + 0.005, name: 'impact_proche', pos: P(e.p), vol: 1 });
+  }
+  function carSounds(e, at) {
+    const P = { x: e.p.x, y: e.p.y, z: e.p.z }, g = e.glass;
+    if (g && g.state === 'shatter') { pendingSounds.push({ at, name: 'vitre_eclat', pos: P, vol: 1.1 }); pendingSounds.push({ at: at + 0.35 + Math.random() * 0.2, name: 'cliquetis_verre', pos: { x: P.x, y: 0.1, z: P.z }, vol: 0.8 }); return; }
+    if (g && g.state === 'through') { pendingSounds.push({ at, name: 'cliquetis_verre', pos: P, vol: 0.45 }); return; }
+    const name = e.matter === 'impact_feuilles' ? 'impact_sol' : e.matter;
+    pendingSounds.push({ at, name, pos: P, vol: IMP_VOL[e.matter] || 0.9 });
   }
   const AMBIENCE = { entrepot: 'ambiance_port', raffinerie: 'ambiance_port', place: 'ambiance_ville', parking: 'ambiance_ville', gare: 'ambiance_port' };
   // couche météo (boucle « meteo ») : pluie, vent du brouillard, insectes la nuit, oiseaux le jour ; ponctuations rares
@@ -23516,17 +23887,11 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     const m = new THREE.Mesh(bloodGeo, stainMat); m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6.28; m.position.set(x + (Math.random() - 0.5) * 0.3, 0.025, z + (Math.random() - 0.5) * 0.3);
     m.scale.set(r * (0.8 + Math.random() * 0.5), r * (0.6 + Math.random() * 0.5), 1); decals.add(m);
   }
-  // son d'impact selon la matière la plus proche du point d'arrivée de la balle (métal, bois, béton, sol / sable)
-  const MAT_OF = (n) => /^(voiture|fourgon|bus|berline|camion)/.test(n) ? (Math.random() < 0.2 ? 'impact_verre' : 'impact_carrosserie') : /^(conteneur|cuve|tuyauterie|fût|pompe|armoire|barrière|bac|kiosque|abri)/.test(n) ? 'impact_metal' : /^(caisses|palettes|banc|étal)/.test(n) ? 'impact_bois' : /^(sacs|palmier)/.test(n) ? 'impact_sol' : 'impact_beton';
-  function impactSound(p) {
-    if (p.y < 0.15) return 'impact_sol';
-    if (p.y > 6) return 'impact_verre';   // tête de lampadaire
-    let best = null, bd = 1.2;
-    for (const o of battle.map.obstacles) { if (p.y > o.h + 0.3) continue; const d = Math.hypot(Math.max(o.x - p.x, 0, p.x - (o.x + o.w)), Math.max(o.z - p.z, 0, p.z - (o.z + o.d))); if (d < bd) { bd = d; best = o; } }
-    // voiture : au-dessus de ~60 % de sa hauteur, ce sont les vitres (elles se fendent et le restent)
-    if (best && /^voiture/.test(best.name || '')) return p.y > best.h * 0.62 ? 'impact_verre' : 'impact_carrosserie';
-    return best ? MAT_OF(best.name || '') : 'impact_sol';
-  }
+  // matière d'un obstacle d'après son nom (impacts de balles : image et son)
+  const MAT_OF = (n) => /^(voiture|fourgon|bus|berline|camion)/.test(n) ? 'impact_carrosserie'
+    : /^(conteneur|cuve|tuyauterie|fût|pompe|armoire|barrière|kiosque|abri|benne|clim|borne|aspirateur|totem|consigne|clôture|poste|colonnes|caisse )/.test(n) ? 'impact_metal'
+    : /^(caisses|palettes|banc|étal|palissade)/.test(n) ? 'impact_bois' : /^(haie|arbre|palmier)/.test(n) ? 'impact_feuilles' : /^sacs/.test(n) ? 'impact_sol' : 'impact_beton';
+
   // alarme de voiture : le klaxon de la voiture qui sonne par coups réguliers (comme une vraie alarme de série), au lieu d'une
   // sirène aiguë ; deux notes graves de klaxon (≈ 400 et 500 Hz), timbre adouci, coups de 0,45 s toutes les 0,8 s ; feux qui clignotent
   const ALARMS = [];
@@ -23559,12 +23924,10 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     for (const ev of battle.drainEvents()) {
       if (ev.type === 'shot') {
         const sh = unitById[ev.shooter], cache = !fogShotShown(ev, sh);   // tireur non repéré, balle loin de l'escouade : on l'entend seulement
-        addShot(ev, sh.team, cache);
-        shotSound(sh, ev, cache);
-        const d = Math.hypot(ev.to.x - ev.from.x, ev.to.z - ev.from.z);
-        const imp = ev.hit ? 'impact_corps' : impactSound(ev.to);
-        pendingSounds.push({ at: simTime + d / 110, name: imp, pos: ev.to, vol: ev.hit ? 1 : imp === 'impact_sol' ? 0.6 : 0.9 });
-        if (!ev.hit && (imp === 'impact_beton' || imp === 'impact_metal') && Math.random() < 0.12) pendingSounds.push({ at: simTime + d / 110 + 0.01, name: 'ricochet', pos: ev.to, vol: 0.8 });
+        const imp = resolveImpact(ev);
+        addShot(ev, sh.team, cache, imp);
+        shotSound(sh, ev, cache, imp);
+        impactSounds(ev, imp);
       }
       if (ev.type === 'lamp' && OT.Parking && OT.Parking.lampOff) OT.Parking.lampOff(ev.x, ev.z);
       if (ev.type === 'alarm') {
@@ -24844,6 +25207,9 @@ window.THREEX = Object.assign(window.THREEX || {}, __M['utils/BufferGeometryUtil
     fogForce: (v) => { FOG.force = v; },   // (outils : true / false impose, undefined rend la main au réglage)
     fog: () => { const E = battle.teams[1].units, vis = (u) => !!(meshes[u.id] && meshes[u.id].group.visible); return { on: fogOn(), spotted: [...FOG.spotted], alive: E.filter(u => u.alive).map(u => u.id), drawn: E.filter(u => u.alive && vis(u)).map(u => u.id), fading: E.filter(u => meshes[u.id] && meshes[u.id].fogA > 0 && meshes[u.id].fogA < 1).map(u => u.id), labels: E.filter(u => u.alive && meshes[u.id] && meshes[u.id].label.style.display !== 'none').map(u => u.id), deadDrawn: E.filter(u => !u.alive && vis(u)).map(u => u.id), deadSeen: Object.assign({}, FOG.deadSeen), ghosts: Object.keys(FOG.ghosts).filter(id => FOG.ghosts[id].visible) }; },
     efx: () => EFX, rendu: () => RENDU,
+    // essais d'effets de balles : tir fictif (même chemin que les vrais : impact, vitre, plaque…), puis effets qui s'écoulent
+    fxShot: (ev) => { const imp = resolveImpact(ev); addShot(ev, unitById[ev.shooter].team, false, imp); impactSounds(ev, imp); return imp && imp.p ? { m: imp.matter, g: imp.glass && imp.glass.state, p: [imp.p.x, imp.p.y, imp.p.z].map(v => +v.toFixed(2)), o: imp.o && imp.o.name } : null; },
+    fxRun: (n, dt) => { for (let i = 0; i < n; i++) EFX.update(dt || 0.033, camera, null, scene.fog); render(); },
     look: (x, z, yaw, pitch, dist, y) => { setCamMode('free'); cam.follow = null; cam.init = false; cam.target.set(x, y === undefined ? 0.9 : y, z); cam.yaw = yaw; cam.pitch = pitch; cam.dist = dist; for (let i = 0; i < 30; i++) applyCamera(); render(); return 0; },
     spinWatch: (on) => { SPIN.on = on !== false; SPIN.events = []; SPIN.hist = {}; }, spins: () => SPIN.events,
     setSpeed: (k) => { speed = k; }, play: () => { paused = false; updatePlayButton(); },
